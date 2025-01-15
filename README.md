@@ -1,6 +1,6 @@
 # fg-gas-backend
 
-Core delivery platform Node.js Backend Template.
+Core delivery platform Node.js Backend Template. 
 
 - [Requirements](#requirements)
   - [Node.js](#nodejs)
