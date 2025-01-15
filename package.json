@@ -1,6 +1,6 @@
 {
-  "name": "cdp-node-backend-template",
-  "version": "0.1.0",
+  "name": "fg-gas-backend",
+  "version": "0.0.0",
   "description": "CDP Backend Template",
   "main": ".server/index.js",
   "type": "module",
