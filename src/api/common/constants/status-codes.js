@@ -1,6 +1,3 @@
-/**
- * @typedef {Record<string, number>} StatusCodes
- */
 export const statusCodes = {
   ok: 200,
   noContent: 204,

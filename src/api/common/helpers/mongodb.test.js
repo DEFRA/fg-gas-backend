@@ -1,10 +1,9 @@
 import { Db, MongoClient } from 'mongodb'
 import { LockManager } from 'mongo-locks'
 
-import { createServer } from '~/src/api/index.js'
+import { createServer } from '../../index.js'
 
 describe('#mongoDb', () => {
-  /** @type {Server} */
   let server
 
   describe('Set up', () => {

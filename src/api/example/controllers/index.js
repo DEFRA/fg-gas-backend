@@ -1,4 +1,4 @@
-import { exampleFindOneController } from '~/src/api/example/controllers/example-find-one.js'
-import { exampleFindAllController } from '~/src/api/example/controllers/example-find-all.js'
+import { exampleFindOneController } from './example-find-one.js'
+import { exampleFindAllController } from './example-find-all.js'
 
 export { exampleFindOneController, exampleFindAllController }

@@ -2,23 +2,12 @@ import { URL } from 'node:url'
 import { ProxyAgent } from 'undici'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
-import { config } from '~/src/config/index.js'
-import { createLogger } from '~/src/api/common/helpers/logging/logger.js'
+import { config } from '../../../config/index.js'
+import { createLogger } from './logging/logger.js'
 
 const logger = createLogger()
-/**
- * @typedef Proxy
- * @property {URL} url
- * @property {number} port
- * @property {ProxyAgent} proxyAgent
- * @property {HttpsProxyAgent<string>} httpAndHttpsProxyAgent
- */
 
-/**
- * Provide ProxyAgent and HttpsProxyAgent when http/s proxy url config has been set
- * @returns {Proxy|null}
- */
-function provideProxy() {
+function provideProxy () {
   const proxyUrl = config.get('httpsProxy') ?? config.get('httpProxy')
 
   if (!proxyUrl) {
@@ -45,13 +34,7 @@ function provideProxy() {
   }
 }
 
-/**
- * Provide fetch with dispatcher ProxyAgent when http/s proxy url config has been set
- * @param {string | URL } url
- * @param {RequestInit} options
- * @returns {Promise}
- */
-function proxyFetch(url, options) {
+function proxyFetch (url, options) {
   const proxy = provideProxy()
 
   if (!proxy) {
