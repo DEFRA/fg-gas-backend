@@ -1,8 +1,7 @@
-import { createServer } from '~/src/api/index.js'
-import { statusCodes } from '~/src/api/common/constants/status-codes.js'
+import { createServer } from '../index.js'
+import { statusCodes } from '../common/constants/status-codes.js'
 
 describe('#healthController', () => {
-  /** @type {Server} */
   let server
 
   beforeAll(async () => {
@@ -24,7 +23,3 @@ describe('#healthController', () => {
     expect(statusCode).toBe(statusCodes.ok)
   })
 })
-
-/**
- * @import { Server } from '@hapi/hapi'
- */
