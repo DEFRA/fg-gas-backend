@@ -1,25 +1,26 @@
+import { describe, it, before, after } from 'node:test'
+import { strict as assert } from 'node:assert'
 import { createServer } from '../index.js'
-import { statusCodes } from '../common/constants/status-codes.js'
 
 describe('#healthController', () => {
   let server
 
-  beforeAll(async () => {
+  before(async () => {
     server = await createServer()
     await server.initialize()
   })
 
-  afterAll(async () => {
+  after(async () => {
     await server.stop({ timeout: 0 })
   })
 
-  test('Should provide expected response', async () => {
+  it('Should provide expected response', async () => {
     const { result, statusCode } = await server.inject({
       method: 'GET',
       url: '/health'
     })
 
-    expect(result).toEqual({ message: 'success' })
-    expect(statusCode).toBe(statusCodes.ok)
+    assert.deepEqual(result, { message: 'success' })
+    assert.equal(statusCode, 200)
   })
 })
