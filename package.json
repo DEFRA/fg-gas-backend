@@ -10,6 +10,7 @@
   "scripts": {
     "build": "",
     "format:check": "npm run lint",
+    "predev": "docker compose up -d mongodb",
     "dev": "node --watch src/index.js",
     "dev:debug": "node --watch --inspect src/index.js",
     "git:pre-commit-hook": "npm run lint -- --fix && npm test",
@@ -28,6 +29,7 @@
     "@elastic/ecs-pino-format": "^1.5.0",
     "@hapi/boom": "^10.0.1",
     "@hapi/hapi": "^21.3.12",
+    "awilix": "^12.0.4",
     "convict": "^6.2.4",
     "hapi-pino": "^12.1.0",
     "hapi-pulse": "^3.0.1",
