@@ -1,22 +1,25 @@
+import { pino } from 'pino'
 import { ecsFormat } from '@elastic/ecs-pino-format'
-import { config } from '../../../../config/index.js'
 import { getTraceId } from '@defra/hapi-tracing'
+import { config } from './config.js'
 
 const logConfig = config.get('log')
-const serviceName = config.get('serviceName')
-const serviceVersion = config.get('serviceVersion')
 
-const formatters = {
+const format = {
   ecs: {
     ...ecsFormat({
-      serviceVersion,
-      serviceName
+      serviceVersion: config.get('serviceVersion'),
+      serviceName: config.get('serviceName')
     })
   },
-  'pino-pretty': { transport: { target: 'pino-pretty' } }
-}
+  'pino-pretty': {
+    transport: {
+      target: 'pino-pretty'
+    }
+  }
+}[logConfig.format]
 
-export const loggerOptions = {
+export const logger = pino({
   enabled: logConfig.enabled,
   ignorePaths: ['/health'],
   redact: {
@@ -24,14 +27,16 @@ export const loggerOptions = {
     remove: true
   },
   level: logConfig.level,
-  ...formatters[logConfig.format],
+  ...format,
   nesting: true,
   mixin () {
     const mixinValues = {}
     const traceId = getTraceId()
     if (traceId) {
-      mixinValues.trace = { id: traceId }
+      mixinValues.trace = {
+        id: traceId
+      }
     }
     return mixinValues
   }
-}
+})
