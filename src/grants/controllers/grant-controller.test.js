@@ -1,6 +1,8 @@
 import { describe, beforeEach, it } from 'node:test'
 import GrantController from './grant-controller.js'
 import { DomainError } from '../errors/domain-error.js'
+import GrantService from '../services/grant-service.js'
+import { mock } from '../../common/tests.js'
 
 describe('GrantController', () => {
   describe('getFromExternalEndpoint', () => {
@@ -8,10 +10,7 @@ describe('GrantController', () => {
     let grantController
 
     beforeEach(async () => {
-      grantService = {
-        getFromExternalEndpoint: async () => {}
-      }
-
+      grantService = mock(GrantService)
       grantController = new GrantController({
         grantService
       })
@@ -113,10 +112,7 @@ describe('GrantController', () => {
     let grantController
 
     beforeEach(async () => {
-      grantService = {
-        postToExternalEndpoint: async () => {}
-      }
-
+      grantService = mock(GrantService)
       grantController = new GrantController({
         grantService
       })

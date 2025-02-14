@@ -28,15 +28,15 @@ export default class GrantService {
       throw new DomainError(`Grant ${id} not found`)
     }
 
-    const service = grant.endpoints.find(
-      r => r.method === 'GET' && r.name === name
+    const endpoint = grant.endpoints.find(
+      e => e.method === 'GET' && e.name === name
     )
 
-    if (!service) {
+    if (!endpoint) {
       throw new DomainError(`Grant ${id} has no GET endpoint named '${name}'`)
     }
 
-    const url = `${service.url}?${new URLSearchParams({
+    const url = `${endpoint.url}?${new URLSearchParams({
       grantId: id
     })}`
 
@@ -56,15 +56,15 @@ export default class GrantService {
       throw new DomainError(`Grant ${id} not found`)
     }
 
-    const service = grant.endpoints.find(
-      r => r.method === 'POST' && r.name === name
+    const endpoint = grant.endpoints.find(
+      e => e.method === 'POST' && e.name === name
     )
 
-    if (!service) {
+    if (!endpoint) {
       throw new DomainError(`Grant ${id} has no POST endpoint named '${name}'`)
     }
 
-    return this.#httpClient.post(service.url, {
+    return this.#httpClient.post(endpoint.url, {
       headers: {
         grantId: id
       },

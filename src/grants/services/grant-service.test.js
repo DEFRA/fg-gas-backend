@@ -5,6 +5,7 @@ import GrantRepository from '../repositories/grant-repository.js'
 import Grant from '../entities/grant.js'
 import HttpClient from '../../common/http-client.js'
 import GrantEndpoint from '../entities/grant-endpoint.js'
+import { mock } from '../../common/tests.js'
 
 describe('GrantService', () => {
   describe('getFromExternalEndpoint', () => {
@@ -13,9 +14,8 @@ describe('GrantService', () => {
     let grantService
 
     beforeEach(() => {
-      httpClient = new HttpClient()
-      grantRepository = new GrantRepository()
-
+      httpClient = mock(HttpClient)
+      grantRepository = mock(GrantRepository)
       grantService = new GrantService({
         grantRepository,
         httpClient
@@ -92,9 +92,8 @@ describe('GrantService', () => {
     let grantService
 
     beforeEach(() => {
-      httpClient = new HttpClient()
-      grantRepository = new GrantRepository()
-
+      httpClient = mock(HttpClient)
+      grantRepository = mock(GrantRepository)
       grantService = new GrantService({
         grantRepository,
         httpClient
