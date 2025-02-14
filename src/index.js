@@ -1,13 +1,3 @@
-import process from 'node:process'
+import { App } from './common/app.js'
 
-import { createLogger } from './api/common/helpers/logging/logger.js'
-import { startServer } from './api/common/helpers/start-server.js'
-
-await startServer()
-
-process.on('unhandledRejection', error => {
-  const logger = createLogger()
-  logger.info('Unhandled rejection')
-  logger.error(error)
-  process.exitCode = 1
-})
+new App().run()
