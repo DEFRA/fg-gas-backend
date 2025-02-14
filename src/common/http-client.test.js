@@ -65,6 +65,7 @@ describe('HttpClient', () => {
       assert.deepEqual(response, null)
       mockAgent.assertNoPendingInterceptors()
     })
+
     it('throws HttpError when request cannot be made', async () => {
       mockAgent
         .get('https://example.com')
