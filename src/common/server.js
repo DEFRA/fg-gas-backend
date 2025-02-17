@@ -50,18 +50,6 @@ export default class Server {
         }
       }
     ]
-
-    this.#server.ext('onPreResponse', (request, h) => {
-      const { response } = request
-
-      if (!response.isBoom) {
-        return h.continue
-      }
-
-      request.logger.error(response.stack)
-
-      return h.response().code(response.statusCode)
-    })
   }
 
   addRoute (route) {
