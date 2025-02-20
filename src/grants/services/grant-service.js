@@ -1,6 +1,11 @@
-import GrantRepository from '../repositories/grant-repository.js' // eslint-disable-line no-unused-vars
-import HttpClient from '../../common/http-client.js' // eslint-disable-line no-unused-vars
-import { DomainError } from '../errors/domain-error.js'
+import { NotFoundError } from '../errors/not-found-error.js'
+import { ValidationError } from '../errors/validation-error.js'
+
+/**
+ * @import GrantRepository from '../repositories/grant-repository.js'
+ * @import HttpClient from '../../common/http-client.js'
+ * @import Grant from '../entities/grant.js'
+ */
 
 export default class GrantService {
   #grantRepository
@@ -17,51 +22,67 @@ export default class GrantService {
   }
 
   /**
-   * @param {string} id
-   * @param {string} name
-   * @return {Promise<*>}
+   * Create a new grant
+   * @param {Partial<Grant>} partialGrant
+   * @return {Promise<Grant>}
    */
-  async getFromExternalEndpoint (id, name) {
-    const grant = await this.#grantRepository.getById(id)
-
-    if (grant === null) {
-      throw new DomainError(`Grant ${id} not found`)
-    }
-
-    const endpoint = grant.endpoints.find(
-      e => e.method === 'GET' && e.name === name
-    )
-
-    if (!endpoint) {
-      throw new DomainError(`Grant ${id} has no GET endpoint named '${name}'`)
-    }
-
-    const url = `${endpoint.url}?${new URLSearchParams({
-      grantId: id
-    })}`
-
-    return this.#httpClient.get(url)
+  async create (partialGrant) {
+    return this.#grantRepository.create(partialGrant)
   }
 
   /**
-   * @param {string} id
-   * @param {string} name
-   * @param {Object} payload
-   * @return {Promise<*>}
+   * Get all grants
+   * @return {Promise<Grant[]>}
    */
-  async postToExternalEndpoint (id, name, payload) {
+  async getAll () {
+    return this.#grantRepository.getAll()
+  }
+
+  /**
+   * Get a grant by ID
+   * @param {string} id
+   * @return {Promise<Grant | null>}
+   */
+  async getById (id) {
+    return this.#grantRepository.getById(id)
+  }
+
+  /**
+   * Invoke a grant endpoint
+   * @param {string} id
+   * @param {string} httpMethod
+   * @param {string} name
+   * @return {Promise<*>}
+   * @throws {NotFoundError}
+   * @throws {ValidationError}
+   */
+  async invokeEndpoint (id, name, httpMethod, payload) {
+    const method = httpMethod.toUpperCase()
+
+    if (!['GET', 'POST'].includes(method)) {
+      throw new ValidationError(`Invalid method ${method}`)
+    }
+
     const grant = await this.#grantRepository.getById(id)
 
     if (grant === null) {
-      throw new DomainError(`Grant ${id} not found`)
+      throw new NotFoundError(`Grant ${id} not found`)
     }
 
     const endpoint = grant.endpoints.find(
-      e => e.method === 'POST' && e.name === name
+      e => e.method === method && e.name === name
     )
 
     if (!endpoint) {
-      throw new DomainError(`Grant ${id} has no POST endpoint named '${name}'`)
+      throw new ValidationError(`Grant ${id} has no GET endpoint named '${name}'`)
+    }
+
+    if (method === 'GET') {
+      const url = `${endpoint.url}?${new URLSearchParams({
+      grantId: id
+    })}`
+
+      return this.#httpClient.get(url)
     }
 
     return this.#httpClient.post(endpoint.url, {

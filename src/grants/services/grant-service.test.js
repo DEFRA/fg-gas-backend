@@ -2,13 +2,13 @@ import { describe, beforeEach, it } from 'node:test'
 import assert from 'node:assert/strict'
 import GrantService from './grant-service.js'
 import GrantRepository from '../repositories/grant-repository.js'
-import Grant from '../entities/grant.js'
+import { Grant } from '../entities/grant.js'
 import HttpClient from '../../common/http-client.js'
-import GrantEndpoint from '../entities/grant-endpoint.js'
+import { GrantEndpoint } from '../entities/grant-endpoint.js'
 import { mock } from '../../common/tests.js'
 
 describe('GrantService', () => {
-  describe('getFromExternalEndpoint', () => {
+  describe('create', () => {
     let grantRepository
     let httpClient
     let grantService
@@ -22,13 +22,124 @@ describe('GrantService', () => {
       })
     })
 
-    it('calls an external Grant endpoint', async t => {
-      t.mock.method(grantRepository, 'getById', async () =>
-        Grant.create({
+    it('creates a new grant', async t => {
+      t.mock.method(grantRepository, 'create', async () =>
+        new Grant({
           id: '1',
+          name: 'grant1'
+        })
+      )
+
+      const result = await grantService.create({ name: 'grant1' })
+
+      assert.deepEqual(result, new Grant({
+        id: '1',
+        name: 'grant1'
+      }))
+    })
+  })
+
+  describe('getAll', () => {
+    let grantRepository
+    let httpClient
+    let grantService
+
+    beforeEach(() => {
+      httpClient = mock(HttpClient)
+      grantRepository = mock(GrantRepository)
+      grantService = new GrantService({
+        grantRepository,
+        httpClient
+      })
+    })
+
+    it('returns all grants', async t => {
+      t.mock.method(grantRepository, 'getAll', async () => [
+        new Grant({
+          id: '1',
+          name: 'grant1'
+        }),
+        new Grant({
+          id: '2',
+          name: 'grant2'
+        })
+      ])
+
+      const result = await grantService.getAll()
+
+      assert.deepEqual(result, [
+        new Grant({
+          id: '1',
+          name: 'grant1'
+        }),
+        new Grant({
+          id: '2',
+          name: 'grant2'
+        })
+      ])
+    })
+  })
+
+  describe('getById', () => {
+    let grantRepository
+    let httpClient
+    let grantService
+
+    beforeEach(() => {
+      httpClient = mock(HttpClient)
+      grantRepository = mock(GrantRepository)
+      grantService = new GrantService({
+        grantRepository,
+        httpClient
+      })
+    })
+
+    it('returns matching grant', async t => {
+      t.mock.method(grantRepository, 'getById', async () =>
+        new Grant({
+          id: '1',
+          name: 'grant1'
+        })
+      )
+
+      const result = await grantService.getById('1')
+
+      assert.deepEqual(result, new Grant({
+        id: '1',
+        name: 'grant1'
+      }))
+    })
+
+    it('returns null when grant is not found', async t => {
+      t.mock.method(grantRepository, 'getById', async () => null)
+
+      const result = await grantService.getById('1')
+
+      assert.equal(result, null)
+    })
+  })
+
+  describe('invokeEndpoint', () => {
+    let grantRepository
+    let httpClient
+    let grantService
+
+    beforeEach(() => {
+      httpClient = mock(HttpClient)
+      grantRepository = mock(GrantRepository)
+      grantService = new GrantService({
+        grantRepository,
+        httpClient
+      })
+    })
+
+    it('calls an external GET endpoint', async t => {
+      t.mock.method(grantRepository, 'getById', async () =>
+        new Grant({
+          id: '1MTIzNDU2NzgxMjM0NTY3ODEyMzQ1Njc4',
           name: 'grant1',
           endpoints: [
-            GrantEndpoint.create({
+            new GrantEndpoint({
               name: 'eligibility',
               method: 'GET',
               url: 'https://example.com/data'
@@ -41,9 +152,10 @@ describe('GrantService', () => {
         hello: 'world'
       }))
 
-      const result = await grantService.getFromExternalEndpoint(
+      const result = await grantService.invokeEndpoint(
         '1',
-        'eligibility'
+        'eligibility',
+        'get'
       )
 
       assert.deepEqual(result, {
@@ -55,58 +167,13 @@ describe('GrantService', () => {
       ])
     })
 
-    it('throws DomainError when Grant not found', async t => {
-      t.mock.method(grantRepository, 'getById', async () => null)
-
-      await assert.rejects(
-        grantService.getFromExternalEndpoint('1', 'eligibility'),
-        {
-          name: 'DomainError',
-          message: 'Grant 1 not found'
-        }
-      )
-    })
-
-    it('throws DomainError when service not found', async t => {
-      t.mock.method(grantRepository, 'getById', async id =>
-        Grant.create({
-          id,
-          name: 'grant1',
-          endpoints: []
-        })
-      )
-
-      await assert.rejects(
-        grantService.getFromExternalEndpoint('1', 'eligibility'),
-        {
-          name: 'DomainError',
-          message: "Grant 1 has no GET endpoint named 'eligibility'"
-        }
-      )
-    })
-  })
-
-  describe('postToExternalEndpoint', () => {
-    let grantRepository
-    let httpClient
-    let grantService
-
-    beforeEach(() => {
-      httpClient = mock(HttpClient)
-      grantRepository = mock(GrantRepository)
-      grantService = new GrantService({
-        grantRepository,
-        httpClient
-      })
-    })
-
-    it('posts to an external Grant endpoint', async t => {
+    it('calls an external POST endpoint', async t => {
       t.mock.method(grantRepository, 'getById', async () =>
-        Grant.create({
-          id: '1',
+        new Grant({
+          id: '1MTIzNDU2NzgxMjM0NTY3ODEyMzQ1Njc4',
           name: 'grant1',
           endpoints: [
-            GrantEndpoint.create({
+            new GrantEndpoint({
               name: 'eligibility',
               method: 'POST',
               url: 'https://example.com/data'
@@ -119,12 +186,11 @@ describe('GrantService', () => {
         hello: 'world'
       }))
 
-      const result = await grantService.postToExternalEndpoint(
+      const result = await grantService.invokeEndpoint(
         '1',
         'eligibility',
-        {
-          hello: 'world'
-        }
+        'post',
+        { data: 'test' }
       )
 
       assert.deepEqual(result, {
@@ -137,30 +203,36 @@ describe('GrantService', () => {
           headers: {
             grantId: '1'
           },
-          payload: {
-            hello: 'world'
-          }
+          payload: { data: 'test' }
         }
       ])
     })
 
-    it('throws DomainError when Grant not found', async t => {
+    it('throws ValidationError when method is invalid', async t => {
+      await assert.rejects(
+        grantService.invokeEndpoint('1', 'eligibility', 'PUT'),
+        {
+          name: 'ValidationError',
+          message: 'Invalid method PUT'
+        }
+      )
+    })
+
+    it('throws NotFoundError when Grant not found', async t => {
       t.mock.method(grantRepository, 'getById', async () => null)
 
       await assert.rejects(
-        grantService.postToExternalEndpoint('1', 'eligibility', {
-          hello: 'world'
-        }),
+        grantService.invokeEndpoint('1', 'eligibility', 'get'),
         {
-          name: 'DomainError',
+          name: 'NotFoundError',
           message: 'Grant 1 not found'
         }
       )
     })
 
-    it('throws DomainError when service not found', async t => {
+    it('throws ValidationError when service not found', async t => {
       t.mock.method(grantRepository, 'getById', async id =>
-        Grant.create({
+        new Grant({
           id,
           name: 'grant1',
           endpoints: []
@@ -168,12 +240,10 @@ describe('GrantService', () => {
       )
 
       await assert.rejects(
-        grantService.postToExternalEndpoint('1', 'eligibility', {
-          hello: 'world'
-        }),
+        grantService.invokeEndpoint('1', 'eligibility', 'get'),
         {
-          name: 'DomainError',
-          message: "Grant 1 has no POST endpoint named 'eligibility'"
+          name: 'ValidationError',
+          message: "Grant 1 has no GET endpoint named 'eligibility'"
         }
       )
     })

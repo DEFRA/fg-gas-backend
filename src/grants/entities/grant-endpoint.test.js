@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import ValidationError from '../errors/validation-error.js'
-import GrantEndpoint from './grant-endpoint.js'
+import { ValidationError } from '../errors/validation-error.js'
+import { GrantEndpoint } from './grant-endpoint.js'
 
 describe('GrantEndpoint', () => {
   it('can be created with valid fields', () => {
@@ -23,7 +23,7 @@ describe('GrantEndpoint', () => {
         method: 'GET',
         url: 'https://example.com'
       })
-    }, new ValidationError('GrantEndpoint name is required'))
+    }, new ValidationError('GrantEndpoint "name" is required'))
   })
 
   it('cannot be created without a method', () => {
@@ -32,7 +32,7 @@ describe('GrantEndpoint', () => {
         name: 'grant1',
         url: 'https://example.com'
       })
-    }, new ValidationError('GrantEndpoint method is invalid. Got undefined'))
+    }, new ValidationError('GrantEndpoint "method" is required'))
   })
 
   it('cannot be created without a url', () => {
@@ -41,6 +41,6 @@ describe('GrantEndpoint', () => {
         name: 'grant1',
         method: 'GET'
       })
-    }, new ValidationError('GrantEndpoint url is required'))
+    }, new ValidationError('GrantEndpoint "url" is required'))
   })
 })

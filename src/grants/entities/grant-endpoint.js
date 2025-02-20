@@ -1,35 +1,30 @@
-import ValidationError from '../errors/validation-error.js'
+import Joi from 'joi'
+import { ValidationError } from '../errors/validation-error.js'
 
-export default class GrantEndpoint {
-  name
-  method
-  url
+export class GrantEndpoint {
+  static schema = Joi.object({
+    name: Joi.string().required(),
+    method: Joi.string().valid('GET', 'POST').required(),
+    url: Joi.string().required()
+  })
 
-  static validate (props) {
-    if (!props.name) {
-      throw new ValidationError('GrantEndpoint name is required')
-    }
-
-    if (props.method !== 'GET' && props.method !== 'POST') {
-      throw new ValidationError(
-        `GrantEndpoint method is invalid. Got ${props.method}`
-      )
-    }
-
-    if (!props.url) {
-      throw new ValidationError('GrantEndpoint url is required')
-    }
+  /**
+  * @param {Object} props
+  * @param {string} props.name
+  * @param {string} props.method
+  * @param {string} props.url
+  */
+  constructor (props) {
+    Object.assign(this, props)
   }
 
   static create (props) {
-    GrantEndpoint.validate(props)
+    const { error } = GrantEndpoint.schema.validate(props)
 
-    const endpoint = new GrantEndpoint()
+    if (error) {
+      throw new ValidationError(`GrantEndpoint ${error.message}`)
+    }
 
-    endpoint.name = props.name
-    endpoint.method = props.method
-    endpoint.url = props.url
-
-    return endpoint
+    return new GrantEndpoint(props)
   }
 }
