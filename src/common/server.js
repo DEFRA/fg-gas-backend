@@ -1,12 +1,21 @@
 import hapi from '@hapi/hapi'
 import hapiPino from 'hapi-pino'
-import { tracing } from '@defra/hapi-tracing'
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 export default class Server {
   #server
+  #logger
   #plugins
 
+  static #asyncLocalStorage = new AsyncLocalStorage()
+
+  static getTraceId () {
+    return Server.#asyncLocalStorage.getStore()?.get('traceId')
+  }
+
   constructor ({ config, logger }) {
+    this.#logger = logger
+
     this.#server = hapi.server({
       port: config.get('port'),
       routes: {
@@ -35,6 +44,19 @@ export default class Server {
       }
     })
 
+    this.#server.ext('onRequest', (request, h) => {
+      const traceId = request.headers['x-cdp-request-id'] || ''
+
+      const store = new Map()
+      store.set('traceId', traceId)
+
+      Server.#asyncLocalStorage.enterWith(store)
+
+      return h.continue
+    })
+
+    this.#server.ext('onPreResponse', this.#onPreResponse.bind(this))
+
     this.#plugins = [
       {
         plugin: hapiPino,
@@ -42,14 +64,34 @@ export default class Server {
           ignorePaths: ['/health'],
           instance: logger
         }
-      },
-      {
-        plugin: tracing.plugin,
-        options: {
-          tracingHeader: config.get('tracing.header')
-        }
       }
     ]
+  }
+
+  #onPreResponse (request, h) {
+    const response = request.response
+
+    if (!response.isBoom) {
+      return h.continue
+    }
+
+    this.#logger.error(response, `${response.name}: ${response.message}`)
+
+    const message = {
+      ValidationError: response.message,
+      NotFoundError: response.message
+    }[response.name] || 'Internal Server Error'
+
+    const code = {
+      ValidationError: 400,
+      NotFoundError: 404
+    }[response.name] || 500
+
+    return h.response({
+      error: {
+        message
+      }
+    }).code(code)
   }
 
   addRoute (route) {
