@@ -1,36 +1,31 @@
-import ValidationError from '../errors/validation-error.js'
-import GrantEndpoint from './grant-endpoint.js'
+import Joi from 'joi'
+import { ValidationError } from '../errors/validation-error.js'
+import { GrantEndpoint } from './grant-endpoint.js'
 
-export default class Grant {
-  id
-  name
-  endpoints = []
+export class Grant {
+  static schema = Joi.object({
+    id: Joi.string().base64().length(24),
+    name: Joi.string().required(),
+    endpoints: Joi.array().items(GrantEndpoint.schema).required()
+  })
 
-  static validate (props) {
-    if (!props.name) {
-      throw new ValidationError('Grant name is required')
-    }
-
-    const validEndpoints = props.endpoints.every(
-      r => r instanceof GrantEndpoint
-    )
-
-    if (!validEndpoints) {
-      throw new ValidationError(
-        'Grant endpoints must be instances of GrantEndpoint'
-      )
-    }
+  /**
+  * @param {Object} props
+  * @param {string} props.id
+  * @param {string} props.name
+  * @param {GrantEndpoint[]} props.endpoints
+  */
+  constructor (props) {
+    Object.assign(this, props)
   }
 
   static create (props) {
-    Grant.validate(props)
+    const { error } = Grant.schema.validate(props)
 
-    const grant = new Grant()
+    if (error) {
+      throw new ValidationError(`Grant ${error.message}`)
+    }
 
-    grant.id = props.id
-    grant.name = props.name
-    grant.endpoints = props.endpoints
-
-    return grant
+    return new Grant(props)
   }
 }
