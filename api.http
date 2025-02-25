@@ -1,0 +1,41 @@
+@base=http://localhost:3000
+
+### Create a Grant
+# @name createGrant
+POST {{base}}/grants
+Content-Type: application/json
+
+{
+  "name": "Grant 1",
+  "endpoints": [{
+    "name": "getPrices",
+    "url": "https://httpbin.org/anything",
+    "method": "GET"
+  }, {
+    "name": "calcTotals",
+    "url": "https://httpbin.org/post",
+    "method": "POST"
+  }]
+}
+
+### Get a Grant
+# @name getGrant
+GET {{base}}/grants/{{createGrant.response.body.id}}
+
+### Get all Grants
+# @name getGrants
+GET {{base}}/grants
+
+### Invoke external GET endpoint
+# @name invokeEndpoint
+GET {{base}}/grants/{{createGrant.response.body.id}}/endpoints/getPrices/invoke
+Content-Type: application/json
+
+### Invoke external POST endpoint
+# @name invokeEndpoint
+POST {{base}}/grants/{{createGrant.response.body.id}}/endpoints/calcTotals/invoke
+Content-Type: application/json
+
+{
+  "test": 1
+}
