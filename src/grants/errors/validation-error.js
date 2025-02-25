@@ -1,6 +1,6 @@
-export default class ValidationError extends Error {
+export class ValidationError extends Error {
   /**
-   * @param {string[]} reasons
+   * @param {string} reason
    */
   constructor (reason) {
     super(reason)

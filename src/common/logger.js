@@ -1,7 +1,7 @@
 import { pino } from 'pino'
 import { ecsFormat } from '@elastic/ecs-pino-format'
-import { getTraceId } from '@defra/hapi-tracing'
 import { config } from './config.js'
+import Server from './server.js'
 
 const logConfig = config.get('log')
 
@@ -31,7 +31,7 @@ export const logger = pino({
   nesting: true,
   mixin () {
     const mixinValues = {}
-    const traceId = getTraceId()
+    const traceId = Server.getTraceId()
     if (traceId) {
       mixinValues.trace = {
         id: traceId
