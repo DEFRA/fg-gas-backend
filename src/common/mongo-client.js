@@ -9,7 +9,6 @@ export default class MongoClient extends Client {
 
     if (cdpRootCa) {
       secureContext = tls.createSecureContext()
-      secureContext.context.addCACert(cdpRootCa)
     }
 
     super(config.get('mongoUri'), {
