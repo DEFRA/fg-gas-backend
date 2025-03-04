@@ -1,9 +1,9 @@
 import { pino } from 'pino'
 import { ecsFormat } from '@elastic/ecs-pino-format'
+import { getTraceId } from '@defra/hapi-tracing'
 import { config } from './config.js'
-import Server from './server.js'
 
-const logConfig = config.get('log')
+const log = config.get('log')
 
 const format = {
   ecs: {
@@ -17,21 +17,21 @@ const format = {
       target: 'pino-pretty'
     }
   }
-}[logConfig.format]
+}[log.format]
 
 export const logger = pino({
-  enabled: logConfig.enabled,
+  enabled: log.enabled,
   ignorePaths: ['/health'],
   redact: {
-    paths: logConfig.redact,
+    paths: log.redact,
     remove: true
   },
-  level: logConfig.level,
+  level: log.level,
   ...format,
   nesting: true,
   mixin () {
     const mixinValues = {}
-    const traceId = Server.getTraceId()
+    const traceId = getTraceId()
     if (traceId) {
       mixinValues.trace = {
         id: traceId
