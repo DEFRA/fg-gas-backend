@@ -124,13 +124,6 @@ const config = convict({
       default: 'x-cdp-request-id',
       env: 'TRACING_HEADER'
     }
-  },
-  cdpRootCa: {
-    doc: 'CDP Root CA',
-    format: String,
-    nullable: true,
-    default: null,
-    env: 'TRUSTSTORE_CDP_ROOT_CA'
   }
 })
 

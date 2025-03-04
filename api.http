@@ -20,7 +20,7 @@ Content-Type: application/json
 
 ### Get a Grant
 # @name getGrant
-GET {{base}}/grants/{{createGrant.response.body.id}}
+GET {{base}}/grants/{{createGrant.response.body.grantId}}
 
 ### Get all Grants
 # @name getGrants
@@ -28,12 +28,12 @@ GET {{base}}/grants
 
 ### Invoke external GET endpoint
 # @name invokeEndpoint
-GET {{base}}/grants/{{createGrant.response.body.id}}/endpoints/getPrices/invoke
+GET {{base}}/grants/{{createGrant.response.body.grantId}}/endpoints/getPrices/invoke
 Content-Type: application/json
 
 ### Invoke external POST endpoint
 # @name invokeEndpoint
-POST {{base}}/grants/{{createGrant.response.body.id}}/endpoints/calcTotals/invoke
+POST {{base}}/grants/{{createGrant.response.body.grantId}}/endpoints/calcTotals/invoke
 Content-Type: application/json
 
 {
