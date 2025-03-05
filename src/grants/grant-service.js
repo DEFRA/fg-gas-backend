@@ -1,5 +1,5 @@
 import Boom from '@hapi/boom'
-import { httpClient } from '../common/http-client.js'
+import { wreck } from '../common/wreck.js'
 import { grantRepository } from './grant-repository.js'
 import { Grant } from './grant.js'
 
@@ -48,7 +48,11 @@ export const grantService = {
       )
     }
 
-    return httpClient.get(`${endpoint.url}?grantId=${grantId}`)
+    const response = await wreck.get(`${endpoint.url}?grantId=${grantId}`, {
+      json: true
+    })
+
+    return response.payload
   },
 
   async invokePostEndpoint ({ grantId, name, payload }) {
@@ -72,11 +76,16 @@ export const grantService = {
       )
     }
 
-    return httpClient.post(endpoint.url, {
-      metadata: {
-        grantId
+    const response = await wreck.post(endpoint.url, {
+      payload: {
+        metadata: {
+          grantId
+        },
+        payload
       },
-      payload
+      json: true
     })
+
+    return response.payload
   }
 }
