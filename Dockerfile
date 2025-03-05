@@ -30,6 +30,7 @@ RUN apk update && \
 USER node
 
 COPY --from=development /home/node/package*.json ./
+COPY --from=development /home/node/scripts scripts
 COPY --from=development /home/node/src src
 
 RUN npm ci --omit=dev
@@ -38,4 +39,6 @@ ARG PORT
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 
-CMD [ "node", "." ]
+RUN chmod +x scripts/run.sh
+
+CMD [ "scripts/run.sh" ]
