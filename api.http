@@ -28,12 +28,12 @@ GET {{base}}/grants
 
 ### Invoke external GET endpoint
 # @name invokeEndpoint
-GET {{base}}/grants/{{createGrant.response.body.grantId}}/endpoints/getPrices/invoke
+GET {{base}}/grants/{{createGrant.response.body.grantId}}/endpoints/get-prices/invoke
 Content-Type: application/json
 
 ### Invoke external POST endpoint
 # @name invokeEndpoint
-POST {{base}}/grants/{{createGrant.response.body.grantId}}/endpoints/calcTotals/invoke
+POST {{base}}/grants/{{createGrant.response.body.grantId}}/endpoints/calc-totals/invoke
 Content-Type: application/json
 
 {
