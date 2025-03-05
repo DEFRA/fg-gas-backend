@@ -1,3 +1,4 @@
+import { ObjectId } from 'mongodb'
 import { db } from '../common/db.js'
 
 const toDocument = grant => ({
@@ -36,7 +37,7 @@ export const grantRepository = {
     const result = await db
       .collection(collection)
       .findOne({
-        _id: grantId
+        _id: new ObjectId(grantId)
       })
 
     return result && toGrant(result)
