@@ -8,11 +8,11 @@ Content-Type: application/json
 {
   "name": "Grant 1",
   "endpoints": [{
-    "name": "getPrices",
+    "name": "get-prices",
     "url": "https://httpbin.org/anything",
     "method": "GET"
   }, {
-    "name": "calcTotals",
+    "name": "calc-totals",
     "url": "https://httpbin.org/post",
     "method": "POST"
   }]
