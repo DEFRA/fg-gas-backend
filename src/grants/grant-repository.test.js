@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import { assert } from '../common/assert.js'
 import { db } from '../common/db.js'
 import { grantRepository } from './grant-repository.js'
+import { ObjectId } from 'mongodb'
 
 describe('grantRepository', () => {
   describe('add', () => {
@@ -96,7 +97,7 @@ describe('grantRepository', () => {
   describe('findById', () => {
     it('returns a Grant from the repository', async ({ mock }) => {
       const findOne = mock.fn(async () => ({
-        _id: '1',
+        _id: '67c8d9cbed26497691136292',
         name: 'test',
         endpoints: [{
           method: 'GET',
@@ -109,12 +110,14 @@ describe('grantRepository', () => {
         findOne
       }))
 
-      const result = await grantRepository.findById('1')
+      const result = await grantRepository.findById('67c8d9cbed26497691136292')
 
       assert.calledOnceWith(db.collection, 'grants')
-      assert.calledOnceWith(findOne, { _id: '1' })
+      assert.calledOnceWith(findOne, {
+        _id: new ObjectId('67c8d9cbed26497691136292')
+      })
       assert.deepEqual(result, {
-        grantId: '1',
+        grantId: '67c8d9cbed26497691136292',
         name: 'test',
         endpoints: [{
           method: 'GET',
