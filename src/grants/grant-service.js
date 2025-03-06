@@ -72,7 +72,7 @@ export const grantService = {
 
     if (!endpoint) {
       throw Boom.badRequest(
-        `Grant ${grantId} has no GET endpoint named '${name}'`
+        `Grant ${grantId} has no POST endpoint named '${name}'`
       )
     }
 
