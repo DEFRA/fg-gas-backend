@@ -250,7 +250,7 @@ describe('grantService', () => {
           name: 'test'
         }
       }), {
-        message: 'Grant 1 has no GET endpoint named \'test\''
+        message: 'Grant 1 has no POST endpoint named \'test\''
       })
 
       assert.notCalled(wreck.post)
