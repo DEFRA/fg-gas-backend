@@ -8,22 +8,9 @@ updates:
 
     # Group packages into shared PR
     groups:
-      build:
-        patterns:
-          - '@babel/*'
-          - 'autoprefixer'
-          - 'babel-plugin-module-resolver'
-          - 'babel-loader'
-          - 'babel-plugin-transform-import-meta'
-          - 'tsx'
-
       lint:
         patterns:
-          - '@typescript-eslint/*'
-          - 'prettier'
-          - 'stylelint'
-          - 'stylelint-*'
-          - 'typescript'
+          - 'standard'
 
       logging:
         patterns:
@@ -34,20 +21,8 @@ updates:
 
       tools:
         patterns:
-          - 'babel-jest'
           - 'husky'
-          - 'jest'
-          - 'nodemon'
-          - 'npm-run-all'
-
-      types:
-        patterns:
-          - '@types/*'
-
-    ignore:
-      - dependency-name: 'eslint-*'
-      - dependency-name: 'eslint'
-      - dependency-name: '@typescript-eslint/*'
+          - 'c8'
 
     # Schedule run every Monday, local time
     schedule:
