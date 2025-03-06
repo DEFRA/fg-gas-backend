@@ -10,7 +10,7 @@ services:
     restart: always
 
   gas:
-    build: ./
+    build: .
     ports:
       - '3001:3001'
     links:
@@ -24,6 +24,11 @@ services:
       MONGO_URI: mongodb://mongodb:27017/
     networks:
       - cdp-tenant
+    develop:
+      watch:
+        - path: ./src
+          target: ./src
+          action: rebuild
 
 volumes:
   mongodb-data:
