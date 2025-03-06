@@ -11,7 +11,6 @@ Grant Application Service defines and manages farming grants and applications. I
   - [Production](#production)
 - [API endpoints](#api-endpoints)
 - [Docker](#docker)
-  - [Development image](#development-image)
   - [Production image](#production-image)
   - [Docker Compose](#docker-compose)
 - [Licence](#licence)
@@ -66,20 +65,6 @@ npm run test
 
 ## Docker
 
-### Development image
-
-Build:
-
-```bash
-docker build --target development --no-cache --tag fg-gas-backend:development .
-```
-
-Run:
-
-```bash
-docker run -e PORT=3001 -p 3001:3001 fg-gas-backend:development
-```
-
 ### Production image
 
 Build:
@@ -99,10 +84,10 @@ docker run -e PORT=3001 -p 3001:3001 fg-gas-backend
 A local environment with:
 
 - MongoDB
-- This service.
+- Grant Application Service
 
 ```bash
-docker compose up --build -d
+docker compose up --watch
 ```
 
 ## Licence
