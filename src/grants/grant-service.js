@@ -77,12 +77,7 @@ export const grantService = {
     }
 
     const response = await wreck.post(endpoint.url, {
-      payload: {
-        metadata: {
-          grantId
-        },
-        payload
-      },
+      payload,
       json: true
     })
 

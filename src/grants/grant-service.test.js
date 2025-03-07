@@ -194,13 +194,8 @@ describe('grantService', () => {
 
       assert.calledOnceWith(wreck.post, 'http://localhost', {
         payload: {
-          metadata: {
-            grantId: '1'
-          },
-          payload: {
-            grantId: '1',
-            name: 'test'
-          }
+          grantId: '1',
+          name: 'test'
         },
         json: true
       })
