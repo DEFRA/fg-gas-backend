@@ -14,10 +14,11 @@ USER node
 
 COPY --chown=node:node package*.json ./
 COPY --chown=node:node scripts/run.sh scripts/run.sh
-COPY --chown=node:node src src
 
 RUN npm ci --omit=dev \
   chmod +x scripts/run.sh
+
+COPY --chown=node:node src src
 
 ARG PORT
 ENV PORT=${PORT}
