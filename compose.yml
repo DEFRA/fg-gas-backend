@@ -27,8 +27,8 @@ services:
     develop:
       watch:
         - path: ./src
-          target: ./src
-          action: rebuild
+          target: /home/node/src
+          action: sync+restart
 
 volumes:
   mongodb-data:
