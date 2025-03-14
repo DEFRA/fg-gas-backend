@@ -4,7 +4,7 @@ services:
     networks:
       - cdp-tenant
     ports:
-      - '27017:27017'
+      - "27017:27017"
     volumes:
       - mongodb-data:/data
     restart: always
@@ -12,9 +12,9 @@ services:
   gas:
     build: .
     ports:
-      - '3001:3001'
+      - "3001:3001"
     links:
-      - 'mongodb:mongodb'
+      - "mongodb:mongodb"
     depends_on:
       mongodb:
         condition: service_started

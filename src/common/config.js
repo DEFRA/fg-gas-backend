@@ -1,132 +1,132 @@
-import convict from 'convict'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import convict from "convict";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const dirname = path.dirname(fileURLToPath(import.meta.url))
+const dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const isProduction = process.env.NODE_ENV === 'production'
-const isDev = process.env.NODE_ENV === 'development'
-const isTest = process.env.NODE_ENV === 'test'
+const isProduction = process.env.NODE_ENV === "production";
+const isDev = process.env.NODE_ENV === "development";
+const isTest = process.env.NODE_ENV === "test";
 const config = convict({
   serviceVersion: {
-    doc: 'The service version, this variable is injected into your docker container in CDP environments',
+    doc: "The service version, this variable is injected into your docker container in CDP environments",
     format: String,
     nullable: true,
     default: null,
-    env: 'SERVICE_VERSION'
+    env: "SERVICE_VERSION",
   },
   env: {
-    doc: 'The application environment.',
-    format: ['production', 'development', 'test'],
-    default: 'development',
-    env: 'NODE_ENV'
+    doc: "The application environment.",
+    format: ["production", "development", "test"],
+    default: "development",
+    env: "NODE_ENV",
   },
   port: {
-    doc: 'The port to bind.',
-    format: 'port',
+    doc: "The port to bind.",
+    format: "port",
     default: 3000,
-    env: 'PORT'
+    env: "PORT",
   },
   serviceName: {
-    doc: 'Api Service Name',
+    doc: "Api Service Name",
     format: String,
-    default: 'fg-gas-backend'
+    default: "fg-gas-backend",
   },
   root: {
-    doc: 'Project root',
+    doc: "Project root",
     format: String,
-    default: path.resolve(dirname, '../..')
+    default: path.resolve(dirname, "../.."),
   },
   isProduction: {
-    doc: 'If this application running in the production environment',
+    doc: "If this application running in the production environment",
     format: Boolean,
-    default: isProduction
+    default: isProduction,
   },
   isDevelopment: {
-    doc: 'If this application running in the development environment',
+    doc: "If this application running in the development environment",
     format: Boolean,
-    default: isDev
+    default: isDev,
   },
   isTest: {
-    doc: 'If this application running in the test environment',
+    doc: "If this application running in the test environment",
     format: Boolean,
-    default: isTest
+    default: isTest,
   },
   log: {
     enabled: {
-      doc: 'Is logging enabled',
+      doc: "Is logging enabled",
       format: Boolean,
       default: !isTest,
-      env: 'LOG_ENABLED'
+      env: "LOG_ENABLED",
     },
     level: {
-      doc: 'Logging level',
-      format: ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'],
-      default: 'info',
-      env: 'LOG_LEVEL'
+      doc: "Logging level",
+      format: ["fatal", "error", "warn", "info", "debug", "trace", "silent"],
+      default: "info",
+      env: "LOG_LEVEL",
     },
     format: {
-      doc: 'Format to output logs in.',
-      format: ['ecs', 'pino-pretty'],
-      default: isProduction ? 'ecs' : 'pino-pretty',
-      env: 'LOG_FORMAT'
+      doc: "Format to output logs in.",
+      format: ["ecs", "pino-pretty"],
+      default: isProduction ? "ecs" : "pino-pretty",
+      env: "LOG_FORMAT",
     },
     redact: {
-      doc: 'Log paths to redact',
+      doc: "Log paths to redact",
       format: Array,
       default: isProduction
-        ? ['req.headers.authorization', 'req.headers.cookie', 'res.headers']
-        : ['req', 'res', 'responseTime']
-    }
+        ? ["req.headers.authorization", "req.headers.cookie", "res.headers"]
+        : ["req", "res", "responseTime"],
+    },
   },
   mongoUri: {
-    doc: 'URI for mongodb',
+    doc: "URI for mongodb",
     format: String,
-    default: 'mongodb://127.0.0.1:27017/',
-    env: 'MONGO_URI'
+    default: "mongodb://127.0.0.1:27017/",
+    env: "MONGO_URI",
   },
   mongoDatabase: {
-    doc: 'database for mongodb',
+    doc: "database for mongodb",
     format: String,
-    default: 'fg-gas-backend',
-    env: 'MONGO_DATABASE'
+    default: "fg-gas-backend",
+    env: "MONGO_DATABASE",
   },
   httpProxy: {
-    doc: 'HTTP Proxy',
+    doc: "HTTP Proxy",
     format: String,
     nullable: true,
     default: null,
-    env: 'CDP_HTTP_PROXY'
+    env: "CDP_HTTP_PROXY",
   },
   httpsProxy: {
-    doc: 'HTTPS Proxy',
+    doc: "HTTPS Proxy",
     format: String,
     nullable: true,
     default: null,
-    env: 'CDP_HTTPS_PROXY'
+    env: "CDP_HTTPS_PROXY",
   },
   isSecureContextEnabled: {
-    doc: 'Enable Secure Context',
+    doc: "Enable Secure Context",
     format: Boolean,
     default: isProduction,
-    env: 'ENABLE_SECURE_CONTEXT'
+    env: "ENABLE_SECURE_CONTEXT",
   },
   isMetricsEnabled: {
-    doc: 'Enable metrics reporting',
+    doc: "Enable metrics reporting",
     format: Boolean,
     default: isProduction,
-    env: 'ENABLE_METRICS'
+    env: "ENABLE_METRICS",
   },
   tracing: {
     header: {
-      doc: 'Which header to track',
+      doc: "Which header to track",
       format: String,
-      default: 'x-cdp-request-id',
-      env: 'TRACING_HEADER'
-    }
-  }
-})
+      default: "x-cdp-request-id",
+      env: "TRACING_HEADER",
+    },
+  },
+});
 
-config.validate({ allowed: 'strict' })
+config.validate({ allowed: "strict" });
 
-export { config }
+export { config };
