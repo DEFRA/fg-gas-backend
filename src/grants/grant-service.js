@@ -16,26 +16,26 @@ export const grantService = {
     return grantRepository.findAll()
   },
 
-  async findById (grantId) {
-    Grant.validateId(grantId)
+  async findByCode (code) {
+    Grant.validateCode(code)
 
-    const grant = await grantRepository.findById(grantId)
+    const grant = await grantRepository.findByCode(code)
 
     if (grant === null) {
-      throw Boom.notFound(`Grant ${grantId} not found`)
+      throw Boom.notFound(`Grant with code "${code}" not found`)
     }
 
     return grant
   },
 
-  async invokeGetEndpoint ({ grantId, name }) {
-    Grant.validateId(grantId)
+  async invokeGetEndpoint ({ code, name }) {
+    Grant.validateCode(code)
     Grant.validateEndpointName(name)
 
-    const grant = await grantRepository.findById(grantId)
+    const grant = await grantRepository.findByCode(code)
 
     if (grant === null) {
-      throw Boom.notFound(`Grant ${grantId} not found`)
+      throw Boom.notFound(`Grant with code "${code}" not found`)
     }
 
     const endpoint = grant.endpoints.find(
@@ -44,26 +44,26 @@ export const grantService = {
 
     if (!endpoint) {
       throw Boom.badRequest(
-        `Grant ${grantId} has no GET endpoint named '${name}'`
+        `Grant with code "${code}" has no GET endpoint named "${name}"`
       )
     }
 
-    const response = await wreck.get(`${endpoint.url}?grantId=${grantId}`, {
+    const response = await wreck.get(`${endpoint.url}?code=${code}`, {
       json: true
     })
 
     return response.payload
   },
 
-  async invokePostEndpoint ({ grantId, name, payload }) {
-    Grant.validateId(grantId)
+  async invokePostEndpoint ({ code, name, payload }) {
+    Grant.validateCode(code)
     Grant.validateEndpointName(name)
     Grant.validateEndpointPayload(payload)
 
-    const grant = await grantRepository.findById(grantId)
+    const grant = await grantRepository.findByCode(code)
 
     if (grant === null) {
-      throw Boom.notFound(`Grant ${grantId} not found`)
+      throw Boom.notFound(`Grant with code "${code}" not found`)
     }
 
     const endpoint = grant.endpoints.find(
@@ -72,7 +72,7 @@ export const grantService = {
 
     if (!endpoint) {
       throw Boom.badRequest(
-        `Grant ${grantId} has no POST endpoint named '${name}'`
+        `Grant with code "${code}" has no POST endpoint named "${name}"`
       )
     }
 

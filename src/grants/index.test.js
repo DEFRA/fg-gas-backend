@@ -16,7 +16,7 @@ describe('grantsPlugin', () => {
   describe('POST /grants', () => {
     it('creates a new grant and returns the id', async ({ mock }) => {
       mock.method(grantService, 'create', async props => ({
-        grantId: '1',
+        code: '1',
         ...props
       }))
 
@@ -37,7 +37,7 @@ describe('grantsPlugin', () => {
       assert.equal(statusCode, 201)
 
       assert.deepEqual(result, {
-        grantId: '1'
+        code: '1'
       })
     })
   })
@@ -46,13 +46,13 @@ describe('grantsPlugin', () => {
     it('returns all grants', async ({ mock }) => {
       mock.method(grantService, 'findAll', async () => [
         {
-          grantId: '1',
+          code: '1',
           name: 'test 1',
           endpoints: [],
           internal: 'this is private'
         },
         {
-          grantId: '2',
+          code: '2',
           name: 'test 2',
           endpoints: [],
           internal: 'this is private'
@@ -68,12 +68,12 @@ describe('grantsPlugin', () => {
 
       assert.deepEqual(result, [
         {
-          grantId: '1',
+          code: '1',
           name: 'test 1',
           endpoints: []
         },
         {
-          grantId: '2',
+          code: '2',
           name: 'test 2',
           endpoints: []
         }
@@ -81,10 +81,10 @@ describe('grantsPlugin', () => {
     })
   })
 
-  describe('GET /grants/{grantId}', () => {
+  describe('GET /grants/{code}', () => {
     it('returns matching grant', async ({ mock }) => {
-      mock.method(grantService, 'findById', async () => ({
-        grantId: '67c1d5d372de5936d94df74c',
+      mock.method(grantService, 'findByCode', async () => ({
+        code: 'adding-value',
         name: 'test 1',
         endpoints: [],
         internal: 'this is private'
@@ -92,20 +92,20 @@ describe('grantsPlugin', () => {
 
       const { statusCode, result } = await server.inject({
         method: 'GET',
-        url: '/grants/67c1d5d372de5936d94df74c'
+        url: '/grants/adding-value'
       })
 
       assert.equal(statusCode, 200)
 
       assert.deepEqual(result, {
-        grantId: '67c1d5d372de5936d94df74c',
+        code: 'adding-value',
         name: 'test 1',
         endpoints: []
       })
     })
   })
 
-  describe('GET /grants/{grantId}/endpoints/{name}/invoke', () => {
+  describe('GET /grants/{code}/endpoints/{name}/invoke', () => {
     it('returns response from endpoint', async ({ mock }) => {
       mock.method(grantService, 'invokeGetEndpoint', async () => ({
         arbitrary: 'result'
@@ -113,7 +113,7 @@ describe('grantsPlugin', () => {
 
       const { statusCode, result } = await server.inject({
         method: 'GET',
-        url: '/grants/67c1d5d372de5936d94df74c/endpoints/test/invoke'
+        url: '/grants/adding-value/endpoints/test/invoke'
       })
 
       assert.equal(statusCode, 200)
@@ -123,13 +123,13 @@ describe('grantsPlugin', () => {
       })
 
       assert.calledOnceWith(grantService.invokeGetEndpoint, {
-        grantId: '67c1d5d372de5936d94df74c',
+        code: 'adding-value',
         name: 'test'
       })
     })
   })
 
-  describe('POST /grants/{grantId}/endpoints/{name}/invoke', () => {
+  describe('POST /grants/{code}/endpoints/{name}/invoke', () => {
     it('returns response from endpoint', async ({ mock }) => {
       mock.method(grantService, 'invokePostEndpoint', async () => ({
         arbitrary: 'result'
@@ -137,9 +137,9 @@ describe('grantsPlugin', () => {
 
       const { statusCode, result } = await server.inject({
         method: 'POST',
-        url: '/grants/67c1d5d372de5936d94df74c/endpoints/test/invoke',
+        url: '/grants/adding-value/endpoints/test/invoke',
         payload: {
-          grantId: '67c1d5d372de5936d94df74c',
+          code: 'adding-value',
           name: 'test'
         }
       })
@@ -151,10 +151,10 @@ describe('grantsPlugin', () => {
       })
 
       assert.calledOnceWith(grantService.invokePostEndpoint, {
-        grantId: '67c1d5d372de5936d94df74c',
+        code: 'adding-value',
         name: 'test',
         payload: {
-          grantId: '67c1d5d372de5936d94df74c',
+          code: 'adding-value',
           name: 'test'
         }
       })
