@@ -1,8 +1,9 @@
 import { describe, it } from 'node:test'
+import Boom from '@hapi/boom'
+import { MongoServerError } from 'mongodb'
 import { assert } from '../common/assert.js'
 import { db } from '../common/db.js'
 import { grantRepository } from './grant-repository.js'
-import { ObjectId } from 'mongodb'
 
 describe('grantRepository', () => {
   describe('add', () => {
@@ -16,7 +17,7 @@ describe('grantRepository', () => {
       }))
 
       await grantRepository.add({
-        grantId: '1',
+        code: '1',
         name: 'test',
         endpoints: [{
           method: 'GET',
@@ -27,7 +28,7 @@ describe('grantRepository', () => {
 
       assert.calledOnceWith(db.collection, 'grants')
       assert.calledOnceWith(insertOne, {
-        _id: '1',
+        code: '1',
         name: 'test',
         endpoints: [{
           method: 'GET',
@@ -36,13 +37,55 @@ describe('grantRepository', () => {
         }]
       })
     })
+
+    it('throws Boom.conflict when a grant with same code already exists', async ({ mock }) => {
+      const insertOne = mock.fn(async () => {
+        const error = new MongoServerError('E11000 duplicate key error collection')
+        error.code = 11000
+        throw error
+      })
+
+      mock.method(db, 'collection', () => ({
+        insertOne
+      }))
+
+      await assert.rejects(grantRepository.add({
+        code: '1',
+        name: 'test',
+        endpoints: [{
+          method: 'GET',
+          name: 'test',
+          url: 'http://localhost'
+        }]
+      }), Boom.conflict('Grant with code "1" already exists'))
+    })
+
+    it('throws Boom.internal when an error occurs', async ({ mock }) => {
+      const insertOne = mock.fn(async () => {
+        throw new Error('test')
+      })
+
+      mock.method(db, 'collection', () => ({
+        insertOne
+      }))
+
+      await assert.rejects(grantRepository.add({
+        code: '1',
+        name: 'test',
+        endpoints: [{
+          method: 'GET',
+          name: 'test',
+          url: 'http://localhost'
+        }]
+      }), Boom.internal(new Error('test')))
+    })
   })
 
   describe('findAll', () => {
     it('returns all Grants from the repository', async ({ mock }) => {
       const toArray = mock.fn(async () => [
         {
-          _id: '1',
+          code: '1',
           name: 'test 1',
           endpoints: [{
             method: 'GET',
@@ -51,7 +94,7 @@ describe('grantRepository', () => {
           }]
         },
         {
-          _id: '2',
+          code: '2',
           name: 'test 2',
           endpoints: [{
             method: 'GET',
@@ -73,7 +116,7 @@ describe('grantRepository', () => {
       assert.calledOnce(toArray)
       assert.deepEqual(result, [
         {
-          grantId: '1',
+          code: '1',
           name: 'test 1',
           endpoints: [{
             method: 'GET',
@@ -82,7 +125,7 @@ describe('grantRepository', () => {
           }]
         },
         {
-          grantId: '2',
+          code: '2',
           name: 'test 2',
           endpoints: [{
             method: 'GET',
@@ -94,10 +137,10 @@ describe('grantRepository', () => {
     })
   })
 
-  describe('findById', () => {
+  describe('findByCode', () => {
     it('returns a Grant from the repository', async ({ mock }) => {
       const findOne = mock.fn(async () => ({
-        _id: '67c8d9cbed26497691136292',
+        code: 'adding-value',
         name: 'test',
         endpoints: [{
           method: 'GET',
@@ -110,14 +153,14 @@ describe('grantRepository', () => {
         findOne
       }))
 
-      const result = await grantRepository.findById('67c8d9cbed26497691136292')
+      const result = await grantRepository.findByCode('adding-value')
 
       assert.calledOnceWith(db.collection, 'grants')
       assert.calledOnceWith(findOne, {
-        _id: new ObjectId('67c8d9cbed26497691136292')
+        code: 'adding-value'
       })
       assert.deepEqual(result, {
-        grantId: '67c8d9cbed26497691136292',
+        code: 'adding-value',
         name: 'test',
         endpoints: [{
           method: 'GET',

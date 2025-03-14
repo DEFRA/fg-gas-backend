@@ -19,7 +19,7 @@ describe('grantService', () => {
       }
 
       mock.method(Grant, 'create', () => grant)
-      mock.method(grantRepository, 'add', async () => {})
+      mock.method(grantRepository, 'add', async () => { })
 
       const result = await grantService.create({
         name: 'test',
@@ -58,28 +58,28 @@ describe('grantService', () => {
     })
   })
 
-  describe('findById', () => {
+  describe('findByCode', () => {
     it('returns the grant from the repository', async ({ mock }) => {
       const grant = {
-        id: '1',
+        code: '1',
         name: 'test 1',
         endpoints: []
       }
 
-      mock.method(Grant, 'validateId', () => '1')
-      mock.method(grantRepository, 'findById', async () => grant)
+      mock.method(Grant, 'validateCode', () => '1')
+      mock.method(grantRepository, 'findByCode', async () => grant)
 
-      const result = await grantService.findById('1')
+      const result = await grantService.findByCode('1')
 
       assert.deepEqual(result, grant)
     })
 
     it('throws when the grant is not found', async ({ mock }) => {
-      mock.method(Grant, 'validateId', () => '1')
-      mock.method(grantRepository, 'findById', async () => null)
+      mock.method(Grant, 'validateCode', () => '1')
+      mock.method(grantRepository, 'findByCode', async () => null)
 
-      assert.rejects(grantService.findById('1'), {
-        message: 'Grant 1 not found'
+      assert.rejects(grantService.findByCode('1'), {
+        message: 'Grant with code "1" not found'
       })
     })
   })
@@ -96,9 +96,9 @@ describe('grantService', () => {
         }]
       }
 
-      mock.method(Grant, 'validateId', () => '1')
+      mock.method(Grant, 'validateCode', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
-      mock.method(grantRepository, 'findById', async () => grant)
+      mock.method(grantRepository, 'findByCode', async () => grant)
 
       const response = {
         arbitrary: 'response'
@@ -109,27 +109,27 @@ describe('grantService', () => {
       }))
 
       const result = await grantService.invokeGetEndpoint({
-        grantId: '1',
+        code: '1',
         name: 'test'
       })
 
-      assert.calledOnceWith(wreck.get, 'http://localhost?grantId=1', {
+      assert.calledOnceWith(wreck.get, 'http://localhost?code=1', {
         json: true
       })
       assert.deepEqual(result, response)
     })
 
     it('throws when the grant is not found', async ({ mock }) => {
-      mock.method(Grant, 'validateId', () => '1')
+      mock.method(Grant, 'validateCode', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
-      mock.method(grantRepository, 'findById', async () => null)
-      mock.method(wreck, 'get', async () => {})
+      mock.method(grantRepository, 'findByCode', async () => null)
+      mock.method(wreck, 'get', async () => { })
 
       assert.rejects(grantService.invokeGetEndpoint({
-        grantId: '1',
+        code: '1',
         name: 'test'
       }), {
-        message: 'Grant 1 not found'
+        message: 'Grant with code "1" not found'
       })
 
       assert.notCalled(wreck.get)
@@ -142,16 +142,16 @@ describe('grantService', () => {
         endpoints: []
       }
 
-      mock.method(Grant, 'validateId', () => '1')
+      mock.method(Grant, 'validateCode', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
-      mock.method(grantRepository, 'findById', async () => grant)
-      mock.method(wreck, 'get', async () => {})
+      mock.method(grantRepository, 'findByCode', async () => grant)
+      mock.method(wreck, 'get', async () => { })
 
       assert.rejects(grantService.invokeGetEndpoint({
-        grantId: '1',
+        code: '1',
         name: 'test'
       }), {
-        message: 'Grant 1 has no GET endpoint named \'test\''
+        message: 'Grant with code "1" has no GET endpoint named "test"'
       })
 
       assert.notCalled(wreck.get)
@@ -170,10 +170,10 @@ describe('grantService', () => {
         }]
       }
 
-      mock.method(Grant, 'validateId', () => '1')
+      mock.method(Grant, 'validateCode', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
-      mock.method(Grant, 'validateEndpointPayload', () => ({ grantId: '1', name: 'test' }))
-      mock.method(grantRepository, 'findById', async () => grant)
+      mock.method(Grant, 'validateEndpointPayload', () => ({ code: '1', name: 'test' }))
+      mock.method(grantRepository, 'findByCode', async () => grant)
 
       const response = {
         arbitrary: 'response'
@@ -184,17 +184,17 @@ describe('grantService', () => {
       }))
 
       const result = await grantService.invokePostEndpoint({
-        grantId: '1',
+        code: '1',
         name: 'test',
         payload: {
-          grantId: '1',
+          code: '1',
           name: 'test'
         }
       })
 
       assert.calledOnceWith(wreck.post, 'http://localhost', {
         payload: {
-          grantId: '1',
+          code: '1',
           name: 'test'
         },
         json: true
@@ -204,21 +204,21 @@ describe('grantService', () => {
     })
 
     it('throws when the grant is not found', async ({ mock }) => {
-      mock.method(Grant, 'validateId', () => '1')
+      mock.method(Grant, 'validateCode', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
-      mock.method(Grant, 'validateEndpointPayload', () => ({ grantId: '1', name: 'test' }))
-      mock.method(grantRepository, 'findById', async () => null)
-      mock.method(wreck, 'post', async () => {})
+      mock.method(Grant, 'validateEndpointPayload', () => ({ code: '1', name: 'test' }))
+      mock.method(grantRepository, 'findByCode', async () => null)
+      mock.method(wreck, 'post', async () => { })
 
       assert.rejects(grantService.invokePostEndpoint({
-        grantId: '1',
+        code: '1',
         name: 'test',
         payload: {
-          grantId: '1',
+          code: '1',
           name: 'test'
         }
       }), {
-        message: 'Grant 1 not found'
+        message: 'Grant with code "1" not found'
       })
 
       assert.notCalled(wreck.post)
@@ -231,21 +231,21 @@ describe('grantService', () => {
         endpoints: []
       }
 
-      mock.method(Grant, 'validateId', () => '1')
+      mock.method(Grant, 'validateCode', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
-      mock.method(Grant, 'validateEndpointPayload', () => ({ grantId: '1', name: 'test' }))
-      mock.method(grantRepository, 'findById', async () => grant)
-      mock.method(wreck, 'post', async () => {})
+      mock.method(Grant, 'validateEndpointPayload', () => ({ code: '1', name: 'test' }))
+      mock.method(grantRepository, 'findByCode', async () => grant)
+      mock.method(wreck, 'post', async () => { })
 
       assert.rejects(grantService.invokePostEndpoint({
-        grantId: '1',
+        code: '1',
         name: 'test',
         payload: {
-          grantId: '1',
+          code: '1',
           name: 'test'
         }
       }), {
-        message: 'Grant 1 has no POST endpoint named \'test\''
+        message: 'Grant with code "1" has no POST endpoint named "test"'
       })
 
       assert.notCalled(wreck.post)
@@ -253,7 +253,7 @@ describe('grantService', () => {
 
     it('throws when the payload is invalid', async ({ mock }) => {
       const grant = {
-        id: '1',
+        code: '1',
         name: 'Test',
         endpoints: [{
           method: 'POST',
@@ -262,19 +262,19 @@ describe('grantService', () => {
         }]
       }
 
-      mock.method(Grant, 'validateId', () => '1')
+      mock.method(Grant, 'validateCode', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
       mock.method(Grant, 'validateEndpointPayload', () => {
         throw new Error('Invalid request payload input')
       })
-      mock.method(grantRepository, 'findById', async () => grant)
-      mock.method(wreck, 'post', async () => {})
+      mock.method(grantRepository, 'findByCode', async () => grant)
+      mock.method(wreck, 'post', async () => { })
 
       assert.rejects(grantService.invokePostEndpoint({
-        grantId: '1',
+        code: '1',
         name: 'test',
         payload: {
-          grantId: '1'
+          code: '1'
         }
       }), {
         message: 'Invalid request payload input'

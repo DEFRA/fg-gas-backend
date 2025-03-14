@@ -7,6 +7,7 @@ describe('grant', () => {
     it('creates a grant with valid properties', () => {
       const grant = Grant.create({
         name: 'test grant',
+        code: 'test-code',
         endpoints: [
           {
             name: 'endpoint1',
@@ -16,7 +17,7 @@ describe('grant', () => {
         ]
       })
 
-      assert.ok(grant.grantId)
+      assert.equal(grant.code, 'test-code')
       assert.equal(grant.name, 'test grant')
       assert.deepEqual(grant.endpoints, [{
         name: 'endpoint1',
@@ -28,6 +29,7 @@ describe('grant', () => {
     it('throws when properties invalid', () => {
       const props = {
         name: '',
+        code: '',
         endpoints: [{
           name: 'endpoint1',
           method: 'INVALID',
@@ -41,14 +43,14 @@ describe('grant', () => {
     })
   })
 
-  describe('validateId', () => {
-    it('parses a valid grantId', () => {
-      assert.doesNotThrow(() => Grant.validateId('507f1f77bcf86cd799439011'))
+  describe('validateCode', () => {
+    it('parses a valid code', () => {
+      assert.doesNotThrow(() => Grant.validateCode('test-code'))
     })
 
-    it('throws an error for an invalid grantId', () => {
-      assert.throws(() => Grant.validateId('invalid-id'), {
-        message: '"grantId" must only contain hexadecimal characters'
+    it('throws an error for an invalid code', () => {
+      assert.throws(() => Grant.validateCode(''), {
+        message: '"code" is not allowed to be empty'
       })
     })
   })

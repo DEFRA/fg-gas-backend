@@ -1,6 +1,5 @@
 import Boom from '@hapi/boom'
 import Joi from 'joi'
-import { ObjectId } from 'mongodb'
 
 const endpointNameSchema = Joi.object({
   name: Joi.string().pattern(/^[a-z0-9-]+$/).min(1).max(30).required()
@@ -29,13 +28,16 @@ const endpointSchema = Joi.object({
     .required()
 })
 
-const idSchema = Joi.object({
-  grantId: Joi.string().hex().length(24)
+const codeSchema = Joi.object({
+  code: Joi.string().pattern(/^[a-z0-9-]+$/).min(1).max(500).required()
 })
 
-const createGrantSchema = Joi.object({
-  name: Joi.string().min(1).max(100).required()
-}).concat(endpointSchema)
+const createGrantSchema = Joi
+  .object({
+    name: Joi.string().min(1).max(500).required()
+  })
+  .concat(codeSchema)
+  .concat(endpointSchema)
 
 export const Grant = {
   create (props) {
@@ -46,7 +48,7 @@ export const Grant = {
     }
 
     return {
-      grantId: new ObjectId().toString(),
+      code: props.code,
       name: props.name,
       endpoints: props.endpoints.map(e => ({
         name: e.name,
@@ -56,12 +58,14 @@ export const Grant = {
     }
   },
 
-  validateId (grantId) {
-    const { error } = idSchema.validate({ grantId })
+  validateCode (code) {
+    const { error } = codeSchema.validate({ code })
 
     if (error) {
       throw Boom.badRequest(error)
     }
+
+    return code
   },
 
   validateEndpointName (name) {
