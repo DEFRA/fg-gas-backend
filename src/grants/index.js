@@ -14,7 +14,7 @@ export const grantsPlugin = {
 
         return h
           .response({
-            grantId: grant.grantId
+            code: grant.code
           })
           .code(201)
       }
@@ -27,7 +27,7 @@ export const grantsPlugin = {
         const grants = await grantService.findAll()
 
         return grants.map(grant => ({
-          grantId: grant.grantId,
+          code: grant.code,
           name: grant.name,
           endpoints: grant.endpoints
         }))
@@ -36,12 +36,12 @@ export const grantsPlugin = {
 
     server.route({
       method: 'GET',
-      path: '/grants/{grantId}',
+      path: '/grants/{code}',
       async handler (request, _h) {
-        const grant = await grantService.findById(request.params.grantId)
+        const grant = await grantService.findByCode(request.params.code)
 
         return {
-          grantId: grant.grantId,
+          code: grant.code,
           name: grant.name,
           endpoints: grant.endpoints
         }
@@ -50,10 +50,10 @@ export const grantsPlugin = {
 
     server.route({
       method: 'GET',
-      path: '/grants/{grantId}/endpoints/{name}/invoke',
+      path: '/grants/{code}/endpoints/{name}/invoke',
       async handler (request, _h) {
         const result = await grantService.invokeGetEndpoint({
-          grantId: request.params.grantId,
+          code: request.params.code,
           name: request.params.name
         })
 
@@ -63,10 +63,10 @@ export const grantsPlugin = {
 
     server.route({
       method: 'POST',
-      path: '/grants/{grantId}/endpoints/{name}/invoke',
+      path: '/grants/{code}/endpoints/{name}/invoke',
       async handler (request, _h) {
         const result = await grantService.invokePostEndpoint({
-          grantId: request.params.grantId,
+          code: request.params.code,
           name: request.params.name,
           payload: request.payload
         })

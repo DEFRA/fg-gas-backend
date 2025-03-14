@@ -7,6 +7,7 @@ Content-Type: application/json
 
 {
   "name": "Grant 1",
+  "code": "adding-value-2",
   "endpoints": [{
     "name": "get-prices",
     "url": "https://httpbin.org/anything",
@@ -20,7 +21,7 @@ Content-Type: application/json
 
 ### Get a Grant
 # @name getGrant
-GET {{base}}/grants/{{createGrant.response.body.grantId}}
+GET {{base}}/grants/{{createGrant.response.body.code}}
 
 ### Get all Grants
 # @name getGrants
@@ -28,12 +29,12 @@ GET {{base}}/grants
 
 ### Invoke external GET endpoint
 # @name invokeEndpoint
-GET {{base}}/grants/{{createGrant.response.body.grantId}}/endpoints/get-prices/invoke
+GET {{base}}/grants/{{createGrant.response.body.code}}/endpoints/get-prices/invoke
 Content-Type: application/json
 
 ### Invoke external POST endpoint
 # @name invokeEndpoint
-POST {{base}}/grants/{{createGrant.response.body.grantId}}/endpoints/calc-totals/invoke
+POST {{base}}/grants/{{createGrant.response.body.code}}/endpoints/calc-totals/invoke
 Content-Type: application/json
 
 {
