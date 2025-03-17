@@ -1,11 +1,11 @@
-import { grantService } from './grant-service.js'
-
 /**
  * @type {import('@hapi/hapi').Plugin<any>}
  */
 export const grantsPlugin = {
   name: 'grants',
-  async register (server) {
+  async register (server, options) {
+    const { grantService } = options
+
     server.route({
       method: 'POST',
       path: '/grants',
@@ -52,12 +52,10 @@ export const grantsPlugin = {
       method: 'GET',
       path: '/grants/{grantId}/endpoints/{name}/invoke',
       async handler (request, _h) {
-        const result = await grantService.invokeGetEndpoint({
+        return await grantService.invokeGetEndpoint({
           grantId: request.params.grantId,
           name: request.params.name
         })
-
-        return result
       }
     })
 
@@ -65,13 +63,11 @@ export const grantsPlugin = {
       method: 'POST',
       path: '/grants/{grantId}/endpoints/{name}/invoke',
       async handler (request, _h) {
-        const result = await grantService.invokePostEndpoint({
+        return await grantService.invokePostEndpoint({
           grantId: request.params.grantId,
           name: request.params.name,
           payload: request.payload
         })
-
-        return result
       }
     })
   }

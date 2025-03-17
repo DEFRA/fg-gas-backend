@@ -1,5 +1,4 @@
 import { ObjectId } from 'mongodb'
-import { db } from '../common/db.js'
 
 const toDocument = grant => ({
   _id: grant.grantId,
@@ -7,39 +6,41 @@ const toDocument = grant => ({
   endpoints: grant.endpoints
 })
 
-const toGrant = doc => ({
+export const toGrant = doc => ({
   grantId: doc._id.toString(),
   name: doc.name,
   endpoints: doc.endpoints
 })
 
-const collection = 'grants'
+export const grantsCollection = 'grants'
 
-export const grantRepository = {
-  async add (grant) {
-    const grantDocument = toDocument(grant)
+export const createGrantRepository = (db) => {
+  return {
+    async add (grant) {
+      const grantDocument = toDocument(grant)
 
-    await db
-      .collection(collection)
-      .insertOne(grantDocument)
-  },
+      await db
+        .collection(grantsCollection)
+        .insertOne(grantDocument)
+    },
 
-  async findAll () {
-    const results = await db
-      .collection(collection)
-      .find()
-      .toArray()
+    async findAll () {
+      const results = await db
+        .collection(grantsCollection)
+        .find()
+        .toArray()
 
-    return results.map(toGrant)
-  },
+      return results.map(toGrant)
+    },
 
-  async findById (grantId) {
-    const result = await db
-      .collection(collection)
-      .findOne({
-        _id: new ObjectId(grantId)
-      })
+    async findById (grantId) {
+      const result = await db
+        .collection(grantsCollection)
+        .findOne({
+          _id: new ObjectId(grantId)
+        })
 
-    return result && toGrant(result)
+      return result && toGrant(result)
+    }
   }
 }

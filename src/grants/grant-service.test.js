@@ -1,11 +1,17 @@
-import { describe, it } from 'node:test'
+import { describe, it, mock } from 'node:test'
 import { assert } from '../common/assert.js'
-import { grantRepository } from './grant-repository.js'
 import { wreck } from '../common/wreck.js'
 import { Grant } from './grant.js'
-import { grantService } from './grant-service.js'
+import { createGrantService } from './grant-service.js'
 
 describe('grantService', () => {
+  const grantRepositoryMock = {
+    add: mock.fn(),
+    findAll: mock.fn(),
+    findById: mock.fn()
+  }
+  const grantService = createGrantService(grantRepositoryMock)
+
   describe('create', () => {
     it('stores the grant in the repository', async ({ mock }) => {
       const grant = {
@@ -17,10 +23,8 @@ describe('grantService', () => {
           url: 'http://localhost'
         }]
       }
-
       mock.method(Grant, 'create', () => grant)
-      mock.method(grantRepository, 'add', async () => {})
-
+      grantRepositoryMock.add.mock.mockImplementationOnce(async () => {})
       const result = await grantService.create({
         name: 'test',
         endpoints: [{
@@ -29,14 +33,13 @@ describe('grantService', () => {
           url: 'http://localhost'
         }]
       })
-
-      assert.calledOnceWith(grantRepository.add, grant)
-      assert.deepEqual(result, grant)
+      assert.calledOnceWith(grantRepositoryMock.add, grant)
+      assert.deepStrictEqual(result, grant)
     })
   })
 
   describe('findAll', () => {
-    it('returns all grants from the repository', async ({ mock }) => {
+    it('returns all grants from the repository', async () => {
       const grants = [
         {
           id: '1',
@@ -49,12 +52,9 @@ describe('grantService', () => {
           endpoints: []
         }
       ]
-
-      mock.method(grantRepository, 'findAll', async () => grants)
-
+      grantRepositoryMock.findAll.mock.mockImplementationOnce(async () => grants)
       const result = await grantService.findAll()
-
-      assert.deepEqual(result, grants)
+      assert.deepStrictEqual(result, grants)
     })
   })
 
@@ -65,20 +65,16 @@ describe('grantService', () => {
         name: 'test 1',
         endpoints: []
       }
-
       mock.method(Grant, 'validateId', () => '1')
-      mock.method(grantRepository, 'findById', async () => grant)
-
+      grantRepositoryMock.findById.mock.mockImplementationOnce(async () => grant)
       const result = await grantService.findById('1')
-
-      assert.deepEqual(result, grant)
+      assert.deepStrictEqual(result, grant)
     })
 
     it('throws when the grant is not found', async ({ mock }) => {
       mock.method(Grant, 'validateId', () => '1')
-      mock.method(grantRepository, 'findById', async () => null)
-
-      assert.rejects(grantService.findById('1'), {
+      grantRepositoryMock.findById.mock.mockImplementationOnce(async () => null)
+      await assert.rejects(grantService.findById('1'), {
         message: 'Grant 1 not found'
       })
     })
@@ -95,43 +91,36 @@ describe('grantService', () => {
           url: 'http://localhost'
         }]
       }
-
       mock.method(Grant, 'validateId', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
-      mock.method(grantRepository, 'findById', async () => grant)
-
+      grantRepositoryMock.findById.mock.mockImplementationOnce(async () => grant)
       const response = {
         arbitrary: 'response'
       }
-
       mock.method(wreck, 'get', async () => ({
         payload: response
       }))
-
       const result = await grantService.invokeGetEndpoint({
         grantId: '1',
         name: 'test'
       })
-
       assert.calledOnceWith(wreck.get, 'http://localhost?grantId=1', {
         json: true
       })
-      assert.deepEqual(result, response)
+      assert.deepStrictEqual(result, response)
     })
 
     it('throws when the grant is not found', async ({ mock }) => {
       mock.method(Grant, 'validateId', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
-      mock.method(grantRepository, 'findById', async () => null)
       mock.method(wreck, 'get', async () => {})
-
-      assert.rejects(grantService.invokeGetEndpoint({
+      grantRepositoryMock.findById.mock.mockImplementationOnce(async () => null)
+      await assert.rejects(grantService.invokeGetEndpoint({
         grantId: '1',
         name: 'test'
       }), {
         message: 'Grant 1 not found'
       })
-
       assert.notCalled(wreck.get)
     })
 
@@ -141,19 +130,16 @@ describe('grantService', () => {
         name: 'Test',
         endpoints: []
       }
-
       mock.method(Grant, 'validateId', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
-      mock.method(grantRepository, 'findById', async () => grant)
       mock.method(wreck, 'get', async () => {})
-
-      assert.rejects(grantService.invokeGetEndpoint({
+      grantRepositoryMock.findById.mock.mockImplementationOnce(async () => grant)
+      await assert.rejects(grantService.invokeGetEndpoint({
         grantId: '1',
         name: 'test'
       }), {
         message: 'Grant 1 has no GET endpoint named \'test\''
       })
-
       assert.notCalled(wreck.get)
     })
   })
@@ -169,20 +155,16 @@ describe('grantService', () => {
           url: 'http://localhost'
         }]
       }
-
       mock.method(Grant, 'validateId', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
       mock.method(Grant, 'validateEndpointPayload', () => ({ grantId: '1', name: 'test' }))
-      mock.method(grantRepository, 'findById', async () => grant)
-
+      grantRepositoryMock.findById.mock.mockImplementationOnce(async () => grant)
       const response = {
         arbitrary: 'response'
       }
-
       mock.method(wreck, 'post', async () => ({
         payload: response
       }))
-
       const result = await grantService.invokePostEndpoint({
         grantId: '1',
         name: 'test',
@@ -191,7 +173,6 @@ describe('grantService', () => {
           name: 'test'
         }
       })
-
       assert.calledOnceWith(wreck.post, 'http://localhost', {
         payload: {
           grantId: '1',
@@ -199,18 +180,16 @@ describe('grantService', () => {
         },
         json: true
       })
-
-      assert.deepEqual(result, response)
+      assert.deepStrictEqual(result, response)
     })
 
     it('throws when the grant is not found', async ({ mock }) => {
       mock.method(Grant, 'validateId', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
       mock.method(Grant, 'validateEndpointPayload', () => ({ grantId: '1', name: 'test' }))
-      mock.method(grantRepository, 'findById', async () => null)
       mock.method(wreck, 'post', async () => {})
-
-      assert.rejects(grantService.invokePostEndpoint({
+      grantRepositoryMock.findById.mock.mockImplementationOnce(async () => null)
+      await assert.rejects(grantService.invokePostEndpoint({
         grantId: '1',
         name: 'test',
         payload: {
@@ -220,7 +199,6 @@ describe('grantService', () => {
       }), {
         message: 'Grant 1 not found'
       })
-
       assert.notCalled(wreck.post)
     })
 
@@ -230,14 +208,12 @@ describe('grantService', () => {
         name: 'Test',
         endpoints: []
       }
-
       mock.method(Grant, 'validateId', () => '1')
       mock.method(Grant, 'validateEndpointName', () => 'test')
       mock.method(Grant, 'validateEndpointPayload', () => ({ grantId: '1', name: 'test' }))
-      mock.method(grantRepository, 'findById', async () => grant)
       mock.method(wreck, 'post', async () => {})
-
-      assert.rejects(grantService.invokePostEndpoint({
+      grantRepositoryMock.findById.mock.mockImplementationOnce(async () => grant)
+      await assert.rejects(grantService.invokePostEndpoint({
         grantId: '1',
         name: 'test',
         payload: {
@@ -247,7 +223,6 @@ describe('grantService', () => {
       }), {
         message: 'Grant 1 has no POST endpoint named \'test\''
       })
-
       assert.notCalled(wreck.post)
     })
 
@@ -267,10 +242,9 @@ describe('grantService', () => {
       mock.method(Grant, 'validateEndpointPayload', () => {
         throw new Error('Invalid request payload input')
       })
-      mock.method(grantRepository, 'findById', async () => grant)
       mock.method(wreck, 'post', async () => {})
-
-      assert.rejects(grantService.invokePostEndpoint({
+      grantRepositoryMock.findById.mock.mockImplementationOnce(async () => grant)
+      await assert.rejects(grantService.invokePostEndpoint({
         grantId: '1',
         name: 'test',
         payload: {
@@ -279,7 +253,6 @@ describe('grantService', () => {
       }), {
         message: 'Invalid request payload input'
       })
-
       assert.notCalled(wreck.post)
     })
   })

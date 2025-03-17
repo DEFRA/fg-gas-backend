@@ -3,10 +3,12 @@ import hapiPino from 'hapi-pino'
 import hapiPulse from 'hapi-pulse'
 import { tracing } from '@defra/hapi-tracing'
 import { logger } from './common/logger.js'
-import { mongoClient } from './common/db.js'
 import { config } from './common/config.js'
 import { healthPlugin } from './health/index.js'
 import { grantsPlugin } from './grants/index.js'
+import { mongoPlugin } from './plugins/mongodb.js'
+import { createGrantRepository } from './grants/grant-repository.js'
+import { createGrantService } from './grants/grant-service.js'
 
 export const createServer = async () => {
   const server = hapi.server({
@@ -37,14 +39,6 @@ export const createServer = async () => {
     }
   })
 
-  server.events.on('start', async () => {
-    await mongoClient.connect()
-  })
-
-  server.events.on('stop', async () => {
-    await mongoClient.close(true)
-  })
-
   await server.register([
     {
       plugin: hapiPino,
@@ -65,10 +59,29 @@ export const createServer = async () => {
         logger,
         timeout: 10_000
       }
+    },
+    {
+      plugin: mongoPlugin,
+      options: {
+        uri: config.get('mongoUri'),
+        dbName: config.get('mongoDatabase')
+      }
+    },
+    {
+      plugin: healthPlugin
     }
   ])
 
-  await server.register([healthPlugin, grantsPlugin])
+  server.app.grantRepository = createGrantRepository(server.app.db)
+  server.app.grantService = createGrantService(server.app.grantRepository)
 
+  await server.register([
+    {
+      plugin: grantsPlugin,
+      options: {
+        grantService: server.app.grantService
+      }
+    }
+  ])
   return server
 }
