@@ -1,54 +1,47 @@
-import Boom from '@hapi/boom'
-import { MongoServerError } from 'mongodb'
-import { db } from '../common/db.js'
+import Boom from "@hapi/boom";
+import { MongoServerError } from "mongodb";
+import { db } from "../common/db.js";
 
-const toDocument = grant => ({
+const toDocument = (grant) => ({
   code: grant.code,
   name: grant.name,
-  endpoints: grant.endpoints
-})
+  endpoints: grant.endpoints,
+});
 
-const toGrant = doc => ({
+const toGrant = (doc) => ({
   code: doc.code,
   name: doc.name,
-  endpoints: doc.endpoints
-})
+  endpoints: doc.endpoints,
+});
 
-const collection = 'grants'
+const collection = "grants";
 
 export const grantRepository = {
-  async add (grant) {
-    const grantDocument = toDocument(grant)
+  async add(grant) {
+    const grantDocument = toDocument(grant);
 
     try {
-      await db
-        .collection(collection)
-        .insertOne(grantDocument)
+      await db.collection(collection).insertOne(grantDocument);
     } catch (error) {
       if (error instanceof MongoServerError && error.code === 11000) {
-        throw Boom.conflict(`Grant with code "${grant.code}" already exists`)
+        throw Boom.conflict(`Grant with code "${grant.code}" already exists`);
       }
 
-      throw Boom.internal(error)
+      throw Boom.internal(error);
     }
   },
 
-  async findAll () {
-    const results = await db
-      .collection(collection)
-      .find()
-      .toArray()
+  async findAll() {
+    const results = await db.collection(collection).find().toArray();
 
-    return results.map(toGrant)
+    return results.map(toGrant);
   },
 
-  async findByCode (code) {
-    const result = await db
-      .collection(collection)
-      .findOne({
-        code
-      })
+  async findByCode(code) {
+    const result = await db.collection(collection).findOne({
+      code,
+    });
 
-    return result && toGrant(result)
-  }
-}
+    return result && toGrant(result);
+  },
+};
