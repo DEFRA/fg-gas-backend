@@ -28,8 +28,11 @@ export const grantsPlugin = {
 
         return grants.map((grant) => ({
           code: grant.code,
-          name: grant.name,
-          endpoints: grant.endpoints,
+          metadata: {
+            description: grant.metadata.description,
+            startDate: grant.metadata.startDate,
+          },
+          actions: grant.actions,
         }));
       },
     });
@@ -42,17 +45,20 @@ export const grantsPlugin = {
 
         return {
           code: grant.code,
-          name: grant.name,
-          endpoints: grant.endpoints,
+          metadata: {
+            description: grant.metadata.description,
+            startDate: grant.metadata.startDate,
+          },
+          actions: grant.actions,
         };
       },
     });
 
     server.route({
       method: "GET",
-      path: "/grants/{code}/endpoints/{name}/invoke",
+      path: "/grants/{code}/actions/{name}/invoke",
       async handler(request, _h) {
-        const result = await grantService.invokeGetEndpoint({
+        const result = await grantService.invokeGetAction({
           code: request.params.code,
           name: request.params.name,
         });
@@ -63,9 +69,9 @@ export const grantsPlugin = {
 
     server.route({
       method: "POST",
-      path: "/grants/{code}/endpoints/{name}/invoke",
+      path: "/grants/{code}/actions/{name}/invoke",
       async handler(request, _h) {
-        const result = await grantService.invokePostEndpoint({
+        const result = await grantService.invokePostAction({
           code: request.params.code,
           name: request.params.name,
           payload: request.payload,

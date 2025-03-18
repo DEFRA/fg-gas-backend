@@ -15,29 +15,34 @@ describe("grantsPlugin", () => {
 
   describe("POST /grants", () => {
     it("creates a new grant and returns the id", async ({ mock }) => {
-      mock.method(grantService, "create", async (props) => ({
-        code: "1",
-        ...props,
-      }));
+      mock.method(grantService, "create", async (props) => props);
 
       const { statusCode, result } = await server.inject({
         method: "POST",
         url: "/grants",
         payload: {
-          name: "test",
-          endpoints: [],
+          code: "test",
+          metadata: {
+            description: "test",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          actions: [],
         },
       });
 
       assert.calledOnceWith(grantService.create, {
-        name: "test",
-        endpoints: [],
+        code: "test",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
       });
 
       assert.equal(statusCode, 201);
 
       assert.deepEqual(result, {
-        code: "1",
+        code: "test",
       });
     });
   });
@@ -47,14 +52,20 @@ describe("grantsPlugin", () => {
       mock.method(grantService, "findAll", async () => [
         {
           code: "1",
-          name: "test 1",
-          endpoints: [],
+          metadata: {
+            description: "test 1",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          actions: [],
           internal: "this is private",
         },
         {
           code: "2",
-          name: "test 2",
-          endpoints: [],
+          metadata: {
+            description: "test 2",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          actions: [],
           internal: "this is private",
         },
       ]);
@@ -69,13 +80,19 @@ describe("grantsPlugin", () => {
       assert.deepEqual(result, [
         {
           code: "1",
-          name: "test 1",
-          endpoints: [],
+          metadata: {
+            description: "test 1",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          actions: [],
         },
         {
           code: "2",
-          name: "test 2",
-          endpoints: [],
+          metadata: {
+            description: "test 2",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          actions: [],
         },
       ]);
     });
@@ -85,8 +102,11 @@ describe("grantsPlugin", () => {
     it("returns matching grant", async ({ mock }) => {
       mock.method(grantService, "findByCode", async () => ({
         code: "adding-value",
-        name: "test 1",
-        endpoints: [],
+        metadata: {
+          description: "test 1",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
         internal: "this is private",
       }));
 
@@ -99,21 +119,24 @@ describe("grantsPlugin", () => {
 
       assert.deepEqual(result, {
         code: "adding-value",
-        name: "test 1",
-        endpoints: [],
+        metadata: {
+          description: "test 1",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
       });
     });
   });
 
-  describe("GET /grants/{code}/endpoints/{name}/invoke", () => {
-    it("returns response from endpoint", async ({ mock }) => {
-      mock.method(grantService, "invokeGetEndpoint", async () => ({
+  describe("GET /grants/{code}/actions/{name}/invoke", () => {
+    it("returns response from action", async ({ mock }) => {
+      mock.method(grantService, "invokeGetAction", async () => ({
         arbitrary: "result",
       }));
 
       const { statusCode, result } = await server.inject({
         method: "GET",
-        url: "/grants/adding-value/endpoints/test/invoke",
+        url: "/grants/adding-value/actions/test/invoke",
       });
 
       assert.equal(statusCode, 200);
@@ -122,22 +145,22 @@ describe("grantsPlugin", () => {
         arbitrary: "result",
       });
 
-      assert.calledOnceWith(grantService.invokeGetEndpoint, {
+      assert.calledOnceWith(grantService.invokeGetAction, {
         code: "adding-value",
         name: "test",
       });
     });
   });
 
-  describe("POST /grants/{code}/endpoints/{name}/invoke", () => {
-    it("returns response from endpoint", async ({ mock }) => {
-      mock.method(grantService, "invokePostEndpoint", async () => ({
+  describe("POST /grants/{code}/actions/{name}/invoke", () => {
+    it("returns response from action", async ({ mock }) => {
+      mock.method(grantService, "invokePostAction", async () => ({
         arbitrary: "result",
       }));
 
       const { statusCode, result } = await server.inject({
         method: "POST",
-        url: "/grants/adding-value/endpoints/test/invoke",
+        url: "/grants/adding-value/actions/test/invoke",
         payload: {
           code: "adding-value",
           name: "test",
@@ -150,7 +173,7 @@ describe("grantsPlugin", () => {
         arbitrary: "result",
       });
 
-      assert.calledOnceWith(grantService.invokePostEndpoint, {
+      assert.calledOnceWith(grantService.invokePostAction, {
         code: "adding-value",
         name: "test",
         payload: {

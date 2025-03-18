@@ -4,14 +4,20 @@ import { db } from "../common/db.js";
 
 const toDocument = (grant) => ({
   code: grant.code,
-  name: grant.name,
-  endpoints: grant.endpoints,
+  metadata: {
+    description: grant.metadata.description,
+    startDate: grant.metadata.startDate,
+  },
+  actions: grant.actions,
 });
 
 export const toGrant = (doc) => ({
   code: doc.code,
-  name: doc.name,
-  endpoints: doc.endpoints,
+  metadata: {
+    description: doc.metadata.description,
+    startDate: doc.metadata.startDate,
+  },
+  actions: doc.actions,
 });
 
 export const collection = "grants";
