@@ -16,6 +16,7 @@
     "lint": "eslint",
     "format": "prettier . --ignore-unknown --list-different --write",
     "test": "c8 --all --src src node --test 'src/**/*.test.*'",
+    "it": "node --test-timeout 60000 --test test/*.test.*",
     "test:watch": "node --watch --test './src/**/*.test.*'",
     "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module"
   },
@@ -46,6 +47,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.5.0",
     "neostandard": "^0.12.1",
-    "prettier": "^3.5.3"
+    "prettier": "^3.5.3",
+    "testcontainers": "^10.20.0"
   }
 }
