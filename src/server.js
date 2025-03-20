@@ -51,11 +51,12 @@ export const createServer = async () => {
       return h.continue;
     }
 
-    const traceId =
-      request.headers["x-cdp-request-id"] ||
-      crypto.randomUUID().replaceAll("-", "");
+    const tracingHeader = config.get("tracing.header");
 
-    request.response.header("x-cdp-request-id", traceId);
+    const traceId =
+      request.headers[tracingHeader] || crypto.randomUUID().replaceAll("-", "");
+
+    request.response.header(tracingHeader, traceId);
 
     return h.continue;
   });
