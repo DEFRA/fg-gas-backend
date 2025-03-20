@@ -1,87 +1,87 @@
-import hapi from '@hapi/hapi'
-import hapiPino from 'hapi-pino'
-import hapiPulse from 'hapi-pulse'
-import { tracing } from '@defra/hapi-tracing'
-import { logger } from './common/logger.js'
-import { mongoClient } from './common/db.js'
-import { config } from './common/config.js'
-import { healthPlugin } from './health/index.js'
-import { grantsPlugin } from './grants/index.js'
-import { v4 as uuidv4 } from 'uuid'
+import hapi from "@hapi/hapi";
+import hapiPino from "hapi-pino";
+import hapiPulse from "hapi-pulse";
+import { tracing } from "@defra/hapi-tracing";
+import { logger } from "./common/logger.js";
+import { mongoClient } from "./common/db.js";
+import { config } from "./common/config.js";
+import { healthPlugin } from "./health/index.js";
+import { grantsPlugin } from "./grants/index.js";
+import { v4 as uuidv4 } from "uuid";
 
 export const createServer = async () => {
   const server = hapi.server({
-    port: config.get('port'),
+    port: config.get("port"),
     routes: {
       validate: {
         options: {
-          abortEarly: false
+          abortEarly: false,
         },
         failAction: async (_request, _h, error) => {
-          logger.warn(error, error?.message)
-          throw error
-        }
+          logger.warn(error, error?.message);
+          throw error;
+        },
       },
       security: {
         hsts: {
           maxAge: 31536000,
           includeSubDomains: true,
-          preload: false
+          preload: false,
         },
-        xss: 'enabled',
+        xss: "enabled",
         noSniff: true,
-        xframe: true
-      }
+        xframe: true,
+      },
     },
     router: {
-      stripTrailingSlash: true
-    }
-  })
+      stripTrailingSlash: true,
+    },
+  });
 
-  server.events.on('start', async () => {
-    await mongoClient.connect()
-  })
+  server.events.on("start", async () => {
+    await mongoClient.connect();
+  });
 
-  server.events.on('stop', async () => {
-    await mongoClient.close(true)
-  })
+  server.events.on("stop", async () => {
+    await mongoClient.close(true);
+  });
 
-  server.ext('onPreResponse', (request, h) => {
+  server.ext("onPreResponse", (request, h) => {
     if (!request.response.header) {
-      return h.continue
+      return h.continue;
     }
 
-    const traceId = request.headers['x-cdp-request-id'] || uuidv4()
+    const traceId = request.headers["x-cdp-request-id"] || uuidv4();
 
-    request.response.header('x-cdp-request-id', traceId)
+    request.response.header("x-cdp-request-id", traceId);
 
-    return h.continue
-  })
+    return h.continue;
+  });
 
   await server.register([
     {
       plugin: hapiPino,
       options: {
-        ignorePaths: ['/health'],
-        instance: logger
-      }
+        ignorePaths: ["/health"],
+        instance: logger,
+      },
     },
     {
       plugin: tracing.plugin,
       options: {
-        tracingHeader: config.get('tracing.header')
-      }
+        tracingHeader: config.get("tracing.header"),
+      },
     },
     {
       plugin: hapiPulse,
       options: {
         logger,
-        timeout: 10_000
-      }
-    }
-  ])
+        timeout: 10_000,
+      },
+    },
+  ]);
 
-  await server.register([healthPlugin, grantsPlugin])
+  await server.register([healthPlugin, grantsPlugin]);
 
-  return server
-}
+  return server;
+};

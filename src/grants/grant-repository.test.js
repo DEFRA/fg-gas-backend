@@ -1,173 +1,203 @@
-import { describe, it } from 'node:test'
-import Boom from '@hapi/boom'
-import { MongoServerError } from 'mongodb'
-import { assert } from '../common/assert.js'
-import { db } from '../common/db.js'
-import { grantRepository } from './grant-repository.js'
+import { describe, it } from "node:test";
+import Boom from "@hapi/boom";
+import { MongoServerError } from "mongodb";
+import { assert } from "../common/assert.js";
+import { db } from "../common/db.js";
+import { grantRepository } from "./grant-repository.js";
 
-describe('grantRepository', () => {
-  describe('add', () => {
-    it('stores a Grant in the repository', async ({ mock }) => {
+describe("grantRepository", () => {
+  describe("add", () => {
+    it("stores a Grant in the repository", async ({ mock }) => {
       const insertOne = mock.fn(async () => ({
-        insertedId: '1'
-      }))
+        insertedId: "1",
+      }));
 
-      mock.method(db, 'collection', () => ({
-        insertOne
-      }))
+      mock.method(db, "collection", () => ({
+        insertOne,
+      }));
 
       await grantRepository.add({
-        code: '1',
-        name: 'test',
-        endpoints: [{
-          method: 'GET',
-          name: 'test',
-          url: 'http://localhost'
-        }]
-      })
+        code: "1",
+        name: "test",
+        endpoints: [
+          {
+            method: "GET",
+            name: "test",
+            url: "http://localhost",
+          },
+        ],
+      });
 
-      assert.calledOnceWith(db.collection, 'grants')
+      assert.calledOnceWith(db.collection, "grants");
       assert.calledOnceWith(insertOne, {
-        code: '1',
-        name: 'test',
-        endpoints: [{
-          method: 'GET',
-          name: 'test',
-          url: 'http://localhost'
-        }]
-      })
-    })
+        code: "1",
+        name: "test",
+        endpoints: [
+          {
+            method: "GET",
+            name: "test",
+            url: "http://localhost",
+          },
+        ],
+      });
+    });
 
-    it('throws Boom.conflict when a grant with same code already exists', async ({ mock }) => {
+    it("throws Boom.conflict when a grant with same code already exists", async ({
+      mock,
+    }) => {
       const insertOne = mock.fn(async () => {
-        const error = new MongoServerError('E11000 duplicate key error collection')
-        error.code = 11000
-        throw error
-      })
+        const error = new MongoServerError(
+          "E11000 duplicate key error collection",
+        );
+        error.code = 11000;
+        throw error;
+      });
 
-      mock.method(db, 'collection', () => ({
-        insertOne
-      }))
+      mock.method(db, "collection", () => ({
+        insertOne,
+      }));
 
-      await assert.rejects(grantRepository.add({
-        code: '1',
-        name: 'test',
-        endpoints: [{
-          method: 'GET',
-          name: 'test',
-          url: 'http://localhost'
-        }]
-      }), Boom.conflict('Grant with code "1" already exists'))
-    })
+      await assert.rejects(
+        grantRepository.add({
+          code: "1",
+          name: "test",
+          endpoints: [
+            {
+              method: "GET",
+              name: "test",
+              url: "http://localhost",
+            },
+          ],
+        }),
+        Boom.conflict('Grant with code "1" already exists'),
+      );
+    });
 
-    it('throws Boom.internal when an error occurs', async ({ mock }) => {
+    it("throws Boom.internal when an error occurs", async ({ mock }) => {
       const insertOne = mock.fn(async () => {
-        throw new Error('test')
-      })
+        throw new Error("test");
+      });
 
-      mock.method(db, 'collection', () => ({
-        insertOne
-      }))
+      mock.method(db, "collection", () => ({
+        insertOne,
+      }));
 
-      await assert.rejects(grantRepository.add({
-        code: '1',
-        name: 'test',
-        endpoints: [{
-          method: 'GET',
-          name: 'test',
-          url: 'http://localhost'
-        }]
-      }), Boom.internal(new Error('test')))
-    })
-  })
+      await assert.rejects(
+        grantRepository.add({
+          code: "1",
+          name: "test",
+          endpoints: [
+            {
+              method: "GET",
+              name: "test",
+              url: "http://localhost",
+            },
+          ],
+        }),
+        Boom.internal(new Error("test")),
+      );
+    });
+  });
 
-  describe('findAll', () => {
-    it('returns all Grants from the repository', async ({ mock }) => {
+  describe("findAll", () => {
+    it("returns all Grants from the repository", async ({ mock }) => {
       const toArray = mock.fn(async () => [
         {
-          code: '1',
-          name: 'test 1',
-          endpoints: [{
-            method: 'GET',
-            name: 'test',
-            url: 'http://localhost'
-          }]
+          code: "1",
+          name: "test 1",
+          endpoints: [
+            {
+              method: "GET",
+              name: "test",
+              url: "http://localhost",
+            },
+          ],
         },
         {
-          code: '2',
-          name: 'test 2',
-          endpoints: [{
-            method: 'GET',
-            name: 'test',
-            url: 'http://localhost'
-          }]
-        }
-      ])
+          code: "2",
+          name: "test 2",
+          endpoints: [
+            {
+              method: "GET",
+              name: "test",
+              url: "http://localhost",
+            },
+          ],
+        },
+      ]);
 
-      mock.method(db, 'collection', () => ({
+      mock.method(db, "collection", () => ({
         find: () => ({
-          toArray
-        })
-      }))
+          toArray,
+        }),
+      }));
 
-      const result = await grantRepository.findAll()
+      const result = await grantRepository.findAll();
 
-      assert.calledOnceWith(db.collection, 'grants')
-      assert.calledOnce(toArray)
+      assert.calledOnceWith(db.collection, "grants");
+      assert.calledOnce(toArray);
       assert.deepEqual(result, [
         {
-          code: '1',
-          name: 'test 1',
-          endpoints: [{
-            method: 'GET',
-            name: 'test',
-            url: 'http://localhost'
-          }]
+          code: "1",
+          name: "test 1",
+          endpoints: [
+            {
+              method: "GET",
+              name: "test",
+              url: "http://localhost",
+            },
+          ],
         },
         {
-          code: '2',
-          name: 'test 2',
-          endpoints: [{
-            method: 'GET',
-            name: 'test',
-            url: 'http://localhost'
-          }]
-        }
-      ])
-    })
-  })
+          code: "2",
+          name: "test 2",
+          endpoints: [
+            {
+              method: "GET",
+              name: "test",
+              url: "http://localhost",
+            },
+          ],
+        },
+      ]);
+    });
+  });
 
-  describe('findByCode', () => {
-    it('returns a Grant from the repository', async ({ mock }) => {
+  describe("findByCode", () => {
+    it("returns a Grant from the repository", async ({ mock }) => {
       const findOne = mock.fn(async () => ({
-        code: 'adding-value',
-        name: 'test',
-        endpoints: [{
-          method: 'GET',
-          name: 'test',
-          url: 'http://localhost'
-        }]
-      }))
+        code: "adding-value",
+        name: "test",
+        endpoints: [
+          {
+            method: "GET",
+            name: "test",
+            url: "http://localhost",
+          },
+        ],
+      }));
 
-      mock.method(db, 'collection', () => ({
-        findOne
-      }))
+      mock.method(db, "collection", () => ({
+        findOne,
+      }));
 
-      const result = await grantRepository.findByCode('adding-value')
+      const result = await grantRepository.findByCode("adding-value");
 
-      assert.calledOnceWith(db.collection, 'grants')
+      assert.calledOnceWith(db.collection, "grants");
       assert.calledOnceWith(findOne, {
-        code: 'adding-value'
-      })
+        code: "adding-value",
+      });
       assert.deepEqual(result, {
-        code: 'adding-value',
-        name: 'test',
-        endpoints: [{
-          method: 'GET',
-          name: 'test',
-          url: 'http://localhost'
-        }]
-      })
-    })
-  })
-})
+        code: "adding-value",
+        name: "test",
+        endpoints: [
+          {
+            method: "GET",
+            name: "test",
+            url: "http://localhost",
+          },
+        ],
+      });
+    });
+  });
+});

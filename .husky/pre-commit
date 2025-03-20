@@ -1,1 +1,1 @@
-npm run git:pre-commit-hook
+npx lint-staged

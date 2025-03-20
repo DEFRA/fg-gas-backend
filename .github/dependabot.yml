@@ -10,25 +10,25 @@ updates:
     groups:
       lint:
         patterns:
-          - 'standard'
+          - "standard"
 
       logging:
         patterns:
-          - '*-pino'
-          - '*-pino-format'
-          - 'pino'
-          - 'pino-*'
+          - "*-pino"
+          - "*-pino-format"
+          - "pino"
+          - "pino-*"
 
       tools:
         patterns:
-          - 'husky'
-          - 'c8'
+          - "husky"
+          - "c8"
 
     # Schedule run every Monday, local time
     schedule:
       interval: weekly
-      time: '10:30'
-      timezone: 'Europe/London'
+      time: "10:30"
+      timezone: "Europe/London"
 
     versioning-strategy: increase
 
@@ -43,5 +43,5 @@ updates:
     # Schedule run every Monday, local time
     schedule:
       interval: weekly
-      time: '10:30'
-      timezone: 'Europe/London'
+      time: "10:30"
+      timezone: "Europe/London"
