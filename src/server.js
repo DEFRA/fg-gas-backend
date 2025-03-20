@@ -7,7 +7,7 @@ import { mongoClient } from "./common/db.js";
 import { config } from "./common/config.js";
 import { healthPlugin } from "./health/index.js";
 import { grantsPlugin } from "./grants/index.js";
-import { v4 as uuidv4 } from "uuid";
+import crypto from "crypto";
 
 export const createServer = async () => {
   const server = hapi.server({
@@ -51,7 +51,9 @@ export const createServer = async () => {
       return h.continue;
     }
 
-    const traceId = request.headers["x-cdp-request-id"] || uuidv4();
+    const traceId =
+      request.headers["x-cdp-request-id"] ||
+      crypto.randomUUID().replaceAll("-", "");
 
     request.response.header("x-cdp-request-id", traceId);
 
