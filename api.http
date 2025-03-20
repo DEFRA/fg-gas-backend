@@ -1,5 +1,3 @@
-@base=http://localhost:3000
-
 ### Create a Grant
 # @name createGrant
 POST {{base}}/grants
