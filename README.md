@@ -76,7 +76,7 @@ docker build --no-cache --tag fg-gas-backend .
 Run:
 
 ```bash
-docker run -e PORT=3001 -p 3001:3001 fg-gas-backend
+docker run -e PORT=3000 -p 3000:3000 fg-gas-backend
 ```
 
 ### Docker Compose

@@ -12,14 +12,14 @@ services:
   gas:
     build: .
     ports:
-      - '3001:3001'
+      - '3000:3000'
     links:
       - 'mongodb:mongodb'
     depends_on:
       mongodb:
         condition: service_started
     environment:
-      PORT: 3001
+      PORT: 3000
       NODE_ENV: development
       MONGO_URI: mongodb://mongodb:27017/
     networks:
