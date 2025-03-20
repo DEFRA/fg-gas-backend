@@ -8,13 +8,13 @@ const toDocument = (grant) => ({
   endpoints: grant.endpoints,
 });
 
-const toGrant = (doc) => ({
+export const toGrant = (doc) => ({
   code: doc.code,
   name: doc.name,
   endpoints: doc.endpoints,
 });
 
-const collection = "grants";
+export const collection = "grants";
 
 export const grantRepository = {
   async add(grant) {
