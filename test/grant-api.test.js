@@ -8,7 +8,7 @@ import { grant1, grant2 } from "./fixtures/grants.js";
 import { collection as grantsCollection } from "../src/grants/grant-repository.js";
 
 describe("Grant API Tests", () => {
-  const PORT = 3000;
+  const PORT = 3001;
   const MONGO_PORT = 28017;
   let appUrl;
   let environment;
