@@ -45,6 +45,16 @@ export const createServer = async () => {
     await mongoClient.close(true)
   })
 
+  server.ext('onPreResponse', (request, h) => {
+    const requestId = request.headers['x-cdp-request-id']
+
+    if (requestId && request.response.header) {
+      request.response.header('x-cdp-request-id', requestId)
+    }
+
+    return h.continue
+  })
+
   await server.register([
     {
       plugin: hapiPino,
