@@ -7,6 +7,7 @@ import { mongoClient } from './common/db.js'
 import { config } from './common/config.js'
 import { healthPlugin } from './health/index.js'
 import { grantsPlugin } from './grants/index.js'
+import { v4 as uuidv4 } from 'uuid'
 
 export const createServer = async () => {
   const server = hapi.server({
@@ -46,11 +47,13 @@ export const createServer = async () => {
   })
 
   server.ext('onPreResponse', (request, h) => {
-    const requestId = request.headers['x-cdp-request-id']
-
-    if (requestId && request.response.header) {
-      request.response.header('x-cdp-request-id', requestId)
+    if (!request.response.header) {
+      return h.continue
     }
+
+    const traceId = request.headers['x-cdp-request-id'] || uuidv4()
+
+    request.response.header('x-cdp-request-id', traceId)
 
     return h.continue
   })
