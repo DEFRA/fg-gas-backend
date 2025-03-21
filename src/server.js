@@ -7,7 +7,6 @@ import { mongoClient } from "./common/db.js";
 import { config } from "./common/config.js";
 import { healthPlugin } from "./health/index.js";
 import { grantsPlugin } from "./grants/index.js";
-import crypto from "crypto";
 
 export const createServer = async () => {
   const server = hapi.server({
@@ -44,21 +43,6 @@ export const createServer = async () => {
 
   server.events.on("stop", async () => {
     await mongoClient.close(true);
-  });
-
-  server.ext("onPreResponse", (request, h) => {
-    if (!request.response.header) {
-      return h.continue;
-    }
-
-    const tracingHeader = config.get("tracing.header");
-
-    const traceId =
-      request.headers[tracingHeader] || crypto.randomUUID().replaceAll("-", "");
-
-    request.response.header(tracingHeader, traceId);
-
-    return h.continue;
   });
 
   await server.register([
