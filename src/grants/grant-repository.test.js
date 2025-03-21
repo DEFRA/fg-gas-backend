@@ -141,6 +141,7 @@ describe("grantRepository", () => {
               url: "http://localhost",
             },
           ],
+          questions: undefined,
         },
       ]);
 
@@ -168,6 +169,7 @@ describe("grantRepository", () => {
               url: "http://localhost",
             },
           ],
+          questions: undefined,
         },
         {
           code: "2",
@@ -182,6 +184,7 @@ describe("grantRepository", () => {
               url: "http://localhost",
             },
           ],
+          questions: undefined,
         },
       ]);
     });
@@ -202,6 +205,7 @@ describe("grantRepository", () => {
             url: "http://localhost",
           },
         ],
+        questions: undefined,
       }));
 
       mock.method(db, "collection", () => ({
@@ -227,6 +231,7 @@ describe("grantRepository", () => {
             url: "http://localhost",
           },
         ],
+        questions: undefined,
       });
     });
   });

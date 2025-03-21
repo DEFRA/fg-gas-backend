@@ -31,12 +31,16 @@ describe("Grant API Tests", () => {
         payload: grant1,
       });
       assert.equal(postResponse.res.statusCode, 201);
-      assert.deepEqual(postResponse.payload, { code: "e2e-code1" });
+      assert.deepEqual(postResponse.payload, { code: "test-code-1" });
 
       const results = await db.collection(grantsCollection).find().toArray();
       assert.equal(results.length, 1);
       assert.equal(results[0].code, grant1.code);
-      assert.equal(results[0].metadata.name, grant1.metadata.name);
+      assert.equal(
+        results[0].metadata.description,
+        grant1.metadata.description,
+      );
+      assert.equal(results[0].metadata.startDate, grant1.metadata.startDate);
       assert.deepEqual(results[0].actions, grant1.actions);
     });
   });
@@ -54,8 +58,8 @@ describe("Grant API Tests", () => {
       });
       assert.equal(getResponse.res.statusCode, 200);
       assert.equal(getResponse.payload.length, 2);
-      assert.equal(getResponse.payload[0].code, "e2e-code1");
-      assert.equal(getResponse.payload[1].code, "e2e-code2");
+      assert.equal(getResponse.payload[0].code, "test-code-1");
+      assert.equal(getResponse.payload[1].code, "test-code-2");
     });
   });
 
@@ -68,13 +72,13 @@ describe("Grant API Tests", () => {
       await db.collection(grantsCollection).insertMany([grant1, grant2]);
 
       const getResponse = await Wreck.get(
-        `${global.APP_URL}/grants/e2e-code2`,
+        `${global.APP_URL}/grants/test-code-2`,
         {
           json: true,
         },
       );
       assert.equal(getResponse.res.statusCode, 200);
-      assert.equal(getResponse.payload.code, "e2e-code2");
+      assert.equal(getResponse.payload.code, "test-code-2");
     });
   });
 });
