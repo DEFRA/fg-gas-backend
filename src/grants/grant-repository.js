@@ -18,6 +18,7 @@ export const toGrant = (doc) => ({
     startDate: doc.metadata.startDate,
   },
   actions: doc.actions,
+  questions: doc.questions,
 });
 
 export const collection = "grants";
