@@ -4,17 +4,24 @@ POST {{base}}/grants
 Content-Type: application/json
 
 {
-  "name": "Grant 1",
-  "code": "adding-value-2",
-  "endpoints": [{
-    "name": "get-prices",
-    "url": "https://httpbin.org/anything",
-    "method": "GET"
-  }, {
-    "name": "calc-totals",
-    "url": "https://httpbin.org/post",
-    "method": "POST"
-  }]
+  "code": "laying-hen-housing",
+  "metadata": {
+    "description": "Laying Hen Housing for Health and Welfare",
+    "startDate": "2026-01-01T00:00:00Z"
+  },
+  "actions": [
+    {
+      "name": "get-prices",
+      "url": "https://httpbin.org/anything",
+      "method": "GET"
+    },
+    {
+      "name": "calc-totals",
+      "url": "https://httpbin.org/post",
+      "method": "POST"
+    }
+  ],
+  "questions": []
 }
 
 ### Get a Grant
@@ -25,14 +32,14 @@ GET {{base}}/grants/{{createGrant.response.body.code}}
 # @name getGrants
 GET {{base}}/grants
 
-### Invoke external GET endpoint
-# @name invokeEndpoint
-GET {{base}}/grants/{{createGrant.response.body.code}}/endpoints/get-prices/invoke
+### Invoke external GET action
+# @name invokeGetAction
+GET {{base}}/grants/{{createGrant.response.body.code}}/actions/get-prices/invoke
 Content-Type: application/json
 
-### Invoke external POST endpoint
-# @name invokeEndpoint
-POST {{base}}/grants/{{createGrant.response.body.code}}/endpoints/calc-totals/invoke
+### Invoke external POST action
+# @name invokePostAction
+POST {{base}}/grants/{{createGrant.response.body.code}}/actions/calc-totals/invoke
 Content-Type: application/json
 
 {

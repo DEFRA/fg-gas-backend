@@ -11,7 +11,7 @@ describe("grantService", () => {
       const grant = {
         id: "1",
         name: "test",
-        endpoints: [
+        actions: [
           {
             method: "GET",
             name: "test",
@@ -25,7 +25,7 @@ describe("grantService", () => {
 
       const result = await grantService.create({
         name: "test",
-        endpoints: [
+        actions: [
           {
             method: "GET",
             name: "test",
@@ -45,12 +45,12 @@ describe("grantService", () => {
         {
           id: "1",
           name: "test 1",
-          endpoints: [],
+          actions: [],
         },
         {
           id: "2",
           name: "test 2",
-          endpoints: [],
+          actions: [],
         },
       ];
 
@@ -67,10 +67,10 @@ describe("grantService", () => {
       const grant = {
         code: "1",
         name: "test 1",
-        endpoints: [],
+        actions: [],
       };
 
-      mock.method(Grant, "validateCode", () => "1");
+      mock.method(Grant, "validateCode");
       mock.method(grantRepository, "findByCode", async () => grant);
 
       const result = await grantService.findByCode("1");
@@ -79,7 +79,7 @@ describe("grantService", () => {
     });
 
     it("throws when the grant is not found", async ({ mock }) => {
-      mock.method(Grant, "validateCode", () => "1");
+      mock.method(Grant, "validateCode");
       mock.method(grantRepository, "findByCode", async () => null);
 
       assert.rejects(grantService.findByCode("1"), {
@@ -88,23 +88,19 @@ describe("grantService", () => {
     });
   });
 
-  describe("invokeGetEndpoint", () => {
-    it("invokes the GET endpoint", async ({ mock }) => {
-      const grant = {
-        id: "1",
-        name: "test",
-        endpoints: [
+  describe("invokeGetAction", () => {
+    it("invokes the GET action", async ({ mock }) => {
+      mock.method(Grant, "validateCode");
+      mock.method(Grant, "validateActionName");
+      mock.method(grantRepository, "findByCode", async () => ({
+        actions: [
           {
             method: "GET",
             name: "test",
             url: "http://localhost",
           },
         ],
-      };
-
-      mock.method(Grant, "validateCode", () => "1");
-      mock.method(Grant, "validateEndpointName", () => "test");
-      mock.method(grantRepository, "findByCode", async () => grant);
+      }));
 
       const response = {
         arbitrary: "response",
@@ -114,7 +110,7 @@ describe("grantService", () => {
         payload: response,
       }));
 
-      const result = await grantService.invokeGetEndpoint({
+      const result = await grantService.invokeGetAction({
         code: "1",
         name: "test",
       });
@@ -126,13 +122,13 @@ describe("grantService", () => {
     });
 
     it("throws when the grant is not found", async ({ mock }) => {
-      mock.method(Grant, "validateCode", () => "1");
-      mock.method(Grant, "validateEndpointName", () => "test");
+      mock.method(Grant, "validateCode");
+      mock.method(Grant, "validateActionName");
       mock.method(grantRepository, "findByCode", async () => null);
       mock.method(wreck, "get", async () => {});
 
       assert.rejects(
-        grantService.invokeGetEndpoint({
+        grantService.invokeGetAction({
           code: "1",
           name: "test",
         }),
@@ -144,25 +140,23 @@ describe("grantService", () => {
       assert.notCalled(wreck.get);
     });
 
-    it("throws when the endpoint is not found", async ({ mock }) => {
-      const grant = {
+    it("throws when the action is not found", async ({ mock }) => {
+      mock.method(Grant, "validateCode");
+      mock.method(Grant, "validateActionName");
+      mock.method(grantRepository, "findByCode", async () => ({
         id: "1",
         name: "Test",
-        endpoints: [],
-      };
-
-      mock.method(Grant, "validateCode", () => "1");
-      mock.method(Grant, "validateEndpointName", () => "test");
-      mock.method(grantRepository, "findByCode", async () => grant);
+        actions: [],
+      }));
       mock.method(wreck, "get", async () => {});
 
       assert.rejects(
-        grantService.invokeGetEndpoint({
+        grantService.invokeGetAction({
           code: "1",
           name: "test",
         }),
         {
-          message: 'Grant with code "1" has no GET endpoint named "test"',
+          message: 'Grant with code "1" has no GET action named "test"',
         },
       );
 
@@ -170,27 +164,20 @@ describe("grantService", () => {
     });
   });
 
-  describe("invokePostEndpoint", () => {
-    it("invokes the POST endpoint", async ({ mock }) => {
-      const grant = {
-        id: "1",
-        name: "test",
-        endpoints: [
+  describe("invokePostAction", () => {
+    it("invokes the POST action", async ({ mock }) => {
+      mock.method(Grant, "validateCode");
+      mock.method(Grant, "validateActionName");
+      mock.method(Grant, "validateActionPayload");
+      mock.method(grantRepository, "findByCode", async () => ({
+        actions: [
           {
             method: "POST",
             name: "test",
             url: "http://localhost",
           },
         ],
-      };
-
-      mock.method(Grant, "validateCode", () => "1");
-      mock.method(Grant, "validateEndpointName", () => "test");
-      mock.method(Grant, "validateEndpointPayload", () => ({
-        code: "1",
-        name: "test",
       }));
-      mock.method(grantRepository, "findByCode", async () => grant);
 
       const response = {
         arbitrary: "response",
@@ -200,7 +187,7 @@ describe("grantService", () => {
         payload: response,
       }));
 
-      const result = await grantService.invokePostEndpoint({
+      const result = await grantService.invokePostAction({
         code: "1",
         name: "test",
         payload: {
@@ -221,17 +208,14 @@ describe("grantService", () => {
     });
 
     it("throws when the grant is not found", async ({ mock }) => {
-      mock.method(Grant, "validateCode", () => "1");
-      mock.method(Grant, "validateEndpointName", () => "test");
-      mock.method(Grant, "validateEndpointPayload", () => ({
-        code: "1",
-        name: "test",
-      }));
+      mock.method(Grant, "validateCode");
+      mock.method(Grant, "validateActionName");
+      mock.method(Grant, "validateActionPayload");
       mock.method(grantRepository, "findByCode", async () => null);
       mock.method(wreck, "post", async () => {});
 
       assert.rejects(
-        grantService.invokePostEndpoint({
+        grantService.invokePostAction({
           code: "1",
           name: "test",
           payload: {
@@ -247,24 +231,19 @@ describe("grantService", () => {
       assert.notCalled(wreck.post);
     });
 
-    it("throws when the endpoint is not found", async ({ mock }) => {
-      const grant = {
+    it("throws when the action is not found", async ({ mock }) => {
+      mock.method(Grant, "validateCode");
+      mock.method(Grant, "validateActionName");
+      mock.method(Grant, "validateActionPayload");
+      mock.method(grantRepository, "findByCode", async () => ({
         id: "1",
         name: "Test",
-        endpoints: [],
-      };
-
-      mock.method(Grant, "validateCode", () => "1");
-      mock.method(Grant, "validateEndpointName", () => "test");
-      mock.method(Grant, "validateEndpointPayload", () => ({
-        code: "1",
-        name: "test",
+        actions: [],
       }));
-      mock.method(grantRepository, "findByCode", async () => grant);
       mock.method(wreck, "post", async () => {});
 
       assert.rejects(
-        grantService.invokePostEndpoint({
+        grantService.invokePostAction({
           code: "1",
           name: "test",
           payload: {
@@ -273,7 +252,7 @@ describe("grantService", () => {
           },
         }),
         {
-          message: 'Grant with code "1" has no POST endpoint named "test"',
+          message: 'Grant with code "1" has no POST action named "test"',
         },
       );
 
@@ -281,28 +260,15 @@ describe("grantService", () => {
     });
 
     it("throws when the payload is invalid", async ({ mock }) => {
-      const grant = {
-        code: "1",
-        name: "Test",
-        endpoints: [
-          {
-            method: "POST",
-            name: "test",
-            url: "http://localhost",
-          },
-        ],
-      };
-
-      mock.method(Grant, "validateCode", () => "1");
-      mock.method(Grant, "validateEndpointName", () => "test");
-      mock.method(Grant, "validateEndpointPayload", () => {
+      mock.method(Grant, "validateCode");
+      mock.method(Grant, "validateActionName");
+      mock.method(Grant, "validateActionPayload", () => {
         throw new Error("Invalid request payload input");
       });
-      mock.method(grantRepository, "findByCode", async () => grant);
       mock.method(wreck, "post", async () => {});
 
       assert.rejects(
-        grantService.invokePostEndpoint({
+        grantService.invokePostAction({
           code: "1",
           name: "test",
           payload: {
