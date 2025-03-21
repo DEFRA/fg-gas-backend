@@ -28,9 +28,9 @@ export const grantService = {
     return grant;
   },
 
-  async invokeGetEndpoint({ code, name }) {
+  async invokeGetAction({ code, name }) {
     Grant.validateCode(code);
-    Grant.validateEndpointName(name);
+    Grant.validateActionName(name);
 
     const grant = await grantRepository.findByCode(code);
 
@@ -38,27 +38,27 @@ export const grantService = {
       throw Boom.notFound(`Grant with code "${code}" not found`);
     }
 
-    const endpoint = grant.endpoints.find(
+    const action = grant.actions.find(
       (e) => e.method === "GET" && e.name === name,
     );
 
-    if (!endpoint) {
+    if (!action) {
       throw Boom.badRequest(
-        `Grant with code "${code}" has no GET endpoint named "${name}"`,
+        `Grant with code "${code}" has no GET action named "${name}"`,
       );
     }
 
-    const response = await wreck.get(`${endpoint.url}?code=${code}`, {
+    const response = await wreck.get(`${action.url}?code=${code}`, {
       json: true,
     });
 
     return response.payload;
   },
 
-  async invokePostEndpoint({ code, name, payload }) {
+  async invokePostAction({ code, name, payload }) {
     Grant.validateCode(code);
-    Grant.validateEndpointName(name);
-    Grant.validateEndpointPayload(payload);
+    Grant.validateActionName(name);
+    Grant.validateActionPayload(payload);
 
     const grant = await grantRepository.findByCode(code);
 
@@ -66,17 +66,17 @@ export const grantService = {
       throw Boom.notFound(`Grant with code "${code}" not found`);
     }
 
-    const endpoint = grant.endpoints.find(
+    const action = grant.actions.find(
       (e) => e.method === "POST" && e.name === name,
     );
 
-    if (!endpoint) {
+    if (!action) {
       throw Boom.badRequest(
-        `Grant with code "${code}" has no POST endpoint named "${name}"`,
+        `Grant with code "${code}" has no POST action named "${name}"`,
       );
     }
 
-    const response = await wreck.post(endpoint.url, {
+    const response = await wreck.post(action.url, {
       payload,
       json: true,
     });

@@ -59,9 +59,9 @@ describe("Grant API Tests", () => {
 
       const results = await db.collection(grantsCollection).find().toArray();
       assert.equal(results.length, 1);
-      assert.equal(results[0].name, grant1.name);
       assert.equal(results[0].code, grant1.code);
-      assert.deepEqual(results[0].endpoints, grant1.endpoints);
+      assert.equal(results[0].metadata.name, grant1.metadata.name);
+      assert.deepEqual(results[0].actions, grant1.actions);
     });
   });
 

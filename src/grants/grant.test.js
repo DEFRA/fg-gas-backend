@@ -5,23 +5,34 @@ import { Grant } from "./grant.js";
 describe("grant", () => {
   describe("create", () => {
     it("creates a grant with valid properties", () => {
+      const startDate = "2021-01-01T00:00:00.000Z";
+
       const grant = Grant.create({
-        name: "test grant",
         code: "test-code",
-        endpoints: [
+        metadata: {
+          description: "test description",
+          startDate,
+        },
+        actions: [
           {
-            name: "endpoint1",
+            name: "action1",
             method: "GET",
             url: "http://example.com",
           },
         ],
+        questions: [],
       });
 
       assert.equal(grant.code, "test-code");
-      assert.equal(grant.name, "test grant");
-      assert.deepEqual(grant.endpoints, [
+
+      assert.deepEqual(grant.metadata, {
+        description: "test description",
+        startDate,
+      });
+
+      assert.deepEqual(grant.actions, [
         {
-          name: "endpoint1",
+          name: "action1",
           method: "GET",
           url: "http://example.com",
         },
@@ -30,11 +41,13 @@ describe("grant", () => {
 
     it("throws when properties invalid", () => {
       const props = {
-        name: "",
-        code: "",
-        endpoints: [
+        code: "test-code",
+        metadata: {
+          description: "",
+        },
+        actions: [
           {
-            name: "endpoint1",
+            name: "action1",
             method: "INVALID",
             url: "invalid-url",
           },
@@ -42,7 +55,7 @@ describe("grant", () => {
       };
 
       assert.throws(() => Grant.create(props), {
-        message: '"name" is not allowed to be empty',
+        message: '"metadata.description" is not allowed to be empty',
       });
     });
   });
@@ -54,34 +67,32 @@ describe("grant", () => {
 
     it("throws an error for an invalid code", () => {
       assert.throws(() => Grant.validateCode(""), {
-        message: '"code" is not allowed to be empty',
+        message: '"value" is not allowed to be empty',
       });
     });
   });
 
-  describe("validateEndpointName", () => {
-    it("parses a valid endpoint name", () => {
+  describe("validateActionName", () => {
+    it("parses a valid action name", () => {
       assert.doesNotThrow(() => {
-        Grant.validateEndpointName("test-endpoint");
+        Grant.validateActionName("test-action");
       });
     });
 
-    it("throws an error for an invalid endpoint name", () => {
-      assert.throws(() => Grant.validateEndpointName(""), {
-        message: '"name" is not allowed to be empty',
+    it("throws an error for an invalid action name", () => {
+      assert.throws(() => Grant.validateActionName(""), {
+        message: '"value" is not allowed to be empty',
       });
     });
   });
 
-  describe("validateEndpointPayload", () => {
+  describe("validateActionPayload", () => {
     it("parses a valid payload", () => {
-      assert.doesNotThrow(() =>
-        Grant.validateEndpointPayload({ key: "value" }),
-      );
+      assert.doesNotThrow(() => Grant.validateActionPayload({ key: "value" }));
     });
 
     it("throws an error for an invalid payload", () => {
-      assert.throws(() => Grant.validateEndpointPayload(null), {
+      assert.throws(() => Grant.validateActionPayload(null), {
         message: '"value" must be of type object',
       });
     });

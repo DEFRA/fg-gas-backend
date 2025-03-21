@@ -9,7 +9,6 @@ Grant Application Service defines and manages farming grants and applications. I
   - [Development](#development)
   - [Testing](#testing)
   - [Production](#production)
-- [API endpoints](#api-endpoints)
 - [Docker](#docker)
   - [Production image](#production-image)
   - [Docker Compose](#docker-compose)
@@ -54,14 +53,6 @@ To test the application run:
 ```bash
 npm run test
 ```
-
-## API endpoints
-
-| Endpoint             | Description                    |
-| :------------------- | :----------------------------- |
-| `GET: /health`       | Health                         |
-| `GET: /example    `  | Example API (remove as needed) |
-| `GET: /example/<id>` | Example API (remove as needed) |
 
 ## Docker
 

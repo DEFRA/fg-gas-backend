@@ -1,7 +1,10 @@
 export const grant1 = {
-  name: "test grant 1",
   code: "e2e-code1",
-  endpoints: [
+  metadata: {
+    description: "test grant 1",
+    startDate: "2021-01-01T00:00:00.000Z",
+  },
+  actions: [
     {
       name: "endpoint1",
       method: "GET",
@@ -11,9 +14,12 @@ export const grant1 = {
 };
 
 export const grant2 = {
-  name: "test grant 2",
   code: "e2e-code2",
-  endpoints: [
+  metadata: {
+    description: "test grant 2",
+    startDate: "2022-01-01T00:00:00.000Z",
+  },
+  actions: [
     {
       name: "endpoint1",
       method: "GET",

@@ -18,8 +18,11 @@ describe("grantRepository", () => {
 
       await grantRepository.add({
         code: "1",
-        name: "test",
-        endpoints: [
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [
           {
             method: "GET",
             name: "test",
@@ -31,8 +34,11 @@ describe("grantRepository", () => {
       assert.calledOnceWith(db.collection, "grants");
       assert.calledOnceWith(insertOne, {
         code: "1",
-        name: "test",
-        endpoints: [
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [
           {
             method: "GET",
             name: "test",
@@ -60,8 +66,11 @@ describe("grantRepository", () => {
       await assert.rejects(
         grantRepository.add({
           code: "1",
-          name: "test",
-          endpoints: [
+          metadata: {
+            description: "test",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          actions: [
             {
               method: "GET",
               name: "test",
@@ -85,8 +94,11 @@ describe("grantRepository", () => {
       await assert.rejects(
         grantRepository.add({
           code: "1",
-          name: "test",
-          endpoints: [
+          metadata: {
+            description: "test",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          actions: [
             {
               method: "GET",
               name: "test",
@@ -104,8 +116,11 @@ describe("grantRepository", () => {
       const toArray = mock.fn(async () => [
         {
           code: "1",
-          name: "test 1",
-          endpoints: [
+          metadata: {
+            description: "test 1",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          actions: [
             {
               method: "GET",
               name: "test",
@@ -115,8 +130,11 @@ describe("grantRepository", () => {
         },
         {
           code: "2",
-          name: "test 2",
-          endpoints: [
+          metadata: {
+            description: "test 2",
+            startDate: "2021-01-02T00:00:00.000Z",
+          },
+          actions: [
             {
               method: "GET",
               name: "test",
@@ -139,8 +157,11 @@ describe("grantRepository", () => {
       assert.deepEqual(result, [
         {
           code: "1",
-          name: "test 1",
-          endpoints: [
+          metadata: {
+            description: "test 1",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          actions: [
             {
               method: "GET",
               name: "test",
@@ -150,8 +171,11 @@ describe("grantRepository", () => {
         },
         {
           code: "2",
-          name: "test 2",
-          endpoints: [
+          metadata: {
+            description: "test 2",
+            startDate: "2021-01-02T00:00:00.000Z",
+          },
+          actions: [
             {
               method: "GET",
               name: "test",
@@ -167,8 +191,11 @@ describe("grantRepository", () => {
     it("returns a Grant from the repository", async ({ mock }) => {
       const findOne = mock.fn(async () => ({
         code: "adding-value",
-        name: "test",
-        endpoints: [
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [
           {
             method: "GET",
             name: "test",
@@ -189,8 +216,11 @@ describe("grantRepository", () => {
       });
       assert.deepEqual(result, {
         code: "adding-value",
-        name: "test",
-        endpoints: [
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [
           {
             method: "GET",
             name: "test",
