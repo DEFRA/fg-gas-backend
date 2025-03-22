@@ -29,6 +29,7 @@ describe("grantRepository", () => {
             url: "http://localhost",
           },
         ],
+        questions: [],
       });
 
       assert.calledOnceWith(db.collection, "grants");
@@ -45,6 +46,7 @@ describe("grantRepository", () => {
             url: "http://localhost",
           },
         ],
+        questions: [],
       });
     });
 
@@ -77,6 +79,7 @@ describe("grantRepository", () => {
               url: "http://localhost",
             },
           ],
+          questions: [],
         }),
         Boom.conflict('Grant with code "1" already exists'),
       );
@@ -105,6 +108,7 @@ describe("grantRepository", () => {
               url: "http://localhost",
             },
           ],
+          questions: [],
         }),
         Boom.internal(new Error("test")),
       );
@@ -127,6 +131,7 @@ describe("grantRepository", () => {
               url: "http://localhost",
             },
           ],
+          questions: [],
         },
         {
           code: "2",
@@ -141,7 +146,7 @@ describe("grantRepository", () => {
               url: "http://localhost",
             },
           ],
-          questions: undefined,
+          questions: [],
         },
       ]);
 
@@ -169,7 +174,7 @@ describe("grantRepository", () => {
               url: "http://localhost",
             },
           ],
-          questions: undefined,
+          questions: [],
         },
         {
           code: "2",
@@ -184,7 +189,7 @@ describe("grantRepository", () => {
               url: "http://localhost",
             },
           ],
-          questions: undefined,
+          questions: [],
         },
       ]);
     });
@@ -205,7 +210,7 @@ describe("grantRepository", () => {
             url: "http://localhost",
           },
         ],
-        questions: undefined,
+        questions: [],
       }));
 
       mock.method(db, "collection", () => ({
@@ -231,7 +236,7 @@ describe("grantRepository", () => {
             url: "http://localhost",
           },
         ],
-        questions: undefined,
+        questions: [],
       });
     });
   });

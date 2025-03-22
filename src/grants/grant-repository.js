@@ -9,6 +9,7 @@ const toDocument = (grant) => ({
     startDate: grant.metadata.startDate,
   },
   actions: grant.actions,
+  questions: grant.questions,
 });
 
 export const toGrant = (doc) => ({
