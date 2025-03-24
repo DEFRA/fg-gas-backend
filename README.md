@@ -8,6 +8,8 @@ Grant Application Service defines and manages farming grants and applications. I
   - [Setup](#setup)
   - [Development](#development)
   - [Testing](#testing)
+    - [Unit tests](#unit-tests)
+    - [Integration tests](#integration-tests)
   - [Production](#production)
 - [Docker](#docker)
   - [Production image](#production-image)
@@ -48,34 +50,25 @@ npm run dev
 
 ### Testing
 
-To test the application run:
+#### Unit tests
+
+To run the unit tests:
 
 ```bash
-npm run test
+npm run test:unit
+```
+
+#### Integration tests
+
+To run the integration tests:
+
+```bash
+npm run test:integration
 ```
 
 ## Docker
 
-### Production image
-
-Build:
-
-```bash
-docker build --no-cache --tag fg-gas-backend .
-```
-
-Run:
-
-```bash
-docker run -e PORT=3000 -p 3000:3000 fg-gas-backend
-```
-
-### Docker Compose
-
-A local environment with:
-
-- MongoDB
-- Grant Application Service
+Launch GAS and dependencies via Docker Compose:
 
 ```bash
 docker compose up --watch
