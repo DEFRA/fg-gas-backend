@@ -1,11 +1,10 @@
 services:
   mongodb:
     image: mongo:6.0.13
-    command: mongod --port ${MONGO_PORT:-27017}
     networks:
       - cdp-tenant
     ports:
-      - "${MONGO_PORT:-27017}:${MONGO_PORT:-27017}"
+      - "${MONGO_PORT:-27017}:27017"
     volumes:
       - mongodb-data:/data
     restart: always
@@ -13,16 +12,16 @@ services:
   gas:
     build: .
     ports:
-      - "${PORT:-3000}:${PORT:-3000}"
+      - "${GAS_PORT:-3000}:3000"
     links:
       - "mongodb:mongodb"
     depends_on:
       mongodb:
         condition: service_started
     environment:
-      PORT: ${PORT:-3000}
+      PORT: 3000
       NODE_ENV: development
-      MONGO_URI: mongodb://mongodb:${MONGO_PORT:-27017}/
+      MONGO_URI: mongodb://mongodb:27017/
     networks:
       - cdp-tenant
     develop:
@@ -30,6 +29,8 @@ services:
         - path: ./src
           target: /home/node/src
           action: sync+restart
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   mongodb-data:

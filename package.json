@@ -8,16 +8,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "",
-    "format:check": "npm run lint",
     "dev": "node --watch src/main.js",
-    "dev:debug": "node --watch --inspect src/main.js",
-    "postinstall": "npm run setup:husky",
     "lint": "eslint",
-    "format": "prettier . --ignore-unknown --list-different --write",
-    "test": "c8 --all --src src node --test 'src/**/*.test.*'",
-    "it": "node --import ./test/setup.js --test-timeout 60000 --test test/*.test.*",
-    "test:watch": "node --watch --test './src/**/*.test.*'",
+    "test:unit": "c8 --all --src src node --test 'src/**/*.test.*'",
+    "test:unit:watch": "node --watch --test './src/**/*.test.*'",
+    "test:integration": "node --import ./test/setup.js --test-timeout 60000 --test 'test/*.test.*'",
+    "postinstall": "npm run setup:husky",
     "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module"
   },
   "lint-staged": {

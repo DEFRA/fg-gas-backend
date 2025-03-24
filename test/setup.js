@@ -1,22 +1,26 @@
 import { before, after } from "node:test";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
-const PORT = 3001;
-const MONGO_PORT = 28017;
 
 let environment;
 
 before(async () => {
+  const GAS_PORT = 3001;
+  const MONGO_PORT = 27018;
+
   environment = await new DockerComposeEnvironment(".", "compose.yml")
-    .withEnvironment({ PORT: PORT.toString() })
-    .withEnvironment({ MONGO_PORT: MONGO_PORT.toString() })
+    .withEnvironment({
+      GAS_PORT,
+      MONGO_PORT,
+    })
     .withWaitStrategy("mongodb", Wait.forListeningPorts())
-    .withWaitStrategy("gas", Wait.forLogMessage("server started"))
+    .withWaitStrategy("gas", Wait.forHttp("/health"))
+    .withNoRecreate()
     .up();
-  const container = environment.getContainer("mongodb-1");
-  global.MONGO_URI = `mongodb://${container.getHost()}:${MONGO_PORT}`;
-  global.APP_URL = `http://${container.getHost()}:${PORT}`;
+
+  global.MONGO_URI = `mongodb://localhost:${MONGO_PORT}/fg-gas-backend`;
+  global.API_URL = `http://localhost:${GAS_PORT}`;
 });
 
 after(async () => {
-  if (environment) await environment.stop();
+  await environment?.down();
 });

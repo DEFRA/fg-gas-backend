@@ -27,6 +27,7 @@ describe("grantsPlugin", () => {
             startDate: "2021-01-01T00:00:00.000Z",
           },
           actions: [],
+          questions: [],
         },
       });
 
@@ -37,6 +38,7 @@ describe("grantsPlugin", () => {
           startDate: "2021-01-01T00:00:00.000Z",
         },
         actions: [],
+        questions: [],
       });
 
       assert.equal(statusCode, 201);
@@ -57,6 +59,7 @@ describe("grantsPlugin", () => {
             startDate: "2021-01-01T00:00:00.000Z",
           },
           actions: [],
+          questions: [],
           internal: "this is private",
         },
         {
@@ -66,6 +69,7 @@ describe("grantsPlugin", () => {
             startDate: "2021-01-01T00:00:00.000Z",
           },
           actions: [],
+          questions: [],
           internal: "this is private",
         },
       ]);
@@ -85,6 +89,7 @@ describe("grantsPlugin", () => {
             startDate: "2021-01-01T00:00:00.000Z",
           },
           actions: [],
+          questions: [],
         },
         {
           code: "2",
@@ -93,6 +98,7 @@ describe("grantsPlugin", () => {
             startDate: "2021-01-01T00:00:00.000Z",
           },
           actions: [],
+          questions: [],
         },
       ]);
     });
@@ -107,6 +113,7 @@ describe("grantsPlugin", () => {
           startDate: "2021-01-01T00:00:00.000Z",
         },
         actions: [],
+        questions: [],
         internal: "this is private",
       }));
 
@@ -124,6 +131,7 @@ describe("grantsPlugin", () => {
           startDate: "2021-01-01T00:00:00.000Z",
         },
         actions: [],
+        questions: [],
       });
     });
   });
