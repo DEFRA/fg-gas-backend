@@ -1,84 +1,131 @@
-import { describe, it, before, after, beforeEach } from "node:test";
-import { assert } from "../src/common/assert.js";
+import { describe, it, before, after, beforeEach, afterEach } from "node:test";
+import http from "node:http";
 import Wreck from "@hapi/wreck";
 import { MongoClient } from "mongodb";
-import { config } from "../src/common/config.js";
+import { assert } from "../src/common/assert.js";
 import { grant1, grant2 } from "./fixtures/grants.js";
-import { collection as grantsCollection } from "../src/grants/grant-repository.js";
 
-describe("Grant API Tests", () => {
-  let db;
+describe("Grant API", () => {
+  let grants;
   let client;
 
   before(async () => {
-    client = new MongoClient(global.MONGO_URI);
-    await client.connect();
-    db = client.db(config.get("mongoDatabase"));
+    client = await MongoClient.connect(global.MONGO_URI);
+    grants = client.db().collection("grants");
   });
 
   after(async () => {
-    if (client) await client.close();
+    await client.close();
   });
 
   describe("POST /grants", () => {
     beforeEach(async () => {
-      await db.collection(grantsCollection).deleteMany({});
+      await grants.deleteMany({});
     });
 
-    it("add a grant", async () => {
-      const postResponse = await Wreck.post(`${global.APP_URL}/grants`, {
+    it("adds a grant", async () => {
+      const response = await Wreck.post(`${global.API_URL}/grants`, {
         json: true,
         payload: grant1,
       });
-      assert.equal(postResponse.res.statusCode, 201);
-      assert.deepEqual(postResponse.payload, { code: "test-code-1" });
 
-      const results = await db.collection(grantsCollection).find().toArray();
-      assert.equal(results.length, 1);
-      assert.equal(results[0].code, grant1.code);
-      assert.equal(
-        results[0].metadata.description,
-        grant1.metadata.description,
-      );
-      assert.equal(results[0].metadata.startDate, grant1.metadata.startDate);
-      assert.deepEqual(results[0].actions, grant1.actions);
+      assert.equal(response.res.statusCode, 201);
+      assert.deepEqual(response.payload, {
+        code: "test-code-1",
+      });
+
+      const documents = await grants
+        .find({}, { projection: { _id: 0 } })
+        .toArray();
+
+      assert.deepEqual(documents, [grant1]);
     });
   });
 
   describe("GET /grants", () => {
     beforeEach(async () => {
-      await db.collection(grantsCollection).deleteMany({});
+      await grants.deleteMany({});
     });
 
-    it("Find grants", async () => {
-      await db.collection(grantsCollection).insertMany([grant1, grant2]);
+    it("finds grants", async () => {
+      await grants.insertMany([{ ...grant1 }, { ...grant2 }]);
 
-      const getResponse = await Wreck.get(`${global.APP_URL}/grants`, {
+      const response = await Wreck.get(`${global.API_URL}/grants`, {
         json: true,
       });
-      assert.equal(getResponse.res.statusCode, 200);
-      assert.equal(getResponse.payload.length, 2);
-      assert.equal(getResponse.payload[0].code, "test-code-1");
-      assert.equal(getResponse.payload[1].code, "test-code-2");
+
+      assert.equal(response.res.statusCode, 200);
+      assert.deepEqual(response.payload, [grant1, grant2]);
     });
   });
 
   describe("GET /grants/{code}", () => {
     beforeEach(async () => {
-      await db.collection(grantsCollection).deleteMany({});
+      await grants.deleteMany({});
     });
 
-    it("Find grant by code", async () => {
-      await db.collection(grantsCollection).insertMany([grant1, grant2]);
+    it("finds a grant by code", async () => {
+      await grants.insertMany([{ ...grant1 }, { ...grant2 }]);
 
-      const getResponse = await Wreck.get(
-        `${global.APP_URL}/grants/test-code-2`,
+      const response = await Wreck.get(`${global.API_URL}/grants/test-code-2`, {
+        json: true,
+      });
+
+      assert.equal(response.res.statusCode, 200);
+      assert.deepEqual(response.payload, grant2);
+    });
+  });
+
+  describe("POST /grants/{code}/actions/{name}/invoke", () => {
+    let server;
+
+    beforeEach(async () => {
+      await grants.deleteMany({});
+
+      server = http
+        .createServer((_req, res) => {
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+          });
+          res.end(
+            JSON.stringify({
+              message: "Action invoked",
+            }),
+          );
+        })
+        .listen(3002);
+    });
+
+    afterEach(() => {
+      server.close();
+    });
+
+    it("invokes an action and returns the response", async () => {
+      await grants.insertMany([
+        {
+          ...grant1,
+          actions: [
+            {
+              name: "calc-totals",
+              method: "POST",
+              url: "http://host.docker.internal:3002",
+            },
+          ],
+        },
+      ]);
+
+      const response = await Wreck.post(
+        `${global.API_URL}/grants/test-code-1/actions/calc-totals/invoke`,
         {
           json: true,
+          payload: {},
         },
       );
-      assert.equal(getResponse.res.statusCode, 200);
-      assert.equal(getResponse.payload.code, "test-code-2");
+
+      assert.equal(response.res.statusCode, 200);
+      assert.deepEqual(response.payload, {
+        message: "Action invoked",
+      });
     });
   });
 });
