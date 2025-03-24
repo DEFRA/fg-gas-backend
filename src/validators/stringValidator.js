@@ -19,6 +19,16 @@ export const validateString = (fieldName, value, validations) => {
     };
   }
 
+  if (validations.pattern !== undefined) {
+    const regex = new RegExp(validations.pattern);
+    if (!regex.test(value)) {
+      return {
+        isValid: false,
+        error: `${fieldName} must be in the format ${validations.pattern}`,
+      };
+    }
+  }
+
   return {
     isValid: true,
   };

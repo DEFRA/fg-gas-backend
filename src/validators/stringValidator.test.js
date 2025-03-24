@@ -46,4 +46,35 @@ describe("validateString", () => {
       assert.equal(result.isValid, true);
     });
   });
+
+  describe("combined validations", () => {
+    it("should check all validations and return first error found", () => {
+      const validations = {
+        minLength: 3,
+        maxLength: 10,
+        pattern: "^[A-Za-z]*$",
+      };
+
+      let result = validateString("testField", "abcdefghijklmn", validations);
+      assert.equal(result.isValid, false);
+      assert.equal(
+        result.error,
+        "testField exceeds the maximum length of 10 characters",
+      );
+
+      result = validateString("testField", "ab", validations);
+      assert.equal(result.isValid, false);
+      assert.equal(
+        result.error,
+        "testField shorter than the minimum length of 3 characters",
+      );
+
+      result = validateString("testField", "abc123", validations);
+      assert.equal(result.isValid, false);
+      assert.equal(result.error, "testField must be in the format ^[A-Za-z]*$");
+
+      result = validateString("testField", "abcDef", validations);
+      assert.equal(result.isValid, true);
+    });
+  });
 });
