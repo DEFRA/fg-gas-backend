@@ -4,6 +4,7 @@ import Wreck from "@hapi/wreck";
 import { MongoClient } from "mongodb";
 import { assert } from "../src/common/assert.js";
 import { grant1, grant2 } from "./fixtures/grants.js";
+import Joi from "joi";
 
 describe("Grant API", () => {
   let grants;
@@ -38,7 +39,15 @@ describe("Grant API", () => {
         .find({}, { projection: { _id: 0 } })
         .toArray();
 
-      assert.deepEqual(documents, [grant1]);
+      assert.deepEqual(documents, [
+        {
+          ...grant1,
+          metadata: {
+            ...grant1.metadata,
+            startDate: Joi.date().validate(grant1.metadata.startDate).value,
+          },
+        },
+      ]);
     });
   });
 

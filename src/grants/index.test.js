@@ -3,6 +3,7 @@ import hapi from "@hapi/hapi";
 import { assert } from "../common/assert.js";
 import { grantsPlugin } from "./index.js";
 import { grantService } from "./grant-service.js";
+import Joi from "joi";
 
 describe("grantsPlugin", () => {
   let server;
@@ -35,7 +36,7 @@ describe("grantsPlugin", () => {
         code: "test",
         metadata: {
           description: "test",
-          startDate: "2021-01-01T00:00:00.000Z",
+          startDate: Joi.date().validate("2021-01-01T00:00:00.000Z").value,
         },
         actions: [],
         questions: [],
