@@ -24,12 +24,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.14.0
+          node-version-file: .nvmrc
           cache: npm
 
-      # Ensure tests pass. Add more checks if required
-      - run: npm ci
-      - run: npm test
+      - run: |
+          npm ci
+          npm run lint
+          npm run test:unit
+          npm run test:integration
 
       - name: Publish Hot Fix
         uses: DEFRA/cdp-build-action/build-hotfix@main
