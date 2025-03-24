@@ -1,32 +1,36 @@
+import Joi from "joi";
+
 export const validateString = (fieldName, value, validations) => {
-  if (
-    validations.maxLength !== undefined &&
-    value.length > validations.maxLength
-  ) {
-    return {
-      isValid: false,
-      error: `${fieldName} exceeds the maximum length of ${validations.maxLength} characters`,
-    };
+  let schema = Joi.string();
+
+  if (validations.maxLength !== undefined) {
+    schema = schema
+      .max(validations.maxLength)
+      .required()
+      .messages({
+        "string.base": `${fieldName} must be a string`,
+        "string.empty": `${fieldName} cannot be empty`,
+        "string.max": `${fieldName} exceeds the maximum length of ${validations.maxLength} characters`,
+      });
   }
 
-  if (
-    validations.minLength !== undefined &&
-    value.length < validations.minLength
-  ) {
+  // if (validations.minLength !== undefined) {
+  //   schema = schema.min(validations.minLength)
+  //     .message(`${fieldName} shorter than the minimum length of ${validations.minLength} characters`);
+  // }
+  //
+  // if (validations.pattern !== undefined) {
+  //   schema = schema.pattern(new RegExp(validations.pattern))
+  //     .message(`${fieldName} must be in the format ${validations.pattern}`);
+  // }
+
+  const result = schema.validate(value);
+
+  if (result.error) {
     return {
       isValid: false,
-      error: `${fieldName} shorter than the minimum length of ${validations.minLength} characters`,
+      error: result.error.message,
     };
-  }
-
-  if (validations.pattern !== undefined) {
-    const regex = new RegExp(validations.pattern);
-    if (!regex.test(value)) {
-      return {
-        isValid: false,
-        error: `${fieldName} must be in the format ${validations.pattern}`,
-      };
-    }
   }
 
   return {
