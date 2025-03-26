@@ -3,7 +3,7 @@ import { schemas } from "./schemas.js";
 
 export const Grant = {
   create(props) {
-    const { error } = schemas.createGrant.validate(props);
+    const { error } = schemas.Grant.validate(props);
 
     if (error) {
       throw Boom.badRequest(error);
@@ -20,12 +20,12 @@ export const Grant = {
         method: e.method,
         url: e.url,
       })),
-      questions: [],
+      questions: props.questions,
     };
   },
 
   validateCode(code) {
-    const { error } = schemas.code.validate(code);
+    const { error } = schemas.grantCode.validate(code);
 
     if (error) {
       throw Boom.badRequest(error);
