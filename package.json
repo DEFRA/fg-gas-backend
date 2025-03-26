@@ -8,11 +8,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "node --watch src/main.js",
+    "dev": "node --env-file=.env --watch src/main.js",
     "lint": "eslint",
     "test:unit": "vitest --config vitest.config.js --dir src",
     "test:integration": "vitest --config test/vitest.config.js --dir test",
-    "postinstall": "npm run setup:husky",
+    "postinstall": "npm run setup:husky && npm run setup:env",
+    "setup:env": "cp -n .env.example .env || true",
     "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module"
   },
   "lint-staged": {
@@ -31,7 +32,6 @@
     "@hapi/wreck": "^18.1.0",
     "ajv": "^8.17.1",
     "aws4": "^1.13.2",
-    "convict": "^6.2.4",
     "hapi-pino": "^12.1.0",
     "hapi-pulse": "^3.0.1",
     "hapi-swagger": "^17.3.2",
