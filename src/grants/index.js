@@ -19,7 +19,9 @@ export const grantsPlugin = {
         },
         response: {
           status: {
-            201: Joi.object({ code: schemas.grantCode }),
+            201: Joi.object({ code: schemas.grantCode }).label(
+              "CreateGrantResponse",
+            ),
             400: schemas.ValidationError,
           },
         },
@@ -42,7 +44,7 @@ export const grantsPlugin = {
         description: "Get all grants",
         tags: ["api"],
         response: {
-          schema: Joi.array().items(schemas.Grant),
+          schema: Joi.array().items(schemas.Grant).label("Grants"),
         },
       },
       async handler(_request, _h) {
@@ -107,7 +109,7 @@ export const grantsPlugin = {
         },
         response: {
           status: {
-            200: Joi.object({}).unknown(),
+            200: Joi.object({}).unknown().label("InvokeActionResponse"),
             400: schemas.ValidationError,
           },
         },
@@ -128,7 +130,7 @@ export const grantsPlugin = {
         description: "Invoke a named GET action on the grant specified by code",
         tags: ["api"],
         validate: {
-          payload: Joi.object({}).unknown(),
+          payload: Joi.object({}).unknown().label("InvokePostActionRequest"),
           params: Joi.object({
             code: schemas.grantCode,
             name: schemas.actionName,
@@ -136,7 +138,7 @@ export const grantsPlugin = {
         },
         response: {
           status: {
-            200: Joi.object({}).unknown(),
+            200: Joi.object({}).unknown().label("InvokeActionResponse"),
             400: schemas.ValidationError,
           },
         },

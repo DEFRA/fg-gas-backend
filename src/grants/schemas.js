@@ -5,9 +5,13 @@ const actionName = Joi.string()
   .min(1)
   .max(30)
   .required()
-  .example("action-name");
+  .example("action-name")
+  .label("GrantActionName");
 
-const actionPayload = Joi.object({}).unknown(true).required();
+const actionPayload = Joi.object({})
+  .unknown(true)
+  .required()
+  .label("GrantActionPayload");
 
 const action = Joi.object({
   name: actionName,
@@ -17,16 +21,17 @@ const action = Joi.object({
     .max(3000)
     .required()
     .example("https://example.com/api/v1/action"),
-});
+}).label("GrantAction");
 
 const grantCode = Joi.string()
   .pattern(/^[a-z0-9-]+$/)
   .min(1)
   .max(500)
   .required()
-  .example("test-code");
+  .example("test-code")
+  .label("GrantCode");
 
-const question = Joi.any().example("question");
+const question = Joi.any().example("question").label("Question");
 
 const Grant = Joi.object({
   code: grantCode,
@@ -36,7 +41,7 @@ const Grant = Joi.object({
   }),
   questions: Joi.array().items(question).required(),
   actions: Joi.array().items(action).max(20).required(),
-});
+}).label("Grant");
 
 const ValidationError = Joi.object({
   statusCode: Joi.number().example(400),
@@ -46,7 +51,7 @@ const ValidationError = Joi.object({
     keys: Joi.array().items(Joi.string().example("code")),
     source: Joi.string().example("payload"),
   }),
-});
+}).label("ValidationError");
 
 export const schemas = {
   grantCode,
