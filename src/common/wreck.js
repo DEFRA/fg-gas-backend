@@ -11,6 +11,6 @@ wreck.events.on("preRequest", (uri) => {
   const traceId = getTraceId();
 
   if (traceId) {
-    uri.headers[config.get("tracing.header")] = traceId;
+    uri.headers[config.TRACING_HEADER] = traceId;
   }
 });
