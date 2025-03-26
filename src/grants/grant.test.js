@@ -67,7 +67,7 @@ describe("grant", () => {
 
     it("throws an error for an invalid code", () => {
       assert.throws(() => Grant.validateCode(""), {
-        message: '"value" is not allowed to be empty',
+        message: '"GrantCode" is not allowed to be empty',
       });
     });
   });
@@ -81,7 +81,7 @@ describe("grant", () => {
 
     it("throws an error for an invalid action name", () => {
       assert.throws(() => Grant.validateActionName(""), {
-        message: '"value" is not allowed to be empty',
+        message: '"GrantActionName" is not allowed to be empty',
       });
     });
   });
@@ -93,7 +93,7 @@ describe("grant", () => {
 
     it("throws an error for an invalid payload", () => {
       assert.throws(() => Grant.validateActionPayload(null), {
-        message: '"value" must be of type object',
+        message: '"GrantActionPayload" must be of type object',
       });
     });
   });
