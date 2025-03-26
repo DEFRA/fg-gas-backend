@@ -8,8 +8,4 @@ npm-debug.log
 coverage
 .cache
 .eslintcache
-
-# @shelf/jest-mongodb generated file
-globalConfig.json
-
-tsconfig.tsbuildinfo
+.env

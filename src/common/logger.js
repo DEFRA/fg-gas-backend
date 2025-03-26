@@ -3,13 +3,11 @@ import { ecsFormat } from "@elastic/ecs-pino-format";
 import { getTraceId } from "@defra/hapi-tracing";
 import { config } from "./config.js";
 
-const log = config.get("log");
-
 const format = {
   ecs: {
     ...ecsFormat({
-      serviceVersion: config.get("serviceVersion"),
-      serviceName: config.get("serviceName"),
+      serviceVersion: config.SERVICE_VERSION,
+      serviceName: config.SERVICE_NAME,
     }),
   },
   "pino-pretty": {
@@ -17,16 +15,19 @@ const format = {
       target: "pino-pretty",
     },
   },
-}[log.format];
+}[config.LOG_FORMAT];
 
 export const logger = pino({
-  enabled: log.enabled,
+  enabled: config.LOG_ENABLED,
   ignorePaths: ["/health"],
   redact: {
-    paths: log.redact,
+    paths:
+      config.NODE_ENV === "production"
+        ? ["req.headers.authorization", "req.headers.cookie", "res.headers"]
+        : ["req", "res", "responseTime"],
     remove: true,
   },
-  level: log.level,
+  level: config.LOG_LEVEL,
   ...format,
   nesting: true,
   mixin() {

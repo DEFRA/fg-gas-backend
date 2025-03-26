@@ -10,7 +10,7 @@ import { grantsPlugin } from "./grants/index.js";
 
 export const createServer = async () => {
   const server = hapi.server({
-    port: config.get("port"),
+    port: config.PORT,
     routes: {
       validate: {
         options: {
@@ -56,7 +56,7 @@ export const createServer = async () => {
     {
       plugin: tracing.plugin,
       options: {
-        tracingHeader: config.get("tracing.header"),
+        tracingHeader: config.TRACING_HEADER,
       },
     },
     {
