@@ -18,7 +18,10 @@ describe("create", () => {
           url: "http://example.com",
         },
       ],
-      questions: [],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+      },
     });
 
     expect(grant).toEqual({
@@ -34,7 +37,10 @@ describe("create", () => {
           url: "http://example.com",
         },
       ],
-      questions: [],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+      },
     });
   });
 
