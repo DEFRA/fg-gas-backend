@@ -1,5 +1,5 @@
-import { grantService } from "./grant-service.js";
-import { schemas } from "./schemas.js";
+import * as grantService from "./grant-service.js";
+import * as schemas from "./schemas.js";
 import Joi from "joi";
 
 /**

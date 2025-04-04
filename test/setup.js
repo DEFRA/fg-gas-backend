@@ -1,26 +1,21 @@
-import { before, after } from "node:test";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 
 let environment;
 
-before(async () => {
-  const GAS_PORT = 3001;
-  const MONGO_PORT = 27018;
+export const setup = async ({ globalConfig }) => {
+  const { env } = globalConfig;
 
   environment = await new DockerComposeEnvironment(".", "compose.yml")
     .withEnvironment({
-      GAS_PORT,
-      MONGO_PORT,
+      GAS_PORT: env.GAS_PORT,
+      MONGO_PORT: env.MONGO_PORT,
     })
     .withWaitStrategy("mongodb", Wait.forListeningPorts())
     .withWaitStrategy("gas", Wait.forHttp("/health"))
     .withNoRecreate()
     .up();
+};
 
-  global.MONGO_URI = `mongodb://localhost:${MONGO_PORT}/fg-gas-backend`;
-  global.API_URL = `http://localhost:${GAS_PORT}`;
-});
-
-after(async () => {
+export const teardown = async () => {
   await environment?.down();
-});
+};

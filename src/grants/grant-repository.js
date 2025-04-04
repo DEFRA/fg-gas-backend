@@ -24,32 +24,30 @@ export const toGrant = (doc) => ({
 
 export const collection = "grants";
 
-export const grantRepository = {
-  async add(grant) {
-    const grantDocument = toDocument(grant);
+export const add = async (grant) => {
+  const grantDocument = toDocument(grant);
 
-    try {
-      await db.collection(collection).insertOne(grantDocument);
-    } catch (error) {
-      if (error instanceof MongoServerError && error.code === 11000) {
-        throw Boom.conflict(`Grant with code "${grant.code}" already exists`);
-      }
-
-      throw Boom.internal(error);
+  try {
+    await db.collection(collection).insertOne(grantDocument);
+  } catch (error) {
+    if (error instanceof MongoServerError && error.code === 11000) {
+      throw Boom.conflict(`Grant with code "${grant.code}" already exists`);
     }
-  },
 
-  async findAll() {
-    const results = await db.collection(collection).find().toArray();
+    throw Boom.internal(error);
+  }
+};
 
-    return results.map(toGrant);
-  },
+export const findAll = async () => {
+  const results = await db.collection(collection).find().toArray();
 
-  async findByCode(code) {
-    const result = await db.collection(collection).findOne({
-      code,
-    });
+  return results.map(toGrant);
+};
 
-    return result && toGrant(result);
-  },
+export const findByCode = async (code) => {
+  const result = await db.collection(collection).findOne({
+    code,
+  });
+
+  return result && toGrant(result);
 };
