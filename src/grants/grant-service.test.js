@@ -1,286 +1,270 @@
-import { describe, it } from "node:test";
-import { assert } from "../common/assert.js";
-import { grantRepository } from "./grant-repository.js";
+import { describe, it, expect, vi } from "vitest";
 import { wreck } from "../common/wreck.js";
-import { Grant } from "./grant.js";
-import { grantService } from "./grant-service.js";
+import * as Grant from "./grant.js";
+import * as grantRepository from "./grant-repository.js";
+import * as grantService from "./grant-service.js";
 
-describe("grantService", () => {
-  describe("create", () => {
-    it("stores the grant in the repository", async ({ mock }) => {
-      const grant = {
-        id: "1",
-        name: "test",
-        actions: [
-          {
-            method: "GET",
-            name: "test",
-            url: "http://localhost",
-          },
-        ],
-      };
+vi.mock("../common/wreck.js", () => ({
+  wreck: {
+    get: vi.fn(),
+    post: vi.fn(),
+  },
+}));
 
-      mock.method(Grant, "create", () => grant);
-      mock.method(grantRepository, "add", async () => {});
+vi.mock("./grant.js", () => ({
+  create: vi.fn(),
+  validateCode: vi.fn(),
+  validateActionName: vi.fn(),
+  validateActionPayload: vi.fn(),
+}));
 
-      const result = await grantService.create({
-        name: "test",
-        actions: [
-          {
-            method: "GET",
-            name: "test",
-            url: "http://localhost",
-          },
-        ],
-      });
+vi.mock("./grant-repository.js", () => ({
+  add: vi.fn(),
+  findAll: vi.fn(),
+  findByCode: vi.fn(),
+}));
 
-      assert.calledOnceWith(grantRepository.add, grant);
-      assert.deepEqual(result, grant);
-    });
-  });
-
-  describe("findAll", () => {
-    it("returns all grants from the repository", async ({ mock }) => {
-      const grants = [
+describe("create", () => {
+  it("stores the grant in the repository", async () => {
+    const grant = {
+      code: "grant-code",
+      name: "test",
+      actions: [
         {
-          id: "1",
-          name: "test 1",
-          actions: [],
+          method: "GET",
+          name: "test",
+          url: "http://localhost",
         },
+      ],
+    };
+
+    Grant.create.mockReturnValueOnce(grant);
+
+    const result = await grantService.create({
+      code: "grant-code",
+      name: "test",
+      actions: [
         {
-          id: "2",
-          name: "test 2",
-          actions: [],
+          method: "GET",
+          name: "test",
+          url: "http://localhost",
         },
-      ];
-
-      mock.method(grantRepository, "findAll", async () => grants);
-
-      const result = await grantService.findAll();
-
-      assert.deepEqual(result, grants);
+      ],
     });
-  });
 
-  describe("findByCode", () => {
-    it("returns the grant from the repository", async ({ mock }) => {
-      const grant = {
+    expect(Grant.create).toHaveBeenCalledWith(grant);
+    expect(grantRepository.add).toHaveBeenCalledWith(grant);
+    expect(result).toEqual(grant);
+  });
+});
+
+describe("findAll", () => {
+  it("returns all grants from the repository", async () => {
+    const grants = [
+      {
         code: "1",
         name: "test 1",
         actions: [],
-      };
+      },
+      {
+        code: "2",
+        name: "test 2",
+        actions: [],
+      },
+    ];
 
-      mock.method(Grant, "validateCode");
-      mock.method(grantRepository, "findByCode", async () => grant);
+    grantRepository.findAll.mockResolvedValueOnce(grants);
 
-      const result = await grantService.findByCode("1");
+    const result = await grantService.findAll();
 
-      assert.deepEqual(result, grant);
-    });
+    expect(result).toEqual(grants);
+  });
+});
 
-    it("throws when the grant is not found", async ({ mock }) => {
-      mock.method(Grant, "validateCode");
-      mock.method(grantRepository, "findByCode", async () => null);
+describe("findByCode", () => {
+  it("returns the grant from the repository", async () => {
+    const grant = {
+      code: "1",
+      name: "test 1",
+      actions: [],
+    };
 
-      assert.rejects(grantService.findByCode("1"), {
-        message: 'Grant with code "1" not found',
-      });
-    });
+    grantRepository.findByCode.mockResolvedValueOnce(grant);
+
+    const result = await grantService.findByCode("1");
+
+    expect(Grant.validateCode).toHaveBeenCalledWith("1");
+    expect(grantRepository.findByCode).toHaveBeenCalledWith("1");
+    expect(result).toEqual(grant);
   });
 
-  describe("invokeGetAction", () => {
-    it("invokes the GET action", async ({ mock }) => {
-      mock.method(Grant, "validateCode");
-      mock.method(Grant, "validateActionName");
-      mock.method(grantRepository, "findByCode", async () => ({
-        actions: [
-          {
-            method: "GET",
-            name: "test",
-            url: "http://localhost",
-          },
-        ],
-      }));
+  it("throws when the grant is not found", async () => {
+    grantRepository.findByCode.mockResolvedValueOnce(null);
 
-      const response = {
-        arbitrary: "response",
-      };
+    await expect(grantService.findByCode("1")).rejects.toThrow(
+      'Grant with code "1" not found',
+    );
+  });
+});
 
-      mock.method(wreck, "get", async () => ({
-        payload: response,
-      }));
+describe("invokeGetAction", () => {
+  it("invokes the GET action", async () => {
+    grantRepository.findByCode.mockResolvedValueOnce({
+      actions: [
+        {
+          method: "GET",
+          name: "test",
+          url: "http://localhost",
+        },
+      ],
+    });
 
-      const result = await grantService.invokeGetAction({
+    const response = {
+      arbitrary: "response",
+    };
+
+    wreck.get.mockResolvedValueOnce({
+      payload: response,
+    });
+
+    const result = await grantService.invokeGetAction({
+      code: "1",
+      name: "test",
+    });
+
+    expect(wreck.get).toHaveBeenCalledWith("http://localhost?code=1", {
+      json: true,
+    });
+    expect(result).toEqual(response);
+  });
+
+  it("throws when the grant is not found", async () => {
+    grantRepository.findByCode.mockResolvedValueOnce(null);
+
+    await expect(
+      grantService.invokeGetAction({
         code: "1",
         name: "test",
-      });
+      }),
+    ).rejects.toThrow('Grant with code "1" not found');
 
-      assert.calledOnceWith(wreck.get, "http://localhost?code=1", {
-        json: true,
-      });
-      assert.deepEqual(result, response);
+    expect(wreck.get).not.toHaveBeenCalled();
+  });
+
+  it("throws when the action is not found", async () => {
+    grantRepository.findByCode.mockResolvedValueOnce({
+      code: "1",
+      name: "Test",
+      actions: [],
     });
 
-    it("throws when the grant is not found", async ({ mock }) => {
-      mock.method(Grant, "validateCode");
-      mock.method(Grant, "validateActionName");
-      mock.method(grantRepository, "findByCode", async () => null);
-      mock.method(wreck, "get", async () => {});
+    await expect(
+      grantService.invokeGetAction({
+        code: "1",
+        name: "test",
+      }),
+    ).rejects.toThrow('Grant with code "1" has no GET action named "test"');
 
-      assert.rejects(
-        grantService.invokeGetAction({
-          code: "1",
-          name: "test",
-        }),
+    expect(wreck.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("invokePostAction", () => {
+  it("invokes the POST action", async () => {
+    grantRepository.findByCode.mockResolvedValueOnce({
+      code: "1",
+      name: "Test",
+      actions: [
         {
-          message: 'Grant with code "1" not found',
+          method: "POST",
+          name: "test",
+          url: "http://localhost",
         },
-      );
-
-      assert.notCalled(wreck.get);
+      ],
     });
 
-    it("throws when the action is not found", async ({ mock }) => {
-      mock.method(Grant, "validateCode");
-      mock.method(Grant, "validateActionName");
-      mock.method(grantRepository, "findByCode", async () => ({
-        id: "1",
-        name: "Test",
-        actions: [],
-      }));
-      mock.method(wreck, "get", async () => {});
+    wreck.post.mockResolvedValueOnce({
+      payload: {
+        arbitrary: "response",
+      },
+    });
 
-      assert.rejects(
-        grantService.invokeGetAction({
-          code: "1",
-          name: "test",
-        }),
-        {
-          message: 'Grant with code "1" has no GET action named "test"',
-        },
-      );
+    const result = await grantService.invokePostAction({
+      code: "1",
+      name: "test",
+      payload: {
+        code: "1",
+        name: "test",
+      },
+    });
 
-      assert.notCalled(wreck.get);
+    expect(wreck.post).toHaveBeenCalledWith("http://localhost", {
+      payload: {
+        code: "1",
+        name: "test",
+      },
+      json: true,
+    });
+
+    expect(result).toEqual({
+      arbitrary: "response",
     });
   });
 
-  describe("invokePostAction", () => {
-    it("invokes the POST action", async ({ mock }) => {
-      mock.method(Grant, "validateCode");
-      mock.method(Grant, "validateActionName");
-      mock.method(Grant, "validateActionPayload");
-      mock.method(grantRepository, "findByCode", async () => ({
-        actions: [
-          {
-            method: "POST",
-            name: "test",
-            url: "http://localhost",
-          },
-        ],
-      }));
+  it("throws when the grant is not found", async () => {
+    grantRepository.findByCode.mockResolvedValueOnce(null);
 
-      const response = {
-        arbitrary: "response",
-      };
-
-      mock.method(wreck, "post", async () => ({
-        payload: response,
-      }));
-
-      const result = await grantService.invokePostAction({
+    await expect(
+      grantService.invokePostAction({
         code: "1",
         name: "test",
         payload: {
           code: "1",
           name: "test",
         },
-      });
+      }),
+    ).rejects.toThrow('Grant with code "1" not found');
 
-      assert.calledOnceWith(wreck.post, "http://localhost", {
+    expect(wreck.post).not.toHaveBeenCalled();
+  });
+
+  it("throws when the action is not found", async () => {
+    grantRepository.findByCode.mockResolvedValueOnce({
+      code: "1",
+      name: "Test",
+      actions: [],
+    });
+
+    await expect(
+      grantService.invokePostAction({
+        code: "1",
+        name: "test",
         payload: {
           code: "1",
           name: "test",
         },
-        json: true,
-      });
+      }),
+    ).rejects.toThrow('Grant with code "1" has no POST action named "test"');
 
-      assert.deepEqual(result, response);
+    expect(wreck.post).not.toHaveBeenCalled();
+  });
+
+  it("throws when the payload is invalid", async () => {
+    Grant.validateCode.mockImplementationOnce(() => {
+      throw new Error("Invalid request payload input");
     });
 
-    it("throws when the grant is not found", async ({ mock }) => {
-      mock.method(Grant, "validateCode");
-      mock.method(Grant, "validateActionName");
-      mock.method(Grant, "validateActionPayload");
-      mock.method(grantRepository, "findByCode", async () => null);
-      mock.method(wreck, "post", async () => {});
-
-      assert.rejects(
-        grantService.invokePostAction({
+    await expect(
+      grantService.invokePostAction({
+        code: "1",
+        name: "test",
+        payload: {
           code: "1",
           name: "test",
-          payload: {
-            code: "1",
-            name: "test",
-          },
-        }),
-        {
-          message: 'Grant with code "1" not found',
         },
-      );
+      }),
+    ).rejects.toThrow("Invalid request payload input");
 
-      assert.notCalled(wreck.post);
-    });
-
-    it("throws when the action is not found", async ({ mock }) => {
-      mock.method(Grant, "validateCode");
-      mock.method(Grant, "validateActionName");
-      mock.method(Grant, "validateActionPayload");
-      mock.method(grantRepository, "findByCode", async () => ({
-        id: "1",
-        name: "Test",
-        actions: [],
-      }));
-      mock.method(wreck, "post", async () => {});
-
-      assert.rejects(
-        grantService.invokePostAction({
-          code: "1",
-          name: "test",
-          payload: {
-            code: "1",
-            name: "test",
-          },
-        }),
-        {
-          message: 'Grant with code "1" has no POST action named "test"',
-        },
-      );
-
-      assert.notCalled(wreck.post);
-    });
-
-    it("throws when the payload is invalid", async ({ mock }) => {
-      mock.method(Grant, "validateCode");
-      mock.method(Grant, "validateActionName");
-      mock.method(Grant, "validateActionPayload", () => {
-        throw new Error("Invalid request payload input");
-      });
-      mock.method(wreck, "post", async () => {});
-
-      assert.rejects(
-        grantService.invokePostAction({
-          code: "1",
-          name: "test",
-          payload: {
-            code: "1",
-          },
-        }),
-        {
-          message: "Invalid request payload input",
-        },
-      );
-
-      assert.notCalled(wreck.post);
-    });
+    expect(wreck.post).not.toHaveBeenCalled();
   });
 });
