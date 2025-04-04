@@ -1,114 +1,66 @@
-import { describe, before, it } from "node:test";
+import { describe, it, expect, vi, beforeAll } from "vitest";
 import hapi from "@hapi/hapi";
-import { assert } from "../common/assert.js";
-import { grantsPlugin } from "./index.js";
-import { grantService } from "./grant-service.js";
 import Joi from "joi";
+import { grantsPlugin } from "./index.js";
+import * as grantService from "./grant-service.js";
 
-describe("grantsPlugin", () => {
-  let server;
+vi.mock("./grant-service.js", () => ({
+  create: vi.fn(),
+  findAll: vi.fn(),
+  findByCode: vi.fn(),
+  invokeGetAction: vi.fn(),
+  invokePostAction: vi.fn(),
+}));
 
-  before(async () => {
-    server = hapi.server();
-    await server.register(grantsPlugin);
-    await server.initialize();
-  });
+let server;
 
-  describe("POST /grants", () => {
-    it("creates a new grant and returns the id", async ({ mock }) => {
-      mock.method(grantService, "create", async (props) => props);
+beforeAll(async () => {
+  server = hapi.server();
+  await server.register(grantsPlugin);
+  await server.initialize();
+});
 
-      const { statusCode, result } = await server.inject({
-        method: "POST",
-        url: "/grants",
-        payload: {
-          code: "test",
-          metadata: {
-            description: "test",
-            startDate: "2021-01-01T00:00:00.000Z",
-          },
-          actions: [],
-          questions: [],
-        },
-      });
+describe("POST /grants", () => {
+  it("creates a new grant and returns the id", async () => {
+    const createGrantRequest = {
+      code: "test",
+      metadata: {
+        description: "test",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      questions: [],
+    };
 
-      assert.calledOnceWith(grantService.create, {
-        code: "test",
-        metadata: {
-          description: "test",
-          startDate: Joi.date().validate("2021-01-01T00:00:00.000Z").value,
-        },
-        actions: [],
-        questions: [],
-      });
+    grantService.create.mockResolvedValueOnce(createGrantRequest);
 
-      assert.equal(statusCode, 201);
+    const { statusCode, result } = await server.inject({
+      method: "POST",
+      url: "/grants",
+      payload: createGrantRequest,
+    });
 
-      assert.deepEqual(result, {
-        code: "test",
-      });
+    expect(grantService.create).toHaveBeenCalledWith({
+      code: "test",
+      metadata: {
+        description: "test",
+        startDate: Joi.date().validate("2021-01-01T00:00:00.000Z").value,
+      },
+      actions: [],
+      questions: [],
+    });
+    expect(statusCode).toEqual(201);
+    expect(result).toEqual({
+      code: "test",
     });
   });
+});
 
-  describe("GET /grants", () => {
-    it("returns all grants", async ({ mock }) => {
-      mock.method(grantService, "findAll", async () => [
-        {
-          code: "1",
-          metadata: {
-            description: "test 1",
-            startDate: "2021-01-01T00:00:00.000Z",
-          },
-          actions: [],
-          questions: [],
-          internal: "this is private",
-        },
-        {
-          code: "2",
-          metadata: {
-            description: "test 2",
-            startDate: "2021-01-01T00:00:00.000Z",
-          },
-          actions: [],
-          questions: [],
-          internal: "this is private",
-        },
-      ]);
-
-      const { statusCode, result } = await server.inject({
-        method: "GET",
-        url: "/grants",
-      });
-
-      assert.equal(statusCode, 200);
-
-      assert.deepEqual(result, [
-        {
-          code: "1",
-          metadata: {
-            description: "test 1",
-            startDate: "2021-01-01T00:00:00.000Z",
-          },
-          actions: [],
-          questions: [],
-        },
-        {
-          code: "2",
-          metadata: {
-            description: "test 2",
-            startDate: "2021-01-01T00:00:00.000Z",
-          },
-          actions: [],
-          questions: [],
-        },
-      ]);
-    });
-  });
-
-  describe("GET /grants/{code}", () => {
-    it("returns matching grant", async ({ mock }) => {
-      mock.method(grantService, "findByCode", async () => ({
-        code: "adding-value",
+describe("GET /grants", () => {
+  it("returns all grants", async () => {
+    grantService.findAll.mockResolvedValueOnce([
+      {
+        code: "1",
         metadata: {
           description: "test 1",
           startDate: "2021-01-01T00:00:00.000Z",
@@ -116,80 +68,133 @@ describe("grantsPlugin", () => {
         actions: [],
         questions: [],
         internal: "this is private",
-      }));
+      },
+      {
+        code: "2",
+        metadata: {
+          description: "test 2",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        questions: [],
+        internal: "this is private",
+      },
+    ]);
 
-      const { statusCode, result } = await server.inject({
-        method: "GET",
-        url: "/grants/adding-value",
-      });
+    const { statusCode, result } = await server.inject({
+      method: "GET",
+      url: "/grants",
+    });
 
-      assert.equal(statusCode, 200);
+    expect(statusCode).toEqual(200);
 
-      assert.deepEqual(result, {
-        code: "adding-value",
+    expect(result).toEqual([
+      {
+        code: "1",
         metadata: {
           description: "test 1",
           startDate: "2021-01-01T00:00:00.000Z",
         },
         actions: [],
         questions: [],
-      });
+      },
+      {
+        code: "2",
+        metadata: {
+          description: "test 2",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        questions: [],
+      },
+    ]);
+  });
+});
+
+describe("GET /grants/{code}", () => {
+  it("returns matching grant", async () => {
+    grantService.findByCode.mockResolvedValueOnce({
+      code: "adding-value",
+      metadata: {
+        description: "test 1",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      questions: [],
+      internal: "this is private",
+    });
+
+    const { statusCode, result } = await server.inject({
+      method: "GET",
+      url: "/grants/adding-value",
+    });
+
+    expect(statusCode).toEqual(200);
+
+    expect(result).toEqual({
+      code: "adding-value",
+      metadata: {
+        description: "test 1",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      questions: [],
     });
   });
+});
 
-  describe("GET /grants/{code}/actions/{name}/invoke", () => {
-    it("returns response from action", async ({ mock }) => {
-      mock.method(grantService, "invokeGetAction", async () => ({
-        arbitrary: "result",
-      }));
+describe("GET /grants/{code}/actions/{name}/invoke", () => {
+  it("returns response from action", async () => {
+    grantService.invokeGetAction.mockResolvedValueOnce({
+      arbitrary: "result",
+    });
 
-      const { statusCode, result } = await server.inject({
-        method: "GET",
-        url: "/grants/adding-value/actions/test/invoke",
-      });
+    const { statusCode, result } = await server.inject({
+      method: "GET",
+      url: "/grants/adding-value/actions/test/invoke",
+    });
 
-      assert.equal(statusCode, 200);
+    expect(statusCode).toEqual(200);
 
-      assert.deepEqual(result, {
-        arbitrary: "result",
-      });
+    expect(result).toEqual({
+      arbitrary: "result",
+    });
 
-      assert.calledOnceWith(grantService.invokeGetAction, {
-        code: "adding-value",
-        name: "test",
-      });
+    expect(grantService.invokeGetAction).toHaveBeenCalledWith({
+      code: "adding-value",
+      name: "test",
     });
   });
+});
 
-  describe("POST /grants/{code}/actions/{name}/invoke", () => {
-    it("returns response from action", async ({ mock }) => {
-      mock.method(grantService, "invokePostAction", async () => ({
-        arbitrary: "result",
-      }));
+describe("POST /grants/{code}/actions/{name}/invoke", () => {
+  it("returns response from action", async () => {
+    grantService.invokePostAction.mockResolvedValueOnce({
+      arbitrary: "result",
+    });
 
-      const { statusCode, result } = await server.inject({
-        method: "POST",
-        url: "/grants/adding-value/actions/test/invoke",
-        payload: {
-          code: "adding-value",
-          name: "test",
-        },
-      });
-
-      assert.equal(statusCode, 200);
-
-      assert.deepEqual(result, {
-        arbitrary: "result",
-      });
-
-      assert.calledOnceWith(grantService.invokePostAction, {
+    const { statusCode, result } = await server.inject({
+      method: "POST",
+      url: "/grants/adding-value/actions/test/invoke",
+      payload: {
         code: "adding-value",
         name: "test",
-        payload: {
-          code: "adding-value",
-          name: "test",
-        },
-      });
+      },
+    });
+
+    expect(statusCode).toEqual(200);
+
+    expect(result).toEqual({
+      arbitrary: "result",
+    });
+
+    expect(grantService.invokePostAction).toHaveBeenCalledWith({
+      code: "adding-value",
+      name: "test",
+      payload: {
+        code: "adding-value",
+        name: "test",
+      },
     });
   });
 });

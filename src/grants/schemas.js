@@ -1,6 +1,6 @@
 import Joi from "joi";
 
-const actionName = Joi.string()
+export const actionName = Joi.string()
   .pattern(/^[a-z0-9-]+$/)
   .min(1)
   .max(30)
@@ -8,7 +8,7 @@ const actionName = Joi.string()
   .example("action-name")
   .label("GrantActionName");
 
-const actionPayload = Joi.object({})
+export const actionPayload = Joi.object({})
   .unknown(true)
   .required()
   .label("GrantActionPayload");
@@ -23,7 +23,7 @@ const action = Joi.object({
     .example("https://example.com/api/v1/action"),
 }).label("GrantAction");
 
-const grantCode = Joi.string()
+export const grantCode = Joi.string()
   .pattern(/^[a-z0-9-]+$/)
   .min(1)
   .max(500)
@@ -33,7 +33,7 @@ const grantCode = Joi.string()
 
 const question = Joi.any().example("question").label("Question");
 
-const Grant = Joi.object({
+export const Grant = Joi.object({
   code: grantCode,
   metadata: Joi.object({
     description: Joi.string().min(1).max(500).required(),
@@ -43,7 +43,7 @@ const Grant = Joi.object({
   actions: Joi.array().items(action).max(20).required(),
 }).label("Grant");
 
-const ValidationError = Joi.object({
+export const ValidationError = Joi.object({
   statusCode: Joi.number().example(400),
   error: Joi.string().example("Bad Request"),
   message: Joi.string().example("Grant code must be a valid code"),
@@ -52,11 +52,3 @@ const ValidationError = Joi.object({
     source: Joi.string().example("payload"),
   }),
 }).label("ValidationError");
-
-export const schemas = {
-  grantCode,
-  actionName,
-  actionPayload,
-  Grant,
-  ValidationError,
-};
