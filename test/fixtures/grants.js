@@ -11,7 +11,16 @@ export const grant1 = {
       url: "http://example.com",
     },
   ],
-  questions: [],
+  questions: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    properties: {
+      question1: {
+        type: "string",
+        description: "This is a test question",
+      },
+    },
+  },
 };
 
 export const grant2 = {
@@ -27,5 +36,14 @@ export const grant2 = {
       url: "http://example.com",
     },
   ],
-  questions: [],
+  questions: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    properties: {
+      question2: {
+        type: "string",
+        description: "This is another test question",
+      },
+    },
+  },
 };

@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { questions } from "./schemas/questions.js";
 
 export const actionName = Joi.string()
   .pattern(/^[a-z0-9-]+$/)
@@ -31,16 +32,14 @@ export const grantCode = Joi.string()
   .example("test-code")
   .label("GrantCode");
 
-const question = Joi.any().example("question").label("Question");
-
 export const Grant = Joi.object({
   code: grantCode,
   metadata: Joi.object({
     description: Joi.string().min(1).max(500).required(),
     startDate: Joi.date().required(),
   }),
-  questions: Joi.array().items(question).required(),
   actions: Joi.array().items(action).max(20).required(),
+  questions: questions.required(),
 }).label("Grant");
 
 export const ValidationError = Joi.object({

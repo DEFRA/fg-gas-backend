@@ -21,7 +21,55 @@ Content-Type: application/json
       "method": "POST"
     }
   ],
-  "questions": []
+  "questions": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "surname": {
+        "type": "string"
+      },
+      "age": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "isAgent": {
+        "type": "boolean"
+      },
+      "address": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "postCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "street",
+          "city",
+          "postCode"
+        ]
+      }
+    },
+    "required": [
+      "name",
+      "surname",
+      "age",
+      "isAgent"
+    ],
+    "dependentRequired": {
+      "isAgent": [
+        "address"
+      ]
+    }
+  }
 }
 
 ### Get a Grant
