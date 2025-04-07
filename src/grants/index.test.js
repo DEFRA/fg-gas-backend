@@ -29,7 +29,10 @@ describe("POST /grants", () => {
         startDate: "2021-01-01T00:00:00.000Z",
       },
       actions: [],
-      questions: [],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+      },
     };
 
     grantService.create.mockResolvedValueOnce(createGrantRequest);
@@ -40,6 +43,8 @@ describe("POST /grants", () => {
       payload: createGrantRequest,
     });
 
+    expect(statusCode).toEqual(201);
+
     expect(grantService.create).toHaveBeenCalledWith({
       code: "test",
       metadata: {
@@ -47,9 +52,11 @@ describe("POST /grants", () => {
         startDate: Joi.date().validate("2021-01-01T00:00:00.000Z").value,
       },
       actions: [],
-      questions: [],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+      },
     });
-    expect(statusCode).toEqual(201);
     expect(result).toEqual({
       code: "test",
     });
@@ -66,7 +73,10 @@ describe("GET /grants", () => {
           startDate: "2021-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: [],
+        questions: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+        },
         internal: "this is private",
       },
       {
@@ -76,7 +86,10 @@ describe("GET /grants", () => {
           startDate: "2021-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: [],
+        questions: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+        },
         internal: "this is private",
       },
     ]);
@@ -96,7 +109,10 @@ describe("GET /grants", () => {
           startDate: "2021-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: [],
+        questions: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+        },
       },
       {
         code: "2",
@@ -105,7 +121,10 @@ describe("GET /grants", () => {
           startDate: "2021-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: [],
+        questions: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+        },
       },
     ]);
   });
@@ -120,7 +139,10 @@ describe("GET /grants/{code}", () => {
         startDate: "2021-01-01T00:00:00.000Z",
       },
       actions: [],
-      questions: [],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+      },
       internal: "this is private",
     });
 
@@ -138,7 +160,10 @@ describe("GET /grants/{code}", () => {
         startDate: "2021-01-01T00:00:00.000Z",
       },
       actions: [],
-      questions: [],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+      },
     });
   });
 });
