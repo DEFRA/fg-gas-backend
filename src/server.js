@@ -13,7 +13,7 @@ import Vision from "@hapi/vision";
 
 export const createServer = async () => {
   const server = hapi.server({
-    port: config.get("port"),
+    port: config.port,
     routes: {
       validate: {
         options: {
@@ -40,13 +40,6 @@ export const createServer = async () => {
     },
   });
 
-  const swaggerOptions = {
-    info: {
-      title: "FG Grant Application Service API Documentation",
-      version: config.get("serviceVersion"),
-    },
-  };
-
   server.events.on("start", async () => {
     await mongoClient.connect();
   });
@@ -66,7 +59,7 @@ export const createServer = async () => {
     {
       plugin: tracing.plugin,
       options: {
-        tracingHeader: config.get("tracing.header"),
+        tracingHeader: config.tracingHeader,
       },
     },
     {
@@ -80,7 +73,12 @@ export const createServer = async () => {
     Vision,
     {
       plugin: HapiSwagger,
-      options: swaggerOptions,
+      options: {
+        info: {
+          title: "FG Grant Application Service API Documentation",
+          version: config.serviceVersion,
+        },
+      },
     },
   ]);
 

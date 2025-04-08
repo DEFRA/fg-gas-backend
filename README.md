@@ -40,6 +40,12 @@ Install application dependencies:
 npm install
 ```
 
+Create a `.env` file in the root of the project. You can use the `.env.example` file as a template.
+
+```bash
+cp .env.example .env
+```
+
 ### Development
 
 To run the application in `development` mode run:
