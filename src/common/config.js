@@ -1,26 +1,13 @@
 import { env } from "node:process";
 import Joi from "joi";
 
-export const config = {
-  env: env.NODE_ENV,
-  serviceName: env.SERVICE_NAME,
-  serviceVersion: env.SERVICE_VERSION,
-  port: env.PORT,
-  logEnabled: env.LOG_ENABLED,
-  logLevel: env.LOG_LEVEL,
-  logFormat: env.LOG_FORMAT,
-  mongoUri: env.MONGO_URI,
-  mongoDatabase: env.MONGO_DATABASE,
-  tracingHeader: "x-cdp-request-id",
-};
-
 const schema = Joi.object({
-  env: Joi.string().allow("development", "production", "test"),
-  serviceName: Joi.string(),
-  serviceVersion: Joi.string(),
-  port: Joi.number(),
-  logEnabled: Joi.boolean(),
-  logLevel: Joi.string().allow(
+  NODE_ENV: Joi.string().allow("development", "production", "test"),
+  SERVICE_NAME: Joi.string(),
+  SERVICE_VERSION: Joi.string(),
+  PORT: Joi.number(),
+  LOG_ENABLED: Joi.boolean(),
+  LOG_LEVEL: Joi.string().allow(
     "fatal",
     "error",
     "warn",
@@ -29,12 +16,27 @@ const schema = Joi.object({
     "trace",
     "silent",
   ),
-  logFormat: Joi.string().allow("ecs", "pino-pretty"),
-  mongoUri: Joi.string().uri(),
-  mongoDatabase: Joi.string(),
+  LOG_FORMAT: Joi.string().allow("ecs", "pino-pretty"),
+  MONGO_URI: Joi.string(),
+  MONGO_DATABASE: Joi.string(),
+  TRACING_HEADER: Joi.string(),
 }).options({
+  stripUnknown: true,
   allowUnknown: true,
   presence: "required",
 });
 
-Joi.assert(config, schema);
+const vars = Joi.attempt(env, schema);
+
+export const config = {
+  env: vars.NODE_ENV,
+  serviceName: vars.SERVICE_NAME,
+  serviceVersion: vars.SERVICE_VERSION,
+  port: vars.PORT,
+  logEnabled: vars.LOG_ENABLED,
+  logLevel: vars.LOG_LEVEL,
+  logFormat: vars.LOG_FORMAT,
+  mongoUri: vars.MONGO_URI,
+  mongoDatabase: vars.MONGO_DATABASE,
+  tracingHeader: vars.TRACING_HEADER,
+};
