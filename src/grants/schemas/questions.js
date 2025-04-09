@@ -10,17 +10,17 @@ export const questions = Joi.object({
   .unknown(true)
   .label("Questions")
   .custom((schema, helpers) => {
-    const ajv2020 = new Ajv2020({
+    const ajv = new Ajv2020({
       strict: true,
     });
 
     try {
       // throws if $schema is not 2020-12
-      if (ajv2020.validateSchema(schema)) {
+      if (ajv.validateSchema(schema)) {
         return schema;
       }
 
-      const [error] = ajv2020.errors;
+      const [error] = ajv.errors;
 
       const message = [`'${error.instancePath}'`, error.message];
 

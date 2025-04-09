@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { wreck } from "../common/wreck.js";
 import * as Grant from "./grant.js";
 import * as grantRepository from "./grant-repository.js";
+import * as applicationRepository from "./application-repository.js";
 import * as grantService from "./grant-service.js";
 
 vi.mock("../common/wreck.js", () => ({
@@ -22,6 +23,10 @@ vi.mock("./grant-repository.js", () => ({
   add: vi.fn(),
   findAll: vi.fn(),
   findByCode: vi.fn(),
+}));
+
+vi.mock("./application-repository.js", () => ({
+  add: vi.fn(),
 }));
 
 describe("create", () => {
@@ -266,5 +271,79 @@ describe("invokePostAction", () => {
     ).rejects.toThrow("Invalid request payload input");
 
     expect(wreck.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("submitApplication", () => {
+  it("submits the application", async () => {
+    grantRepository.findByCode.mockResolvedValueOnce({
+      code: "grant-1",
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+        properties: {
+          question1: {
+            type: "string",
+          },
+          question2: {
+            type: "number",
+          },
+        },
+        required: ["question1", "question2"],
+      },
+    });
+
+    await grantService.submitApplication("grant-1", {
+      metadata: {
+        clientRef: "12345",
+        submittedAt: new Date(),
+        sbi: "1234567890",
+        frn: "1234567890",
+        crn: "1234567890",
+        defraId: "1234567890",
+      },
+      answers: {
+        question1: "answer1",
+        question2: 42,
+      },
+    });
+
+    expect(applicationRepository.add).toHaveBeenCalledWith({
+      grantCode: "grant-1",
+      clientRef: "12345",
+      submittedAt: expect.any(Date),
+      createdAt: expect.any(Date),
+      identifiers: {
+        sbi: "1234567890",
+        frn: "1234567890",
+        crn: "1234567890",
+        defraId: "1234567890",
+      },
+      answers: {
+        question1: "answer1",
+        question2: 42,
+      },
+    });
+  });
+
+  it("throws when the grant is not found", async () => {
+    grantRepository.findByCode.mockResolvedValueOnce(null);
+
+    await expect(
+      grantService.submitApplication("grant-1", {
+        metadata: {
+          clientRef: "12345",
+          submittedAt: new Date(),
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
+        },
+        answers: {
+          question1: "answer1",
+          question2: 42,
+        },
+      }),
+    ).rejects.toThrow('Grant with code "grant-1" not found');
   });
 });

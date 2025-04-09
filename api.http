@@ -93,3 +93,30 @@ Content-Type: application/json
 {
   "test": 1
 }
+
+### Submit application
+# @name submitApplication
+POST {{base}}/grants/{{createGrant.response.body.code}}/applications
+Content-Type: application/json
+
+{
+  "metadata": {
+    "clientRef": "abc123",
+    "submittedAt": "2023-10-01T12:00:00Z",
+    "sbi": "1234567890",
+    "frn": "1234567890",
+    "crn": "1234567890",
+    "defraId": "1234567890"
+  },
+  "answers": {
+    "name": "John",
+    "surname": "Doe",
+    "age": 30,
+    "isAgent": true,
+    "address": {
+      "street": "123 Main St",
+      "city": "Anytown",
+      "postCode": "12345"
+    }
+  }
+}
