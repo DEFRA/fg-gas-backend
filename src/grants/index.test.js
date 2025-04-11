@@ -10,6 +10,7 @@ vi.mock("./grant-service.js", () => ({
   findByCode: vi.fn(),
   invokeGetAction: vi.fn(),
   invokePostAction: vi.fn(),
+  submitApplication: vi.fn(),
 }));
 
 let server;
@@ -220,6 +221,55 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
         code: "adding-value",
         name: "test",
       },
+    });
+  });
+});
+
+describe("POST /grants/{code}/applications", () => {
+  it("returns the application id", async () => {
+    const submittedAt = new Date();
+
+    const { statusCode, result } = await server.inject({
+      method: "POST",
+      url: "/grants/adding-value/applications",
+      payload: {
+        metadata: {
+          clientRef: "client-1",
+          submittedAt,
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
+        },
+        answers: {
+          question1: "answer1",
+          question2: 42,
+        },
+      },
+    });
+
+    expect(statusCode).toEqual(201);
+
+    expect(grantService.submitApplication).toHaveBeenCalledWith(
+      "adding-value",
+      {
+        answers: {
+          question1: "answer1",
+          question2: 42,
+        },
+        metadata: {
+          clientRef: "client-1",
+          crn: "1234567890",
+          defraId: "1234567890",
+          frn: "1234567890",
+          sbi: "1234567890",
+          submittedAt,
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      clientRef: "client-1",
     });
   });
 });
