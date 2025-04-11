@@ -7,7 +7,7 @@ export const questions = Joi.object({
     .required(),
   type: Joi.string().valid("object").required(),
 })
-  .unknown(true)
+  .unknown()
   .label("Questions")
   .custom((schema, helpers) => {
     const ajv = new Ajv2020({
