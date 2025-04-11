@@ -1,6 +1,6 @@
+import Joi from "joi";
 import * as grantService from "./grant-service.js";
 import * as schemas from "./schemas.js";
-import Joi from "joi";
 
 /**
  * @type {import('@hapi/hapi').Plugin<any>}
@@ -151,6 +151,41 @@ export const grantsPlugin = {
         });
 
         return result;
+      },
+    });
+
+    server.route({
+      method: "POST",
+      path: "/grants/{code}/applications",
+      options: {
+        description: "Create an application for a grant",
+        tags: ["api"],
+        validate: {
+          payload: schemas.CreateApplicationRequest,
+          params: Joi.object({
+            code: schemas.grantCode,
+          }),
+        },
+        response: {
+          status: {
+            201: Joi.object({
+              clientRef: schemas.clientRef,
+            }).label("CreateApplicationResponse"),
+            400: schemas.ValidationError,
+          },
+        },
+      },
+      async handler(request, h) {
+        await grantService.submitApplication(
+          request.params.code,
+          request.payload,
+        );
+
+        return h
+          .response({
+            clientRef: request.payload.metadata.clientRef,
+          })
+          .code(201);
       },
     });
   },
