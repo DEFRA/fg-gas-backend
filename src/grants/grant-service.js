@@ -1,7 +1,9 @@
 import Boom from "@hapi/boom";
 import { wreck } from "../common/wreck.js";
 import * as grantRepository from "./grant-repository.js";
+import * as applicationRepository from "./application-repository.js";
 import * as Grant from "./grant.js";
+import { createApplication } from "./application.js";
 
 export const create = async (props) => {
   const grant = Grant.create(props);
@@ -81,4 +83,22 @@ export const invokePostAction = async ({ code, name, payload }) => {
   });
 
   return response.payload;
+};
+
+export const submitApplication = async (code, createApplicationRequest) => {
+  Grant.validateCode(code);
+
+  const grant = await grantRepository.findByCode(code);
+
+  if (grant === null) {
+    throw Boom.notFound(`Grant with code "${code}" not found`);
+  }
+
+  const application = createApplication(
+    code,
+    grant.questions,
+    createApplicationRequest,
+  );
+
+  await applicationRepository.add(application);
 };

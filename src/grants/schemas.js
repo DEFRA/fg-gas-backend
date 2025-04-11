@@ -37,10 +37,30 @@ export const Grant = Joi.object({
   metadata: Joi.object({
     description: Joi.string().min(1).max(500).required(),
     startDate: Joi.date().required(),
-  }),
+  })
+    .label("GrantMetadata")
+    .required(),
   actions: Joi.array().items(action).max(20).required(),
   questions: questions.required(),
 }).label("Grant");
+
+export const clientRef = Joi.string()
+  .pattern(/^[a-z0-9-]+$/)
+  .example("ref-1234");
+
+export const CreateApplicationRequest = Joi.object({
+  metadata: Joi.object({
+    clientRef,
+    submittedAt: Joi.date().iso().optional(),
+    sbi: Joi.string(),
+    frn: Joi.string(),
+    crn: Joi.string(),
+    defraId: Joi.string(),
+  }).label("ApplicationMetadata"),
+  answers: Joi.object({}).unknown(true).label("Answers"),
+})
+  .options({ presence: "required" })
+  .label("CreateApplicationRequest");
 
 export const ValidationError = Joi.object({
   statusCode: Joi.number().example(400),
