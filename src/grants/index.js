@@ -1,6 +1,15 @@
 import Joi from "joi";
 import * as grantService from "./grant-service.js";
-import * as schemas from "./schemas.js";
+import { createGrantResponse } from "./schemas/responses/create-grant-response.js";
+import { createGrantRequest } from "./schemas/requests/create-grant-request.js";
+import { getGrantResponse } from "./schemas/responses/get-grant-reponse.js";
+import { badRequestResponse } from "./schemas/responses/bad-request-response.js";
+import { invokeActionResponse } from "./schemas/responses/invoke-action-response.js";
+import { invokePostActionRequest } from "./schemas/requests/invoke-post-action-request.js";
+import { createApplicationRequest } from "./schemas/requests/create-application-request.js";
+import { createApplicationResponse } from "./schemas/responses/create-application-response.js";
+import { code } from "./schemas/grant/code.js";
+import { name } from "./schemas/grant/action/name.js";
 
 /**
  * @type {import('@hapi/hapi').Plugin<any>}
@@ -15,14 +24,12 @@ export const grantsPlugin = {
         description: "Create a grant",
         tags: ["api"],
         validate: {
-          payload: schemas.Grant,
+          payload: createGrantRequest,
         },
         response: {
           status: {
-            201: Joi.object({ code: schemas.grantCode }).label(
-              "CreateGrantResponse",
-            ),
-            400: schemas.ValidationError,
+            201: createGrantResponse,
+            400: badRequestResponse,
           },
         },
       },
@@ -44,7 +51,9 @@ export const grantsPlugin = {
         description: "Get all grants",
         tags: ["api"],
         response: {
-          schema: Joi.array().items(schemas.Grant).label("Grants"),
+          schema: Joi.array()
+            .items(getGrantResponse)
+            .label("GetGrantsResponse"),
         },
       },
       async handler(_request, _h) {
@@ -70,14 +79,11 @@ export const grantsPlugin = {
         tags: ["api"],
         validate: {
           params: Joi.object({
-            code: schemas.grantCode,
+            code,
           }),
         },
         response: {
-          status: {
-            200: schemas.Grant,
-            400: schemas.ValidationError,
-          },
+          schema: getGrantResponse,
         },
       },
       async handler(request, _h) {
@@ -103,14 +109,14 @@ export const grantsPlugin = {
         tags: ["api"],
         validate: {
           params: Joi.object({
-            code: schemas.grantCode,
-            name: schemas.actionName,
+            code,
+            name,
           }),
         },
         response: {
           status: {
-            200: Joi.object({}).unknown().label("InvokeActionResponse"),
-            400: schemas.ValidationError,
+            200: invokeActionResponse,
+            400: badRequestResponse,
           },
         },
       },
@@ -130,16 +136,16 @@ export const grantsPlugin = {
         description: "Invoke a named GET action on the grant specified by code",
         tags: ["api"],
         validate: {
-          payload: Joi.object({}).unknown().label("InvokePostActionRequest"),
           params: Joi.object({
-            code: schemas.grantCode,
-            name: schemas.actionName,
+            code,
+            name,
           }),
+          payload: invokePostActionRequest,
         },
         response: {
           status: {
-            200: Joi.object({}).unknown().label("InvokeActionResponse"),
-            400: schemas.ValidationError,
+            200: invokeActionResponse,
+            400: badRequestResponse,
           },
         },
       },
@@ -161,17 +167,15 @@ export const grantsPlugin = {
         description: "Create an application for a grant",
         tags: ["api"],
         validate: {
-          payload: schemas.CreateApplicationRequest,
+          payload: createApplicationRequest,
           params: Joi.object({
-            code: schemas.grantCode,
+            code,
           }),
         },
         response: {
           status: {
-            201: Joi.object({
-              clientRef: schemas.clientRef,
-            }).label("CreateApplicationResponse"),
-            400: schemas.ValidationError,
+            201: createApplicationResponse,
+            400: badRequestResponse,
           },
         },
       },
