@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { wreck } from "../common/wreck.js";
-import * as Grant from "./grant.js";
+import { createGrant } from "./grant.js";
 import * as grantRepository from "./grant-repository.js";
 import * as applicationRepository from "./application-repository.js";
 import * as grantService from "./grant-service.js";
@@ -13,10 +13,7 @@ vi.mock("../common/wreck.js", () => ({
 }));
 
 vi.mock("./grant.js", () => ({
-  create: vi.fn(),
-  validateCode: vi.fn(),
-  validateActionName: vi.fn(),
-  validateActionPayload: vi.fn(),
+  createGrant: vi.fn(),
 }));
 
 vi.mock("./grant-repository.js", () => ({
@@ -43,7 +40,7 @@ describe("create", () => {
       ],
     };
 
-    Grant.create.mockReturnValueOnce(grant);
+    createGrant.mockReturnValueOnce(grant);
 
     const result = await grantService.create({
       code: "grant-code",
@@ -57,7 +54,7 @@ describe("create", () => {
       ],
     });
 
-    expect(Grant.create).toHaveBeenCalledWith(grant);
+    expect(createGrant).toHaveBeenCalledWith(grant);
     expect(grantRepository.add).toHaveBeenCalledWith(grant);
     expect(result).toEqual(grant);
   });
@@ -98,7 +95,6 @@ describe("findByCode", () => {
 
     const result = await grantService.findByCode("1");
 
-    expect(Grant.validateCode).toHaveBeenCalledWith("1");
     expect(grantRepository.findByCode).toHaveBeenCalledWith("1");
     expect(result).toEqual(grant);
   });
@@ -250,25 +246,6 @@ describe("invokePostAction", () => {
         },
       }),
     ).rejects.toThrow('Grant with code "1" has no POST action named "test"');
-
-    expect(wreck.post).not.toHaveBeenCalled();
-  });
-
-  it("throws when the payload is invalid", async () => {
-    Grant.validateCode.mockImplementationOnce(() => {
-      throw new Error("Invalid request payload input");
-    });
-
-    await expect(
-      grantService.invokePostAction({
-        code: "1",
-        name: "test",
-        payload: {
-          code: "1",
-          name: "test",
-        },
-      }),
-    ).rejects.toThrow("Invalid request payload input");
 
     expect(wreck.post).not.toHaveBeenCalled();
   });

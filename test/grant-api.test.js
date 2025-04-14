@@ -159,7 +159,7 @@ describe("POST /grants/{code}/applications", () => {
         code: "test-code-1",
         metadata: {
           description: "test description 1",
-          startDate: "2021-01-01T00:00:00.000Z",
+          startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
         questions: {
@@ -232,7 +232,7 @@ describe("POST /grants/{code}/applications", () => {
         code: "test-code-1",
         metadata: {
           description: "test description 1",
-          startDate: "2021-01-01T00:00:00.000Z",
+          startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
         questions: {
