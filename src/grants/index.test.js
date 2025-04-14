@@ -12,6 +12,12 @@ vi.mock("./grant-service.js", () => ({
   submitApplication: vi.fn(),
 }));
 
+vi.mock("../common/db.js", () => ({
+  db: {
+    createIndex: vi.fn(),
+  },
+}));
+
 let server;
 
 beforeAll(async () => {
