@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from "vitest";
 import hapi from "@hapi/hapi";
-import Joi from "joi";
 import { grantsPlugin } from "./index.js";
 import * as grantService from "./grant-service.js";
 
@@ -27,7 +26,7 @@ describe("POST /grants", () => {
       code: "test",
       metadata: {
         description: "test",
-        startDate: "2021-01-01T00:00:00.000Z",
+        startDate: "2100-01-01T00:00:00.000Z",
       },
       actions: [],
       questions: {
@@ -50,7 +49,7 @@ describe("POST /grants", () => {
       code: "test",
       metadata: {
         description: "test",
-        startDate: Joi.date().validate("2021-01-01T00:00:00.000Z").value,
+        startDate: new Date("2100-01-01T00:00:00.000Z"),
       },
       actions: [],
       questions: {
@@ -71,7 +70,7 @@ describe("GET /grants", () => {
         code: "1",
         metadata: {
           description: "test 1",
-          startDate: "2021-01-01T00:00:00.000Z",
+          startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
         questions: {
@@ -84,7 +83,7 @@ describe("GET /grants", () => {
         code: "2",
         metadata: {
           description: "test 2",
-          startDate: "2021-01-01T00:00:00.000Z",
+          startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
         questions: {
@@ -107,7 +106,7 @@ describe("GET /grants", () => {
         code: "1",
         metadata: {
           description: "test 1",
-          startDate: "2021-01-01T00:00:00.000Z",
+          startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
         questions: {
@@ -119,7 +118,7 @@ describe("GET /grants", () => {
         code: "2",
         metadata: {
           description: "test 2",
-          startDate: "2021-01-01T00:00:00.000Z",
+          startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
         questions: {
@@ -137,7 +136,7 @@ describe("GET /grants/{code}", () => {
       code: "adding-value",
       metadata: {
         description: "test 1",
-        startDate: "2021-01-01T00:00:00.000Z",
+        startDate: "2100-01-01T00:00:00.000Z",
       },
       actions: [],
       questions: {
@@ -158,7 +157,7 @@ describe("GET /grants/{code}", () => {
       code: "adding-value",
       metadata: {
         description: "test 1",
-        startDate: "2021-01-01T00:00:00.000Z",
+        startDate: "2100-01-01T00:00:00.000Z",
       },
       actions: [],
       questions: {

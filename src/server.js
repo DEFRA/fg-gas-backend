@@ -75,7 +75,7 @@ export const createServer = async () => {
       plugin: HapiSwagger,
       options: {
         info: {
-          title: "FG Grant Application Service API Documentation",
+          title: "Grant Application Service",
           version: config.serviceVersion,
         },
       },

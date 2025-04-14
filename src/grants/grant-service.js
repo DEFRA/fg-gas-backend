@@ -2,11 +2,11 @@ import Boom from "@hapi/boom";
 import { wreck } from "../common/wreck.js";
 import * as grantRepository from "./grant-repository.js";
 import * as applicationRepository from "./application-repository.js";
-import * as Grant from "./grant.js";
+import { createGrant } from "./grant.js";
 import { createApplication } from "./application.js";
 
 export const create = async (props) => {
-  const grant = Grant.create(props);
+  const grant = createGrant(props);
 
   await grantRepository.add(grant);
 
@@ -18,8 +18,6 @@ export const findAll = async () => {
 };
 
 export const findByCode = async (code) => {
-  Grant.validateCode(code);
-
   const grant = await grantRepository.findByCode(code);
 
   if (grant === null) {
@@ -30,9 +28,6 @@ export const findByCode = async (code) => {
 };
 
 export const invokeGetAction = async ({ code, name }) => {
-  Grant.validateCode(code);
-  Grant.validateActionName(name);
-
   const grant = await grantRepository.findByCode(code);
 
   if (grant === null) {
@@ -57,10 +52,6 @@ export const invokeGetAction = async ({ code, name }) => {
 };
 
 export const invokePostAction = async ({ code, name, payload }) => {
-  Grant.validateCode(code);
-  Grant.validateActionName(name);
-  Grant.validateActionPayload(payload);
-
   const grant = await grantRepository.findByCode(code);
 
   if (grant === null) {
@@ -86,8 +77,6 @@ export const invokePostAction = async ({ code, name, payload }) => {
 };
 
 export const submitApplication = async (code, createApplicationRequest) => {
-  Grant.validateCode(code);
-
   const grant = await grantRepository.findByCode(code);
 
   if (grant === null) {
