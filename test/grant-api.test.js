@@ -58,6 +58,29 @@ describe("POST /grants", () => {
       },
     ]);
   });
+
+  it("returns 409 when code exists", async () => {
+    await Wreck.post(`${env.API_URL}/grants`, {
+      json: true,
+      payload: grant1,
+    });
+
+    let response;
+    try {
+      await Wreck.post(`${env.API_URL}/grants`, {
+        json: true,
+        payload: grant1,
+      });
+    } catch (err) {
+      response = err.data.payload;
+    }
+
+    expect(response).toEqual({
+      statusCode: 409,
+      error: "Conflict",
+      message: `Grant with code "${grant1.code}" already exists`,
+    });
+  });
 });
 
 describe("GET /grants", () => {
@@ -149,6 +172,7 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
 
 describe("POST /grants/{code}/applications", () => {
   beforeEach(async () => {
+    await grants.deleteMany({});
     await applications.deleteMany({});
   });
 
@@ -225,7 +249,7 @@ describe("POST /grants/{code}/applications", () => {
     ]);
   });
 
-  it("responds with 400 when the application does not pass schema validation", async () => {
+  it("returns 400 when schema validation fails", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
       payload: {
@@ -275,6 +299,75 @@ describe("POST /grants/{code}/applications", () => {
       error: "Bad Request",
       message:
         'Application with clientRef "12345" has invalid answers: data/question1 must be string',
+    });
+  });
+
+  it("returns 409 when clientRef exists", async () => {
+    await Wreck.post(`${env.API_URL}/grants`, {
+      json: true,
+      payload: {
+        code: "test-code-1",
+        metadata: {
+          description: "test description 1",
+          startDate: "2100-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        questions: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+          properties: {
+            question1: {
+              type: "string",
+              description: "This is a test question",
+            },
+          },
+        },
+      },
+    });
+
+    await Wreck.post(`${env.API_URL}/grants/test-code-1/applications`, {
+      json: true,
+      payload: {
+        metadata: {
+          clientRef: "12345",
+          submittedAt: new Date(),
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
+        },
+        answers: {
+          question1: "test answer",
+        },
+      },
+    });
+
+    let response;
+    try {
+      await Wreck.post(`${env.API_URL}/grants/test-code-1/applications`, {
+        json: true,
+        payload: {
+          metadata: {
+            clientRef: "12345", // Duplicate clientRef
+            submittedAt: new Date(),
+            sbi: "1234567890",
+            frn: "1234567890",
+            crn: "1234567890",
+            defraId: "1234567890",
+          },
+          answers: {
+            question1: "test answer 2",
+          },
+        },
+      });
+    } catch (err) {
+      response = err.data.payload;
+    }
+
+    expect(response).toEqual({
+      statusCode: 409,
+      error: "Conflict",
+      message: 'Application with clientRef "12345" already exists',
     });
   });
 });
