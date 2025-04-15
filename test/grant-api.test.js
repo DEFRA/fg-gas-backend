@@ -11,7 +11,7 @@ import { env } from "node:process";
 import http from "node:http";
 import Wreck from "@hapi/wreck";
 import { MongoClient } from "mongodb";
-import { grant1, grant2 } from "./fixtures/grants.js";
+import { grant1, grant2, grant3 } from "./fixtures/grants.js";
 import Joi from "joi";
 
 let grants;
@@ -66,14 +66,14 @@ describe("GET /grants", () => {
   });
 
   it("finds grants", async () => {
-    await grants.insertMany([{ ...grant1 }, { ...grant2 }]);
+    await grants.insertMany([{ ...grant1 }, { ...grant2 }, { ...grant3 }]);
 
     const response = await Wreck.get(`${env.API_URL}/grants`, {
       json: true,
     });
 
     expect(response.res.statusCode).toEqual(200);
-    expect(response.payload).toEqual([grant1, grant2]);
+    expect(response.payload).toEqual([grant1, grant2, grant3]);
   });
 });
 
