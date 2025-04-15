@@ -10,6 +10,7 @@ import { createApplicationRequest } from "./schemas/requests/create-application-
 import { createApplicationResponse } from "./schemas/responses/create-application-response.js";
 import { code } from "./schemas/grant/code.js";
 import { name } from "./schemas/grant/action/name.js";
+import { db } from "../common/db.js";
 
 /**
  * @type {import('@hapi/hapi').Plugin<any>}
@@ -17,6 +18,11 @@ import { name } from "./schemas/grant/action/name.js";
 export const grantsPlugin = {
   name: "grants",
   async register(server) {
+    await Promise.all([
+      db.createIndex("grants", { code: 1 }, { unique: true }),
+      db.createIndex("applications", { clientRef: 1 }, { unique: true }),
+    ]);
+
     server.route({
       method: "POST",
       path: "/grants",

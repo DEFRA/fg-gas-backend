@@ -12,11 +12,7 @@ export const createGrantRequest = Joi.object({
     description,
     startDate,
   }).label("Metadata"),
-  actions: Joi.array()
-    .items(action)
-    .unique("action.name")
-    .max(20)
-    .label("Actions"),
+  actions: Joi.array().items(action).unique("name").max(20).label("Actions"),
 })
   .options({
     presence: "required",
