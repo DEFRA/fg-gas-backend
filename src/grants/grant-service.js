@@ -5,6 +5,9 @@ import * as applicationRepository from "./application-repository.js";
 import { createGrant } from "./grant.js";
 import { createApplication } from "./application.js";
 
+import { config } from "../common/config.js";
+import { publish } from "../common/sns.js";
+
 export const create = async (props) => {
   const grant = createGrant(props);
 
@@ -90,4 +93,9 @@ export const submitApplication = async (code, createApplicationRequest) => {
   );
 
   await applicationRepository.add(application);
+
+  await publish(
+    JSON.stringify(application),
+    config.grantApplicationCreatedTopic,
+  );
 };
