@@ -21,6 +21,7 @@ const schema = Joi.object({
   MONGO_DATABASE: Joi.string(),
   TRACING_HEADER: Joi.string(),
   GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string(),
+  AWS_ENDPOINT: Joi.string(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -41,4 +42,5 @@ export const config = {
   mongoDatabase: vars.MONGO_DATABASE,
   tracingHeader: vars.TRACING_HEADER,
   grantApplicationCreatedTopic: vars.GRANT_APPLICATION_CREATED_TOPIC_ARN,
+  awsEndoint: vars.AWS_ENDPOINT,
 };

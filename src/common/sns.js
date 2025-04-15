@@ -1,8 +1,9 @@
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
+import { config } from "./config.js";
 
 export const snsClient = new SNSClient({
-  region: "eu-west-2",
-  endpoint: "http://localstack:4566",
+  region: config.region,
+  endpoint: config.awsEndoint,
 });
 
 export const publish = (message, topicArn) => {
