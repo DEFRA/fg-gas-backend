@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 
 const GAS_PORT = 3001;
 const MONGO_PORT = 27018;
-const LOCALSTACK_PORT = 4566;
+const LOCALSTACK_PORT = 4567;
 
 export default defineConfig({
   test: {
@@ -18,6 +18,7 @@ export default defineConfig({
       AWS_ENDPOINT: `http://localhost:${LOCALSTACK_PORT}`,
       AWS_ACCESS_KEY_ID: "test",
       AWS_SECRET_ACCESS_KEY: "test",
+      GRANT_APPLICATION_SUBMITTED_QUEUE: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/grant-application`,
     },
     hookTimeout: 30000,
   },

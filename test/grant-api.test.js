@@ -256,12 +256,11 @@ describe("POST /grants/{code}/applications", () => {
 
     const { Messages } = await sqsClient.send(
       new ReceiveMessageCommand({
-        QueueUrl:
-          "http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant-application",
+        QueueUrl: env.GRANT_APPLICATION_SUBMITTED_QUEUE,
         MaxNumberOfMessages: 1,
-        WaitTimeSeconds: 5,
       }),
     );
+    console.log("Messages", Messages);
 
     const body = JSON.parse(Messages[0].Body);
     const message = JSON.parse(body.Message);
