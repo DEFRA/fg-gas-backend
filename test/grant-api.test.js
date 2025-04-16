@@ -13,6 +13,7 @@ import Wreck from "@hapi/wreck";
 import { MongoClient } from "mongodb";
 import { grant1, grant2 } from "./fixtures/grants.js";
 import Joi from "joi";
+import { ReceiveMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 
 let grants;
 let applications;
@@ -247,6 +248,39 @@ describe("POST /grants/{code}/applications", () => {
         },
       },
     ]);
+
+    const sqsClient = new SQSClient({
+      region: env.AWS_REGION,
+      endpoint: env.AWS_ENDPOINT,
+    });
+
+    const { Messages } = await sqsClient.send(
+      new ReceiveMessageCommand({
+        QueueUrl:
+          "http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant-application",
+        MaxNumberOfMessages: 1,
+        WaitTimeSeconds: 5,
+      }),
+    );
+
+    const body = JSON.parse(Messages[0].Body);
+    const message = JSON.parse(body.Message);
+
+    expect(message).toEqual({
+      grantCode: "test-code-1",
+      clientRef: "12345",
+      submittedAt,
+      createdAt: expect.any(String),
+      identifiers: {
+        sbi: "1234567890",
+        frn: "1234567890",
+        crn: "1234567890",
+        defraId: "1234567890",
+      },
+      answers: {
+        question1: "test answer",
+      },
+    });
   });
 
   it("returns 400 when schema validation fails", async () => {
