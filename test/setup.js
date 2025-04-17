@@ -9,7 +9,9 @@ export const setup = async ({ globalConfig }) => {
     .withEnvironment({
       GAS_PORT: env.GAS_PORT,
       MONGO_PORT: env.MONGO_PORT,
+      LOCALSTACK_PORT: env.LOCALSTACK_PORT,
     })
+    .withWaitStrategy("localstack", Wait.forListeningPorts())
     .withWaitStrategy("mongodb", Wait.forListeningPorts())
     .withWaitStrategy("gas", Wait.forHttp("/health"))
     .withNoRecreate()
