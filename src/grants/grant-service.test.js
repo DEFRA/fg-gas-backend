@@ -4,12 +4,17 @@ import { createGrant } from "./grant.js";
 import * as grantRepository from "./grant-repository.js";
 import * as applicationRepository from "./application-repository.js";
 import * as grantService from "./grant-service.js";
+import * as snsLib from "./../common/sns.js";
 
 vi.mock("../common/wreck.js", () => ({
   wreck: {
     get: vi.fn(),
     post: vi.fn(),
   },
+}));
+
+vi.mock("../common/sns.js", () => ({
+  publish: vi.fn(),
 }));
 
 vi.mock("./grant.js", () => ({
@@ -301,6 +306,8 @@ describe("submitApplication", () => {
         question2: 42,
       },
     });
+
+    expect(snsLib.publish).toHaveBeenCalled();
   });
 
   it("throws when the grant is not found", async () => {
