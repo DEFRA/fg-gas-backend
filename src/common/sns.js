@@ -6,7 +6,7 @@ export const snsClient = new SNSClient({
   endpoint: config.awsEndointUrl,
 });
 
-export const publish = (message, topicArn) => {
+export const publish = async (message, topicArn) => {
   return snsClient.send(
     new PublishCommand({ Message: message, TopicArn: topicArn }),
   );
