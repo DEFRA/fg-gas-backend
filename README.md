@@ -101,8 +101,6 @@ npm run test:unit
 
 #### Integration tests
 
-Duplicate the `.env.example` file and rename it `.env.test`
-
 To run the integration tests:
 
 ```bash
