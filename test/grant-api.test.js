@@ -616,9 +616,8 @@ describe("POST /grants/{code}/applications", () => {
 describe("POST /grants/{code}/applications SQS Queue", () => {
   const queueName = "grant-application";
 
-  const attempts = [1, 2, 3, 4, 5]; // will bail out after ~5*i seconds
-
-  async function getQueueURLDetails() {
+  async function getQueueURLDetails(numberOfAttempts = 5) {
+    const attempts = new Array(numberOfAttempts).fill(1);
     console.debug("Waiting for sqs queue...");
     // eslint-disable-next-line no-unused-vars
     for await (const i of attempts) {
@@ -639,7 +638,8 @@ describe("POST /grants/{code}/applications SQS Queue", () => {
     }
   }
 
-  async function getSqsQueue(logMsg) {
+  async function getSqsQueue(logMsg, numberOfAttempts = 5) {
+    const attempts = new Array(numberOfAttempts).fill(1);
     for await (const i of attempts) {
       console.debug(logMsg, i);
       try {
@@ -679,7 +679,7 @@ describe("POST /grants/{code}/applications SQS Queue", () => {
     // make sure sqs queue is ready
     await getQueueURLDetails();
     // warm up the queue fetch
-    await getSqsQueue("Warming up sqs queue");
+    await getSqsQueue("Warming up sqs queue", 1);
   });
 
   it("adds a grant application to sqs queue", async () => {
@@ -724,7 +724,7 @@ describe("POST /grants/{code}/applications SQS Queue", () => {
       },
     });
 
-    const messages = await getSqsQueue("Fetching sqs queue");
+    const messages = await getSqsQueue("Fetching sqs queue", 1);
 
     expect(messages).toBeDefined();
     expect(messages.length).toBeGreaterThan(0);
