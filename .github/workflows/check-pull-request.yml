@@ -35,7 +35,7 @@ jobs:
         run: npm run test:unit -- --coverage
 
       - name: Run integration tests
-        run: DEBUG=testcontainers* npm run test:integration
+        run: DEBUG=testcontainers:containers npm run test:integration
 
       - name: Build docker image
         run: |
