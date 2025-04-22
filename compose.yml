@@ -44,12 +44,12 @@ services:
       MONGO_URI: mongodb://mongodb:27017/
     networks:
       - cdp-tenant
-    healthcheck:
-      test: curl "http://localhost:${GAS_PORT:-3000}/health" || exit 1
-      interval: 20s
-      retries: 5
-      start_period: 20s
-      timeout: 10s
+    # healthcheck:
+    #   test: curl "http://localhost:${GAS_PORT:-3000}/health" || exit 1
+    #   interval: 20s
+    #   retries: 5
+    #   start_period: 20s
+    #   timeout: 10s
     develop:
       watch:
         - path: ./src

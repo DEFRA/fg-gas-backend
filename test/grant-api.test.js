@@ -254,7 +254,7 @@ describe("POST /grants/{code}/applications", () => {
 
     const sqsClient = new SQSClient({
       region: env.AWS_REGION,
-      endpoint: env.AWS_ENDPOINT,
+      endpoint: env.AWS_ENDPOINT_URL,
       credentials: {
         accessKeyId: "test",
         secretAccessKey: "test",
