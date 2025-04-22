@@ -23,5 +23,6 @@ export default defineConfig({
       GRANT_APPLICATION_SUBMITTED_QUEUE: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/grant-application`,
     },
     hookTimeout: 30000,
+    testTimeout: 10000,
   },
 });

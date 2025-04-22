@@ -1,23 +1,18 @@
 services:
   localstack:
-    image: localstack/localstack:3.0.2
+    image: localstack/localstack:4.3.0
     ports:
-      - "${LOCALSTACK_PORT:-4566}:4566" # LocalStack Gateway
+      - "${LOCALSTACK_PORT:-4566}:4566"
     env_file:
       - "compose/aws.env"
     environment:
       DEBUG: 1
-      LS_LOG: DEBUG # Localstack DEBUG Level
-      SERVICES: s3,sqs,sns,firehose
+      LS_LOG: DEBUG
+      SERVICES: sqs,sns
       LOCALSTACK_HOST: 127.0.0.1
     volumes:
       - "${TMPDIR:-/tmp}/localstack:/var/lib/localstack"
       - ./compose/start-localstack.sh:/etc/localstack/init/ready.d/start-localstack.sh
-    healthcheck:
-      test: ["CMD", "curl", "localhost:4566"]
-      interval: 5s
-      start_period: 5s
-      retries: 3
     networks:
       - cdp-tenant
 
@@ -38,6 +33,8 @@ services:
     links:
       - "mongodb:mongodb"
     depends_on:
+      localstack:
+        condition: service_healthy
       mongodb:
         condition: service_started
     env_file:
@@ -46,6 +43,12 @@ services:
       MONGO_URI: mongodb://mongodb:27017/
     networks:
       - cdp-tenant
+    healthcheck:
+      test: curl http://localhost:${GAS_PORT:-3000}/health || exit 1
+      interval: 20s
+      retries: 5
+      start_period: 20s
+      timeout: 10s
     develop:
       watch:
         - path: ./src

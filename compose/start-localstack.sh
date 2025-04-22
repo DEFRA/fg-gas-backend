@@ -2,9 +2,6 @@
 
 set -ex
 
-# S3 buckets
-# aws --endpoint-url=http://localhost:4566 s3 mb s3://my-bucket
-
 # SNS topic
 aws --endpoint-url=http://localhost:4566 sns create-topic --name grant-application
 

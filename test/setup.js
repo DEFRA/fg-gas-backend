@@ -1,4 +1,4 @@
-import { DockerComposeEnvironment, Wait } from "testcontainers";
+import { DockerComposeEnvironment } from "testcontainers";
 
 let environment;
 
@@ -11,9 +11,6 @@ export const setup = async ({ globalConfig }) => {
       MONGO_PORT: env.MONGO_PORT,
       LOCALSTACK_PORT: env.LOCALSTACK_PORT,
     })
-    .withWaitStrategy("localstack", Wait.forListeningPorts())
-    .withWaitStrategy("mongodb", Wait.forListeningPorts())
-    .withWaitStrategy("gas", Wait.forHttp("/health"))
     .withNoRecreate()
     .up();
 };

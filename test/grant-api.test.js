@@ -9,20 +9,16 @@ import {
 } from "vitest";
 import { env } from "node:process";
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import Wreck from "@hapi/wreck";
 import { MongoClient } from "mongodb";
 import { grant1, grant2, grant3 } from "./fixtures/grants.js";
 import Joi from "joi";
-import {
-  ReceiveMessageCommand,
-  SQSClient,
-  GetQueueUrlCommand,
-} from "@aws-sdk/client-sqs";
+import { ReceiveMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 
 let grants;
 let applications;
 let client;
-let sqsClient;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
@@ -207,13 +203,15 @@ describe("POST /grants/{code}/applications", () => {
 
     const submittedAt = new Date();
 
+    const clientRef = `cr-12345-${randomUUID()}`;
+
     const response = await Wreck.post(
       `${env.API_URL}/grants/test-code-1/applications`,
       {
         json: true,
         payload: {
           metadata: {
-            clientRef: "12345",
+            clientRef,
             submittedAt,
             sbi: "1234567890",
             frn: "1234567890",
@@ -229,7 +227,7 @@ describe("POST /grants/{code}/applications", () => {
 
     expect(response.res.statusCode).toEqual(201);
     expect(response.payload).toEqual({
-      clientRef: "12345",
+      clientRef,
     });
 
     const documents = await applications
@@ -238,10 +236,50 @@ describe("POST /grants/{code}/applications", () => {
 
     expect(documents).toEqual([
       {
-        grantCode: "test-code-1",
-        clientRef: "12345",
+        clientRef,
         submittedAt,
+        grantCode: "test-code-1",
         createdAt: expect.any(Date),
+        identifiers: {
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
+        },
+        answers: {
+          question1: "test answer",
+        },
+      },
+    ]);
+
+    const sqsClient = new SQSClient({
+      region: env.AWS_REGION,
+      endpoint: env.AWS_ENDPOINT,
+      credentials: {
+        accessKeyId: "test",
+        secretAccessKey: "test",
+      },
+    });
+
+    const data = await sqsClient.send(
+      new ReceiveMessageCommand({
+        QueueUrl: env.GRANT_APPLICATION_SUBMITTED_QUEUE,
+        MaxNumberOfMessages: 10,
+        WaitTimeSeconds: 5,
+      }),
+    );
+
+    const parsedMessages = data.Messages.map((message) => {
+      const body = JSON.parse(message.Body);
+      return JSON.parse(body.Message);
+    }).filter((message) => message.clientRef === clientRef);
+
+    expect(parsedMessages).toEqual([
+      {
+        clientRef,
+        grantCode: "test-code-1",
+        submittedAt: expect.any(String),
+        createdAt: expect.any(String),
         identifiers: {
           sbi: "1234567890",
           frn: "1234567890",
@@ -376,6 +414,7 @@ describe("POST /grants/{code}/applications", () => {
       message: 'Application with clientRef "12345" already exists',
     });
   });
+
   it("success add application", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
@@ -420,6 +459,7 @@ describe("POST /grants/{code}/applications", () => {
       clientRef: "12345",
     });
   });
+
   it("responds with 400 when the application send invalid unit value", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
@@ -468,6 +508,7 @@ describe("POST /grants/{code}/applications", () => {
         'Application with clientRef "12345" has invalid answers: data/actionApplications/0/appliedFor/unit must be equal to one of the allowed values',
     });
   });
+
   it("responds with 400 when the application send missing code value", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
@@ -515,6 +556,7 @@ describe("POST /grants/{code}/applications", () => {
         "Application with clientRef \"12345\" has invalid answers: data/actionApplications/0 must have required property 'code'",
     });
   });
+
   it("responds with 400 when the application send invalid sheet value", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
@@ -563,6 +605,7 @@ describe("POST /grants/{code}/applications", () => {
         'Application with clientRef "12345" has invalid answers: data/actionApplications/0/sheetId must match pattern "[A-Z]{2}[0-9]{4}"',
     });
   });
+
   it("responds with 400 when the application send invalid parcel Id value", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
@@ -609,143 +652,6 @@ describe("POST /grants/{code}/applications", () => {
       error: "Bad Request",
       message:
         'Application with clientRef "12345" has invalid answers: data/actionApplications/0/parcelId must match pattern "^\\d+$"',
-    });
-  });
-});
-
-describe("POST /grants/{code}/applications SQS Queue", () => {
-  const queueName = "grant-application";
-
-  async function getQueueURLDetails(numberOfAttempts = 5) {
-    const attempts = new Array(numberOfAttempts).fill(1);
-    console.debug("Waiting for sqs queue...");
-    // eslint-disable-next-line no-unused-vars
-    for await (const i of attempts) {
-      try {
-        const getUrlResp = await sqsClient.send(
-          new GetQueueUrlCommand({
-            QueueName: queueName,
-            WaitTimeSeconds: 3,
-          }),
-        );
-
-        if (getUrlResp && getUrlResp.QueueUrl) {
-          return getUrlResp.QueueUrl;
-        }
-      } catch (err) {
-        /** queue may not be ready yet  */
-      }
-    }
-  }
-
-  async function getSqsQueue(logMsg, numberOfAttempts = 5) {
-    const attempts = new Array(numberOfAttempts).fill(1);
-    for await (const i of attempts) {
-      console.debug(logMsg, i);
-      try {
-        const result = await sqsClient.send(
-          new ReceiveMessageCommand({
-            QueueUrl: env.GRANT_APPLICATION_SUBMITTED_QUEUE,
-            MaxNumberOfMessages: 1,
-            WaitTimeSeconds: 2,
-          }),
-        );
-
-        if (result && result.Messages?.length) {
-          return result.Messages;
-        }
-      } catch (err) {
-        /** queue may not be ready yet  */
-      }
-    }
-  }
-
-  beforeAll(async () => {
-    await grants.deleteMany({});
-    await applications.deleteMany({});
-    /**
-     * Here we warm up the sqs queue by accessing it before the test runs...
-     * This will ensure the queue is available when accessed in the test context.
-     */
-    sqsClient = new SQSClient({
-      region: env.AWS_REGION,
-      endpoint: env.AWS_ENDPOINT, // LocalStack endpoint
-      credentials: {
-        accessKeyId: "test", // Dummy values for LocalStack
-        secretAccessKey: "test",
-      },
-    });
-
-    // make sure sqs queue is ready
-    await getQueueURLDetails();
-    // warm up the queue fetch
-    await getSqsQueue("Warming up sqs queue", 1);
-  });
-
-  it("adds a grant application to sqs queue", async () => {
-    await Wreck.post(`${env.API_URL}/grants`, {
-      json: true,
-      payload: {
-        code: "test-code-1",
-        metadata: {
-          description: "test description 1",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-              description: "This is a test question",
-            },
-          },
-        },
-      },
-    });
-
-    const submittedAt = new Date();
-
-    await Wreck.post(`${env.API_URL}/grants/test-code-1/applications`, {
-      json: true,
-      payload: {
-        metadata: {
-          clientRef: "12345",
-          submittedAt,
-          sbi: "1234567890",
-          frn: "1234567890",
-          crn: "1234567890",
-          defraId: "1234567890",
-        },
-        answers: {
-          question1: "test answer",
-        },
-      },
-    });
-
-    const messages = await getSqsQueue("Fetching sqs queue", 1);
-
-    expect(messages).toBeDefined();
-    expect(messages.length).toBeGreaterThan(0);
-
-    const body = JSON.parse(messages[0].Body);
-    const message = JSON.parse(body.Message);
-
-    expect(message).toEqual({
-      grantCode: "test-code-1",
-      clientRef: "12345",
-      submittedAt: expect.any(String),
-      createdAt: expect.any(String),
-      identifiers: {
-        sbi: "1234567890",
-        frn: "1234567890",
-        crn: "1234567890",
-        defraId: "1234567890",
-      },
-      answers: {
-        question1: "test answer",
-      },
     });
   });
 });
