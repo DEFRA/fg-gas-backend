@@ -14,6 +14,7 @@ export const setup = async ({ globalConfig }) => {
     .withWaitStrategy("localstack", Wait.forHealthCheck())
     .withWaitStrategy("mongodb", Wait.forListeningPorts())
     .withWaitStrategy("gas", Wait.forHttp("/health"))
+    .withBuild()
     .withNoRecreate()
     .up();
 };
