@@ -1,5 +1,12 @@
 #!/bin/bash
 
+export AWS_REGION=eu-west-2
+export AWS_ENDPOINT_URL=http://localstack:4566
+export GRANT_APPLICATION_CREATED_TOPIC_ARN=arn:aws:sns:eu-west-2:000000000000:grant-application
+
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+
 set -ex
 
 # S3 buckets
