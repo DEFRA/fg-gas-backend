@@ -683,7 +683,6 @@ describe("POST /grants/{code}/applications SQS Queue", () => {
   });
 
   it("adds a grant application to sqs queue", async () => {
-    console.debug("ENV", { env });
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
       payload: {
