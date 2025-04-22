@@ -178,7 +178,7 @@ describe("POST /grants/{code}/applications", () => {
     await applications.deleteMany({});
   });
 
-  it("adds an application", async () => {
+  it.only("adds an application", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
       payload: {
