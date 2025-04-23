@@ -22,14 +22,22 @@ const schema = Joi.object({
   TRACING_HEADER: Joi.string(),
   GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string(),
   AWS_REGION: Joi.string(),
-  AWS_ENDPOINT_URL: Joi.string(),
+  AWS_ENDPOINT_URL: Joi.string().uri().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
   presence: "required",
 });
 
-const vars = Joi.attempt(env, schema);
+const { error, value: vars } = schema.validate(env, {
+  abortEarly: false,
+});
+
+if (error) {
+  const errors = error.details.map((e) => e.message).join(", ");
+  console.error(`Error in env config: ${errors}`);
+  process.exit(1);
+}
 
 export const config = {
   env: vars.NODE_ENV,
