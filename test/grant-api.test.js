@@ -263,7 +263,7 @@ describe("POST /grants/{code}/applications", () => {
 
     const data = await sqsClient.send(
       new ReceiveMessageCommand({
-        QueueUrl: env.GRANT_APPLICATION_SUBMITTED_QUEUE,
+        QueueUrl: env.GRANT_APPLICATION_CREATED_QUEUE,
         MaxNumberOfMessages: 10,
         WaitTimeSeconds: 5,
       }),
