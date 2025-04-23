@@ -22,7 +22,7 @@ describe("add", () => {
 
     await applicationRepository.add({
       clientRef: "application-1",
-      grantCode: "grant-1",
+      code: "grant-1",
       createdAt: new Date("2021-01-01T00:00:00.000Z"),
       submittedAt: new Date("2021-01-01T00:00:00.000Z"),
       identifiers: {
@@ -40,7 +40,7 @@ describe("add", () => {
 
     expect(insertOne).toHaveBeenCalledWith({
       clientRef: "application-1",
-      grantCode: "grant-1",
+      code: "grant-1",
       createdAt: new Date("2021-01-01T00:00:00.000Z"),
       submittedAt: new Date("2021-01-01T00:00:00.000Z"),
       identifiers: {
@@ -65,7 +65,7 @@ describe("add", () => {
 
     const promise = applicationRepository.add({
       clientRef: "application-1",
-      grantCode: "grant-1",
+      code: "grant-1",
       createdAt: new Date("2021-01-01T00:00:00.000Z"),
       submittedAt: new Date("2021-01-01T00:00:00.000Z"),
       identifiers: {
@@ -95,7 +95,7 @@ describe("add", () => {
 
     const promise = applicationRepository.add({
       clientRef: "application-1",
-      grantCode: "grant-1",
+      code: "grant-1",
       createdAt: new Date("2021-01-01T00:00:00.000Z"),
       submittedAt: new Date("2021-01-01T00:00:00.000Z"),
       identifiers: {

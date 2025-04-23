@@ -4,7 +4,7 @@ import { db } from "../common/db.js";
 
 const toDocument = (application) => ({
   clientRef: application.clientRef,
-  grantCode: application.grantCode,
+  code: application.code,
   createdAt: application.createdAt,
   submittedAt: application.submittedAt,
   identifiers: {
