@@ -43,7 +43,7 @@
   "devDependencies": {
     "@aws-sdk/client-sqs": "^3.787.0",
     "@vitest/coverage-v8": "^3.1.1",
-    "eslint": "^9.24.0",
+    "eslint": "^9.25.1",
     "eslint-config-prettier": "^10.1.2",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.1",
