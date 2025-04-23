@@ -16,7 +16,7 @@ export default defineConfig({
       MONGO_URI: "mongodb://127.0.0.1:27017/",
       MONGO_DATABASE: "fg-gas-backend",
       GRANT_APPLICATION_CREATED_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:grant-application",
+        "arn:aws:sns:eu-west-2:000000000000:grant-application-created",
       AWS_REGION: "eu-west-2",
       AWS_ENDPOINT_URL: "http://localhost:4566",
     },

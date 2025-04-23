@@ -78,7 +78,7 @@ aws_secret_access_key=test
 Then run the following to fetch messages in the queue. The queue-url should match the output from local stack in your console environment
 
 ```bash
-aws sqs receive-message --queue-url http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant-application --profile localstack
+aws sqs receive-message --queue-url http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant-application-created --profile localstack
 ```
 
 ### Development

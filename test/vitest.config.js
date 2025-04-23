@@ -19,7 +19,7 @@ export default defineConfig({
       AWS_ACCESS_KEY_ID: "test",
       AWS_SECRET_ACCESS_KEY: "test",
       GRANT_APPLICATION_CREATED_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:grant-application",
+        "arn:aws:sns:eu-west-2:000000000000:grant-application-created",
       GRANT_APPLICATION_SUBMITTED_QUEUE: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/grant-application`,
     },
     hookTimeout: 30000,
