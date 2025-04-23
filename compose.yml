@@ -1,4 +1,21 @@
 services:
+  localstack:
+    image: localstack/localstack:4.3.0
+    ports:
+      - "${LOCALSTACK_PORT:-4566}:4566"
+    env_file:
+      - "compose/aws.env"
+    environment:
+      DEBUG: 1
+      LS_LOG: DEBUG
+      SERVICES: sqs,sns
+      LOCALSTACK_HOST: 127.0.0.1
+    volumes:
+      - "${TMPDIR:-/tmp}/localstack:/var/lib/localstack"
+      - ./compose/start-localstack.sh:/etc/localstack/init/ready.d/start-localstack.sh
+    networks:
+      - cdp-tenant
+
   mongodb:
     image: mongo:6.0.13
     networks:
@@ -14,8 +31,11 @@ services:
     ports:
       - "${GAS_PORT:-3000}:3000"
     links:
+      - "localstack:localstack"
       - "mongodb:mongodb"
     depends_on:
+      localstack:
+        condition: service_healthy
       mongodb:
         condition: service_started
     env_file:
