@@ -256,8 +256,8 @@ describe("POST /grants/{code}/applications", () => {
       region: env.AWS_REGION,
       endpoint: env.AWS_ENDPOINT_URL,
       credentials: {
-        accessKeyId: "test",
-        secretAccessKey: "test",
+        accessKeyId: env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
       },
     });
 

@@ -5,6 +5,7 @@ import * as grantRepository from "./grant-repository.js";
 import * as applicationRepository from "./application-repository.js";
 import * as grantService from "./grant-service.js";
 import * as snsLib from "./../common/sns.js";
+import { config } from "../common/config.js";
 
 vi.mock("../common/wreck.js", () => ({
   wreck: {
@@ -307,7 +308,25 @@ describe("submitApplication", () => {
       },
     });
 
-    expect(snsLib.publish).toHaveBeenCalled();
+    expect(snsLib.publish).toHaveBeenCalledWith(
+      config.grantApplicationCreatedTopic,
+      {
+        grantCode: "grant-1",
+        createdAt: expect.any(Date),
+        submittedAt: expect.any(Date),
+        clientRef: "12345",
+        identifiers: {
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
+        },
+        answers: {
+          question1: "answer1",
+          question2: 42,
+        },
+      },
+    );
   });
 
   it("throws when the grant is not found", async () => {

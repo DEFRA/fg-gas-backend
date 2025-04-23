@@ -94,8 +94,5 @@ export const submitApplication = async (code, createApplicationRequest) => {
 
   await applicationRepository.add(application);
 
-  await publish(
-    JSON.stringify(application),
-    config.grantApplicationCreatedTopic,
-  );
+  await publish(config.grantApplicationCreatedTopic, application);
 };
