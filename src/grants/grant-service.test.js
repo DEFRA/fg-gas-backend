@@ -292,7 +292,7 @@ describe("submitApplication", () => {
     });
 
     expect(applicationRepository.add).toHaveBeenCalledWith({
-      grantCode: "grant-1",
+      code: "grant-1",
       clientRef: "12345",
       submittedAt: expect.any(Date),
       createdAt: expect.any(Date),
@@ -311,7 +311,7 @@ describe("submitApplication", () => {
     expect(snsLib.publish).toHaveBeenCalledWith(
       config.grantApplicationCreatedTopic,
       {
-        grantCode: "grant-1",
+        code: "grant-1",
         createdAt: expect.any(Date),
         submittedAt: expect.any(Date),
         clientRef: "12345",

@@ -238,7 +238,7 @@ describe("POST /grants/{code}/applications", () => {
       {
         clientRef,
         submittedAt,
-        grantCode: "test-code-1",
+        code: "test-code-1",
         createdAt: expect.any(Date),
         identifiers: {
           sbi: "1234567890",
@@ -277,7 +277,7 @@ describe("POST /grants/{code}/applications", () => {
     expect(parsedMessages).toEqual([
       {
         clientRef,
-        grantCode: "test-code-1",
+        code: "test-code-1",
         submittedAt: expect.any(String),
         createdAt: expect.any(String),
         identifiers: {
