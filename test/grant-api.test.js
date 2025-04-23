@@ -9,10 +9,12 @@ import {
 } from "vitest";
 import { env } from "node:process";
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import Wreck from "@hapi/wreck";
 import { MongoClient } from "mongodb";
 import { grant1, grant2, grant3 } from "./fixtures/grants.js";
 import Joi from "joi";
+import { ReceiveMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 
 let grants;
 let applications;
@@ -201,13 +203,15 @@ describe("POST /grants/{code}/applications", () => {
 
     const submittedAt = new Date();
 
+    const clientRef = `cr-12345-${randomUUID()}`;
+
     const response = await Wreck.post(
       `${env.API_URL}/grants/test-code-1/applications`,
       {
         json: true,
         payload: {
           metadata: {
-            clientRef: "12345",
+            clientRef,
             submittedAt,
             sbi: "1234567890",
             frn: "1234567890",
@@ -223,7 +227,7 @@ describe("POST /grants/{code}/applications", () => {
 
     expect(response.res.statusCode).toEqual(201);
     expect(response.payload).toEqual({
-      clientRef: "12345",
+      clientRef,
     });
 
     const documents = await applications
@@ -232,10 +236,50 @@ describe("POST /grants/{code}/applications", () => {
 
     expect(documents).toEqual([
       {
-        grantCode: "test-code-1",
-        clientRef: "12345",
+        clientRef,
         submittedAt,
+        code: "test-code-1",
         createdAt: expect.any(Date),
+        identifiers: {
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
+        },
+        answers: {
+          question1: "test answer",
+        },
+      },
+    ]);
+
+    const sqsClient = new SQSClient({
+      region: env.AWS_REGION,
+      endpoint: env.AWS_ENDPOINT_URL,
+      credentials: {
+        accessKeyId: env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+      },
+    });
+
+    const data = await sqsClient.send(
+      new ReceiveMessageCommand({
+        QueueUrl: env.GRANT_APPLICATION_CREATED_QUEUE,
+        MaxNumberOfMessages: 10,
+        WaitTimeSeconds: 5,
+      }),
+    );
+
+    const parsedMessages = data.Messages.map((message) => {
+      const body = JSON.parse(message.Body);
+      return JSON.parse(body.Message);
+    }).filter((message) => message.clientRef === clientRef);
+
+    expect(parsedMessages).toEqual([
+      {
+        clientRef,
+        code: "test-code-1",
+        submittedAt: expect.any(String),
+        createdAt: expect.any(String),
         identifiers: {
           sbi: "1234567890",
           frn: "1234567890",
@@ -370,6 +414,7 @@ describe("POST /grants/{code}/applications", () => {
       message: 'Application with clientRef "12345" already exists',
     });
   });
+
   it("success add application", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
@@ -414,6 +459,7 @@ describe("POST /grants/{code}/applications", () => {
       clientRef: "12345",
     });
   });
+
   it("responds with 400 when the application send invalid unit value", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
@@ -462,6 +508,7 @@ describe("POST /grants/{code}/applications", () => {
         'Application with clientRef "12345" has invalid answers: data/actionApplications/0/appliedFor/unit must be equal to one of the allowed values',
     });
   });
+
   it("responds with 400 when the application send missing code value", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
@@ -509,6 +556,7 @@ describe("POST /grants/{code}/applications", () => {
         "Application with clientRef \"12345\" has invalid answers: data/actionApplications/0 must have required property 'code'",
     });
   });
+
   it("responds with 400 when the application send invalid sheet value", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,
@@ -557,6 +605,7 @@ describe("POST /grants/{code}/applications", () => {
         'Application with clientRef "12345" has invalid answers: data/actionApplications/0/sheetId must match pattern "[A-Z]{2}[0-9]{4}"',
     });
   });
+
   it("responds with 400 when the application send invalid parcel Id value", async () => {
     await Wreck.post(`${env.API_URL}/grants`, {
       json: true,

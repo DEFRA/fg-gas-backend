@@ -14,7 +14,7 @@ it("requires a code", () => {
     actions: [],
   });
 
-  expect(error.message).toEqual('"GrantCode" is required');
+  expect(error.message).toEqual('"code" is required');
 });
 
 it("requires a metadata property", () => {

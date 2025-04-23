@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import Ajv2020 from "ajv/dist/2020.js";
 
-export const createApplication = (grantCode, schema, data) => {
+export const createApplication = (code, schema, data) => {
   const ajv = new Ajv2020({
     strict: true,
     allErrors: true,
@@ -24,7 +24,7 @@ export const createApplication = (grantCode, schema, data) => {
   }
 
   return {
-    grantCode,
+    code,
     createdAt: new Date(),
     clientRef: data.metadata.clientRef,
     submittedAt: data.metadata.submittedAt,

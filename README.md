@@ -46,6 +46,41 @@ Create a `.env` file in the root of the project. You can use the `.env.example` 
 cp .env.example .env
 ```
 
+## SNS/SQS Message retrieval for local development
+
+To verify an SNS message has been queued locally you will need the aws cli installed and some basic configuration.
+
+### Install Aws Cli
+
+Install aws cli (https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+
+### Configure your localstack with aws config
+
+Add the following localstack profile to your `~/.aws/config`
+
+```bash
+[profile localstack]
+region=eu-west-1
+output=json
+endpoint_url=http://localhost:4566
+```
+
+Add the following config to your `~/.aws/credentials`
+
+```bash
+[localstack]
+aws_access_key_id=test
+aws_secret_access_key=test
+```
+
+### Query localstack
+
+Then run the following to fetch messages in the queue. The queue-url should match the output from local stack in your console environment
+
+```bash
+aws sqs receive-message --queue-url http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant-application-created --profile localstack
+```
+
 ### Development
 
 To run the application in `development` mode run:

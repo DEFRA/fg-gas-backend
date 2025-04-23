@@ -4,7 +4,7 @@ import { createApplication } from "./application.js";
 
 describe("createApplication", () => {
   it("creates an application with provided data", () => {
-    const grantCode = "grant-1";
+    const code = "grant-1";
 
     const schema = {
       $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -33,11 +33,11 @@ describe("createApplication", () => {
       },
     };
 
-    const application = createApplication(grantCode, schema, data);
+    const application = createApplication(code, schema, data);
 
     expect(application).toEqual({
       createdAt: expect.any(Date),
-      grantCode,
+      code,
       clientRef: data.metadata.clientRef,
       submittedAt: data.metadata.submittedAt,
       identifiers: {
@@ -51,7 +51,7 @@ describe("createApplication", () => {
   });
 
   it("drops answers not defined in the schema", () => {
-    const grantCode = "grant-1";
+    const code = "grant-1";
 
     const schema = {
       $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -81,7 +81,7 @@ describe("createApplication", () => {
       },
     };
 
-    const application = createApplication(grantCode, schema, data);
+    const application = createApplication(code, schema, data);
 
     expect(application.answers).toEqual({
       answer1: "test",
@@ -90,7 +90,7 @@ describe("createApplication", () => {
   });
 
   it("uses default values provided in schema", () => {
-    const grantCode = "grant-1";
+    const code = "grant-1";
 
     const schema = {
       $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -116,7 +116,7 @@ describe("createApplication", () => {
       answers: {},
     };
 
-    const application = createApplication(grantCode, schema, data);
+    const application = createApplication(code, schema, data);
 
     expect(application.answers).toEqual({
       answer1: "default value",
@@ -124,7 +124,7 @@ describe("createApplication", () => {
   });
 
   it("throws when the answer is not of valid type", () => {
-    const grantCode = "grant-1";
+    const code = "grant-1";
 
     const schema = {
       $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -155,7 +155,7 @@ describe("createApplication", () => {
       },
     };
 
-    expect(() => createApplication(grantCode, schema, data)).toThrow(
+    expect(() => createApplication(code, schema, data)).toThrow(
       Boom.badRequest(
         'Application with clientRef "application-1" has invalid answers: data/answer1 must be string',
       ),
@@ -163,7 +163,7 @@ describe("createApplication", () => {
   });
 
   it("throws when required answers are missing", () => {
-    const grantCode = "grant-1";
+    const code = "grant-1";
 
     const schema = {
       $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -193,7 +193,7 @@ describe("createApplication", () => {
       },
     };
 
-    expect(() => createApplication(grantCode, schema, data)).toThrow(
+    expect(() => createApplication(code, schema, data)).toThrow(
       Boom.badRequest(
         "Application with clientRef \"application-1\" has invalid answers: data must have required property 'answer2'",
       ),
