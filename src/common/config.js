@@ -21,7 +21,7 @@ const schema = Joi.object({
   MONGO_DATABASE: Joi.string(),
   TRACING_HEADER: Joi.string(),
   GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string(),
-  GRANT_APPLICATION_APPROVED_TOPIC_ARN: Joi.string(),
+  GRANT_APPLICATION_APPROVED_TOPIC_ARN: Joi.string().optional(),
   AWS_REGION: Joi.string(),
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
 }).options({
