@@ -24,6 +24,7 @@ const schema = Joi.object({
   GRANT_APPLICATION_APPROVED_TOPIC_ARN: Joi.string().optional(),
   AWS_REGION: Joi.string(),
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
+  CASE_STAGE_UPDATES_SQS_URL: Joi.string().uri().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -55,4 +56,5 @@ export const config = {
   grantApplicationApprovedTopic: vars.GRANT_APPLICATION_APPROVED_TOPIC_ARN,
   region: vars.AWS_REGION,
   awsEndointUrl: vars.AWS_ENDPOINT_URL,
+  caseStageUpdatesSqsUrl: vars.CASE_STAGE_UPDATES_SQS_URL,
 };
