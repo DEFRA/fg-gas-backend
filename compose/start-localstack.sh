@@ -22,10 +22,13 @@ aws --endpoint-url=http://localhost:4566 sns subscribe --topic-arn arn:aws:sns:e
 # SNS topic - grant application approved
 aws --endpoint-url=http://localhost:4566 sns create-topic --name grant_application_approved
 
+# SNS topic - case stage updated
+aws --endpoint-url=http://localhost:4566 sns create-topic --name case_stage_updated
+
 # SQS queues = case stage updates
 aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name case_stage_updates_queue
 aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name case_stage_updates_queue-dead-letter-queue
 
 # Subscribe queue to topic
-aws --endpoint-url=http://localhost:4566 sns subscribe --topic-arn arn:aws:sns:eu-west-2:000000000000:grant_application_approved \
+aws --endpoint-url=http://localhost:4566 sns subscribe --topic-arn arn:aws:sns:eu-west-2:000000000000:case_stage_updated \
 --protocol sqs --notification-endpoint arn:aws:sqs:eu-west-2:000000000000:case_stage_updates_queue
