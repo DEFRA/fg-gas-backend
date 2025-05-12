@@ -3,7 +3,7 @@ import {
   ReceiveMessageCommand,
   DeleteMessageCommand,
 } from "@aws-sdk/client-sqs";
-import { config } from "../config.js";
+import { config } from "./config.js";
 
 export default class SqsConsumer {
   constructor(server, options) {
@@ -14,10 +14,10 @@ export default class SqsConsumer {
 
     // Configure SQS client
     const awsConfig = {
-      endpoint: config.get("aws.sqsEndpoint") || "http://localhost:4566",
-      region: config.get("aws.awsRegion") || "eu-west-2",
+      endpoint: config.sqsEndpoint || "http://localhost:4566",
+      region: config.region || "eu-west-2",
     };
-    if (config.get("aws.isLocalstackEnabled")) {
+    if (config.isLocalstackEnabled) {
       awsConfig.credentials = {
         accessKeyId: "test",
         secretAccessKey: "test",
@@ -42,8 +42,8 @@ export default class SqsConsumer {
       try {
         const receiveParams = {
           QueueUrl: this.queueUrl,
-          MaxNumberOfMessages: config.get("aws.sqsMaxNumberOfMessages"),
-          WaitTimeSeconds: config.get("aws.sqsWaitTimeInSeconds"),
+          MaxNumberOfMessages: config.sqsMaxNumberOfMessages,
+          WaitTimeSeconds: config.sqsWaitTimeInSeconds,
           AttributeNames: ["All"],
           MessageAttributeNames: ["All"],
         };

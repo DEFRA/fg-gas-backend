@@ -1,4 +1,6 @@
-// import { caseService } from "../service/case.service.js";
+import * as sns from "../common/sns.js";
+import * as grantService from "../grants/grant-service.js";
+import { config } from "../common/config.js";
 
 const caseStageUpdatesQueueEventHandler = (server) => async (message) => {
   server.logger.info({
@@ -6,19 +8,26 @@ const caseStageUpdatesQueueEventHandler = (server) => async (message) => {
     body: message.Body,
   });
 
-  // Process the message
-  //   const createNewCaseEvent = JSON.parse(message.Body);
-  //   createNewCaseEvent.createdAt = new Date(createNewCaseEvent.createdAt);
-  //   createNewCaseEvent.submittedAt = new Date(createNewCaseEvent.submittedAt);
-  //   const newCase = await caseService.handleCreateCaseEvent(
-  //     createNewCaseEvent,
-  //     server.db
-  //   );
+  const grant = await grantService.findByCode(message.Body.code);
 
-  //   server.logger.info({
-  //     message: `New case created for workflow: ${newCase.workflowCode} with caseRef: ${newCase.caseRef}`,
-  //     body: message.Body
-  //   });
+  if (message.Body.currentStage.id === "contract") {
+    const event = {
+      id: message.id,
+      source: message.source,
+      specVersion: message.spec.version,
+      type: message.type,
+      datacontenttype: "application/json",
+      subject: message.subject,
+      data: grant,
+    };
+
+    await sns.publish(config.grantApplicationApprovedTopic, event);
+
+    server.logger.info({
+      message: `Grant approval event sent: ${event}`,
+      body: event,
+    });
+  }
 };
 
 export { caseStageUpdatesQueueEventHandler };

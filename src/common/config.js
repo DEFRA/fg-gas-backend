@@ -25,6 +25,10 @@ const schema = Joi.object({
   AWS_REGION: Joi.string(),
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
   CASE_STAGE_UPDATES_SQS_URL: Joi.string().uri().optional(),
+  SQS_ENDPOINT: Joi.string().uri().uri().optional(),
+  LOCALSTACK_ENABLED: Joi.boolean().optional(),
+  SQS_WAIT_TIME_IN_SECONDS: Joi.number().optional(),
+  SQS_MAX_NUMBER_OF_MESSAGES: Joi.number().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -57,4 +61,8 @@ export const config = {
   region: vars.AWS_REGION,
   awsEndointUrl: vars.AWS_ENDPOINT_URL,
   caseStageUpdatesSqsUrl: vars.CASE_STAGE_UPDATES_SQS_URL,
+  sqsEndpoint: vars.SQS_ENDPOINT,
+  isLocalStackEnabled: vars.LOCALSTACK_ENABLED,
+  sqsWaitTimeInSeconds: vars.SQS_WAIT_TIME_IN_SECONDS,
+  sqsMaxNumberOfMessages: vars.SQS_MAX_NUMBER_OF_MESSAGES,
 };

@@ -2,7 +2,7 @@
 
 set -ex
 
-# SNS topic
+# SNS topic - grant application created
 aws --endpoint-url=http://localhost:4566 sns create-topic --name grant-application-created
 
 # SQS queues
@@ -18,3 +18,14 @@ aws --endpoint-url=http://localhost:4566 sqs set-queue-attributes \
 # Subscribe queue to topic
 aws --endpoint-url=http://localhost:4566 sns subscribe --topic-arn arn:aws:sns:eu-west-2:000000000000:grant-application-created \
 --protocol sqs --notification-endpoint arn:aws:sqs:eu-west-2:000000000000:grant-application-created
+
+# SNS topic - grant application approved
+aws --endpoint-url=http://localhost:4566 sns create-topic --name grant_application_approved
+
+# SQS queues = case stage updates
+aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name case_stage_updates_queue
+aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name case_stage_updates_queue-dead-letter-queue
+
+# Subscribe queue to topic
+aws --endpoint-url=http://localhost:4566 sns subscribe --topic-arn arn:aws:sns:eu-west-2:000000000000:grant_application_approved \
+--protocol sqs --notification-endpoint arn:aws:sqs:eu-west-2:000000000000:case_stage_updates_queue
