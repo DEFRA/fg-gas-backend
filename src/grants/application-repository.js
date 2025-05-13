@@ -33,3 +33,7 @@ export const add = async (application) => {
     throw Boom.internal(error);
   }
 };
+
+export const findByClientRef = async (clientRef) => {
+  return await db.collection(collection).findOne({ clientRef });
+};

@@ -30,6 +30,15 @@ export const findByCode = async (code) => {
   return grant;
 };
 
+export const findApplicationByClientRef = async (clientRef) => {
+  const application = await applicationRepository.findByClientRef(clientRef);
+
+  if (application === null) {
+    throw Boom.notFound(`Application with clientRef "${clientRef}" not found`);
+  }
+
+  return application;
+};
 export const invokeGetAction = async ({ code, name }) => {
   const grant = await grantRepository.findByCode(code);
 
