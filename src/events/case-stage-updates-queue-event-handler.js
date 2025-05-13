@@ -12,7 +12,7 @@ const caseStageUpdatesQueueEventHandler = (server) => async (message) => {
   const messageBody = JSON.parse(message.Body);
 
   const application = await grantService.findApplicationByClientRef(
-    messageBody.data.clientRef,
+    messageBody.data.caseRef,
   );
 
   if (messageBody.data.currentStage === "contract") {
