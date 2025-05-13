@@ -12,7 +12,6 @@ export default class SqsConsumer {
     this.handleMessage = options.handleMessage;
     this.isRunning = false;
 
-    console.log("Process env", process.env);
     // Configure SQS client
     const awsConfig = {
       region: config.region,
