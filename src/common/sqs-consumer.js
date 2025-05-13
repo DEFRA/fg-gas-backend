@@ -12,17 +12,20 @@ export default class SqsConsumer {
     this.handleMessage = options.handleMessage;
     this.isRunning = false;
 
+    console.log("Process env", process.env);
     // Configure SQS client
     const awsConfig = {
-      endpoint: config.sqsEndpoint || "http://localhost:4566",
-      region: config.region || "eu-west-2",
+      region: config.region,
+      endpoint: config.awsEndpointUrl,
     };
-    if (config.isLocalstackEnabled) {
+
+    if (config.awsEndpointUrl) {
       awsConfig.credentials = {
         accessKeyId: "test",
         secretAccessKey: "test",
       };
     }
+
     this.sqsClient = new SQSClient(awsConfig);
   }
 
@@ -42,8 +45,8 @@ export default class SqsConsumer {
       try {
         const receiveParams = {
           QueueUrl: this.queueUrl,
-          MaxNumberOfMessages: config.sqsMaxNumberOfMessages,
-          WaitTimeSeconds: config.sqsWaitTimeInSeconds,
+          MaxNumberOfMessages: 10,
+          WaitTimeSeconds: 20,
           AttributeNames: ["All"],
           MessageAttributeNames: ["All"],
         };

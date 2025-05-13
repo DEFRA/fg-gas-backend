@@ -81,7 +81,10 @@ export const createServer = async () => {
         },
       },
     },
-    createCaseStageUpdatesEventConsumer(config.caseStageUpdatesSqsUrl, server),
+    createCaseStageUpdatesEventConsumer(
+      config.caseStageUpdatesQueueUrl,
+      server,
+    ),
   ]);
 
   await server.register([healthPlugin, grantsPlugin]);
