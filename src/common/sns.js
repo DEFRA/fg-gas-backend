@@ -3,7 +3,7 @@ import { config } from "./config.js";
 
 export const snsClient = new SNSClient({
   region: config.region,
-  endpoint: config.awsEndointUrl,
+  endpoint: config.awsEndpointUrl,
 });
 
 /**
