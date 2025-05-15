@@ -13,7 +13,7 @@
     "test:unit": "vitest --config vitest.config.js --dir src",
     "test:integration": "vitest --config test/vitest.config.js --dir test",
     "postinstall": "npm run setup:husky && npm run setup:env",
-    "setup:env": "cp -n .env.example .env || true",
+    "setup:env": "cp --update=none .env.example .env || true",
     "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module"
   },
   "lint-staged": {
