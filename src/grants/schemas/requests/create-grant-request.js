@@ -16,5 +16,6 @@ export const createGrantRequest = Joi.object({
 })
   .options({
     presence: "required",
+    stripUnknown: true,
   })
   .label("CreateGrantRequest");

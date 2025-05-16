@@ -11,5 +11,6 @@ export const badRequestResponse = Joi.object({
 })
   .options({
     presence: "required",
+    stripUnknown: true,
   })
   .label("BadRequestResponse");

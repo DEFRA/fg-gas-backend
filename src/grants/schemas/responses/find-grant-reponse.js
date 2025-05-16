@@ -5,7 +5,7 @@ import { action } from "../grant/action/action.js";
 import { questions } from "../grant/questions.js";
 import { startDate } from "../grant/metadata/start-date.js";
 
-export const getGrantResponse = Joi.object({
+export const findGrantResponse = Joi.object({
   code,
   metadata: Joi.object({
     description,
@@ -16,5 +16,6 @@ export const getGrantResponse = Joi.object({
 })
   .options({
     presence: "required",
+    stripUnknown: true,
   })
-  .label("GetGrantResponse");
+  .label("FindGrantResponse");

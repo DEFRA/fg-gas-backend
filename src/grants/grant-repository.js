@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { db } from "../common/db.js";
+import { Grant } from "./grant.js";
 
 const toDocument = (grant) => ({
   code: grant.code,
@@ -12,15 +13,7 @@ const toDocument = (grant) => ({
   questions: grant.questions,
 });
 
-export const toGrant = (doc) => ({
-  code: doc.code,
-  metadata: {
-    description: doc.metadata.description,
-    startDate: doc.metadata.startDate,
-  },
-  actions: doc.actions,
-  questions: doc.questions,
-});
+export const toGrant = (doc) => new Grant(doc);
 
 export const collection = "grants";
 

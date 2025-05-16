@@ -19,5 +19,6 @@ export const createApplicationRequest = Joi.object({
 })
   .options({
     presence: "required",
+    stripUnknown: true,
   })
   .label("CreateApplicationRequest");
