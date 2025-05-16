@@ -1,4 +1,4 @@
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 import { description } from "./description.js";
 
 it("is a string", () => {
