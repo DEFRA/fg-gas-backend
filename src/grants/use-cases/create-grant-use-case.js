@@ -1,10 +1,10 @@
-import * as grantRepository from "../grant-repository.js";
-import { Grant } from "../grant.js";
+import { add } from "../repositories/grant-repository.js";
+import { Grant } from "../models/grant.js";
 
 export const createGrantUseCase = async (createGrantCommand) => {
   const grant = new Grant(createGrantCommand);
 
-  await grantRepository.add(grant);
+  await add(grant);
 
   return grant;
 };

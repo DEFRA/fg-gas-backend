@@ -1,13 +1,11 @@
 import { db } from "../common/db.js";
-import { config } from "../common/config.js";
-import { SqsConsumer } from "../common/sqs-consumer.js";
 
 import { createGrantRoute } from "./routes/create-grant-route.js";
 import { findAllGrantsRoute } from "./routes/find-all-grants-route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code-route.js";
 import { invokeGrantGetActionRoute } from "./routes/invoke-grant-get-action-route.js";
 import { invokePostActionRoute } from "./routes/invoke-post-action-route.js";
-import { onCaseStageUpdated } from "./subscriptions/on-case-stage-updated.js";
+import { caseStageUpdatedSubscriber } from "./subscribers/case-stage-updated-subscriber.js";
 
 /**
  * @type {import('@hapi/hapi').Plugin<any>}
@@ -20,17 +18,12 @@ export const grantsPlugin = {
       db.createIndex("applications", { clientRef: 1 }, { unique: true }),
     ]);
 
-    const caseStageChangedConsumer = new SqsConsumer(server, {
-      queueUrl: config.caseStageUpdatesQueueUrl,
-      handleMessage: onCaseStageUpdated,
-    });
-
     server.events.on("start", async () => {
-      await caseStageChangedConsumer.start();
+      await caseStageUpdatedSubscriber.start();
     });
 
     server.events.on("stop", async () => {
-      await caseStageChangedConsumer.stop();
+      await caseStageUpdatedSubscriber.stop();
     });
 
     server.route([

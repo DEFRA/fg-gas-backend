@@ -9,6 +9,9 @@ export default [
   {
     files: ["src/**/*"],
     rules: {
+      "import-x/no-unresolved": "error",
+      "import-x/no-duplicates": "error",
+      "import-x/no-useless-path-segments": "error",
       "import-x/no-cycle": [
         "error",
         {
@@ -45,7 +48,7 @@ export default [
             {
               target: "**/subscribers/**/!(*.test).js",
               from: ["./src/**/**"],
-              except: ["**/use-cases/**", "**/schemas/**"],
+              except: ["**/use-cases/**", "**/schemas/**", "src/common/**"],
               message: "Subscribers should only import use cases and schemas",
             },
             {
@@ -55,6 +58,7 @@ export default [
                 "**/repositories/**",
                 "**/models/**",
                 "**/publishers/**",
+                "**/use-cases/**",
                 "src/common/**",
               ],
               message:

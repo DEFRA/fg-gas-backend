@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
-import { db } from "../common/db.js";
-import { Grant } from "./grant.js";
+import { db } from "../../common/db.js";
+import { Grant } from "../models/grant.js";
 
 const toDocument = (grant) => ({
   code: grant.code,

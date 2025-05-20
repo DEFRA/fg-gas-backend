@@ -1,5 +1,5 @@
-import * as grantRepository from "../grant-repository.js";
+import { findAll } from "../repositories/grant-repository.js";
 
 export const findAllGrantsUseCase = async () => {
-  return grantRepository.findAll();
+  return await findAll();
 };
