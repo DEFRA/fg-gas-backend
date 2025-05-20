@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { db } from "../common/db.js";
+import { Application } from "../models/application.js";
 
 const toDocument = (application) => ({
   clientRef: application.clientRef,
@@ -35,5 +36,11 @@ export const add = async (application) => {
 };
 
 export const findByClientRef = async (clientRef) => {
-  return await db.collection(collection).findOne({ clientRef });
+  const application = await db.collection(collection).findOne({ clientRef });
+
+  if (application === null) {
+    return null;
+  }
+
+  return Application.fromDocument(application);
 };

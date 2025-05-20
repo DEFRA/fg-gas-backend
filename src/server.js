@@ -10,7 +10,6 @@ import { grantsPlugin } from "./grants/index.js";
 import HapiSwagger from "hapi-swagger";
 import Inert from "@hapi/inert";
 import Vision from "@hapi/vision";
-import { createCaseStageUpdatesEventConsumer } from "./events/create-case-stage-updates-event-consumer.js";
 
 export const createServer = async () => {
   const server = hapi.server({
@@ -81,10 +80,6 @@ export const createServer = async () => {
         },
       },
     },
-    createCaseStageUpdatesEventConsumer(
-      config.caseStageUpdatesQueueUrl,
-      server,
-    ),
   ]);
 
   await server.register([healthPlugin, grantsPlugin]);

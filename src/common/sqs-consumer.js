@@ -1,3 +1,4 @@
+import { setTimeout } from "timers/promises";
 import {
   SQSClient,
   ReceiveMessageCommand,
@@ -5,14 +6,13 @@ import {
 } from "@aws-sdk/client-sqs";
 import { config } from "./config.js";
 
-export default class SqsConsumer {
+export class SqsConsumer {
   constructor(server, options) {
     this.server = server;
     this.queueUrl = options.queueUrl;
     this.handleMessage = options.handleMessage;
     this.isRunning = false;
 
-    // Configure SQS client
     const awsConfig = {
       region: config.region,
       endpoint: config.awsEndpointUrl,
@@ -57,9 +57,7 @@ export default class SqsConsumer {
           await Promise.all(
             response.Messages.map(async (message) => {
               try {
-                // Process the message
                 await this.handleMessage(message);
-                // Delete the message after successful processing
                 await this.deleteMessage(message);
               } catch (err) {
                 this.server.logger.error({
@@ -76,8 +74,7 @@ export default class SqsConsumer {
           error: err.message,
           message: "Error polling SQS queue",
         });
-        // Add a small delay before retrying on error
-        await new Promise((resolve) => setTimeout(resolve, 30000));
+        await setTimeout(30000);
       }
     }
   }

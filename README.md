@@ -115,6 +115,18 @@ Launch GAS and dependencies via Docker Compose:
 docker compose up --watch
 ```
 
+## Project structure
+
+Routes can access use cases and schemas.
+Subscriptions can access use cases.
+Use cases can access repositories, http clients, domain classes and other use cases.
+Use cases should export a single function.
+Repositories can access db.
+
+Routes and subscriptions should never respond with a domain object.
+Domain objects should never access use cases, repositories or subscriptions.
+Repositories should never accept or return db records.
+
 ## Licence
 
 THIS INFORMATION IS LICENSED UNDER THE CONDITIONS OF THE OPEN GOVERNMENT LICENCE found at:
