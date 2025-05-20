@@ -11,6 +11,8 @@ const caseStageUpdatesQueueEventHandler = (server) => async (message) => {
 
   const messageBody = JSON.parse(message.Body);
 
+  const traceId = messageBody.data.traceId;
+
   const application = await grantService.findApplicationByClientRef(
     messageBody.data.caseRef,
   );
@@ -25,7 +27,7 @@ const caseStageUpdatesQueueEventHandler = (server) => async (message) => {
       data: application,
     };
 
-    await sns.publish(config.grantApplicationApprovedTopic, event);
+    await sns.publish(config.grantApplicationApprovedTopic, event, traceId);
 
     server.logger.info({
       message: `Grant approval event sent: ${event.id}`,

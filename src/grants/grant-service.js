@@ -7,6 +7,7 @@ import { createApplication } from "./application.js";
 
 import { config } from "../common/config.js";
 import { publish } from "../common/sns.js";
+import { getTraceId } from "@defra/hapi-tracing";
 
 export const create = async (props) => {
   const grant = createGrant(props);
@@ -103,5 +104,5 @@ export const submitApplication = async (code, createApplicationRequest) => {
 
   await applicationRepository.add(application);
 
-  await publish(config.grantApplicationCreatedTopic, application);
+  await publish(config.grantApplicationCreatedTopic, application, getTraceId());
 };
