@@ -44,7 +44,7 @@ export const grantsPlugin = {
         const exists = await grantService.findByCode(request.payload.code);
         if (!exists) {
           return Boom.notFound(
-            "Grant with id: " + request.params.code + " not found",
+            "Grant with code: " + request.params.code + " not found",
           );
         }
         const grant = await grantService.replace(request.payload);
