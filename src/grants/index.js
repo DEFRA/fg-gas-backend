@@ -52,7 +52,7 @@ export const grantsPlugin = {
           .response({
             code: grant.code,
           })
-          .code(201);
+          .code(200);
       },
     });
 

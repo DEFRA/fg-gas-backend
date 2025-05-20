@@ -78,7 +78,7 @@ describe("PUT /tmp/grants", () => {
       payload: replaceRequest,
     });
 
-    expect(statusCode).toEqual(201);
+    expect(statusCode).toEqual(200);
 
     expect(grantService.replace).toHaveBeenCalledWith({
       code: "code-1",
