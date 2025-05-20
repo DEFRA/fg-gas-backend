@@ -1,4 +1,5 @@
 import Joi from "joi";
+import Boom from "@hapi/boom";
 import * as grantService from "./grant-service.js";
 import { createGrantResponse } from "./schemas/responses/create-grant-response.js";
 import { createGrantRequest } from "./schemas/requests/create-grant-request.js";
@@ -22,6 +23,38 @@ export const grantsPlugin = {
       db.createIndex("grants", { code: 1 }, { unique: true }),
       db.createIndex("applications", { clientRef: 1 }, { unique: true }),
     ]);
+
+    server.route({
+      method: "PUT",
+      path: "/tmp/grants",
+      options: {
+        description: "Temporary endpoint to update a grant",
+        tags: ["api"],
+        validate: {
+          payload: createGrantRequest,
+        },
+        response: {
+          status: {
+            201: createGrantResponse,
+            400: badRequestResponse,
+          },
+        },
+      },
+      async handler(request, h) {
+        const exists = await grantService.findByCode(request.payload.code);
+        if (!exists) {
+          return Boom.notFound(
+            "Grant with id: " + request.params.code + " not found",
+          );
+        }
+        const grant = await grantService.replace(request.payload);
+        return h
+          .response({
+            code: grant.code,
+          })
+          .code(201);
+      },
+    });
 
     server.route({
       method: "POST",

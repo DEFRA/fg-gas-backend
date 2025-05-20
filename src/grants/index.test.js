@@ -4,6 +4,7 @@ import { grantsPlugin } from "./index.js";
 import * as grantService from "./grant-service.js";
 
 vi.mock("./grant-service.js", () => ({
+  replace: vi.fn(),
   create: vi.fn(),
   findAll: vi.fn(),
   findByCode: vi.fn(),
@@ -24,6 +25,77 @@ beforeAll(async () => {
   server = hapi.server();
   await server.register(grantsPlugin);
   await server.initialize();
+});
+
+describe("PUT /tmp/grants", () => {
+  it("returns 404 when grant with grant.code does not exist", async () => {
+    const replaceRequest = {
+      code: "code-1",
+      metadata: {
+        description: "test",
+        startDate: "2100-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+      },
+    };
+
+    grantService.replace.mockResolvedValueOnce(replaceRequest);
+
+    const { statusCode } = await server.inject({
+      method: "PUT",
+      url: "/tmp/grants",
+      payload: replaceRequest,
+    });
+
+    expect(statusCode).toEqual(404);
+
+    expect(grantService.replace).not.toHaveBeenCalled();
+  });
+
+  it("replaces a grant document and returns grant.code", async () => {
+    const replaceRequest = {
+      code: "code-1",
+      metadata: {
+        description: "test",
+        startDate: "2100-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+      },
+    };
+
+    grantService.replace.mockResolvedValueOnce(replaceRequest);
+    grantService.findByCode.mockResolvedValueOnce(replaceRequest.code);
+
+    const { statusCode, result } = await server.inject({
+      method: "PUT",
+      url: "/tmp/grants",
+      payload: replaceRequest,
+    });
+
+    expect(statusCode).toEqual(201);
+
+    expect(grantService.replace).toHaveBeenCalledWith({
+      code: "code-1",
+      metadata: {
+        description: "test",
+        startDate: new Date("2100-01-01T00:00:00.000Z"),
+      },
+      actions: [],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+      },
+    });
+    expect(result).toEqual({
+      code: "code-1",
+    });
+  });
 });
 
 describe("POST /grants", () => {

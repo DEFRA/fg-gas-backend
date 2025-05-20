@@ -24,6 +24,20 @@ export const toGrant = (doc) => ({
 
 export const collection = "grants";
 
+export const replace = async (grant) => {
+  const grantDocument = toDocument(grant);
+  try {
+    await db.collection(collection).replaceOne(
+      {
+        code: grant.code,
+      },
+      grantDocument,
+    );
+  } catch (error) {
+    throw Boom.internal(error);
+  }
+};
+
 export const add = async (grant) => {
   const grantDocument = toDocument(grant);
 
