@@ -16,7 +16,10 @@ export const snsClient = new SNSClient({
 export const publish = async (topicArn, message, traceId) => {
   return snsClient.send(
     new PublishCommand({
-      Message: JSON.stringify({ ...message, traceId: traceId || getTraceId() }),
+      Message: JSON.stringify({
+        ...message,
+        traceParent: traceId || getTraceId(),
+      }),
       TopicArn: topicArn,
     }),
   );
