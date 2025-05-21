@@ -10,6 +10,81 @@ vi.mock("../common/db.js", () => ({
   },
 }));
 
+describe("replace", () => {
+  it("replaces a Grant in the repository", async () => {
+    const replaceOne = vi.fn().mockResolvedValueOnce({
+      insertedId: "code-1",
+    });
+
+    db.collection.mockReturnValue({
+      replaceOne,
+    });
+
+    await grantRepository.replace({
+      code: "code-1",
+      metadata: {
+        description: "test",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [
+        {
+          method: "GET",
+          name: "test-action",
+          url: "http://localhost",
+        },
+      ],
+      questions: [],
+    });
+
+    expect(db.collection).toHaveBeenCalledWith("grants");
+
+    expect(replaceOne).toHaveBeenCalledWith(
+      { code: "code-1" },
+      {
+        code: "code-1",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+
+        actions: [
+          {
+            method: "GET",
+            name: "test-action",
+            url: "http://localhost",
+          },
+        ],
+        questions: [],
+      },
+    );
+  });
+  it("throws Boom.internal when an error occurs", async () => {
+    const error = new Error("test");
+
+    db.collection.mockReturnValue({
+      replaceOne: vi.fn().mockRejectedValueOnce(error),
+    });
+
+    const promise = grantRepository.replace({
+      code: "code-1",
+      metadata: {
+        description: "test",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [
+        {
+          method: "GET",
+          name: "test-action",
+          url: "http://localhost",
+        },
+      ],
+      questions: [],
+    });
+
+    await expect(promise).rejects.toThrow(Boom.internal(error));
+  });
+});
+
 describe("add", () => {
   it("stores a Grant in the repository", async () => {
     const insertOne = vi.fn().mockResolvedValueOnce({

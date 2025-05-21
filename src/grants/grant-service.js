@@ -8,6 +8,14 @@ import { createApplication } from "./application.js";
 import { config } from "../common/config.js";
 import { publish } from "../common/sns.js";
 
+export const replace = async (props) => {
+  const grant = createGrant(props);
+
+  await grantRepository.replace(grant);
+
+  return grant;
+};
+
 export const create = async (props) => {
   const grant = createGrant(props);
 

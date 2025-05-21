@@ -23,6 +23,7 @@ vi.mock("./grant.js", () => ({
 }));
 
 vi.mock("./grant-repository.js", () => ({
+  replace: vi.fn(),
   add: vi.fn(),
   findAll: vi.fn(),
   findByCode: vi.fn(),
@@ -31,6 +32,40 @@ vi.mock("./grant-repository.js", () => ({
 vi.mock("./application-repository.js", () => ({
   add: vi.fn(),
 }));
+
+describe("replace", () => {
+  it("replaces a grant", async () => {
+    const grant = {
+      code: "code-1",
+      name: "test",
+      actions: [
+        {
+          method: "GET",
+          name: "test",
+          url: "http://localhost",
+        },
+      ],
+    };
+
+    createGrant.mockReturnValueOnce(grant);
+
+    const result = await grantService.replace({
+      code: "code-1",
+      name: "test",
+      actions: [
+        {
+          method: "GET",
+          name: "test",
+          url: "http://localhost",
+        },
+      ],
+    });
+
+    expect(createGrant).toHaveBeenCalledWith(grant);
+    expect(grantRepository.replace).toHaveBeenCalledWith(grant);
+    expect(result).toEqual(grant);
+  });
+});
 
 describe("create", () => {
   it("stores the grant in the repository", async () => {
