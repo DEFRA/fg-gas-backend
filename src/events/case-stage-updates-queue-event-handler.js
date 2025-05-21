@@ -11,7 +11,7 @@ const caseStageUpdatesQueueEventHandler = (server) => async (message) => {
 
   const messageBody = JSON.parse(message.Body);
 
-  const traceId = messageBody.data.traceId;
+  const traceId = messageBody.data.traceParent;
 
   const application = await grantService.findApplicationByClientRef(
     messageBody.data.caseRef,
