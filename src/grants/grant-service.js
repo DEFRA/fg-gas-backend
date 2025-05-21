@@ -9,6 +9,14 @@ import { config } from "../common/config.js";
 import { publish } from "../common/sns.js";
 import { getTraceId } from "@defra/hapi-tracing";
 
+export const replace = async (props) => {
+  const grant = createGrant(props);
+
+  await grantRepository.replace(grant);
+
+  return grant;
+};
+
 export const create = async (props) => {
   const grant = createGrant(props);
 
