@@ -1,6 +1,5 @@
 import Boom from "@hapi/boom";
 import { wreck } from "../common/wreck.js";
-import { randomUUID } from "crypto";
 import * as grantRepository from "./grant-repository.js";
 import * as applicationRepository from "./application-repository.js";
 import { createGrant } from "./grant.js";
@@ -8,7 +7,6 @@ import { createApplication } from "./application.js";
 
 import { config } from "../common/config.js";
 import { publish } from "../common/sns.js";
-import { getTraceId } from "@defra/hapi-tracing";
 
 export const replace = async (props) => {
   const grant = createGrant(props);
@@ -113,14 +111,5 @@ export const submitApplication = async (code, createApplicationRequest) => {
 
   await applicationRepository.add(application);
 
-  const event = {
-    id: randomUUID(),
-    source: config.serviceName,
-    specVersion: "1.0",
-    type: `cloud.defra.${config.env}.${config.serviceName}.application.created`,
-    datacontenttype: "application/json",
-    data: application,
-    traceparent: getTraceId(),
-  };
-  await publish(config.grantApplicationCreatedTopic, event);
+  await publish(config.grantApplicationCreatedTopic, application);
 };
