@@ -115,6 +115,29 @@ Launch GAS and dependencies via Docker Compose:
 docker compose up --watch
 ```
 
+## Local Messaging Setup
+
+After running `docker-compose up`, set up SNS/SQS in LocalStack by running:
+
+```bash
+./scripts/setup-local.sh
+```
+
+This will create the required SNS topics and queues for local development.
+
+#### 4. **Test it**
+
+Once LocalStack is running via Docker Compose:
+
+```bash
+./scripts/setup-local.sh
+```
+
+Then verify topics/queues exist:
+
+awslocal sns list-topics
+awslocal sqs list-queues
+
 ## Licence
 
 THIS INFORMATION IS LICENSED UNDER THE CONDITIONS OF THE OPEN GOVERNMENT LICENCE found at:
