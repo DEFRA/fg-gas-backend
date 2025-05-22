@@ -1,6 +1,5 @@
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import { config } from "./config.js";
-import { getTraceId } from "@defra/hapi-tracing";
 
 export const snsClient = new SNSClient({
   region: config.region,
@@ -13,12 +12,11 @@ export const snsClient = new SNSClient({
  * @param {JSON} message
  * @returns
  */
-export const publish = async (topicArn, message, traceId) => {
+export const publish = async (topicArn, message) => {
   return snsClient.send(
     new PublishCommand({
       Message: JSON.stringify({
         ...message,
-        traceParent: traceId || getTraceId(),
       }),
       TopicArn: topicArn,
     }),

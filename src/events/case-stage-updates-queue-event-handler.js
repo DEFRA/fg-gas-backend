@@ -25,9 +25,10 @@ const caseStageUpdatesQueueEventHandler = (server) => async (message) => {
       type: `cloud.defra.${config.env}.${config.serviceName}.application.approved`,
       datacontenttype: "application/json",
       data: application,
+      traceparent: traceId,
     };
 
-    await sns.publish(config.grantApplicationApprovedTopic, event, traceId);
+    await sns.publish(config.grantApplicationApprovedTopic, event);
 
     server.logger.info({
       message: `Grant approval event sent: ${event.id}`,
