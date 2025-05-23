@@ -271,23 +271,31 @@ describe("POST /grants/{code}/applications", () => {
 
     const parsedMessages = data.Messages.map((message) => {
       const body = JSON.parse(message.Body);
-      return JSON.parse(body.Message);
-    }).filter((message) => message.clientRef === clientRef);
+      const msg = JSON.parse(body.Message);
+      return msg;
+    }).filter((message) => message.data.clientRef === clientRef);
 
     expect(parsedMessages).toEqual([
       {
-        clientRef,
-        code: "test-code-1",
-        submittedAt: expect.any(String),
-        createdAt: expect.any(String),
-        identifiers: {
-          sbi: "1234567890",
-          frn: "1234567890",
-          crn: "1234567890",
-          defraId: "1234567890",
-        },
-        answers: {
-          question1: "test answer",
+        datacontenttype: "application/json",
+        id: expect.any(String),
+        source: "fg-gas-backend",
+        specVersion: "1.0",
+        type: "cloud.defra.development.fg-gas-backend.application.created",
+        data: {
+          clientRef,
+          code: "test-code-1",
+          submittedAt: expect.any(String),
+          createdAt: expect.any(String),
+          identifiers: {
+            sbi: "1234567890",
+            frn: "1234567890",
+            crn: "1234567890",
+            defraId: "1234567890",
+          },
+          answers: {
+            question1: "test answer",
+          },
         },
       },
     ]);

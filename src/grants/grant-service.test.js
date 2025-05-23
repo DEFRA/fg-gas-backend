@@ -6,6 +6,11 @@ import * as applicationRepository from "./application-repository.js";
 import * as grantService from "./grant-service.js";
 import * as snsLib from "./../common/sns.js";
 import { config } from "../common/config.js";
+import * as tracing from "@defra/hapi-tracing";
+
+vi.mock("@defra/hapi-tracing", () => ({
+  getTraceId: vi.fn(),
+}));
 
 vi.mock("../common/wreck.js", () => ({
   wreck: {
@@ -294,6 +299,8 @@ describe("invokePostAction", () => {
 
 describe("submitApplication", () => {
   it("submits the application", async () => {
+    tracing.getTraceId.mockReturnValueOnce("ABCD-0987");
+
     grantRepository.findByCode.mockResolvedValueOnce({
       code: "grant-1",
       questions: {
@@ -346,19 +353,27 @@ describe("submitApplication", () => {
     expect(snsLib.publish).toHaveBeenCalledWith(
       config.grantApplicationCreatedTopic,
       {
-        code: "grant-1",
-        createdAt: expect.any(Date),
-        submittedAt: expect.any(Date),
-        clientRef: "12345",
-        identifiers: {
-          sbi: "1234567890",
-          frn: "1234567890",
-          crn: "1234567890",
-          defraId: "1234567890",
-        },
-        answers: {
-          question1: "answer1",
-          question2: 42,
+        id: expect.any(String),
+        source: "fg-gas-backend",
+        specVersion: "1.0",
+        type: "cloud.defra.test.fg-gas-backend.application.created",
+        datacontenttype: "application/json",
+        traceparent: "ABCD-0987",
+        data: {
+          code: "grant-1",
+          createdAt: expect.any(Date),
+          submittedAt: expect.any(Date),
+          clientRef: "12345",
+          identifiers: {
+            sbi: "1234567890",
+            frn: "1234567890",
+            crn: "1234567890",
+            defraId: "1234567890",
+          },
+          answers: {
+            question1: "answer1",
+            question2: 42,
+          },
         },
       },
     );

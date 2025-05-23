@@ -11,6 +11,8 @@ const caseStageUpdatesQueueEventHandler = (server) => async (message) => {
 
   const messageBody = JSON.parse(message.Body);
 
+  const traceId = messageBody.data.traceParent;
+
   const application = await grantService.findApplicationByClientRef(
     messageBody.data.caseRef,
   );
@@ -23,6 +25,7 @@ const caseStageUpdatesQueueEventHandler = (server) => async (message) => {
       type: `cloud.defra.${config.env}.${config.serviceName}.application.approved`,
       datacontenttype: "application/json",
       data: application,
+      traceparent: traceId,
     };
 
     await sns.publish(config.grantApplicationApprovedTopic, event);
