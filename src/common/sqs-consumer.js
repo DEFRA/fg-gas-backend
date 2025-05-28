@@ -4,27 +4,7 @@ import {
   DeleteMessageCommand,
 } from "@aws-sdk/client-sqs";
 import { config } from "./config.js";
-
-import { getTraceId } from "@defra/hapi-tracing";
-
-import { AsyncLocalStorage } from "node:async_hooks";
-
-const asyncLocalStorage = new AsyncLocalStorage();
-
-const TRACE_PARENT = "traceParent";
-
-function wrapRequest(request, store) {
-  asyncLocalStorage.run(store, request);
-}
-
-/**
- *
- * @returns the traceparent ID from an event OR the traceId from the request
- */
-export function getTraceParent() {
-  const traceParentId = asyncLocalStorage.getStore()?.get(TRACE_PARENT);
-  return traceParentId ?? getTraceId();
-}
+import { wrapTraceParent } from "./eventTraceParent.js";
 export default class SqsConsumer {
   constructor(server, options) {
     this.server = server;
@@ -59,11 +39,12 @@ export default class SqsConsumer {
     this.server.logger.info(`Stopped polling SQS queue: ${this.queueUrl}`);
   }
 
-  async processMassage(message) {
-    const store = new Map();
+  async processMessage(message) {
     const messageBody = JSON.parse(message.Body);
-    store.set(TRACE_PARENT, messageBody.traceparent);
-    wrapRequest(() => this.handleMessage(message, messageBody), store);
+    wrapTraceParent(
+      () => this.handleMessage(message, messageBody),
+      messageBody.traceparent,
+    );
   }
 
   async poll() {
@@ -85,7 +66,7 @@ export default class SqsConsumer {
             response.Messages.map(async (message) => {
               try {
                 // Process the message
-                await this.processMassage(message);
+                await this.processMessage(message);
                 // Delete the message after successful processing
                 await this.deleteMessage(message);
               } catch (err) {
