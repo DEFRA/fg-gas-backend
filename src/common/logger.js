@@ -1,7 +1,7 @@
 import { pino } from "pino";
 import { ecsFormat } from "@elastic/ecs-pino-format";
-import { getTraceId } from "@defra/hapi-tracing";
 import { config } from "./config.js";
+import { getTraceParent } from "./sqs-consumer.js";
 
 const format = {
   ecs: {
@@ -32,7 +32,7 @@ export const logger = pino({
   nesting: true,
   mixin() {
     const mixinValues = {};
-    const traceId = getTraceId();
+    const traceId = getTraceParent();
     if (traceId) {
       mixinValues.trace = {
         id: traceId,
