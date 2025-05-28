@@ -1,5 +1,6 @@
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import { config } from "./config.js";
+import { getTraceParent } from "./sqs-consumer.js";
 
 export const snsClient = new SNSClient({
   region: config.region,
@@ -15,7 +16,7 @@ export const snsClient = new SNSClient({
 export const publish = async (topicArn, message) => {
   return snsClient.send(
     new PublishCommand({
-      Message: JSON.stringify(message),
+      Message: JSON.stringify({ ...message, traceparent: getTraceParent() }),
       TopicArn: topicArn,
     }),
   );
