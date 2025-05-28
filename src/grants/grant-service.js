@@ -6,7 +6,6 @@ import { createGrant } from "./grant.js";
 import { createApplication } from "./application.js";
 
 import { randomUUID } from "crypto";
-import { getTraceId } from "@defra/hapi-tracing";
 
 import { config } from "../common/config.js";
 import { publish } from "../common/sns.js";
@@ -121,7 +120,6 @@ export const submitApplication = async (code, createApplicationRequest) => {
     type: `cloud.defra.${config.env}.${config.serviceName}.application.created`,
     datacontenttype: "application/json",
     data: application,
-    traceparent: getTraceId(),
   };
 
   await publish(config.grantApplicationCreatedTopic, event);
