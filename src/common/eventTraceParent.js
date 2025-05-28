@@ -5,7 +5,7 @@ const TRACE_PARENT = "traceParent";
 const asyncLocalStorage = new AsyncLocalStorage();
 
 /**
- * Wraps the method in an AsyncLocalStorage instance
+ * Wraps method in an AsyncLocalStorage instance
  * making the event.traceparent available in context
  *
  * @param {Function} method
