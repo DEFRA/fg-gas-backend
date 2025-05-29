@@ -1,6 +1,6 @@
-import { vi, describe, test, expect } from "vitest";
+import { vi, describe, it, expect } from "viit";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { wrapTraceParent, getTraceParent } from "./eventTraceParent";
+import { wrapTraceParent, getTraceParent } from "./event-trace-parent";
 import { getTraceId } from "@defra/hapi-tracing";
 
 vi.mock("@defra/hapi-tracing", () => ({
@@ -8,7 +8,7 @@ vi.mock("@defra/hapi-tracing", () => ({
 }));
 
 describe("eventTraceParent", () => {
-  test("should method with wrapTraceParent", () => {
+  it("should method with wrapTraceParent", () => {
     vi.spyOn(AsyncLocalStorage.prototype, "run");
     const mock = vi.fn();
     wrapTraceParent(mock, "1234-0987");
@@ -21,7 +21,7 @@ describe("eventTraceParent", () => {
     ).toBe("1234-0987");
   });
 
-  test("should return traceparent if set", () => {
+  it("should return traceparent if set", () => {
     const mockTraceParentId = "0987-1234";
     const mockGet = vi.fn().mockReturnValue(mockTraceParentId);
     vi.spyOn(AsyncLocalStorage.prototype, "getStore").mockReturnValue({
@@ -31,7 +31,7 @@ describe("eventTraceParent", () => {
     expect(getTraceParent()).toEqual(mockTraceParentId);
   });
 
-  test("should return traceId if no traceparent is set", () => {
+  it("should return traceId if no traceparent is set", () => {
     const mockTraceId = "ABCD-1234";
     vi.spyOn(AsyncLocalStorage.prototype, "getStore").mockReturnValue(null);
     getTraceId.mockReturnValue(mockTraceId);

@@ -1,6 +1,6 @@
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import { config } from "./config.js";
-import { getTraceParent } from "./eventTraceParent.js";
+import { getTraceParent } from "./event-trace-parent.js";
 
 export const snsClient = new SNSClient({
   region: config.region,

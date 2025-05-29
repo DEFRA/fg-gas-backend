@@ -4,7 +4,7 @@ import {
   DeleteMessageCommand,
 } from "@aws-sdk/client-sqs";
 import { config } from "./config.js";
-import { wrapTraceParent } from "./eventTraceParent.js";
+import { wrapTraceParent } from "./event-trace-parent.js";
 export default class SqsConsumer {
   constructor(server, options) {
     this.server = server;

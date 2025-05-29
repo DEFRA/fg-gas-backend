@@ -1,7 +1,7 @@
 import { pino } from "pino";
 import { ecsFormat } from "@elastic/ecs-pino-format";
 import { config } from "./config.js";
-import { getTraceParent } from "./eventTraceParent.js";
+import { getTraceParent } from "./event-trace-parent.js";
 
 const format = {
   ecs: {
