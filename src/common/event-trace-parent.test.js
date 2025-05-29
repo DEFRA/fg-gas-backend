@@ -1,4 +1,4 @@
-import { vi, describe, it, expect } from "viit";
+import { vi, describe, it, expect } from "vitest";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { wrapTraceParent, getTraceParent } from "./event-trace-parent";
 import { getTraceId } from "@defra/hapi-tracing";
