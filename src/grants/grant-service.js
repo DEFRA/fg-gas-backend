@@ -5,6 +5,8 @@ import * as applicationRepository from "./application-repository.js";
 import { createGrant } from "./grant.js";
 import { createApplication } from "./application.js";
 
+import { randomUUID } from "crypto";
+
 import { config } from "../common/config.js";
 import { publish } from "../common/sns.js";
 
@@ -111,5 +113,14 @@ export const submitApplication = async (code, createApplicationRequest) => {
 
   await applicationRepository.add(application);
 
-  await publish(config.grantApplicationCreatedTopic, application);
+  const event = {
+    id: randomUUID(),
+    source: config.serviceName,
+    specVersion: "1.0",
+    type: `cloud.defra.${config.env}.${config.serviceName}.application.created`,
+    datacontenttype: "application/json",
+    data: application,
+  };
+
+  await publish(config.grantApplicationCreatedTopic, event);
 };
