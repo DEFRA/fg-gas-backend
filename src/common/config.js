@@ -1,5 +1,5 @@
-import { env } from "node:process";
 import Joi from "joi";
+import { env } from "node:process";
 
 const schema = Joi.object({
   NODE_ENV: Joi.string().allow("development", "production", "test"),
@@ -37,6 +37,7 @@ const { error, value: vars } = schema.validate(env, {
 
 if (error) {
   const errors = error.details.map((e) => e.message).join(", ");
+  // eslint-disable-next-line no-console
   console.error(`Error in env config: ${errors}`);
   process.exit(1);
 }
@@ -52,8 +53,8 @@ export const config = {
   mongoUri: vars.MONGO_URI,
   mongoDatabase: vars.MONGO_DATABASE,
   tracingHeader: vars.TRACING_HEADER,
-  grantApplicationCreatedTopic: vars.GRANT_APPLICATION_CREATED_TOPIC_ARN,
-  grantApplicationApprovedTopic: vars.GRANT_APPLICATION_APPROVED_TOPIC_ARN,
+  applicationCreatedTopic: vars.GRANT_APPLICATION_CREATED_TOPIC_ARN,
+  applicationApprovedTopic: vars.GRANT_APPLICATION_APPROVED_TOPIC_ARN,
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
   caseStageUpdatesQueueUrl: vars.CASE_STAGE_UPDATES_QUEUE_URL,

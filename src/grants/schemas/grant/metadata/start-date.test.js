@@ -1,4 +1,4 @@
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 import { startDate } from "./start-date.js";
 
 it("is an ISO string", () => {

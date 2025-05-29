@@ -1,7 +1,4 @@
-/**
- * @type {import('@hapi/hapi').Plugin<any>}
- */
-export const healthPlugin = {
+export const health = {
   name: "health",
   register(server) {
     server.route({
