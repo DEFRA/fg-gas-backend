@@ -4,7 +4,7 @@ import {
   DeleteMessageCommand,
 } from "@aws-sdk/client-sqs";
 import { config } from "./config.js";
-
+import { wrapTraceParent } from "./event-trace-parent.js";
 export default class SqsConsumer {
   constructor(server, options) {
     this.server = server;
@@ -39,6 +39,14 @@ export default class SqsConsumer {
     this.server.logger.info(`Stopped polling SQS queue: ${this.queueUrl}`);
   }
 
+  async processMessage(message) {
+    const messageBody = JSON.parse(message.Body);
+    wrapTraceParent(
+      () => this.handleMessage(message, messageBody),
+      messageBody.traceparent,
+    );
+  }
+
   async poll() {
     while (this.isRunning) {
       try {
@@ -58,7 +66,7 @@ export default class SqsConsumer {
             response.Messages.map(async (message) => {
               try {
                 // Process the message
-                await this.handleMessage(message);
+                await this.processMessage(message);
                 // Delete the message after successful processing
                 await this.deleteMessage(message);
               } catch (err) {
