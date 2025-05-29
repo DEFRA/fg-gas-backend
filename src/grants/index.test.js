@@ -1,352 +1,75 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
 import hapi from "@hapi/hapi";
-import { grantsPlugin } from "./index.js";
-import * as grantService from "./grant-service.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { db } from "../common/mongo-client.js";
+import { grants } from "./index.js";
+import { caseStageUpdatedSubscriber } from "./subscribers/case-stage-updated.subscriber.js";
 
-vi.mock("./grant-service.js", () => ({
-  replace: vi.fn(),
-  create: vi.fn(),
-  findAll: vi.fn(),
-  findByCode: vi.fn(),
-  invokeGetAction: vi.fn(),
-  invokePostAction: vi.fn(),
-  submitApplication: vi.fn(),
-}));
-
-vi.mock("../common/db.js", () => ({
+vi.mock("../common/mongo-client.js", () => ({
   db: {
     createIndex: vi.fn(),
   },
 }));
 
-let server;
+vi.mock("./subscribers/case-stage-updated.subscriber.js");
 
-beforeAll(async () => {
-  server = hapi.server();
-  await server.register(grantsPlugin);
-  await server.initialize();
-});
+describe("grants", () => {
+  let server;
 
-describe("PUT /tmp/grants", () => {
-  it("returns 404 when grant with grant.code does not exist", async () => {
-    const replaceRequest = {
-      code: "code-1",
-      metadata: {
-        description: "test",
-        startDate: "2100-01-01T00:00:00.000Z",
-      },
-      actions: [],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
-    };
-
-    grantService.replace.mockResolvedValueOnce(replaceRequest);
-
-    const { statusCode } = await server.inject({
-      method: "PUT",
-      url: "/tmp/grants",
-      payload: replaceRequest,
-    });
-
-    expect(statusCode).toEqual(404);
-
-    expect(grantService.replace).not.toHaveBeenCalled();
+  beforeEach(() => {
+    server = hapi.server();
   });
 
-  it("replaces a grant document and returns grant.code", async () => {
-    const replaceRequest = {
-      code: "code-1",
-      metadata: {
-        description: "test",
-        startDate: "2100-01-01T00:00:00.000Z",
-      },
-      actions: [],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
-    };
+  it("creates indexes on startup", async () => {
+    await server.register(grants);
+    await server.initialize();
 
-    grantService.replace.mockResolvedValueOnce(replaceRequest);
-    grantService.findByCode.mockResolvedValueOnce(replaceRequest.code);
-
-    const { statusCode, result } = await server.inject({
-      method: "PUT",
-      url: "/tmp/grants",
-      payload: replaceRequest,
-    });
-
-    expect(statusCode).toEqual(200);
-
-    expect(grantService.replace).toHaveBeenCalledWith({
-      code: "code-1",
-      metadata: {
-        description: "test",
-        startDate: new Date("2100-01-01T00:00:00.000Z"),
-      },
-      actions: [],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
-    });
-    expect(result).toEqual({
-      code: "code-1",
-    });
-  });
-});
-
-describe("POST /grants", () => {
-  it("creates a new grant and returns the id", async () => {
-    const createGrantRequest = {
-      code: "test",
-      metadata: {
-        description: "test",
-        startDate: "2100-01-01T00:00:00.000Z",
-      },
-      actions: [],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
-    };
-
-    grantService.create.mockResolvedValueOnce(createGrantRequest);
-
-    const { statusCode, result } = await server.inject({
-      method: "POST",
-      url: "/grants",
-      payload: createGrantRequest,
-    });
-
-    expect(statusCode).toEqual(201);
-
-    expect(grantService.create).toHaveBeenCalledWith({
-      code: "test",
-      metadata: {
-        description: "test",
-        startDate: new Date("2100-01-01T00:00:00.000Z"),
-      },
-      actions: [],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
-    });
-    expect(result).toEqual({
-      code: "test",
-    });
-  });
-});
-
-describe("GET /grants", () => {
-  it("returns all grants", async () => {
-    grantService.findAll.mockResolvedValueOnce([
-      {
-        code: "1",
-        metadata: {
-          description: "test 1",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
-        internal: "this is private",
-      },
-      {
-        code: "2",
-        metadata: {
-          description: "test 2",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
-        internal: "this is private",
-      },
-    ]);
-
-    const { statusCode, result } = await server.inject({
-      method: "GET",
-      url: "/grants",
-    });
-
-    expect(statusCode).toEqual(200);
-
-    expect(result).toEqual([
-      {
-        code: "1",
-        metadata: {
-          description: "test 1",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
-      },
-      {
-        code: "2",
-        metadata: {
-          description: "test 2",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
-      },
-    ]);
-  });
-});
-
-describe("GET /grants/{code}", () => {
-  it("returns matching grant", async () => {
-    grantService.findByCode.mockResolvedValueOnce({
-      code: "adding-value",
-      metadata: {
-        description: "test 1",
-        startDate: "2100-01-01T00:00:00.000Z",
-      },
-      actions: [],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
-      internal: "this is private",
-    });
-
-    const { statusCode, result } = await server.inject({
-      method: "GET",
-      url: "/grants/adding-value",
-    });
-
-    expect(statusCode).toEqual(200);
-
-    expect(result).toEqual({
-      code: "adding-value",
-      metadata: {
-        description: "test 1",
-        startDate: "2100-01-01T00:00:00.000Z",
-      },
-      actions: [],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
-    });
-  });
-});
-
-describe("GET /grants/{code}/actions/{name}/invoke", () => {
-  it("returns response from action", async () => {
-    grantService.invokeGetAction.mockResolvedValueOnce({
-      arbitrary: "result",
-    });
-
-    const { statusCode, result } = await server.inject({
-      method: "GET",
-      url: "/grants/adding-value/actions/test/invoke",
-    });
-
-    expect(statusCode).toEqual(200);
-
-    expect(result).toEqual({
-      arbitrary: "result",
-    });
-
-    expect(grantService.invokeGetAction).toHaveBeenCalledWith({
-      code: "adding-value",
-      name: "test",
-    });
-  });
-});
-
-describe("POST /grants/{code}/actions/{name}/invoke", () => {
-  it("returns response from action", async () => {
-    grantService.invokePostAction.mockResolvedValueOnce({
-      arbitrary: "result",
-    });
-
-    const { statusCode, result } = await server.inject({
-      method: "POST",
-      url: "/grants/adding-value/actions/test/invoke",
-      payload: {
-        code: "adding-value",
-        name: "test",
-      },
-    });
-
-    expect(statusCode).toEqual(200);
-
-    expect(result).toEqual({
-      arbitrary: "result",
-    });
-
-    expect(grantService.invokePostAction).toHaveBeenCalledWith({
-      code: "adding-value",
-      name: "test",
-      payload: {
-        code: "adding-value",
-        name: "test",
-      },
-    });
-  });
-});
-
-describe("POST /grants/{code}/applications", () => {
-  it("returns the application id", async () => {
-    const submittedAt = new Date();
-
-    const { statusCode, result } = await server.inject({
-      method: "POST",
-      url: "/grants/adding-value/applications",
-      payload: {
-        metadata: {
-          clientRef: "client-1",
-          submittedAt,
-          sbi: "1234567890",
-          frn: "1234567890",
-          crn: "1234567890",
-          defraId: "1234567890",
-        },
-        answers: {
-          question1: "answer1",
-          question2: 42,
-        },
-      },
-    });
-
-    expect(statusCode).toEqual(201);
-
-    expect(grantService.submitApplication).toHaveBeenCalledWith(
-      "adding-value",
-      {
-        answers: {
-          question1: "answer1",
-          question2: 42,
-        },
-        metadata: {
-          clientRef: "client-1",
-          crn: "1234567890",
-          defraId: "1234567890",
-          frn: "1234567890",
-          sbi: "1234567890",
-          submittedAt,
-        },
-      },
+    expect(db.createIndex).toHaveBeenCalledWith(
+      "grants",
+      { code: 1 },
+      { unique: true },
     );
+    expect(db.createIndex).toHaveBeenCalledWith(
+      "applications",
+      { clientRef: 1 },
+      { unique: true },
+    );
+  });
 
-    expect(result).toEqual({
-      clientRef: "client-1",
-    });
+  it("starts subscribers on startup", async () => {
+    await server.register(grants);
+    await server.initialize();
+
+    server.events.emit("start");
+
+    expect(caseStageUpdatedSubscriber.start).toHaveBeenCalled();
+  });
+
+  it("stops subscribers on stop", async () => {
+    await server.register(grants);
+    await server.initialize();
+
+    server.events.emit("stop");
+
+    expect(caseStageUpdatedSubscriber.stop).toHaveBeenCalled();
+  });
+
+  it("registers routes", async () => {
+    await server.register(grants);
+    await server.initialize();
+
+    const routePaths = server.table().map((r) => ({
+      path: r.path,
+      method: r.method,
+    }));
+
+    expect(routePaths).toEqual([
+      { method: "post", path: "/grants" },
+      { method: "post", path: "/grants/{code}/applications" },
+      { method: "post", path: "/grants/{code}/actions/{name}/invoke" },
+      { method: "put", path: "/tmp/grants/{code}" },
+      { method: "get", path: "/grants" },
+      { method: "get", path: "/grants/{code}" },
+      { method: "get", path: "/grants/{code}/actions/{name}/invoke" },
+    ]);
   });
 });

@@ -1,5 +1,5 @@
-import { pino } from "pino";
 import { ecsFormat } from "@elastic/ecs-pino-format";
+import { pino } from "pino";
 import { config } from "./config.js";
 import { getTraceParent } from "./event-trace-parent.js";
 

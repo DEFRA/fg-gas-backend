@@ -1,4 +1,4 @@
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 import { url } from "./url.js";
 
 it("allows valid URIs", () => {

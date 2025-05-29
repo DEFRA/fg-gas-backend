@@ -37,14 +37,11 @@ describe("POST /grants", () => {
 
   it("adds a grant", async () => {
     const response = await Wreck.post(`${env.API_URL}/grants`, {
-      json: true,
       payload: grant1,
     });
 
-    expect(response.res.statusCode).toEqual(201);
-    expect(response.payload).toEqual({
-      code: "test-code-1",
-    });
+    expect(response.res.statusCode).toEqual(204);
+    expect(response.res.statusMessage).toEqual("No Content");
 
     const documents = await grants
       .find({}, { projection: { _id: 0 } })
@@ -208,7 +205,6 @@ describe("POST /grants/{code}/applications", () => {
     const response = await Wreck.post(
       `${env.API_URL}/grants/test-code-1/applications`,
       {
-        json: true,
         payload: {
           metadata: {
             clientRef,
@@ -225,10 +221,8 @@ describe("POST /grants/{code}/applications", () => {
       },
     );
 
-    expect(response.res.statusCode).toEqual(201);
-    expect(response.payload).toEqual({
-      clientRef,
-    });
+    expect(response.res.statusCode).toEqual(204);
+    expect(response.res.statusMessage).toEqual("No Content");
 
     const documents = await applications
       .find({}, { projection: { _id: 0 } })
@@ -239,7 +233,7 @@ describe("POST /grants/{code}/applications", () => {
         clientRef,
         submittedAt,
         code: "test-code-1",
-        createdAt: expect.any(Date),
+        createdAt: expect.any(String),
         identifiers: {
           sbi: "1234567890",
           frn: "1234567890",
@@ -269,24 +263,23 @@ describe("POST /grants/{code}/applications", () => {
       }),
     );
 
-    const parsedMessages = data.Messages.map((message) => {
-      const body = JSON.parse(message.Body);
-      const msg = JSON.parse(body.Message);
-      return msg;
-    }).filter((message) => message.data.clientRef === clientRef);
+    const parsedMessages = data.Messages.map((message) =>
+      JSON.parse(message.Body),
+    ).filter((message) => message.data.clientRef === clientRef);
 
     expect(parsedMessages).toEqual([
       {
-        datacontenttype: "application/json",
         id: expect.any(String),
+        time: expect.any(String),
         source: "fg-gas-backend",
-        specVersion: "1.0",
-        type: "cloud.defra.development.fg-gas-backend.application.created",
+        specversion: "1.0",
+        type: `cloud.defra.development.fg-gas-backend.application.created`,
+        datacontenttype: "application/json",
         data: {
           clientRef,
           code: "test-code-1",
-          submittedAt: expect.any(String),
           createdAt: expect.any(String),
+          submittedAt: expect.any(String),
           identifiers: {
             sbi: "1234567890",
             frn: "1234567890",
@@ -350,7 +343,7 @@ describe("POST /grants/{code}/applications", () => {
       statusCode: 400,
       error: "Bad Request",
       message:
-        'Application with clientRef "12345" has invalid answers: data/question1 must be string',
+        'Application with clientRef "12345" has invalid answers: question1 must be string',
     });
   });
 
@@ -419,7 +412,7 @@ describe("POST /grants/{code}/applications", () => {
     expect(response).toEqual({
       statusCode: 409,
       error: "Conflict",
-      message: 'Application with clientRef "12345" already exists',
+      message: 'Application with clientRef "12345" exists',
     });
   });
 
@@ -462,10 +455,8 @@ describe("POST /grants/{code}/applications", () => {
       },
     );
 
-    expect(response.res.statusCode).toEqual(201);
-    expect(response.payload).toEqual({
-      clientRef: "12345",
-    });
+    expect(response.res.statusCode).toEqual(204);
+    expect(response.res.statusMessage).toEqual("No Content");
   });
 
   it("responds with 400 when the application send invalid unit value", async () => {
@@ -513,7 +504,7 @@ describe("POST /grants/{code}/applications", () => {
       statusCode: 400,
       error: "Bad Request",
       message:
-        'Application with clientRef "12345" has invalid answers: data/actionApplications/0/appliedFor/unit must be equal to one of the allowed values',
+        'Application with clientRef "12345" has invalid answers: actionApplications/0/appliedFor/unit must be equal to one of the allowed values',
     });
   });
 
@@ -561,7 +552,7 @@ describe("POST /grants/{code}/applications", () => {
       statusCode: 400,
       error: "Bad Request",
       message:
-        "Application with clientRef \"12345\" has invalid answers: data/actionApplications/0 must have required property 'code'",
+        "Application with clientRef \"12345\" has invalid answers: actionApplications/0 must have required property 'code'",
     });
   });
 
@@ -610,7 +601,7 @@ describe("POST /grants/{code}/applications", () => {
       statusCode: 400,
       error: "Bad Request",
       message:
-        'Application with clientRef "12345" has invalid answers: data/actionApplications/0/sheetId must match pattern "[A-Z]{2}[0-9]{4}"',
+        'Application with clientRef "12345" has invalid answers: actionApplications/0/sheetId must match pattern "[A-Z]{2}[0-9]{4}"',
     });
   });
 
@@ -659,7 +650,7 @@ describe("POST /grants/{code}/applications", () => {
       statusCode: 400,
       error: "Bad Request",
       message:
-        'Application with clientRef "12345" has invalid answers: data/actionApplications/0/parcelId must match pattern "^\\d+$"',
+        'Application with clientRef "12345" has invalid answers: actionApplications/0/parcelId must match pattern "^\\d+$"',
     });
   });
 });
