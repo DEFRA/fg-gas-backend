@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeAll } from "vitest";
 import hapi from "@hapi/hapi";
-import { healthPlugin } from "./index.js";
+import { beforeAll, describe, expect, it } from "vitest";
+import { health } from "./index.js";
 
 let server;
 
 beforeAll(async () => {
   server = hapi.server();
-  await server.register(healthPlugin);
+  await server.register(health);
   await server.initialize();
 });
 

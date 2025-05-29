@@ -1,4 +1,4 @@
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 import { code } from "./code.js";
 
 it("allows alphanumerics and hyphens", () => {

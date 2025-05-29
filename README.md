@@ -78,7 +78,7 @@ aws_secret_access_key=test
 Then run the following to fetch messages in the queue. The queue-url should match the output from local stack in your console environment
 
 ```bash
-aws sqs receive-message --queue-url http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant-application-created --profile localstack
+aws sqs receive-message --queue-url http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant_application_created --profile localstack
 ```
 
 ### Development
@@ -114,6 +114,18 @@ Launch GAS and dependencies via Docker Compose:
 ```bash
 docker compose up --watch
 ```
+
+## Project structure
+
+Routes can access use cases and schemas.
+Subscriptions can access use cases.
+Use cases can access repositories, http clients, domain classes and other use cases.
+Use cases should export a single function.
+Repositories can access db.
+
+Routes and subscriptions should never respond with a domain object.
+Domain objects should never access use cases, repositories or subscriptions.
+Repositories should never accept or return db records.
 
 ## Licence
 

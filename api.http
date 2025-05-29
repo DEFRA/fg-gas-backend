@@ -74,7 +74,7 @@ Content-Type: application/json
 
 ### Get a Grant
 # @name getGrant
-GET {{base}}/grants/{{createGrant.response.body.code}}
+GET {{base}}/grants/laying-hen-housing
 
 ### Get all Grants
 # @name getGrants
@@ -82,12 +82,12 @@ GET {{base}}/grants
 
 ### Invoke external GET action
 # @name invokeGetAction
-GET {{base}}/grants/{{createGrant.response.body.code}}/actions/get-prices/invoke
+GET {{base}}/grants/laying-hen-housing/actions/get-prices/invoke
 Content-Type: application/json
 
 ### Invoke external POST action
 # @name invokePostAction
-POST {{base}}/grants/{{createGrant.response.body.code}}/actions/calc-totals/invoke
+POST {{base}}/grants/laying-hen-housing/actions/calc-totals/invoke
 Content-Type: application/json
 
 {
@@ -96,7 +96,7 @@ Content-Type: application/json
 
 ### Submit application
 # @name submitApplication
-POST {{base}}/grants/{{createGrant.response.body.code}}/applications
+POST {{base}}/grants/laying-hen-housing/applications
 Content-Type: application/json
 
 {

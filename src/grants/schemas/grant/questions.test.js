@@ -1,4 +1,4 @@
-import { it, expect } from "vitest";
+import { expect, it } from "vitest";
 import { questions } from "./questions.js";
 
 it("requires 2020-12 dialect", () => {
