@@ -1,6 +1,7 @@
+import { getTraceId } from "@defra/hapi-tracing";
 import { randomUUID } from "node:crypto";
 import { config } from "./config.js";
-import { getTraceParent } from "./event-trace-parent.js";
+import { getTraceParent } from "./trace-parent.js";
 
 export class CloudEvent {
   id = randomUUID();
@@ -8,7 +9,7 @@ export class CloudEvent {
   specversion = "1.0";
   datacontenttype = "application/json";
   time = new Date().toISOString();
-  traceparent = getTraceParent();
+  traceparent = getTraceId() ?? getTraceParent();
   type;
   data;
 

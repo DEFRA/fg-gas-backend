@@ -1,7 +1,8 @@
+import { getTraceId } from "@defra/hapi-tracing";
 import { ecsFormat } from "@elastic/ecs-pino-format";
 import { pino } from "pino";
 import { config } from "./config.js";
-import { getTraceParent } from "./event-trace-parent.js";
+import { getTraceParent } from "./trace-parent.js";
 
 const format = {
   ecs: {
@@ -22,7 +23,7 @@ export const logger = pino({
   ignorePaths: ["/health"],
   redact: {
     paths:
-      config.NODE_ENV === "production"
+      config.env === "production"
         ? ["req.headers.authorization", "req.headers.cookie", "res.headers"]
         : ["req", "res", "responseTime"],
     remove: true,
@@ -32,12 +33,15 @@ export const logger = pino({
   nesting: true,
   mixin() {
     const mixinValues = {};
-    const traceId = getTraceParent();
-    if (traceId) {
+
+    const id = getTraceId() ?? getTraceParent();
+
+    if (id) {
       mixinValues.trace = {
-        id: traceId,
+        id,
       };
     }
+
     return mixinValues;
   },
 });
