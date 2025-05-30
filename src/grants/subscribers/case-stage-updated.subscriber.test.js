@@ -9,7 +9,7 @@ describe("caseStageUpdatedSubscriber", () => {
     const mockMessage = {
       data: {
         currentStage: "contract",
-        clientRef: "test-client-ref",
+        caseRef: "test-client-ref",
       },
     };
 
@@ -22,7 +22,7 @@ describe("caseStageUpdatedSubscriber", () => {
     const mockMessage = {
       data: {
         currentStage: "other-stage",
-        clientRef: "test-client-ref",
+        caseRef: "test-client-ref",
       },
     };
 

@@ -8,7 +8,7 @@ export const caseStageUpdatedSubscriber = new SqsSubscriber({
     const { data } = message;
 
     if (data.currentStage === "contract") {
-      await approveApplicationUseCase(data.clientRef);
+      await approveApplicationUseCase(data.caseRef);
     }
   },
 });
