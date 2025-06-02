@@ -1,20 +1,20 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  afterEach,
-} from "vitest";
-import { env } from "node:process";
-import http from "node:http";
-import { randomUUID } from "node:crypto";
-import Wreck from "@hapi/wreck";
-import { MongoClient } from "mongodb";
-import { grant1, grant2, grant3 } from "./fixtures/grants.js";
-import Joi from "joi";
 import { ReceiveMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
+import Wreck from "@hapi/wreck";
+import Joi from "joi";
+import { MongoClient } from "mongodb";
+import { randomUUID } from "node:crypto";
+import http from "node:http";
+import { env } from "node:process";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
+import { grant1, grant2, grant3 } from "./fixtures/grants.js";
 
 let grants;
 let applications;
@@ -205,6 +205,9 @@ describe("POST /grants/{code}/applications", () => {
     const response = await Wreck.post(
       `${env.API_URL}/grants/test-code-1/applications`,
       {
+        headers: {
+          "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
+        },
         payload: {
           metadata: {
             clientRef,
@@ -275,6 +278,7 @@ describe("POST /grants/{code}/applications", () => {
         specversion: "1.0",
         type: `cloud.defra.development.fg-gas-backend.application.created`,
         datacontenttype: "application/json",
+        traceparent: "xxxx-xxxx-xxxx-xxxx",
         data: {
           clientRef,
           code: "test-code-1",
