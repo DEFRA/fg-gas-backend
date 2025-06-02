@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 
 let environment;
@@ -5,7 +6,12 @@ let environment;
 export const setup = async ({ globalConfig }) => {
   const { env } = globalConfig;
 
-  environment = await new DockerComposeEnvironment(".", "compose.yml")
+  const composeFilePath = path.resolve(import.meta.dirname, "..");
+
+  environment = await new DockerComposeEnvironment(
+    composeFilePath,
+    "compose.yml",
+  )
     .withEnvironment({
       GAS_PORT: env.GAS_PORT,
       MONGO_PORT: env.MONGO_PORT,

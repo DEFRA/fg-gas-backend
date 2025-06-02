@@ -5,8 +5,8 @@ import {
 } from "@aws-sdk/client-sqs";
 import { setTimeout } from "node:timers/promises";
 import { config } from "./config.js";
-import { wrapTraceParent } from "./event-trace-parent.js";
 import { logger } from "./logger.js";
+import { withTraceParent } from "./trace-parent.js";
 
 export class SqsSubscriber {
   constructor(options) {
@@ -41,8 +41,8 @@ export class SqsSubscriber {
   }
 
   async processMessage(message) {
-    const messageBody = JSON.parse(message.Body);
-    wrapTraceParent(() => this.onMessage(messageBody), messageBody.traceparent);
+    const body = JSON.parse(message.Body);
+    await withTraceParent(body.traceparent, () => this.onMessage(body));
   }
 
   async poll() {
