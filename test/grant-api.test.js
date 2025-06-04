@@ -124,14 +124,33 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
 
     server = http
       .createServer((_req, res) => {
-        res.writeHead(200, {
-          "Content-Type": "application/json",
-        });
-        res.end(
-          JSON.stringify({
-            message: "Action invoked",
-          }),
-        );
+        if (
+          _req.url === "/calculations/my-super-calc" &&
+          _req.method === "POST"
+        ) {
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+          });
+          res.end(
+            JSON.stringify({
+              message: "Action invoked: my-super-calc",
+            }),
+          );
+        }
+        if (
+          _req.url ===
+            "/calculations/my-area-calc/area/123?paramOne=a&paramTwo=b" &&
+          _req.method === "POST"
+        ) {
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+          });
+          res.end(
+            JSON.stringify({
+              message: "Action invoked: my-area-calc",
+            }),
+          );
+        }
       })
       .listen(3002);
   });
@@ -148,7 +167,12 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
           {
             name: "calc-totals",
             method: "POST",
-            url: "http://host.docker.internal:3002",
+            url: "http://host.docker.internal:3002/calculations/my-super-calc",
+          },
+          {
+            name: "calc-with-params",
+            method: "POST",
+            url: "http://host.docker.internal:3002/calculations/my-area-calc/area/123?paramOne=a&paramTwo=b",
           },
         ],
       },
@@ -164,7 +188,35 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
 
     expect(response.res.statusCode).toEqual(200);
     expect(response.payload).toEqual({
-      message: "Action invoked",
+      message: "Action invoked: my-super-calc",
+    });
+  });
+
+  it("invokes an action with parameters and returns the response", async () => {
+    await grants.insertMany([
+      {
+        ...grant1,
+        actions: [
+          {
+            name: "calc-with-params",
+            method: "POST",
+            url: "http://host.docker.internal:3002/calculations/my-area-calc/area/{areaId}",
+          },
+        ],
+      },
+    ]);
+
+    const response = await Wreck.post(
+      `${env.API_URL}/grants/test-code-1/actions/calc-with-params/invoke?areaId=123&paramOne=a&paramTwo=b`,
+      {
+        json: true,
+        payload: {},
+      },
+    );
+
+    expect(response.res.statusCode).toEqual(200);
+    expect(response.payload).toEqual({
+      message: "Action invoked: my-area-calc",
     });
   });
 });
