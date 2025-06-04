@@ -43,6 +43,7 @@ describe("invokePostActionRoute", () => {
       payload: {
         data: "value",
       },
+      params: {},
     });
   });
 

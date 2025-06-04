@@ -40,13 +40,11 @@ function parameterizedUrl(params, url, code) {
 }
 
 function errorIfUnassignedPlaceholders(url, code) {
-  const unresolvedPlaceholders = url.match(/\{([^}]+)\}/g);
+  const unresolvedPlaceholders = url.match(/(?<=\/)\$[a-zA-Z0-9_]+/g);
+
   if (unresolvedPlaceholders) {
-    const unresolvedKeys = unresolvedPlaceholders.map((placeholder) =>
-      placeholder.slice(1, -1),
-    );
     throw Boom.badRequest(
-      `Grant with code "${code}" has unresolved placeholders in the URL: ${unresolvedKeys.join(", ")}`,
+      `Grant with code "${code}" has unresolved placeholders in the URL: ${unresolvedPlaceholders.join(", ")}`,
     );
   }
 }
@@ -64,8 +62,8 @@ function updateUrlAndExtractQueryParam(params, url) {
 
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
-      if (url.includes(`{${key}}`)) {
-        url = url.replace(`{${key}}`, encodeURIComponent(value));
+      if (url.includes(`$${key}`)) {
+        url = url.replace(`$${key}`, encodeURIComponent(value));
       } else {
         queryParams[key] = value;
       }

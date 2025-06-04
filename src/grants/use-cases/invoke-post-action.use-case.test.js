@@ -48,7 +48,7 @@ describe("invokePostActionUseCase", () => {
       {
         method: "POST",
         name: "post-test",
-        url: "http://localhost:3002/test-grant-1/post-test/{pathParam}",
+        url: "http://localhost:3002/test-grant-1/post-test/$pathParam",
       },
     ];
 
@@ -89,7 +89,7 @@ describe("invokePostActionUseCase", () => {
       {
         method: "POST",
         name: "post-test",
-        url: "http://localhost:3002/test-grant-1/post-test/{pathParam}",
+        url: "http://localhost:3002/test-grant-1/post-test/$pathParam",
       },
     ]);
 
@@ -107,7 +107,7 @@ describe("invokePostActionUseCase", () => {
         params: { otherParamOne: "value1", otherParamTwo: "value2" },
       }),
     ).rejects.toThrow(
-      'Grant with code "test-grant-1" has unresolved placeholders in the URL: pathParam',
+      'Grant with code "test-grant-1" has unresolved placeholders in the URL: $pathParam',
     );
 
     expect(wreck.post).toHaveBeenCalledTimes(0);

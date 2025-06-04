@@ -29,6 +29,7 @@ export const invokePostActionRoute = {
       code: request.params.code,
       name: request.params.name,
       payload: request.payload,
+      params: request.query,
     });
 
     return result;

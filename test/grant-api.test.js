@@ -200,7 +200,7 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
           {
             name: "calc-with-params",
             method: "POST",
-            url: "http://host.docker.internal:3002/calculations/my-area-calc/area/{areaId}",
+            url: "http://host.docker.internal:3002/calculations/my-area-calc/area/$areaId",
           },
         ],
       },
