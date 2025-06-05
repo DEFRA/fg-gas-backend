@@ -40,44 +40,44 @@ export class SqsSubscriber {
     logger.info(`Stopped polling SQS queue: ${this.queueUrl}`);
   }
 
-  async processMessage(message) {
-    const body = JSON.parse(message.Body);
-    await withTraceParent(body.traceparent, () => this.onMessage(body));
-  }
-
   async poll() {
     while (this.isRunning) {
       try {
-        const response = await this.sqsClient.send(
-          new ReceiveMessageCommand({
-            QueueUrl: this.queueUrl,
-            MaxNumberOfMessages: 10,
-            WaitTimeSeconds: 20,
-            AttributeNames: ["All"],
-            MessageAttributeNames: ["All"],
-          }),
-        );
-
-        if (response.Messages && response.Messages.length > 0) {
-          await Promise.all(
-            response.Messages.map(async (message) => {
-              try {
-                logger.info(`Processing SQS message ${message.MessageId}`);
-                await this.processMessage(message);
-                await this.deleteMessage(message);
-              } catch (err) {
-                logger.error(
-                  `Error processing SQS message ${message.MessageId}: ${err.message}`,
-                );
-              }
-            }),
-          );
-        }
+        const messages = await this.getMessages();
+        await Promise.all(messages.map(this.processMessage));
       } catch (err) {
         logger.error(`Error polling SQS queue: ${this.queueUrl}`);
         await setTimeout(30000);
       }
     }
+  }
+
+  async processMessage(message) {
+    logger.info(`Processing SQS message ${message.MessageId}`);
+
+    try {
+      const body = JSON.parse(message.Body);
+      await withTraceParent(body.traceparent, () => this.onMessage(body));
+      await this.deleteMessage(message);
+    } catch (err) {
+      logger.error(
+        `Error processing SQS message ${message.MessageId}: ${err.message}`,
+      );
+    }
+  }
+
+  async getMessages() {
+    const response = await this.sqsClient.send(
+      new ReceiveMessageCommand({
+        QueueUrl: this.queueUrl,
+        MaxNumberOfMessages: 10,
+        WaitTimeSeconds: 20,
+        AttributeNames: ["All"],
+        MessageAttributeNames: ["All"],
+      }),
+    );
+
+    return response.Messages || [];
   }
 
   async deleteMessage(message) {
