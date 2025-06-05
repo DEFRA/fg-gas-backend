@@ -1,7 +1,7 @@
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { replaceGrantRequestSchema } from "../schemas/requests/replace-grant-request.schema";
-import { replaceGrantUseCase } from "../use-cases/replace-grant.use-case";
+import { replaceGrantRequestSchema } from "../schemas/requests/replace-grant-request.schema.js";
+import { replaceGrantUseCase } from "../use-cases/replace-grant.use-case.js";
 import { replaceGrantRoute } from "./replace-grant.route.js";
 
 vi.mock("../use-cases/replace-grant.use-case.js");

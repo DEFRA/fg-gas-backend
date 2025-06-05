@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { Application } from "../models/application";
-import { findByClientRef } from "../repositories/application.repository";
-import { findApplicationByClientRefUseCase } from "./find-application-by-client-ref.use-case";
+import { Application } from "../models/application.js";
+import { findByClientRef } from "../repositories/application.repository.js";
+import { findApplicationByClientRefUseCase } from "./find-application-by-client-ref.use-case.js";
 
 vi.mock("../repositories/application.repository.js");
 
