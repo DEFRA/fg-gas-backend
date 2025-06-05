@@ -1,7 +1,7 @@
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { invokePostActionUseCase } from "../use-cases/invoke-post-action.use-case.js";
-import { invokePostActionRoute } from "./invoke-post-action.route";
+import { invokePostActionRoute } from "./invoke-post-action.route.js";
 
 vi.mock("../use-cases/invoke-post-action.use-case.js");
 
