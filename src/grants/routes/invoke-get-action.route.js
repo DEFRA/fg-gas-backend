@@ -26,6 +26,7 @@ export const invokeGetActionRoute = {
     const result = await invokeGetActionUseCase({
       code: request.params.code,
       name: request.params.name,
+      params: request.query,
     });
 
     return result;

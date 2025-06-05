@@ -31,7 +31,11 @@ export const invokePostActionUseCase = async ({
 };
 
 function parameterizedUrl(params, url, code) {
-  let { queryParams, url: newUrl } = updateUrlAndExtractQueryParam(params, url);
+  let { queryParams, url: newUrl } = updateUrlAndExtractQueryParam(
+    params,
+    code,
+    url,
+  );
 
   errorIfUnassignedPlaceholders(newUrl, code);
   newUrl = addQueryParams(queryParams, newUrl);
@@ -57,8 +61,10 @@ function addQueryParams(queryParams, newUrl) {
   return newUrl;
 }
 
-function updateUrlAndExtractQueryParam(params, url) {
-  const queryParams = {};
+function updateUrlAndExtractQueryParam(params, code, url) {
+  const queryParams = {
+    code: encodeURIComponent(code),
+  };
 
   if (params) {
     Object.entries(params).forEach(([key, value]) => {

@@ -35,7 +35,7 @@ describe("invokePostActionUseCase", () => {
     });
 
     expect(wreck.post).toHaveBeenCalledWith(
-      "http://localhost:3002/test-grant-1/post-test",
+      "http://localhost:3002/test-grant-1/post-test?code=test-grant-1",
       {
         json: true,
         payload: { someData: "test" },
@@ -76,7 +76,7 @@ describe("invokePostActionUseCase", () => {
     });
 
     expect(wreck.post).toHaveBeenCalledWith(
-      "http://localhost:3002/test-grant-1/post-test/ABC123?otherParamOne=value1&otherParamTwo=value2",
+      "http://localhost:3002/test-grant-1/post-test/ABC123?code=test-grant-1&otherParamOne=value1&otherParamTwo=value2",
       {
         json: true,
         payload: { someData: "test" },
