@@ -52,15 +52,14 @@ export const invokePostActionRoute = {
   },
 };
 
-async function handleInvokeAction(request) {
-  return await invokeActionUseCase({
+const handleInvokeAction = async (request) =>
+  await invokeActionUseCase({
     code: request.params.code,
     name: request.params.name,
     method: request.method,
     payload: request.payload,
     params: request.query,
   });
-}
 
 // Export an array of routes for easier registration
 export const invokeActionRoutes = [invokeGetActionRoute, invokePostActionRoute];
