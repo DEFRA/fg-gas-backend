@@ -14,42 +14,37 @@ export class SqsSubscriber {
     this.onMessage = options.onMessage;
     this.isRunning = false;
 
-    const awsConfig = {
+    this.sqsClient = new SQSClient({
       region: config.region,
       endpoint: config.awsEndpointUrl,
-    };
-
-    if (config.awsEndpointUrl) {
-      awsConfig.credentials = {
-        accessKeyId: "test",
-        secretAccessKey: "test",
-      };
-    }
-
-    this.sqsClient = new SQSClient(awsConfig);
+    });
   }
 
   async start() {
     this.isRunning = true;
     await this.poll();
-    logger.info(`Started polling SQS queue: ${this.queueUrl}`);
   }
 
   async stop() {
     this.isRunning = false;
-    logger.info(`Stopped polling SQS queue: ${this.queueUrl}`);
   }
 
   async poll() {
+    logger.info(`Started polling SQS queue: ${this.queueUrl}`);
+
     while (this.isRunning) {
       try {
         const messages = await this.getMessages();
-        await Promise.all(messages.map(this.processMessage));
+        await Promise.all(messages.map((m) => this.processMessage(m)));
       } catch (err) {
-        logger.error(`Error polling SQS queue: ${this.queueUrl}`);
+        logger.error(
+          `Error polling SQS queue ${this.queueUrl}: ${err.message}`,
+        );
         await setTimeout(30000);
       }
     }
+
+    logger.info(`Stopped polling SQS queue: ${this.queueUrl}`);
   }
 
   async processMessage(message) {
