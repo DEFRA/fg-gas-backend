@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { wreck } from "../../common/wreck.js";
 import { Grant } from "../models/grant.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
-import { invokeGetActionUseCase } from "./invoke-get-action.use-case.js";
+import { invokeActionUseCase } from "./invoke-action.use-case.js";
 
 vi.mock("./find-grant-by-code.use-case.js");
 vi.mock("../../common/wreck.js");
 
-describe("invokeGetActionUseCase", () => {
-  it("invokes a GET action to the grant", async () => {
+describe("invokeActionUseCase", () => {
+  it("invokes a GET action", async () => {
     givenGrantWithActions([
       {
         method: "GET",
@@ -23,9 +23,10 @@ describe("invokeGetActionUseCase", () => {
       },
     });
 
-    const result = await invokeGetActionUseCase({
+    const result = await invokeActionUseCase({
       code: "test-grant-1",
       name: "get-test",
+      method: "GET",
     });
 
     expect(result).toEqual({
@@ -38,7 +39,42 @@ describe("invokeGetActionUseCase", () => {
     );
   });
 
-  it("invokes a GET action with path parameters to the grant", async () => {
+  it("invokes a POST action", async () => {
+    givenGrantWithActions([
+      {
+        method: "POST",
+        name: "post-test",
+        url: "http://localhost:3002/test-grant-1/post-test",
+      },
+    ]);
+
+    wreck.post.mockResolvedValue({
+      payload: {
+        message: "Action invoked",
+      },
+    });
+
+    const result = await invokeActionUseCase({
+      code: "test-grant-1",
+      name: "post-test",
+      method: "POST",
+      payload: { someData: "test" },
+    });
+
+    expect(result).toEqual({
+      message: "Action invoked",
+    });
+
+    expect(wreck.post).toHaveBeenCalledWith(
+      "http://localhost:3002/test-grant-1/post-test?code=test-grant-1",
+      {
+        json: true,
+        payload: { someData: "test" },
+      },
+    );
+  });
+
+  it("invokes a GET action with path parameters", async () => {
     givenGrantWithActions([
       {
         method: "GET",
@@ -53,9 +89,10 @@ describe("invokeGetActionUseCase", () => {
       },
     });
 
-    const result = await invokeGetActionUseCase({
+    const result = await invokeActionUseCase({
       code: "test-grant-1",
       name: "get-test",
+      method: "GET",
       params: { pathParam: "ABC123", anotherPathParam: "XYZ789" },
     });
 
@@ -69,7 +106,7 @@ describe("invokeGetActionUseCase", () => {
     );
   });
 
-  it("invokes a GET action ERRORS without required parameters to the grant", async () => {
+  it("throws when required parameters are missing", async () => {
     givenGrantWithActions([
       {
         method: "GET",
@@ -78,16 +115,11 @@ describe("invokeGetActionUseCase", () => {
       },
     ]);
 
-    wreck.get.mockResolvedValue({
-      payload: {
-        message: "Action invoked",
-      },
-    });
-
     await expect(
-      invokeGetActionUseCase({
+      invokeActionUseCase({
         code: "test-grant-1",
         name: "get-test",
+        method: "GET",
         params: { anotherPathParam: "XYZ789" },
       }),
     ).rejects.toThrow(
@@ -103,9 +135,10 @@ describe("invokeGetActionUseCase", () => {
     );
 
     await expect(
-      invokeGetActionUseCase({
+      invokeActionUseCase({
         code: "non-existent-grant",
         name: "get-test",
+        method: "GET",
       }),
     ).rejects.toThrow("Grant with code non-existent-grant not found");
   });
@@ -120,12 +153,85 @@ describe("invokeGetActionUseCase", () => {
     ]);
 
     await expect(
-      invokeGetActionUseCase({
+      invokeActionUseCase({
         code: "test-grant-2",
         name: "get-non-existent-action",
+        method: "GET",
       }),
     ).rejects.toThrow(
       'Grant with code "test-grant-2" has no GET action named "get-non-existent-action"',
+    );
+  });
+});
+
+describe("invokeActionUseCase for GET", () => {
+  it("calls the generic action use case with GET method", async () => {
+    givenGrantWithActions([
+      {
+        method: "GET",
+        name: "get-test",
+        url: "http://localhost:3002/test-grant-1/get-test",
+      },
+    ]);
+
+    wreck.get.mockResolvedValue({
+      payload: {
+        message: "Action invoked",
+      },
+    });
+
+    const result = await invokeActionUseCase({
+      code: "test-grant-1",
+      name: "get-test",
+      method: "GET",
+      params: { param: "value" },
+    });
+
+    expect(result).toEqual({
+      message: "Action invoked",
+    });
+
+    expect(wreck.get).toHaveBeenCalledWith(
+      "http://localhost:3002/test-grant-1/get-test?code=test-grant-1&param=value",
+      { json: true },
+    );
+  });
+});
+
+describe("invokeActionUseCase for POST", () => {
+  it("calls the generic action use case with POST method", async () => {
+    givenGrantWithActions([
+      {
+        method: "POST",
+        name: "post-test",
+        url: "http://localhost:3002/test-grant-1/post-test",
+      },
+    ]);
+
+    wreck.post.mockResolvedValue({
+      payload: {
+        message: "Action invoked",
+      },
+    });
+
+    const result = await invokeActionUseCase({
+      code: "test-grant-1",
+      name: "post-test",
+      method: "POST",
+      payload: { someData: "test" },
+      params: { param: "value" },
+    });
+
+    expect(result).toEqual({
+      message: "Action invoked",
+    });
+
+    expect(wreck.post).toHaveBeenCalledWith(
+      "http://localhost:3002/test-grant-1/post-test?code=test-grant-1&param=value",
+      {
+        json: true,
+        payload: { someData: "test" },
+      },
     );
   });
 });

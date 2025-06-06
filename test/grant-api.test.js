@@ -124,9 +124,11 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
 
     server = http
       .createServer((_req, res) => {
+        console.log("INCOMING REQUEST:", _req.url, _req.method);
+
         if (
-          _req.url === "/calculations/my-super-calc" &&
-          _req.method === "POST"
+          _req.url === "/calculations/my-super-calc?code=test-code-1" &&
+          _req.method.toUpperCase() === "POST"
         ) {
           res.writeHead(200, {
             "Content-Type": "application/json",
@@ -139,8 +141,8 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
         }
         if (
           _req.url ===
-            "/calculations/my-area-calc/area/123?paramOne=a&paramTwo=b" &&
-          _req.method === "POST"
+            "/calculations/my-area-calc/area/123?code=test-code-1&paramOne=a&paramTwo=b" &&
+          _req.method.toUpperCase() === "POST"
         ) {
           res.writeHead(200, {
             "Content-Type": "application/json",
@@ -172,7 +174,7 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
           {
             name: "calc-with-params",
             method: "POST",
-            url: "http://host.docker.internal:3002/calculations/my-area-calc/area/123?paramOne=a&paramTwo=b",
+            url: "http://host.docker.internal:3002/calculations/my-area-calc/area/{areaId}",
           },
         ],
       },
