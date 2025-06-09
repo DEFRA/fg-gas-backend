@@ -12,7 +12,7 @@ export const invokeActionUseCase = async ({
   const grant = await findGrantByCodeUseCase(code);
 
   const action = grant.actions.find(
-    (e) => e.method.toUpperCase() === method.toUpperCase() && e.name === name,
+    (e) => e.method === method && e.name === name,
   );
 
   if (!action) {
@@ -24,11 +24,11 @@ export const invokeActionUseCase = async ({
   const url = parameterizedUrl(params, action.url, code);
 
   let response;
-  if (method === "get") {
+  if (method === "GET") {
     response = await wreck.get(url, {
       json: true,
     });
-  } else if (method === "post") {
+  } else if (method === "POST") {
     response = await wreck.post(url, {
       payload,
       json: true,
@@ -39,7 +39,7 @@ export const invokeActionUseCase = async ({
 };
 
 // Keep the existing helper functions unchanged
-function parameterizedUrl(params, url, code) {
+const parameterizedUrl = (params, url, code) => {
   let { queryParams, url: newUrl } = updateUrlAndExtractQueryParam(
     params,
     code,
@@ -49,9 +49,9 @@ function parameterizedUrl(params, url, code) {
   newUrl = addQueryParams(queryParams, newUrl);
 
   return newUrl;
-}
+};
 
-function errorIfUnassignedPlaceholders(url, code) {
+const errorIfUnassignedPlaceholders = (url, code) => {
   const unresolvedPlaceholders = url.match(/(?<=\/)\$[a-zA-Z0-9_]+/g);
 
   if (unresolvedPlaceholders) {
@@ -59,17 +59,17 @@ function errorIfUnassignedPlaceholders(url, code) {
       `Grant with code "${code}" has unresolved placeholders in the URL: ${unresolvedPlaceholders.join(", ")}`,
     );
   }
-}
+};
 
-function addQueryParams(queryParams, newUrl) {
+const addQueryParams = (queryParams, newUrl) => {
   if (Object.keys(queryParams).length > 0) {
     const queryString = new URLSearchParams(queryParams).toString();
     newUrl += `?${queryString}`;
   }
   return newUrl;
-}
+};
 
-function updateUrlAndExtractQueryParam(params, code, url) {
+const updateUrlAndExtractQueryParam = (params, code, url) => {
   const queryParams = {
     code: encodeURIComponent(code),
   };
@@ -84,4 +84,4 @@ function updateUrlAndExtractQueryParam(params, code, url) {
     });
   }
   return { queryParams, url };
-}
+};

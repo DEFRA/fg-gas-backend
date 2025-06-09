@@ -56,7 +56,7 @@ const handleInvokeAction = async (request) =>
   await invokeActionUseCase({
     code: request.params.code,
     name: request.params.name,
-    method: request.method,
+    method: request.method.toUpperCase(),
     payload: request.payload,
     params: request.query,
   });

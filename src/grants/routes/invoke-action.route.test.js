@@ -40,7 +40,7 @@ describe("invoke action routes", () => {
       expect(invokeActionUseCase).toHaveBeenCalledWith({
         code: "test-grant",
         name: "action1",
-        method: "get",
+        method: "GET",
         params: { paramOne: "valueOne" },
       });
     });
@@ -82,7 +82,7 @@ describe("invoke action routes", () => {
       expect(invokeActionUseCase).toHaveBeenCalledWith({
         code: "test-grant",
         name: "action1",
-        method: "post",
+        method: "POST",
         payload: {
           data: "value",
         },
