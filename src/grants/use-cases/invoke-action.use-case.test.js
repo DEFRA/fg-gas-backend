@@ -236,7 +236,7 @@ describe("invokeActionUseCase for POST", () => {
   });
 });
 
-function givenGrantWithActions(actions) {
+const givenGrantWithActions = (actions) => {
   const grant = new Grant({
     code: "test-grant-1",
     metadata: {
@@ -251,4 +251,4 @@ function givenGrantWithActions(actions) {
   });
 
   findGrantByCodeUseCase.mockResolvedValue(grant);
-}
+};

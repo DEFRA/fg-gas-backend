@@ -2,7 +2,9 @@
 
 Grant Application Service defines and manages farming grants and applications. It is the source of truth for all grant applications and their status.
 
-- [Requirements](#requirements)
+- [User guide](#user-guide)
+  - [Configure grant actions](#configure-grant-actions)
+- [Developer guide](#developer-guide)
   - [Node.js](#nodejs)
 - [Local development](#local-development)
   - [Setup](#setup)
@@ -17,7 +19,55 @@ Grant Application Service defines and manages farming grants and applications. I
 - [Licence](#licence)
   - [About the licence](#about-the-licence)
 
-## Requirements
+## User guide
+
+### Configure grant actions
+
+As part of the Grant Application Service, you can configure and call actions on grants.
+
+Given a grant definition is stored in GAS as per the following example:
+
+- Note the $areaId and $segmentId in the URL, these are placeholders that will be replaced with actual values when the action is invoked.
+
+```json
+{
+  "code": "my-grant-code",
+  "actions": [
+    {
+      "method": "POST",
+      "name": "land-area-calculation",
+      "url": "https://my-other-server/some-path/area-calc/$areaId/$segmentId"
+    }
+  ]
+}
+```
+
+This can be called via the following HTTP request:
+
+- Note the areaId and segmentId query parameters, these will be used to replace the placeholders in the URL.
+- The anotherParam query parameter is an example of additional parameters will be passed on in the URL query string.
+
+```http request
+POST http://gas-server/grants/my-grant-code/actions/land-area-calculation/invoke?areaId=123&segmentId=456&anotherParam=ABC123
+Content-Type: application/json
+
+{
+  "someKey": "someValue"
+}
+```
+
+This wil result in the following HTTP request being made to the configured URL:
+
+```http request
+POST https://my-other-server/some-path/area-calc/123/456?anotherParam=ABC123
+Content-Type: application/json
+
+{
+  "someKey": "someValue"
+}
+```
+
+## Developer guide
 
 ### Node.js
 
