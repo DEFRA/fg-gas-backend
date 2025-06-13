@@ -34,8 +34,8 @@ Given a grant definition is stored in GAS as per the following example:
   "code": "my-grant-code",
   "actions": [
     {
-      "method": "POST",
       "name": "land-area-calculation",
+      "method": "POST",
       "url": "https://my-other-server/some-path/area-calc/$areaId/$segmentId"
     }
   ]
@@ -59,7 +59,7 @@ Content-Type: application/json
 This wil result in the following HTTP request being made to the configured URL:
 
 ```http request
-POST https://my-other-server/some-path/area-calc/123/456?anotherParam=ABC123
+POST https://my-other-server/some-path/area-calc/123/456?code=my-grant-code&anotherParam=ABC123
 Content-Type: application/json
 
 {
