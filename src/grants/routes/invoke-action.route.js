@@ -60,6 +60,3 @@ const handleInvokeAction = async (request) =>
     payload: request.payload,
     params: request.query,
   });
-
-// Export an array of routes for easier registration
-export const invokeActionRoutes = [invokeGetActionRoute, invokePostActionRoute];
