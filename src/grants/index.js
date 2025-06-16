@@ -4,8 +4,10 @@ import { caseStageUpdatedSubscriber } from "./subscribers/case-stage-updated.sub
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";
 import { findGrantsRoute } from "./routes/find-grants.route.js";
-import { invokeGetActionRoute } from "./routes/invoke-get-action.route.js";
-import { invokePostActionRoute } from "./routes/invoke-post-action.route.js";
+import {
+  invokeGetActionRoute,
+  invokePostActionRoute,
+} from "./routes/invoke-action.route.js";
 import { replaceGrantRoute } from "./routes/replace-grant.route.js";
 import { submitApplicationRoute } from "./routes/submit-application.route.js";
 
