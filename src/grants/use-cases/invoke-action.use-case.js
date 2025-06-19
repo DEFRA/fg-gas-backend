@@ -90,9 +90,5 @@ const updateUrlAndExtractQueryParam = (params, code, url) => {
 };
 
 const updateUrlForEnvironment = (url) => {
-  if (config.cdpEnvironment) {
-    url = url.replace("%ENVIRONMENT%", config.cdpEnvironment);
-  }
-
-  return url;
+  return url.replace("%ENVIRONMENT%", config.cdpEnvironment);
 };
