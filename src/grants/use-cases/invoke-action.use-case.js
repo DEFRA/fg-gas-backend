@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { config } from "../../common/config.js";
 import { wreck } from "../../common/wreck.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 
@@ -21,7 +22,9 @@ export const invokeActionUseCase = async ({
     );
   }
 
-  const url = parameterizedUrl(params, action.url, code);
+  let url = parameterisedUrl(params, action.url, code);
+
+  url = updateUrlForEnvironment(url);
 
   let response;
   if (method === "GET") {
@@ -39,7 +42,7 @@ export const invokeActionUseCase = async ({
 };
 
 // Keep the existing helper functions unchanged
-const parameterizedUrl = (params, url, code) => {
+const parameterisedUrl = (params, url, code) => {
   let { queryParams, url: newUrl } = updateUrlAndExtractQueryParam(
     params,
     code,
@@ -84,4 +87,12 @@ const updateUrlAndExtractQueryParam = (params, code, url) => {
     });
   }
   return { queryParams, url };
+};
+
+const updateUrlForEnvironment = (url) => {
+  if (config.cdpEnvironment) {
+    url = url.replace("%ENVIRONMENT%", config.cdpEnvironment);
+  }
+
+  return url;
 };

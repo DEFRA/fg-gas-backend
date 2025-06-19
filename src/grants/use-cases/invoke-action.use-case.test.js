@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { config } from "../../common/config.js";
 import { wreck } from "../../common/wreck.js";
 import { Grant } from "../models/grant.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
@@ -8,6 +9,10 @@ vi.mock("./find-grant-by-code.use-case.js");
 vi.mock("../../common/wreck.js");
 
 describe("invokeActionUseCase", () => {
+  beforeEach(async () => {
+    config.cdpEnvironment = "UNITTEST";
+  });
+
   it("invokes a GET action", async () => {
     givenGrantWithActions([
       {
@@ -102,6 +107,38 @@ describe("invokeActionUseCase", () => {
 
     expect(wreck.get).toHaveBeenCalledWith(
       "http://localhost:3002/test-grant-1/get-test/ABC123?code=test-grant-1&anotherPathParam=XYZ789",
+      { json: true },
+    );
+  });
+
+  it("invokes a GET action with for a CDP environment", async () => {
+    givenGrantWithActions([
+      {
+        method: "GET",
+        name: "get-test",
+        url: "http://my-grant-specific-service.%ENVIRONMENT%.gov.uk/test-grant-1/get-test/$pathParam",
+      },
+    ]);
+
+    wreck.get.mockResolvedValue({
+      payload: {
+        message: "Action invoked",
+      },
+    });
+
+    const result = await invokeActionUseCase({
+      code: "test-grant-1",
+      name: "get-test",
+      method: "GET",
+      params: { pathParam: "ABC123", anotherPathParam: "XYZ789" },
+    });
+
+    expect(result).toEqual({
+      message: "Action invoked",
+    });
+
+    expect(wreck.get).toHaveBeenCalledWith(
+      "http://my-grant-specific-service.UNITTEST.gov.uk/test-grant-1/get-test/ABC123?code=test-grant-1&anotherPathParam=XYZ789",
       { json: true },
     );
   });

@@ -25,6 +25,7 @@ const schema = Joi.object({
   AWS_REGION: Joi.string(),
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
   CASE_STAGE_UPDATES_QUEUE_URL: Joi.string().uri(),
+  ENVIRONMENT: Joi.string().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -58,4 +59,5 @@ export const config = {
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
   caseStageUpdatesQueueUrl: vars.CASE_STAGE_UPDATES_QUEUE_URL,
+  cdpEnvironment: vars.ENVIRONMENT,
 };
