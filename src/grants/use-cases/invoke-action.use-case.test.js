@@ -1,5 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { config } from "../../common/config.js";
+import { describe, expect, it, vi } from "vitest";
 import { wreck } from "../../common/wreck.js";
 import { Grant } from "../models/grant.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
@@ -9,10 +8,6 @@ vi.mock("./find-grant-by-code.use-case.js");
 vi.mock("../../common/wreck.js");
 
 describe("invokeActionUseCase", () => {
-  beforeEach(async () => {
-    config.cdpEnvironment = "UNITTEST";
-  });
-
   it("invokes a GET action", async () => {
     givenGrantWithActions([
       {
@@ -138,7 +133,7 @@ describe("invokeActionUseCase", () => {
     });
 
     expect(wreck.get).toHaveBeenCalledWith(
-      "http://my-grant-specific-service.UNITTEST.gov.uk/test-grant-1/get-test/ABC123?code=test-grant-1&anotherPathParam=XYZ789",
+      "http://my-grant-specific-service.local.gov.uk/test-grant-1/get-test/ABC123?code=test-grant-1&anotherPathParam=XYZ789",
       { json: true },
     );
   });
