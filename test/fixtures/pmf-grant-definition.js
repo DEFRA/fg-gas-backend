@@ -17,15 +17,3 @@ export const grant1 = {
     properties: {},
   },
 };
-
-// POST https://gas-service/grant/pigs-might-fly/action/calculate-pig-totals
-// Content-Type: application/json
-// {
-//   "pigTypes": [{ "pigType": "largeWhite", "quantity": 10 } ]
-// }
-
-// POST "http://localhost:3007/grantFundingCalculator?code=pigs-might-fly"
-// Content-Type: application/json
-// {
-//   "pigTypes": [{ "pigType": "largeWhite", "quantity": 10 } ]
-// }
