@@ -25,7 +25,7 @@ const schema = Joi.object({
   AWS_REGION: Joi.string(),
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
   CASE_STAGE_UPDATES_QUEUE_URL: Joi.string().uri(),
-  ENVIRONMENT: Joi.string().optional(),
+  ENVIRONMENT: Joi.string(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
