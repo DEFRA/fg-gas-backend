@@ -23,6 +23,7 @@ export default defineConfig({
       AWS_ENDPOINT_URL: "http://localhost:4566",
       CASE_STAGE_UPDATES_QUEUE_URL:
         "http://sqs.eu-west-2.127.0.0.1:4567/000000000000/case_stage_updated",
+      ENVIRONMENT: "local",
     },
   },
 });
