@@ -36,11 +36,13 @@ Given a grant definition is stored in GAS as per the following example:
     {
       "name": "land-area-calculation",
       "method": "POST",
-      "url": "https://my-other-server/some-path/area-calc/$areaId/$segmentId"
+      "url": "https://my-other-server.%ENVIRONMENT%.gov.uk/some-path/area-calc/$areaId/$segmentId"
     }
   ]
 }
 ```
+
+Note: The `%ENVIRONMENT%` placeholder will be replaced with the current CDP environment when running in a CDP environment.
 
 This can be called via the following HTTP request:
 

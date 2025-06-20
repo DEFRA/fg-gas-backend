@@ -106,6 +106,38 @@ describe("invokeActionUseCase", () => {
     );
   });
 
+  it("invokes a GET action with for a CDP environment", async () => {
+    givenGrantWithActions([
+      {
+        method: "GET",
+        name: "get-test",
+        url: "http://my-grant-specific-service.%ENVIRONMENT%.gov.uk/test-grant-1/get-test/$pathParam",
+      },
+    ]);
+
+    wreck.get.mockResolvedValue({
+      payload: {
+        message: "Action invoked",
+      },
+    });
+
+    const result = await invokeActionUseCase({
+      code: "test-grant-1",
+      name: "get-test",
+      method: "GET",
+      params: { pathParam: "ABC123", anotherPathParam: "XYZ789" },
+    });
+
+    expect(result).toEqual({
+      message: "Action invoked",
+    });
+
+    expect(wreck.get).toHaveBeenCalledWith(
+      "http://my-grant-specific-service.local.gov.uk/test-grant-1/get-test/ABC123?code=test-grant-1&anotherPathParam=XYZ789",
+      { json: true },
+    );
+  });
+
   it("invokes a POST action with path parameters", async () => {
     givenGrantWithActions([
       {
