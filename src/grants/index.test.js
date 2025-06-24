@@ -4,11 +4,7 @@ import { db } from "../common/mongo-client.js";
 import { grants } from "./index.js";
 import { caseStageUpdatedSubscriber } from "./subscribers/case-stage-updated.subscriber.js";
 
-vi.mock("../common/mongo-client.js", () => ({
-  db: {
-    createIndex: vi.fn(),
-  },
-}));
+vi.mock("../common/mongo-client.js");
 
 vi.mock("./subscribers/case-stage-updated.subscriber.js");
 

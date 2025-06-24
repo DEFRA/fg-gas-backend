@@ -6,11 +6,7 @@ import { ApplicationDocument } from "../models/application-document.js";
 import { Application } from "../models/application.js";
 import { findByClientRef, save } from "./application.repository.js";
 
-vi.mock("../../common/mongo-client.js", () => ({
-  db: {
-    collection: vi.fn(),
-  },
-}));
+vi.mock("../../common/mongo-client.js");
 
 describe("save", () => {
   it("stores an application", async () => {

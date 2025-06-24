@@ -6,11 +6,7 @@ import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
 import { findAll, findByCode, replace, save } from "./grant.repository.js";
 
-vi.mock("../../common/mongo-client.js", () => ({
-  db: {
-    collection: vi.fn(),
-  },
-}));
+vi.mock("../../common/mongo-client.js");
 
 describe("save", () => {
   it("stores a Grant in the repository", async () => {
