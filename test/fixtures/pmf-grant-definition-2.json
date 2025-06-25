@@ -1,0 +1,64 @@
+{
+  "code": "pigs-might-fly",
+  "metadata": {
+    "description": "Pigs Might Fly",
+    "startDate": "2100-01-01T00:00:00.000Z"
+  },
+  "actions": [
+    {
+      "name": "calculate-pig-totals",
+      "method": "POST",
+      "url": "https://fg-gss-pmf.%ENVIRONMENT%.cdp-int.defra.cloud/grantFundingCalculator"
+    }
+  ],
+  "questions": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "isPigFarmer",
+      "totalPigs",
+      "pigBreeds",
+      "whitePigsCount",
+      "britishLandacePigsCount",
+      "berkshirePigsCount",
+      "otherPigsCount"
+    ],
+    "properties": {
+      "isPigFarmer": {
+        "type": "boolean",
+        "title": "Are you a pig farmer?"
+      },
+      "totalPigs": {
+        "type": "integer",
+        "title": "How many pigs do you have?",
+        "minimum": 1,
+        "maximum": 1000
+      },
+      "pigBreeds": {
+        "type": "array",
+        "title": "What pig breeds do you have?",
+        "items": {
+          "type": "string",
+          "enum": ["largeWhite", "britishLandrace", "berkshire", "other"]
+        }
+      },
+      "whitePigsCount": {
+        "type": "integer",
+        "title": "How many white pigs do you have?"
+      },
+      "britishLandacePigsCount": {
+        "type": "integer",
+        "title": "How many British Landrace pigs do you have?"
+      },
+      "berkshirePigsCount": {
+        "type": "integer",
+        "title": "How many Berkshire pigs do you have?"
+      },
+      "otherPigsCount": {
+        "type": "integer",
+        "title": "How many other pigs do you have?"
+      }
+    }
+  }
+}
