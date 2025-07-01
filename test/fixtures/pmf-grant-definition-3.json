@@ -1,0 +1,68 @@
+{
+  "code": "pigs-might-fly",
+  "metadata": {
+    "description": "Pigs Might Fly",
+    "startDate": "2100-01-01T00:00:00.000Z"
+  },
+  "actions": [
+    {
+      "name": "calculate-pig-totals",
+      "method": "POST",
+      "url": "https://fg-gss-pmf.%ENVIRONMENT%.cdp-int.defra.cloud/grantFundingCalculator"
+    }
+  ],
+  "questions": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "isPigFarmer": {
+        "type": "boolean"
+      }
+    },
+    "required": ["isPigFarmer"],
+    "unevaluatedProperties": false,
+    "if": {
+      "properties": {
+        "isPigFarmer": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "totalPigs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "whitePigsCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "britishLandraceCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "berkshireCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "otherCount": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["totalPigs"],
+      "fgSumEquals": {
+        "fields": [
+          "whitePigsCount",
+          "berkshireCount",
+          "britishLandraceCount",
+          "otherCount"
+        ],
+        "targetField": "totalPigs"
+      }
+    }
+  }
+}
