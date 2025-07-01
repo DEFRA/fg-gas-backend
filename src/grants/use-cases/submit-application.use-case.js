@@ -29,11 +29,14 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
     },
   });
 
+  // Ajv strips unknown fields and mutates the original
+  const clonedAnswers = structuredClone(answers);
+
   addFormats(ajv, ["date-time", "date", "time", "duration", "email", "uri"]);
 
   let valid;
   try {
-    valid = ajv.validate(schema, answers);
+    valid = ajv.validate(schema, clonedAnswers);
   } catch (error) {
     throw Boom.badRequest(
       `Application with clientRef "${clientRef}" cannot be validated: ${error.message}`,
@@ -47,7 +50,7 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
     );
   }
 
-  return answers;
+  return clonedAnswers;
 };
 
 export const submitApplicationUseCase = async (code, { metadata, answers }) => {
