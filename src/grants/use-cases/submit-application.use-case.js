@@ -13,7 +13,7 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
     allErrors: true,
     useDefaults: true,
     verbose: true,
-    removeAdditional: "true",
+    removeAdditional: true,
   });
 
   // Custom keyword to check sum of fields equals a target field exactly
