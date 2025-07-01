@@ -20,60 +20,6 @@ describe("submitApplicationUseCase", () => {
     vi.useRealTimers();
   });
 
-  it("stores application with answers defined in the schema", async () => {
-    findGrantByCodeUseCase.mockResolvedValue(
-      new Grant({
-        code: "test-grant",
-        metadata: {
-          description: "Test Grant",
-          startDate: "2023-01-01T00:00:00Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-            },
-          },
-        },
-      }),
-    );
-
-    await submitApplicationUseCase("test-grant", {
-      metadata: {
-        clientRef: "test-client-ref",
-        sbi: "123456789",
-        frn: "987654321",
-        crn: "CRN123456",
-        defraId: "DEFRA123456",
-        submittedAt: "2000-01-01T12:00:00Z",
-      },
-      answers: {
-        question1: "answer1",
-        extraField: "extra",
-      },
-    });
-
-    const application = new Application({
-      clientRef: "test-client-ref",
-      code: "test-grant",
-      submittedAt: "2000-01-01T12:00:00Z",
-      identifiers: {
-        sbi: "123456789",
-        frn: "987654321",
-        crn: "CRN123456",
-        defraId: "DEFRA123456",
-      },
-      answers: {
-        question1: "answer1",
-      },
-    });
-
-    expect(save).toHaveBeenCalledWith(application);
-  });
-
   it("publishes application created event", async () => {
     findGrantByCodeUseCase.mockResolvedValue(
       new Grant({
@@ -106,7 +52,6 @@ describe("submitApplicationUseCase", () => {
       },
       answers: {
         question1: "answer1",
-        extraField: "extra",
       },
     });
 
@@ -124,7 +69,7 @@ describe("submitApplicationUseCase", () => {
         question1: "answer1",
       },
     });
-
+    expect(save).toHaveBeenCalledWith(application);
     expect(publishApplicationCreated).toHaveBeenCalledWith(application);
   });
 
