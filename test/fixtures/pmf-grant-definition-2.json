@@ -15,15 +15,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "additionalProperties": false,
-    "required": [
-      "isPigFarmer",
-      "totalPigs",
-      "pigBreeds",
-      "whitePigsCount",
-      "britishLandacePigsCount",
-      "berkshirePigsCount",
-      "otherPigsCount"
-    ],
+    "required": ["isPigFarmer", "totalPigs", "pigBreeds"],
     "properties": {
       "isPigFarmer": {
         "type": "boolean",
@@ -37,28 +29,69 @@
       },
       "pigBreeds": {
         "type": "array",
-        "title": "What pig breeds do you have?",
         "items": {
-          "type": "string",
           "enum": ["largeWhite", "britishLandrace", "berkshire", "other"]
         }
       },
       "whitePigsCount": {
-        "type": "integer",
-        "title": "How many white pigs do you have?"
+        "type": "integer"
       },
-      "britishLandacePigsCount": {
-        "type": "integer",
-        "title": "How many British Landrace pigs do you have?"
+      "britishLandraceCount": {
+        "type": "integer"
       },
-      "berkshirePigsCount": {
-        "type": "integer",
-        "title": "How many Berkshire pigs do you have?"
+      "berkshireCount": {
+        "type": "integer"
       },
-      "otherPigsCount": {
-        "type": "integer",
-        "title": "How many other pigs do you have?"
+      "otherCount": {
+        "type": "integer"
       }
-    }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "pigBreeds": {
+              "type": "array",
+              "contains": { "enum": ["largeWhite"] }
+            }
+          }
+        },
+        "then": {
+          "required": ["whitePigsCount"]
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "pigBreeds": {
+              "type": "array",
+              "contains": { "enum": ["britishLandrace"] }
+            }
+          }
+        },
+        "then": {
+          "required": ["britishLandraceCount"]
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "pigBreeds": {
+              "type": "array",
+              "contains": { "enum": ["berkshire"] }
+            }
+          }
+        },
+        "then": { "required": ["berkshireCount"] }
+      },
+      {
+        "if": {
+          "properties": {
+            "pigBreeds": { "type": "array", "contains": { "enum": ["other"] } }
+          }
+        },
+        "then": { "required": ["otherCount"] }
+      }
+    ]
   }
 }

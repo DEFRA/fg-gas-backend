@@ -11,18 +11,29 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
   const ajv = new Ajv2020({
     strict: true,
     allErrors: true,
-    removeAdditional: "all",
     useDefaults: true,
+    verbose: true,
+    removeAdditional: "true",
+  });
+
+  // Custom keyword to check sum of fields equals a target field exactly
+  ajv.addKeyword({
+    keyword: "fgSumEquals",
+    type: "object",
+    schemaType: "object",
+    validate: function (schema, data) {
+      const fields = schema.fields;
+      const targetField = schema.targetField;
+      const sum = fields.reduce((acc, field) => acc + (data[field] || 0), 0);
+      return sum === data[targetField];
+    },
   });
 
   addFormats(ajv, ["date-time", "date", "time", "duration", "email", "uri"]);
 
-  // Ajv strips unknown fields and mutates the original
-  const clonedAnswers = structuredClone(answers);
-
   let valid;
   try {
-    valid = ajv.validate(schema, clonedAnswers);
+    valid = ajv.validate(schema, answers);
   } catch (error) {
     throw Boom.badRequest(
       `Application with clientRef "${clientRef}" cannot be validated: ${error.message}`,
@@ -31,13 +42,12 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
 
   if (!valid) {
     const errors = ajv.errorsText().replaceAll("data/", "");
-
     throw Boom.badRequest(
       `Application with clientRef "${clientRef}" has invalid answers: ${errors}`,
     );
   }
 
-  return clonedAnswers;
+  return answers;
 };
 
 export const submitApplicationUseCase = async (code, { metadata, answers }) => {
