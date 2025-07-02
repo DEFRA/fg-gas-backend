@@ -27,6 +27,12 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
       const sum = fields.reduce((acc, field) => acc + (data[field] || 0), 0);
       return sum === data[targetField];
     },
+    error: {
+      message: (cxt) => {
+        const { schema } = cxt;
+        return `fgSumEquals validation failed: sum of fields ${schema.fields.join(", ")} must equal ${schema.targetField}`;
+      },
+    },
   });
 
   // Ajv strips unknown fields and mutates the original
