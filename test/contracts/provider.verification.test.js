@@ -15,73 +15,115 @@ const __dirname = resolve(__filename, "..");
 let client;
 let db;
 
+// Shared grant definitions (single source of truth)
+const testGrantDefinitions = [
+  {
+    code: "frps-private-beta",
+    metadata: {
+      description: "Farming Resilience Private Beta",
+      startDate: "2024-01-01T00:00:00.000Z"
+    },
+    actions: [
+      {
+        name: "score",
+        method: "POST",
+        url: "http://localhost:3001/scoring/api/v1/adding-value/score"
+      }
+    ],
+    questions: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      title: "FrpsPrivateBetaGrant",
+      type: "object",
+      properties: {
+        scheme: { type: "string" },
+        year: { type: "number" },
+        agreementName: { type: "string" },
+        actionApplications: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              parcelId: { type: "string" },
+              sheetId: { type: "string" },
+              code: { type: "string" },
+              appliedFor: {
+                type: "object",
+                properties: {
+                  unit: { type: "string" },
+                  quantity: { type: "number" }
+                }
+              }
+            }
+          }
+        }
+      },
+      required: ["scheme", "year"]
+    }
+  },
+  {
+    code: "adding-value",
+    metadata: {
+      description: "Adding Value Grant",
+      startDate: "2025-01-01T00:00:00.000Z"
+    },
+    actions: [
+      {
+        name: "score",
+        method: "POST",
+        url: "http://localhost:3001/scoring/api/v1/adding-value/score"
+      }
+    ],
+    questions: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      title: "AddingValueGrant",
+      type: "object",
+      properties: {
+        scheme: { type: "string" },
+        year: { type: "number" },
+        agreementName: { type: "string" }
+      },
+      required: ["scheme", "year"]
+    }
+  },
+  {
+    code: "sfi-ahl",
+    metadata: {
+      description: "Sustainable Farming Incentive - Arable and Horticultural Land",
+      startDate: "2024-01-01",
+    },
+    actions: [
+      {
+        name: "cahl1",
+        method: "GET",
+        url: "http://localhost:3003/grants/sfi-ahl/actions/cahl1",
+        payload: {
+          description: "Assess soil, test soil organic matter and produce a soil management plan",
+          paymentRate: 20.06,
+          unit: "per hectare per year",
+        },
+      },
+    ],
+    questions: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+];
+
 // State setup functions
 async function setupTestGrants() {
   try {
     console.log("Setting up test grants in database");
-
-    if (!client) {
-      console.log("Connecting to MongoDB:", MONGO_URI);
-      client = await MongoClient.connect(MONGO_URI);
-      db = client.db();
-    }
+    await ensureMongoConnection();
 
     const grants = db.collection("grants");
     await grants.deleteMany({}); // Clear existing grants
     console.log("Cleared existing grants");
 
-    // Insert realistic grant data that matches contract expectations
-    const testGrants = [
-      {
-        code: "sfi-ahl",
-        metadata: {
-          description:
-            "Sustainable Farming Incentive - Arable and Horticultural Land",
-          startDate: "2024-01-01",
-        },
-        actions: [
-          {
-            name: "cahl1",
-            method: "GET",
-            url: "http://localhost:3003/grants/sfi-ahl/actions/cahl1",
-            payload: {
-              description:
-                "Assess soil, test soil organic matter and produce a soil management plan",
-              paymentRate: 20.06,
-              unit: "per hectare per year",
-            },
-          },
-        ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {},
-          required: [],
-        },
-      },
-      {
-        code: "test-code-1",
-        metadata: {
-          description: "Test grant for verification",
-          startDate: "2024-01-01",
-        },
-        actions: [
-          {
-            name: "action1",
-            method: "GET",
-            url: "http://example.com",
-          },
-        ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {},
-        },
-      },
-    ];
-
-    await grants.insertMany(testGrants);
-    console.log(`Successfully inserted ${testGrants.length} test grants`);
+    await grants.insertMany(testGrantDefinitions);
+    console.log(`Successfully inserted ${testGrantDefinitions.length} test grants`);
 
     return Promise.resolve();
   } catch (error) {
@@ -90,55 +132,50 @@ async function setupTestGrants() {
   }
 }
 
-async function setupSFIGrant() {
-  try {
-    console.log("Setting up SFI-AHL grant");
-
-    if (!client) {
-      console.log("Connecting to MongoDB for SFI grant:", MONGO_URI);
-      client = await MongoClient.connect(MONGO_URI);
-      db = client.db();
-    }
-
-    const grants = db.collection("grants");
-
-    // Ensure specific SFI-AHL grant exists
-    const sfiGrant = {
-      code: "sfi-ahl",
-      metadata: {
-        description:
-          "Sustainable Farming Incentive - Arable and Horticultural Land",
-        startDate: "2024-01-01",
-      },
-      actions: [
-        {
-          name: "cahl1",
-          method: "GET",
-          url: "http://localhost:3003/grants/sfi-ahl/actions/cahl1",
-          payload: {
-            description:
-              "Assess soil, test soil organic matter and produce a soil management plan",
-            paymentRate: 20.06,
-            unit: "per hectare per year",
-          },
-        },
-      ],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-        properties: {},
-        required: [],
-      },
-    };
-
-    await grants.replaceOne({ code: "sfi-ahl" }, sfiGrant, { upsert: true });
-    console.log("SFI-AHL grant successfully upserted");
-
-    return Promise.resolve();
-  } catch (error) {
-    console.error("Error setting up SFI grant:", error);
-    throw error;
+// Helper function to ensure MongoDB connection
+async function ensureMongoConnection() {
+  if (!client) {
+    console.log("Connecting to MongoDB:", MONGO_URI);
+    client = await MongoClient.connect(MONGO_URI);
+    db = client.db();
   }
+}
+
+// Simplified individual grant setup functions (no duplication)
+async function setupAddingValueGrant() {
+  await ensureMongoConnection();
+  const grants = db.collection("grants");
+  
+  // Find the adding-value grant definition from testGrants
+  const addingValueGrant = testGrantDefinitions.find(g => g.code === "adding-value");
+  
+  console.log("Setting up adding-value grant");
+  await grants.replaceOne({ code: "adding-value" }, addingValueGrant, { upsert: true });
+  console.log("Adding-value grant successfully upserted");
+}
+
+async function setupFrpsPrivateBetaGrant() {
+  await ensureMongoConnection();
+  const grants = db.collection("grants");
+  
+  // Find the frps-private-beta grant definition from testGrants
+  const frpsGrant = testGrantDefinitions.find(g => g.code === "frps-private-beta");
+  
+  console.log("Setting up frps-private-beta grant");
+  await grants.replaceOne({ code: "frps-private-beta" }, frpsGrant, { upsert: true });
+  console.log("frps-private-beta grant successfully upserted");
+}
+
+async function setupSFIGrant() {
+  await ensureMongoConnection();
+  const grants = db.collection("grants");
+  
+  // Find the sfi-ahl grant definition from testGrants
+  const sfiGrant = testGrantDefinitions.find(g => g.code === "sfi-ahl");
+  
+  console.log("Setting up SFI-AHL grant");
+  await grants.replaceOne({ code: "sfi-ahl" }, sfiGrant, { upsert: true });
+  console.log("SFI-AHL grant successfully upserted");
 }
 
 describe("fg-gas-backend Provider Verification", () => {
@@ -167,77 +204,113 @@ describe("fg-gas-backend Provider Verification", () => {
         ],
         stateHandlers: {
           "adding value grant scheme is available": async () => {
-            // Setup: Ensure grant scheme is available
             console.log("State: Adding value grant scheme is available");
-            // In real implementation, might seed database or configure services
+            await setupAddingValueGrant();
             return Promise.resolve();
           },
 
           "adding value grant has minimum cost threshold": async () => {
-            // Setup: Configure minimum cost threshold
             console.log("State: Grant has minimum cost threshold");
+            await setupAddingValueGrant();
             return Promise.resolve();
           },
 
           "application submission service is available": async () => {
-            // Setup: Ensure application submission endpoint is ready
             console.log("State: Application submission service is available");
+            await setupFrpsPrivateBetaGrant();
             return Promise.resolve();
           },
 
           "application validation is enforced": async () => {
-            // Setup: Ensure validation rules are active
             console.log("State: Application validation is enforced");
+            await setupFrpsPrivateBetaGrant();
             return Promise.resolve();
           },
 
           "application AV-2024-001 exists and is under review": async () => {
-            // Setup: Create test application in database
             console.log("State: Application AV-2024-001 exists");
-            // Mock or seed application data
+            await setupFrpsPrivateBetaGrant();
             return Promise.resolve();
           },
 
           "application AV-2024-999 does not exist": async () => {
-            // Setup: Ensure application doesn't exist
             console.log("State: Application AV-2024-999 does not exist");
+            await setupFrpsPrivateBetaGrant();
             return Promise.resolve();
           },
 
-          "application AV240115001 is approved and ready for agreement":
-            async () => {
-              // Setup: Create approved application for agreements API
-              console.log(
-                "State: Application approved and ready for agreement",
-              );
-              return Promise.resolve();
-            },
+          "grants are available in the system": async () => {
+            console.log("State: Grants are available in the system");
+            await setupTestGrants();
+            return Promise.resolve();
+          },
+
+          "grant frps-private-beta exists": async () => {
+            console.log("State: Grant frps-private-beta exists");
+            await setupFrpsPrivateBetaGrant();
+            return Promise.resolve();
+          },
+
+          "grant system is available for application submission": async () => {
+            console.log("State: Grant system is available for application submission");
+            await setupFrpsPrivateBetaGrant();
+            return Promise.resolve();
+          },
+
+          "grant system validates grant codes": async () => {
+            console.log("State: Grant system validates grant codes");
+            await setupFrpsPrivateBetaGrant();
+            return Promise.resolve();
+          },
+
+          "grant exists but action does not": async () => {
+            console.log("State: Grant exists but action does not");
+            await setupAddingValueGrant();
+            return Promise.resolve();
+          },
+
+          "scoring action is configured for adding-value grant": async () => {
+            console.log("State: Scoring action is configured for adding-value grant");
+            await setupAddingValueGrant();
+            return Promise.resolve();
+          },
+
+          "application with clientRef DUPLICATE-REF-123 already exists": async () => {
+            console.log("State: Application with duplicate clientRef exists");
+            await setupFrpsPrivateBetaGrant();
+            return Promise.resolve();
+          },
+
+          "application AV240115001 is approved and ready for agreement": async () => {
+            console.log("State: Application approved and ready for agreement");
+            await setupFrpsPrivateBetaGrant();
+            return Promise.resolve();
+          },
 
           "application AV240199999 does not exist": async () => {
-            // Setup: Ensure application doesn't exist
             console.log("State: Application AV240199999 does not exist");
+            await setupFrpsPrivateBetaGrant();
             return Promise.resolve();
           },
 
-          "application AV240116001 exists but is still under review":
-            async () => {
-              // Setup: Create application that's still under review
-              console.log("State: Application under review");
-              return Promise.resolve();
-            },
+          "application AV240116001 exists but is still under review": async () => {
+            console.log("State: Application under review");
+            await setupFrpsPrivateBetaGrant();
+            return Promise.resolve();
+          },
 
           "application AV240115001 is approved": async () => {
-            // Setup: Application is in approved state
             console.log("State: Application is approved");
+            await setupFrpsPrivateBetaGrant();
             return Promise.resolve();
           },
 
-          "application AV240115001 has detailed parcel information":
-            async () => {
-              // Setup: Application with complete parcel data
-              console.log("State: Application has detailed parcel information");
-              return Promise.resolve();
-            },
+          "application AV240115001 has detailed parcel information": async () => {
+            console.log("State: Application has detailed parcel information");
+            await setupFrpsPrivateBetaGrant();
+            return Promise.resolve();
+          },
+
         },
         requestFilter: (req, _res, next) => {
           // Add authentication headers if needed
