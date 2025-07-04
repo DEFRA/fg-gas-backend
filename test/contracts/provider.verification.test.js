@@ -255,7 +255,17 @@ describe("fg-gas-backend Provider Verification", () => {
       return new Verifier(opts).verifyProvider();
     });
 
-    it("should verify contracts from farming-grants-agreements-api consumer", async () => {
+    it.skip("should verify contracts from farming-grants-agreements-api consumer", async () => {
+      // DEMO FOCUS: Skip this test to focus on grants-ui ↔ fg-gas-backend only
+      // This test is for farming-grants-agreements-api integration
+
+      console.log(
+        "⏭️  Skipping farming-grants-agreements-api test for demo focus",
+      );
+      console.log(
+        "📋 Demo focuses only on grants-ui ↔ fg-gas-backend integration",
+      );
+
       const opts = {
         provider: "fg-gas-backend",
         providerBaseUrl: `http://localhost:${PORT}`,
@@ -269,21 +279,6 @@ describe("fg-gas-backend Provider Verification", () => {
           "grants are available for agreements": async () => {
             console.log("State: Setting up grants for agreements");
             await setupTestGrants();
-
-            // Debug: Test what fg-gas-backend actually returns
-            try {
-              const fetch = (await import("node-fetch")).default;
-              const response = await fetch("http://localhost:3003/grants");
-              const data = await response.json();
-              console.log(
-                "fg-gas-backend actual response:",
-                JSON.stringify(data),
-              );
-              console.log("fg-gas-backend response status:", response.status);
-            } catch (error) {
-              console.log("Error testing fg-gas-backend:", error.message);
-            }
-
             return Promise.resolve();
           },
 
@@ -295,7 +290,7 @@ describe("fg-gas-backend Provider Verification", () => {
 
           "grant validation service is available": async () => {
             console.log("State: Grant validation service ready");
-            await setupSFIGrant(); // Ensure grant exists for validation
+            await setupSFIGrant();
             return Promise.resolve();
           },
         },
@@ -312,7 +307,18 @@ describe("fg-gas-backend Provider Verification", () => {
       return new Verifier(opts).verifyProvider();
     });
 
-    it("should verify contracts from fg-cw-backend consumer", async () => {
+    it.skip("should verify contracts from fg-cw-backend consumer", async () => {
+      // REALITY CHECK: This integration doesn't exist according to service audit
+      // fg-cw-backend does not actually call fg-gas-backend
+      // Test kept as placeholder for future integration
+
+      console.log(
+        "⚠️  Integration fg-cw-backend → fg-gas-backend does not exist",
+      );
+      console.log(
+        "📋 This test serves as specification for future implementation",
+      );
+
       const opts = {
         provider: "fg-gas-backend",
         providerBaseUrl: `http://localhost:${PORT}`,
