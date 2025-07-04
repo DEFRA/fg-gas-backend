@@ -134,7 +134,9 @@
           "eligible": true,
           "fundingPercentage": 40,
           "maxFunding": 100000,
-          "warnings": ["Planning permission required before full application"]
+          "warnings": [
+            "Planning permission required before full application"
+          ]
         },
         "headers": {
           "Content-Type": "application/json"
@@ -262,7 +264,9 @@
             "main": {
               "/adding-value": "adding-value-A1",
               "/collaboration": "collaboration-A1",
-              "/environmental-impact": ["environmental-impact-A1"]
+              "/environmental-impact": [
+                "environmental-impact-A1"
+              ]
             }
           }
         },
