@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { wreck } from "../../common/wreck.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 
@@ -36,6 +37,11 @@ export const invokeActionUseCase = async ({
       payload,
       json: true,
     });
+  } else {
+    logger.warn("unsupported method " + method);
+    throw Boom.badRequest(
+      `Unsuported method ${method} for action named "${name}"`,
+    );
   }
 
   return response.payload;

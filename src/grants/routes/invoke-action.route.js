@@ -24,7 +24,7 @@ export const invokeGetActionRoute = {
     },
   },
   async handler(request, _h) {
-    return await handleInvokeAction(request);
+    return handleInvokeAction(request);
   },
 };
 
@@ -48,12 +48,12 @@ export const invokePostActionRoute = {
     },
   },
   async handler(request, _h) {
-    return await handleInvokeAction(request);
+    return handleInvokeAction(request);
   },
 };
 
 const handleInvokeAction = async (request) =>
-  await invokeActionUseCase({
+  invokeActionUseCase({
     code: request.params.code,
     name: request.params.name,
     method: request.method.toUpperCase(),
