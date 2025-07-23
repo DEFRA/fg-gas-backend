@@ -4,11 +4,9 @@ import { mongoClient } from "./common/mongo-client.js";
 import { createServer } from "./server.js";
 
 vi.mock("./common/mongo-client.js");
-vi.mock("./common/logger.js");
 
 describe("server", () => {
   it("strips trailing slashes", async () => {
-    vi.spyOn(mongoClient, "connect");
     const server = await createServer();
     server.route({
       method: "GET",
