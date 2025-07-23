@@ -5,7 +5,6 @@ export default defineConfig({
   test: {
     restoreMocks: true,
     coverage: {
-      enabled: true,
       reporter: ["text", "lcov", "html"],
     },
     env: {
