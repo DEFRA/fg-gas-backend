@@ -74,6 +74,27 @@ describe("invokeActionUseCase", () => {
     );
   });
 
+  it("warns throws if the method is not supported", async () => {
+    givenGrantWithActions([
+      {
+        method: "METHOD",
+        name: "test",
+        url: "http://localhost:3002/test-grant-1/put-test",
+      },
+    ]);
+
+    await expect(
+      invokeActionUseCase({
+        code: "test-grant-1",
+        name: "test",
+        method: "METHOD",
+        params: { anotherPathParam: "XYZ789" },
+      }),
+    ).rejects.toThrow('Unsupported method METHOD for action named "test"');
+
+    expect(wreck.get).toHaveBeenCalledTimes(0);
+  });
+
   it("invokes a GET action with path parameters", async () => {
     givenGrantWithActions([
       {

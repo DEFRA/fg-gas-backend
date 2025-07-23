@@ -36,6 +36,10 @@ export const invokeActionUseCase = async ({
       payload,
       json: true,
     });
+  } else {
+    throw Boom.badRequest(
+      `Unsupported method ${method} for action named "${name}"`,
+    );
   }
 
   return response.payload;
