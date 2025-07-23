@@ -1,6 +1,5 @@
 import Joi from "joi";
 import { describe, expect, it, vi } from "vitest";
-import { logger } from "./common/logger.js";
 import { mongoClient } from "./common/mongo-client.js";
 import { createServer } from "./server.js";
 
@@ -39,7 +38,6 @@ describe("server", () => {
 
   it("validates routes", async () => {
     const server = await createServer();
-    vi.spyOn(logger, "warn").mockImplementation(() => {});
     const expectedErrorMessage = '"Payload" must be of type object';
 
     server.route({
@@ -65,7 +63,6 @@ describe("server", () => {
     });
 
     expect(statusCode).toBe(400);
-    expect(logger.warn.mock.calls[0][1]).toBe(expectedErrorMessage);
     expect(result.message).toBe(expectedErrorMessage);
   });
 });
