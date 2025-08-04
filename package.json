@@ -46,8 +46,8 @@
     "hapi-swagger": "^17.3.2",
     "joi": "^17.13.3",
     "mongodb": "^6.16.0",
-    "pino": "^9.6.0",
-    "pino-pretty": "^13.0.0"
+    "pino": "^9.7.0",
+    "pino-pretty": "^13.1.1"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.1.3",
