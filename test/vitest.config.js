@@ -12,7 +12,10 @@ export default defineConfig({
       concurrent: false,
     },
     fileParallelism: false,
-    reporters: ["default"],
+    reporters: ["default", "html"],
+    outputFile: {
+      html: "./test/reports/index.html",
+    },
     env: {
       GAS_PORT,
       MONGO_PORT,
