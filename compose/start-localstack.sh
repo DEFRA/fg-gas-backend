@@ -65,3 +65,11 @@ function setup_topic_and_queues() {
 setup_topic_and_queues "grant_application_created"
 setup_topic_and_queues "grant_application_approved"
 setup_topic_and_queues "case_stage_updated"
+
+# Commmands
+create_queue "gas__sqs__update_status"
+create_queue "gas__sqs__save_agreement"
+
+# Events
+setup_topic_and_queues "gas__sns__grant_application_created"
+setup_topic_and_queues "gas__sns__grant_application_status_updated"
