@@ -2,20 +2,17 @@
 import { defineConfig } from "vite";
 
 const GAS_PORT = 3001;
-const MONGO_PORT = 27018;
-const LOCALSTACK_PORT = 4567;
+const MONGO_PORT = 27018; // Use TestContainers MongoDB port
+const LOCALSTACK_PORT = 4567; // Use TestContainers LocalStack port
 
 export default defineConfig({
   test: {
-    globalSetup: "./test/setup.js",
+    // No global setup - use existing running services
     sequence: {
       concurrent: false,
     },
     fileParallelism: false,
-    reporters: ["default", "html"],
-    outputFile: {
-      html: "./test/reports/index.html",
-    },
+    reporters: ["default"],
     env: {
       GAS_PORT,
       MONGO_PORT,
