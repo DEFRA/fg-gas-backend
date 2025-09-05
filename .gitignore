@@ -10,3 +10,4 @@ coverage
 .eslintcache
 .env
 /.env.test
+test/reports/
