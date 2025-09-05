@@ -8,6 +8,14 @@ const LOCALSTACK_PORT = 4567;
 export default defineConfig({
   test: {
     globalSetup: "./test/setup.js",
+    sequence: {
+      concurrent: false,
+    },
+    fileParallelism: false,
+    reporters: ["default", "html"],
+    outputFile: {
+      html: "./test/reports/index.html",
+    },
     env: {
       GAS_PORT,
       MONGO_PORT,
@@ -23,7 +31,7 @@ export default defineConfig({
       GRANT_APPLICATION_CREATED_QUEUE: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/grant_application_created`,
       CASE_STAGE_UPDATES_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/case_stage_updated`,
     },
-    hookTimeout: 30000,
-    testTimeout: 10000,
+    hookTimeout: 120000,
+    testTimeout: 30000,
   },
 });
