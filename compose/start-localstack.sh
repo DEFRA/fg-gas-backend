@@ -68,8 +68,10 @@ setup_topic_and_queues "case_stage_updated"
 
 # Commmands
 create_queue "gas__sqs__update_status"
-create_queue "gas__sqs__save_agreement"
 
-# Events
-setup_topic_and_queues "gas__sns__grant_application_created"
-setup_topic_and_queues "gas__sns__grant_application_status_updated"
+# External Events
+subscribe_queue_to_topic $(create_topic "agreement_status_updated") $(create_queue "gas__sqs__update_agreement_status")
+
+# GAS Events
+subscribe_queue_to_topic $(create_topic "gas__sns__grant_application_created") $(create_queue "gas__sqs__handle_grant_application_created")
+subscribe_queue_to_topic $(create_topic "gas__sns__grant_application_status_updated") $(create_queue "gas__sqs__handle_grant_application_status_updated")
