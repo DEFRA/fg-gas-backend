@@ -29,7 +29,7 @@ const schema = Joi.object({
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SQS__UPDATE_STATUS_QUEUE_URL: Joi.string().uri().optional(),
-  GAS__SQS__SAVE_AGREEMENT_QUEUE_URL: Joi.string().uri().optional(),
+  GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: Joi.string().uri().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -72,6 +72,7 @@ export const config = {
   },
   sqs: {
     updateStatusQueueUrl: vars.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
-    saveAgreementQueueUrl: vars.GAS__SQS__SAVE_AGREEMENT_QUEUE_URL,
+    updateAgreementStatusQueueUrl:
+      vars.GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL,
   },
 };
