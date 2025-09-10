@@ -29,7 +29,7 @@ services:
   gas:
     build: .
     ports:
-      - "${GAS_PORT:-3003}:3003"
+      - "${GAS_PORT:-3003}:3000"
     links:
       - "localstack:localstack"
       - "mongodb:mongodb"
