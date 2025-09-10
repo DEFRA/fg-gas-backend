@@ -28,6 +28,8 @@ const schema = Joi.object({
   ENVIRONMENT: Joi.string(),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
+  GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: Joi.string().optional(),
+  GAS__SNS__UPDATE_CASE_STATUS_TOPIC_ARN: Joi.string().optional(),
   GAS__SQS__UPDATE_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: Joi.string().uri().optional(),
 }).options({
@@ -69,6 +71,8 @@ export const config = {
       vars.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
     grantApplicationStatusUpdatedTopicArn:
       vars.GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN,
+    createNewCaseTopicArn: vars.GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN,
+    updateCaseStatusTopicArn: vars.GAS__SNS__UPDATE_CASE_STATUS_TOPIC_ARN,
   },
   sqs: {
     updateStatusQueueUrl: vars.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
