@@ -219,10 +219,89 @@ describe("fg-gas-backend Provider Verification", () => {
       const opts = {
         provider: "fg-gas-backend",
         providerBaseUrl: `http://localhost:${PORT}`,
-        pactUrls: [
-          resolve(__dirname, "../pacts/grants-ui-fg-gas-backend.json"),
-        ],
+        pactBrokerUrl:
+          env.PACT_BROKER_URL || "https://ffc-pact-broker.azure.defra.cloud",
+        consumerVersionSelectors: [{ latest: true }],
+        pactBrokerUsername: env.PACT_BROKER_USERNAME || "pactuser01",
+        pactBrokerPassword:
+          env.PACT_BROKER_PASSWORD || "SabS9%u/Lyq7k~?yJ5HAd7]r<7y/B",
         stateHandlers: {
+          "example-grant-with-auth-v3 is configured in fg-gas-backend":
+            async () => {
+              console.log("State: Setting up example-grant-with-auth-v3 grant");
+              await ensureMongoConnection();
+
+              // Clear applications collection to prevent 409 conflicts
+              const applications = db.collection("applications");
+              await applications.deleteMany({});
+              console.log("Cleared existing applications");
+
+              // Set up the grant
+              const grants = db.collection("grants");
+              const exampleGrant = {
+                code: "example-grant-with-auth-v3",
+                metadata: {
+                  description: "Example Grant with Auth v3",
+                  startDate: "2025-01-01T00:00:00.000Z",
+                },
+                actions: [],
+                questions: {
+                  $schema: "https://json-schema.org/draft/2020-12/schema",
+                  title: "ExampleGrantWithAuthV3",
+                  type: "object",
+                  properties: {
+                    applicantBusinessAddress__addressLine1: { type: "string" },
+                    applicantBusinessAddress__addressLine2: { type: "string" },
+                    applicantBusinessAddress__county: { type: "string" },
+                    applicantBusinessAddress__postcode: { type: "string" },
+                    applicantBusinessAddress__town: { type: "string" },
+                    applicantEmail: { type: "string" },
+                    applicantMobile: { type: "string" },
+                    applicantName: { type: "string" },
+                    autocompleteField: { type: "string" },
+                    checkboxesField: { type: "array" },
+                    datePartsField__day: { type: "number" },
+                    datePartsField__month: { type: "number" },
+                    datePartsField__year: { type: "number" },
+                    monthYearField__month: { type: "number" },
+                    monthYearField__year: { type: "number" },
+                    multilineTextField: { type: "string" },
+                    numberField: { type: "number" },
+                    radiosField: { type: "string" },
+                    referenceNumber: { type: "string" },
+                    selectField: { type: "string" },
+                    yesNoField: { type: "boolean" },
+                  },
+                  required: ["applicantName", "applicantEmail"],
+                },
+              };
+
+              await grants.replaceOne(
+                { code: "example-grant-with-auth-v3" },
+                exampleGrant,
+                { upsert: true },
+              );
+              console.log(
+                "example-grant-with-auth-v3 grant successfully upserted",
+              );
+
+              // Create unique index for clientRef to handle duplicates properly
+              try {
+                await applications.createIndex(
+                  { clientRef: 1 },
+                  { unique: true },
+                );
+                console.log("Created unique index for clientRef");
+              } catch (err) {
+                console.log(
+                  "Unique index already exists or error:",
+                  err.message,
+                );
+              }
+
+              return Promise.resolve();
+            },
+
           "adding value grant scheme is available": async () => {
             console.log("State: Adding value grant scheme is available");
             await setupAddingValueGrant();
@@ -402,9 +481,8 @@ describe("fg-gas-backend Provider Verification", () => {
           next();
         },
         customProviderHeaders: ["Authorization: Bearer test-token"],
-        publishVerificationResult: false, // Set to true when integrating with CDP artifacts
+        publishVerificationResult: true, // Publish results back to Pact Broker
         providerVersion: process.env.GIT_COMMIT || "1.0.0",
-        consumerVersionSelectors: [{ latest: true }, { deployed: true }],
       };
 
       return new Verifier(opts).verifyProvider();
