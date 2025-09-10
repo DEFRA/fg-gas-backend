@@ -14,7 +14,8 @@ on:
 jobs:
   pr-validator:
     name: Run Pull Request Checks
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,6 +37,27 @@ jobs:
 
       - name: Run integration tests
         run: DEBUG=testcontainers:containers npm run test:integration
+
+      - name: Run contract tests
+        env:
+          PACT_BROKER_USERNAME: ${{ secrets.PACT_BROKER_USERNAME }}
+          PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
+          GIT_COMMIT: ${{ github.sha }}
+        run: |
+          # Start services for contract testing
+          LOCALSTACK_PORT=4567 MONGO_PORT=27018 GAS_PORT=3003 docker compose up --build -d
+
+          # Wait for services to be ready
+          sleep 15
+
+          # Verify service health
+          curl --retry 10 --retry-delay 3 --retry-connrefused http://localhost:3003/health
+
+          # Run provider contract verification
+          npm run test:contracts:provider
+
+          # Clean up services
+          docker compose down
 
       - name: Build docker image
         run: |
