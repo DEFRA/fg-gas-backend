@@ -52,6 +52,7 @@ export const updateApplicationStatusUseCase = async (messageData) => {
 
   // publish command to case working
   await publishUpdateApplicationStatusCommand({
+    newStatus,
     clientRef,
     code,
     agreementData,

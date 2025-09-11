@@ -21,11 +21,13 @@ export const publishApplicationStatusUpdated = async (application) => {
 };
 
 export const publishUpdateApplicationStatusCommand = async ({
+  newStatus,
   clientRef,
   code,
-  agreementData
+  agreementData,
 }) => {
   const event = new ApplicationUpdateStatusCommand({
+    newStatus,
     clientRef,
     code,
     agreementData,

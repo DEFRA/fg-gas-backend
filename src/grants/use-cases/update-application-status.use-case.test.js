@@ -52,7 +52,7 @@ describe("update application status use-case", () => {
   it("should update application and publish events", async () => {
     const messageData = {
       clientRef: "ABCD-0987",
-      cose: "grant-1",
+      code: "grant-1",
       status: "accepted",
       agreementNumber: "SFI123456789",
       date: "2025-01-01T00:00:00.000Z",
@@ -96,7 +96,8 @@ describe("update application status use-case", () => {
         createdAt: "2025-01-01T00:00:00.000Z",
       },
       clientRef: "ABCD-0987",
-      code: undefined,
+      code: "grant-1",
+      newStatus: "OFFER_ACCEPTED",
     });
   });
 });
