@@ -20,9 +20,13 @@ describe("save", () => {
 
     await save(
       new Application({
+        phase: "phase",
+        stage: "stage",
+        status: "status",
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-01T00:00:00.000Z",
+        updatedAt: "2021-01-01T01:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",
         identifiers: {
           sbi: "sbi-1",
@@ -40,9 +44,13 @@ describe("save", () => {
 
     expect(insertOne).toHaveBeenCalledWith(
       new ApplicationDocument({
+        phase: "phase",
+        stage: "stage",
+        status: "status",
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-01T00:00:00.000Z",
+        updatedAt: "2021-01-01T01:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",
         identifiers: {
           sbi: "sbi-1",
@@ -121,9 +129,13 @@ describe("findByClientRef", () => {
   it("finds an application by clientRef", async () => {
     const findOne = vi.fn().mockResolvedValueOnce(
       new ApplicationDocument({
+        phase: "phase",
+        stage: "stage",
+        status: "status",
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-02T00:00:00.000Z",
+        updatedAt: "2021-01-02T01:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",
         identifiers: {
           sbi: "sbi-1",
@@ -145,9 +157,13 @@ describe("findByClientRef", () => {
 
     expect(result).toStrictEqual(
       new Application({
+        phase: "phase",
+        stage: "stage",
+        status: "status",
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-02T00:00:00.000Z",
+        updatedAt: "2021-01-02T01:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",
         identifiers: {
           sbi: "sbi-1",

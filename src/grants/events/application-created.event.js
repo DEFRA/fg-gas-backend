@@ -5,10 +5,7 @@ export class ApplicationCreatedEvent extends CloudEvent {
     super("application.created", {
       clientRef: application.clientRef,
       code: application.code,
-      createdAt: application.createdAt,
-      submittedAt: application.submittedAt,
-      identifiers: application.identifiers,
-      answers: application.answers,
+      status: `${application.phase}:${application.stage}:${application.status}`,
     });
   }
 }
