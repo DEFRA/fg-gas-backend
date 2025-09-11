@@ -56,14 +56,14 @@ export default [
             {
               target: "**/subscribers/**/!(*.test).js",
               from: ["src/**/**"],
-              except: ["**/use-cases/**", "**/schemas/**", "src/common/**"],
+              except: ["**/use-cases/**", "**/schemas/**", "**/common/**"],
               message: "Subscribers should only import use cases and schemas",
             },
             {
               target: "**/use-cases/**/!(*.test).js",
               from: ["src/**/**"],
               except: [
-                "src/common/**",
+                "**/common/**",
                 "**/repositories/**",
                 "**/models/**",
                 "**/publishers/**",
@@ -75,7 +75,7 @@ export default [
             {
               target: "**/publishers/**/!(*.test).js",
               from: ["src/**/**"],
-              except: ["src/common/**", "**/events/**"],
+              except: ["**/common/**", "**/events/**"],
               message: "Publishers should only import common and events",
             },
           ],

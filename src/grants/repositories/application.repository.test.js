@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { ApplicationDocument } from "../models/application-document.js";
 import { Application } from "../models/application.js";
-import { findByClientRef, save } from "./application.repository.js";
+import { findByClientRef, save, update } from "./application.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -176,5 +176,85 @@ describe("findByClientRef", () => {
     const result = await findByClientRef("non-existent-client-ref");
 
     expect(result).toBeNull();
+  });
+});
+
+describe("update", () => {
+  it("updates an application", async () => {
+    const updateOne = vi.fn().mockResolvedValueOnce({
+      matchedCount: 1,
+      modifiedCount: 1,
+    });
+
+    db.collection.mockReturnValue({
+      updateOne,
+    });
+
+    const application = new Application({
+      clientRef: "application-1",
+      code: "grant-1",
+      createdAt: "2021-01-01T00:00:00.000Z",
+      submittedAt: "2021-01-01T00:00:00.000Z",
+      identifiers: {
+        sbi: "sbi-1",
+        frn: "frn-1",
+        crn: "crn-1",
+        defraId: "defraId-1",
+      },
+      answers: {
+        updatedField: "test",
+      },
+    });
+
+    await update(application);
+
+    expect(db.collection).toHaveBeenCalledWith("applications");
+
+    expect(updateOne).toHaveBeenCalledWith(
+      { clientRef: "application-1" },
+      {
+        $set: new ApplicationDocument({
+          clientRef: "application-1",
+          code: "grant-1",
+          createdAt: "2021-01-01T00:00:00.000Z",
+          submittedAt: "2021-01-01T00:00:00.000Z",
+          identifiers: {
+            sbi: "sbi-1",
+            frn: "frn-1",
+            crn: "crn-1",
+            defraId: "defraId-1",
+          },
+          answers: {
+            updatedField: "test",
+          },
+        }),
+      },
+    );
+  });
+
+  it("throws when an error occurs during update", async () => {
+    const error = new Error("Database update failed");
+
+    db.collection.mockReturnValue({
+      updateOne: vi.fn().mockRejectedValueOnce(error),
+    });
+
+    const application = new Application({
+      clientRef: "application-1",
+      code: "grant-1",
+      createdAt: "2021-01-01T00:00:00.000Z",
+      submittedAt: "2021-01-01T00:00:00.000Z",
+      identifiers: {
+        sbi: "sbi-1",
+        frn: "frn-1",
+        crn: "crn-1",
+        defraId: "defraId-1",
+      },
+      answers: {
+        anything: "test",
+      },
+    });
+
+    await expect(update(application)).rejects.toThrow(error);
   });
 });

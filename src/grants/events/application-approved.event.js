@@ -1,14 +1,11 @@
 import { CloudEvent } from "../../common/cloud-event.js";
 
 export class ApplicationApprovedEvent extends CloudEvent {
-  constructor(application) {
+  constructor(applicationApproved) {
     super("application.approved", {
-      clientRef: application.clientRef,
-      code: application.code,
-      createdAt: application.createdAt,
-      submittedAt: application.submittedAt,
-      identifiers: application.identifiers,
-      answers: application.answers,
+      clientRef: applicationApproved.clientRef,
+      previousStatus: applicationApproved.previousStatus,
+      currentStatus: applicationApproved.currentStatus,
     });
   }
 }
