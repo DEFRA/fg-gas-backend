@@ -6,9 +6,13 @@ import { Application } from "../models/application.js";
 
 const toApplication = (doc) =>
   new Application({
+    phase: doc.phase,
+    stage: doc.stage,
+    status: doc.status,
     clientRef: doc.clientRef,
     code: doc.code,
     createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
     submittedAt: doc.submittedAt,
     identifiers: {
       sbi: doc.identifiers.sbi,

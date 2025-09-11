@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Application } from "./application.js";
+import {
+  Application,
+  ApplicationPhase,
+  ApplicationStage,
+  ApplicationStatus,
+} from "./application.js";
 
 describe("Application", () => {
   beforeEach(() => {
@@ -11,11 +16,11 @@ describe("Application", () => {
     vi.useRealTimers();
   });
 
-  it("creates an Application model", () => {
-    const application = new Application({
+  it("creates a new Application", () => {
+    const application = Application.new({
       clientRef: "application-1",
       code: "grant-1",
-      submittedAt: "2021-01-01T00:00:00.000Z",
+      submittedAt: "20201-01-01T00:00:00.000Z",
       identifiers: {
         sbi: "sbi-1",
         frn: "frn-1",
@@ -28,10 +33,14 @@ describe("Application", () => {
     });
 
     expect(application).toEqual({
+      phase: ApplicationPhase.PreAward,
+      stage: ApplicationStage.Assessment,
+      status: ApplicationStatus.Received,
       clientRef: "application-1",
       code: "grant-1",
       createdAt: "2021-02-01T13:00:00.000Z",
-      submittedAt: "2021-01-01T00:00:00.000Z",
+      updatedAt: "2021-02-01T13:00:00.000Z",
+      submittedAt: "20201-01-01T00:00:00.000Z",
       identifiers: {
         sbi: "sbi-1",
         frn: "frn-1",

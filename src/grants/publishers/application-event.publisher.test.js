@@ -32,7 +32,7 @@ describe("publishApplicationCreated", () => {
     await publishApplicationCreated(application);
 
     expect(publish).toHaveBeenCalledWith(
-      config.applicationCreatedTopic,
+      config.sns.grantApplicationCreatedTopicArn,
       expect.objectContaining({
         id: expect.any(String),
         source: "fg-gas-backend",
@@ -43,10 +43,7 @@ describe("publishApplicationCreated", () => {
         data: {
           clientRef: application.clientRef,
           code: application.code,
-          createdAt: application.createdAt,
-          submittedAt: application.submittedAt,
-          identifiers: application.identifiers,
-          answers: application.answers,
+          status: `${application.phase}:${application.stage}:${application.status}`,
         },
       }),
     );

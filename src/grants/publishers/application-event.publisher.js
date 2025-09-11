@@ -5,7 +5,7 @@ import { ApplicationCreatedEvent } from "../events/application-created.event.js"
 
 export const publishApplicationCreated = async (application) => {
   const event = new ApplicationCreatedEvent(application);
-  await publish(config.applicationCreatedTopic, event);
+  await publish(config.sns.grantApplicationCreatedTopicArn, event);
 };
 
 export const publishApplicationApproved = async (application) => {

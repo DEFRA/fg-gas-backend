@@ -1,4 +1,3 @@
-import Wreck from "@hapi/wreck";
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import {
@@ -10,6 +9,7 @@ import {
   expect,
   it,
 } from "vitest";
+import { wreck } from "../helpers/wreck.js";
 
 let client;
 let grants, applications;
@@ -26,13 +26,11 @@ afterAll(async () => {
 
 describe("Simple Integration Tests", () => {
   beforeEach(async () => {
-    // Clean up test data
     await grants.deleteMany({ code: { $regex: "^simple-test-" } });
     await applications.deleteMany({ clientRef: { $regex: "^simple-test-" } });
   });
 
   afterEach(async () => {
-    // Clean up after each test
     await grants.deleteMany({ code: { $regex: "^simple-test-" } });
     await applications.deleteMany({ clientRef: { $regex: "^simple-test-" } });
   });
@@ -69,7 +67,7 @@ describe("Simple Integration Tests", () => {
 
     // Create the grant
     try {
-      const grantResponse = await Wreck.post(`${env.API_URL}/grants`, {
+      const grantResponse = await wreck.post("/grants", {
         payload: grantData,
       });
       expect(grantResponse.res.statusCode).toBe(204);
@@ -91,7 +89,7 @@ describe("Simple Integration Tests", () => {
     expect(dbGrant.questions.properties.farmName.type).toBe("string");
 
     // Verify grant can be retrieved via API
-    const getResponse = await Wreck.get(`${env.API_URL}/grants/${grantCode}`, {
+    const getResponse = await wreck.get(`/grants/${grantCode}`, {
       json: true,
     });
     expect(getResponse.res.statusCode).toBe(200);
@@ -113,15 +111,12 @@ describe("Simple Integration Tests", () => {
       },
     };
 
-    const appResponse = await Wreck.post(
-      `${env.API_URL}/grants/${grantCode}/applications`,
-      {
-        headers: {
-          "x-cdp-request-id": `simple-test-${testId}`,
-        },
-        payload: applicationData,
+    const appResponse = await wreck.post(`/grants/${grantCode}/applications`, {
+      headers: {
+        "x-cdp-request-id": `simple-test-${testId}`,
       },
-    );
+      payload: applicationData,
+    });
     expect(appResponse.res.statusCode).toBe(204);
 
     // Verify application exists in database
@@ -133,20 +128,16 @@ describe("Simple Integration Tests", () => {
     expect(dbApplication.answers.farmName).toBe("Simple Test Farm");
     expect(dbApplication.answers.farmSize).toBe(50.5);
     expect(dbApplication.identifiers.sbi).toBe("123456789");
-
-    console.log("✅ Simple integration test completed successfully");
   });
 
   it("should verify basic API endpoints are working", async () => {
     // Test the basic endpoints that we know work
 
     // GET /grants (should return empty initially)
-    const grantsResponse = await Wreck.get(`${env.API_URL}/grants`, {
+    const grantsResponse = await wreck.get("/grants", {
       json: true,
     });
     expect(grantsResponse.res.statusCode).toBe(200);
     expect(Array.isArray(grantsResponse.payload)).toBe(true);
-
-    console.log("✅ API endpoints are responsive");
   });
 });

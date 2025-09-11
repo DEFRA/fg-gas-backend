@@ -1,4 +1,3 @@
-import Wreck from "@hapi/wreck";
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import {
@@ -10,6 +9,7 @@ import {
   expect,
   it,
 } from "vitest";
+import { wreck } from "../../helpers/wreck.js";
 
 let client;
 let grants, applications;
@@ -26,13 +26,11 @@ afterAll(async () => {
 
 describe("Grant Service Integration Tests", () => {
   beforeEach(async () => {
-    // Clean up test data
     await grants.deleteMany({ code: { $regex: "^test-grant-" } });
     await applications.deleteMany({ clientRef: { $regex: "^grant-service-" } });
   });
 
   afterEach(async () => {
-    // Clean up after each test
     await grants.deleteMany({ code: { $regex: "^test-grant-" } });
     await applications.deleteMany({ clientRef: { $regex: "^grant-service-" } });
   });
@@ -98,7 +96,7 @@ describe("Grant Service Integration Tests", () => {
       };
 
       // Test grant creation via API
-      const response = await Wreck.post(`${env.API_URL}/grants`, {
+      const response = await wreck.post("/grants", {
         payload: grantData,
       });
 
@@ -116,12 +114,9 @@ describe("Grant Service Integration Tests", () => {
       expect(dbGrant.actions[0].name).toBe("calculate-subsidy");
 
       // Verify grant can be retrieved via API
-      const getResponse = await Wreck.get(
-        `${env.API_URL}/grants/${grantData.code}`,
-        {
-          json: true,
-        },
-      );
+      const getResponse = await wreck.get(`/grants/${grantData.code}`, {
+        json: true,
+      });
       expect(getResponse.res.statusCode).toBe(200);
       expect(getResponse.payload.code).toBe(`test-grant-${testId}`);
     });
@@ -166,7 +161,7 @@ describe("Grant Service Integration Tests", () => {
       };
 
       // Create complex grant
-      const response = await Wreck.post(`${env.API_URL}/grants`, {
+      const response = await wreck.post("/grants", {
         payload: complexGrantData,
       });
       expect(response.res.statusCode).toBe(204);
@@ -204,7 +199,7 @@ describe("Grant Service Integration Tests", () => {
       };
 
       // Create first grant
-      const firstResponse = await Wreck.post(`${env.API_URL}/grants`, {
+      const firstResponse = await wreck.post("/grants", {
         payload: grantData,
       });
       expect(firstResponse.res.statusCode).toBe(204);
@@ -212,7 +207,7 @@ describe("Grant Service Integration Tests", () => {
       // Attempt to create duplicate
       let duplicateError;
       try {
-        await Wreck.post(`${env.API_URL}/grants`, {
+        await wreck.post("/grants", {
           json: true,
           payload: grantData,
         });
@@ -255,7 +250,7 @@ describe("Grant Service Integration Tests", () => {
         actions: [],
       };
 
-      await Wreck.post(`${env.API_URL}/grants`, {
+      await wreck.post("/grants", {
         payload: grantData,
       });
 
@@ -275,8 +270,8 @@ describe("Grant Service Integration Tests", () => {
         },
       };
 
-      const appResponse = await Wreck.post(
-        `${env.API_URL}/grants/${grantCode}/applications`,
+      const appResponse = await wreck.post(
+        `/grants/${grantCode}/applications`,
         {
           payload: applicationData,
         },
@@ -322,7 +317,7 @@ describe("Grant Service Integration Tests", () => {
             },
             actions: [],
           };
-          return Wreck.post(`${env.API_URL}/grants`, { payload: grantData });
+          return wreck.post("/grants", { payload: grantData });
         },
       );
 
@@ -348,8 +343,8 @@ describe("Grant Service Integration Tests", () => {
               testField: `Test value ${i}`,
             },
           };
-          return Wreck.post(
-            `${env.API_URL}/grants/test-grant-concurrent-${testId}-${i}/applications`,
+          return wreck.post(
+            `/grants/test-grant-concurrent-${testId}-${i}/applications`,
             { payload: applicationData },
           );
         },
@@ -438,7 +433,7 @@ describe("Grant Service Integration Tests", () => {
         ],
       };
 
-      await Wreck.post(`${env.API_URL}/grants`, {
+      await wreck.post("/grants", {
         payload: businessGrantData,
       });
 
@@ -465,8 +460,8 @@ describe("Grant Service Integration Tests", () => {
         },
       };
 
-      const validResponse = await Wreck.post(
-        `${env.API_URL}/grants/${grantCode}/applications`,
+      const validResponse = await wreck.post(
+        `/grants/${grantCode}/applications`,
         { payload: validApplicationData },
       );
       expect(validResponse.res.statusCode).toBe(204);
@@ -501,7 +496,7 @@ describe("Grant Service Integration Tests", () => {
 
       let validationError;
       try {
-        await Wreck.post(`${env.API_URL}/grants/${grantCode}/applications`, {
+        await wreck.post(`/grants/${grantCode}/applications`, {
           json: true,
           payload: invalidApplicationData,
         });
