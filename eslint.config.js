@@ -63,7 +63,7 @@ export default [
               target: "**/use-cases/**/!(*.test).js",
               from: ["src/**/**"],
               except: [
-                "src/common/**",
+                "**/common/**",
                 "**/repositories/**",
                 "**/models/**",
                 "**/publishers/**",
