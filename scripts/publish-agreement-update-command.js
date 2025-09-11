@@ -22,12 +22,12 @@ const message = {
   time: "2025-09-09T11:30:52.000Z",
   source: "urn:service:agreement",
   specversion: "1.0",
-  type: "io.onsite.agreement.offer.accepted",
+  type: "io.onsite.agreement.offer.offered",
   datacontenttype: "application/json",
   data: {
     clientRef: "APPLICATION-PMF-001",
     code: "pigs-might-fly",
-    status: "accepted",
+    status: "offered",
     agreementNumber: "AGREEMENT-REF-123",
     date: "2025-09-09T11:30:52.000Z",
     correlationId: "test-correlation-id",
@@ -36,7 +36,6 @@ const message = {
 
 console.log("Sending message to SQS queue:", queueUrl);
 
-// customise clientRef
 if (process.argv.length === 4) {
   console.log(
     "Sending sqs case for " + process.argv[2] + " " + process.argv[3],
