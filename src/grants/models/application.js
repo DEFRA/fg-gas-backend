@@ -24,10 +24,9 @@ export class Application {
   }
 
   updateStatus(status) {
-    console.log({status})
     this.currentPhase = "PRE_AWARD";
     this.currentStage = "AWARD";
-    this.currentStatus = status;
+    this.status = `${this.currentPhase}:${this.currentStage}:${status}`;
   }
 
   storeAgreement(agreementData) {
