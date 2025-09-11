@@ -37,6 +37,13 @@ export const save = async (application) => {
   }
 };
 
+export const update = async (application) => {
+  const document = new ApplicationDocument(application);
+  await db
+    .collection(collection)
+    .updateOne({ clientRef: application.clientRef }, { $set: document });
+};
+
 export const findByClientRef = async (clientRef) => {
   const application = await db.collection(collection).findOne({ clientRef });
 

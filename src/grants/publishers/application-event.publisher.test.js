@@ -5,6 +5,7 @@ import { Application } from "../models/application.js";
 import {
   publishApplicationApproved,
   publishApplicationCreated,
+  publishGenerateAgreement,
 } from "./application-event.publisher.js";
 
 vi.mock("../../common/sns-client.js");
@@ -55,19 +56,16 @@ describe("publishApplicationCreated", () => {
 
 describe("publishApplicationApproved", () => {
   it("publishes ApplicationApprovedEvent to SNS topic", async () => {
-    const application = new Application({
+    const applicationApproved = {
       clientRef: "456",
-      code: "grant-code-2",
-      createdAt: new Date().toISOString(),
-      submittedAt: new Date().toISOString(),
-      identifiers: { name: "Approved App" },
-      answers: { question1: "approved answer" },
-    });
+      previousStatus: "received",
+      currentStatus: "approved",
+    };
 
-    await publishApplicationApproved(application);
+    await publishApplicationApproved(applicationApproved);
 
     expect(publish).toHaveBeenCalledWith(
-      config.applicationApprovedTopic,
+      config.sns.grantApplicationStatusUpdatedTopicArn,
       expect.objectContaining({
         id: expect.any(String),
         source: "fg-gas-backend",
@@ -76,12 +74,45 @@ describe("publishApplicationApproved", () => {
         type: "cloud.defra.test.fg-gas-backend.application.approved",
         datacontenttype: "application/json",
         data: {
+          clientRef: applicationApproved.clientRef,
+          previousStatus: applicationApproved.previousStatus,
+          currentStatus: applicationApproved.currentStatus,
+        },
+      }),
+    );
+  });
+});
+
+describe("publishGenerateAgreement", () => {
+  it("publishes AgreementCreatedEvent to SQS queue", async () => {
+    const application = new Application({
+      id: "app-id-123",
+      clientRef: "789",
+      code: "grant-code-3",
+      createdAt: new Date().toISOString(),
+      submittedAt: new Date().toISOString(),
+      identifiers: { name: "Agreement App" },
+      answers: { question1: "agreement answer", question2: "value2" },
+    });
+
+    await publishGenerateAgreement(application);
+
+    expect(publish).toHaveBeenCalledWith(
+      config.sqs.saveAgreementQueueUrl,
+      expect.objectContaining({
+        id: expect.any(String),
+        source: "fg-gas-backend",
+        specversion: "1.0",
+        time: "2025-05-28T20:40:48.451Z",
+        type: "cloud.defra.test.fg-gas-backend.agreement.created",
+        datacontenttype: "application/json",
+        data: {
           clientRef: application.clientRef,
-          code: application.code,
-          createdAt: application.createdAt,
-          submittedAt: application.submittedAt,
-          identifiers: application.identifiers,
-          answers: application.answers,
+          applicationData: {
+            id: application.id,
+            workflowCode: application.code,
+            answers: application.answers,
+          },
         },
       }),
     );

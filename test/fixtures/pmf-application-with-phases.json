@@ -1,0 +1,24 @@
+{
+  "clientRef": "application-pmf-1",
+  "code": "pigs-might-fly",
+  "currentPhase": "PRE_AWARD",
+  "currentStage": "APPLICATION",
+  "currentStatus": "RECEIVED",
+  "identifiers": {},
+  "phases": {
+    "PRE_AWARD": {
+      "stages": {
+        "APPLICATION": {
+          "answers": {
+            "isPigFarmer": true,
+            "totalPigs": 100,
+            "whitePigsCount": 50,
+            "britishLandraceCount": 20,
+            "berkshireCount": 20,
+            "otherCount": 10
+          }
+        }
+      }
+    }
+  }
+}
