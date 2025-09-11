@@ -1,4 +1,3 @@
-import Wreck from "@hapi/wreck";
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import {
@@ -10,6 +9,7 @@ import {
   expect,
   it,
 } from "vitest";
+import { wreck } from "../../helpers/wreck.js";
 
 let client;
 let grants, applications;
@@ -26,7 +26,6 @@ afterAll(async () => {
 
 describe("Simple Grant Service Integration Tests", () => {
   beforeEach(async () => {
-    // Clean up test data
     await grants.deleteMany({ code: { $regex: "^test-grant-service-" } });
     await applications.deleteMany({
       clientRef: { $regex: "^test-grant-service-" },
@@ -34,7 +33,6 @@ describe("Simple Grant Service Integration Tests", () => {
   });
 
   afterEach(async () => {
-    // Clean up after each test
     await grants.deleteMany({ code: { $regex: "^test-grant-service-" } });
     await applications.deleteMany({
       clientRef: { $regex: "^test-grant-service-" },
@@ -79,7 +77,7 @@ describe("Simple Grant Service Integration Tests", () => {
       ],
     };
 
-    const grantResponse = await Wreck.post(`${env.API_URL}/grants`, {
+    const grantResponse = await wreck.post("/grants", {
       payload: grantData,
     });
     expect(grantResponse.res.statusCode).toBe(204);
@@ -109,13 +107,10 @@ describe("Simple Grant Service Integration Tests", () => {
       },
     };
 
-    const appResponse = await Wreck.post(
-      `${env.API_URL}/grants/${grantCode}/applications`,
-      {
-        headers: { "x-cdp-request-id": `grant-service-test-${testId}` },
-        payload: applicationData,
-      },
-    );
+    const appResponse = await wreck.post(`/grants/${grantCode}/applications`, {
+      headers: { "x-cdp-request-id": `grant-service-test-${testId}` },
+      payload: applicationData,
+    });
     expect(appResponse.res.statusCode).toBe(204);
 
     // Verify application in database
@@ -127,8 +122,6 @@ describe("Simple Grant Service Integration Tests", () => {
     expect(dbApplication.answers.farmName).toBe("Test Service Farm");
     expect(dbApplication.answers.animalTypes).toContain("cattle");
     expect(dbApplication.identifiers.sbi).toBe("123456789");
-
-    console.log("✅ Grant service integration test completed");
   });
 
   it("should handle validation errors gracefully", async () => {
@@ -154,7 +147,7 @@ describe("Simple Grant Service Integration Tests", () => {
       actions: [],
     };
 
-    await Wreck.post(`${env.API_URL}/grants`, {
+    await wreck.post("/grants", {
       payload: grantData,
     });
 
@@ -176,7 +169,7 @@ describe("Simple Grant Service Integration Tests", () => {
 
     let validationError;
     try {
-      await Wreck.post(`${env.API_URL}/grants/${grantCode}/applications`, {
+      await wreck.post(`/grants/${grantCode}/applications`, {
         json: true,
         payload: invalidApplicationData,
       });
@@ -193,8 +186,6 @@ describe("Simple Grant Service Integration Tests", () => {
       clientRef: `test-validation-invalid-${testId}`,
     });
     expect(dbApplication).toBe(null);
-
-    console.log("✅ Validation error handling test completed");
   });
 
   it("should prevent duplicate grant creation", async () => {
@@ -219,7 +210,7 @@ describe("Simple Grant Service Integration Tests", () => {
     };
 
     // Create first grant
-    const firstResponse = await Wreck.post(`${env.API_URL}/grants`, {
+    const firstResponse = await wreck.post("/grants", {
       payload: grantData,
     });
     expect(firstResponse.res.statusCode).toBe(204);
@@ -227,7 +218,7 @@ describe("Simple Grant Service Integration Tests", () => {
     // Try to create duplicate
     let duplicateError;
     try {
-      await Wreck.post(`${env.API_URL}/grants`, {
+      await wreck.post("/grants", {
         json: true,
         payload: grantData,
       });
@@ -243,7 +234,5 @@ describe("Simple Grant Service Integration Tests", () => {
     // Verify only one grant exists
     const grantCount = await grants.countDocuments({ code: grantCode });
     expect(grantCount).toBe(1);
-
-    console.log("✅ Duplicate prevention test completed");
   });
 });
