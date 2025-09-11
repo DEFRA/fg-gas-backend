@@ -27,9 +27,10 @@ const message = {
   data: {
     clientRef: "APPLICATION-PMF-001",
     code: "pigs-might-fly",
-    agreementStatus: "OFFER_ACCEPTED",
-    agreementRef: "AGREEMENT-REF-123",
-    createdAt: "2025-09-09T11:30:52.000Z",
+    status: "accepted",
+    agreementNumber: "AGREEMENT-REF-123",
+    date: "2025-09-09T11:30:52.000Z",
+    correlationId: "test-correlation-id"
   },
 };
 

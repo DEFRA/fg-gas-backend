@@ -20,23 +20,14 @@ export class Application {
     this.currentPhase = "PRE_AWARD";
     this.currentStage = "application";
     this.agreements = agreements || {};
-    this.status = status || applicationStatus.PENDING;
+    this.status = status || applicationStatus.pending;
   }
 
   updateStatus(status) {
-    switch (status) {
-      case "OFFER_ACCEPTED":
-        this.currentPhase = "PRE_AWARD";
-        this.currentStage = "AWARD";
-        this.currentStatus = applicationStatus.OFFER_ACCEPTED;
-        break;
-      case "OFFERED":
-        break;
-      case "WITHDRAWN":
-        break;
-      default:
-        break;
-    }
+    console.log({status})
+    this.currentPhase = "PRE_AWARD";
+    this.currentStage = "AWARD";
+    this.currentStatus = status;
   }
 
   storeAgreement(agreementData) {

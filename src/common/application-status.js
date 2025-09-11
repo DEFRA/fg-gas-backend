@@ -1,5 +1,15 @@
 export const applicationStatus = {
-  OFFER_ACCEPTED: "OFFER_ACCEPTED",
-  OFFER_REJECTED: "OFFER_REJECTED",
-  PENDING: "PENDING",
+  created: "REVIEW",
+  offered: "OFFERED",
+  accepted: "OFFER_ACCEPTED",
+  rejected: "OFFER_REJECTED",
+  withdrawn: "OFFER_WITHDRAWN",
+  pending: "PENDING",
+};
+
+export const agreementStatusMap = {
+  accepted: "accepted",
+  withdrawn: "withdrawn",
+  created: "created",
+  offered: "offered",
 };

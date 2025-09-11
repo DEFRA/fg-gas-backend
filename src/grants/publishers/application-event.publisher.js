@@ -20,13 +20,14 @@ export const publishApplicationStatusUpdated = async (application) => {
   await publish(config.sns.grantApplicationStatusUpdatedTopicArn, event);
 };
 
-export const publishUpdateApplicationStatusCommand = async (
-  application,
-  agreementData,
-) => {
+export const publishUpdateApplicationStatusCommand = async ({
+  clientRef,
+  code,
+  agreementData
+}) => {
   const event = new ApplicationUpdateStatusCommand({
-    clientRef: application.clientRef,
-    code: application.code,
+    clientRef,
+    code,
     agreementData,
   });
   await publish(config.sns.updateCaseStatusTopicArn, event);
