@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { ApplicationDocument } from "../models/application-document.js";
 import { Application } from "../models/application.js";
-import { findByClientRef, save } from "./application.repository.js";
+import {
+  findByClientRef,
+  findByClientRefAndCode,
+  save,
+} from "./application.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -42,6 +46,9 @@ describe("save", () => {
       new ApplicationDocument({
         clientRef: "application-1",
         code: "grant-1",
+        currentPhase: "PRE_AWARD",
+        currentStage: "application",
+        status: "PENDING",
         createdAt: "2021-01-01T00:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",
         identifiers: {
@@ -100,6 +107,9 @@ describe("save", () => {
         new Application({
           clientRef: "application-1",
           code: "grant-1",
+          currentPhase: "PRE_AWARD",
+          currentStage: "application",
+          status: "PENDING",
           createdAt: "2021-01-01T00:00:00.000Z",
           submittedAt: "2021-01-01T00:00:00.000Z",
           identifiers: {
@@ -174,6 +184,75 @@ describe("findByClientRef", () => {
     });
 
     const result = await findByClientRef("non-existent-client-ref");
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("findByClientRefAndCode", () => {
+  it("finds an application by clientRef and code", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce(
+      new ApplicationDocument({
+        clientRef: "application-1",
+        code: "grant-1",
+        createdAt: "2021-01-02T00:00:00.000Z",
+        submittedAt: "2021-01-01T00:00:00.000Z",
+        identifiers: {
+          sbi: "sbi-1",
+          frn: "frn-1",
+          crn: "crn-1",
+          defraId: "defraId-1",
+        },
+        answers: {
+          anything: "test",
+        },
+      }),
+    );
+
+    db.collection.mockReturnValue({
+      findOne,
+    });
+
+    const result = await findByClientRefAndCode({
+      clientRef: "application-1",
+      code: "grant-1",
+    });
+
+    expect(result).toStrictEqual(
+      new Application({
+        clientRef: "application-1",
+        code: "grant-1",
+        createdAt: "2021-01-02T00:00:00.000Z",
+        submittedAt: "2021-01-01T00:00:00.000Z",
+        identifiers: {
+          sbi: "sbi-1",
+          frn: "frn-1",
+          crn: "crn-1",
+          defraId: "defraId-1",
+        },
+        answers: {
+          anything: "test",
+        },
+      }),
+    );
+
+    expect(db.collection).toHaveBeenCalledWith("applications");
+
+    expect(findOne).toHaveBeenCalledWith({
+      clientRef: "application-1",
+      code: "grant-1",
+    });
+  });
+
+  it("returns null when application not found", async () => {
+    db.collection.mockReturnValue({
+      findOne: vi.fn().mockResolvedValueOnce(null),
+    });
+
+    const result = await findByClientRefAndCode({
+      clientRef: "non-existent-client-ref",
+      code: "grant-1",
+    });
 
     expect(result).toBeNull();
   });

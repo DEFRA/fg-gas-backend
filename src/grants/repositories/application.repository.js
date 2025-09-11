@@ -53,6 +53,18 @@ export const update = async (application) => {
   }
 };
 
+export const findByClientRefAndCode = async ({ clientRef, code }) => {
+  const application = await db
+    .collection(collection)
+    .findOne({ clientRef, code });
+
+  if (application === null) {
+    return null;
+  }
+
+  return toApplication(application);
+};
+
 export const findByClientRef = async (clientRef) => {
   const application = await db.collection(collection).findOne({ clientRef });
 

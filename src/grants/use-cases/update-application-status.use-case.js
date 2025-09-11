@@ -1,22 +1,25 @@
 import Boom from "@hapi/boom";
-import { agreementStatusMap } from "../../common/application-status.js";
+import { applicationStatus } from "../../common/application-status.js";
 import {
   publishApplicationStatusUpdated,
   publishUpdateApplicationStatusCommand,
 } from "../publishers/application-event.publisher.js";
-import { update } from "../repositories/application.repository.js";
-import { findApplicationByClientRefUseCase } from "./find-application-by-client-ref.use-case.js";
+import {
+  findByClientRefAndCode,
+  update,
+} from "../repositories/application.repository.js";
 
 export const updateApplicationStatusUseCase = async (messageData) => {
   const {
     clientRef,
     status: agreementStatus,
     agreementNumber: agreementRef,
+    code,
     date,
     correlationId,
   } = messageData;
-  const application = await findApplicationByClientRefUseCase(clientRef);
-  const { status, code } = application;
+  const application = await findByClientRefAndCode({ clientRef, code });
+  const { status: oldStatus } = application;
 
   const createdAt = new Date(date).toISOString();
   const agreementData = {
@@ -26,8 +29,7 @@ export const updateApplicationStatusUseCase = async (messageData) => {
     correlationId,
   };
 
-  const oldStatus = agreementStatusMap[status];
-  const newStatus = agreementStatusMap[agreementStatus];
+  const newStatus = applicationStatus[agreementStatus];
 
   if (!newStatus) {
     throw Boom.badRequest(
@@ -37,6 +39,7 @@ export const updateApplicationStatusUseCase = async (messageData) => {
 
   application.updateStatus(newStatus);
   application.storeAgreement(agreementData);
+
   await update(application);
 
   // Publish events/commands
