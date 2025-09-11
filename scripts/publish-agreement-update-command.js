@@ -30,7 +30,7 @@ const message = {
     status: "accepted",
     agreementNumber: "AGREEMENT-REF-123",
     date: "2025-09-09T11:30:52.000Z",
-    correlationId: "test-correlation-id"
+    correlationId: "test-correlation-id",
   },
 };
 
