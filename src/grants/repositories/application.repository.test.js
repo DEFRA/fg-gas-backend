@@ -8,9 +8,71 @@ import {
   findByClientRef,
   findByClientRefAndCode,
   save,
+  update,
 } from "./application.repository.js";
 
 vi.mock("../../common/mongo-client.js");
+
+describe("update", () => {
+  it("should update application", async () => {
+    const application = new ApplicationDocument({
+      clientRef: "application-1",
+      code: "grant-1",
+      createdAt: "2021-01-02T00:00:00.000Z",
+      submittedAt: "2021-01-01T00:00:00.000Z",
+      identifiers: {
+        sbi: "sbi-1",
+        frn: "frn-1",
+        crn: "crn-1",
+        defraId: "defraId-1",
+      },
+      answers: {
+        anything: "test",
+      },
+    });
+
+    const replaceOne = vi.fn().mockResolvedValueOnce({
+      modifiedCount: 1,
+    });
+    db.collection.mockReturnValue({
+      replaceOne,
+    });
+
+    await update(application);
+
+    expect(replaceOne).toHaveBeenCalled();
+    expect(replaceOne.mock.calls[0][1]).toBeInstanceOf(ApplicationDocument);
+  });
+
+  it("should throw if record not modified", async () => {
+    const application = new ApplicationDocument({
+      clientRef: "application-1",
+      code: "grant-1",
+      createdAt: "2021-01-02T00:00:00.000Z",
+      submittedAt: "2021-01-01T00:00:00.000Z",
+      identifiers: {
+        sbi: "sbi-1",
+        frn: "frn-1",
+        crn: "crn-1",
+        defraId: "defraId-1",
+      },
+      answers: {
+        anything: "test",
+      },
+    });
+
+    const replaceOne = vi.fn().mockResolvedValueOnce({
+      modifiedCount: 0,
+    });
+    db.collection.mockReturnValue({
+      replaceOne,
+    });
+
+    await expect(() => update(application)).rejects.toThrow(
+      'Failed to update application with clientRef "application-1" and code "grant-1"',
+    );
+  });
+});
 
 describe("save", () => {
   it("stores an application", async () => {

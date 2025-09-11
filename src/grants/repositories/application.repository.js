@@ -48,7 +48,7 @@ export const update = async (application) => {
   );
   if (result.modifiedCount === 0) {
     throw Boom.notFound(
-      `Failed to update application with clientRef "${application.clientRef}" and code ${application.code}`,
+      `Failed to update application with clientRef "${application.clientRef}" and code "${application.code}"`,
     );
   }
 };
