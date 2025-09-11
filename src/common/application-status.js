@@ -1,0 +1,5 @@
+export const applicationStatus = {
+  OFFER_ACCEPTED: "OFFER_ACCEPTED",
+  OFFER_REJECTED: "OFFER_REJECTED",
+  PENDING: "PENDING",
+};
