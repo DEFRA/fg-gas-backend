@@ -37,6 +37,34 @@ export const save = async (application) => {
   }
 };
 
+export const update = async (application) => {
+  const document = new ApplicationDocument(application);
+  const result = await db.collection(collection).replaceOne(
+    {
+      clientRef: application.clientRef,
+      code: application.code,
+    },
+    document,
+  );
+  if (result.modifiedCount === 0) {
+    throw Boom.notFound(
+      `Failed to update application with clientRef "${application.clientRef}" and code "${application.code}"`,
+    );
+  }
+};
+
+export const findByClientRefAndCode = async ({ clientRef, code }) => {
+  const application = await db
+    .collection(collection)
+    .findOne({ clientRef, code });
+
+  if (application === null) {
+    return null;
+  }
+
+  return toApplication(application);
+};
+
 export const findByClientRef = async (clientRef) => {
   const application = await db.collection(collection).findOne({ clientRef });
 

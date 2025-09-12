@@ -11,5 +11,9 @@ export class ApplicationDocument {
       defraId: application.identifiers.defraId,
     };
     this.answers = application.answers;
+    this.status = application.status;
+    this.currentStage = application.currentStage;
+    this.currentPhase = application.currentPhase;
+    this.agreements = application.agreements || {};
   }
 }
