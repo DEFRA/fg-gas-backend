@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
+import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
+import { ApplicationUpdateStatusCommand } from "../events/application-update-status.command.js";
 import { Application } from "../models/application.js";
 import {
   publishApplicationApproved,
   publishApplicationCreated,
+  publishApplicationStatusUpdated,
+  publishUpdateApplicationStatusCommand,
 } from "./application-event.publisher.js";
 
 vi.mock("../../common/sns-client.js");
@@ -84,6 +88,43 @@ describe("publishApplicationApproved", () => {
           answers: application.answers,
         },
       }),
+    );
+  });
+});
+
+describe("publishApplicationStatusUpdated", () => {
+  it("should publish status updated", async () => {
+    const application = new Application({
+      clientRef: "123",
+      code: "grant-code",
+      createdAt: new Date().toISOString(),
+      submittedAt: new Date().toISOString(),
+      identifiers: { name: "Test App" },
+      answers: { question1: "answer1" },
+    });
+
+    await publishApplicationStatusUpdated(application);
+    expect(publish.mock.calls[0][0]).toBe(
+      config.sns.grantApplicationStatusUpdatedTopicArn,
+    );
+    expect(publish.mock.calls[0][1]).toBeInstanceOf(
+      ApplicationStatusUpdatedEvent,
+    );
+  });
+});
+
+describe("publishUpdateApplicationStatusCommand", () => {
+  it("should publish status update command", async () => {
+    await publishUpdateApplicationStatusCommand({
+      clientRef: "1w4",
+      code: "grant-code",
+      agreementData: {
+        agreementRef: "Agreement-1",
+      },
+    });
+    expect(publish.mock.calls[0][0]).toBe(config.sns.updateCaseStatusTopicArn);
+    expect(publish.mock.calls[0][1]).toBeInstanceOf(
+      ApplicationUpdateStatusCommand,
     );
   });
 });
