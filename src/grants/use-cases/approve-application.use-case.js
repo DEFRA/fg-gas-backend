@@ -1,3 +1,4 @@
+import Boom from "@hapi/boom";
 import { applicationStatus } from "../../common/status.js";
 import {
   publishApplicationApprovedEvent,
@@ -11,8 +12,14 @@ import {
 export const approveApplicationUseCase = async (data) => {
   const application = await findByClientRef(data.clientRef);
 
+  if (!application) {
+    throw Boom.notFound(
+      `Application with clientRef "${data.clientRef}" not found`,
+    );
+  }
+
   // only if the status changes.
-  if (application.currentStatus !== applicationStatus.APPROVED) {
+  if (application.currentStatus === applicationStatus.APPROVED) {
     return;
   }
 

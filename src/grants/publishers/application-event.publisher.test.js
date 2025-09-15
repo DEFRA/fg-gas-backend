@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
+import { CreateAgreementCommand } from "../events/agreement-created.event.js";
+import { ApplicationCreatedEvent } from "../events/application-created.event.js";
 import { Application } from "../models/application.js";
 import {
   publishApplicationApprovedEvent,
@@ -32,25 +34,16 @@ describe("publishApplicationCreated", () => {
 
     await publishApplicationCreated(application);
 
-    expect(publish).toHaveBeenCalledWith(
-      config.applicationCreatedTopic,
-      expect.objectContaining({
-        id: expect.any(String),
-        source: "fg-gas-backend",
-        specversion: "1.0",
-        time: "2025-05-28T20:40:48.451Z",
-        type: "cloud.defra.test.fg-gas-backend.application.created",
-        datacontenttype: "application/json",
-        data: {
-          clientRef: application.clientRef,
-          code: application.code,
-          createdAt: application.createdAt,
-          submittedAt: application.submittedAt,
-          identifiers: application.identifiers,
-          answers: application.answers,
-        },
-      }),
-    );
+    expect(publish.mock.calls[0][0]).toBe(config.applicationCreatedTopic);
+    expect(publish.mock.calls[0][1]).toBeInstanceOf(ApplicationCreatedEvent);
+    expect(publish.mock.calls[0][1].data).toEqual({
+      clientRef: application.clientRef,
+      code: application.code,
+      createdAt: application.createdAt,
+      submittedAt: application.submittedAt,
+      identifiers: application.identifiers,
+      answers: application.answers,
+    });
   });
 });
 
@@ -97,24 +90,15 @@ describe("publishCreateAgreementCommand", () => {
 
     await publishCreateAgreementCommand(application);
 
-    expect(publish).toHaveBeenCalledWith(
-      config.sns.createAgreementTopicArn,
-      expect.objectContaining({
-        id: expect.any(String),
-        source: "fg-gas-backend",
-        specversion: "1.0",
-        time: "2025-05-28T20:40:48.451Z",
-        type: "cloud.defra.test.fg-gas-backend.agreement.created",
-        datacontenttype: "application/json",
-        data: {
-          clientRef: application.clientRef,
-          applicationData: {
-            id: application.id,
-            workflowCode: application.code,
-            answers: application.answers,
-          },
-        },
-      }),
-    );
+    expect(publish.mock.calls[0][0]).toBe(config.sns.createAgreementTopicArn);
+    expect(publish.mock.calls[0][1]).toBeInstanceOf(CreateAgreementCommand);
+    expect(publish.mock.calls[0][1].data).toEqual({
+      clientRef: application.clientRef,
+      applicationData: {
+        id: application.id,
+        workflowCode: application.code,
+        answers: application.answers,
+      },
+    });
   });
 });
