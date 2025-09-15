@@ -4,9 +4,75 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { ApplicationDocument } from "../models/application-document.js";
 import { Application } from "../models/application.js";
-import { findByClientRef, save, update } from "./application.repository.js";
+import {
+  findByClientRef,
+  findByClientRefAndCode,
+  save,
+  update,
+} from "./application.repository.js";
 
 vi.mock("../../common/mongo-client.js");
+
+describe("update", () => {
+  it("should update application", async () => {
+    const application = new ApplicationDocument({
+      clientRef: "application-1",
+      code: "grant-1",
+      createdAt: "2021-01-02T00:00:00.000Z",
+      submittedAt: "2021-01-01T00:00:00.000Z",
+      identifiers: {
+        sbi: "sbi-1",
+        frn: "frn-1",
+        crn: "crn-1",
+        defraId: "defraId-1",
+      },
+      answers: {
+        anything: "test",
+      },
+    });
+
+    const replaceOne = vi.fn().mockResolvedValueOnce({
+      modifiedCount: 1,
+    });
+    db.collection.mockReturnValue({
+      replaceOne,
+    });
+
+    await update(application);
+
+    expect(replaceOne).toHaveBeenCalled();
+    expect(replaceOne.mock.calls[0][1]).toBeInstanceOf(ApplicationDocument);
+  });
+
+  it("should throw if record not modified", async () => {
+    const application = new ApplicationDocument({
+      clientRef: "application-1",
+      code: "grant-1",
+      createdAt: "2021-01-02T00:00:00.000Z",
+      submittedAt: "2021-01-01T00:00:00.000Z",
+      identifiers: {
+        sbi: "sbi-1",
+        frn: "frn-1",
+        crn: "crn-1",
+        defraId: "defraId-1",
+      },
+      answers: {
+        anything: "test",
+      },
+    });
+
+    const replaceOne = vi.fn().mockResolvedValueOnce({
+      modifiedCount: 0,
+    });
+    db.collection.mockReturnValue({
+      replaceOne,
+    });
+
+    await expect(() => update(application)).rejects.toThrow(
+      'Failed to update application with clientRef "application-1" and code "grant-1"',
+    );
+  });
+});
 
 describe("save", () => {
   it("stores an application", async () => {
@@ -42,6 +108,9 @@ describe("save", () => {
       new ApplicationDocument({
         clientRef: "application-1",
         code: "grant-1",
+        currentPhase: "PRE_AWARD",
+        currentStage: "application",
+        status: "PENDING",
         createdAt: "2021-01-01T00:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",
         identifiers: {
@@ -100,6 +169,9 @@ describe("save", () => {
         new Application({
           clientRef: "application-1",
           code: "grant-1",
+          currentPhase: "PRE_AWARD",
+          currentStage: "application",
+          status: "PENDING",
           createdAt: "2021-01-01T00:00:00.000Z",
           submittedAt: "2021-01-01T00:00:00.000Z",
           identifiers: {
@@ -179,82 +251,71 @@ describe("findByClientRef", () => {
   });
 });
 
-describe("update", () => {
-  it("updates an application", async () => {
-    const updateOne = vi.fn().mockResolvedValueOnce({
-      matchedCount: 1,
-      modifiedCount: 1,
-    });
+describe("findByClientRefAndCode", () => {
+  it("finds an application by clientRef and code", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce(
+      new ApplicationDocument({
+        clientRef: "application-1",
+        code: "grant-1",
+        createdAt: "2021-01-02T00:00:00.000Z",
+        submittedAt: "2021-01-01T00:00:00.000Z",
+        identifiers: {
+          sbi: "sbi-1",
+          frn: "frn-1",
+          crn: "crn-1",
+          defraId: "defraId-1",
+        },
+        answers: {
+          anything: "test",
+        },
+      }),
+    );
 
     db.collection.mockReturnValue({
-      updateOne,
+      findOne,
     });
 
-    const application = new Application({
+    const result = await findByClientRefAndCode({
       clientRef: "application-1",
       code: "grant-1",
-      createdAt: "2021-01-01T00:00:00.000Z",
-      submittedAt: "2021-01-01T00:00:00.000Z",
-      identifiers: {
-        sbi: "sbi-1",
-        frn: "frn-1",
-        crn: "crn-1",
-        defraId: "defraId-1",
-      },
-      answers: {
-        updatedField: "test",
-      },
     });
 
-    await update(application);
+    expect(result).toStrictEqual(
+      new Application({
+        clientRef: "application-1",
+        code: "grant-1",
+        createdAt: "2021-01-02T00:00:00.000Z",
+        submittedAt: "2021-01-01T00:00:00.000Z",
+        identifiers: {
+          sbi: "sbi-1",
+          frn: "frn-1",
+          crn: "crn-1",
+          defraId: "defraId-1",
+        },
+        answers: {
+          anything: "test",
+        },
+      }),
+    );
 
     expect(db.collection).toHaveBeenCalledWith("applications");
 
-    expect(updateOne).toHaveBeenCalledWith(
-      { clientRef: "application-1", code: "grant-1" },
-      {
-        $set: new ApplicationDocument({
-          clientRef: "application-1",
-          code: "grant-1",
-          createdAt: "2021-01-01T00:00:00.000Z",
-          submittedAt: "2021-01-01T00:00:00.000Z",
-          identifiers: {
-            sbi: "sbi-1",
-            frn: "frn-1",
-            crn: "crn-1",
-            defraId: "defraId-1",
-          },
-          answers: {
-            updatedField: "test",
-          },
-        }),
-      },
-    );
-  });
-
-  it("throws when an error occurs during update", async () => {
-    const error = new Error("Database update failed");
-
-    db.collection.mockReturnValue({
-      updateOne: vi.fn().mockRejectedValueOnce(error),
-    });
-
-    const application = new Application({
+    expect(findOne).toHaveBeenCalledWith({
       clientRef: "application-1",
       code: "grant-1",
-      createdAt: "2021-01-01T00:00:00.000Z",
-      submittedAt: "2021-01-01T00:00:00.000Z",
-      identifiers: {
-        sbi: "sbi-1",
-        frn: "frn-1",
-        crn: "crn-1",
-        defraId: "defraId-1",
-      },
-      answers: {
-        anything: "test",
-      },
+    });
+  });
+
+  it("returns null when application not found", async () => {
+    db.collection.mockReturnValue({
+      findOne: vi.fn().mockResolvedValueOnce(null),
     });
 
-    await expect(update(application)).rejects.toThrow(error);
+    const result = await findByClientRefAndCode({
+      clientRef: "non-existent-client-ref",
+      code: "grant-1",
+    });
+
+    expect(result).toBeNull();
   });
 });

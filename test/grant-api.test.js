@@ -290,6 +290,10 @@ describe("POST /grants/{code}/applications", () => {
         clientRef,
         submittedAt,
         code: "test-code-1",
+        agreements: {},
+        currentPhase: "PRE_AWARD",
+        currentStage: "application",
+        status: "PENDING",
         createdAt: expect.any(String),
         identifiers: {
           sbi: "1234567890",

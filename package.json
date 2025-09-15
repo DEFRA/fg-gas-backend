@@ -18,6 +18,7 @@
     "test:integration:workflows": "vitest --config test/vitest.config.js test/integration/workflows --run",
     "test:integration:report": "npm run test:integration && node scripts/generate-test-report.js",
     "test:integration:local": "vitest --config test/vitest.local.config.js --dir test",
+    "publish:agreement:update": "node scripts/publish-agreement-update-command.js",
     "postinstall": "npm run setup:husky && npm run setup:env",
     "setup:env": "cp --update=none .env.example .env || true",
     "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module"

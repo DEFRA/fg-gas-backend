@@ -3,11 +3,15 @@ import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import { CreateAgreementCommand } from "../events/agreement-created.event.js";
 import { ApplicationCreatedEvent } from "../events/application-created.event.js";
+import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
+import { ApplicationUpdateStatusCommand } from "../events/application-update-status.command.js";
 import { Application } from "../models/application.js";
 import {
   publishApplicationApprovedEvent,
   publishApplicationCreated,
+  publishApplicationStatusUpdated,
   publishCreateAgreementCommand,
+  publishUpdateApplicationStatusCommand,
 } from "./application-event.publisher.js";
 
 vi.mock("../../common/sns-client.js");
@@ -100,5 +104,42 @@ describe("publishCreateAgreementCommand", () => {
         answers: application.answers,
       },
     });
+  });
+});
+
+describe("publishApplicationStatusUpdated", () => {
+  it("should publish status updated", async () => {
+    const application = new Application({
+      clientRef: "123",
+      code: "grant-code",
+      createdAt: new Date().toISOString(),
+      submittedAt: new Date().toISOString(),
+      identifiers: { name: "Test App" },
+      answers: { question1: "answer1" },
+    });
+
+    await publishApplicationStatusUpdated(application);
+    expect(publish.mock.calls[0][0]).toBe(
+      config.sns.grantApplicationStatusUpdatedTopicArn,
+    );
+    expect(publish.mock.calls[0][1]).toBeInstanceOf(
+      ApplicationStatusUpdatedEvent,
+    );
+  });
+});
+
+describe("publishUpdateApplicationStatusCommand", () => {
+  it("should publish status update command", async () => {
+    await publishUpdateApplicationStatusCommand({
+      clientRef: "1w4",
+      code: "grant-code",
+      agreementData: {
+        agreementRef: "Agreement-1",
+      },
+    });
+    expect(publish.mock.calls[0][0]).toBe(config.sns.updateCaseStatusTopicArn);
+    expect(publish.mock.calls[0][1]).toBeInstanceOf(
+      ApplicationUpdateStatusCommand,
+    );
   });
 });
