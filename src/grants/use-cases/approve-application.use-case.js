@@ -3,8 +3,10 @@ import {
   publishApplicationApprovedEvent,
   publishCreateAgreementCommand,
 } from "../publishers/application-event.publisher.js";
-import { findByClientRef } from "../repositories/application.repository.js";
-import { updateApplicationUseCase } from "./update-application.use-case.js";
+import {
+  findByClientRef,
+  update,
+} from "../repositories/application.repository.js";
 
 export const approveApplicationUseCase = async (data) => {
   const application = await findByClientRef(data.clientRef);
@@ -20,7 +22,7 @@ export const approveApplicationUseCase = async (data) => {
   const previousStatus = `${currentPhase}:${currentStage}:${oldStatus}`;
   const currentStatus = `${currentPhase}:${currentStage}:${applicationStatus.APPROVED}`;
 
-  await updateApplicationUseCase(application);
+  await update(application);
 
   const applicationApprovedEvent = {
     clientRef: application.clientRef,
