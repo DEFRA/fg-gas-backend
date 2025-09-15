@@ -3,12 +3,13 @@ import {
   publishApplicationApprovedEvent,
   publishCreateAgreementCommand,
 } from "../publishers/application-event.publisher.js";
+import { update } from "../repositories/application.repository.js";
 import { approveApplicationUseCase } from "./approve-application.use-case.js";
 import { findApplicationByClientRefUseCase } from "./find-application-by-client-ref.use-case.js";
-import { updateApplicationUseCase } from "./update-application.use-case.js";
 
 vi.mock("./find-application-by-client-ref.use-case.js");
 vi.mock("../publishers/application-event.publisher.js");
+vi.mock("../repositories/application.repository.js");
 vi.mock("./update-application.use-case.js");
 
 describe("approveApplicationUseCase", () => {
@@ -27,7 +28,7 @@ describe("approveApplicationUseCase", () => {
       "test-client-ref",
     );
 
-    expect(updateApplicationUseCase).toHaveBeenCalledWith({
+    expect(update).toHaveBeenCalledWith({
       clientRef: "test-client-ref",
       code: "test-grant",
       answers: { question1: "answer1" },

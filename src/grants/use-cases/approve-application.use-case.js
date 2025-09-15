@@ -26,6 +26,7 @@ export const approveApplicationUseCase = async (data) => {
 
   const applicationApprovedEvent = {
     clientRef: application.clientRef,
+    code: application.code,
     previousStatus,
     currentStatus,
   };
