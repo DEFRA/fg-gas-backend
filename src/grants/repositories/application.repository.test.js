@@ -211,7 +211,7 @@ describe("update", () => {
     expect(db.collection).toHaveBeenCalledWith("applications");
 
     expect(updateOne).toHaveBeenCalledWith(
-      { clientRef: "application-1" },
+      { clientRef: "application-1", code: "grant-1" },
       {
         $set: new ApplicationDocument({
           clientRef: "application-1",

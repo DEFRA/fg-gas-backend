@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  publishApplicationApproved,
-  publishGenerateAgreement,
+  publishApplicationApprovedEvent,
+  publishCreateAgreementCommand,
 } from "../publishers/application-event.publisher.js";
 import { approveApplicationUseCase } from "./approve-application.use-case.js";
 import { findApplicationByClientRefUseCase } from "./find-application-by-client-ref.use-case.js";
@@ -36,13 +36,13 @@ describe("approveApplicationUseCase", () => {
       currentStatus: "APPROVED",
     });
 
-    expect(publishApplicationApproved).toHaveBeenCalledWith({
+    expect(publishApplicationApprovedEvent).toHaveBeenCalledWith({
       clientRef: "test-client-ref",
       previousStatus: "phase1:stage1:RECEIVED",
       currentStatus: "phase1:stage1:APPROVED",
     });
 
-    expect(publishGenerateAgreement).toHaveBeenCalledWith({
+    expect(publishCreateAgreementCommand).toHaveBeenCalledWith({
       clientRef: "test-client-ref",
       code: "test-grant",
       answers: { question1: "answer1" },

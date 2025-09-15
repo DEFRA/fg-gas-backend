@@ -3,9 +3,9 @@ import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import { Application } from "../models/application.js";
 import {
-  publishApplicationApproved,
+  publishApplicationApprovedEvent,
   publishApplicationCreated,
-  publishGenerateAgreement,
+  publishCreateAgreementCommand,
 } from "./application-event.publisher.js";
 
 vi.mock("../../common/sns-client.js");
@@ -54,7 +54,7 @@ describe("publishApplicationCreated", () => {
   });
 });
 
-describe("publishApplicationApproved", () => {
+describe("publishApplicationApprovedEvent", () => {
   it("publishes ApplicationApprovedEvent to SNS topic", async () => {
     const applicationApproved = {
       clientRef: "456",
@@ -62,7 +62,7 @@ describe("publishApplicationApproved", () => {
       currentStatus: "approved",
     };
 
-    await publishApplicationApproved(applicationApproved);
+    await publishApplicationApprovedEvent(applicationApproved);
 
     expect(publish).toHaveBeenCalledWith(
       config.sns.grantApplicationStatusUpdatedTopicArn,
@@ -83,7 +83,7 @@ describe("publishApplicationApproved", () => {
   });
 });
 
-describe("publishGenerateAgreement", () => {
+describe("publishCreateAgreementCommand", () => {
   it("publishes AgreementCreatedEvent to SQS queue", async () => {
     const application = new Application({
       id: "app-id-123",
@@ -95,10 +95,10 @@ describe("publishGenerateAgreement", () => {
       answers: { question1: "agreement answer", question2: "value2" },
     });
 
-    await publishGenerateAgreement(application);
+    await publishCreateAgreementCommand(application);
 
     expect(publish).toHaveBeenCalledWith(
-      config.sqs.saveAgreementQueueUrl,
+      config.sns.createAgreementTopicArn,
       expect.objectContaining({
         id: expect.any(String),
         source: "fg-gas-backend",

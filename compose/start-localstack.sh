@@ -77,3 +77,4 @@ subscribe_queue_to_topic $(create_topic "gas__sns__grant_application_created") $
 subscribe_queue_to_topic $(create_topic "gas__sns__grant_application_status_updated") $(create_queue "gas__sqs__handle_grant_application_status_updated")
 subscribe_queue_to_topic $(create_topic "gas__sns__create_new_case") $(create_queue "cw__sqs__create_new_case")
 subscribe_queue_to_topic $(create_topic "gas__sns__update_case_status") $(create_queue "cw__sqs__update_status")
+susbscribe_queue_to_topic $(create_topic "gas__sns__create_agreement") $(create_queue "create_agreement")
