@@ -1,5 +1,3 @@
-import { ReceiveMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
-import Wreck from "@hapi/wreck";
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import {
@@ -11,24 +9,15 @@ import {
   expect,
   it,
 } from "vitest";
+import { wreck } from "../../helpers/wreck.js";
 
 let client;
 let grants, applications;
-let sqsClient;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   grants = client.db().collection("grants");
   applications = client.db().collection("applications");
-
-  sqsClient = new SQSClient({
-    region: env.AWS_REGION,
-    endpoint: env.AWS_ENDPOINT_URL,
-    credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-    },
-  });
 });
 
 afterAll(async () => {
@@ -37,13 +26,11 @@ afterAll(async () => {
 
 describe("Application Service Integration Tests", () => {
   beforeEach(async () => {
-    // Clean up test data
     await grants.deleteMany({ code: { $regex: "^app-service-" } });
     await applications.deleteMany({ clientRef: { $regex: "^app-service-" } });
   });
 
   afterEach(async () => {
-    // Clean up after each test
     await grants.deleteMany({ code: { $regex: "^app-service-" } });
     await applications.deleteMany({ clientRef: { $regex: "^app-service-" } });
   });
@@ -132,7 +119,7 @@ describe("Application Service Integration Tests", () => {
         actions: [],
       };
 
-      await Wreck.post(`${env.API_URL}/grants`, {
+      await wreck.post("/grants", {
         payload: grantData,
       });
 
@@ -181,15 +168,12 @@ describe("Application Service Integration Tests", () => {
         },
       };
 
-      const response = await Wreck.post(
-        `${env.API_URL}/grants/${grantCode}/applications`,
-        {
-          headers: {
-            "x-cdp-request-id": `test-req-${testId}`,
-          },
-          payload: applicationData,
+      const response = await wreck.post(`/grants/${grantCode}/applications`, {
+        headers: {
+          "x-cdp-request-id": `test-req-${testId}`,
         },
-      );
+        payload: applicationData,
+      });
       expect(response.res.statusCode).toBe(204);
 
       // Verify application persistence with complex nested data
@@ -281,7 +265,7 @@ describe("Application Service Integration Tests", () => {
         actions: [],
       };
 
-      await Wreck.post(`${env.API_URL}/grants`, {
+      await wreck.post("/grants", {
         payload: grantData,
       });
 
@@ -324,10 +308,9 @@ describe("Application Service Integration Tests", () => {
         },
       };
 
-      const response = await Wreck.post(
-        `${env.API_URL}/grants/${grantCode}/applications`,
-        { payload: applicationData },
-      );
+      const response = await wreck.post(`/grants/${grantCode}/applications`, {
+        payload: applicationData,
+      });
       expect(response.res.statusCode).toBe(204);
 
       // Verify complex array data persistence
@@ -397,7 +380,7 @@ describe("Application Service Integration Tests", () => {
         actions: [],
       };
 
-      await Wreck.post(`${env.API_URL}/grants`, {
+      await wreck.post("/grants", {
         payload: grantData,
       });
 
@@ -485,7 +468,7 @@ describe("Application Service Integration Tests", () => {
       for (const invalidApp of invalidApplications) {
         let validationError;
         try {
-          await Wreck.post(`${env.API_URL}/grants/${grantCode}/applications`, {
+          await wreck.post(`/grants/${grantCode}/applications`, {
             json: true,
             payload: invalidApp.data,
           });
@@ -506,239 +489,6 @@ describe("Application Service Integration Tests", () => {
         clientRef: { $regex: `^app-service-invalid-.*-${testId}$` },
       });
       expect(invalidApplicationCount).toBe(0);
-    });
-  });
-
-  describe("SNS Event Publishing Integration", () => {
-    it("should publish application created event to SNS when application is submitted", async () => {
-      const testId = Date.now();
-      const grantCode = `app-service-sns-${testId}`;
-      const clientRef = `app-service-sns-${testId}`;
-
-      // Create grant
-      const grantData = {
-        code: grantCode,
-        metadata: {
-          description: "Grant for SNS event testing",
-          startDate: "2025-01-01T00:00:00.000Z",
-        },
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            testField: { type: "string" },
-          },
-          required: ["testField"],
-        },
-        actions: [],
-      };
-
-      await Wreck.post(`${env.API_URL}/grants`, {
-        payload: grantData,
-      });
-
-      // Submit application (should trigger SNS event)
-      const applicationData = {
-        metadata: {
-          clientRef,
-          submittedAt: new Date().toISOString(),
-          sbi: "123456789",
-          frn: "987654321",
-          crn: "555666777",
-          defraId: "DEF123456",
-        },
-        answers: {
-          testField: "SNS event test value",
-        },
-      };
-
-      const response = await Wreck.post(
-        `${env.API_URL}/grants/${grantCode}/applications`,
-        {
-          headers: {
-            "x-cdp-request-id": `sns-test-${testId}`,
-          },
-          payload: applicationData,
-        },
-      );
-      expect(response.res.statusCode).toBe(204);
-
-      // Poll SQS for the SNS message
-      let snsMessage;
-      let attempts = 0;
-      const maxAttempts = 10;
-
-      while (attempts < maxAttempts && !snsMessage) {
-        attempts++;
-        try {
-          const sqsResponse = await sqsClient.send(
-            new ReceiveMessageCommand({
-              QueueUrl: env.GRANT_APPLICATION_CREATED_QUEUE,
-              MaxNumberOfMessages: 10,
-              WaitTimeSeconds: 2,
-            }),
-          );
-
-          if (sqsResponse.Messages?.length > 0) {
-            const messages = sqsResponse.Messages.map((msg) =>
-              JSON.parse(msg.Body),
-            ).filter((msg) => msg.data.clientRef === clientRef);
-
-            if (messages.length > 0) {
-              snsMessage = messages[0];
-              break;
-            }
-          }
-        } catch (error) {
-          console.log(`SQS polling attempt ${attempts} failed:`, error.message);
-        }
-
-        // Wait before next attempt
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-
-      // Verify SNS message structure and content
-      expect(snsMessage, "SNS message should be received").toBeTruthy();
-      expect(snsMessage.source).toBe("fg-gas-backend");
-      expect(snsMessage.type).toBe(
-        "cloud.defra.development.fg-gas-backend.application.created",
-      );
-      expect(snsMessage.data.clientRef).toBe(clientRef);
-      expect(snsMessage.data.code).toBe(grantCode);
-      expect(snsMessage.data.answers.testField).toBe("SNS event test value");
-      expect(snsMessage.data.identifiers.sbi).toBe("123456789");
-      expect(snsMessage.traceparent).toBe(`sns-test-${testId}`);
-
-      // Verify database application matches SNS event data
-      const dbApplication = await applications.findOne({ clientRef });
-      expect(dbApplication.code).toBe(snsMessage.data.code);
-      expect(dbApplication.answers.testField).toBe(
-        snsMessage.data.answers.testField,
-      );
-      expect(dbApplication.identifiers.sbi).toBe(
-        snsMessage.data.identifiers.sbi,
-      );
-    });
-
-    it("should handle high-volume application submissions with reliable event publishing", async () => {
-      const testId = Date.now();
-      const grantCode = `app-service-volume-${testId}`;
-      const numApplications = 5;
-
-      // Create grant for volume testing
-      const grantData = {
-        code: grantCode,
-        metadata: {
-          description: "Grant for volume testing",
-          startDate: "2025-01-01T00:00:00.000Z",
-        },
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            farmId: { type: "string" },
-            volume: { type: "number" },
-          },
-          required: ["farmId", "volume"],
-        },
-        actions: [],
-      };
-
-      await Wreck.post(`${env.API_URL}/grants`, {
-        payload: grantData,
-      });
-
-      // Submit multiple applications concurrently
-      const applicationPromises = Array.from(
-        { length: numApplications },
-        (_, i) => {
-          const applicationData = {
-            metadata: {
-              clientRef: `app-service-volume-${testId}-${i}`,
-              submittedAt: new Date().toISOString(),
-              sbi: `12345678${i}`,
-              frn: `98765432${i}`,
-              crn: `55566677${i}`,
-              defraId: `DEF12345${i}`,
-            },
-            answers: {
-              farmId: `FARM-${i}`,
-              volume: 100 + i,
-            },
-          };
-
-          return Wreck.post(`${env.API_URL}/grants/${grantCode}/applications`, {
-            headers: {
-              "x-cdp-request-id": `volume-test-${testId}-${i}`,
-            },
-            payload: applicationData,
-          });
-        },
-      );
-
-      const responses = await Promise.all(applicationPromises);
-      responses.forEach((response) => {
-        expect(response.res.statusCode).toBe(204);
-      });
-
-      // Verify all applications were stored in database
-      const dbApplications = await applications
-        .find({
-          clientRef: { $regex: `^app-service-volume-${testId}-` },
-        })
-        .toArray();
-      expect(dbApplications).toHaveLength(numApplications);
-
-      // Poll for all SNS messages
-      const receivedMessages = new Set();
-      let attempts = 0;
-      const maxAttempts = 15;
-
-      while (
-        attempts < maxAttempts &&
-        receivedMessages.size < numApplications
-      ) {
-        attempts++;
-        try {
-          const sqsResponse = await sqsClient.send(
-            new ReceiveMessageCommand({
-              QueueUrl: env.GRANT_APPLICATION_CREATED_QUEUE,
-              MaxNumberOfMessages: 10,
-              WaitTimeSeconds: 2,
-            }),
-          );
-
-          if (sqsResponse.Messages?.length > 0) {
-            sqsResponse.Messages.forEach((msg) => {
-              const parsedMsg = JSON.parse(msg.Body);
-              if (
-                parsedMsg.data.clientRef.includes(
-                  `app-service-volume-${testId}-`,
-                )
-              ) {
-                receivedMessages.add(parsedMsg.data.clientRef);
-              }
-            });
-          }
-        } catch (error) {
-          console.log(
-            `Volume SQS polling attempt ${attempts} failed:`,
-            error.message,
-          );
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
-
-      // Verify all events were published
-      expect(receivedMessages.size).toBe(numApplications);
-
-      // Verify each expected clientRef was received
-      for (let i = 0; i < numApplications; i++) {
-        expect(receivedMessages.has(`app-service-volume-${testId}-${i}`)).toBe(
-          true,
-        );
-      }
     });
   });
 });

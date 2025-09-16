@@ -4,6 +4,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 import { Application } from "../models/application.js";
 import { publishApplicationCreated } from "../publishers/application-event.publisher.js";
+import { publishCreateNewCase } from "../publishers/case-event.publisher.js";
 import { save } from "../repositories/application.repository.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 
@@ -62,9 +63,9 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
 export const submitApplicationUseCase = async (code, { metadata, answers }) => {
   const grant = await findGrantByCodeUseCase(code);
 
-  const application = new Application({
-    clientRef: metadata.clientRef,
+  const application = Application.new({
     code,
+    clientRef: metadata.clientRef,
     submittedAt: metadata.submittedAt,
     identifiers: {
       sbi: metadata.sbi,
@@ -77,5 +78,11 @@ export const submitApplicationUseCase = async (code, { metadata, answers }) => {
 
   await save(application);
 
-  await publishApplicationCreated(application);
+  await publishApplicationCreated({
+    clientRef: application.clientRef,
+    code: application.code,
+    status: application.getFullyQualifiedStatus(),
+  });
+
+  await publishCreateNewCase(application);
 };

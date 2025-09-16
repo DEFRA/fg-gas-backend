@@ -56,7 +56,8 @@ export class SqsSubscriber {
       await this.deleteMessage(message);
     } catch (err) {
       logger.error(
-        `Error processing SQS message ${message.MessageId}: ${err.message}`,
+        { err },
+        `Error processing SQS message ${message.MessageId}`,
       );
     }
   }

@@ -2,13 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { ApplicationUpdateStatusCommand } from "../events/application-update-status.command.js";
-import { Application } from "../models/application.js";
+import {
+  Application,
+  ApplicationPhase,
+  ApplicationStage,
+  ApplicationStatus,
+} from "../models/application.js";
 import {
   publishApplicationApproved,
   publishApplicationCreated,
   publishApplicationStatusUpdated,
-  publishUpdateApplicationStatusCommand,
 } from "./application-event.publisher.js";
 
 vi.mock("../../common/sns-client.js");
@@ -25,6 +28,9 @@ afterEach(() => {
 describe("publishApplicationCreated", () => {
   it("publishes ApplicationCreatedEvent to SNS topic", async () => {
     const application = new Application({
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.Received,
       clientRef: "123",
       code: "grant-code",
       createdAt: new Date().toISOString(),
@@ -33,10 +39,14 @@ describe("publishApplicationCreated", () => {
       answers: { question1: "answer1" },
     });
 
-    await publishApplicationCreated(application);
+    await publishApplicationCreated({
+      clientRef: application.clientRef,
+      code: application.code,
+      status: application.getFullyQualifiedStatus(),
+    });
 
     expect(publish).toHaveBeenCalledWith(
-      config.applicationCreatedTopic,
+      config.sns.grantApplicationCreatedTopicArn,
       expect.objectContaining({
         id: expect.any(String),
         source: "fg-gas-backend",
@@ -47,10 +57,7 @@ describe("publishApplicationCreated", () => {
         data: {
           clientRef: application.clientRef,
           code: application.code,
-          createdAt: application.createdAt,
-          submittedAt: application.submittedAt,
-          identifiers: application.identifiers,
-          answers: application.answers,
+          status: `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Received}`,
         },
       }),
     );
@@ -109,22 +116,6 @@ describe("publishApplicationStatusUpdated", () => {
     );
     expect(publish.mock.calls[0][1]).toBeInstanceOf(
       ApplicationStatusUpdatedEvent,
-    );
-  });
-});
-
-describe("publishUpdateApplicationStatusCommand", () => {
-  it("should publish status update command", async () => {
-    await publishUpdateApplicationStatusCommand({
-      clientRef: "1w4",
-      code: "grant-code",
-      agreementData: {
-        agreementRef: "Agreement-1",
-      },
-    });
-    expect(publish.mock.calls[0][0]).toBe(config.sns.updateCaseStatusTopicArn);
-    expect(publish.mock.calls[0][1]).toBeInstanceOf(
-      ApplicationUpdateStatusCommand,
     );
   });
 });

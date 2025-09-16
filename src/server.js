@@ -8,8 +8,6 @@ import HapiSwagger from "hapi-swagger";
 import { config } from "./common/config.js";
 import { logger } from "./common/logger.js";
 import { mongoClient } from "./common/mongo-client.js";
-import { grants } from "./grants/index.js";
-import { health } from "./health/index.js";
 
 export const createServer = async () => {
   const server = hapi.server({
@@ -81,8 +79,6 @@ export const createServer = async () => {
       },
     },
   ]);
-
-  await server.register([health, grants]);
 
   return server;
 };

@@ -1,14 +1,19 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
+import { Agreement, AgreementHistoryEntry } from "../models/agreement.js";
 import { ApplicationDocument } from "../models/application-document.js";
 import { Application } from "../models/application.js";
 
 const toApplication = (doc) =>
   new Application({
+    currentPhase: doc.currentPhase,
+    currentStage: doc.currentStage,
+    currentStatus: doc.currentStatus,
     clientRef: doc.clientRef,
     code: doc.code,
     createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
     submittedAt: doc.submittedAt,
     identifiers: {
       sbi: doc.identifiers.sbi,
@@ -17,6 +22,18 @@ const toApplication = (doc) =>
       defraId: doc.identifiers.defraId,
     },
     answers: doc.answers,
+    agreements: Object.entries(doc.agreements).reduce((acc, [key, value]) => {
+      const history = value.history.map(
+        (entry) => new AgreementHistoryEntry(entry),
+      );
+
+      acc[key] = new Agreement({
+        ...value,
+        history,
+      });
+
+      return acc;
+    }, {}),
   });
 
 export const collection = "applications";
@@ -54,23 +71,21 @@ export const update = async (application) => {
 };
 
 export const findByClientRefAndCode = async ({ clientRef, code }) => {
-  const application = await db
-    .collection(collection)
-    .findOne({ clientRef, code });
+  const doc = await db.collection(collection).findOne({ clientRef, code });
 
-  if (application === null) {
+  if (doc === null) {
     return null;
   }
 
-  return toApplication(application);
+  return doc && toApplication(doc);
 };
 
 export const findByClientRef = async (clientRef) => {
-  const application = await db.collection(collection).findOne({ clientRef });
+  const doc = await db.collection(collection).findOne({ clientRef });
 
-  if (application === null) {
+  if (doc === null) {
     return null;
   }
 
-  return toApplication(application);
+  return toApplication(doc);
 };

@@ -1,8 +1,12 @@
 export class ApplicationDocument {
   constructor(application) {
+    this.currentPhase = application.currentPhase;
+    this.currentStage = application.currentStage;
+    this.currentStatus = application.currentStatus;
     this.clientRef = application.clientRef;
     this.code = application.code;
     this.createdAt = application.createdAt;
+    this.updatedAt = application.updatedAt;
     this.submittedAt = application.submittedAt;
     this.identifiers = {
       sbi: application.identifiers.sbi,
@@ -11,9 +15,6 @@ export class ApplicationDocument {
       defraId: application.identifiers.defraId,
     };
     this.answers = application.answers;
-    this.status = application.status;
-    this.currentStage = application.currentStage;
-    this.currentPhase = application.currentPhase;
-    this.agreements = application.agreements || {};
+    this.agreements = application.agreements;
   }
 }
