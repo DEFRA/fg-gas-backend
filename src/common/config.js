@@ -1,5 +1,8 @@
+import dotenv from "dotenv";
 import Joi from "joi";
 import { env } from "node:process";
+
+dotenv.config();
 
 const schema = Joi.object({
   NODE_ENV: Joi.string().allow("development", "production", "test"),
