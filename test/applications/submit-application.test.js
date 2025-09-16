@@ -1,20 +1,10 @@
-import { ReceiveMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
-import Wreck from "@hapi/wreck";
-import Joi from "joi";
 import { MongoClient } from "mongodb";
 import { randomUUID } from "node:crypto";
-import http from "node:http";
 import { env } from "node:process";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
-import { grant1, grant2, grant3 } from "./fixtures/grants.js";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { grant3 } from "../fixtures/grants.js";
+import { purgeQueue, receiveMessages } from "../helpers/sqs.js";
+import { wreck } from "../helpers/wreck.js";
 
 let grants;
 let applications;
@@ -30,207 +20,16 @@ afterAll(async () => {
   await client?.close();
 });
 
-describe("POST /grants", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({});
-  });
-
-  it("adds a grant", async () => {
-    const response = await Wreck.post(`${env.API_URL}/grants`, {
-      payload: grant1,
-    });
-
-    expect(response.res.statusCode).toEqual(204);
-    expect(response.res.statusMessage).toEqual("No Content");
-
-    const documents = await grants
-      .find({}, { projection: { _id: 0 } })
-      .toArray();
-
-    expect(documents).toEqual([
-      {
-        ...grant1,
-        metadata: {
-          ...grant1.metadata,
-          startDate: Joi.date().validate(grant1.metadata.startDate).value,
-        },
-      },
-    ]);
-  });
-
-  it("returns 409 when code exists", async () => {
-    await Wreck.post(`${env.API_URL}/grants`, {
-      json: true,
-      payload: grant1,
-    });
-
-    let response;
-    try {
-      await Wreck.post(`${env.API_URL}/grants`, {
-        json: true,
-        payload: grant1,
-      });
-    } catch (err) {
-      response = err.data.payload;
-    }
-
-    expect(response).toEqual({
-      statusCode: 409,
-      error: "Conflict",
-      message: `Grant with code "${grant1.code}" already exists`,
-    });
-  });
-});
-
-describe("GET /grants", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({});
-  });
-
-  it("finds grants", async () => {
-    await grants.insertMany([{ ...grant1 }, { ...grant2 }, { ...grant3 }]);
-
-    const response = await Wreck.get(`${env.API_URL}/grants`, {
-      json: true,
-    });
-
-    expect(response.res.statusCode).toEqual(200);
-    expect(response.payload).toEqual([grant1, grant2, grant3]);
-  });
-});
-
-describe("GET /grants/{code}", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({});
-  });
-
-  it("finds a grant by code", async () => {
-    await grants.insertMany([{ ...grant1 }, { ...grant2 }]);
-
-    const response = await Wreck.get(`${env.API_URL}/grants/test-code-2`, {
-      json: true,
-    });
-
-    expect(response.res.statusCode).toEqual(200);
-    expect(response.payload).toEqual(grant2);
-  });
-});
-
-describe("POST /grants/{code}/actions/{name}/invoke", () => {
-  let server;
-
-  beforeEach(async () => {
-    await grants.deleteMany({});
-
-    server = http
-      .createServer((_req, res) => {
-        console.log("INCOMING REQUEST:", _req.url, _req.method);
-
-        if (
-          _req.url === "/calculations/my-super-calc?code=test-code-1" &&
-          _req.method.toUpperCase() === "POST"
-        ) {
-          res.writeHead(200, {
-            "Content-Type": "application/json",
-          });
-          res.end(
-            JSON.stringify({
-              message: "Action invoked: my-super-calc",
-            }),
-          );
-        }
-        if (
-          _req.url ===
-            "/calculations/my-area-calc/area/123?code=test-code-1&paramOne=a&paramTwo=b" &&
-          _req.method.toUpperCase() === "POST"
-        ) {
-          res.writeHead(200, {
-            "Content-Type": "application/json",
-          });
-          res.end(
-            JSON.stringify({
-              message: "Action invoked: my-area-calc",
-            }),
-          );
-        }
-      })
-      .listen(3002);
-  });
-
-  afterEach(() => {
-    server.close();
-  });
-
-  it("invokes an action and returns the response", async () => {
-    await grants.insertMany([
-      {
-        ...grant1,
-        actions: [
-          {
-            name: "calc-totals",
-            method: "POST",
-            url: "http://host.docker.internal:3002/calculations/my-super-calc",
-          },
-          {
-            name: "calc-with-params",
-            method: "POST",
-            url: "http://host.docker.internal:3002/calculations/my-area-calc/area/{areaId}",
-          },
-        ],
-      },
-    ]);
-
-    const response = await Wreck.post(
-      `${env.API_URL}/grants/test-code-1/actions/calc-totals/invoke`,
-      {
-        json: true,
-        payload: {},
-      },
-    );
-
-    expect(response.res.statusCode).toEqual(200);
-    expect(response.payload).toEqual({
-      message: "Action invoked: my-super-calc",
-    });
-  });
-
-  it("invokes an action with parameters and returns the response", async () => {
-    await grants.insertMany([
-      {
-        ...grant1,
-        actions: [
-          {
-            name: "calc-with-params",
-            method: "POST",
-            url: "http://host.docker.internal:3002/calculations/my-area-calc/area/$areaId",
-          },
-        ],
-      },
-    ]);
-
-    const response = await Wreck.post(
-      `${env.API_URL}/grants/test-code-1/actions/calc-with-params/invoke?areaId=123&paramOne=a&paramTwo=b`,
-      {
-        json: true,
-        payload: {},
-      },
-    );
-
-    expect(response.res.statusCode).toEqual(200);
-    expect(response.payload).toEqual({
-      message: "Action invoked: my-area-calc",
-    });
-  });
-});
-
 describe("POST /grants/{code}/applications", () => {
   beforeEach(async () => {
     await grants.deleteMany({});
     await applications.deleteMany({});
+    await purgeQueue(env.GRANT_APPLICATION_CREATED_QUEUE_URL);
+    await purgeQueue(env.CREATE_NEW_CASE_QUEUE_URL);
   });
 
-  it("adds an application", async () => {
-    await Wreck.post(`${env.API_URL}/grants`, {
+  it("stores submitted application", async () => {
+    await wreck.post("/grants", {
       json: true,
       payload: {
         code: "test-code-1",
@@ -256,27 +55,24 @@ describe("POST /grants/{code}/applications", () => {
 
     const clientRef = `cr-12345-${randomUUID()}`;
 
-    const response = await Wreck.post(
-      `${env.API_URL}/grants/test-code-1/applications`,
-      {
-        headers: {
-          "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
+    const response = await wreck.post("/grants/test-code-1/applications", {
+      headers: {
+        "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
+      },
+      payload: {
+        metadata: {
+          clientRef,
+          submittedAt,
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
         },
-        payload: {
-          metadata: {
-            clientRef,
-            submittedAt,
-            sbi: "1234567890",
-            frn: "1234567890",
-            crn: "1234567890",
-            defraId: "1234567890",
-          },
-          answers: {
-            question1: "test answer",
-          },
+        answers: {
+          question1: "test answer",
         },
       },
-    );
+    });
 
     expect(response.res.statusCode).toEqual(204);
     expect(response.res.statusMessage).toEqual("No Content");
@@ -287,14 +83,15 @@ describe("POST /grants/{code}/applications", () => {
 
     expect(documents).toEqual([
       {
+        currentPhase: "PRE_AWARD",
+        currentStage: "ASSESSMENT",
+        currentStatus: "RECEIVED",
         clientRef,
         submittedAt,
         code: "test-code-1",
         agreements: {},
-        currentPhase: "PRE_AWARD",
-        currentStage: "application",
-        status: "PENDING",
         createdAt: expect.any(String),
+        updatedAt: expect.any(String),
         identifiers: {
           sbi: "1234567890",
           frn: "1234567890",
@@ -307,39 +104,50 @@ describe("POST /grants/{code}/applications", () => {
       },
     ]);
 
-    const sqsClient = new SQSClient({
-      region: env.AWS_REGION,
-      endpoint: env.AWS_ENDPOINT_URL,
-      credentials: {
-        accessKeyId: env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+    const grantApplicationCreatedMessages = await receiveMessages(
+      env.GRANT_APPLICATION_CREATED_QUEUE_URL,
+    );
+
+    const applicationCreatedEvent = grantApplicationCreatedMessages.find(
+      (message) => message.data.clientRef === clientRef,
+    );
+
+    expect(applicationCreatedEvent).toEqual({
+      id: expect.any(String),
+      time: expect.any(String),
+      source: "fg-gas-backend",
+      specversion: "1.0",
+      type: `cloud.defra.development.fg-gas-backend.application.created`,
+      datacontenttype: "application/json",
+      traceparent: "xxxx-xxxx-xxxx-xxxx",
+      data: {
+        clientRef,
+        code: "test-code-1",
+        status: "PRE_AWARD:ASSESSMENT:RECEIVED",
       },
     });
 
-    const data = await sqsClient.send(
-      new ReceiveMessageCommand({
-        QueueUrl: env.GRANT_APPLICATION_CREATED_QUEUE,
-        MaxNumberOfMessages: 10,
-        WaitTimeSeconds: 5,
-      }),
+    const createNewCaseMessages = await receiveMessages(
+      env.CREATE_NEW_CASE_QUEUE_URL,
     );
 
-    const parsedMessages = data.Messages.map((message) =>
-      JSON.parse(message.Body),
-    ).filter((message) => message.data.clientRef === clientRef);
+    const createNewCaseEvent = createNewCaseMessages.find(
+      (message) => message.data.caseRef === clientRef,
+    );
 
-    expect(parsedMessages).toEqual([
-      {
-        id: expect.any(String),
-        time: expect.any(String),
-        source: "fg-gas-backend",
-        specversion: "1.0",
-        type: `cloud.defra.development.fg-gas-backend.application.created`,
-        datacontenttype: "application/json",
-        traceparent: "xxxx-xxxx-xxxx-xxxx",
-        data: {
-          clientRef,
-          code: "test-code-1",
+    expect(createNewCaseEvent).toEqual({
+      id: expect.any(String),
+      time: expect.any(String),
+      source: "fg-gas-backend",
+      specversion: "1.0",
+      type: `cloud.defra.development.fg-gas-backend.case.create`,
+      datacontenttype: "application/json",
+      traceparent: "xxxx-xxxx-xxxx-xxxx",
+      data: {
+        caseRef: clientRef,
+        workflowCode: "test-code-1",
+        status: "NEW",
+        payload: {
           createdAt: expect.any(String),
           submittedAt: expect.any(String),
           identifiers: {
@@ -353,11 +161,11 @@ describe("POST /grants/{code}/applications", () => {
           },
         },
       },
-    ]);
+    });
   });
 
   it("returns 400 when schema validation fails", async () => {
-    await Wreck.post(`${env.API_URL}/grants`, {
+    await wreck.post("/grants", {
       json: true,
       payload: {
         code: "test-code-1",
@@ -381,7 +189,7 @@ describe("POST /grants/{code}/applications", () => {
 
     let response;
     try {
-      await Wreck.post(`${env.API_URL}/grants/test-code-1/applications`, {
+      await wreck.post("/grants/test-code-1/applications", {
         json: true,
         payload: {
           metadata: {
@@ -401,6 +209,12 @@ describe("POST /grants/{code}/applications", () => {
       response = err.data.payload;
     }
 
+    const documents = await applications
+      .find({}, { projection: { _id: 0 } })
+      .toArray();
+
+    expect(documents).toEqual([]);
+
     expect(response).toEqual({
       statusCode: 400,
       error: "Bad Request",
@@ -410,7 +224,7 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("returns 409 when clientRef exists", async () => {
-    await Wreck.post(`${env.API_URL}/grants`, {
+    await wreck.post("/grants", {
       json: true,
       payload: {
         code: "test-code-1",
@@ -432,7 +246,7 @@ describe("POST /grants/{code}/applications", () => {
       },
     });
 
-    await Wreck.post(`${env.API_URL}/grants/test-code-1/applications`, {
+    await wreck.post("/grants/test-code-1/applications", {
       json: true,
       payload: {
         metadata: {
@@ -451,7 +265,7 @@ describe("POST /grants/{code}/applications", () => {
 
     let response;
     try {
-      await Wreck.post(`${env.API_URL}/grants/test-code-1/applications`, {
+      await wreck.post("/grants/test-code-1/applications", {
         json: true,
         payload: {
           metadata: {
@@ -471,6 +285,33 @@ describe("POST /grants/{code}/applications", () => {
       response = err.data.payload;
     }
 
+    const documents = await applications
+      .find({}, { projection: { _id: 0 } })
+      .toArray();
+
+    expect(documents).toEqual([
+      {
+        answers: {
+          question1: "test answer",
+        },
+        clientRef: "12345",
+        code: "test-code-1",
+        identifiers: {
+          crn: "1234567890",
+          defraId: "1234567890",
+          frn: "1234567890",
+          sbi: "1234567890",
+        },
+        agreements: {},
+        currentPhase: "PRE_AWARD",
+        currentStage: "ASSESSMENT",
+        currentStatus: "RECEIVED",
+        createdAt: expect.any(String),
+        submittedAt: expect.any(Date),
+        updatedAt: expect.any(String),
+      },
+    ]);
+
     expect(response).toEqual({
       statusCode: 409,
       error: "Conflict",
@@ -478,58 +319,15 @@ describe("POST /grants/{code}/applications", () => {
     });
   });
 
-  it("success add application", async () => {
-    await Wreck.post(`${env.API_URL}/grants`, {
-      json: true,
-      payload: grant3,
-    });
-
-    const response = await Wreck.post(
-      `${env.API_URL}/grants/test-code-3/applications`,
-      {
-        json: true,
-        payload: {
-          metadata: {
-            clientRef: "12345",
-            submittedAt: new Date(),
-            sbi: "1234567890",
-            frn: "1234567890",
-            crn: "1234567890",
-            defraId: "1234567890",
-          },
-          answers: {
-            scheme: "SFI",
-            year: 2025,
-            hasCheckedLandIsUpToDate: true,
-            actionApplications: [
-              {
-                parcelId: "9238",
-                sheetId: "SX0679",
-                code: "CSAM1",
-                appliedFor: {
-                  unit: "ha",
-                  quantity: 20.23,
-                },
-              },
-            ],
-          },
-        },
-      },
-    );
-
-    expect(response.res.statusCode).toEqual(204);
-    expect(response.res.statusMessage).toEqual("No Content");
-  });
-
   it("responds with 400 when the application send invalid unit value", async () => {
-    await Wreck.post(`${env.API_URL}/grants`, {
+    await wreck.post("/grants", {
       json: true,
       payload: grant3,
     });
 
     let response;
     try {
-      await Wreck.post(`${env.API_URL}/grants/test-code-3/applications`, {
+      await wreck.post("/grants/test-code-3/applications", {
         json: true,
         payload: {
           metadata: {
@@ -571,14 +369,14 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("responds with 400 when the application send missing code value", async () => {
-    await Wreck.post(`${env.API_URL}/grants`, {
+    await wreck.post("/grants", {
       json: true,
       payload: grant3,
     });
 
     let response;
     try {
-      await Wreck.post(`${env.API_URL}/grants/test-code-3/applications`, {
+      await wreck.post("/grants/test-code-3/applications", {
         json: true,
         payload: {
           metadata: {
@@ -619,14 +417,14 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("responds with 400 when the application send invalid sheet value", async () => {
-    await Wreck.post(`${env.API_URL}/grants`, {
+    await wreck.post("/grants", {
       json: true,
       payload: grant3,
     });
 
     let response;
     try {
-      await Wreck.post(`${env.API_URL}/grants/test-code-3/applications`, {
+      await wreck.post("/grants/test-code-3/applications", {
         json: true,
         payload: {
           metadata: {
@@ -668,14 +466,14 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("responds with 400 when the application send invalid parcel Id value", async () => {
-    await Wreck.post(`${env.API_URL}/grants`, {
+    await wreck.post("/grants", {
       json: true,
       payload: grant3,
     });
 
     let response;
     try {
-      await Wreck.post(`${env.API_URL}/grants/test-code-3/applications`, {
+      await wreck.post("/grants/test-code-3/applications", {
         json: true,
         payload: {
           metadata: {
