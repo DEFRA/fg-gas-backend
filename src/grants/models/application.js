@@ -1,55 +1,118 @@
-import { applicationStatus } from "../../common/application-status.js";
+import Boom from "@hapi/boom";
+
+export const ApplicationPhase = {
+  PreAward: "PRE_AWARD",
+};
+
+export const ApplicationStage = {
+  Assessment: "ASSESSMENT",
+  Award: "AWARD",
+};
+
+export const ApplicationStatus = {
+  Received: "RECEIVED",
+  Offered: "OFFERED",
+  Accepted: "OFFER_ACCEPTED",
+  Rejected: "OFFER_REJECTED",
+  Withdrawn: "OFFER_WITHDRAWN",
+};
 
 export class Application {
   constructor({
+    currentPhase,
+    currentStage,
+    currentStatus,
     clientRef,
     code,
     createdAt,
+    updatedAt,
     submittedAt,
     identifiers,
     answers,
     agreements,
-    status,
   }) {
+    this.currentPhase = currentPhase;
+    this.currentStage = currentStage;
+    this.currentStatus = currentStatus;
     this.clientRef = clientRef;
     this.code = code;
-    this.createdAt = createdAt ?? new Date().toISOString();
+    this.createdAt = createdAt;
+    this.updatedAt = updatedAt;
     this.submittedAt = submittedAt;
     this.identifiers = identifiers;
     this.answers = answers;
-    this.currentPhase = "PRE_AWARD";
-    this.currentStage = "application";
-    this.agreements = agreements || {};
-    this.status = status || applicationStatus.pending;
+    this.agreements = agreements;
   }
 
-  updateStatus(status) {
-    this.currentPhase = "PRE_AWARD";
-    this.currentStage = "AWARD";
-    this.status = `${this.currentPhase}:${this.currentStage}:${status}`;
+  static new({ clientRef, code, submittedAt, identifiers, answers }) {
+    const createdAt = new Date().toISOString();
+
+    return new Application({
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.Received,
+      clientRef,
+      code,
+      submittedAt,
+      createdAt,
+      updatedAt: createdAt,
+      identifiers,
+      answers,
+      agreements: {},
+    });
   }
 
-  storeAgreement(agreementData) {
-    const { agreementRef, agreementStatus, createdAt } = agreementData;
-    const agreement = this.agreements[agreementRef];
-    if (agreement) {
-      agreement.history.push({
-        createdAt,
-        agreementStatus,
-      });
-      agreement.latestStatus = agreementStatus;
-      agreement.updatedAt = createdAt;
-    } else {
-      this.agreements[agreementRef] = {
-        latestStatus: agreementStatus,
-        updatedAt: createdAt,
-        history: [
-          {
-            createdAt,
-            agreementStatus,
-          },
-        ],
-      };
+  getFullyQualifiedStatus() {
+    return `${this.currentPhase}:${this.currentStage}:${this.currentStatus}`;
+  }
+
+  addAgreement(agreement) {
+    if (this.agreements[agreement.agreementRef]) {
+      throw Boom.conflict(
+        `Agreement "${agreement.agreementRef}" already exists on application "${this.clientRef}"`,
+      );
     }
+
+    this.agreements[agreement.agreementRef] = agreement;
+    this.currentStatus = ApplicationStatus.Offered;
+    this.updatedAt = this.#getTmestamp();
+  }
+
+  getAgreement(agreementRef) {
+    return this.agreements[agreementRef] || null;
+  }
+
+  acceptAgreement(agreementRef, date) {
+    const agreement = this.agreements[agreementRef];
+
+    if (!agreement) {
+      throw Boom.badData(
+        `Agreement "${agreementRef}" does not exist on application "${this.clientRef}"`,
+      );
+    }
+
+    agreement.accept(date);
+
+    this.currentStatus = ApplicationStatus.Accepted;
+    this.updatedAt = this.#getTmestamp();
+  }
+
+  withdrawAgreement(agreementRef, date) {
+    const agreement = this.agreements[agreementRef];
+
+    if (!agreement) {
+      throw Boom.badData(
+        `Agreement "${agreementRef}" does not exist on application "${this.clientRef}"`,
+      );
+    }
+
+    agreement.withdraw(date);
+
+    this.currentStatus = ApplicationStatus.Withdrawn;
+    this.updatedAt = this.#getTmestamp();
+  }
+
+  #getTmestamp() {
+    return new Date().toISOString();
   }
 }

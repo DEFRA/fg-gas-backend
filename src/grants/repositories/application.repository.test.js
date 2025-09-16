@@ -2,8 +2,18 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
+import {
+  Agreement,
+  AgreementHistoryEntry,
+  AgreementStatus,
+} from "../models/agreement.js";
 import { ApplicationDocument } from "../models/application-document.js";
-import { Application } from "../models/application.js";
+import {
+  Application,
+  ApplicationPhase,
+  ApplicationStage,
+  ApplicationStatus,
+} from "../models/application.js";
 import {
   findByClientRef,
   findByClientRefAndCode,
@@ -29,6 +39,7 @@ describe("update", () => {
       answers: {
         anything: "test",
       },
+      agreements: {},
     });
 
     const replaceOne = vi.fn().mockResolvedValueOnce({
@@ -86,9 +97,13 @@ describe("save", () => {
 
     await save(
       new Application({
+        currentPhase: ApplicationPhase.PreAward,
+        currentStage: ApplicationStage.Assessment,
+        currentStatus: ApplicationStatus.Received,
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-01T00:00:00.000Z",
+        updatedAt: "2021-01-01T01:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",
         identifiers: {
           sbi: "sbi-1",
@@ -106,12 +121,13 @@ describe("save", () => {
 
     expect(insertOne).toHaveBeenCalledWith(
       new ApplicationDocument({
+        currentPhase: ApplicationPhase.PreAward,
+        currentStage: ApplicationStage.Assessment,
+        currentStatus: ApplicationStatus.Received,
         clientRef: "application-1",
         code: "grant-1",
-        currentPhase: "PRE_AWARD",
-        currentStage: "application",
-        status: "PENDING",
         createdAt: "2021-01-01T00:00:00.000Z",
+        updatedAt: "2021-01-01T01:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",
         identifiers: {
           sbi: "sbi-1",
@@ -206,6 +222,7 @@ describe("findByClientRef", () => {
         answers: {
           anything: "test",
         },
+        agreements: {},
       }),
     );
 
@@ -230,6 +247,7 @@ describe("findByClientRef", () => {
         answers: {
           anything: "test",
         },
+        agreements: {},
       }),
     );
 
@@ -255,6 +273,9 @@ describe("findByClientRefAndCode", () => {
   it("finds an application by clientRef and code", async () => {
     const findOne = vi.fn().mockResolvedValueOnce(
       new ApplicationDocument({
+        currentPhase: ApplicationPhase.PreAward,
+        currentStage: ApplicationStage.Assessment,
+        currentStatus: ApplicationStatus.Received,
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-02T00:00:00.000Z",
@@ -267,6 +288,19 @@ describe("findByClientRefAndCode", () => {
         },
         answers: {
           anything: "test",
+        },
+        agreements: {
+          "agreement-1": {
+            agreementRef: "agreement-1",
+            updatedAt: "2021-01-01T00:00:00.000Z",
+            latestStatus: AgreementStatus.Offered,
+            history: [
+              {
+                agreementStatus: AgreementStatus.Offered,
+                createdAt: "2021-01-01T00:00:00.000Z",
+              },
+            ],
+          },
         },
       }),
     );
@@ -282,6 +316,9 @@ describe("findByClientRefAndCode", () => {
 
     expect(result).toStrictEqual(
       new Application({
+        currentPhase: ApplicationPhase.PreAward,
+        currentStage: ApplicationStage.Assessment,
+        currentStatus: ApplicationStatus.Received,
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-02T00:00:00.000Z",
@@ -294,6 +331,19 @@ describe("findByClientRefAndCode", () => {
         },
         answers: {
           anything: "test",
+        },
+        agreements: {
+          "agreement-1": new Agreement({
+            agreementRef: "agreement-1",
+            updatedAt: "2021-01-01T00:00:00.000Z",
+            latestStatus: AgreementStatus.Offered,
+            history: [
+              new AgreementHistoryEntry({
+                agreementStatus: AgreementStatus.Offered,
+                createdAt: "2021-01-01T00:00:00.000Z",
+              }),
+            ],
+          }),
         },
       }),
     );
