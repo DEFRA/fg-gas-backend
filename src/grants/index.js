@@ -22,11 +22,6 @@ export const grants = {
     migrated.forEach((fileName) => logger.info(`Migrated: ${fileName}`));
     logger.info("Finished running migrations");
 
-    await Promise.all([
-      db.createIndex("grants", { code: 1 }, { unique: true }),
-      db.createIndex("applications", { clientRef: 1 }, { unique: true }),
-    ]);
-
     server.events.on("start", async () => {
       caseStageUpdatedSubscriber.start();
       applicationAgreementUpdatedSubscriber.start();

@@ -1,11 +1,16 @@
 import Joi from "joi";
-import { describe, expect, it, vi } from "vitest";
+import { up } from "migrate-mongo";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mongoClient } from "./common/mongo-client.js";
 import { createServer } from "./server.js";
 
 vi.mock("./common/mongo-client.js");
+vi.mock("migrate-mongo");
 
 describe("server", () => {
+  beforeEach(() => {
+    up.mockResolvedValue(["001-initial-migration.js", "002-add-some-data.js"]);
+  });
   it("strips trailing slashes", async () => {
     const server = await createServer();
     server.route({

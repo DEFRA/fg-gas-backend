@@ -40,22 +40,6 @@ describe("grants", () => {
     expect(logger.info).toHaveBeenCalledWith("Finished running migrations");
   });
 
-  it("creates indexes on startup", async () => {
-    await server.register(grants);
-    await server.initialize();
-
-    expect(db.createIndex).toHaveBeenCalledWith(
-      "grants",
-      { code: 1 },
-      { unique: true },
-    );
-    expect(db.createIndex).toHaveBeenCalledWith(
-      "applications",
-      { clientRef: 1 },
-      { unique: true },
-    );
-  });
-
   it("starts subscribers on startup", async () => {
     await server.register(grants);
     await server.initialize();
