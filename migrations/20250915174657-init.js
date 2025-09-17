@@ -5,9 +5,13 @@
  */
 export const up = async (db) => {
   // purge the tables
-
-  await db.dropCollection("grants");
-  await db.dropCollection("applications");
+  const collectionNames = (await db.collections()).map((e) => e.collectionName);
+  if (collectionNames.includes("cases")) {
+    await db.dropCollection("cases");
+  }
+  if (collectionNames.includes("workflows")) {
+    await db.dropCollection("workflows");
+  }
 
   await db.createCollection("grants");
   await db.createCollection("applications");
