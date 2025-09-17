@@ -1,16 +1,4 @@
-import { config as baseConfig } from "./src/common/config.js";
-
 const config = {
-  mongodb: {
-    url: baseConfig.mongoUri,
-    databaseName: baseConfig.mongoDatabase,
-
-    options: {
-      useNewUrlParser: true, // removes a deprecation warning when connecting
-      useUnifiedTopology: true, // removes a deprecating warning when connecting
-    },
-  },
-
   // The migrations dir, can be an relative or absolute path. Only edit this when really necessary.
   migrationsDir: "migrations",
 
