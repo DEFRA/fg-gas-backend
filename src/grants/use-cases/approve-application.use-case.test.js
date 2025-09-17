@@ -15,7 +15,7 @@ vi.mock("../repositories/application.repository.js");
 vi.mock("./update-application.use-case.js");
 
 describe("approveApplicationUseCase", () => {
-  it.only("publishes application approved event", async () => {
+  it("publishes application approved event", async () => {
     const date = new Date().toISOString();
     const data = {
       clientRef: "test-client-ref",
