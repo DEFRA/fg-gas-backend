@@ -12,8 +12,9 @@ describe("caseStatusUpdatedSubscriber", () => {
   it("approves the application when current status is 'APPROVED' and status has changed", async () => {
     const mockMessage = {
       data: {
-        clientRef: "test-client-ref",
-        currentStatus: "PRE_AWARD:APPLICATION:APPROVED",
+        caseRef: "test-client-ref",
+        workflowCode: "grant-1",
+        currentStatus: "APPROVED",
       },
     };
 
@@ -25,7 +26,7 @@ describe("caseStatusUpdatedSubscriber", () => {
     const mockMessage = {
       data: {
         clientRef: "test-client-ref",
-        currentStatus: "PRE_AWARD:APPLICATION:PROCESSING",
+        currentStatus: "PROCESSING",
       },
     };
 

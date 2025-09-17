@@ -1,39 +1,47 @@
 import Boom from "@hapi/boom";
-import { applicationStatus } from "../../common/status.js";
+import { ApplicationStatus } from "../../common/application-status.js";
 import {
   publishApplicationApprovedEvent,
   publishCreateAgreementCommand,
 } from "../publishers/application-event.publisher.js";
 import {
-  findByClientRef,
+  findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
 
 export const approveApplicationUseCase = async (data) => {
-  const application = await findByClientRef(data.clientRef);
+  const { caseRef, workflowCode } = data;
+  const application = await findByClientRefAndCode(caseRef, workflowCode);
 
   if (!application) {
     throw Boom.notFound(
-      `Application with clientRef "${data.clientRef}" not found`,
+      `Application with clientRef "${data.caseRef}" and code "${workflowCode}" not found`,
     );
   }
 
-  // only if the status changes.
-  if (application.currentStatus === applicationStatus.APPROVED) {
+  // update only if the status changes.
+  if (application.currentStatus === ApplicationStatus.Approved) {
     return;
   }
 
-  const { currentStatus: oldStatus, currentPhase, currentStage } = application;
+  const {
+    currentStatus: oldStatus,
+    currentPhase,
+    currentStage,
+    code,
+    clientRef,
+  } = application;
 
-  application.currentStatus = applicationStatus.APPROVED;
+  application.setCurrentStatus(ApplicationStatus.Approved);
+
   const previousStatus = `${currentPhase}:${currentStage}:${oldStatus}`;
-  const currentStatus = `${currentPhase}:${currentStage}:${applicationStatus.APPROVED}`;
+  const currentStatus = `${currentPhase}:${currentStage}:${ApplicationStatus.Approved}`;
 
   await update(application);
 
   const applicationApprovedEvent = {
-    clientRef: application.clientRef,
-    code: application.code,
+    clientRef,
+    code,
     previousStatus,
     currentStatus,
   };

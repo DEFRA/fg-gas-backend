@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApplicationStatus } from "../../common/application-status.js";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
@@ -6,7 +7,6 @@ import {
   Application,
   ApplicationPhase,
   ApplicationStage,
-  ApplicationStatus,
 } from "../models/application.js";
 import {
   publishCreateNewCase,

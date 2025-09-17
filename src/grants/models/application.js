@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { ApplicationStatus } from "../../common/application-status.js";
 
 export const ApplicationPhase = {
   PreAward: "PRE_AWARD",
@@ -7,14 +8,6 @@ export const ApplicationPhase = {
 export const ApplicationStage = {
   Assessment: "ASSESSMENT",
   Award: "AWARD",
-};
-
-export const ApplicationStatus = {
-  Received: "RECEIVED",
-  Offered: "OFFERED",
-  Accepted: "OFFER_ACCEPTED",
-  Rejected: "OFFER_REJECTED",
-  Withdrawn: "OFFER_WITHDRAWN",
 };
 
 export class Application {
@@ -60,6 +53,10 @@ export class Application {
       answers,
       agreements: {},
     });
+  }
+
+  setCurrentStatus(status) {
+    this.currentStatus = status;
   }
 
   getFullyQualifiedStatus() {
