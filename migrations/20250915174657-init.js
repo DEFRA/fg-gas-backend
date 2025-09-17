@@ -6,11 +6,11 @@
 export const up = async (db) => {
   // purge the tables
   const collectionNames = (await db.collections()).map((e) => e.collectionName);
-  if (collectionNames.includes("cases")) {
-    await db.dropCollection("cases");
+  if (collectionNames.includes("applications")) {
+    await db.dropCollection("applications");
   }
-  if (collectionNames.includes("workflows")) {
-    await db.dropCollection("workflows");
+  if (collectionNames.includes("grants")) {
+    await db.dropCollection("grants");
   }
 
   await db.createCollection("grants");
@@ -18,7 +18,7 @@ export const up = async (db) => {
 
   await Promise.all([
     db.createIndex("grants", { code: 1 }, { unique: true }),
-    db.createIndex("applications", { clientRef: 1, code: 2 }, { unique: true }),
+    db.createIndex("applications", { clientRef: 1, code: 1 }, { unique: true }),
   ]);
 };
 
