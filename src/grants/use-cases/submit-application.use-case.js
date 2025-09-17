@@ -2,6 +2,7 @@ import Boom from "@hapi/boom";
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 
+import { logger } from "../../common/logger.js";
 import { Application } from "../models/application.js";
 import { publishApplicationCreated } from "../publishers/application-event.publisher.js";
 import { publishCreateNewCase } from "../publishers/case-event.publisher.js";
@@ -77,6 +78,10 @@ export const submitApplicationUseCase = async (code, { metadata, answers }) => {
   });
 
   await save(application);
+
+  logger.info(
+    `Received application "${application.clientRef}" for grant "${application.code}"`,
+  );
 
   await publishApplicationCreated({
     clientRef: application.clientRef,
