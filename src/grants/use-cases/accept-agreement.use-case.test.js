@@ -10,7 +10,9 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
+import { CaseStatus } from "../models/case-status.js";
 import { publishApplicationStatusUpdated } from "../publishers/application-event.publisher.js";
+import { publishUpdateCaseStatus } from "../publishers/case-event.publisher.js";
 import { update } from "../repositories/application.repository.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
@@ -106,6 +108,19 @@ describe("acceptAgreementUseCase", () => {
         ApplicationStage.Assessment,
         ApplicationStatus.Accepted,
       ].join(":"),
+    });
+  });
+
+  it("publishes the case status update", () => {
+    expect(publishUpdateCaseStatus).toHaveBeenCalledWith({
+      caseRef: "test-client-ref",
+      workflowCode: "test-code",
+      newStatus: CaseStatus.OfferAccepted,
+      data: {
+        createdAt: "2024-01-01T12:00:00Z",
+        agreementStatus: AgreementStatus.Accepted,
+        agreementRef: "agreement-123",
+      },
     });
   });
 });
