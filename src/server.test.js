@@ -33,9 +33,13 @@ describe("server", () => {
   it("calls MongoClient on start and stop", async () => {
     vi.spyOn(mongoClient, "connect");
     const server = await createServer();
-    await server.start();
+
+    await server.initialize();
+
+    server.events.emit("start");
     expect(mongoClient.connect).toHaveBeenCalled();
-    await server.stop();
+
+    server.events.emit("stop");
     expect(mongoClient.close).toHaveBeenCalled();
   });
 
