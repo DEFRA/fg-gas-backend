@@ -7,8 +7,7 @@ export const up = async (db, client) => {
   await db.collection("grants").insertOne({
     code: "adding-value",
     metadata: {
-      description:
-        "Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Updated Adding Value",
+      description: "Updated Adding Value",
       startDate: new Date("2025-01-01T00:00:00.000Z"),
     },
     actions: [
