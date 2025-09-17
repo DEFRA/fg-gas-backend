@@ -21,11 +21,3 @@ export const up = async (db) => {
     db.createIndex("applications", { clientRef: 1, code: 1 }, { unique: true }),
   ]);
 };
-
-/**
- * @param db {import('mongodb').Db}
- * @returns {Promise<void>}
- */
-export const down = async (db) => {
-  await db.collection("grants").deleteOne({ code: "pigs-might-fly" });
-};
