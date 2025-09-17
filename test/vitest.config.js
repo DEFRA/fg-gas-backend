@@ -12,10 +12,6 @@ export default defineConfig({
       concurrent: false,
     },
     fileParallelism: false,
-    reporters: ["default", "html"],
-    outputFile: {
-      html: "./test/reports/index.html",
-    },
     env: {
       GAS_PORT,
       MONGO_PORT,
@@ -26,12 +22,13 @@ export default defineConfig({
       AWS_ENDPOINT_URL: `http://localhost:${LOCALSTACK_PORT}`,
       AWS_ACCESS_KEY_ID: "test",
       AWS_SECRET_ACCESS_KEY: "test",
-      GRANT_APPLICATION_CREATED_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:grant_application_created",
-      GRANT_APPLICATION_CREATED_QUEUE: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/grant_application_created`,
+      GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created",
+      GRANT_APPLICATION_CREATED_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/gas__sqs__handle_grant_application_created`,
       CASE_STAGE_UPDATES_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/case_stage_updated`,
+      CREATE_NEW_CASE_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/cw__sqs__create_new_case`,
     },
-    hookTimeout: 120000,
-    testTimeout: 30000,
+    hookTimeout: 30000,
+    testTimeout: 10000,
   },
 });

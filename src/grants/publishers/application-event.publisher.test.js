@@ -2,16 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import { CreateAgreementCommand } from "../events/agreement-created.event.js";
-import { ApplicationCreatedEvent } from "../events/application-created.event.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { ApplicationUpdateStatusCommand } from "../events/application-update-status.command.js";
-import { Application } from "../models/application.js";
+import {
+  Application,
+  ApplicationPhase,
+  ApplicationStage,
+  ApplicationStatus,
+} from "../models/application.js";
 import {
   publishApplicationApprovedEvent,
   publishApplicationCreated,
   publishApplicationStatusUpdated,
   publishCreateAgreementCommand,
-  publishUpdateApplicationStatusCommand,
 } from "./application-event.publisher.js";
 
 vi.mock("../../common/sns-client.js");
@@ -28,6 +30,9 @@ afterEach(() => {
 describe("publishApplicationCreated", () => {
   it("publishes ApplicationCreatedEvent to SNS topic", async () => {
     const application = new Application({
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.Received,
       clientRef: "123",
       code: "grant-code",
       createdAt: new Date().toISOString(),
@@ -36,18 +41,28 @@ describe("publishApplicationCreated", () => {
       answers: { question1: "answer1" },
     });
 
-    await publishApplicationCreated(application);
-
-    expect(publish.mock.calls[0][0]).toBe(config.applicationCreatedTopic);
-    expect(publish.mock.calls[0][1]).toBeInstanceOf(ApplicationCreatedEvent);
-    expect(publish.mock.calls[0][1].data).toEqual({
+    await publishApplicationCreated({
       clientRef: application.clientRef,
       code: application.code,
-      createdAt: application.createdAt,
-      submittedAt: application.submittedAt,
-      identifiers: application.identifiers,
-      answers: application.answers,
+      status: application.getFullyQualifiedStatus(),
     });
+
+    expect(publish).toHaveBeenCalledWith(
+      config.sns.grantApplicationCreatedTopicArn,
+      expect.objectContaining({
+        id: expect.any(String),
+        source: "fg-gas-backend",
+        specversion: "1.0",
+        time: "2025-05-28T20:40:48.451Z",
+        type: "cloud.defra.test.fg-gas-backend.application.created",
+        datacontenttype: "application/json",
+        data: {
+          clientRef: application.clientRef,
+          code: application.code,
+          status: `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Received}`,
+        },
+      }),
+    );
   });
 });
 
@@ -124,22 +139,6 @@ describe("publishApplicationStatusUpdated", () => {
     );
     expect(publish.mock.calls[0][1]).toBeInstanceOf(
       ApplicationStatusUpdatedEvent,
-    );
-  });
-});
-
-describe("publishUpdateApplicationStatusCommand", () => {
-  it("should publish status update command", async () => {
-    await publishUpdateApplicationStatusCommand({
-      clientRef: "1w4",
-      code: "grant-code",
-      agreementData: {
-        agreementRef: "Agreement-1",
-      },
-    });
-    expect(publish.mock.calls[0][0]).toBe(config.sns.updateCaseStatusTopicArn);
-    expect(publish.mock.calls[0][1]).toBeInstanceOf(
-      ApplicationUpdateStatusCommand,
     );
   });
 });
