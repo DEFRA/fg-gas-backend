@@ -10,7 +10,9 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
+import { CaseStatus } from "../models/case-status.js";
 import { publishApplicationStatusUpdated } from "../publishers/application-event.publisher.js";
+import { publishUpdateCaseStatus } from "../publishers/case-event.publisher.js";
 import { update } from "../repositories/application.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
@@ -106,6 +108,19 @@ describe("withdrawAgreementUseCase", () => {
         ApplicationStage.Assessment,
         ApplicationStatus.Withdrawn,
       ].join(":"),
+    });
+  });
+
+  it("publishes the case status update", () => {
+    expect(publishUpdateCaseStatus).toHaveBeenCalledWith({
+      caseRef: "test-client-ref",
+      workflowCode: "test-code",
+      newStatus: CaseStatus.OfferWithdrawn,
+      data: {
+        createdAt: "2024-01-01T12:00:00Z",
+        agreementStatus: AgreementStatus.Withdrawn,
+        agreementRef: "agreement-123",
+      },
     });
   });
 });
