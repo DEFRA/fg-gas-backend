@@ -10,7 +10,7 @@ function create_topic() {
 
 function create_queue() {
   local queue_name=$1
-
+  echo "create_queue..."
   echo "QUEUE-NAME: '$queue_name'"
 
   # Create the DLQ
@@ -71,6 +71,9 @@ function setup_topic_and_queues() {
 function create_topic_and_queue() {
   local topic_name=$1
   local queue_name=$2
+
+  echo "create_topic_and_queue"
+  echo "topic: $topic_name *** queue: $queue_name"
 
   local topic_arn=$(create_topic $topic_name)
   local queue_arn=$(create_queue $queue_name)
