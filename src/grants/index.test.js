@@ -1,11 +1,14 @@
 import hapi from "@hapi/hapi";
+import { up } from "migrate-mongo";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { db } from "../common/mongo-client.js";
+import { logger } from "../common/logger.js";
+import { db, mongoClient } from "../common/mongo-client.js";
 import { grants } from "./index.js";
 import { caseStageUpdatedSubscriber } from "./subscribers/case-stage-updated.subscriber.js";
 
+vi.mock("../common/logger.js");
 vi.mock("../common/mongo-client.js");
-
+vi.mock("migrate-mongo");
 vi.mock("./subscribers/case-stage-updated.subscriber.js");
 
 describe("grants", () => {
@@ -13,22 +16,28 @@ describe("grants", () => {
 
   beforeEach(() => {
     server = hapi.server();
+    up.mockResolvedValue([]);
   });
 
-  it("creates indexes on startup", async () => {
+  it("runs migrations on startup", async () => {
     await server.register(grants);
     await server.initialize();
 
-    expect(db.createIndex).toHaveBeenCalledWith(
-      "grants",
-      { code: 1 },
-      { unique: true },
+    expect(up).toHaveBeenCalledWith(db, mongoClient);
+  });
+
+  it("logs applied migrations", async () => {
+    up.mockResolvedValue(["001-initial-migration.js", "002-add-some-data.js"]);
+
+    await server.register(grants);
+    await server.initialize();
+
+    expect(logger.info).toHaveBeenCalledWith("Running migrations");
+    expect(logger.info).toHaveBeenCalledWith(
+      "Migrated: 001-initial-migration.js",
     );
-    expect(db.createIndex).toHaveBeenCalledWith(
-      "applications",
-      { clientRef: 1 },
-      { unique: true },
-    );
+    expect(logger.info).toHaveBeenCalledWith("Migrated: 002-add-some-data.js");
+    expect(logger.info).toHaveBeenCalledWith("Finished running migrations");
   });
 
   it("starts subscribers on startup", async () => {

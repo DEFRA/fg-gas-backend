@@ -51,6 +51,10 @@ services:
           action: sync+restart
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./migrate-mongo-config.js:/home/node/migrate-mongo-config.js
+      - ./migrations:/home/node/migrations
+      - ./package.json:/home/node/package.json
 
 volumes:
   mongodb-data:
