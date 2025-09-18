@@ -1,5 +1,5 @@
 export const up = async (db) => {
-  const collections = await db.listCollections().toArray();
+  const collections = (await db.collections()).map((c) => c.collectionName);
 
   if (collections.includes("grants")) {
     await db.dropCollection("grants");
