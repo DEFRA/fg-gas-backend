@@ -219,7 +219,9 @@ describe("fg-gas-backend Provider Verification", () => {
         provider: "fg-gas-backend",
         providerBaseUrl: `http://localhost:${PORT}`,
         pactBrokerUrl:
-          env.PACT_BROKER_URL || "https://ffc-pact-broker.azure.defra.cloud",
+          env.PACT_BROKER_BASE_URL ||
+          env.PACT_BROKER_URL ||
+          "https://ffc-pact-broker.azure.defra.cloud",
         consumerVersionSelectors: [{ latest: true }],
         pactBrokerUsername: env.PACT_BROKER_USERNAME || "pactuser01",
         pactBrokerPassword:

@@ -40,8 +40,9 @@ jobs:
 
       - name: Run contract tests
         env:
-          PACT_BROKER_USERNAME: ${{ secrets.PACT_BROKER_USERNAME }}
-          PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
+          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
+          PACT_BROKER_USERNAME: ${{ secrets.PACT_USER }}
+          PACT_BROKER_PASSWORD: ${{ secrets.PACT_PASS }}
           GIT_COMMIT: ${{ github.sha }}
         run: npm run test:contracts:provider
 
