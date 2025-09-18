@@ -11,6 +11,8 @@ function create_topic() {
 function create_queue() {
   local queue_name=$1
 
+  echo "QUEUE-NAME: '$queue_name'"
+
   # Create the DLQ
   local dlq_url=$(
     awslocal sqs create-queue \
