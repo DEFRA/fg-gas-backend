@@ -8,7 +8,7 @@ import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-ca
 export const AgreementStatus = {
   Accepted: "accepted",
   Withdrawn: "withdrawn",
-  Offered: "offered",
+  Offered: "created",
   Rejected: "rejected",
 };
 
