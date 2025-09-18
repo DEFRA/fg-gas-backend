@@ -1,6 +1,8 @@
-import { db } from "../common/mongo-client.js";
+import { up } from "migrate-mongo";
+import { db, mongoClient } from "../common/mongo-client.js";
 import { caseStageUpdatedSubscriber } from "./subscribers/case-stage-updated.subscriber.js";
 
+import { logger } from "../common/logger.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";
 import { findGrantsRoute } from "./routes/find-grants.route.js";
@@ -15,10 +17,10 @@ import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status
 export const grants = {
   name: "grants",
   async register(server) {
-    await Promise.all([
-      db.createIndex("grants", { code: 1 }, { unique: true }),
-      db.createIndex("applications", { clientRef: 1 }, { unique: true }),
-    ]);
+    logger.info("Running migrations");
+    const migrated = await up(db, mongoClient);
+    migrated.forEach((fileName) => logger.info(`Migrated: ${fileName}`));
+    logger.info("Finished running migrations");
 
     server.events.on("start", async () => {
       caseStageUpdatedSubscriber.start();
