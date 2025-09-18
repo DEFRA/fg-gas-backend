@@ -16,8 +16,6 @@
     "publish:agreement:update": "node scripts/publish-agreement-update-command.js",
     "test:contracts": "vitest --config test/contracts/vitest.config.js --dir test/contracts",
     "test:contracts:provider": "vitest --config test/contracts/vitest.config.js test/contracts/provider.verification.test.js",
-    "contracts:download": "SERVICE_NAME=fg-gas-backend node ../../scripts/pact-artifact-manager.js download",
-    "contracts:upload": "SERVICE_NAME=fg-gas-backend node ../../scripts/pact-artifact-manager.js upload",
     "postinstall": "npm run setup:husky && npm run setup:env",
     "setup:env": "cp --update=none .env.example .env || true",
     "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module",
