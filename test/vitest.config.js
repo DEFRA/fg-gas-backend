@@ -24,9 +24,14 @@ export default defineConfig({
       AWS_SECRET_ACCESS_KEY: "test",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created",
+      GAS__SNS__UPDATE_CASE_STATUS_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
+      GAS__SNS_CREATE_AGREEMENT_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement",
       GRANT_APPLICATION_CREATED_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/gas__sqs__handle_grant_application_created`,
       CASE_STAGE_UPDATES_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/case_stage_updated`,
       CREATE_NEW_CASE_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/cw__sqs__create_new_case`,
+      GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/gas__sqs__update_agreement_status`,
     },
     hookTimeout: 30000,
     testTimeout: 10000,
