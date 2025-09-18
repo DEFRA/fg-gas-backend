@@ -43,21 +43,7 @@ jobs:
           PACT_BROKER_USERNAME: ${{ secrets.PACT_BROKER_USERNAME }}
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_BROKER_PASSWORD }}
           GIT_COMMIT: ${{ github.sha }}
-        run: |
-          # Start services for contract testing
-          LOCALSTACK_PORT=4567 MONGO_PORT=27018 GAS_PORT=3003 docker compose up --build -d
-
-          # Wait for services to be ready
-          sleep 15
-
-          # Verify service health
-          curl --retry 10 --retry-delay 3 --retry-connrefused http://localhost:3003/health
-
-          # Run provider contract verification
-          npm run test:contracts:provider
-
-          # Clean up services
-          docker compose down
+        run: npm run test:contracts:provider
 
       - name: Build docker image
         run: |
