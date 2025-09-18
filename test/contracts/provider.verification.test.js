@@ -5,9 +5,8 @@ import { resolve } from "path";
 import { fileURLToPath } from "url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Use the same MongoDB that fg-gas-backend Docker service uses
-// Docker service exposes MongoDB on ${MONGO_PORT:-27018}:27017
-const MONGO_URI = env.MONGO_URI || "mongodb://localhost:27018";
+// Use the same MongoDB URI as integration tests
+const MONGO_URI = env.MONGO_URI || "mongodb://localhost:27018/fg-gas-backend";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = resolve(__filename, "..");
@@ -149,7 +148,7 @@ async function ensureMongoConnection() {
   if (!client) {
     console.log("Connecting to MongoDB:", MONGO_URI);
     client = await MongoClient.connect(MONGO_URI);
-    db = client.db("fg-gas-backend"); // Use same database name as the service
+    db = client.db(); // Database name is already in the URI
   }
 }
 
@@ -199,8 +198,8 @@ async function setupSFIGrant() {
 }
 
 describe("fg-gas-backend Provider Verification", () => {
-  // Connect to the running Docker service
-  const PORT = 3003;
+  // Connect to the running Docker service - use same port as integration tests
+  const PORT = 3001;
 
   beforeAll(async () => {
     // Wait a moment to ensure service is ready

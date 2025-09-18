@@ -74,6 +74,27 @@ describe("invokeActionUseCase", () => {
     );
   });
 
+  it("warns throws if the method is not supported", async () => {
+    givenGrantWithActions([
+      {
+        method: "METHOD",
+        name: "test",
+        url: "http://localhost:3002/test-grant-1/put-test",
+      },
+    ]);
+
+    await expect(
+      invokeActionUseCase({
+        code: "test-grant-1",
+        name: "test",
+        method: "METHOD",
+        params: { anotherPathParam: "XYZ789" },
+      }),
+    ).rejects.toThrow('Unsupported method METHOD for action named "test"');
+
+    expect(wreck.get).toHaveBeenCalledTimes(0);
+  });
+
   it("invokes a GET action with path parameters", async () => {
     givenGrantWithActions([
       {
@@ -102,6 +123,38 @@ describe("invokeActionUseCase", () => {
 
     expect(wreck.get).toHaveBeenCalledWith(
       "http://localhost:3002/test-grant-1/get-test/ABC123?code=test-grant-1&anotherPathParam=XYZ789",
+      { json: true },
+    );
+  });
+
+  it("invokes a GET action with for a CDP environment", async () => {
+    givenGrantWithActions([
+      {
+        method: "GET",
+        name: "get-test",
+        url: "http://my-grant-specific-service.%ENVIRONMENT%.gov.uk/test-grant-1/get-test/$pathParam",
+      },
+    ]);
+
+    wreck.get.mockResolvedValue({
+      payload: {
+        message: "Action invoked",
+      },
+    });
+
+    const result = await invokeActionUseCase({
+      code: "test-grant-1",
+      name: "get-test",
+      method: "GET",
+      params: { pathParam: "ABC123", anotherPathParam: "XYZ789" },
+    });
+
+    expect(result).toEqual({
+      message: "Action invoked",
+    });
+
+    expect(wreck.get).toHaveBeenCalledWith(
+      "http://my-grant-specific-service.local.gov.uk/test-grant-1/get-test/ABC123?code=test-grant-1&anotherPathParam=XYZ789",
       { json: true },
     );
   });

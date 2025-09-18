@@ -2,8 +2,10 @@ import Boom from "@hapi/boom";
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 
+import { logger } from "../../common/logger.js";
 import { Application } from "../models/application.js";
 import { publishApplicationCreated } from "../publishers/application-event.publisher.js";
+import { publishCreateNewCase } from "../publishers/case-event.publisher.js";
 import { save } from "../repositories/application.repository.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 
@@ -11,14 +13,34 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
   const ajv = new Ajv2020({
     strict: true,
     allErrors: true,
-    removeAdditional: "all",
     useDefaults: true,
+    verbose: true,
+    removeAdditional: true,
   });
 
-  addFormats(ajv, ["date-time", "date", "time", "duration", "email", "uri"]);
+  // Custom keyword to check sum of fields equals a target field exactly
+  ajv.addKeyword({
+    keyword: "fgSumEquals",
+    type: "object",
+    schemaType: "object",
+    validate: function (schema, data) {
+      const fields = schema.fields;
+      const targetField = schema.targetField;
+      const sum = fields.reduce((acc, field) => acc + (data[field] || 0), 0);
+      return sum === data[targetField];
+    },
+    error: {
+      message: (cxt) => {
+        const { schema } = cxt;
+        return `fgSumEquals validation failed: sum of fields ${schema.fields.join(", ")} must equal ${schema.targetField}`;
+      },
+    },
+  });
 
   // Ajv strips unknown fields and mutates the original
   const clonedAnswers = structuredClone(answers);
+
+  addFormats(ajv, ["date-time", "date", "time", "duration", "email", "uri"]);
 
   let valid;
   try {
@@ -31,7 +53,6 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
 
   if (!valid) {
     const errors = ajv.errorsText().replaceAll("data/", "");
-
     throw Boom.badRequest(
       `Application with clientRef "${clientRef}" has invalid answers: ${errors}`,
     );
@@ -43,9 +64,9 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
 export const submitApplicationUseCase = async (code, { metadata, answers }) => {
   const grant = await findGrantByCodeUseCase(code);
 
-  const application = new Application({
-    clientRef: metadata.clientRef,
+  const application = Application.new({
     code,
+    clientRef: metadata.clientRef,
     submittedAt: metadata.submittedAt,
     identifiers: {
       sbi: metadata.sbi,
@@ -58,5 +79,15 @@ export const submitApplicationUseCase = async (code, { metadata, answers }) => {
 
   await save(application);
 
-  await publishApplicationCreated(application);
+  logger.info(
+    `Received application "${application.clientRef}" for grant "${application.code}"`,
+  );
+
+  await publishApplicationCreated({
+    clientRef: application.clientRef,
+    code: application.code,
+    status: application.getFullyQualifiedStatus(),
+  });
+
+  await publishCreateNewCase(application);
 };

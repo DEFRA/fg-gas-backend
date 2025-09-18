@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
+import { ensureQueues } from "./helpers/sqs.js";
 
 let environment;
 
@@ -20,6 +21,12 @@ export const setup = async ({ globalConfig }) => {
     .withWaitStrategy("gas", Wait.forHttp("/health"))
     .withNoRecreate()
     .up();
+
+  await ensureQueues([
+    env.GRANT_APPLICATION_CREATED_QUEUE_URL,
+    env.CREATE_NEW_CASE_QUEUE_URL,
+    env.CASE_STAGE_UPDATES_QUEUE_URL,
+  ]);
 };
 
 export const teardown = async () => {

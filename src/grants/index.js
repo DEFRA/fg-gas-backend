@@ -10,6 +10,7 @@ import {
 } from "./routes/invoke-action.route.js";
 import { replaceGrantRoute } from "./routes/replace-grant.route.js";
 import { submitApplicationRoute } from "./routes/submit-application.route.js";
+import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 
 export const grants = {
   name: "grants",
@@ -20,11 +21,13 @@ export const grants = {
     ]);
 
     server.events.on("start", async () => {
-      await caseStageUpdatedSubscriber.start();
+      caseStageUpdatedSubscriber.start();
+      agreementStatusUpdatedSubscriber.start();
     });
 
     server.events.on("stop", async () => {
-      await caseStageUpdatedSubscriber.stop();
+      caseStageUpdatedSubscriber.stop();
+      agreementStatusUpdatedSubscriber.start();
     });
 
     server.route([

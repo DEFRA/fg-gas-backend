@@ -13,6 +13,7 @@
     "test": "npm run test:unit -- --run && npm run test:integration -- --run",
     "test:unit": "vitest --config vitest.config.js --dir src",
     "test:integration": "vitest --config test/vitest.config.js --dir test",
+    "publish:agreement:update": "node scripts/publish-agreement-update-command.js",
     "test:contracts": "vitest --config test/contracts/vitest.config.js --dir test/contracts",
     "test:contracts:provider": "vitest --config test/contracts/vitest.config.js test/contracts/provider.verification.test.js",
     "contracts:download": "SERVICE_NAME=fg-gas-backend node ../../scripts/pact-artifact-manager.js download",
@@ -35,7 +36,7 @@
   "dependencies": {
     "@aws-sdk/client-sns": "^3.808.0",
     "@aws-sdk/client-sqs": "^3.808.0",
-    "@defra/hapi-tracing": "^1.0.0",
+    "@defra/hapi-tracing": "^1.26.0",
     "@elastic/ecs-pino-format": "^1.5.0",
     "@hapi/boom": "^10.0.1",
     "@hapi/hapi": "^21.3.12",
