@@ -9,7 +9,7 @@ export const up = async (db) => {
       {
         name: "calculate-score",
         method: "POST",
-        url: "https://ffc-grants-scoring.dev.cdp-int.defra.cloud/scoring/api/v1/adding-value/score?allowPartialScoring=true",
+        url: "https://ffc-grants-scoring.%ENVIRONMENT%.cdp-int.defra.cloud/scoring/api/v1/adding-value/score?allowPartialScoring=true",
       },
     ],
     questions: {

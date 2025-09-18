@@ -9,7 +9,7 @@ export const up = async (db) => {
       {
         name: "validate-land-parcel-actions",
         method: "POST",
-        url: "https://land-grants-api.dev.cdp-int.defra.cloud/actions/validate",
+        url: "https://land-grants-api.%ENVIRONMENT%.cdp-int.defra.cloud/actions/validate",
       },
     ],
     questions: {
@@ -21,22 +21,12 @@ export const up = async (db) => {
         "year",
         "hasCheckedLandIsUpToDate",
         "actionApplications",
-        "agreementName",
+        "payment",
+        "applicant",
       ],
       properties: {
-        scheme: {
-          type: "string",
-          title: "Defra scheme name",
-        },
-        year: {
-          type: "integer",
-          title: "Scheme year",
-        },
-        agreementName: {
-          type: "string",
-          title: "Applicant provided name of the agreement",
-          minLength: 1,
-        },
+        scheme: { type: "string", title: "Defra scheme name" },
+        year: { type: "integer", title: "Scheme year" },
         hasCheckedLandIsUpToDate: {
           type: "boolean",
           title:
@@ -46,9 +36,18 @@ export const up = async (db) => {
           type: "array",
           title: "Details of the actions applied for",
           minItems: 1,
-          items: {
-            $ref: "#/$defs/ActionApplication",
-          },
+          items: { $ref: "#/$defs/ActionApplication" },
+        },
+        payment: {
+          type: "object",
+          title: "The payment schedule calculated for the grant",
+          $ref: "#/$defs/Payment",
+        },
+        applicant: {
+          type: "object",
+          title:
+            "Applicant information including business and customer details",
+          $ref: "#/$defs/Applicant",
         },
       },
       $defs: {
@@ -88,6 +87,276 @@ export const up = async (db) => {
               },
             },
           },
+        },
+        Payment: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            agreementStartDate: {
+              type: "string",
+              format: "date",
+              description: "Agreement start date in YYYY-MM-DD format",
+            },
+            agreementEndDate: {
+              type: "string",
+              format: "date",
+              description: "Agreement end date in YYYY-MM-DD format",
+            },
+            frequency: {
+              type: "string",
+              enum: ["Quarterly", "Monthly", "Annually"],
+              description: "Payment frequency",
+            },
+            agreementTotalPence: {
+              type: "integer",
+              minimum: 0,
+              description: "Total agreement amount in pence",
+            },
+            annualTotalPence: {
+              type: "integer",
+              minimum: 0,
+              description: "Annual total amount in pence",
+            },
+            parcelItems: {
+              type: "object",
+              description: "Parcel-specific payment items",
+              patternProperties: {
+                "^[0-9]+$": {
+                  type: "object",
+                  properties: {
+                    code: { type: "string", description: "Action code" },
+                    description: {
+                      type: "string",
+                      description: "Action description",
+                    },
+                    version: {
+                      type: "integer",
+                      minimum: 1,
+                      description: "Action version number",
+                    },
+                    unit: {
+                      type: "string",
+                      description: "Unit of measurement",
+                    },
+                    quantity: {
+                      type: "number",
+                      minimum: 0,
+                      description: "Quantity in specified units",
+                    },
+                    rateInPence: {
+                      type: "integer",
+                      minimum: 0,
+                      description: "Rate per unit in pence",
+                    },
+                    annualPaymentPence: {
+                      type: "integer",
+                      minimum: 0,
+                      description: "Annual payment for this item in pence",
+                    },
+                    sheetId: {
+                      type: "string",
+                      description: "Sheet identifier",
+                    },
+                    parcelId: {
+                      type: "string",
+                      description: "Parcel identifier",
+                    },
+                  },
+                  required: [
+                    "code",
+                    "description",
+                    "version",
+                    "unit",
+                    "quantity",
+                    "rateInPence",
+                    "annualPaymentPence",
+                    "sheetId",
+                    "parcelId",
+                  ],
+                },
+              },
+              additionalProperties: false,
+            },
+            agreementLevelItems: {
+              type: "object",
+              description: "Agreement-level payment items",
+              patternProperties: {
+                "^[0-9]+$": {
+                  type: "object",
+                  properties: {
+                    code: { type: "string", description: "Action code" },
+                    description: {
+                      type: "string",
+                      description: "Action description",
+                    },
+                    version: {
+                      type: "integer",
+                      minimum: 1,
+                      description: "Action version number",
+                    },
+                    annualPaymentPence: {
+                      type: "integer",
+                      minimum: 0,
+                      description: "Annual payment for this item in pence",
+                    },
+                  },
+                  required: [
+                    "code",
+                    "description",
+                    "version",
+                    "annualPaymentPence",
+                  ],
+                },
+              },
+              additionalProperties: false,
+            },
+            payments: {
+              type: "array",
+              description: "Array of payment schedules",
+              items: {
+                type: "object",
+                properties: {
+                  totalPaymentPence: {
+                    type: "integer",
+                    minimum: 0,
+                    description:
+                      "Total payment amount for this period in pence",
+                  },
+                  paymentDate: {
+                    type: "string",
+                    format: "date",
+                    description: "Payment date in YYYY-MM-DD format",
+                  },
+                  lineItems: {
+                    type: "array",
+                    description: "Individual line items for this payment",
+                    items: {
+                      type: "object",
+                      properties: {
+                        parcelItemId: {
+                          type: "integer",
+                          minimum: 1,
+                          description: "Reference to parcel item",
+                        },
+                        agreementLevelItemId: {
+                          type: "integer",
+                          minimum: 1,
+                          description: "Reference to agreement level item",
+                        },
+                        paymentPence: {
+                          type: "integer",
+                          minimum: 0,
+                          description: "Payment amount in pence",
+                        },
+                      },
+                      required: ["paymentPence"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["totalPaymentPence", "paymentDate", "lineItems"],
+              },
+            },
+          },
+          required: [
+            "agreementStartDate",
+            "agreementEndDate",
+            "frequency",
+            "agreementTotalPence",
+            "annualTotalPence",
+            "parcelItems",
+            "agreementLevelItems",
+            "payments",
+          ],
+        },
+        Applicant: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            business: {
+              type: "object",
+              description: "Business information for the applicant",
+              properties: {
+                name: { type: "string", description: "Business name" },
+                email: {
+                  type: "object",
+                  properties: {
+                    address: {
+                      type: "string",
+                      format: "email",
+                      description: "Business email address",
+                    },
+                  },
+                  required: ["address"],
+                },
+                phone: {
+                  type: "object",
+                  properties: {
+                    mobile: {
+                      type: "string",
+                      pattern: "^[0-9]+$",
+                      description: "Mobile phone number",
+                    },
+                  },
+                  required: ["mobile"],
+                },
+                address: {
+                  type: "object",
+                  description: "Business address information",
+                  properties: {
+                    line1: { type: "string", description: "Address line 1" },
+                    line2: { type: "string", description: "Address line 2" },
+                    line3: {
+                      type: ["string", "null"],
+                      description: "Address line 3",
+                    },
+                    line4: {
+                      type: ["string", "null"],
+                      description: "Address line 4",
+                    },
+                    line5: {
+                      type: ["string", "null"],
+                      description: "Address line 5",
+                    },
+                    street: { type: "string", description: "Street name" },
+                    city: { type: "string", description: "City name" },
+                    postalCode: {
+                      type: "string",
+                      pattern: "^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
+                      description: "UK postal code",
+                    },
+                  },
+                  required: ["line1", "line2", "street", "city", "postalCode"],
+                },
+              },
+              required: ["name", "email", "phone", "address"],
+            },
+            customer: {
+              type: "object",
+              description: "Customer/individual information",
+              properties: {
+                name: {
+                  type: "object",
+                  description: "Customer name details",
+                  properties: {
+                    title: {
+                      type: "string",
+                      description: "Name title (e.g., Mr., Mrs., Dr.)",
+                    },
+                    first: { type: "string", description: "First name" },
+                    middle: {
+                      type: ["string", "null"],
+                      description: "Middle name",
+                    },
+                    last: { type: "string", description: "Last name" },
+                  },
+                  required: ["title", "first", "last"],
+                },
+              },
+              required: ["name"],
+            },
+          },
+          required: ["business", "customer"],
         },
       },
     },
