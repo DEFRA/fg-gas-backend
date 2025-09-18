@@ -2,7 +2,7 @@ services:
   localstack:
     image: localstack/localstack:4.3.0
     ports:
-      - "${LOCALSTACK_PORT:-4567}:4566"
+      - "${LOCALSTACK_PORT:-4566}:4566"
     env_file:
       - "compose/aws.env"
     environment:
@@ -21,7 +21,7 @@ services:
     networks:
       - cdp-tenant
     ports:
-      - "${MONGO_PORT:-27018}:27017"
+      - "${MONGO_PORT:-27017}:27017"
     volumes:
       - mongodb-data:/data
     restart: always
@@ -29,7 +29,7 @@ services:
   gas:
     build: .
     ports:
-      - "${GAS_PORT:-3003}:3000"
+      - "${GAS_PORT:-3000}:3000"
     links:
       - "localstack:localstack"
       - "mongodb:mongodb"
