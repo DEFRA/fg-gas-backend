@@ -3,6 +3,7 @@ import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 /**
  *  call npm run publish:case:agreement to publish agreement command
  *  you can add your own clientRef and workflow code npm run publish:case:agreement <CLIENT_REF> <WORKFLOW_CODE>
+ *  optionally add the status as the third arg (in lowercase) as created, withdrawn, accepted
  */
 
 const sqs = new SQSClient({
@@ -27,7 +28,7 @@ const message = {
   data: {
     clientRef: "APPLICATION-PMF-001",
     code: "pigs-might-fly",
-    status: "offered",
+    status: "created", // lower case from agreements-service
     agreementNumber: "AGREEMENT-REF-123",
     date: "2025-09-09T11:30:52.000Z",
     correlationId: "test-correlation-id",
@@ -35,13 +36,20 @@ const message = {
 };
 
 console.log("Sending message to SQS queue:", queueUrl);
+console.log(process.argv);
 
-if (process.argv.length === 4) {
+if (process.argv.length > 3) {
   console.log(
-    "Sending sqs case for " + process.argv[2] + " " + process.argv[3],
+    "Setting clientRef and code to " + process.argv[2] + " " + process.argv[3],
   );
   message.data.clientRef = process.argv[2];
   message.data.code = process.argv[3];
+}
+
+if (process.argv.length > 4) {
+  const status = process.argv[4];
+  console.log("Setting status to " + status);
+  message.data.status = status;
 }
 
 await sqs.send(
