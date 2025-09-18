@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApplicationStatus } from "../../common/application-status.js";
 import { Agreement, AgreementStatus } from "./agreement.js";
 import {
   Application,
   ApplicationPhase,
   ApplicationStage,
-  ApplicationStatus,
 } from "./application.js";
 
 describe("Application", () => {

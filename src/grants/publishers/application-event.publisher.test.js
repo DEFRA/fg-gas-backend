@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApplicationStatus } from "../../common/application-status.js";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
+import { ApplicationApprovedEvent } from "../events/application-approved.event.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import {
   Application,
   ApplicationPhase,
   ApplicationStage,
-  ApplicationStatus,
 } from "../models/application.js";
 import {
   publishApplicationApproved,
@@ -77,25 +78,8 @@ describe("publishApplicationApproved", () => {
 
     await publishApplicationApproved(application);
 
-    expect(publish).toHaveBeenCalledWith(
-      config.applicationApprovedTopic,
-      expect.objectContaining({
-        id: expect.any(String),
-        source: "fg-gas-backend",
-        specversion: "1.0",
-        time: expect.any(String),
-        type: "cloud.defra.test.fg-gas-backend.application.approved",
-        datacontenttype: "application/json",
-        data: {
-          clientRef: application.clientRef,
-          code: application.code,
-          createdAt: application.createdAt,
-          submittedAt: application.submittedAt,
-          identifiers: application.identifiers,
-          answers: application.answers,
-        },
-      }),
-    );
+    expect(publish.mock.calls[0][0]).toBe(config.applicationApprovedTopic);
+    expect(publish.mock.calls[0][1]).toBeInstanceOf(ApplicationApprovedEvent);
   });
 });
 

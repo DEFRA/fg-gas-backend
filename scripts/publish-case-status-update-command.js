@@ -1,8 +1,9 @@
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 
 /**
- *  call npm run publish:case:agreement to publish agreement command
+ *  call npm run publish:case:status:update to publish case status update command
  *  you can add your own clientRef and workflow code npm run publish:case:agreement <CLIENT_REF> <WORKFLOW_CODE>
+ *  optionally add the currentStatus as the third arg (in lowercase) as APPROVED
  */
 
 const sqs = new SQSClient({
@@ -15,7 +16,7 @@ const sqs = new SQSClient({
 });
 
 const queueUrl =
-  "http://sqs.eu-west-2.127.0.0.1:4566/000000000000/gas__sqs__update_agreement_status";
+  "http://sqs.eu-west-2.127.0.0.1:4566/000000000000/gas__sqs__update_status";
 
 const message = {
   id: "event-id-300",
@@ -25,12 +26,9 @@ const message = {
   type: "io.onsite.agreement.offer.offered",
   datacontenttype: "application/json",
   data: {
-    clientRef: "APPLICATION-PMF-001",
-    code: "pigs-might-fly",
-    status: "offered",
-    agreementNumber: "AGREEMENT-REF-123",
-    date: "2025-09-09T11:30:52.000Z",
-    correlationId: "test-correlation-id",
+    caseRef: "APPLICATION-PMF-001",
+    workflowCode: "pigs-might-fly",
+    currentStatus: "APPROVED",
   },
 };
 
@@ -39,15 +37,18 @@ console.log(process.argv);
 
 if (process.argv.length > 3) {
   console.log(
-    "Setting clientRef and code to" + process.argv[2] + " " + process.argv[3],
+    "Setting clientRef and workflowCode to " +
+      process.argv[2] +
+      " " +
+      process.argv[3],
   );
-  message.data.clientRef = process.argv[2];
-  message.data.code = process.argv[3];
+  message.data.caseRef = process.argv[2];
+  message.data.workflowCode = process.argv[3];
 }
 if (process.argv.length > 4) {
-  const status = process.argv[4];
-  console.log("Setting status to " + status);
-  message.data.status = status;
+  const currentStatus = process.argv[4];
+  console.log("Setting current status to " + currentStatus);
+  message.data.currentStatus = currentStatus;
 }
 
 await sqs.send(

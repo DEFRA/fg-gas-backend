@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApplicationStatus } from "../../common/application-status.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -8,7 +9,6 @@ import {
   Application,
   ApplicationPhase,
   ApplicationStage,
-  ApplicationStatus,
 } from "../models/application.js";
 import { CaseStatus } from "../models/case-status.js";
 import { publishApplicationStatusUpdated } from "../publishers/application-event.publisher.js";
