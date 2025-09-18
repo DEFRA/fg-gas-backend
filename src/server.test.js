@@ -11,6 +11,7 @@ describe("server", () => {
   beforeEach(() => {
     up.mockResolvedValue(["001-initial-migration.js", "002-add-some-data.js"]);
   });
+
   it("strips trailing slashes", async () => {
     const server = await createServer();
     server.route({

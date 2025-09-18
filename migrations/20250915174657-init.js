@@ -1,6 +1,13 @@
 export const up = async (db) => {
-  await db.dropCollection("applications");
-  await db.dropCollection("grants");
+  const collections = await db.listCollections().toArray();
+
+  if (collections.includes("grants")) {
+    await db.dropCollection("grants");
+  }
+
+  if (collections.includes("applications")) {
+    await db.dropCollection("applications");
+  }
 
   await db.createCollection("grants");
   await db.createCollection("applications");
