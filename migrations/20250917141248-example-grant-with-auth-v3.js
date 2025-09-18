@@ -1,13 +1,8 @@
-/**
- * @param db {import('mongodb').Db}
- * @param client {import('mongodb').MongoClient}
- * @returns {Promise<void>}
- */
-export const up = async (db, client) => {
+export const up = async (db) => {
   await db.collection("grants").insertOne({
     code: "example-grant-with-auth-v3",
     metadata: {
-      description: "Example grant with auth v2",
+      description: "Example grant with auth v3",
       startDate: new Date("2025-07-17T16:00:00.000Z"),
     },
     actions: [],
@@ -105,13 +100,8 @@ export const up = async (db, client) => {
   });
 };
 
-/**
- * @param db {import('mongodb').Db}
- * @param client {import('mongodb').MongoClient}
- * @returns {Promise<void>}
- */
-export const down = async (db, client) => {
-  await db
-    .collection("grants")
-    .deleteOne({ code: "example-grant-with-auth-v3" });
+export const down = async (db) => {
+  await db.collection("grants").deleteOne({
+    code: "example-grant-with-auth-v3",
+  });
 };
