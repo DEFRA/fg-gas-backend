@@ -80,7 +80,7 @@ create_topic_and_queue "gas__sns__grant_application_created" "gas__sqs__handle_g
 create_topic_and_queue "gas__sns__grant_application_status_updated" "gas__sqs__handle_grant_application_status_updated" &
 create_topic_and_queue "gas__sns__create_new_case" "cw__sqs__create_new_case" &
 create_topic_and_queue "gas__sns__update_case_status" "cw__sqs__update_status" &
-create_topic_and_queue "gas__sns__create_agreement" "create_agreement" &
+# create_topic_and_queue "gas__sns__create_agreement" "create_agreement" &
 
 wait
 
