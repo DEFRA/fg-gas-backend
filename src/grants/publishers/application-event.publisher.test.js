@@ -4,6 +4,7 @@ import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import { ApplicationApprovedEvent } from "../events/application-approved.event.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
+import { CreateAgreementCommand } from "../events/create-agreement-command.event.js";
 import {
   Application,
   ApplicationPhase,
@@ -13,6 +14,7 @@ import {
   publishApplicationApproved,
   publishApplicationCreated,
   publishApplicationStatusUpdated,
+  publishCreateAgreementCommand,
 } from "./application-event.publisher.js";
 
 vi.mock("../../common/sns-client.js");
@@ -24,6 +26,26 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("publishCreateAgreement", () => {
+  it("publishes publishCreateAgreementCommand to SNS topic", async () => {
+    const application = new Application({
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.Received,
+      clientRef: "123",
+      code: "grant-code",
+      createdAt: new Date().toISOString(),
+      submittedAt: new Date().toISOString(),
+      identifiers: { name: "Test App" },
+      answers: { question1: "answer1" },
+    });
+
+    await publishCreateAgreementCommand(application);
+    expect(publish.mock.calls[0][0]).toBe(config.sns.createAgreementTopicArn);
+    expect(publish.mock.calls[0][1]).toBeInstanceOf(CreateAgreementCommand);
+  });
 });
 
 describe("publishApplicationCreated", () => {
