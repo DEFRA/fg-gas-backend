@@ -10,6 +10,7 @@ export const ApplicationStage = {
 };
 
 export const ApplicationStatus = {
+  Approved: "APPROVED",
   Received: "RECEIVED",
   Offered: "OFFERED",
   Accepted: "OFFER_ACCEPTED",
@@ -60,6 +61,11 @@ export class Application {
       answers,
       agreements: {},
     });
+  }
+
+  approve() {
+    this.currentStatus = ApplicationStatus.Approved;
+    this.updatedAt = this.#getTmestamp();
   }
 
   getFullyQualifiedStatus() {

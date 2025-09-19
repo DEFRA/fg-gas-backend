@@ -26,6 +26,7 @@ const schema = Joi.object({
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
   CASE_STAGE_UPDATES_QUEUE_URL: Joi.string().uri(),
   ENVIRONMENT: Joi.string(),
+  GAS__SNS_CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: Joi.string().optional(),
@@ -67,6 +68,7 @@ export const config = {
   caseStageUpdatesQueueUrl: vars.CASE_STAGE_UPDATES_QUEUE_URL,
   cdpEnvironment: vars.ENVIRONMENT,
   sns: {
+    createAgreementTopicArn: vars.GAS__SNS_CREATE_AGREEMENT_TOPIC_ARN,
     grantApplicationCreatedTopicArn:
       vars.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
     grantApplicationStatusUpdatedTopicArn:
