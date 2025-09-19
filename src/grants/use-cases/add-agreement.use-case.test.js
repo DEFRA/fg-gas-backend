@@ -50,8 +50,8 @@ describe("addAgreementUseCase", () => {
     expect(update).toHaveBeenCalledWith(
       new Application({
         currentPhase: ApplicationPhase.PreAward,
-        currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Offered,
+        currentStage: ApplicationStage.Award,
+        currentStatus: ApplicationStatus.Review,
         clientRef: "test-client-ref",
         code: "test-code",
         updatedAt: expect.any(String),
@@ -84,8 +84,8 @@ describe("addAgreementUseCase", () => {
       ].join(":"),
       newStatus: [
         ApplicationPhase.PreAward,
-        ApplicationStage.Assessment,
-        ApplicationStatus.Offered,
+        ApplicationStage.Award,
+        ApplicationStatus.Review,
       ].join(":"),
     });
   });

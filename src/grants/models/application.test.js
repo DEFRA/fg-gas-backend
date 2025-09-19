@@ -99,7 +99,7 @@ describe("Application", () => {
 
     application.addAgreement(agreement);
 
-    expect(application.currentStatus).toBe(ApplicationStatus.Offered);
+    expect(application.currentStatus).toBe(ApplicationStatus.Review);
 
     expect(application.agreements).toEqual({
       "agreement-1": agreement,
@@ -194,7 +194,7 @@ describe("Application", () => {
 
     application.addAgreement(agreement);
 
-    expect(application.currentStatus).toBe(ApplicationStatus.Offered);
+    expect(application.currentStatus).toBe(ApplicationStatus.Review);
     expect(application.getAgreement("agreement-1").latestStatus).toBe(
       AgreementStatus.Offered,
     );

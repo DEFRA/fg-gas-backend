@@ -40,7 +40,7 @@ describe("acceptAgreementUseCase", () => {
       new Application({
         currentPhase: ApplicationPhase.PreAward,
         currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Offered,
+        currentStatus: ApplicationStatus.Review,
         clientRef: "test-client-ref",
         code: "test-code",
         agreements: {
@@ -101,7 +101,7 @@ describe("acceptAgreementUseCase", () => {
       oldStatus: [
         ApplicationPhase.PreAward,
         ApplicationStage.Assessment,
-        ApplicationStatus.Offered,
+        ApplicationStatus.Review,
       ].join(":"),
       newStatus: [
         ApplicationPhase.PreAward,
