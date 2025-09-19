@@ -64,7 +64,7 @@ export class Application {
   }
 
   approve() {
-    this.status = ApplicationStatus.Approved;
+    this.currentStatus = ApplicationStatus.Approved;
     this.updatedAt = this.#getTmestamp();
   }
 

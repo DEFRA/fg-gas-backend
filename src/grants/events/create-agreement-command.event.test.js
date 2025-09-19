@@ -22,10 +22,9 @@ describe("Create agreement command", () => {
       answers: { question1: "answer1" },
     });
     const event = new CreateAgreementCommand(application);
-    const { clientRef, id, code, answers } = application;
+    const { clientRef, code, answers } = application;
     expect(event.data.clientRef).toBe(clientRef);
-    expect(event.data.applicationData.id).toBe(id);
-    expect(event.data.applicationData.workflowCode).toBe(code);
-    expect(event.data.applicationData.answers).toBe(answers);
+    expect(event.data.code).toBe(code);
+    expect(event.data.answers).toBe(answers);
   });
 });

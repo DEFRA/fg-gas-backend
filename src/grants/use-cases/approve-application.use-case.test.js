@@ -35,8 +35,8 @@ describe("approveApplicationUseCase", () => {
     expect(publishApplicationApproved).toHaveBeenCalledWith({
       clientRef: "test-client-ref",
       code: "test-grant",
-      previousStatus: "PRE_AWARD:ASSESSMENT:RECEIVED",
-      currentStatus: "PRE_AWARD:ASSESSMENT:APPROVED",
+      oldStatus: "PRE_AWARD:ASSESSMENT:RECEIVED",
+      newStatus: "PRE_AWARD:ASSESSMENT:APPROVED",
     });
 
     expect(publishCreateAgreementCommand).toHaveBeenCalledWith(mock);
