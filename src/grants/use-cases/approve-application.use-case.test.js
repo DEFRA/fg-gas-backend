@@ -42,8 +42,33 @@ describe("approveApplicationUseCase", () => {
     expect(publishCreateAgreementCommand).toHaveBeenCalledWith(mock);
   });
 
+  it("only updates if status not equal to APPROVED", async () => {
+    const data = {
+      clientRef: "test-client-ref",
+      code: "test-grant",
+      currentStatus: "APPROVED",
+      answers: { question1: "answer1" },
+    };
+    const mock = Application.new(data);
+    mock.currentStatus = "APPROVED";
+
+    findByClientRefAndCode.mockResolvedValue(mock);
+
+    await approveApplicationUseCase({
+      caseRef: "112",
+      workflowCode: "ACBG",
+    });
+
+    expect(findByClientRefAndCode).toHaveBeenCalledWith({
+      clientRef: "112",
+      code: "ACBG",
+    });
+
+    expect(publishApplicationApproved).not.toHaveBeenCalled();
+  });
+
   it("throws when application is not found", async () => {
-    findByClientRefAndCode.mockRejectedValue(null);
+    findByClientRefAndCode.mockResolvedValue(null);
 
     await expect(
       approveApplicationUseCase({
@@ -51,7 +76,7 @@ describe("approveApplicationUseCase", () => {
         workflowCode: "ACBG",
       }),
     ).rejects.toThrowError(
-      'Application with caseRef "non-existent-client-ref" and workflowCode "ACBG" not found',
+      'Application with clientRef "non-existent-client-ref" and code "ACBG" not found',
     );
     expect(publishCreateAgreementCommand).not.toBeCalled();
   });
