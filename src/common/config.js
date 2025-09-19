@@ -24,7 +24,6 @@ const schema = Joi.object({
   GRANT_APPLICATION_APPROVED_TOPIC_ARN: Joi.string().optional(),
   AWS_REGION: Joi.string(),
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
-  CASE_STAGE_UPDATES_QUEUE_URL: Joi.string().uri(),
   ENVIRONMENT: Joi.string(),
   GAS__SNS_CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
@@ -65,7 +64,6 @@ export const config = {
   applicationApprovedTopic: vars.GRANT_APPLICATION_APPROVED_TOPIC_ARN,
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
-  caseStageUpdatesQueueUrl: vars.CASE_STAGE_UPDATES_QUEUE_URL,
   cdpEnvironment: vars.ENVIRONMENT,
   sns: {
     createAgreementTopicArn: vars.GAS__SNS_CREATE_AGREEMENT_TOPIC_ARN,

@@ -25,7 +25,6 @@ export const setup = async ({ globalConfig }) => {
   await ensureQueues([
     env.GRANT_APPLICATION_CREATED_QUEUE_URL,
     env.CREATE_NEW_CASE_QUEUE_URL,
-    env.CASE_STAGE_UPDATES_QUEUE_URL,
   ]);
 };
 
