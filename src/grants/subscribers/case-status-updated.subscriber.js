@@ -1,6 +1,7 @@
-import { ApplicationStatus } from "../../common/application-status.js";
 import { config } from "../../common/config.js";
 import { SqsSubscriber } from "../../common/sqs-subscriber.js";
+// eslint-disable-next-line import-x/no-restricted-paths
+import { ApplicationStatus } from "../models/application.js";
 
 import { approveApplicationUseCase } from "../use-cases/approve-application.use-case.js";
 

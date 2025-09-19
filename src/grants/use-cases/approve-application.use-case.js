@@ -1,5 +1,5 @@
 import Boom from "@hapi/boom";
-import { ApplicationStatus } from "../../common/application-status.js";
+import { ApplicationStatus } from "../models/application.js";
 import {
   publishApplicationApproved,
   publishCreateAgreementCommand,
@@ -26,25 +26,21 @@ export const approveApplicationUseCase = async (data) => {
     return;
   }
 
-  const {
-    currentStatus: oldStatus,
-    currentPhase,
-    currentStage,
-    code,
-    clientRef,
-  } = application;
+  const { code, clientRef } = application;
 
-  application.currentStatus = ApplicationStatus.Approved;
-  const previousStatus = `${currentPhase}:${currentStage}:${oldStatus}`;
-  const currentStatus = `${currentPhase}:${currentStage}:${ApplicationStatus.Approved}`;
+  const oldStatus = application.getFullyQualifiedStatus();
+
+  application.approve();
+
+  const newStatus = application.getFullyQualifiedStatus();
 
   await update(application);
 
   const applicationApprovedEventData = {
     clientRef,
     code,
-    previousStatus,
-    currentStatus,
+    oldStatus,
+    newStatus,
   };
 
   await publishApplicationApproved(applicationApprovedEventData);

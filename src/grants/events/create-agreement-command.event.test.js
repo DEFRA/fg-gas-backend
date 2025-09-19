@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ApplicationStatus } from "../../common/application-status.js";
+
 import {
   Application,
   ApplicationPhase,
   ApplicationStage,
+  ApplicationStatus,
 } from "../models/application.js";
 import { CreateAgreementCommand } from "./create-agreement-command.event.js";
 

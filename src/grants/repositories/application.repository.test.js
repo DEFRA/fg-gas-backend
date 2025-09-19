@@ -1,7 +1,6 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
-import { ApplicationStatus } from "../../common/application-status.js";
 import { db } from "../../common/mongo-client.js";
 import {
   Agreement,
@@ -13,6 +12,7 @@ import {
   Application,
   ApplicationPhase,
   ApplicationStage,
+  ApplicationStatus,
 } from "../models/application.js";
 import {
   findByClientRef,

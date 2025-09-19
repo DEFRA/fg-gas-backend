@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApplicationStatus } from "../../common/application-status.js";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import { ApplicationApprovedEvent } from "../events/application-approved.event.js";
@@ -9,6 +8,7 @@ import {
   Application,
   ApplicationPhase,
   ApplicationStage,
+  ApplicationStatus,
 } from "../models/application.js";
 import {
   publishApplicationApproved,
