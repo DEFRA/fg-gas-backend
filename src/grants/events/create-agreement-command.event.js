@@ -7,7 +7,9 @@ export class CreateAgreementCommand extends CloudEvent {
     super("agreement.create", {
       clientRef,
       code,
-      answers,
+      applicationData: {
+        answers,
+      },
     });
   }
 }

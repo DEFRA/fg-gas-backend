@@ -25,6 +25,6 @@ describe("Create agreement command", () => {
     const { clientRef, code, answers } = application;
     expect(event.data.clientRef).toBe(clientRef);
     expect(event.data.code).toBe(code);
-    expect(event.data.answers).toBe(answers);
+    expect(event.data.applicationData.answers).toBe(answers);
   });
 });
