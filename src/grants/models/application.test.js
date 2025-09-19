@@ -17,6 +17,27 @@ describe("Application", () => {
     vi.useRealTimers();
   });
 
+  it("approves application", () => {
+    const application = Application.new({
+      clientRef: "application-1",
+      code: "grant-1",
+      submittedAt: "2021-01-01T00:00:00.000Z",
+      identifiers: {
+        sbi: "sbi-1",
+        frn: "frn-1",
+        crn: "crn-1",
+        defraId: "defraId-1",
+      },
+      answers: {
+        answer1: "test",
+      },
+    });
+
+    application.approve();
+    expect(application.currentStatus).toBe(ApplicationStatus.Approved);
+    expect(application.updatedAt).toBe("2021-02-01T13:00:00.000Z");
+  });
+
   it("creates a new Application", () => {
     const application = Application.new({
       clientRef: "application-1",
