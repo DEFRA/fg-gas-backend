@@ -159,6 +159,28 @@ To run the integration tests:
 npm run test:integration
 ```
 
+#### Contract tests
+
+Contract tests verify that this service (provider) correctly implements the contracts expected by consumer services.
+
+**Setup for local development:**
+
+1. Copy environment file: `cp .env.example .env`
+2. Contact your team lead to get Pact Broker credentials
+3. Add credentials to your `.env` file:
+   ```bash
+   PACT_BROKER_USERNAME=your-username-here
+   PACT_BROKER_PASSWORD=your-password-here
+   ```
+
+**To run contract tests:**
+
+```bash
+npm run test:contracts:provider
+```
+
+Contract tests use testcontainers to automatically start and manage required services (MongoDB, LocalStack, fg-gas-backend), so no manual service startup is needed.
+
 ## Docker
 
 Launch GAS and dependencies via Docker Compose:
