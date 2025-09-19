@@ -12,7 +12,7 @@ export const ApplicationStage = {
 export const ApplicationStatus = {
   Approved: "APPROVED",
   Received: "RECEIVED",
-  Offered: "OFFERED",
+  Review: "REVIEW",
   Accepted: "OFFER_ACCEPTED",
   Rejected: "OFFER_REJECTED",
   Withdrawn: "OFFER_WITHDRAWN",
@@ -80,7 +80,8 @@ export class Application {
     }
 
     this.agreements[agreement.agreementRef] = agreement;
-    this.currentStatus = ApplicationStatus.Offered;
+    this.currentStatus = ApplicationStatus.Review;
+    this.currentStage = ApplicationStage.Award;
     this.updatedAt = this.#getTmestamp();
   }
 
