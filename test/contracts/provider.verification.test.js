@@ -36,15 +36,11 @@ describe("fg-gas-backend Provider Verification", () => {
 
   describe("Contract Verification", () => {
     it("should verify contracts from grants-ui consumer", async () => {
-      // Skip test if credentials are not provided
+      // Skip test if credentials are not provided (will use GitHub Secrets in CI)
       if (!env.PACT_BROKER_USERNAME || !env.PACT_BROKER_PASSWORD) {
-        console.log(
-          "⚠️  Skipping contract test - PACT_BROKER credentials not provided",
+        throw new Error(
+          "PACT_BROKER_USERNAME and PACT_BROKER_PASSWORD environment variables are required",
         );
-        console.log(
-          "ℹ️  Set PACT_BROKER_USERNAME and PACT_BROKER_PASSWORD environment variables to run this test",
-        );
-        return;
       }
 
       const opts = {

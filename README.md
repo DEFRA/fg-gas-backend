@@ -173,10 +173,11 @@ Contract tests verify that this service (provider) correctly implements the cont
    PACT_BROKER_PASSWORD=your-password-here
    ```
 
-**To run contract tests:**
+**To run contract tests locally:**
 
 ```bash
-npm run test:contracts:provider
+# Pass credentials on command line (get credentials from team lead)
+PACT_BROKER_USERNAME=your-username PACT_BROKER_PASSWORD='your-password' PACT_BROKER_BASE_URL=https://ffc-pact-broker.azure.defra.cloud npm run test:contracts:provider
 ```
 
 Contract tests use testcontainers to automatically start and manage required services (MongoDB, LocalStack, fg-gas-backend), so no manual service startup is needed.

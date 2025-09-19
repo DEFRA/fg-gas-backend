@@ -8,6 +8,7 @@ const LOCALSTACK_PORT = 4567;
 export default defineConfig({
   test: {
     globalSetup: "./test/setup.js",
+    exclude: ["**/contracts/**"],
     sequence: {
       concurrent: false,
     },

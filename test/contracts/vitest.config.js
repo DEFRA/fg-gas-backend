@@ -1,4 +1,8 @@
+import { config } from "dotenv";
 import { defineConfig } from "vitest/config";
+
+// Load .env file for PACT_BROKER credentials
+config();
 
 const GAS_PORT = 3001;
 const MONGO_PORT = 27018;
