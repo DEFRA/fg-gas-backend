@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
 import { grants } from "./index.js";
-import { caseStageUpdatedSubscriber } from "./subscribers/case-stage-updated.subscriber.js";
+import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
+import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 
 vi.mock("../common/logger.js");
 vi.mock("../common/mongo-client.js");
 vi.mock("migrate-mongo");
-vi.mock("./subscribers/case-stage-updated.subscriber.js");
+vi.mock("./subscribers/agreement-status-updated.subscriber.js");
+vi.mock("./subscribers/case-status-updated.subscriber.js");
 
 describe("grants", () => {
   let server;
@@ -46,7 +48,8 @@ describe("grants", () => {
 
     server.events.emit("start");
 
-    expect(caseStageUpdatedSubscriber.start).toHaveBeenCalled();
+    expect(agreementStatusUpdatedSubscriber.start).toHaveBeenCalled();
+    expect(caseStatusUpdatedSubscriber.start).toHaveBeenCalled();
   });
 
   it("stops subscribers on stop", async () => {
@@ -55,7 +58,8 @@ describe("grants", () => {
 
     server.events.emit("stop");
 
-    expect(caseStageUpdatedSubscriber.stop).toHaveBeenCalled();
+    expect(agreementStatusUpdatedSubscriber.stop).toHaveBeenCalled();
+    expect(caseStatusUpdatedSubscriber.stop).toHaveBeenCalled();
   });
 
   it("registers routes", async () => {

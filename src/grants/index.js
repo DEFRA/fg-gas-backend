@@ -27,8 +27,8 @@ export const grants = {
     });
 
     server.events.on("stop", async () => {
-      agreementStatusUpdatedSubscriber.start();
-      caseStatusUpdatedSubscriber.start();
+      agreementStatusUpdatedSubscriber.stop();
+      caseStatusUpdatedSubscriber.stop();
     });
 
     server.route([
