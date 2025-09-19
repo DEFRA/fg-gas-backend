@@ -36,6 +36,17 @@ describe("fg-gas-backend Provider Verification", () => {
 
   describe("Contract Verification", () => {
     it("should verify contracts from grants-ui consumer", async () => {
+      // Skip test if credentials are not provided
+      if (!env.PACT_BROKER_USERNAME || !env.PACT_BROKER_PASSWORD) {
+        console.log(
+          "⚠️  Skipping contract test - PACT_BROKER credentials not provided",
+        );
+        console.log(
+          "ℹ️  Set PACT_BROKER_USERNAME and PACT_BROKER_PASSWORD environment variables to run this test",
+        );
+        return;
+      }
+
       const opts = {
         provider: "fg-gas-backend",
         providerBaseUrl: `http://localhost:${PORT}`,
