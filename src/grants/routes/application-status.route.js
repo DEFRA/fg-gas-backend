@@ -11,7 +11,7 @@ export const applicationStatusRoute = {
       schema: applicationStatusResponseSchema,
     },
   },
-  async handler(request, h) {
+  async handler(request) {
     const { code, clientRef } = request.params;
     const applicationStatusData = await getApplicationStatusUseCase({
       clientRef,
