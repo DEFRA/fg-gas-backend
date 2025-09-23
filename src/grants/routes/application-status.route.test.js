@@ -18,7 +18,7 @@ describe("applicationStatusRoute", () => {
     await server.stop();
   });
 
-  it.only("fetches the application status for grantCode and clientRef", async () => {
+  it("fetches the application status for grantCode and clientRef", async () => {
     const code = "grant-1";
     const clientRef = "ref-1234";
 
