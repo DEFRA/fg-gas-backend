@@ -78,6 +78,7 @@ describe("grants", () => {
       { method: "put", path: "/tmp/grants/{code}" },
       { method: "get", path: "/grants" },
       { method: "get", path: "/grants/{code}" },
+      { method: "get", path: "/grants/{code}/applications/{clientRef}/status" },
       { method: "get", path: "/grants/{code}/actions/{name}/invoke" },
     ]);
   });
