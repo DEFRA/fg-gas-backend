@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { logger } from "../../common/logger.js";
 import { ApplicationStatus } from "../models/application.js";
 import {
   publishApplicationApproved,
@@ -11,6 +12,9 @@ import {
 
 export const approveApplicationUseCase = async (data) => {
   const { caseRef, workflowCode } = data;
+  logger.info(
+    `Approve Application use case. caseRef: ${caseRef} workflowCode: ${workflowCode}`,
+  );
   const application = await findByClientRefAndCode({
     clientRef: caseRef,
     code: workflowCode,
