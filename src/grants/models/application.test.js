@@ -34,8 +34,23 @@ describe("Application", () => {
     });
 
     application.approve();
+
     expect(application.currentStatus).toBe(ApplicationStatus.Approved);
     expect(application.updatedAt).toBe("2021-02-01T13:00:00.000Z");
+  });
+
+  it("throws an error when approving an already approved application", () => {
+    const application = new Application({
+      clientRef: "application-1",
+      code: "grant-1",
+      currentStatus: ApplicationStatus.Approved,
+    });
+
+    expect(() => {
+      application.approve();
+    }).toThrowError(
+      'Application with clientRef "application-1" and code "grant-1" is already approved',
+    );
   });
 
   it("creates a new Application", () => {

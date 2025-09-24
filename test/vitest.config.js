@@ -5,9 +5,12 @@ const GAS_PORT = 3001;
 const MONGO_PORT = 27018;
 const LOCALSTACK_PORT = 4567;
 
+const SQS_URL = `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000`;
+
 export default defineConfig({
   test: {
     globalSetup: "./test/setup.js",
+    setupFiles: ["./test/matchers.js"],
     sequence: {
       concurrent: false,
     },
@@ -24,8 +27,9 @@ export default defineConfig({
       AWS_SECRET_ACCESS_KEY: "test",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created",
-      GRANT_APPLICATION_CREATED_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/gas__sqs__handle_grant_application_created`,
-      CREATE_NEW_CASE_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/cw__sqs__create_new_case`,
+      GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL: `${SQS_URL}/gas__sqs__grant_application_created`,
+      CW__SQS__CREATE_NEW_CASE_QUEUE_URL: `${SQS_URL}/cw__sqs__create_new_case`,
+      GAS__SQS__UPDATE_STATUS_QUEUE_URL: `${SQS_URL}/gas__sqs__update_status`,
     },
     hookTimeout: 30000,
     testTimeout: 10000,

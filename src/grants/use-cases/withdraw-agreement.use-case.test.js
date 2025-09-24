@@ -98,12 +98,13 @@ describe("withdrawAgreementUseCase", () => {
   it("publishes the ApplicationStatusUpdated", () => {
     expect(publishApplicationStatusUpdated).toHaveBeenCalledWith({
       clientRef: "test-client-ref",
-      oldStatus: [
+      code: "test-code",
+      previousStatus: [
         ApplicationPhase.PreAward,
         ApplicationStage.Assessment,
         ApplicationStatus.Review,
       ].join(":"),
-      newStatus: [
+      currentStatus: [
         ApplicationPhase.PreAward,
         ApplicationStage.Assessment,
         ApplicationStatus.Withdrawn,
