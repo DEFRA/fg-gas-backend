@@ -75,7 +75,7 @@ export default [
             {
               target: "**/publishers/**/!(*.test).js",
               from: ["src/**/**"],
-              except: ["src/common/**", "**/events/**"],
+              except: ["src/common/**", "**/events/**", "**/commands/**"],
               message: "Publishers should only import common and events",
             },
           ],

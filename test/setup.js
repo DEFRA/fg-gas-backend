@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
+import { ensureQueues } from "./helpers/sqs.js";
 
 let environment;
 
@@ -8,33 +9,25 @@ export const setup = async ({ globalConfig }) => {
 
   const composeFilePath = path.resolve(import.meta.dirname, "..");
 
-  try {
-    environment = await new DockerComposeEnvironment(
-      composeFilePath,
-      "compose.yml",
-    )
-      .withEnvironment({
-        GAS_PORT: env.GAS_PORT,
-        MONGO_PORT: env.MONGO_PORT,
-        LOCALSTACK_PORT: env.LOCALSTACK_PORT,
-      })
-      .withWaitStrategy("gas", Wait.forHttp("/health", { timeout: 60000 }))
-      .withWaitStrategy("localstack", Wait.forListeningPorts())
-      .withWaitStrategy("mongodb", Wait.forListeningPorts())
-      .up();
+  environment = await new DockerComposeEnvironment(
+    composeFilePath,
+    "compose.yml",
+  )
+    .withEnvironment({
+      GAS_PORT: env.GAS_PORT,
+      MONGO_PORT: env.MONGO_PORT,
+      LOCALSTACK_PORT: env.LOCALSTACK_PORT,
+    })
+    .withWaitStrategy("gas", Wait.forHttp("/health"))
+    .withNoRecreate()
+    .up();
 
-    console.log("✅ TestContainers setup completed");
-  } catch (error) {
-    console.error("❌ TestContainers setup failed:", error.message);
-    throw error;
-  }
+  await ensureQueues([
+    env.GRANT_APPLICATION_CREATED_QUEUE_URL,
+    env.CREATE_NEW_CASE_QUEUE_URL,
+  ]);
 };
 
 export const teardown = async () => {
-  try {
-    await environment?.down();
-    console.log("✅ TestContainers teardown completed");
-  } catch (error) {
-    console.error("⚠️ TestContainers teardown failed:", error.message);
-  }
+  await environment?.down();
 };

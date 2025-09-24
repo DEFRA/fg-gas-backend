@@ -1,45 +1,83 @@
 import { describe, expect, it, vi } from "vitest";
-import { publishApplicationApproved } from "../publishers/application-event.publisher.js";
+import { Application } from "../models/application.js";
+import {
+  publishApplicationApproved,
+  publishCreateAgreementCommand,
+} from "../publishers/application-event.publisher.js";
+import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import { approveApplicationUseCase } from "./approve-application.use-case.js";
-import { findApplicationByClientRefUseCase } from "./find-application-by-client-ref.use-case.js";
 
 vi.mock("./find-application-by-client-ref.use-case.js");
 vi.mock("../publishers/application-event.publisher.js");
+vi.mock("../repositories/application.repository.js");
 
 describe("approveApplicationUseCase", () => {
   it("publishes application approved event", async () => {
-    findApplicationByClientRefUseCase.mockResolvedValue({
+    const data = {
       clientRef: "test-client-ref",
       code: "test-grant",
+      currentStatus: "foo",
       answers: { question1: "answer1" },
+    };
+    const mock = Application.new(data);
+    findByClientRefAndCode.mockResolvedValue(mock);
+
+    await approveApplicationUseCase({
+      caseRef: "112",
+      workflowCode: "ACBG",
     });
 
-    await approveApplicationUseCase("test-client-ref");
-
-    expect(findApplicationByClientRefUseCase).toHaveBeenCalledWith(
-      "test-client-ref",
-    );
+    expect(findByClientRefAndCode).toHaveBeenCalledWith({
+      clientRef: "112",
+      code: "ACBG",
+    });
 
     expect(publishApplicationApproved).toHaveBeenCalledWith({
       clientRef: "test-client-ref",
       code: "test-grant",
-      answers: { question1: "answer1" },
+      oldStatus: "PRE_AWARD:ASSESSMENT:RECEIVED",
+      newStatus: "PRE_AWARD:ASSESSMENT:APPROVED",
     });
+
+    expect(publishCreateAgreementCommand).toHaveBeenCalledWith(mock);
+  });
+
+  it("only updates if status not equal to APPROVED", async () => {
+    const data = {
+      clientRef: "test-client-ref",
+      code: "test-grant",
+      currentStatus: "APPROVED",
+      answers: { question1: "answer1" },
+    };
+    const mock = Application.new(data);
+    mock.currentStatus = "APPROVED";
+
+    findByClientRefAndCode.mockResolvedValue(mock);
+
+    await approveApplicationUseCase({
+      caseRef: "112",
+      workflowCode: "ACBG",
+    });
+
+    expect(findByClientRefAndCode).toHaveBeenCalledWith({
+      clientRef: "112",
+      code: "ACBG",
+    });
+
+    expect(publishApplicationApproved).not.toHaveBeenCalled();
   });
 
   it("throws when application is not found", async () => {
-    findApplicationByClientRefUseCase.mockRejectedValue(
-      new Error("Application not found for clientRef: non-existent-client-ref"),
-    );
+    findByClientRefAndCode.mockResolvedValue(null);
 
     await expect(
-      approveApplicationUseCase("non-existent-client-ref"),
-    ).rejects.toThrow(
-      "Application not found for clientRef: non-existent-client-ref",
+      approveApplicationUseCase({
+        caseRef: "non-existent-client-ref",
+        workflowCode: "ACBG",
+      }),
+    ).rejects.toThrowError(
+      'Application with clientRef "non-existent-client-ref" and code "ACBG" not found',
     );
-
-    expect(findApplicationByClientRefUseCase).toHaveBeenCalledWith(
-      "non-existent-client-ref",
-    );
+    expect(publishCreateAgreementCommand).not.toBeCalled();
   });
 });

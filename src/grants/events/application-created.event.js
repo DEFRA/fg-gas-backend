@@ -1,14 +1,11 @@
 import { CloudEvent } from "../../common/cloud-event.js";
 
 export class ApplicationCreatedEvent extends CloudEvent {
-  constructor(application) {
+  constructor(props) {
     super("application.created", {
-      clientRef: application.clientRef,
-      code: application.code,
-      createdAt: application.createdAt,
-      submittedAt: application.submittedAt,
-      identifiers: application.identifiers,
-      answers: application.answers,
+      clientRef: props.clientRef,
+      code: props.code,
+      status: props.status,
     });
   }
 }
