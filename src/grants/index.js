@@ -1,6 +1,7 @@
 import { up } from "migrate-mongo";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
+import { applicationStatusRoute } from "./routes/application-status.route.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";
 import { findGrantsRoute } from "./routes/find-grants.route.js";
@@ -39,6 +40,7 @@ export const grants = {
       invokeGetActionRoute,
       invokePostActionRoute,
       submitApplicationRoute,
+      applicationStatusRoute,
     ]);
   },
 };
