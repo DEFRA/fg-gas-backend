@@ -62,6 +62,27 @@ function setup_topic_and_queues() {
   subscribe_queue_to_topic $topic_arn $queue_arn
 }
 
-setup_topic_and_queues "grant_application_created"
-setup_topic_and_queues "grant_application_approved"
-setup_topic_and_queues "case_stage_updated"
+function create_topic_and_queue() {
+  local topic_name=$1
+  local queue_name=$2
+
+  local topic_arn=$(create_topic $topic_name)
+  local queue_arn=$(create_queue $queue_name)
+
+  subscribe_queue_to_topic $topic_arn $queue_arn
+}
+
+setup_topic_and_queues "grant_application_approved" &
+setup_topic_and_queues "case_stage_updated" &
+create_queue "gas__sqs__update_status" &
+create_topic_and_queue "agreement_status_updated" "gas__sqs__update_agreement_status" &
+create_topic_and_queue "gas__sns__grant_application_created" "gas__sqs__handle_grant_application_created" &
+create_topic_and_queue "gas__sns__grant_application_status_updated" "gas__sqs__handle_grant_application_status_updated" &
+create_topic_and_queue "gas__sns__create_new_case" "cw__sqs__create_new_case" &
+create_topic_and_queue "gas__sns__update_case_status" "cw__sqs__update_status" &
+create_topic_and_queue "gas__sns__create_agreement" "create_agreement" &
+
+wait
+
+
+echo "SNS/SQS ready"

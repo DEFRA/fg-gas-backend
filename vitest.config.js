@@ -24,8 +24,6 @@ export default defineConfig({
         "arn:aws:sns:eu-west-2:000000000000:grant_application_approved",
       AWS_REGION: "eu-west-2",
       AWS_ENDPOINT_URL: "http://localhost:4566",
-      CASE_STAGE_UPDATES_QUEUE_URL:
-        "http://sqs.eu-west-2.127.0.0.1:4567/000000000000/case_stage_updated",
       ENVIRONMENT: "local",
     },
   },
