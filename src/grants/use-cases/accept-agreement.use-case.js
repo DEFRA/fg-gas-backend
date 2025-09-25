@@ -15,7 +15,7 @@ export const acceptAgreementUseCase = async ({
     code,
   );
 
-  const oldStatus = application.getFullyQualifiedStatus();
+  const previousStatus = application.getFullyQualifiedStatus();
 
   application.acceptAgreement(agreementRef, date);
 
@@ -23,8 +23,9 @@ export const acceptAgreementUseCase = async ({
 
   await publishApplicationStatusUpdated({
     clientRef,
-    oldStatus,
-    newStatus: application.getFullyQualifiedStatus(),
+    code,
+    previousStatus,
+    currentStatus: application.getFullyQualifiedStatus(),
   });
 
   const agreement = application.getAgreement(agreementRef);

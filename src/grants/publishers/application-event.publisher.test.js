@@ -1,17 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
-import { ApplicationApprovedEvent } from "../events/application-approved.event.js";
-import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { CreateAgreementCommand } from "../events/create-agreement-command.event.js";
 import {
-  Application,
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
 import {
-  publishApplicationApproved,
   publishApplicationCreated,
   publishApplicationStatusUpdated,
   publishCreateAgreementCommand,
@@ -28,100 +23,81 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("publishCreateAgreement", () => {
-  it("publishes publishCreateAgreementCommand to SNS topic", async () => {
-    const application = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Received,
-      clientRef: "123",
-      code: "grant-code",
-      createdAt: new Date().toISOString(),
-      submittedAt: new Date().toISOString(),
-      identifiers: { name: "Test App" },
-      answers: { question1: "answer1" },
-    });
-
-    await publishCreateAgreementCommand(application);
-    expect(publish.mock.calls[0][0]).toBe(config.sns.createAgreementTopicArn);
-    expect(publish.mock.calls[0][1]).toBeInstanceOf(CreateAgreementCommand);
+it("publishes ApplicationCreatedEvent", async () => {
+  await publishApplicationCreated({
+    clientRef: "123",
+    code: "grant-code",
+    status: `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Received}`,
   });
+
+  expect(publish).toHaveBeenCalledWith(
+    config.sns.grantApplicationCreatedTopicArn,
+    expect.objectContaining({
+      id: expect.any(String),
+      source: "fg-gas-backend",
+      specversion: "1.0",
+      time: "2025-05-28T20:40:48.451Z",
+      type: "cloud.defra.test.fg-gas-backend.application.created",
+      datacontenttype: "application/json",
+      data: {
+        clientRef: "123",
+        code: "grant-code",
+        status: `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Received}`,
+      },
+    }),
+  );
 });
 
-describe("publishApplicationCreated", () => {
-  it("publishes ApplicationCreatedEvent to SNS topic", async () => {
-    const application = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Received,
-      clientRef: "123",
-      code: "grant-code",
-      createdAt: new Date().toISOString(),
-      submittedAt: new Date().toISOString(),
-      identifiers: { name: "Test App" },
-      answers: { question1: "answer1" },
-    });
+it("publishes ApplicationStatusUpdatedEvent", async () => {
+  await publishApplicationStatusUpdated({
+    clientRef: "123",
+    code: "grant-code",
+    previousStatus: `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Received}`,
+    currentStatus: `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Approved}`,
+  });
 
-    await publishApplicationCreated({
-      clientRef: application.clientRef,
-      code: application.code,
-      status: application.getFullyQualifiedStatus(),
-    });
+  expect(publish).toHaveBeenCalledWith(
+    config.sns.grantApplicationStatusUpdatedTopicArn,
+    expect.objectContaining({
+      id: expect.any(String),
+      source: "fg-gas-backend",
+      specversion: "1.0",
+      time: "2025-05-28T20:40:48.451Z",
+      type: "cloud.defra.test.fg-gas-backend.application.status.updated",
+      datacontenttype: "application/json",
+      data: {
+        clientRef: "123",
+        grantCode: "grant-code",
+        previousStatus: `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Received}`,
+        currentStatus: `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Approved}`,
+      },
+    }),
+  );
+});
 
-    expect(publish).toHaveBeenCalledWith(
-      config.sns.grantApplicationCreatedTopicArn,
-      expect.objectContaining({
-        id: expect.any(String),
-        source: "fg-gas-backend",
-        specversion: "1.0",
-        time: "2025-05-28T20:40:48.451Z",
-        type: "cloud.defra.test.fg-gas-backend.application.created",
-        datacontenttype: "application/json",
-        data: {
-          clientRef: application.clientRef,
-          code: application.code,
-          status: `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Received}`,
+it("publishes publishCreateAgreementCommand", async () => {
+  await publishCreateAgreementCommand({
+    clientRef: "123",
+    code: "grant-code",
+    answers: { question1: "answer1" },
+  });
+
+  expect(publish).toHaveBeenCalledWith(
+    config.sns.createAgreementTopicArn,
+    expect.objectContaining({
+      id: expect.any(String),
+      source: "fg-gas-backend",
+      specversion: "1.0",
+      time: "2025-05-28T20:40:48.451Z",
+      type: "cloud.defra.test.fg-gas-backend.agreement.create",
+      datacontenttype: "application/json",
+      data: {
+        clientRef: "123",
+        code: "grant-code",
+        applicationData: {
+          answers: { question1: "answer1" },
         },
-      }),
-    );
-  });
-});
-
-describe("publishApplicationApproved", () => {
-  it("publishes ApplicationApprovedEvent to SNS topic", async () => {
-    const application = new Application({
-      clientRef: "456",
-      code: "grant-code-2",
-      createdAt: new Date().toISOString(),
-      submittedAt: new Date().toISOString(),
-      identifiers: { name: "Approved App" },
-      answers: { question1: "approved answer" },
-    });
-
-    await publishApplicationApproved(application);
-
-    expect(publish.mock.calls[0][0]).toBe(config.applicationApprovedTopic);
-    expect(publish.mock.calls[0][1]).toBeInstanceOf(ApplicationApprovedEvent);
-  });
-});
-
-describe("publishApplicationStatusUpdated", () => {
-  it("should publish status updated", async () => {
-    const application = new Application({
-      clientRef: "123",
-      code: "grant-code",
-      createdAt: new Date().toISOString(),
-      submittedAt: new Date().toISOString(),
-      identifiers: { name: "Test App" },
-      answers: { question1: "answer1" },
-    });
-
-    await publishApplicationStatusUpdated(application);
-    expect(publish.mock.calls[0][0]).toBe(
-      config.sns.grantApplicationStatusUpdatedTopicArn,
-    );
-    expect(publish.mock.calls[0][1]).toBeInstanceOf(
-      ApplicationStatusUpdatedEvent,
-    );
-  });
+      },
+    }),
+  );
 });

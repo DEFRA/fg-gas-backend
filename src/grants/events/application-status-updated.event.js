@@ -4,8 +4,9 @@ export class ApplicationStatusUpdatedEvent extends CloudEvent {
   constructor(props) {
     super("application.status.updated", {
       clientRef: props.clientRef,
-      oldStatus: props.oldStatus,
-      newStatus: props.newStatus,
+      grantCode: props.code,
+      previousStatus: props.previousStatus,
+      currentStatus: props.currentStatus,
     });
   }
 }
