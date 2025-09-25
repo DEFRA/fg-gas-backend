@@ -24,8 +24,8 @@ describe("POST /grants/{code}/applications", () => {
   beforeEach(async () => {
     await grants.deleteMany({});
     await applications.deleteMany({});
-    await purgeQueue(env.GRANT_APPLICATION_CREATED_QUEUE_URL);
-    await purgeQueue(env.CREATE_NEW_CASE_QUEUE_URL);
+    await purgeQueue(env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL);
+    await purgeQueue(env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL);
   });
 
   it("stores submitted application", async () => {
@@ -105,7 +105,7 @@ describe("POST /grants/{code}/applications", () => {
     ]);
 
     const grantApplicationCreatedMessages = await receiveMessages(
-      env.GRANT_APPLICATION_CREATED_QUEUE_URL,
+      env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL,
     );
 
     const applicationCreatedEvent = grantApplicationCreatedMessages.find(
@@ -128,7 +128,7 @@ describe("POST /grants/{code}/applications", () => {
     });
 
     const createNewCaseMessages = await receiveMessages(
-      env.CREATE_NEW_CASE_QUEUE_URL,
+      env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL,
     );
 
     const createNewCaseEvent = createNewCaseMessages.find(

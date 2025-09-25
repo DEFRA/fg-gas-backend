@@ -64,6 +64,12 @@ export class Application {
   }
 
   approve() {
+    if (this.currentStatus === ApplicationStatus.Approved) {
+      throw new Error(
+        `Application with clientRef "${this.clientRef}" and code "${this.code}" is already approved`,
+      );
+    }
+
     this.currentStatus = ApplicationStatus.Approved;
     this.updatedAt = this.#getTmestamp();
   }

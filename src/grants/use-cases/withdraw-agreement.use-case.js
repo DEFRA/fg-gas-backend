@@ -15,7 +15,7 @@ export const withdrawAgreementUseCase = async ({
     code,
   );
 
-  const oldStatus = application.getFullyQualifiedStatus();
+  const previousStatus = application.getFullyQualifiedStatus();
 
   application.withdrawAgreement(agreementRef, date);
 
@@ -25,8 +25,9 @@ export const withdrawAgreementUseCase = async ({
 
   await publishApplicationStatusUpdated({
     clientRef,
-    oldStatus,
-    newStatus: application.getFullyQualifiedStatus(),
+    code,
+    previousStatus,
+    currentStatus: application.getFullyQualifiedStatus(),
   });
 
   await publishUpdateCaseStatus({

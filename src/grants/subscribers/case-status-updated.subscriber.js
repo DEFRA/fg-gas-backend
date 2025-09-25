@@ -10,7 +10,10 @@ export const caseStatusUpdatedSubscriber = new SqsSubscriber({
     const { data } = message;
 
     if (data.currentStatus === APPROVED) {
-      await approveApplicationUseCase(data);
+      await approveApplicationUseCase({
+        clientRef: data.caseRef,
+        code: data.workflowCode,
+      });
     }
   },
 });
