@@ -12,7 +12,7 @@ import {
 } from "../models/application.js";
 import { CaseStatus } from "../models/case-status.js";
 import { publishApplicationStatusUpdated } from "../publishers/application-event.publisher.js";
-import { publishUpdateCaseStatus } from "../publishers/case-event.publisher.js";
+import { publishUpdateCaseStatusWithAgreementData } from "../publishers/case-event.publisher.js";
 import { update } from "../repositories/application.repository.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
@@ -113,7 +113,7 @@ describe("acceptAgreementUseCase", () => {
   });
 
   it("publishes the case status update", () => {
-    expect(publishUpdateCaseStatus).toHaveBeenCalledWith({
+    expect(publishUpdateCaseStatusWithAgreementData).toHaveBeenCalledWith({
       caseRef: "test-client-ref",
       workflowCode: "test-code",
       newStatus: CaseStatus.OfferAccepted,
