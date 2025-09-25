@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { clientRef } from "../schemas/application/metadata/client-ref.js";
 import { code } from "../schemas/grant/code.js";
 import { applicationStatusResponseSchema } from "../schemas/responses/application-status-response.schema.js";
 import { getApplicationStatusUseCase } from "../use-cases/get-application-status.use-case.js";
@@ -12,7 +13,7 @@ export const applicationStatusRoute = {
     validate: {
       params: Joi.object({
         code,
-        clientRef: code.label("clientRef"),
+        clientRef,
       }),
     },
     response: {
