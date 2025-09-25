@@ -1,22 +1,13 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { wreck } from "../../helpers/wreck.js";
 
 let client;
-let grants, applications;
+let applications;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  grants = client.db().collection("grants");
   applications = client.db().collection("applications");
 });
 
@@ -25,16 +16,6 @@ afterAll(async () => {
 });
 
 describe("Application Service Integration Tests", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({ code: { $regex: "^app-service-" } });
-    await applications.deleteMany({ clientRef: { $regex: "^app-service-" } });
-  });
-
-  afterEach(async () => {
-    await grants.deleteMany({ code: { $regex: "^app-service-" } });
-    await applications.deleteMany({ clientRef: { $regex: "^app-service-" } });
-  });
-
   describe("Application Submission and Validation", () => {
     it("should process complex application with comprehensive validation", async () => {
       const testId = Date.now();

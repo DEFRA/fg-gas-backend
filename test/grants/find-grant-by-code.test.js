@@ -1,6 +1,6 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { grant1, grant2 } from "../fixtures/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -17,10 +17,6 @@ afterAll(async () => {
 });
 
 describe("GET /grants/{code}", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({});
-  });
-
   it("finds a grant by code", async () => {
     await grants.insertMany([{ ...grant1 }, { ...grant2 }]);
 
