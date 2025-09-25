@@ -7,7 +7,15 @@ import { grants } from "./index.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 
-vi.mock("../common/logger.js");
+vi.mock("../common/logger.js", () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 vi.mock("../common/mongo-client.js");
 vi.mock("migrate-mongo");
 vi.mock("./subscribers/agreement-status-updated.subscriber.js");
@@ -19,6 +27,7 @@ describe("grants", () => {
   beforeEach(() => {
     server = hapi.server();
     up.mockResolvedValue([]);
+    vi.clearAllMocks();
   });
 
   it("runs migrations on startup", async () => {
