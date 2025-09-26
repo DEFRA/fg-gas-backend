@@ -6,9 +6,9 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
-import { CreateAgreementCommand } from "./create-agreement-command.event.js";
+import { CreateAgreementCommand } from "./create-agreement.command.js";
 
-describe("Create agreement command", () => {
+describe("CreateAgreementCommand", () => {
   it("should create event", () => {
     const application = Application.new({
       currentPhase: ApplicationPhase.PreAward,
@@ -21,10 +21,26 @@ describe("Create agreement command", () => {
       identifiers: { name: "Test App" },
       answers: { question1: "answer1" },
     });
+
     const event = new CreateAgreementCommand(application);
-    const { clientRef, code, answers } = application;
-    expect(event.data.clientRef).toBe(clientRef);
-    expect(event.data.code).toBe(code);
-    expect(event.data.applicationData.answers).toBe(answers);
+
+    expect(event).toEqual({
+      id: expect.any(String),
+      type: "cloud.defra.test.fg-gas-backend.agreement.create",
+      source: "fg-gas-backend",
+      specversion: "1.0",
+      time: expect.any(String),
+      datacontenttype: "application/json",
+      data: {
+        clientRef: "123",
+        code: "grant-code",
+        identifiers: {
+          name: "Test App",
+        },
+        answers: {
+          question1: "answer1",
+        },
+      },
+    });
   });
 });
