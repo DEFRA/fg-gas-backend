@@ -2,7 +2,7 @@ import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import { ApplicationCreatedEvent } from "../events/application-created.event.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { CreateAgreementCommand } from "../events/create-agreement-command.event.js";
+import { CreateAgreementCommand } from "../events/create-agreement.command.js";
 
 export const publishApplicationCreated = async (props) => {
   const event = new ApplicationCreatedEvent(props);

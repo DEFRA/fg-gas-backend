@@ -79,6 +79,7 @@ it("publishes publishCreateAgreementCommand", async () => {
   await publishCreateAgreementCommand({
     clientRef: "123",
     code: "grant-code",
+    identifiers: { sbi: "123456789" },
     answers: { question1: "answer1" },
   });
 
@@ -94,9 +95,8 @@ it("publishes publishCreateAgreementCommand", async () => {
       data: {
         clientRef: "123",
         code: "grant-code",
-        applicationData: {
-          answers: { question1: "answer1" },
-        },
+        identifiers: { sbi: "123456789" },
+        answers: { question1: "answer1" },
       },
     }),
   );
