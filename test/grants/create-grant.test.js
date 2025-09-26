@@ -1,7 +1,7 @@
 import Joi from "joi";
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { grant1 } from "../fixtures/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -18,10 +18,6 @@ afterAll(async () => {
 });
 
 describe("POST /grants", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({});
-  });
-
   it("adds a grant", async () => {
     const response = await wreck.post("/grants", {
       payload: grant1,

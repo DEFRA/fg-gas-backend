@@ -84,3 +84,6 @@ export const purgeQueue = async (queueUrl) =>
       QueueUrl: queueUrl,
     }),
   );
+
+export const purgeQueues = async (queueUrls) =>
+  Promise.all(queueUrls.map((url) => purgeQueue(url)));
