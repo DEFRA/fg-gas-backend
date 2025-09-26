@@ -71,10 +71,14 @@ describe("On CaseStatusUpdated", () => {
       data: {
         clientRef,
         code,
-        applicationData: {
-          answers: {
-            question1: "test answer",
-          },
+        identifiers: {
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
+        },
+        answers: {
+          question1: "test answer",
         },
       },
     });
