@@ -1,6 +1,6 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Application } from "../../src/grants/models/application";
 import { wreck } from "../helpers/wreck.js";
 
@@ -19,10 +19,6 @@ afterAll(async () => {
 describe("GET /grants/{code}/applications/{clientRef}/status", () => {
   const clientRef = "client-ref-1";
   const code = "grant-1";
-
-  beforeEach(async () => {
-    await applications.deleteMany({});
-  });
 
   it("should get application status", async () => {
     await applications.insertOne(
