@@ -62,7 +62,7 @@
     "neostandard": "^0.12.1",
     "prettier": "^3.5.3",
     "prettier-plugin-organize-imports": "^4.3.0",
-    "testcontainers": "^11.6.0",
+    "testcontainers": "^10.13.2",
     "vitest": "^3.1.2"
   }
 }
