@@ -14,7 +14,7 @@ export class CloudEvent {
   data;
 
   constructor(type, data) {
-    this.type = `cloud.defra.${config.env}.${config.serviceName}.${type}`;
+    this.type = `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.${type}`;
     this.data = data;
   }
 }

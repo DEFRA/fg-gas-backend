@@ -48,7 +48,7 @@ describe("On CaseStatusUpdated", () => {
       env.GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL,
     ).toHaveReceived({
       id: expect.any(String),
-      type: "cloud.defra.development.fg-gas-backend.application.status.updated",
+      type: "cloud.defra.local.fg-gas-backend.application.status.updated",
       source: "fg-gas-backend",
       time: expect.any(String),
       specversion: "1.0",
@@ -63,7 +63,7 @@ describe("On CaseStatusUpdated", () => {
 
     await expect(env.CREATE_AGREEMENT_QUEUE_URL).toHaveReceived({
       id: expect.any(String),
-      type: "cloud.defra.development.fg-gas-backend.agreement.create",
+      type: "cloud.defra.local.fg-gas-backend.agreement.create",
       source: "fg-gas-backend",
       time: expect.any(String),
       specversion: "1.0",
