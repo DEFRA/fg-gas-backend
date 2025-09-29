@@ -26,7 +26,7 @@ describe("CreateAgreementCommand", () => {
 
     expect(event).toEqual({
       id: expect.any(String),
-      type: "cloud.defra.test.fg-gas-backend.agreement.create",
+      type: "cloud.defra.local.fg-gas-backend.agreement.create",
       source: "fg-gas-backend",
       specversion: "1.0",
       time: expect.any(String),

@@ -99,7 +99,7 @@ describe("POST /grants/{code}/applications", () => {
       time: expect.any(String),
       source: "fg-gas-backend",
       specversion: "1.0",
-      type: `cloud.defra.development.fg-gas-backend.application.created`,
+      type: `cloud.defra.local.fg-gas-backend.application.created`,
       datacontenttype: "application/json",
       traceparent: "xxxx-xxxx-xxxx-xxxx",
       data: {
@@ -114,7 +114,7 @@ describe("POST /grants/{code}/applications", () => {
       time: expect.any(String),
       source: "fg-gas-backend",
       specversion: "1.0",
-      type: `cloud.defra.development.fg-gas-backend.case.create`,
+      type: `cloud.defra.local.fg-gas-backend.case.create`,
       datacontenttype: "application/json",
       traceparent: "xxxx-xxxx-xxxx-xxxx",
       data: {

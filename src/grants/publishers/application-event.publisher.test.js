@@ -37,7 +37,7 @@ it("publishes ApplicationCreatedEvent", async () => {
       source: "fg-gas-backend",
       specversion: "1.0",
       time: "2025-05-28T20:40:48.451Z",
-      type: "cloud.defra.test.fg-gas-backend.application.created",
+      type: "cloud.defra.local.fg-gas-backend.application.created",
       datacontenttype: "application/json",
       data: {
         clientRef: "123",
@@ -63,7 +63,7 @@ it("publishes ApplicationStatusUpdatedEvent", async () => {
       source: "fg-gas-backend",
       specversion: "1.0",
       time: "2025-05-28T20:40:48.451Z",
-      type: "cloud.defra.test.fg-gas-backend.application.status.updated",
+      type: "cloud.defra.local.fg-gas-backend.application.status.updated",
       datacontenttype: "application/json",
       data: {
         clientRef: "123",
@@ -90,7 +90,7 @@ it("publishes publishCreateAgreementCommand", async () => {
       source: "fg-gas-backend",
       specversion: "1.0",
       time: "2025-05-28T20:40:48.451Z",
-      type: "cloud.defra.test.fg-gas-backend.agreement.create",
+      type: "cloud.defra.local.fg-gas-backend.agreement.create",
       datacontenttype: "application/json",
       data: {
         clientRef: "123",

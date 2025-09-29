@@ -19,7 +19,7 @@ describe("CloudEvent", () => {
       source: config.serviceName,
       specversion: "1.0",
       datacontenttype: "application/json",
-      type: `cloud.defra.${config.env}.${config.serviceName}.test.type`,
+      type: `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.test.type`,
       traceparent: "1234-0987",
       data: {
         key: "value",

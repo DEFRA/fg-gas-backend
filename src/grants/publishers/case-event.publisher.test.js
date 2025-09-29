@@ -47,7 +47,7 @@ describe("publishCreateNewCase", () => {
         source: "fg-gas-backend",
         specversion: "1.0",
         time: "2025-05-28T20:40:48.451Z",
-        type: "cloud.defra.test.fg-gas-backend.case.create",
+        type: "cloud.defra.local.fg-gas-backend.case.create",
         datacontenttype: "application/json",
         data: {
           caseRef: "123",
