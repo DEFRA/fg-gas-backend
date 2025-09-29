@@ -1,17 +1,15 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { submitApplication } from "../helpers/applications.js";
 import { createGrant } from "../helpers/grants.js";
-import { purgeQueue, sendMessage } from "../helpers/sqs.js";
+import { sendMessage } from "../helpers/sqs.js";
 
-let grants;
 let applications;
 let client;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  grants = client.db().collection("grants");
   applications = client.db().collection("applications");
 });
 
@@ -20,12 +18,6 @@ afterAll(async () => {
 });
 
 describe("On CaseStatusUpdated", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({});
-    await applications.deleteMany({});
-    await purgeQueue(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL);
-  });
-
   it("approves an application when the case status is 'APPROVED'", async () => {
     await createGrant();
 
@@ -50,6 +42,45 @@ describe("On CaseStatusUpdated", () => {
       clientRef,
       code,
       currentStatus: "APPROVED",
+    });
+
+    await expect(
+      env.GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL,
+    ).toHaveReceived({
+      id: expect.any(String),
+      type: "cloud.defra.development.fg-gas-backend.application.status.updated",
+      source: "fg-gas-backend",
+      time: expect.any(String),
+      specversion: "1.0",
+      datacontenttype: "application/json",
+      data: {
+        clientRef,
+        grantCode: "test-code-1",
+        currentStatus: "PRE_AWARD:ASSESSMENT:APPROVED",
+        previousStatus: "PRE_AWARD:ASSESSMENT:RECEIVED",
+      },
+    });
+
+    await expect(env.CREATE_AGREEMENT_QUEUE_URL).toHaveReceived({
+      id: expect.any(String),
+      type: "cloud.defra.development.fg-gas-backend.agreement.create",
+      source: "fg-gas-backend",
+      time: expect.any(String),
+      specversion: "1.0",
+      datacontenttype: "application/json",
+      data: {
+        clientRef,
+        code,
+        identifiers: {
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
+        },
+        answers: {
+          question1: "test answer",
+        },
+      },
     });
   });
 });

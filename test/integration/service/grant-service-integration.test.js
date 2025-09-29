@@ -1,14 +1,6 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { wreck } from "../../helpers/wreck.js";
 
 let client;
@@ -25,16 +17,6 @@ afterAll(async () => {
 });
 
 describe("Grant Service Integration Tests", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({ code: { $regex: "^test-grant-" } });
-    await applications.deleteMany({ clientRef: { $regex: "^grant-service-" } });
-  });
-
-  afterEach(async () => {
-    await grants.deleteMany({ code: { $regex: "^test-grant-" } });
-    await applications.deleteMany({ clientRef: { $regex: "^grant-service-" } });
-  });
-
   describe("Grant Creation and Validation", () => {
     it("should create grant with complex schema validation", async () => {
       const testId = Date.now();

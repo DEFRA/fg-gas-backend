@@ -1,18 +1,15 @@
 import { MongoClient } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { grant3 } from "../fixtures/grants.js";
-import { purgeQueue, receiveMessages } from "../helpers/sqs.js";
 import { wreck } from "../helpers/wreck.js";
 
-let grants;
 let applications;
 let client;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  grants = client.db().collection("grants");
   applications = client.db().collection("applications");
 });
 
@@ -21,13 +18,6 @@ afterAll(async () => {
 });
 
 describe("POST /grants/{code}/applications", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({});
-    await applications.deleteMany({});
-    await purgeQueue(env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL);
-    await purgeQueue(env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL);
-  });
-
   it("stores submitted application", async () => {
     await wreck.post("/grants", {
       json: true,
@@ -104,15 +94,7 @@ describe("POST /grants/{code}/applications", () => {
       },
     ]);
 
-    const grantApplicationCreatedMessages = await receiveMessages(
-      env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL,
-    );
-
-    const applicationCreatedEvent = grantApplicationCreatedMessages.find(
-      (message) => message.data.clientRef === clientRef,
-    );
-
-    expect(applicationCreatedEvent).toEqual({
+    expect(env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL).toHaveReceived({
       id: expect.any(String),
       time: expect.any(String),
       source: "fg-gas-backend",
@@ -127,15 +109,7 @@ describe("POST /grants/{code}/applications", () => {
       },
     });
 
-    const createNewCaseMessages = await receiveMessages(
-      env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL,
-    );
-
-    const createNewCaseEvent = createNewCaseMessages.find(
-      (message) => message.data.caseRef === clientRef,
-    );
-
-    expect(createNewCaseEvent).toEqual({
+    expect(env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL).toHaveReceived({
       id: expect.any(String),
       time: expect.any(String),
       source: "fg-gas-backend",
