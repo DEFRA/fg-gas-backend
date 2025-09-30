@@ -1,17 +1,14 @@
-import { UUID } from 'mongodb';
-
 export class EventPublication {
+  // eslint-disable-next-line complexity
   constructor({
-    _id = new UUID(),
-    publicationDate = new Date(),
     listenerId,
     event,
-    lastResubmissionDate = new Date(),
     completionAttempts = 0,
-    status = 'PENDING',
-    completionDate = null
+    status = EventPublicationStatus.PUBLISHED,
+    publicationDate = new Date(),
+    lastResubmissionDate = null,
+    completionDate = null,
   }) {
-    this._id = _id;
     this.publicationDate = publicationDate;
     this.listenerId = listenerId;
     this.event = event;
@@ -22,12 +19,12 @@ export class EventPublication {
   }
 
   markAsPublished() {
-    this.status = 'PUBLISHED';
+    this.status = "PUBLISHED";
     this.completionDate = new Date();
   }
 
   markAsFailed() {
-    this.status = 'FAILED';
+    this.status = "FAILED";
     this.lastResubmissionDate = new Date();
   }
 
@@ -44,7 +41,7 @@ export class EventPublication {
       lastResubmissionDate: this.lastResubmissionDate,
       completionAttempts: this.completionAttempts,
       status: this.status,
-      completionDate: this.completionDate
+      completionDate: this.completionDate,
     };
   }
 
@@ -57,13 +54,14 @@ export class EventPublication {
       lastResubmissionDate: doc.lastResubmissionDate,
       completionAttempts: doc.completionAttempts,
       status: doc.status,
-      completionDate: doc.completionDate
+      completionDate: doc.completionDate,
     });
   }
 }
 
 export const EventPublicationStatus = {
-  PENDING: 'PENDING',
-  PUBLISHED: 'PUBLISHED',
-  FAILED: 'FAILED'
+  PENDING: "PENDING",
+  PUBLISHED: "PUBLISHED",
+  FAILED: "FAILED",
+  COMPLETED: "COMPLETED",
 };
