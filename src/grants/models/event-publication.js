@@ -1,6 +1,7 @@
 export class EventPublication {
   // eslint-disable-next-line complexity
   constructor({
+    _id,
     listenerId,
     event,
     completionAttempts = 0,
@@ -9,6 +10,7 @@ export class EventPublication {
     lastResubmissionDate = null,
     completionDate = null,
   }) {
+    this._id = _id;
     this.publicationDate = publicationDate;
     this.listenerId = listenerId;
     this.event = event;
@@ -20,18 +22,19 @@ export class EventPublication {
     this.claimedAt = null;
   }
 
-  markAsPublished() {
-    this.status = "PUBLISHED";
-    this.completionDate = new Date();
+  markAsComplete() {
+    this.status = EventPublicationStatus.COMPLETED;
+    this.completionDate = new Date().toISOString();
+    this.claimToken = null;
+    this.claimedAt = null;
   }
 
   markAsFailed() {
-    this.status = "FAILED";
-    this.lastResubmissionDate = new Date();
-  }
-
-  incrementAttempts() {
+    this.status = EventPublicationStatus.FAILED;
+    this.lastResubmissionDate = new Date().toISOString();
     this.completionAttempts += 1;
+    this.claimToken = null;
+    this.claimedAt = null;
   }
 
   toDocument() {

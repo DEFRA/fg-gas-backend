@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
-import { fetchPendingEvents } from "../grants/repositories/event-publication.respository.js";
+import {
+  fetchPendingEvents,
+  update,
+} from "../grants/repositories/event-publication.respository.js";
 import { logger } from "./logger.js";
-import { db } from "./mongo-client.js";
 import { publish } from "./sns-client.js";
-
-const outbox = "event_publication_outbox";
 
 /*
  * Class to poll the event_publication_outbox table
@@ -27,42 +27,17 @@ export class OutboxSubscriber {
 
   // processing failed
   // mark the event as failed
-  // update completionAttempts and any other data
-  // reset the claimToken and claimedAt
   async markEventUnsent(event) {
-    const completionAttempts = event.completionAttempts + 1;
-    await db
-      .collection(outbox)
-      .updateOne(
-        { _id: event._id },
-        {
-          status: "FAILED",
-          claimToken: null,
-          claimedAt: null,
-          completionAttempts,
-        },
-      );
+    event.markAsFailed();
+    await update(event);
     logger.info(`Marked event unsent ${event}`);
   }
 
   // processing complete
   // mark the event as completed
-  // set the status and completionDate
-  // reset claimToken and claimedAt
   async markEventComplete(event) {
-    await db.collection(outbox).updateOne(
-      {
-        _id: event._id,
-      },
-      {
-        $set: {
-          status: "COMPLETED",
-          claimToken: null,
-          claimedAt: null,
-          completionDate: new Date().toISOString(),
-        },
-      },
-    );
+    event.markAsComplete();
+    await update(event);
     logger.info(`Marked event as complete ${event._id}`);
   }
 
@@ -86,7 +61,7 @@ export class OutboxSubscriber {
   }
 
   start() {
-    // TODO: check is there are any hanging processes (status: "PROCESSING") and process these immediately
+    // TODO: check if there are any hanging processes (status: "PROCESSING") and process these immediately
     logger.info("starting outbox subscriber");
     this.running = true;
     this.poll();
