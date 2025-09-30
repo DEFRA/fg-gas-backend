@@ -34,6 +34,7 @@ export const withdrawAgreementUseCase = async ({
     caseRef: clientRef,
     workflowCode: code,
     newStatus: CaseStatus.OfferWithdrawn,
+    targetNode: "agreements",
     data: {
       createdAt: date,
       agreementStatus: agreement.latestStatus,

@@ -74,6 +74,7 @@ describe("publishUpdateApplicationStatus", () => {
     await publishUpdateCaseStatus({
       clientRef: "1w4",
       code: "grant-code",
+      targetNode: "agreements",
       agreementData: {
         agreementRef: "Agreement-1",
       },
