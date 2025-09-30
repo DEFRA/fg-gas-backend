@@ -8,10 +8,11 @@ export const publishCreateNewCase = async (application) => {
   await publish(config.sns.createNewCaseTopicArn, event);
 };
 
-export const publishUpdateCaseStatusWithAgreementData = async ({
+export const publishUpdateCaseStatus = async ({
   newStatus,
   caseRef,
   workflowCode,
+  targetNode,
   data,
 }) => {
   const event = new UpdateCaseStatusCommand({
@@ -20,7 +21,7 @@ export const publishUpdateCaseStatusWithAgreementData = async ({
     workflowCode,
     phase: null,
     stage: null,
-    targetNode: "agreements",
+    targetNode,
     data,
   });
   await publish(config.sns.updateCaseStatusTopicArn, event);

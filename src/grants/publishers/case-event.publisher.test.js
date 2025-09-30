@@ -10,7 +10,7 @@ import {
 } from "../models/application.js";
 import {
   publishCreateNewCase,
-  publishUpdateCaseStatusWithAgreementData,
+  publishUpdateCaseStatus,
 } from "./case-event.publisher.js";
 
 vi.mock("../../common/sns-client.js");
@@ -71,9 +71,10 @@ describe("publishCreateNewCase", () => {
 
 describe("publishUpdateApplicationStatus", () => {
   it("should publish status update command", async () => {
-    await publishUpdateCaseStatusWithAgreementData({
+    await publishUpdateCaseStatus({
       clientRef: "1w4",
       code: "grant-code",
+      targetNode: "agreements",
       agreementData: {
         agreementRef: "Agreement-1",
       },

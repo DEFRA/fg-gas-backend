@@ -1,7 +1,7 @@
 import { Agreement } from "../models/agreement.js";
 import { CaseStatus } from "../models/case-status.js";
 import { publishApplicationStatusUpdated } from "../publishers/application-event.publisher.js";
-import { publishUpdateCaseStatusWithAgreementData } from "../publishers/case-event.publisher.js";
+import { publishUpdateCaseStatus } from "../publishers/case-event.publisher.js";
 import { update } from "../repositories/application.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
@@ -33,10 +33,11 @@ export const addAgreementUseCase = async ({
     newStatus: application.getFullyQualifiedStatus(),
   });
 
-  await publishUpdateCaseStatusWithAgreementData({
+  await publishUpdateCaseStatus({
     caseRef: clientRef,
     workflowCode: code,
     newStatus: CaseStatus.Review,
+    targetNode: "agreements",
     data: {
       createdAt: date,
       agreementStatus: agreement.latestStatus,
