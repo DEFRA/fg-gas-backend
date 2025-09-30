@@ -37,6 +37,7 @@ export const addAgreementUseCase = async ({
     caseRef: clientRef,
     workflowCode: code,
     newStatus: CaseStatus.Review,
+    targetNode: "agreements",
     data: {
       createdAt: date,
       agreementStatus: agreement.latestStatus,

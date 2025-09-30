@@ -117,6 +117,7 @@ describe("acceptAgreementUseCase", () => {
       caseRef: "test-client-ref",
       workflowCode: "test-code",
       newStatus: CaseStatus.OfferAccepted,
+      targetNode: "agreements",
       data: {
         createdAt: "2024-01-01T12:00:00Z",
         agreementStatus: AgreementStatus.Accepted,

@@ -12,12 +12,16 @@ export const publishUpdateCaseStatus = async ({
   newStatus,
   caseRef,
   workflowCode,
+  targetNode,
   data,
 }) => {
   const event = new UpdateCaseStatusCommand({
     newStatus,
     caseRef,
     workflowCode,
+    phase: null,
+    stage: null,
+    targetNode,
     data,
   });
   await publish(config.sns.updateCaseStatusTopicArn, event);

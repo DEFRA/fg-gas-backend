@@ -117,6 +117,7 @@ describe("withdrawAgreementUseCase", () => {
       caseRef: "test-client-ref",
       workflowCode: "test-code",
       newStatus: CaseStatus.OfferWithdrawn,
+      targetNode: "agreements",
       data: {
         createdAt: "2024-01-01T12:00:00Z",
         agreementStatus: AgreementStatus.Withdrawn,
