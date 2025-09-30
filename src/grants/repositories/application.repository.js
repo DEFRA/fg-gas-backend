@@ -54,7 +54,7 @@ export const save = async (application) => {
   }
 };
 
-export const update = async (application, { session }) => {
+export const update = async (application, session) => {
   const document = new ApplicationDocument(application);
   const result = await db.collection(collection).replaceOne(
     {
@@ -62,7 +62,7 @@ export const update = async (application, { session }) => {
       code: application.code,
     },
     document,
-    { session }
+    { session },
   );
   if (result.modifiedCount === 0) {
     throw Boom.notFound(
@@ -70,7 +70,6 @@ export const update = async (application, { session }) => {
     );
   }
 };
-
 
 export const findByClientRefAndCode = async ({ clientRef, code }) => {
   const doc = await db.collection(collection).findOne({ clientRef, code });

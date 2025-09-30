@@ -16,10 +16,10 @@ export const withTransaction = async (callback) => {
 
   try {
     await session.withTransaction(async () => {
-       await callback(session);
+      await callback(session);
     });
     await session.commitTransaction();
-  } catch(e) {
+  } catch (e) {
     logger.error(e);
     await session.abortTransaction();
   } finally {

@@ -4,7 +4,7 @@ export class EventPublication {
     _id,
     listenerId,
     event,
-    completionAttempts = 0,
+    completionAttempts = 1,
     status = EventPublicationStatus.PUBLISHED,
     publicationDate = new Date(),
     lastResubmissionDate = null,

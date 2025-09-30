@@ -19,10 +19,17 @@ export const fetchPendingEvents = async (claimToken) => {
   return documents.map((doc) => EventPublication.fromDocument(doc));
 };
 
-export const insert = async (eventPublication) => {
+export const insertMany = async (events, session) => {
+  return db.collection(COLLECTION_NAME).insertMany(
+    events.map((event) => event.toDocument()),
+    { session },
+  );
+};
+
+export const insert = async (eventPublication, session) => {
   const collection = await db.collection(COLLECTION_NAME);
   const document = eventPublication.toDocument();
-  await collection.insertOne(document);
+  await collection.insertOne(document, { session });
   return eventPublication;
 };
 
