@@ -16,6 +16,8 @@ export class EventPublication {
     this.completionAttempts = completionAttempts;
     this.status = status;
     this.completionDate = completionDate;
+    this.claimToken = null;
+    this.claimedAt = null;
   }
 
   markAsPublished() {
@@ -42,6 +44,8 @@ export class EventPublication {
       completionAttempts: this.completionAttempts,
       status: this.status,
       completionDate: this.completionDate,
+      claimedAt: this.claimedAt,
+      claimToken: this.claimToken,
     };
   }
 
@@ -55,6 +59,8 @@ export class EventPublication {
       completionAttempts: doc.completionAttempts,
       status: doc.status,
       completionDate: doc.completionDate,
+      claimedAt: doc.claimedAt,
+      claimToken: doc.claimToken,
     });
   }
 }
