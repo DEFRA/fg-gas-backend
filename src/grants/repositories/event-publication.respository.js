@@ -40,13 +40,10 @@ export const findById = async (id) => {
 };
 
 export const update = async (eventPublication) => {
-  const collection = await db.collection(COLLECTION_NAME);
   const document = eventPublication.toDocument();
   const { _id, ...updateDoc } = document;
 
-  await collection.updateOne({ _id }, { $set: updateDoc });
-
-  return eventPublication;
+  db.collection(COLLECTION_NAME).updateOne({ _id }, { $set: updateDoc });
 };
 
 export const deleteById = async (id) => {
