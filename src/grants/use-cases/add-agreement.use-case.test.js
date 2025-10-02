@@ -1,5 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ISO_DATE_TIME_REGEX } from "../../../test/helpers/dates.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -24,6 +23,15 @@ vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
 
 describe("addAgreementUseCase", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-15T10:30:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(async () => {
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
       Application.new({
@@ -100,7 +108,7 @@ describe("addAgreementUseCase", () => {
       data: [
         {
           createdAt: "2024-01-01T12:00:00Z",
-          updatedAt: expect.stringMatching(ISO_DATE_TIME_REGEX),
+          updatedAt: "2024-01-15T10:30:00.000Z",
           agreementStatus: AgreementStatus.Offered,
           agreementRef: "agreement-123",
         },
