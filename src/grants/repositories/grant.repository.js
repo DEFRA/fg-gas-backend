@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
-import { Grant } from "../models/grant.js";
+import { Grant } from "../models/grant.ts";
 
 export const toGrant = (doc) =>
   new Grant({

@@ -1,6 +1,6 @@
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { Grant } from "../models/grant.js";
+import { Grant } from "../models/grant.ts";
 import { findGrantByCodeUseCase } from "../use-cases/find-grant-by-code.use-case.js";
 import { findGrantByCodeRoute } from "./find-grant-by-code.route.js";
 

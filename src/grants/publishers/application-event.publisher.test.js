@@ -7,7 +7,7 @@ import {
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
-} from "../models/application.js";
+} from "../models/application.ts";
 import {
   publishApplicationApproved,
   publishApplicationCreated,

@@ -1,0 +1,89 @@
+{
+
+"roleTable": {
+  "ROLE_ADMIN": {
+    "description": "Administrator role with full access to the system.",
+    "active": true
+  },
+  "ROLE_LAYING_HENS": {
+
+  },
+  "ROLE_RPA": {
+
+  },
+  "ROLE_LEVEL_8": {
+
+  }
+
+},
+
+"caseDefinition": {
+  "laying-hens": {
+    "requiredRoles": {
+      "allOf": [
+        "ROLE_LAYING_HENS",
+        "ROLE_RPA"
+      ],
+      "anyOf": [
+        "ROLE_LEVEL_8", "ROLE_LEVEL_9"
+      ]
+    },
+    "stages": {
+      "application": {
+        "requiredRoles": [
+          "ROLE_FORESTRY_COMMISSION","ROLE_LAYING_HENS"
+        ],
+        "optionalRoles": [
+          "ROLE_RPA"
+        ]
+      },
+      "assessment": {
+        "requiredRoles": [
+          "ROLE_RPA"
+        ],
+        "optionalRoles": [
+          "ROLE_LAYING_HENS"
+        ]
+      },
+      "decision": {
+        "requiredRoles": [
+          "ROLE_ADMIN"
+        ]
+      }
+    }
+  }
+},
+
+  "users": {
+    "user1": {
+      "idpRoles": {
+        "ROLE_CASEWORKING": {
+        }},
+      "appRoles": {
+        "ROLE_ADMIN": {
+          "start": "2025-05-01"
+        },
+        "ROLE_LAYING_HENS": {
+          "end": "2026-05-01"
+        },
+        "ROLE_ANOTHER": {
+          "start": "2025-05-01",
+          "end": "2026-05-01"
+        },
+        "ROLE_PIG_INSPECTOR": {
+
+        }
+    },
+    "user2": {
+      "idpRoles": ["ROLE_CASEWORKING"],
+      "appRoles": ["ROLE_ADMIN", "ROLE_LAYING_HENS"]
+    },
+    "user3": {
+      "idpRoles": ["ROLE_CASEWORKING"],
+      "appRoles": ["ROLE_ADMIN", "ROLE_LAYING_HENS", "ROLE_RPA", "ROLE_LEVEL_9"]
+    }
+  }
+
+
+
+}

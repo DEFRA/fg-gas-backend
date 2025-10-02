@@ -9,7 +9,7 @@ import {
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
-} from "../models/application.js";
+} from "../models/application.ts";
 import { publishApplicationStatusUpdated } from "../publishers/application-event.publisher.js";
 import { update } from "../repositories/application.repository.js";
 import { addAgreementUseCase } from "./add-agreement.use-case.js";

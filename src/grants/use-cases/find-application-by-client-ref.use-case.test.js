@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { Application } from "../models/application.js";
+import { Application } from "../models/application.ts";
 import { findByClientRef } from "../repositories/application.repository.js";
 import { findApplicationByClientRefUseCase } from "./find-application-by-client-ref.use-case.js";
 

@@ -5,7 +5,7 @@ import {
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
-} from "./application.js";
+} from "./application.ts";
 
 describe("Application", () => {
   beforeEach(() => {

@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 
-import { Application } from "../models/application.js";
+import { Application } from "../models/application.ts";
 import { publishApplicationCreated } from "../publishers/application-event.publisher.js";
 import { publishCreateNewCase } from "../publishers/case-event.publisher.js";
 import { save } from "../repositories/application.repository.js";

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { Grant } from "../models/grant.js";
+import { Grant } from "../models/grant.ts";
 import { findByCode } from "../repositories/grant.repository.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 

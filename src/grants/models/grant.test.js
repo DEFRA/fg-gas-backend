@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Grant } from "./grant.js";
+import { Grant } from "./grant.ts";
 
 describe("Grant", () => {
   it("can create a Grant model", () => {

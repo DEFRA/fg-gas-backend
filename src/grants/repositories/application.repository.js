@@ -3,7 +3,7 @@ import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
 import { Agreement, AgreementHistoryEntry } from "../models/agreement.js";
 import { ApplicationDocument } from "../models/application-document.js";
-import { Application } from "../models/application.js";
+import { Application } from "../models/application.ts";
 
 const toApplication = (doc) =>
   new Application({

@@ -4,8 +4,8 @@ import {
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
-} from "../models/application.js";
-import { Grant } from "../models/grant.js";
+} from "../models/application.ts";
+import { Grant } from "../models/grant.ts";
 import { publishApplicationCreated } from "../publishers/application-event.publisher.js";
 import { publishCreateNewCase } from "../publishers/case-event.publisher.js";
 import { save } from "../repositories/application.repository.js";

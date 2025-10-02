@@ -1,4 +1,6 @@
 import Boom from "@hapi/boom";
+import {Grant} from "./grant.js";
+import {LifecyclePosition} from "./lifecycle-position";
 
 export const ApplicationPhase = {
   PreAward: "PRE_AWARD",
@@ -18,6 +20,17 @@ export const ApplicationStatus = {
 };
 
 export class Application {
+
+  currentPhase: string;
+  currentStage: string;
+  currentStatus: string;
+  readonly clientRef: string;
+  readonly code: string;
+  readonly createdAt: Date;
+
+  transitionStage(grant, targetPhase, targetStage, targetStatus) {
+      throw new Error("Method not implemented.");
+  }
   constructor({
     currentPhase,
     currentStage,
@@ -115,4 +128,23 @@ export class Application {
   #getTmestamp() {
     return new Date().toISOString();
   }
+
+  transitionStatus(grant: Grant, targetPhase: string, targetStage: string, targetStatus: string) : AdditionalProcesses {
+
+    // grantStageStatuses would be a Map<string, Status>
+    const pos : LifecyclePosition = {phase: this.currentPhase, stage: this.currentStage, status: null}
+    const grantStageStatuses = grant.findStatuses(pos);
+    const targetedStatus = grantStageStatuses[targetStatus];
+    const transitionInfo = targetedStatus.transitionInfo(this.currentStatus);
+    if (transitionInfo.validFrom.contains(this.currentStatus)) {
+      return transitionInfo.processes;
+    } else {
+      return { processes:[] };
+    }
+  }
+
+}
+
+export type AdditionalProcesses = {
+  processes: string[];
 }
