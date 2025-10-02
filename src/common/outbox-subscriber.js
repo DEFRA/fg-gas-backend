@@ -25,7 +25,7 @@ export class OutboxSubscriber {
       const pendingEvents = await fetchPendingEvents(claimToken);
 
       if (pendingEvents.length > 0) {
-        logger.info(`Processing ${pendingEvents.length} pending events.`);
+        logger.info(`Processing ${pendingEvents.length} pending events`);
         await this.processEvents(pendingEvents);
       }
 
@@ -91,6 +91,9 @@ export class OutboxSubscriber {
   start() {
     // TODO: check if there are any hanging processes (status: "PROCESSING") and process these immediately
     logger.info("starting outbox subscriber");
+    logger.warn(
+      'TODO: check if there are any hanging processes (status: "PROCESSING") and process these immediately',
+    );
     this.running = true;
     this.poll();
   }
