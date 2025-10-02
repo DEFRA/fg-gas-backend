@@ -1,13 +1,15 @@
+import { getInstanceId } from "../../common/get-instance-id.js";
 import { logger } from "../../common/logger.js";
 import { Inbox } from "../models/inbox.js";
 import {
   findByMessageId,
   insertOne,
 } from "../repositories/inbox.respository.js";
-import os from "node:os";
 
 export const saveInboxMessageUseCase = async (message, fnString) => {
-  const hostname = os.hostname();
+  
+  const hostname = getInstanceId();
+
   logger.info("save inbox message use case");
   const existing = await findByMessageId(message.id);
   if (existing !== null) {

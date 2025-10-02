@@ -12,6 +12,7 @@ export class Inbox {
     this.completionDate = props.completionDate || null;
     this.claimToken = null;
     this.claimedAt = null;
+    this.claimExpiresAt = null;
     this.handler = props.handler; // string representation of the function to call
   }
 
@@ -44,6 +45,7 @@ export class Inbox {
       completionDate: this.completionDate,
       claimedAt: this.claimedAt,
       claimToken: this.claimToken,
+      claimExpiresAt: this.claimExpiresAt,
       handler: this.handler,
     };
   }
@@ -62,6 +64,7 @@ export class Inbox {
       completionDate: doc.completionDate,
       claimedAt: doc.claimedAt,
       claimToken: doc.claimToken,
+      claimExpiresAt: doc.claimExpiresAt,
       handler: doc.handler,
     });
   }

@@ -87,7 +87,7 @@ export class OutboxSubscriber {
   }
 
   async sendEvent(event) {
-    const { listenerId: topic, event: data } = event;
+    const { target: topic, event: data } = event;
     logger.info(`Send outbox event to ${topic}`);
     try {
       await publish(topic, data);

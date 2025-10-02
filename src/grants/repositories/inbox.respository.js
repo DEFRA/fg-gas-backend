@@ -23,6 +23,7 @@ export const fetchPendingEvents = async (claimToken) => {
         status: InboxStatus.PROCESSING,
         claimToken,
         claimedAt: new Date(),
+        claimExpiresAt: new Date(Date.now() + 300000)// 5 minutes
       },
     },
   );
@@ -35,13 +36,27 @@ export const fetchPendingEvents = async (claimToken) => {
   return documents.map((doc) => Inbox.fromDocument(doc));
 };
 
+export const processExpiredEvents = async () => {
+  await db.collection[COLLECTION_NAME].updateMany({
+    claimExpiresAt: { lt: new Date() },
+  }, {
+    $set: {
+      status: InboxStatus.RESUBMITTED,
+      claimToken: null,
+      claimedAt: null,
+      claimExpiresAt: null,
+      hostname: null
+    }
+  });
+}
+
 // Move events that have been retried to dead status
 export const updateDeadEvents = async () => {
   const results = await db
     .collection(COLLECTION_NAME)
     .updateMany(
       { completionAttempts: { $gte: MAX_RETRIES } },
-      { $set: { status: InboxStatus.DEAD } },
+      { $set: { status: InboxStatus.DEAD, claimToken: null, claimedAt: null, claimExpiresAt: null, hostname: null } },
     );
   return results;
 };
@@ -53,7 +68,7 @@ export const updateFailedEvents = async () => {
       status: InboxStatus.FAILED,
     },
     {
-      $set: { status: InboxStatus.RESUBMITTED },
+      $set: { status: InboxStatus.RESUBMITTED, claimToken: null, claimedAt: null, claimExpiresAt: null, hostname: null },
     },
   );
   return results;
@@ -66,7 +81,7 @@ export const updateResubmittedEvents = async () => {
       status: InboxStatus.RESUBMITTED,
     },
     {
-      $set: { status: InboxStatus.PUBLISHED },
+      $set: { status: InboxStatus.PUBLISHED, claimToken: null, claimedAt: null, claimExpiresAt: null, hostname: null },
       $inc: { completionAttempts: 1 },
     },
   );
