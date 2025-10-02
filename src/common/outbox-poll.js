@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import {
-  fetchFailedEvents,
   fetchPendingEvents,
-  update
+  update,
+  updateFailedEvents,
+  updateResubmittedEvents,
 } from "../grants/repositories/event-publication.respository.js";
 import { logger } from "./logger.js";
 import { publish } from "./sns-client.js";
@@ -22,21 +23,34 @@ export class OutboxSubscriber {
     while (this.running) {
       const claimToken = randomUUID();
       const pendingEvents = await fetchPendingEvents(claimToken);
-      let failedEvents = [];
-      if (this.includeResubmissions) {
-        const failedClaimToken = randomUUID();
-        failedEvents = await fetchFailedEvents(failedClaimToken);
+
+      if (pendingEvents.length > 0) {
+        logger.info(`Processing ${pendingEvents.length} pending events.`);
+        await this.processEvents(pendingEvents);
       }
 
-      const allEvents = [...pendingEvents, ...failedEvents];
+      // move resubmitted events to published status
+      const resubmittedResults = await this.processResubmittedEvents();
+      logger.info(
+        `Updated ${resubmittedResults.modifiedCount} resubmitted events`,
+      );
 
-      if (allEvents.length > 0) {
-        logger.info(`Processing ${pendingEvents.length} pending events and ${failedEvents.length} failed events for resubmission`);
-        await this.processEvents(allEvents);
-      }
+      // move failed events to resubmitted status
+      const failedResults = await this.processFailedEvents();
+      logger.info(`Updated ${failedResults.modifiedCount} failed events`);
 
       await setTimeout(this.interval);
     }
+  }
+
+  async processResubmittedEvents() {
+    logger.info("Processing resubmitted events");
+    await updateResubmittedEvents();
+  }
+
+  async processFailedEvents() {
+    logger.info("Processing failed events");
+    await updateFailedEvents();
   }
 
   // processing failed
@@ -69,9 +83,9 @@ export class OutboxSubscriber {
   }
 
   async processEvents(events) {
-    logger.info("process events", events);
+    logger.info(`Processing ${events.length} events`);
     await Promise.all(events.map((event) => this.sendEvent(event)));
-    logger.info("all events processed");
+    logger.info("All events processed");
   }
 
   start() {

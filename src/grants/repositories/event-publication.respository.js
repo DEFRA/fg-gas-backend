@@ -1,15 +1,32 @@
 import { db } from "../../common/mongo-client.js";
-import { EventPublication } from "../models/event-publication.js";
+import {
+  EventPublication,
+  EventPublicationStatus,
+} from "../models/event-publication.js";
 
 const COLLECTION_NAME = "event_publication_outbox";
 
 export const fetchPendingEvents = async (claimToken) => {
+  const omitStatuses = [
+    EventPublicationStatus.PROCESSING,
+    EventPublicationStatus.COMPLETED,
+    EventPublicationStatus.RESUBMITTED,
+    EventPublicationStatus.FAILED,
+  ];
+
+  // TODO this will need to only work on one event at a time
   await db.collection(COLLECTION_NAME).updateMany(
     {
-      status: { $nin: ["PROCESSING", "COMPLETE", "RESUBMITTED"] },
+      status: { $nin: omitStatuses },
       claimToken: { $eq: null },
     },
-    { $set: { status: "PROCESSING", claimToken, claimedAt: new Date() } },
+    {
+      $set: {
+        status: EventPublicationStatus.PROCESSING,
+        claimToken,
+        claimedAt: new Date(),
+      },
+    },
   );
 
   const documents = await db
@@ -19,20 +36,34 @@ export const fetchPendingEvents = async (claimToken) => {
   return documents.map((doc) => EventPublication.fromDocument(doc));
 };
 
-export const fetchFailedEvents = async (claimToken) => {
-  await db.collection(COLLECTION_NAME).updateMany(
+// Move failed events to resubmitted status
+export const updateFailedEvents = async () => {
+  const results = await db.collection(COLLECTION_NAME).updateMany(
     {
-      status: "FAILED",
+      status: EventPublicationStatus.FAILED,
       claimToken: { $eq: null },
     },
-    { $set: { status: "RESUBMITTED", claimToken, claimedAt: new Date() }, $inc: { completionAttempts: 1 } },
+    {
+      $set: { status: EventPublicationStatus.RESUBMITTED },
+      $inc: { completionAttempts: 1 },
+    },
   );
+  return results;
+};
 
-  const documents = await db
-    .collection(COLLECTION_NAME)
-    .find({ claimToken, status: "PROCESSING" })
-    .toArray();
-  return documents.map((doc) => EventPublication.fromDocument(doc));
+// Move resubmitted events to published status
+export const updateResubmittedEvents = async () => {
+  const results = await db.collection(COLLECTION_NAME).updateMany(
+    {
+      status: EventPublicationStatus.RESUBMITTED,
+      claimToken: { $eq: null },
+    },
+    {
+      $set: { status: EventPublicationStatus.PUBLISHED },
+      $inc: { completionAttempts: 1 },
+    },
+  );
+  return results;
 };
 
 export const insertMany = async (events, session) => {

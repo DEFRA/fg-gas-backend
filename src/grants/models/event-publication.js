@@ -38,7 +38,7 @@ export class EventPublication {
   }
 
   markAsResubmitted() {
-    this.status = EventPublicationStatus.RESUBMITTED
+    this.status = EventPublicationStatus.RESUBMITTED;
     this.completionAttempts += 1;
   }
 
@@ -74,7 +74,7 @@ export class EventPublication {
 }
 
 export const EventPublicationStatus = {
-  PENDING: "PENDING",
+  PROCESSING: "PROCESSING",
   PUBLISHED: "PUBLISHED",
   FAILED: "FAILED",
   COMPLETED: "COMPLETED",
