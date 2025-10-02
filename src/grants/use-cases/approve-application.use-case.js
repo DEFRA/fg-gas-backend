@@ -8,7 +8,7 @@ import { config } from "../../common/config.js";
 // eslint-disable-next-line import-x/no-restricted-paths
 import { CreateAgreementCommand } from "../events/create-agreement.command.js";
 import { Outbox } from "../models/outbox.js";
-import { insertMany } from "../repositories/event-publication-outbox.respository.js";
+import { insertMany } from "../repositories/outbox.respository.js";
 
 export const approveApplicationUseCase = async ({
   caseRef: clientRef,

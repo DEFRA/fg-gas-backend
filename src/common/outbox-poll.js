@@ -5,7 +5,7 @@ import {
   update,
   updateFailedEvents,
   updateResubmittedEvents,
-} from "../grants/repositories/event-publication-outbox.respository.js";
+} from "../grants/repositories/outbox.respository.js";
 import { logger } from "./logger.js";
 import { publish } from "./sns-client.js";
 

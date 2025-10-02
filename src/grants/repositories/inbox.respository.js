@@ -9,7 +9,13 @@ export const fetchPendingEvents = async (claimToken) => {
       status: { $nin: [InboxStatus.PROCESSING, InboxStatus.COMPLETED] },
       claimToken: { $eq: null },
     },
-    { $set: { status: InboxStatus.PROCESSING, claimToken, claimedAt: new Date() } },
+    {
+      $set: {
+        status: InboxStatus.PROCESSING,
+        claimToken,
+        claimedAt: new Date(),
+      },
+    },
   );
 
   const documents = await db
@@ -30,10 +36,12 @@ export const insertMany = async (events, session) => {
 export const findByMessageId = async (messageId) => {
   const doc = db.collection(COLLECTION_NAME).findOne({ messageId });
   return doc;
-}
+};
 
 export const insertOne = async (inbox, session) => {
-  return db.collection(COLLECTION_NAME).insertOne(inbox.toDocument(), { session });
+  return db
+    .collection(COLLECTION_NAME)
+    .insertOne(inbox.toDocument(), { session });
 };
 
 export const update = async (inbox) => {

@@ -1,15 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 
-import { logger } from "./logger.js";
-import { fetchPendingEvents, update } from "../grants/repositories/event-publication-inbox.respository.js";
+import {
+  fetchPendingEvents,
+  update,
+} from "../grants/repositories/inbox.respository.js";
 import { approveApplicationUseCase } from "../grants/use-cases/approve-application.use-case.js";
-
+import { logger } from "./logger.js";
 
 // when polling do we map the event to a method with a standard map?
-// map message type to function/method ???? 
+// map message type to function/method ????
 const useCaseMap = {
-  "io.onsite.agreement.offer.offered": approveApplicationUseCase
+  "io.onsite.agreement.offer.offered": approveApplicationUseCase,
   // "io.onsite.agreement.offer.offered": "approveApplicationUseCase"
 };
 
@@ -52,7 +54,7 @@ export class InboxSubscriber {
     logger.info(`handler event for inbox message ${type}:${messageId}`);
     try {
       const fn = useCaseMap[type];
-      if(fn) {
+      if (fn) {
         // we can eval the functionNamesafe because we're mapping to the name above
         // or we can import all the use-cases we need and call them safely
         // await eval(fn)(event.data);
@@ -62,7 +64,9 @@ export class InboxSubscriber {
         await this.markEventFailed(msg);
       }
     } catch (ex) {
-      logger.error(`Error handling event for inbox message ${type}:${messageId}`);
+      logger.error(
+        `Error handling event for inbox message ${type}:${messageId}`,
+      );
       logger.error(ex.message);
       await this.markEventFailed(msg);
     }
