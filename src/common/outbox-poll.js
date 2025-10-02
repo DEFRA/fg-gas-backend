@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import {
+  fetchFailedEvents,
   fetchPendingEvents,
-  update,
+  update
 } from "../grants/repositories/event-publication.respository.js";
 import { logger } from "./logger.js";
 import { publish } from "./sns-client.js";
@@ -11,16 +12,29 @@ import { publish } from "./sns-client.js";
  * Class to poll the event_publication_outbox table
  */
 export class OutboxSubscriber {
-  constructor(interval) {
+  constructor(interval, includeResubmissions) {
     this.interval = interval;
     this.running = false;
+    this.includeResubmissions = includeResubmissions;
   }
 
   async poll() {
     while (this.running) {
       const claimToken = randomUUID();
-      const events = await fetchPendingEvents(claimToken);
-      await this.processEvents(events);
+      const pendingEvents = await fetchPendingEvents(claimToken);
+      let failedEvents = [];
+      if (this.includeResubmissions) {
+        const failedClaimToken = randomUUID();
+        failedEvents = await fetchFailedEvents(failedClaimToken);
+      }
+
+      const allEvents = [...pendingEvents, ...failedEvents];
+
+      if (allEvents.length > 0) {
+        logger.info(`Processing ${pendingEvents.length} pending events and ${failedEvents.length} failed events for resubmission`);
+        await this.processEvents(allEvents);
+      }
+
       await setTimeout(this.interval);
     }
   }

@@ -6,7 +6,7 @@ const COLLECTION_NAME = "event_publication_outbox";
 export const fetchPendingEvents = async (claimToken) => {
   await db.collection(COLLECTION_NAME).updateMany(
     {
-      status: { $nin: ["PROCESSING", "COMPLETE"] },
+      status: { $nin: ["PROCESSING", "COMPLETE", "RESUBMITTED"] },
       claimToken: { $eq: null },
     },
     { $set: { status: "PROCESSING", claimToken, claimedAt: new Date() } },
@@ -15,6 +15,22 @@ export const fetchPendingEvents = async (claimToken) => {
   const documents = await db
     .collection(COLLECTION_NAME)
     .find({ claimToken })
+    .toArray();
+  return documents.map((doc) => EventPublication.fromDocument(doc));
+};
+
+export const fetchFailedEvents = async (claimToken) => {
+  await db.collection(COLLECTION_NAME).updateMany(
+    {
+      status: "FAILED",
+      claimToken: { $eq: null },
+    },
+    { $set: { status: "RESUBMITTED", claimToken, claimedAt: new Date() }, $inc: { completionAttempts: 1 } },
+  );
+
+  const documents = await db
+    .collection(COLLECTION_NAME)
+    .find({ claimToken, status: "PROCESSING" })
     .toArray();
   return documents.map((doc) => EventPublication.fromDocument(doc));
 };
