@@ -22,7 +22,8 @@ jobs:
         with:
           fetch-depth: 0 # Depth 0 is required for branch-based versioning
 
-      - uses: actions/setup-node@v5
+      - name: Use Node version
+        uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
