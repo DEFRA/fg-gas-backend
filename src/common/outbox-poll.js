@@ -3,7 +3,7 @@ import { setTimeout } from "node:timers/promises";
 import {
   fetchPendingEvents,
   update,
-} from "../grants/repositories/event-publication.respository.js";
+} from "../grants/repositories/event-publication-outbox.respository.js";
 import { logger } from "./logger.js";
 import { publish } from "./sns-client.js";
 
@@ -20,6 +20,7 @@ export class OutboxSubscriber {
     while (this.running) {
       const claimToken = randomUUID();
       const events = await fetchPendingEvents(claimToken);
+      console.log({events});
       await this.processEvents(events);
       await setTimeout(this.interval);
     }
@@ -30,7 +31,7 @@ export class OutboxSubscriber {
   async markEventUnsent(event) {
     event.markAsFailed();
     await update(event);
-    logger.info(`Marked event unsent ${event}`);
+    logger.info(`Marked outbox event unsent ${event}`);
   }
 
   // processing complete
@@ -38,26 +39,26 @@ export class OutboxSubscriber {
   async markEventComplete(event) {
     event.markAsComplete();
     await update(event);
-    logger.info(`Marked event as complete ${event._id}`);
+    logger.info(`Marked outbox event as complete ${event._id}`);
   }
 
   async sendEvent(event) {
     const { listenerId: topic, event: data } = event;
-    logger.info(`Send event to ${topic}`);
+    logger.info(`Send outbox event to ${topic}`);
     try {
       await publish(topic, data);
       await this.markEventComplete(event);
     } catch (ex) {
-      logger.error(`Error sending event to topic ${topic}`);
+      logger.error(`Error sending outbox event to topic ${topic}`);
       logger.error(ex.message);
       this.markEventUnsent(event);
     }
   }
 
   async processEvents(events) {
-    logger.info("process events", events);
+    logger.info("process outbox events", events);
     await Promise.all(events.map((event) => this.sendEvent(event)));
-    logger.info("all events processed");
+    logger.info("all outbox events processed");
   }
 
   start() {

@@ -16,8 +16,10 @@ import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 
 import { OutboxSubscriber } from "../common/outbox-poll.js";
+import { InboxSubscriber } from "../common/inbox-poll.js";
 
 const outboxSub = new OutboxSubscriber(30000);
+const inboxSub = new InboxSubscriber(30000);
 
 export const grants = {
   name: "grants",
@@ -31,12 +33,14 @@ export const grants = {
       agreementStatusUpdatedSubscriber.start();
       caseStatusUpdatedSubscriber.start();
       outboxSub.start();
+      inboxSub.start();
     });
 
     server.events.on("stop", async () => {
       agreementStatusUpdatedSubscriber.stop();
       caseStatusUpdatedSubscriber.stop();
       outboxSub.stop();
+      inboxSub.stop();
     });
 
     server.route([

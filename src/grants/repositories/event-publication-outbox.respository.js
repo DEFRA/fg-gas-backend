@@ -1,15 +1,15 @@
 import { db } from "../../common/mongo-client.js";
-import { EventPublication } from "../models/event-publication.js";
+import { EventPublication, EventPublicationStatus } from "../models/event-publication.js";
 
 const COLLECTION_NAME = "event_publication_outbox";
 
 export const fetchPendingEvents = async (claimToken) => {
   await db.collection(COLLECTION_NAME).updateMany(
     {
-      status: { $nin: ["PROCESSING", "COMPLETE"] },
+      status: { $nin: [EventPublicationStatus.PROCESSING, EventPublicationStatus.COMPLETED] },
       claimToken: { $eq: null },
     },
-    { $set: { status: "PROCESSING", claimToken, claimedAt: new Date() } },
+    { $set: { status: EventPublicationStatus.PROCESSING, claimToken, claimedAt: new Date() } },
   );
 
   const documents = await db

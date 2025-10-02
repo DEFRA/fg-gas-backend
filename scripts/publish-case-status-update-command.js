@@ -1,4 +1,5 @@
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
+import { randomUUID } from "node:crypto";
 
 /**
  *  call npm run publish:case:status:update to publish case status update command
@@ -19,7 +20,7 @@ const queueUrl =
   "http://sqs.eu-west-2.127.0.0.1:4566/000000000000/gas__sqs__update_status";
 
 const message = {
-  id: "event-id-300",
+  id: randomUUID(),
   time: "2025-09-09T11:30:52.000Z",
   source: "urn:service:agreement",
   specversion: "1.0",

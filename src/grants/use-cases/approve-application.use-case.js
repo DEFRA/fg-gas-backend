@@ -8,16 +8,16 @@ import { config } from "../../common/config.js";
 // eslint-disable-next-line import-x/no-restricted-paths
 import { CreateAgreementCommand } from "../events/create-agreement.command.js";
 import { EventPublication } from "../models/event-publication.js";
-import { insertMany } from "../repositories/event-publication.respository.js";
+import { insertMany } from "../repositories/event-publication-outbox.respository.js";
 
-export const approveApplicationUseCase = async ({ clientRef, code }) => {
-  return await withTransaction(async (session) => {
+export const approveApplicationUseCase = async ({ caseRef: clientRef, workflowCode: code }) => {
+  return withTransaction(async (session) => {
     const application = await findApplicationByClientRefAndCodeUseCase(
       clientRef,
       code,
       session,
     );
-
+    
     const previousStatus = application.getFullyQualifiedStatus();
     application.approve();
 
@@ -31,6 +31,7 @@ export const approveApplicationUseCase = async ({ clientRef, code }) => {
       previousStatus,
       currentStatus: application.getFullyQualifiedStatus(),
     });
+
 
     const statusEventPublication = new EventPublication({
       event: statusUpdatedEvent,

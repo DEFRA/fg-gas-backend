@@ -11,17 +11,24 @@ export const mongoClient = new MongoClient(config.mongoUri, {
 
 export const db = mongoClient.db(config.mongoDatabase);
 
-export const withTransaction = async (callback) => {
+const transactionOptions = {
+  readPreference: 'primary',
+  readConcern: { level: 'local' },
+  writeConcern: { w: 'majority' }
+};
+
+export const withTransaction = async (callback, propagateError=true) => {
   const session = mongoClient.startSession();
 
   try {
-    await session.withTransaction(async () => {
-      await callback(session);
-    });
-    await session.commitTransaction();
+    await session.withTransaction(callback, transactionOptions);
   } catch (e) {
+    logger.error("ERROR: Transaction failed");
     logger.error(e);
-    await session.abortTransaction();
+
+    if(propagateError) { 
+      throw new Error(`Transaction failed: ${e.message}`);
+    }
   } finally {
     await session.endSession();
   }

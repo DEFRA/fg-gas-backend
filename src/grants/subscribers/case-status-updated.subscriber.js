@@ -1,6 +1,7 @@
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { SqsSubscriber } from "../../common/sqs-subscriber.js";
-import { approveApplicationUseCase } from "../use-cases/approve-application.use-case.js";
+import { saveInboxMessageUseCase } from "../use-cases/save-inbox-message.use-case.js";
 
 const APPROVED = "APPROVED";
 
@@ -10,10 +11,8 @@ export const caseStatusUpdatedSubscriber = new SqsSubscriber({
     const { data } = message;
 
     if (data.currentStatus === APPROVED) {
-      await approveApplicationUseCase({
-        clientRef: data.caseRef,
-        code: data.workflowCode,
-      });
+      logger.info("handle case status update message");
+      await saveInboxMessageUseCase(message, "approveApplicationUseCase");
     }
   },
 });
