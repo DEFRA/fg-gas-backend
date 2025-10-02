@@ -7,17 +7,20 @@ import { ApplicationStatusUpdatedEvent } from "../events/application-status-upda
 import { config } from "../../common/config.js";
 // eslint-disable-next-line import-x/no-restricted-paths
 import { CreateAgreementCommand } from "../events/create-agreement.command.js";
-import { EventPublication } from "../models/event-publication.js";
+import { Outbox } from "../models/outbox.js";
 import { insertMany } from "../repositories/event-publication-outbox.respository.js";
 
-export const approveApplicationUseCase = async ({ caseRef: clientRef, workflowCode: code }) => {
+export const approveApplicationUseCase = async ({
+  caseRef: clientRef,
+  workflowCode: code,
+}) => {
   return withTransaction(async (session) => {
     const application = await findApplicationByClientRefAndCodeUseCase(
       clientRef,
       code,
       session,
     );
-    
+
     const previousStatus = application.getFullyQualifiedStatus();
     application.approve();
 
@@ -32,15 +35,14 @@ export const approveApplicationUseCase = async ({ caseRef: clientRef, workflowCo
       currentStatus: application.getFullyQualifiedStatus(),
     });
 
-
-    const statusEventPublication = new EventPublication({
+    const statusEventPublication = new Outbox({
       event: statusUpdatedEvent,
       listenerId: config.sns.grantApplicationStatusUpdatedTopicArn,
     });
 
     // CREATE AGREEMENT COMMAND
     const createAgreementCommand = new CreateAgreementCommand(application);
-    const createAgreementPublication = new EventPublication({
+    const createAgreementPublication = new Outbox({
       event: createAgreementCommand,
       listenerId: config.sns.createAgreementTopicArn,
     });

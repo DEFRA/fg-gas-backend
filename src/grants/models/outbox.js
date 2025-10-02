@@ -1,11 +1,11 @@
-export class EventPublication {
+export class Outbox {
   // eslint-disable-next-line complexity
   constructor({
     _id,
     listenerId,
     event,
     completionAttempts = 1,
-    status = EventPublicationStatus.PUBLISHED,
+    status = OutboxStatus.PUBLISHED,
     publicationDate = new Date(),
     lastResubmissionDate = null,
     completionDate = null,
@@ -23,14 +23,14 @@ export class EventPublication {
   }
 
   markAsComplete() {
-    this.status = EventPublicationStatus.COMPLETED;
+    this.status = OutboxStatus.COMPLETED;
     this.completionDate = new Date().toISOString();
     this.claimToken = null;
     this.claimedAt = null;
   }
 
   markAsFailed() {
-    this.status = EventPublicationStatus.FAILED;
+    this.status = OutboxStatus.FAILED;
     this.lastResubmissionDate = new Date().toISOString();
     this.completionAttempts += 1;
     this.claimToken = null;
@@ -38,7 +38,7 @@ export class EventPublication {
   }
 
   markAsResubmitted() {
-    this.status = EventPublicationStatus.RESUBMITTED;
+    this.status = OutboxStatus.RESUBMITTED;
     this.completionAttempts += 1;
   }
 
@@ -58,7 +58,7 @@ export class EventPublication {
   }
 
   static fromDocument(doc) {
-    return new EventPublication({
+    return new Outbox({
       _id: doc._id,
       publicationDate: doc.publicationDate,
       listenerId: doc.listenerId,
@@ -73,7 +73,7 @@ export class EventPublication {
   }
 }
 
-export const EventPublicationStatus = {
+export const OutboxStatus = {
   PROCESSING: "PROCESSING",
   PUBLISHED: "PUBLISHED",
   FAILED: "FAILED",

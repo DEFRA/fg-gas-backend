@@ -1,17 +1,14 @@
 import { db } from "../../common/mongo-client.js";
-import {
-  EventPublication,
-  EventPublicationStatus,
-} from "../models/event-publication.js";
+import { Outbox, OutboxStatus } from "../models/outbox.js";
 
 const COLLECTION_NAME = "event_publication_outbox";
 
 export const fetchPendingEvents = async (claimToken) => {
   const omitStatuses = [
-    EventPublicationStatus.PROCESSING,
-    EventPublicationStatus.COMPLETED,
-    EventPublicationStatus.RESUBMITTED,
-    EventPublicationStatus.FAILED,
+    OutboxStatus.PROCESSING,
+    OutboxStatus.COMPLETED,
+    OutboxStatus.RESUBMITTED,
+    OutboxStatus.FAILED,
   ];
 
   // TODO this will need to only work on one event at a time
@@ -22,7 +19,7 @@ export const fetchPendingEvents = async (claimToken) => {
     },
     {
       $set: {
-        status: EventPublicationStatus.PROCESSING,
+        status: OutboxStatus.PROCESSING,
         claimToken,
         claimedAt: new Date(),
       },
@@ -33,18 +30,18 @@ export const fetchPendingEvents = async (claimToken) => {
     .collection(COLLECTION_NAME)
     .find({ claimToken })
     .toArray();
-  return documents.map((doc) => EventPublication.fromDocument(doc));
+  return documents.map((doc) => Outbox.fromDocument(doc));
 };
 
 // Move failed events to resubmitted status
 export const updateFailedEvents = async () => {
   const results = await db.collection(COLLECTION_NAME).updateMany(
     {
-      status: EventPublicationStatus.FAILED,
+      status: OutboxStatus.FAILED,
       claimToken: { $eq: null },
     },
     {
-      $set: { status: EventPublicationStatus.RESUBMITTED },
+      $set: { status: OutboxStatus.RESUBMITTED },
       $inc: { completionAttempts: 1 },
     },
   );
@@ -55,11 +52,11 @@ export const updateFailedEvents = async () => {
 export const updateResubmittedEvents = async () => {
   const results = await db.collection(COLLECTION_NAME).updateMany(
     {
-      status: EventPublicationStatus.RESUBMITTED,
+      status: OutboxStatus.RESUBMITTED,
       claimToken: { $eq: null },
     },
     {
-      $set: { status: EventPublicationStatus.PUBLISHED },
+      $set: { status: OutboxStatus.PUBLISHED },
       $inc: { completionAttempts: 1 },
     },
   );
