@@ -69,4 +69,6 @@ export const InboxStatus = {
   PUBLISHED: "PUBLISHED",
   FAILED: "FAILED",
   COMPLETED: "COMPLETED",
+  RESUBMITTED: "RESUBMITTED",
+  DEAD: "DEAD",
 };

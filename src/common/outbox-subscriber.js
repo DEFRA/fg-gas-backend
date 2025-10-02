@@ -43,21 +43,21 @@ export class OutboxSubscriber {
   }
 
   async processDeadEvents() {
-    logger.info("Processing dead events");
+    logger.info("Processing dead outbox events");
     const results = await updateDeadEvents();
-    logger.info(`Updated ${results?.modifiedCount} dead events`);
+    logger.info(`Updated ${results?.modifiedCount} dead outbox events`);
   }
 
   async processResubmittedEvents() {
-    logger.info("Processing resubmitted events");
+    logger.info("Processing resubmitted outbox events");
     const results = await updateResubmittedEvents();
-    logger.info(`Updated ${results?.modifiedCount} resubmitted events`);
+    logger.info(`Updated ${results?.modifiedCount} resubmitted outbox events`);
   }
 
   async processFailedEvents() {
-    logger.info("Processing failed events");
+    logger.info("Processing failed outbox events");
     const results = await updateFailedEvents();
-    logger.info(`Updated ${results?.modifiedCount} failed events`);
+    logger.info(`Updated ${results?.modifiedCount} failed outbox events`);
   }
 
   async processHangingEvents() {

@@ -2,12 +2,21 @@ import { db } from "../../common/mongo-client.js";
 import { Inbox, InboxStatus } from "../models/inbox.js";
 
 const COLLECTION_NAME = "event_publication_inbox";
+const MAX_RETRIES = 5;
 
 export const fetchPendingEvents = async (claimToken) => {
+  const omitStatuses = [
+    InboxStatus.PROCESSING,
+    InboxStatus.COMPLETED,
+    InboxStatus.RESUBMITTED,
+    InboxStatus.FAILED,
+    InboxStatus.DEAD,
+  ];
   await db.collection(COLLECTION_NAME).updateMany(
     {
-      status: { $nin: [InboxStatus.PROCESSING, InboxStatus.COMPLETED] },
+      status: { $nin: omitStatuses },
       claimToken: { $eq: null },
+      completionAttempts: { $lte: MAX_RETRIES },
     },
     {
       $set: {
@@ -24,6 +33,44 @@ export const fetchPendingEvents = async (claimToken) => {
     .toArray();
 
   return documents.map((doc) => Inbox.fromDocument(doc));
+};
+
+// Move events that have been retried to dead status
+export const updateDeadEvents = async () => {
+  const results = await db
+    .collection(COLLECTION_NAME)
+    .updateMany(
+      { completionAttempts: { $gt: MAX_RETRIES } },
+      { $set: { status: InboxStatus.DEAD } },
+    );
+  return results;
+};
+
+// Move failed events to resubmitted status
+export const updateFailedEvents = async () => {
+  const results = await db.collection(COLLECTION_NAME).updateMany(
+    {
+      status: InboxStatus.FAILED,
+    },
+    {
+      $set: { status: InboxStatus.RESUBMITTED },
+    },
+  );
+  return results;
+};
+
+// Move resubmitted events to published status
+export const updateResubmittedEvents = async () => {
+  const results = await db.collection(COLLECTION_NAME).updateMany(
+    {
+      status: InboxStatus.RESUBMITTED,
+    },
+    {
+      $set: { status: InboxStatus.PUBLISHED },
+      $inc: { completionAttempts: 1 },
+    },
+  );
+  return results;
 };
 
 export const insertMany = async (events, session) => {

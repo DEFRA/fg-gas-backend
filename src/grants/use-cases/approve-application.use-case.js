@@ -37,7 +37,7 @@ export const approveApplicationUseCase = async ({
 
     const statusEventPublication = new Outbox({
       event: statusUpdatedEvent,
-      listenerId: config.sns.grantApplicationStatusUpdatedTopicArn,
+      listenerId: "foo", // config.sns.grantApplicationStatusUpdatedTopicArn,
     });
 
     // CREATE AGREEMENT COMMAND

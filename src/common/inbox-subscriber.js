@@ -4,15 +4,15 @@ import { setTimeout } from "node:timers/promises";
 import {
   fetchPendingEvents,
   update,
+  updateDeadEvents,
+  updateFailedEvents,
+  updateResubmittedEvents,
 } from "../grants/repositories/inbox.respository.js";
 import { approveApplicationUseCase } from "../grants/use-cases/approve-application.use-case.js";
 import { logger } from "./logger.js";
 
-// when polling do we map the event to a method with a standard map?
-// map message type to function/method ????
 const useCaseMap = {
   "io.onsite.agreement.offer.offered": approveApplicationUseCase,
-  // "io.onsite.agreement.offer.offered": "approveApplicationUseCase"
 };
 
 /*
@@ -29,8 +29,33 @@ export class InboxSubscriber {
       const claimToken = randomUUID();
       const events = await fetchPendingEvents(claimToken);
       await this.processEvents(events);
+      // move resubmitted events to published status
+      await this.processResubmittedEvents();
+      // move failed events to resubmitted status
+      await this.processFailedEvents();
+      // DLQ
+      await this.processDeadEvents();
+
       await setTimeout(this.interval);
     }
+  }
+
+  async processDeadEvents() {
+    logger.info("Processing dead inbox events");
+    const results = await updateDeadEvents();
+    logger.info(`Updated ${results?.modifiedCount} dead inbox events`);
+  }
+
+  async processResubmittedEvents() {
+    logger.info("Processing resubmitted inbox events");
+    const results = await updateResubmittedEvents();
+    logger.info(`Updated ${results?.modifiedCount} resubmitted inbox events`);
+  }
+
+  async processFailedEvents() {
+    logger.info("Processing failed inbox events");
+    const results = await updateFailedEvents();
+    logger.info(`Updated ${results?.modifiedCount} failed inbox events`);
   }
 
   // processing failed
@@ -49,15 +74,12 @@ export class InboxSubscriber {
     logger.info(`Marked inbox event as complete ${inboxEvent.messageId}`);
   }
 
-  async mapEvent(msg) {
+  async mapEventToUseCase(msg) {
     const { type, event, messageId } = msg;
-    logger.info(`handler event for inbox message ${type}:${messageId}`);
+    logger.info(`Handler event for inbox message ${type}:${messageId}`);
     try {
       const fn = useCaseMap[type];
       if (fn) {
-        // we can eval the functionNamesafe because we're mapping to the name above
-        // or we can import all the use-cases we need and call them safely
-        // await eval(fn)(event.data);
         await fn(event.data);
         await this.markEventComplete(msg);
       } else {
@@ -73,9 +95,9 @@ export class InboxSubscriber {
   }
 
   async processEvents(events) {
-    logger.info("process inbox messages", events);
-    await Promise.all(events.map((event) => this.mapEvent(event)));
-    logger.info("all inbox messages processed");
+    logger.info(`Processing ${events.length}inbox messages`);
+    await Promise.all(events.map((event) => this.mapEventToUseCase(event)));
+    logger.info("All inbox messages processed");
   }
 
   start() {

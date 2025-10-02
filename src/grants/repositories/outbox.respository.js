@@ -18,7 +18,7 @@ export const fetchPendingEvents = async (claimToken) => {
     {
       status: { $nin: omitStatuses },
       claimToken: { $eq: null },
-      completionAttempts: { $lte: 5 },
+      completionAttempts: { $lte: MAX_RETRIES },
     },
     {
       $set: {
