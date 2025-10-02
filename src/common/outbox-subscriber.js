@@ -75,7 +75,7 @@ export class OutboxSubscriber {
   async markEventUnsent(event) {
     event.markAsFailed();
     await update(event);
-    logger.info(`Marked outbox event unsent ${event}`);
+    logger.info(`Marked outbox event unsent ${event._id}`);
   }
 
   // processing complete
