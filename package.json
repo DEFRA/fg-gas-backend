@@ -63,7 +63,7 @@
     "nodemon": "^3.1.10",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.3.0",
-    "testcontainers": "^10.13.2",
+    "testcontainers": "^11.7.0",
     "vitest": "^3.1.2"
   }
 }
