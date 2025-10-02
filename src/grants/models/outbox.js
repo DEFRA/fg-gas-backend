@@ -2,7 +2,7 @@ export class Outbox {
   // eslint-disable-next-line complexity
   constructor({
     _id,
-    listenerId,
+    target,
     event,
     completionAttempts = 1,
     status = OutboxStatus.PUBLISHED,
@@ -12,7 +12,7 @@ export class Outbox {
   }) {
     this._id = _id;
     this.publicationDate = publicationDate;
-    this.listenerId = listenerId;
+    this.target = target;
     this.event = event;
     this.lastResubmissionDate = lastResubmissionDate;
     this.completionAttempts = completionAttempts;
@@ -40,7 +40,7 @@ export class Outbox {
     return {
       _id: this._id,
       publicationDate: this.publicationDate,
-      listenerId: this.listenerId,
+      target: this.target,
       event: this.event,
       lastResubmissionDate: this.lastResubmissionDate,
       completionAttempts: this.completionAttempts,
@@ -55,7 +55,7 @@ export class Outbox {
     return new Outbox({
       _id: doc._id,
       publicationDate: doc.publicationDate,
-      listenerId: doc.listenerId,
+      target: doc.target,
       event: doc.event,
       lastResubmissionDate: doc.lastResubmissionDate,
       completionAttempts: doc.completionAttempts,

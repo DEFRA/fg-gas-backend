@@ -40,7 +40,7 @@ export const updateDeadEvents = async () => {
   const results = await db
     .collection(COLLECTION_NAME)
     .updateMany(
-      { completionAttempts: { $gt: MAX_RETRIES } },
+      { completionAttempts: { $gte: MAX_RETRIES } },
       { $set: { status: InboxStatus.DEAD } },
     );
   return results;
