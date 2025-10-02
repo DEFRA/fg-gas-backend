@@ -38,7 +38,6 @@ export const updateFailedEvents = async () => {
   const results = await db.collection(COLLECTION_NAME).updateMany(
     {
       status: OutboxStatus.FAILED,
-      claimToken: { $eq: null },
     },
     {
       $set: { status: OutboxStatus.RESUBMITTED },
@@ -53,7 +52,6 @@ export const updateResubmittedEvents = async () => {
   const results = await db.collection(COLLECTION_NAME).updateMany(
     {
       status: OutboxStatus.RESUBMITTED,
-      claimToken: { $eq: null },
     },
     {
       $set: { status: OutboxStatus.PUBLISHED },

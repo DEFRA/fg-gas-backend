@@ -30,14 +30,10 @@ export class OutboxSubscriber {
       }
 
       // move resubmitted events to published status
-      const resubmittedResults = await this.processResubmittedEvents();
-      logger.info(
-        `Updated ${resubmittedResults.modifiedCount} resubmitted events`,
-      );
+      await this.processResubmittedEvents();
 
       // move failed events to resubmitted status
-      const failedResults = await this.processFailedEvents();
-      logger.info(`Updated ${failedResults.modifiedCount} failed events`);
+      await this.processFailedEvents();
 
       await setTimeout(this.interval);
     }
@@ -45,12 +41,14 @@ export class OutboxSubscriber {
 
   async processResubmittedEvents() {
     logger.info("Processing resubmitted events");
-    await updateResubmittedEvents();
+    const results = await updateResubmittedEvents();
+    logger.info(`Updated ${results?.modifiedCount} resubmitted events`);
   }
 
   async processFailedEvents() {
     logger.info("Processing failed events");
-    await updateFailedEvents();
+    const results = await updateFailedEvents();
+    logger.info(`Updated ${results?.modifiedCount} failed events`);
   }
 
   // processing failed

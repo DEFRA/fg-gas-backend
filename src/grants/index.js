@@ -15,8 +15,8 @@ import { submitApplicationRoute } from "./routes/submit-application.route.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 
-import { OutboxSubscriber } from "../common/outbox-poll.js";
-import { InboxSubscriber } from "../common/inbox-poll.js";
+import { InboxSubscriber } from "../common/inbox-subscriber.js";
+import { OutboxSubscriber } from "../common/outbox-subscriber.js";
 
 const outboxSub = new OutboxSubscriber(30000);
 const inboxSub = new InboxSubscriber(30000);
