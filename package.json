@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "node --env-file=.env --watch src/main.js",
+    "dev": "nodemon --env-file=.env src/main.js",
     "lint": "eslint",
     "test": "npm run test:unit -- --run && npm run test:integration -- --run",
     "test:unit": "vitest --config vitest.config.js --dir src",
@@ -60,6 +60,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.2.0",
     "neostandard": "^0.12.1",
+    "nodemon": "^3.1.10",
     "prettier": "^3.5.3",
     "prettier-plugin-organize-imports": "^4.3.0",
     "testcontainers": "^10.13.2",
