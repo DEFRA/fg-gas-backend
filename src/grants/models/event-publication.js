@@ -37,6 +37,11 @@ export class EventPublication {
     this.claimedAt = null;
   }
 
+  markAsResubmitted() {
+    this.status = EventPublicationStatus.RESUBMITTED;
+    this.completionAttempts += 1;
+  }
+
   toDocument() {
     return {
       _id: this._id,
@@ -73,4 +78,5 @@ export const EventPublicationStatus = {
   PUBLISHED: "PUBLISHED",
   FAILED: "FAILED",
   COMPLETED: "COMPLETED",
+  RESUBMITTED: "RESUBMITTED",
 };

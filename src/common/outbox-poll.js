@@ -3,6 +3,8 @@ import { setTimeout } from "node:timers/promises";
 import {
   fetchPendingEvents,
   update,
+  updateFailedEvents,
+  updateResubmittedEvents,
 } from "../grants/repositories/event-publication-outbox.respository.js";
 import { logger } from "./logger.js";
 import { publish } from "./sns-client.js";
@@ -11,19 +13,44 @@ import { publish } from "./sns-client.js";
  * Class to poll the event_publication_outbox table
  */
 export class OutboxSubscriber {
-  constructor(interval) {
+  constructor(interval, includeResubmissions) {
     this.interval = interval;
     this.running = false;
+    this.includeResubmissions = includeResubmissions;
   }
 
   async poll() {
     while (this.running) {
       const claimToken = randomUUID();
-      const events = await fetchPendingEvents(claimToken);
-      console.log({events});
-      await this.processEvents(events);
+      const pendingEvents = await fetchPendingEvents(claimToken);
+
+      if (pendingEvents.length > 0) {
+        logger.info(`Processing ${pendingEvents.length} pending events.`);
+        await this.processEvents(pendingEvents);
+      }
+
+      // move resubmitted events to published status
+      const resubmittedResults = await this.processResubmittedEvents();
+      logger.info(
+        `Updated ${resubmittedResults.modifiedCount} resubmitted events`,
+      );
+
+      // move failed events to resubmitted status
+      const failedResults = await this.processFailedEvents();
+      logger.info(`Updated ${failedResults.modifiedCount} failed events`);
+
       await setTimeout(this.interval);
     }
+  }
+
+  async processResubmittedEvents() {
+    logger.info("Processing resubmitted events");
+    await updateResubmittedEvents();
+  }
+
+  async processFailedEvents() {
+    logger.info("Processing failed events");
+    await updateFailedEvents();
   }
 
   // processing failed
@@ -56,9 +83,9 @@ export class OutboxSubscriber {
   }
 
   async processEvents(events) {
-    logger.info("process outbox events", events);
+    logger.info(`Processing ${events.length} outbox events.`);
     await Promise.all(events.map((event) => this.sendEvent(event)));
-    logger.info("all outbox events processed");
+    logger.info("All outbox events processed.");
   }
 
   start() {
