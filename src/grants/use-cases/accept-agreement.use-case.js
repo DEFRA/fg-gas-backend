@@ -28,17 +28,11 @@ export const acceptAgreementUseCase = async ({
     currentStatus: application.getFullyQualifiedStatus(),
   });
 
-  const agreement = application.getAgreement(agreementRef);
-
   await publishUpdateCaseStatus({
     caseRef: clientRef,
     workflowCode: code,
     newStatus: CaseStatus.OfferAccepted,
     targetNode: "agreements",
-    data: {
-      createdAt: date,
-      agreementStatus: agreement.latestStatus,
-      agreementRef: agreement.agreementRef,
-    },
+    data: application.getAgreementsData(),
   });
 };

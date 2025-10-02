@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ISO_DATE_TIME_REGEX } from "../../../test/helpers/dates.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -118,11 +119,14 @@ describe("acceptAgreementUseCase", () => {
       workflowCode: "test-code",
       newStatus: CaseStatus.OfferAccepted,
       targetNode: "agreements",
-      data: {
-        createdAt: "2024-01-01T12:00:00Z",
-        agreementStatus: AgreementStatus.Accepted,
-        agreementRef: "agreement-123",
-      },
+      data: [
+        {
+          createdAt: "2024-01-01T12:00:00Z",
+          updatedAt: expect.stringMatching(ISO_DATE_TIME_REGEX),
+          agreementStatus: AgreementStatus.Accepted,
+          agreementRef: "agreement-123",
+        },
+      ],
     });
   });
 });
