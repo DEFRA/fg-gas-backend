@@ -2,6 +2,7 @@ import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 
 const COLLECTION_NAME = "event_publication_outbox";
+const MAX_RETRIES = 5;
 
 export const fetchPendingEvents = async (claimToken) => {
   const omitStatuses = [
@@ -9,13 +10,15 @@ export const fetchPendingEvents = async (claimToken) => {
     OutboxStatus.COMPLETED,
     OutboxStatus.RESUBMITTED,
     OutboxStatus.FAILED,
+    OutboxStatus.DEAD,
   ];
 
-  // TODO this will need to only work on one event at a time
+  // TODO - does this need to be a single update?
   await db.collection(COLLECTION_NAME).updateMany(
     {
       status: { $nin: omitStatuses },
       claimToken: { $eq: null },
+      completionAttempts: { $lte: 5 },
     },
     {
       $set: {
@@ -33,6 +36,17 @@ export const fetchPendingEvents = async (claimToken) => {
   return documents.map((doc) => Outbox.fromDocument(doc));
 };
 
+// Move events that have been retried to dead status
+export const updateDeadEvents = async () => {
+  const results = await db
+    .collection(COLLECTION_NAME)
+    .updateMany(
+      { completionAttempts: { $gt: MAX_RETRIES } },
+      { $set: { status: OutboxStatus.DEAD } },
+    );
+  return results;
+};
+
 // Move failed events to resubmitted status
 export const updateFailedEvents = async () => {
   const results = await db.collection(COLLECTION_NAME).updateMany(
@@ -41,7 +55,6 @@ export const updateFailedEvents = async () => {
     },
     {
       $set: { status: OutboxStatus.RESUBMITTED },
-      $inc: { completionAttempts: 1 },
     },
   );
   return results;

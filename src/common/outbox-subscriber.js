@@ -3,6 +3,7 @@ import { setTimeout } from "node:timers/promises";
 import {
   fetchPendingEvents,
   update,
+  updateDeadEvents,
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../grants/repositories/outbox.respository.js";
@@ -35,8 +36,16 @@ export class OutboxSubscriber {
       // move failed events to resubmitted status
       await this.processFailedEvents();
 
+      await this.processDeadEvents();
+
       await setTimeout(this.interval);
     }
+  }
+
+  async processDeadEvents() {
+    logger.info("Processing dead events");
+    const results = await updateDeadEvents();
+    logger.info(`Updated ${results?.modifiedCount} dead events`);
   }
 
   async processResubmittedEvents() {
@@ -49,6 +58,16 @@ export class OutboxSubscriber {
     logger.info("Processing failed events");
     const results = await updateFailedEvents();
     logger.info(`Updated ${results?.modifiedCount} failed events`);
+  }
+
+  async processHangingEvents() {
+    // called at start up to clear any hanging events from a previous start
+    // how do we ensure that the event isn't being processed by another instance?
+    // can we store the instance id with the claim token,
+    // check that the instance id is still valid/up?
+    logger.warn(
+      'TODO: check if there are any hanging processes (status: "PROCESSING") and process these immediately',
+    );
   }
 
   // processing failed
@@ -86,12 +105,10 @@ export class OutboxSubscriber {
     logger.info("All outbox events processed.");
   }
 
-  start() {
+  async start() {
     // TODO: check if there are any hanging processes (status: "PROCESSING") and process these immediately
     logger.info("starting outbox subscriber");
-    logger.warn(
-      'TODO: check if there are any hanging processes (status: "PROCESSING") and process these immediately',
-    );
+    await this.processHangingEvents();
     this.running = true;
     this.poll();
   }

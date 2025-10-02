@@ -32,14 +32,8 @@ export class Outbox {
   markAsFailed() {
     this.status = OutboxStatus.FAILED;
     this.lastResubmissionDate = new Date().toISOString();
-    this.completionAttempts += 1;
     this.claimToken = null;
     this.claimedAt = null;
-  }
-
-  markAsResubmitted() {
-    this.status = OutboxStatus.RESUBMITTED;
-    this.completionAttempts += 1;
   }
 
   toDocument() {
@@ -79,4 +73,5 @@ export const OutboxStatus = {
   FAILED: "FAILED",
   COMPLETED: "COMPLETED",
   RESUBMITTED: "RESUBMITTED",
+  DEAD: "DEAD",
 };
