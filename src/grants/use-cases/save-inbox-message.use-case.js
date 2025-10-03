@@ -1,4 +1,4 @@
-import { getInstanceId } from "../../common/get-instance-id.js";
+import { getSelfInstanceId } from "../../common/get-instance-id.js";
 import { logger } from "../../common/logger.js";
 import { Inbox } from "../models/inbox.js";
 import {
@@ -8,7 +8,7 @@ import {
 
 export const saveInboxMessageUseCase = async (message, fnString) => {
   
-  const hostname = getInstanceId();
+  const owner = await getSelfInstanceId();
 
   logger.info("save inbox message use case");
   const existing = await findByMessageId(message.id);
@@ -20,7 +20,7 @@ export const saveInboxMessageUseCase = async (message, fnString) => {
 
   logger.info(`storing message with id ${message.id}.`);
   const inbox = new Inbox({
-    hostname,
+    owner,
     event: message,
     messageId: message.id,
     type: message.type,

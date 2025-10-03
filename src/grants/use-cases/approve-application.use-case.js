@@ -9,14 +9,15 @@ import { config } from "../../common/config.js";
 import { CreateAgreementCommand } from "../events/create-agreement.command.js";
 import { Outbox } from "../models/outbox.js";
 import { insertMany } from "../repositories/outbox.respository.js";
-import { getInstanceId } from "../../common/get-instance-id.js";
+import { getSelfInstanceId } from "../../common/get-instance-id.js";
 
 export const approveApplicationUseCase = async ({
   caseRef: clientRef,
   workflowCode: code,
 }) => {
   // some way to id the current instance
-  const hostname = getInstanceId();
+  const owner = getSelfInstanceId();
+  
   return withTransaction(async (session) => {
     const application = await findApplicationByClientRefAndCodeUseCase(
       clientRef,
@@ -39,7 +40,7 @@ export const approveApplicationUseCase = async ({
     });
 
     const statusEventPublication = new Outbox({
-      hostname,
+      owner,
       event: statusUpdatedEvent,
       target: config.sns.grantApplicationStatusUpdatedTopicArn,
     });
@@ -47,7 +48,7 @@ export const approveApplicationUseCase = async ({
     // CREATE AGREEMENT COMMAND
     const createAgreementCommand = new CreateAgreementCommand(application);
     const createAgreementPublication = new Outbox({
-      hostname,
+      owner,
       event: createAgreementCommand,
       target: config.sns.createAgreementTopicArn,
     });

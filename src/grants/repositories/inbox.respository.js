@@ -45,7 +45,7 @@ export const processExpiredEvents = async () => {
       claimToken: null,
       claimedAt: null,
       claimExpiresAt: null,
-      hostname: null
+      owner: null
     }
   });
 }
@@ -56,7 +56,7 @@ export const updateDeadEvents = async () => {
     .collection(COLLECTION_NAME)
     .updateMany(
       { completionAttempts: { $gte: MAX_RETRIES } },
-      { $set: { status: InboxStatus.DEAD, claimToken: null, claimedAt: null, claimExpiresAt: null, hostname: null } },
+      { $set: { status: InboxStatus.DEAD, claimToken: null, claimedAt: null, claimExpiresAt: null, owner: null } },
     );
   return results;
 };
@@ -68,7 +68,7 @@ export const updateFailedEvents = async () => {
       status: InboxStatus.FAILED,
     },
     {
-      $set: { status: InboxStatus.RESUBMITTED, claimToken: null, claimedAt: null, claimExpiresAt: null, hostname: null },
+      $set: { status: InboxStatus.RESUBMITTED, claimToken: null, claimedAt: null, claimExpiresAt: null, owner: null },
     },
   );
   return results;
@@ -81,7 +81,7 @@ export const updateResubmittedEvents = async () => {
       status: InboxStatus.RESUBMITTED,
     },
     {
-      $set: { status: InboxStatus.PUBLISHED, claimToken: null, claimedAt: null, claimExpiresAt: null, hostname: null },
+      $set: { status: InboxStatus.PUBLISHED, claimToken: null, claimedAt: null, claimExpiresAt: null, owner: null },
       $inc: { completionAttempts: 1 },
     },
   );

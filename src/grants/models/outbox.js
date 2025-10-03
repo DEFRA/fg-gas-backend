@@ -2,7 +2,7 @@ export class Outbox {
   // eslint-disable-next-line complexity
   constructor({
     _id,
-    hostname,
+    owner,
     target,
     event,
     completionAttempts = 1,
@@ -13,7 +13,7 @@ export class Outbox {
   }) {
     this._id = _id;
     this.publicationDate = publicationDate;
-    this.hostname = hostname;
+    this.owner = owner;
     this.target = target;
     this.event = event;
     this.lastResubmissionDate = lastResubmissionDate;
@@ -42,7 +42,7 @@ export class Outbox {
     return {
       _id: this._id,
       publicationDate: this.publicationDate,
-      hostname: this.hostname,
+      owner: this.owner,
       target: this.target,
       event: this.event,
       lastResubmissionDate: this.lastResubmissionDate,
@@ -58,7 +58,7 @@ export class Outbox {
     return new Outbox({
       _id: doc._id,
       publicationDate: doc.publicationDate,
-      hostname: doc.hostname,
+      owner: doc.owner,
       target: doc.target,
       event: doc.event,
       lastResubmissionDate: doc.lastResubmissionDate,
