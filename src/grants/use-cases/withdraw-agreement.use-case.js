@@ -19,8 +19,6 @@ export const withdrawAgreementUseCase = async ({
 
   application.withdrawAgreement(agreementRef, date);
 
-  const agreement = application.getAgreement(agreementRef);
-
   await update(application);
 
   await publishApplicationStatusUpdated({
@@ -35,10 +33,6 @@ export const withdrawAgreementUseCase = async ({
     workflowCode: code,
     newStatus: CaseStatus.OfferWithdrawn,
     targetNode: "agreements",
-    data: {
-      createdAt: date,
-      agreementStatus: agreement.latestStatus,
-      agreementRef: agreement.agreementRef,
-    },
+    data: application.getAgreementsData(),
   });
 };

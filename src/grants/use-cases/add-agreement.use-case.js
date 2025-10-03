@@ -38,10 +38,6 @@ export const addAgreementUseCase = async ({
     workflowCode: code,
     newStatus: CaseStatus.Review,
     targetNode: "agreements",
-    data: {
-      createdAt: date,
-      agreementStatus: agreement.latestStatus,
-      agreementRef: agreement.agreementRef,
-    },
+    data: application.getAgreementsData(),
   });
 };
