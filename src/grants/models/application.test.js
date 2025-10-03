@@ -257,4 +257,167 @@ describe("Application", () => {
 
     expect(application.getAgreement("non-existent-agreement")).toBe(null);
   });
+
+  it("returns empty array when no agreements exist", () => {
+    const application = Application.new({
+      clientRef: "application-1",
+      code: "grant-1",
+    });
+
+    const agreementsData = application.getAgreementsData();
+
+    expect(agreementsData).toEqual([]);
+  });
+
+  it("returns array with single agreement data", () => {
+    const application = Application.new({
+      clientRef: "application-1",
+      code: "grant-1",
+    });
+
+    const agreement = Agreement.new({
+      agreementRef: "agreement-1",
+      date: "2021-02-01T13:00:00.000Z",
+    });
+
+    application.addAgreement(agreement);
+
+    const agreementsData = application.getAgreementsData();
+
+    expect(agreementsData).toEqual([
+      {
+        agreementRef: "agreement-1",
+        agreementStatus: AgreementStatus.Offered,
+        createdAt: "2021-02-01T13:00:00.000Z",
+        updatedAt: "2021-02-01T13:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("returns array with multiple agreements data", () => {
+    const application = Application.new({
+      clientRef: "application-1",
+      code: "grant-1",
+    });
+
+    const agreement1 = Agreement.new({
+      agreementRef: "agreement-1",
+      date: "2021-02-01T13:00:00.000Z",
+    });
+
+    const agreement2 = Agreement.new({
+      agreementRef: "agreement-2",
+      date: "2021-02-02T14:00:00.000Z",
+    });
+
+    application.addAgreement(agreement1);
+    application.addAgreement(agreement2);
+
+    const agreementsData = application.getAgreementsData();
+
+    expect(agreementsData).toHaveLength(2);
+    expect(agreementsData).toEqual(
+      expect.arrayContaining([
+        {
+          agreementRef: "agreement-1",
+          agreementStatus: AgreementStatus.Offered,
+          createdAt: "2021-02-01T13:00:00.000Z",
+          updatedAt: "2021-02-01T13:00:00.000Z",
+        },
+        {
+          agreementRef: "agreement-2",
+          agreementStatus: AgreementStatus.Offered,
+          createdAt: "2021-02-02T14:00:00.000Z",
+          updatedAt: "2021-02-01T13:00:00.000Z",
+        },
+      ]),
+    );
+  });
+
+  it("includes correct createdAt from agreement history", () => {
+    const application = Application.new({
+      clientRef: "application-1",
+      code: "grant-1",
+    });
+
+    const agreement = Agreement.new({
+      agreementRef: "agreement-1",
+      date: "2021-02-01T13:00:00.000Z",
+    });
+
+    application.addAgreement(agreement);
+
+    const agreementsData = application.getAgreementsData();
+
+    expect(agreementsData[0].createdAt).toBe("2021-02-01T13:00:00.000Z");
+    expect(agreementsData[0].createdAt).toBe(agreement.history[0].createdAt);
+  });
+
+  it("includes updated status after agreement state change", () => {
+    const application = Application.new({
+      clientRef: "application-1",
+      code: "grant-1",
+    });
+
+    const agreement = Agreement.new({
+      agreementRef: "agreement-1",
+      date: "2021-02-01T13:00:00.000Z",
+    });
+
+    application.addAgreement(agreement);
+    application.acceptAgreement("agreement-1", "2021-02-02T14:00:00.000Z");
+
+    const agreementsData = application.getAgreementsData();
+
+    expect(agreementsData[0].agreementStatus).toBe(AgreementStatus.Accepted);
+    expect(agreementsData[0].createdAt).toBe("2021-02-01T13:00:00.000Z");
+    expect(agreementsData[0].updatedAt).toBe("2021-02-01T13:00:00.000Z");
+  });
+
+  it("returns correct data for multiple agreements with different statuses", () => {
+    const application = Application.new({
+      clientRef: "application-1",
+      code: "grant-1",
+    });
+
+    const agreement1 = Agreement.new({
+      agreementRef: "agreement-1",
+      date: "2021-02-01T13:00:00.000Z",
+    });
+
+    const agreement2 = Agreement.new({
+      agreementRef: "agreement-2",
+      date: "2021-02-02T14:00:00.000Z",
+    });
+
+    application.addAgreement(agreement1);
+    application.addAgreement(agreement2);
+
+    application.acceptAgreement("agreement-1", "2021-02-03T15:00:00.000Z");
+
+    const agreementsData = application.getAgreementsData();
+
+    expect(agreementsData).toHaveLength(2);
+
+    const agreement1Data = agreementsData.find(
+      (a) => a.agreementRef === "agreement-1",
+    );
+    const agreement2Data = agreementsData.find(
+      (a) => a.agreementRef === "agreement-2",
+    );
+
+    expect(agreement1Data).toEqual({
+      agreementRef: "agreement-1",
+      agreementStatus: AgreementStatus.Accepted,
+      createdAt: "2021-02-01T13:00:00.000Z",
+      updatedAt: "2021-02-01T13:00:00.000Z",
+    });
+
+    expect(agreement2Data).toEqual({
+      agreementRef: "agreement-2",
+      agreementStatus: AgreementStatus.Offered,
+      createdAt: "2021-02-02T14:00:00.000Z",
+      updatedAt: "2021-02-01T13:00:00.000Z",
+    });
+  });
 });

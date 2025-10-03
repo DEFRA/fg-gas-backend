@@ -125,6 +125,15 @@ export class Application {
     this.updatedAt = this.#getTmestamp();
   }
 
+  getAgreementsData() {
+    return Object.values(this.agreements).map((agreement) => ({
+      agreementRef: agreement.agreementRef,
+      agreementStatus: agreement.latestStatus,
+      createdAt: agreement.history[0]?.createdAt,
+      updatedAt: agreement.updatedAt,
+    }));
+  }
+
   #getTmestamp() {
     return new Date().toISOString();
   }

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -23,6 +23,15 @@ vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
 
 describe("withdrawAgreementUseCase", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-15T10:30:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(async () => {
     const agreement = new Agreement({
       agreementRef: "agreement-123",
@@ -118,11 +127,14 @@ describe("withdrawAgreementUseCase", () => {
       workflowCode: "test-code",
       newStatus: CaseStatus.OfferWithdrawn,
       targetNode: "agreements",
-      data: {
-        createdAt: "2024-01-01T12:00:00Z",
-        agreementStatus: AgreementStatus.Withdrawn,
-        agreementRef: "agreement-123",
-      },
+      data: [
+        {
+          createdAt: "2024-01-01T12:00:00Z",
+          updatedAt: "2024-01-15T10:30:00.000Z",
+          agreementStatus: AgreementStatus.Withdrawn,
+          agreementRef: "agreement-123",
+        },
+      ],
     });
   });
 });
