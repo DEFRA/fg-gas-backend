@@ -10,7 +10,7 @@ export class Inbox {
     this.completionAttempts = 1;
     this.status = props.status || InboxStatus.PUBLISHED;
     this.completionDate = props.completionDate || null;
-    this.claimToken = null; // could claim token be replaced with owner...?
+    this.claimedBy = null; // could claim token be replaced with owner...?
     this.claimedAt = null;
     this.claimExpiresAt = null;
     this.handler = props.handler; // string representation of the function to call
@@ -19,7 +19,7 @@ export class Inbox {
   markAsComplete() {
     this.status = InboxStatus.COMPLETED;
     this.completionDate = new Date().toISOString();
-    this.claimToken = null;
+    this.claimedBy = null;
     this.claimedAt = null;
   }
 
@@ -27,7 +27,7 @@ export class Inbox {
     this.status = InboxStatus.FAILED;
     this.lastResubmissionDate = new Date().toISOString();
     this.completionAttempts += 1;
-    this.claimToken = null;
+    this.claimedBy = null;
     this.claimedAt = null;
   }
 
@@ -44,7 +44,7 @@ export class Inbox {
       status: this.status,
       completionDate: this.completionDate,
       claimedAt: this.claimedAt,
-      claimToken: this.claimToken,
+      claimedBy: this.claimedBy,
       claimExpiresAt: this.claimExpiresAt,
       handler: this.handler,
     };
@@ -63,7 +63,7 @@ export class Inbox {
       status: doc.status,
       completionDate: doc.completionDate,
       claimedAt: doc.claimedAt,
-      claimToken: doc.claimToken,
+      claimedBy: doc.claimedBy,
       claimExpiresAt: doc.claimExpiresAt,
       handler: doc.handler,
     });
