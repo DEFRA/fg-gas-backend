@@ -5,19 +5,19 @@ import { logger } from "./logger.js";
 
 export const mongoClient = new MongoClient(config.mongoUri, {
   retryWrites: false,
-  readPreference: "secondary",
+  readPreference: config.env === "production" ? "secondary" : "primary",
   secureContext: tls.createSecureContext(),
 });
 
 export const db = mongoClient.db(config.mongoDatabase);
 
 const transactionOptions = {
-  readPreference: 'primary',
-  readConcern: { level: 'local' },
-  writeConcern: { w: 'majority' }
+  readPreference: "primary",
+  readConcern: { level: "local" },
+  writeConcern: { w: "majority" },
 };
 
-export const withTransaction = async (callback, propagateError=true) => {
+export const withTransaction = async (callback, propagateError = true) => {
   const session = mongoClient.startSession();
 
   try {
@@ -26,7 +26,7 @@ export const withTransaction = async (callback, propagateError=true) => {
     logger.error("ERROR: Transaction failed");
     logger.error(e);
 
-    if(propagateError) { 
+    if (propagateError) {
       throw new Error(`Transaction failed: ${e.message}`);
     }
   } finally {

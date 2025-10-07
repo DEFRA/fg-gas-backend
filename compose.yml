@@ -38,24 +38,6 @@ services:
     volumes: ["mongodb-data-1:/data/db"]
     restart: always
 
-  mongodb-2:
-    <<: *mongo-common
-    container_name: mongodb-2
-    ports: ["${MONGO_PORT_2:-27018}:27017"]
-    command:
-      ["mongod", "--replSet", "mongoRepl", "--bind_ip", "localhost,mongodb-2"]
-    volumes: ["mongodb-data-2:/data/db"]
-    restart: always
-
-  mongodb-3:
-    <<: *mongo-common
-    container_name: mongodb-3
-    ports: ["${MONGO_PORT_3:-27019}:27017"]
-    command:
-      ["mongod", "--replSet", "mongoRepl", "--bind_ip", "localhost,mongodb-3"]
-    volumes: ["mongodb-data-3:/data/db"]
-    restart: always
-
   mongo-ready:
     container_name: "mongo-ready"
     image: mongo:6.0.13
@@ -94,7 +76,7 @@ services:
     env_file:
       - .env
     environment:
-      MONGO_URI: "mongodb://mongodb:27017,mongodb-2:27017,mongodb-3:27017/?replicaSet=mongoRepl"
+      MONGO_URI: "mongodb://mongodb:27017/?replicaSet=mongoRepl"
     networks:
       - cdp-tenant
     develop:
@@ -111,8 +93,6 @@ services:
 
 volumes:
   mongodb-data-1:
-  mongodb-data-2:
-  mongodb-data-3:
 
 networks:
   cdp-tenant:
