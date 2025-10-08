@@ -21,7 +21,7 @@ const toApplication = (doc) =>
       crn: doc.identifiers.crn,
       defraId: doc.identifiers.defraId,
     },
-    answers: doc.answers,
+    phases: doc.phases,
     agreements: Object.entries(doc.agreements).reduce((acc, [key, value]) => {
       const history = value.history.map(
         (entry) => new AgreementHistoryEntry(entry),

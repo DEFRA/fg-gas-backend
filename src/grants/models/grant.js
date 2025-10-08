@@ -27,4 +27,20 @@ export class Grant {
 
     return phase?.questions || {};
   }
+
+  getInitialState() {
+    if (!this.hasPhases) {
+      throw new Error(`Grant "${this.code}" has no phases defined`);
+    }
+
+    const [phase] = this.phases;
+    const [stage] = phase.stages;
+    const [status] = stage.statuses;
+
+    return {
+      phase,
+      stage,
+      status,
+    };
+  }
 }
