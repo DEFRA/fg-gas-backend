@@ -1,11 +1,30 @@
 export class Grant {
-  constructor({ code, metadata, actions, questions }) {
+  constructor({ code, metadata, actions, phases }) {
     this.code = code;
     this.metadata = {
       description: metadata.description,
       startDate: metadata.startDate,
     };
     this.actions = actions;
-    this.questions = questions;
+    this.phases = phases;
+  }
+
+  get hasPhases() {
+    return this.phases && this.phases.length > 0;
+  }
+
+  getPhase(phaseCode) {
+    return phaseCode
+      ? this.phases.find((p) => p.code === phaseCode)
+      : this.phases[0];
+  }
+
+  getQuestions(phaseCode) {
+    if (!this.hasPhases) {
+      return {};
+    }
+    const phase = this.getPhase(phaseCode);
+
+    return phase?.questions || {};
   }
 }
