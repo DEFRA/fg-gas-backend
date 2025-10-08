@@ -20,22 +20,25 @@ export class Outbox {
     this.completionAttempts = completionAttempts;
     this.status = status;
     this.completionDate = completionDate;
-    this.claimToken = null;
+    this.claimedBy = null;
     this.claimedAt = null;
+    this.claimExpiresAt = null;
   }
 
   markAsComplete() {
     this.status = OutboxStatus.COMPLETED;
     this.completionDate = new Date().toISOString();
-    this.claimToken = null;
+    this.claimedBy = null;
     this.claimedAt = null;
+    this.claimExpiresAt = null;
   }
 
   markAsFailed() {
     this.status = OutboxStatus.FAILED;
     this.lastResubmissionDate = new Date().toISOString();
-    this.claimToken = null;
+    this.claimedBy = null;
     this.claimedAt = null;
+    this.claimExpiresAt = null;
   }
 
   toDocument() {
@@ -50,7 +53,8 @@ export class Outbox {
       status: this.status,
       completionDate: this.completionDate,
       claimedAt: this.claimedAt,
-      claimToken: this.claimToken,
+      claimedBy: this.claimedBy,
+      claimExpiresAt: this.claimExpiresAt,
     };
   }
 
@@ -66,7 +70,8 @@ export class Outbox {
       status: doc.status,
       completionDate: doc.completionDate,
       claimedAt: doc.claimedAt,
-      claimToken: doc.claimToken,
+      claimedBy: doc.claimedBy,
+      claimExpiresAt: doc.claimExpiresAt,
     });
   }
 }

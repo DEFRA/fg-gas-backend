@@ -60,16 +60,6 @@ export class OutboxSubscriber {
     logger.info(`Updated ${results?.modifiedCount} failed outbox events`);
   }
 
-  async processHangingEvents() {
-    // called at start up to clear any hanging events from a previous start
-    // how do we ensure that the event isn't being processed by another instance?
-    // can we store the instance id with the claim token,
-    // check that the instance id is still valid/up?
-    logger.warn(
-      'TODO: check if there are any hanging processes (status: "PROCESSING") and process these immediately',
-    );
-  }
-
   // processing failed
   // mark the event as failed
   async markEventUnsent(event) {
@@ -108,7 +98,6 @@ export class OutboxSubscriber {
   async start() {
     // TODO: check if there are any hanging processes (status: "PROCESSING") and process these immediately
     logger.info("starting outbox subscriber");
-    await this.processHangingEvents();
     this.running = true;
     this.poll();
   }

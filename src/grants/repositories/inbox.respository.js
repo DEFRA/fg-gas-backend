@@ -50,7 +50,7 @@ export const processExpiredEvents = async () => {
         claimToken: null,
         claimedAt: null,
         claimExpiresAt: null,
-        owner: null,
+        claimedBy: null,
       },
     },
   );
@@ -58,20 +58,18 @@ export const processExpiredEvents = async () => {
 
 // Move events that have been retried to dead status
 export const updateDeadEvents = async () => {
-  const results = await db
-    .collection(COLLECTION_NAME)
-    .updateMany(
-      { completionAttempts: { $gte: MAX_RETRIES } },
-      {
-        $set: {
-          status: InboxStatus.DEAD,
-          claimToken: null,
-          claimedAt: null,
-          claimExpiresAt: null,
-          owner: null,
-        },
+  const results = await db.collection(COLLECTION_NAME).updateMany(
+    { completionAttempts: { $gte: MAX_RETRIES } },
+    {
+      $set: {
+        status: InboxStatus.DEAD,
+        claimToken: null,
+        claimedAt: null,
+        claimExpiresAt: null,
+        claimedBy: null,
       },
-    );
+    },
+  );
   return results;
 };
 
@@ -87,7 +85,7 @@ export const updateFailedEvents = async () => {
         claimToken: null,
         claimedAt: null,
         claimExpiresAt: null,
-        owner: null,
+        claimedBy: null,
       },
     },
   );
@@ -106,7 +104,7 @@ export const updateResubmittedEvents = async () => {
         claimToken: null,
         claimedAt: null,
         claimExpiresAt: null,
-        owner: null,
+        claimedBy: null,
       },
       $inc: { completionAttempts: 1 },
     },

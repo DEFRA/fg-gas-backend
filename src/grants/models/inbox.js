@@ -21,6 +21,7 @@ export class Inbox {
     this.completionDate = new Date().toISOString();
     this.claimedBy = null;
     this.claimedAt = null;
+    this.claimExpiresAt = null;
   }
 
   markAsFailed() {
@@ -29,6 +30,7 @@ export class Inbox {
     this.completionAttempts += 1;
     this.claimedBy = null;
     this.claimedAt = null;
+    this.claimExpiresAt = null;
   }
 
   toDocument() {
