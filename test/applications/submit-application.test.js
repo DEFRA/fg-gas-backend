@@ -116,7 +116,7 @@ describe("POST /grants/{code}/applications", () => {
       data: {
         clientRef,
         code: "test-code-1",
-        status: "PRE_AWARD:ASSESSMENT:RECEIVED",
+        status: "PHASE_1:STAGE_1:NEW",
       },
     });
 
@@ -131,7 +131,6 @@ describe("POST /grants/{code}/applications", () => {
       data: {
         caseRef: clientRef,
         workflowCode: "test-code-1",
-        status: "NEW",
         payload: {
           createdAt: expect.any(String),
           submittedAt: expect.any(String),
