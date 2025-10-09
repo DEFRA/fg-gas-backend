@@ -28,16 +28,22 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-              description: "This is a test question",
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                question1: {
+                  type: "string",
+                  description: "This is a test question",
+                },
+              },
             },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-        },
+        ],
       },
     });
 
@@ -73,9 +79,9 @@ describe("POST /grants/{code}/applications", () => {
 
     expect(documents).toEqual([
       {
-        currentPhase: "PRE_AWARD",
-        currentStage: "ASSESSMENT",
-        currentStatus: "RECEIVED",
+        currentPhase: "PHASE_1",
+        currentStage: "STAGE_1",
+        currentStatus: "NEW",
         clientRef,
         submittedAt,
         code: "test-code-1",
@@ -88,9 +94,14 @@ describe("POST /grants/{code}/applications", () => {
           crn: "1234567890",
           defraId: "1234567890",
         },
-        answers: {
-          question1: "test answer",
-        },
+        phases: [
+          {
+            code: "PHASE_1",
+            answers: {
+              question1: "test answer",
+            },
+          },
+        ],
       },
     ]);
 
@@ -148,16 +159,23 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-              description: "This is a test question",
+
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                question1: {
+                  type: "string",
+                  description: "This is a test question",
+                },
+              },
             },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-        },
+        ],
       },
     });
 
@@ -207,16 +225,23 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-              description: "This is a test question",
+
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                question1: {
+                  type: "string",
+                  description: "This is a test question",
+                },
+              },
             },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-        },
+        ],
       },
     });
 
@@ -265,9 +290,7 @@ describe("POST /grants/{code}/applications", () => {
 
     expect(documents).toEqual([
       {
-        answers: {
-          question1: "test answer",
-        },
+        phases: [{ code: "PHASE_1", answers: { question1: "test answer" } }],
         clientRef: "12345",
         code: "test-code-1",
         identifiers: {
@@ -277,9 +300,9 @@ describe("POST /grants/{code}/applications", () => {
           sbi: "1234567890",
         },
         agreements: {},
-        currentPhase: "PRE_AWARD",
-        currentStage: "ASSESSMENT",
-        currentStatus: "RECEIVED",
+        currentPhase: "PHASE_1",
+        currentStage: "STAGE_1",
+        currentStatus: "NEW",
         createdAt: expect.any(String),
         submittedAt: expect.any(Date),
         updatedAt: expect.any(String),
