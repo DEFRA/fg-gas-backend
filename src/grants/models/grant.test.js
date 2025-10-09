@@ -13,10 +13,21 @@ describe("Grant", () => {
         { name: "action1", method: "POST", url: "http://example.com/action1" },
         { name: "action2", method: "GET", url: "http://example.com/action2" },
       ],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "ASSESSMENT",
+              statuses: [{ code: "RECEIVED" }],
+            },
+          ],
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+          },
+        },
+      ],
     });
 
     expect(grant).toEqual({
@@ -29,10 +40,21 @@ describe("Grant", () => {
         { name: "action1", method: "POST", url: "http://example.com/action1" },
         { name: "action2", method: "GET", url: "http://example.com/action2" },
       ],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "ASSESSMENT",
+              statuses: [{ code: "RECEIVED" }],
+            },
+          ],
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+          },
+        },
+      ],
     });
   });
 });
