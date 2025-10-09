@@ -25,7 +25,13 @@ describe("GET /grants/{code}/applications/{clientRef}/status", () => {
       Application.new({
         clientRef,
         code,
-        answers: [],
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {},
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+          },
+        ],
         identifiers: [],
       }),
     );
