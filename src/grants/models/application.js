@@ -144,7 +144,8 @@ export class Application {
   }
 
   getAnswers() {
-    return this.phases[this.currentPhase].answers;
+    const phase = this.phases.find((p) => p.code === this.currentPhase);
+    return phase?.answers ?? {};
   }
 
   #getTimestamp() {
