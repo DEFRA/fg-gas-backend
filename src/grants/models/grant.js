@@ -13,21 +13,6 @@ export class Grant {
     return Boolean(this.phases && this.phases.length > 0);
   }
 
-  getPhase(phaseCode) {
-    return phaseCode
-      ? this.phases.find((p) => p.code === phaseCode)
-      : this.phases[0];
-  }
-
-  getQuestions(phaseCode) {
-    if (!this.hasPhases) {
-      return {};
-    }
-    const phase = this.getPhase(phaseCode);
-
-    return phase?.questions || {};
-  }
-
   getInitialState() {
     if (!this.hasPhases) {
       throw new Error(`Grant "${this.code}" has no phases defined`);
