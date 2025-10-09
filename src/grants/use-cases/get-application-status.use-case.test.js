@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { Application } from "../models/application.js";
+import { createTestApplication } from "../../../test/helpers/applications.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import { getApplicationStatusUseCase } from "./get-application-status.use-case.js";
 
@@ -8,11 +8,9 @@ describe("get application status use case", () => {
   it("should get the status of an application", async () => {
     const code = "grant-1";
     const clientRef = "ref-124";
-    const application = Application.new({
+    const application = createTestApplication({
       clientRef,
       code,
-      answers: [],
-      identifiers: [],
     });
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
 

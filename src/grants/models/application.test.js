@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestApplication } from "../../../test/helpers/applications.js";
 import { Agreement, AgreementStatus } from "./agreement.js";
 import {
-  Application,
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
@@ -18,20 +18,7 @@ describe("Application", () => {
   });
 
   it("approves application", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-      submittedAt: "2021-01-01T00:00:00.000Z",
-      identifiers: {
-        sbi: "sbi-1",
-        frn: "frn-1",
-        crn: "crn-1",
-        defraId: "defraId-1",
-      },
-      answers: {
-        answer1: "test",
-      },
-    });
+    const application = createTestApplication();
 
     application.approve();
 
@@ -40,9 +27,7 @@ describe("Application", () => {
   });
 
   it("throws an error when approving an already approved application", () => {
-    const application = new Application({
-      clientRef: "application-1",
-      code: "grant-1",
+    const application = createTestApplication({
       currentStatus: ApplicationStatus.Approved,
     });
 
@@ -54,20 +39,7 @@ describe("Application", () => {
   });
 
   it("creates a new Application", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-      submittedAt: "2021-01-01T00:00:00.000Z",
-      identifiers: {
-        sbi: "sbi-1",
-        frn: "frn-1",
-        crn: "crn-1",
-        defraId: "defraId-1",
-      },
-      answers: {
-        answer1: "test",
-      },
-    });
+    const application = createTestApplication();
 
     expect(application).toEqual({
       currentPhase: ApplicationPhase.PreAward,
@@ -85,27 +57,19 @@ describe("Application", () => {
         crn: "crn-1",
         defraId: "defraId-1",
       },
-      answers: {
-        answer1: "test",
-      },
+      phases: [
+        {
+          code: ApplicationPhase.PreAward,
+          answers: {
+            answer1: "test",
+          },
+        },
+      ],
     });
   });
 
   it("adds an agreement to an application", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-      submittedAt: "2021-01-01T00:00:00.000Z",
-      identifiers: {
-        sbi: "sbi-1",
-        frn: "frn-1",
-        crn: "crn-1",
-        defraId: "defraId-1",
-      },
-      answers: {
-        answer1: "test",
-      },
-    });
+    const application = createTestApplication();
 
     const agreement = Agreement.new({
       agreementRef: "agreement-1",
@@ -122,9 +86,7 @@ describe("Application", () => {
   });
 
   it("throws an error when adding a duplicate agreement to an application", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-    });
+    const application = createTestApplication();
 
     const agreement = Agreement.new({
       agreementRef: "agreement-1",
@@ -141,20 +103,7 @@ describe("Application", () => {
   });
 
   it("accepts an agreement on an application", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-      submittedAt: "2021-01-01T00:00:00.000Z",
-      identifiers: {
-        sbi: "sbi-1",
-        frn: "frn-1",
-        crn: "crn-1",
-        defraId: "defraId-1",
-      },
-      answers: {
-        answer1: "test",
-      },
-    });
+    const application = createTestApplication();
 
     const agreement = Agreement.new({
       agreementRef: "agreement-1",
@@ -171,10 +120,7 @@ describe("Application", () => {
   });
 
   it("throws an error when accepting a non-existent agreement", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    const application = createTestApplication();
 
     expect(() => {
       application.acceptAgreement(
@@ -187,20 +133,7 @@ describe("Application", () => {
   });
 
   it("withdraws an agreement on an application", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-      submittedAt: "2021-01-01T00:00:00.000Z",
-      identifiers: {
-        sbi: "sbi-1",
-        frn: "frn-1",
-        crn: "crn-1",
-        defraId: "defraId-1",
-      },
-      answers: {
-        answer1: "test",
-      },
-    });
+    const application = createTestApplication();
 
     const agreement = Agreement.new({
       agreementRef: "agreement-1",
@@ -223,10 +156,7 @@ describe("Application", () => {
   });
 
   it("throws an error when withdrawing a non-existent agreement", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    const application = createTestApplication();
 
     expect(() => {
       application.withdrawAgreement(
@@ -239,10 +169,7 @@ describe("Application", () => {
   });
 
   it("gets the fully qualified status", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    const application = createTestApplication();
 
     expect(application.getFullyQualifiedStatus()).toBe(
       `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Received}`,
@@ -250,19 +177,13 @@ describe("Application", () => {
   });
 
   it("returns null when getting a non-existent agreement", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    const application = createTestApplication();
 
     expect(application.getAgreement("non-existent-agreement")).toBe(null);
   });
 
   it("returns empty array when no agreements exist", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    const application = createTestApplication();
 
     const agreementsData = application.getAgreementsData();
 
@@ -270,10 +191,7 @@ describe("Application", () => {
   });
 
   it("returns array with single agreement data", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    const application = createTestApplication();
 
     const agreement = Agreement.new({
       agreementRef: "agreement-1",
@@ -295,10 +213,7 @@ describe("Application", () => {
   });
 
   it("returns array with multiple agreements data", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    const application = createTestApplication();
 
     const agreement1 = Agreement.new({
       agreementRef: "agreement-1",
@@ -335,10 +250,7 @@ describe("Application", () => {
   });
 
   it("includes correct createdAt from agreement history", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    const application = createTestApplication();
 
     const agreement = Agreement.new({
       agreementRef: "agreement-1",
@@ -354,10 +266,7 @@ describe("Application", () => {
   });
 
   it("includes updated status after agreement state change", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    const application = createTestApplication();
 
     const agreement = Agreement.new({
       agreementRef: "agreement-1",
@@ -375,10 +284,7 @@ describe("Application", () => {
   });
 
   it("returns correct data for multiple agreements with different statuses", () => {
-    const application = Application.new({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    const application = createTestApplication();
 
     const agreement1 = Agreement.new({
       agreementRef: "agreement-1",
@@ -419,5 +325,73 @@ describe("Application", () => {
       createdAt: "2021-02-02T14:00:00.000Z",
       updatedAt: "2021-02-01T13:00:00.000Z",
     });
+  });
+
+  it("returns answers for current phase", () => {
+    const application = createTestApplication();
+
+    const answers = application.getAnswers();
+
+    expect(answers).toEqual({
+      answer1: "test",
+    });
+  });
+
+  it("returns answers for specific phase when application has multiple phases", () => {
+    const application = createTestApplication({
+      currentPhase: "POST_AWARD",
+      phases: [
+        {
+          code: ApplicationPhase.PreAward,
+          answers: {
+            preAwardAnswer: "pre-award-value",
+          },
+        },
+        {
+          code: "POST_AWARD",
+          answers: {
+            postAwardAnswer: "post-award-value",
+          },
+        },
+      ],
+    });
+
+    const answers = application.getAnswers();
+
+    expect(answers).toEqual({
+      postAwardAnswer: "post-award-value",
+    });
+  });
+
+  it("returns empty object when phase has no answers", () => {
+    const application = createTestApplication({
+      phases: [
+        {
+          code: ApplicationPhase.PreAward,
+        },
+      ],
+    });
+
+    const answers = application.getAnswers();
+
+    expect(answers).toEqual({});
+  });
+
+  it("returns empty object when current phase does not exist in phases array", () => {
+    const application = createTestApplication({
+      currentPhase: "NON_EXISTENT_PHASE",
+      phases: [
+        {
+          code: ApplicationPhase.PreAward,
+          answers: {
+            answer1: "test",
+          },
+        },
+      ],
+    });
+
+    const answers = application.getAnswers();
+
+    expect(answers).toEqual({});
   });
 });

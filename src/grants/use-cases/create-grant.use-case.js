@@ -13,7 +13,7 @@ export const createGrantUseCase = async (createGrantCommand) => {
       method: e.method,
       url: e.url,
     })),
-    questions: createGrantCommand.questions,
+    phases: createGrantCommand.phases,
   });
 
   await save(grant);

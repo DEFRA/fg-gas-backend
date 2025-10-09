@@ -1,13 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestApplication } from "../../../test/helpers/applications.js";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
-import {
-  Application,
-  ApplicationPhase,
-  ApplicationStage,
-  ApplicationStatus,
-} from "../models/application.js";
 import {
   publishCreateNewCase,
   publishUpdateCaseStatus,
@@ -26,10 +21,7 @@ afterEach(() => {
 
 describe("publishCreateNewCase", () => {
   it("publishes CreateNewCaseEvent to SNS topic", async () => {
-    const application = new Application({
-      phase: ApplicationPhase.PreAward,
-      stage: ApplicationStage.Assessment,
-      status: ApplicationStatus.Received,
+    const application = createTestApplication({
       clientRef: "123",
       code: "grant-code",
       createdAt: new Date().toISOString(),
@@ -52,10 +44,9 @@ describe("publishCreateNewCase", () => {
         data: {
           caseRef: "123",
           workflowCode: "grant-code",
-          status: "NEW",
           payload: {
             answers: {
-              question1: "answer1",
+              answer1: "test",
             },
             createdAt: "2025-05-28T20:40:48.451Z",
             identifiers: {
