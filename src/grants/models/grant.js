@@ -10,7 +10,7 @@ export class Grant {
   }
 
   get hasPhases() {
-    return this.phases && this.phases.length > 0;
+    return Boolean(this.phases && this.phases.length > 0);
   }
 
   getPhase(phaseCode) {
