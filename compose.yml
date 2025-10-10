@@ -1,3 +1,16 @@
+x-mongo-common: &mongo-common
+  image: mongo:6.0.13
+  networks: [cdp-tenant]
+  healthcheck:
+    test:
+      [
+        "CMD-SHELL",
+        "mongosh --quiet --eval 'db.runCommand({ping:1}).ok' || exit 1",
+      ]
+    interval: 10s
+    timeout: 5s
+    retries: 10
+
 services:
   localstack:
     image: localstack/localstack:4.3.0
@@ -17,14 +30,33 @@ services:
       - cdp-tenant
 
   mongodb:
-    image: mongo:6.0.13
-    networks:
-      - cdp-tenant
-    ports:
-      - "${MONGO_PORT:-27017}:27017"
-    volumes:
-      - mongodb-data:/data
+    <<: *mongo-common
+    container_name: mongodb
+    ports: ["${MONGO_PORT_1:-27017}:27017"]
+    command:
+      ["mongod", "--replSet", "mongoRepl", "--bind_ip", "localhost,mongodb"]
+    volumes: ["mongodb-data-1:/data/db"]
     restart: always
+
+  mongo-ready:
+    container_name: "mongo-ready"
+    image: mongo:6.0.13
+    networks: [cdp-tenant]
+    environment:
+      PRIMARY: "mongodb:27017"
+      REPLSET: "mongoRepl"
+    volumes:
+      - ./scripts/init-rs.sh:/init-rs.sh:ro
+    entrypoint: ["/bin/bash", "/init-rs.sh"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh 'mongodb://mongodb:27017/?directConnection=true' --quiet --eval 'db.hello().isWritablePrimary' | grep -q true || exit 1",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 60
 
   gas:
     build: .
@@ -33,15 +65,18 @@ services:
     links:
       - "localstack:localstack"
       - "mongodb:mongodb"
+      - "mongo-ready:mongo-ready"
     depends_on:
       localstack:
         condition: service_healthy
+      mongo-ready:
+        condition: service_healthy
       mongodb:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - .env
     environment:
-      MONGO_URI: mongodb://mongodb:27017/
+      MONGO_URI: "mongodb://mongodb:27017/?replicaSet=mongoRepl"
     networks:
       - cdp-tenant
     develop:
@@ -57,7 +92,7 @@ services:
       - ./package.json:/home/node/package.json
 
 volumes:
-  mongodb-data:
+  mongodb-data-1:
 
 networks:
   cdp-tenant:
