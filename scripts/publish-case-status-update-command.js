@@ -26,6 +26,7 @@ const message = {
   specversion: "1.0",
   type: "io.onsite.agreement.offer.offered",
   datacontenttype: "application/json",
+  traceparent: "mock-trace-parent",
   data: {
     caseRef: "APPLICATION-PMF-001",
     workflowCode: "pigs-might-fly",

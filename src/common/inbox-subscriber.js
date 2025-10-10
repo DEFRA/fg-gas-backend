@@ -10,6 +10,7 @@ import {
 } from "../grants/repositories/inbox.respository.js";
 import { approveApplicationUseCase } from "../grants/use-cases/approve-application.use-case.js";
 import { logger } from "./logger.js";
+import { withTraceParent } from "./trace-parent.js";
 
 const useCaseMap = {
   "io.onsite.agreement.offer.offered": approveApplicationUseCase,
@@ -80,7 +81,8 @@ export class InboxSubscriber {
     try {
       const fn = useCaseMap[type];
       if (fn) {
-        await fn(event.data);
+        // pass along traceparent from incoming event
+        await withTraceParent(event.traceparent, async () => fn(event.data));
         await this.markEventComplete(msg);
       } else {
         await this.markEventFailed(msg);
@@ -95,7 +97,7 @@ export class InboxSubscriber {
   }
 
   async processEvents(events) {
-    logger.info(`Processing ${events.length}inbox messages`);
+    logger.info(`Processing ${events.length} inbox messages`);
     await Promise.all(events.map((event) => this.mapEventToUseCase(event)));
     logger.info("All inbox messages processed");
   }
