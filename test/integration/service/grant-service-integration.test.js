@@ -27,42 +27,48 @@ describe("Grant Service Integration Tests", () => {
             "Complex integration test grant with multiple validation rules",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            farmSize: {
-              type: "number",
-              minimum: 1,
-              maximum: 10000,
-              description: "Farm size in hectares",
-            },
-            animalTypes: {
-              type: "array",
-              items: {
-                type: "string",
-                enum: ["cattle", "sheep", "pigs", "poultry"],
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                farmSize: {
+                  type: "number",
+                  minimum: 1,
+                  maximum: 10000,
+                  description: "Farm size in hectares",
+                },
+                animalTypes: {
+                  type: "array",
+                  items: {
+                    type: "string",
+                    enum: ["cattle", "sheep", "pigs", "poultry"],
+                  },
+                  minItems: 1,
+                  description: "Types of animals on farm",
+                },
+                sustainablePractices: {
+                  type: "boolean",
+                  description: "Uses sustainable farming practices",
+                },
+                contactEmail: {
+                  type: "string",
+                  format: "email",
+                  description: "Contact email address",
+                },
               },
-              minItems: 1,
-              description: "Types of animals on farm",
+              required: [
+                "farmSize",
+                "animalTypes",
+                "sustainablePractices",
+                "contactEmail",
+              ],
             },
-            sustainablePractices: {
-              type: "boolean",
-              description: "Uses sustainable farming practices",
-            },
-            contactEmail: {
-              type: "string",
-              format: "email",
-              description: "Contact email address",
-            },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-          required: [
-            "farmSize",
-            "animalTypes",
-            "sustainablePractices",
-            "contactEmail",
-          ],
-        },
+        ],
         actions: [
           {
             name: "calculate-subsidy",
@@ -88,10 +94,10 @@ describe("Grant Service Integration Tests", () => {
       const dbGrant = await grants.findOne({ code: `test-grant-${testId}` });
       expect(dbGrant).toBeTruthy();
       expect(dbGrant.code).toBe(`test-grant-${testId}`);
-      expect(dbGrant.questions.properties.farmSize.minimum).toBe(1);
-      expect(dbGrant.questions.properties.animalTypes.items.enum).toContain(
-        "cattle",
-      );
+      expect(dbGrant.phases[0].questions.properties.farmSize.minimum).toBe(1);
+      expect(
+        dbGrant.phases[0].questions.properties.animalTypes.items.enum,
+      ).toContain("cattle");
       expect(dbGrant.actions).toHaveLength(2);
       expect(dbGrant.actions[0].name).toBe("calculate-subsidy");
 
@@ -111,34 +117,41 @@ describe("Grant Service Integration Tests", () => {
           description: "Grant with deeply nested validation rules",
           startDate: "2025-06-01T00:00:00.000Z",
         },
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            landParcels: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  parcelId: { type: "string", pattern: "^\\d+$" },
-                  size: { type: "number", minimum: 0.1 },
-                  cropTypes: {
-                    type: "array",
-                    items: { type: "string" },
-                    minItems: 1,
+
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                landParcels: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      parcelId: { type: "string", pattern: "^\\d+$" },
+                      size: { type: "number", minimum: 0.1 },
+                      cropTypes: {
+                        type: "array",
+                        items: { type: "string" },
+                        minItems: 1,
+                      },
+                      soilType: {
+                        type: "string",
+                        enum: ["clay", "sand", "loam", "chalk"],
+                      },
+                    },
+                    required: ["parcelId", "size", "cropTypes", "soilType"],
                   },
-                  soilType: {
-                    type: "string",
-                    enum: ["clay", "sand", "loam", "chalk"],
-                  },
+                  minItems: 1,
                 },
-                required: ["parcelId", "size", "cropTypes", "soilType"],
               },
-              minItems: 1,
+              required: ["landParcels"],
             },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-          required: ["landParcels"],
-        },
+        ],
         actions: [],
       };
 
@@ -153,11 +166,12 @@ describe("Grant Service Integration Tests", () => {
         code: `test-grant-complex-${testId}`,
       });
       expect(
-        dbGrant.questions.properties.landParcels.items.properties.parcelId
-          .pattern,
+        dbGrant.phases[0].questions.properties.landParcels.items.properties
+          .parcelId.pattern,
       ).toBe("^\\d+$");
       expect(
-        dbGrant.questions.properties.landParcels.items.properties.soilType.enum,
+        dbGrant.phases[0].questions.properties.landParcels.items.properties
+          .soilType.enum,
       ).toContain("loam");
     });
 
@@ -170,13 +184,20 @@ describe("Grant Service Integration Tests", () => {
           description: "Duplicate test grant",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            testField: { type: "string" },
+
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                testField: { type: "string" },
+              },
+            },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-        },
+        ],
         actions: [],
       };
 
@@ -220,15 +241,22 @@ describe("Grant Service Integration Tests", () => {
           description: "Grant for testing referential integrity",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            farmName: { type: "string", minLength: 1 },
-            totalAcres: { type: "number", minimum: 1 },
+
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                farmName: { type: "string", minLength: 1 },
+                totalAcres: { type: "number", minimum: 1 },
+              },
+              required: ["farmName", "totalAcres"],
+            },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-          required: ["farmName", "totalAcres"],
-        },
+        ],
         actions: [],
       };
 
@@ -265,7 +293,9 @@ describe("Grant Service Integration Tests", () => {
         clientRef: `grant-service-${testId}`,
       });
       expect(dbApplication.code).toBe(grantCode);
-      expect(dbApplication.answers.farmName).toBe("Test Integration Farm");
+      expect(dbApplication.phases[0].answers.farmName).toBe(
+        "Test Integration Farm",
+      );
       expect(dbApplication.identifiers.sbi).toBe("123456789");
 
       // Verify grant and application relationship
@@ -290,13 +320,20 @@ describe("Grant Service Integration Tests", () => {
               description: `Concurrent test grant ${i}`,
               startDate: "2025-01-01T00:00:00.000Z",
             },
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                testField: { type: "string" },
+
+            phases: [
+              {
+                code: "PHASE_1",
+                questions: {
+                  $schema: "https://json-schema.org/draft/2020-12/schema",
+                  type: "object",
+                  properties: {
+                    testField: { type: "string" },
+                  },
+                },
+                stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
               },
-            },
+            ],
             actions: [],
           };
           return wreck.post("/grants", { payload: grantData });
@@ -372,40 +409,47 @@ describe("Grant Service Integration Tests", () => {
           description: "Grant with complex business validation rules",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            farmType: {
-              type: "string",
-              enum: ["dairy", "arable", "mixed", "organic"],
-            },
-            totalLandSize: {
-              type: "number",
-              minimum: 5,
-              maximum: 5000,
-            },
-            previousGrantReceived: {
-              type: "boolean",
-            },
-            livestockNumbers: {
+
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
               type: "object",
               properties: {
-                cattle: { type: "number", minimum: 0 },
-                sheep: { type: "number", minimum: 0 },
-                pigs: { type: "number", minimum: 0 },
+                farmType: {
+                  type: "string",
+                  enum: ["dairy", "arable", "mixed", "organic"],
+                },
+                totalLandSize: {
+                  type: "number",
+                  minimum: 5,
+                  maximum: 5000,
+                },
+                previousGrantReceived: {
+                  type: "boolean",
+                },
+                livestockNumbers: {
+                  type: "object",
+                  properties: {
+                    cattle: { type: "number", minimum: 0 },
+                    sheep: { type: "number", minimum: 0 },
+                    pigs: { type: "number", minimum: 0 },
+                  },
+                },
+                environmentalCertification: {
+                  type: "array",
+                  items: {
+                    type: "string",
+                    enum: ["organic", "leaf", "rspca", "other"],
+                  },
+                },
               },
+              required: ["farmType", "totalLandSize", "previousGrantReceived"],
             },
-            environmentalCertification: {
-              type: "array",
-              items: {
-                type: "string",
-                enum: ["organic", "leaf", "rspca", "other"],
-              },
-            },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-          required: ["farmType", "totalLandSize", "previousGrantReceived"],
-        },
+        ],
         actions: [
           {
             name: "eligibility-check",
@@ -452,12 +496,12 @@ describe("Grant Service Integration Tests", () => {
       const dbApplication = await applications.findOne({
         clientRef: `grant-service-business-${testId}`,
       });
-      expect(dbApplication.answers.farmType).toBe("mixed");
-      expect(dbApplication.answers.totalLandSize).toBe(250.75);
-      expect(dbApplication.answers.livestockNumbers.cattle).toBe(50);
-      expect(dbApplication.answers.environmentalCertification).toContain(
-        "organic",
-      );
+      expect(dbApplication.phases[0].answers.farmType).toBe("mixed");
+      expect(dbApplication.phases[0].answers.totalLandSize).toBe(250.75);
+      expect(dbApplication.phases[0].answers.livestockNumbers.cattle).toBe(50);
+      expect(
+        dbApplication.phases[0].answers.environmentalCertification,
+      ).toContain("organic");
 
       // Test invalid application (violates business rules)
       const invalidApplicationData = {
