@@ -28,75 +28,89 @@ describe("Application Service Integration Tests", () => {
           description: "Complex application processing grant",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            applicantDetails: {
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
               type: "object",
               properties: {
-                fullName: { type: "string", minLength: 2, maxLength: 100 },
-                dateOfBirth: { type: "string", format: "date" },
-                address: {
+                applicantDetails: {
                   type: "object",
                   properties: {
-                    street: { type: "string", minLength: 5 },
-                    city: { type: "string", minLength: 2 },
-                    postcode: {
+                    fullName: { type: "string", minLength: 2, maxLength: 100 },
+                    dateOfBirth: { type: "string", format: "date" },
+                    address: {
+                      type: "object",
+                      properties: {
+                        street: { type: "string", minLength: 5 },
+                        city: { type: "string", minLength: 2 },
+                        postcode: {
+                          type: "string",
+                          pattern: "^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
+                        },
+                      },
+                      required: ["street", "city", "postcode"],
+                    },
+                  },
+                  required: ["fullName", "dateOfBirth", "address"],
+                },
+                farmOperation: {
+                  type: "object",
+                  properties: {
+                    primaryActivity: {
                       type: "string",
-                      pattern: "^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
+                      enum: [
+                        "crop-production",
+                        "livestock",
+                        "mixed-farming",
+                        "horticulture",
+                      ],
+                    },
+                    landArea: { type: "number", minimum: 1, maximum: 10000 },
+                    yearsInOperation: {
+                      type: "integer",
+                      minimum: 0,
+                      maximum: 100,
+                    },
+                    certifications: {
+                      type: "array",
+                      items: { type: "string" },
+                      minItems: 0,
                     },
                   },
-                  required: ["street", "city", "postcode"],
+                  required: ["primaryActivity", "landArea", "yearsInOperation"],
                 },
-              },
-              required: ["fullName", "dateOfBirth", "address"],
-            },
-            farmOperation: {
-              type: "object",
-              properties: {
-                primaryActivity: {
-                  type: "string",
-                  enum: [
-                    "crop-production",
-                    "livestock",
-                    "mixed-farming",
-                    "horticulture",
-                  ],
-                },
-                landArea: { type: "number", minimum: 1, maximum: 10000 },
-                yearsInOperation: { type: "integer", minimum: 0, maximum: 100 },
-                certifications: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: 0,
-                },
-              },
-              required: ["primaryActivity", "landArea", "yearsInOperation"],
-            },
-            financialInfo: {
-              type: "object",
-              properties: {
-                annualTurnover: { type: "number", minimum: 0 },
-                employeeCount: { type: "integer", minimum: 0 },
-                previousGrants: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      grantCode: { type: "string" },
-                      amount: { type: "number" },
-                      year: { type: "integer", minimum: 2000, maximum: 2030 },
+                financialInfo: {
+                  type: "object",
+                  properties: {
+                    annualTurnover: { type: "number", minimum: 0 },
+                    employeeCount: { type: "integer", minimum: 0 },
+                    previousGrants: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          grantCode: { type: "string" },
+                          amount: { type: "number" },
+                          year: {
+                            type: "integer",
+                            minimum: 2000,
+                            maximum: 2030,
+                          },
+                        },
+                        required: ["grantCode", "amount", "year"],
+                      },
                     },
-                    required: ["grantCode", "amount", "year"],
                   },
+                  required: ["annualTurnover", "employeeCount"],
                 },
               },
-              required: ["annualTurnover", "employeeCount"],
+              required: ["applicantDetails", "farmOperation", "financialInfo"],
             },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-          required: ["applicantDetails", "farmOperation", "financialInfo"],
-        },
+        ],
         actions: [],
       };
 
@@ -163,23 +177,24 @@ describe("Application Service Integration Tests", () => {
       });
       expect(dbApplication).toBeTruthy();
       expect(dbApplication.code).toBe(grantCode);
-      expect(dbApplication.answers.applicantDetails.fullName).toBe(
+      expect(dbApplication.phases[0].answers.applicantDetails.fullName).toBe(
         "John Smith Test Farmer",
       );
-      expect(dbApplication.answers.applicantDetails.address.postcode).toBe(
-        "AB12 3CD",
-      );
-      expect(dbApplication.answers.farmOperation.primaryActivity).toBe(
-        "mixed-farming",
-      );
-      expect(dbApplication.answers.farmOperation.certifications).toContain(
-        "organic",
-      );
-      expect(dbApplication.answers.financialInfo.previousGrants).toHaveLength(
-        2,
-      );
       expect(
-        dbApplication.answers.financialInfo.previousGrants[0].grantCode,
+        dbApplication.phases[0].answers.applicantDetails.address.postcode,
+      ).toBe("AB12 3CD");
+      expect(
+        dbApplication.phases[0].answers.farmOperation.primaryActivity,
+      ).toBe("mixed-farming");
+      expect(
+        dbApplication.phases[0].answers.farmOperation.certifications,
+      ).toContain("organic");
+      expect(
+        dbApplication.phases[0].answers.financialInfo.previousGrants,
+      ).toHaveLength(2);
+      expect(
+        dbApplication.phases[0].answers.financialInfo.previousGrants[0]
+          .grantCode,
       ).toBe("ENV-2023-001");
 
       // Verify identifiers were stored correctly
@@ -204,45 +219,61 @@ describe("Application Service Integration Tests", () => {
           description: "Grant testing array validation",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            livestockOperations: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  animalType: {
-                    type: "string",
-                    enum: ["cattle", "sheep", "pigs", "poultry", "goats"],
+
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                livestockOperations: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      animalType: {
+                        type: "string",
+                        enum: ["cattle", "sheep", "pigs", "poultry", "goats"],
+                      },
+                      numberOfAnimals: { type: "integer", minimum: 1 },
+                      averageWeight: { type: "number", minimum: 0.1 },
+                      feedType: {
+                        type: "string",
+                        enum: [
+                          "grass-fed",
+                          "grain-fed",
+                          "organic-feed",
+                          "mixed",
+                        ],
+                      },
+                      housingType: {
+                        type: "string",
+                        enum: ["outdoor", "barn", "free-range", "intensive"],
+                      },
+                    },
+                    required: [
+                      "animalType",
+                      "numberOfAnimals",
+                      "feedType",
+                      "housingType",
+                    ],
                   },
-                  numberOfAnimals: { type: "integer", minimum: 1 },
-                  averageWeight: { type: "number", minimum: 0.1 },
-                  feedType: {
-                    type: "string",
-                    enum: ["grass-fed", "grain-fed", "organic-feed", "mixed"],
-                  },
-                  housingType: {
-                    type: "string",
-                    enum: ["outdoor", "barn", "free-range", "intensive"],
-                  },
+                  minItems: 1,
+                  maxItems: 10,
                 },
-                required: [
-                  "animalType",
-                  "numberOfAnimals",
-                  "feedType",
-                  "housingType",
-                ],
+                totalAnimals: { type: "integer", minimum: 1 },
+                organicCertified: { type: "boolean" },
               },
-              minItems: 1,
-              maxItems: 10,
+              required: [
+                "livestockOperations",
+                "totalAnimals",
+                "organicCertified",
+              ],
             },
-            totalAnimals: { type: "integer", minimum: 1 },
-            organicCertified: { type: "boolean" },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-          required: ["livestockOperations", "totalAnimals", "organicCertified"],
-        },
+        ],
         actions: [],
       };
 
@@ -298,21 +329,23 @@ describe("Application Service Integration Tests", () => {
       const dbApplication = await applications.findOne({
         clientRef: `app-service-array-${testId}`,
       });
-      expect(dbApplication.answers.livestockOperations).toHaveLength(3);
-      expect(dbApplication.answers.livestockOperations[0].animalType).toBe(
-        "cattle",
+      expect(dbApplication.phases[0].answers.livestockOperations).toHaveLength(
+        3,
       );
-      expect(dbApplication.answers.livestockOperations[0].numberOfAnimals).toBe(
-        150,
-      );
-      expect(dbApplication.answers.livestockOperations[1].averageWeight).toBe(
-        75.2,
-      );
-      expect(dbApplication.answers.livestockOperations[2].feedType).toBe(
-        "organic-feed",
-      );
-      expect(dbApplication.answers.totalAnimals).toBe(500);
-      expect(dbApplication.answers.organicCertified).toBe(true);
+      expect(
+        dbApplication.phases[0].answers.livestockOperations[0].animalType,
+      ).toBe("cattle");
+      expect(
+        dbApplication.phases[0].answers.livestockOperations[0].numberOfAnimals,
+      ).toBe(150);
+      expect(
+        dbApplication.phases[0].answers.livestockOperations[1].averageWeight,
+      ).toBe(75.2);
+      expect(
+        dbApplication.phases[0].answers.livestockOperations[2].feedType,
+      ).toBe("organic-feed");
+      expect(dbApplication.phases[0].answers.totalAnimals).toBe(500);
+      expect(dbApplication.phases[0].answers.organicCertified).toBe(true);
     });
 
     it("should validate application against grant schema and reject invalid data", async () => {
@@ -326,38 +359,45 @@ describe("Application Service Integration Tests", () => {
           description: "Grant for validation testing",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            email: {
-              type: "string",
-              format: "email",
-              description: "Valid email address required",
-            },
-            age: {
-              type: "integer",
-              minimum: 18,
-              maximum: 100,
-              description: "Age must be between 18 and 100",
-            },
-            phoneNumber: {
-              type: "string",
-              pattern: "^\\+?[1-9]\\d{1,14}$",
-              description: "Valid phone number required",
-            },
-            categories: {
-              type: "array",
-              items: {
-                type: "string",
-                enum: ["category-a", "category-b", "category-c"],
+
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                email: {
+                  type: "string",
+                  format: "email",
+                  description: "Valid email address required",
+                },
+                age: {
+                  type: "integer",
+                  minimum: 18,
+                  maximum: 100,
+                  description: "Age must be between 18 and 100",
+                },
+                phoneNumber: {
+                  type: "string",
+                  pattern: "^\\+?[1-9]\\d{1,14}$",
+                  description: "Valid phone number required",
+                },
+                categories: {
+                  type: "array",
+                  items: {
+                    type: "string",
+                    enum: ["category-a", "category-b", "category-c"],
+                  },
+                  uniqueItems: true,
+                  minItems: 1,
+                },
               },
-              uniqueItems: true,
-              minItems: 1,
+              required: ["email", "age", "phoneNumber", "categories"],
             },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-          required: ["email", "age", "phoneNumber", "categories"],
-        },
+        ],
         actions: [],
       };
 
