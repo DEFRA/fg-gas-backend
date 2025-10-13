@@ -1,5 +1,32 @@
 import { randomUUID } from "node:crypto";
-import { wreck } from "../helpers/wreck.js";
+import { Application } from "../../src/grants/models/application.js";
+import { wreck } from "./wreck.js";
+
+export const createTestApplication = (overrides = {}) => {
+  return Application.new({
+    currentPhase: "PRE_AWARD",
+    currentStage: "ASSESSMENT",
+    currentStatus: "RECEIVED",
+    clientRef: "application-1",
+    code: "grant-1",
+    submittedAt: "2021-01-01T00:00:00.000Z",
+    identifiers: {
+      sbi: "sbi-1",
+      frn: "frn-1",
+      crn: "crn-1",
+      defraId: "defraId-1",
+    },
+    phases: [
+      {
+        code: "PRE_AWARD",
+        answers: {
+          answer1: "test",
+        },
+      },
+    ],
+    ...overrides,
+  });
+};
 
 export const submitApplication = async () => {
   const clientRef = `cr-12345-${randomUUID()}`;
