@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestGrant } from "../../../test/helpers/grants.js";
 import {
   Application,
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
-import { Grant } from "../models/grant.js";
 import { publishApplicationCreated } from "../publishers/application-event.publisher.js";
 import { publishCreateNewCase } from "../publishers/case-event.publisher.js";
 import { save } from "../repositories/application.repository.js";
@@ -28,25 +28,7 @@ describe("submitApplicationUseCase", () => {
   });
 
   it("creates an application", async () => {
-    findGrantByCodeUseCase.mockResolvedValue(
-      new Grant({
-        code: "test-grant",
-        metadata: {
-          description: "Test Grant",
-          startDate: "2023-01-01T00:00:00Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-            },
-          },
-        },
-      }),
-    );
+    findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
 
     await submitApplicationUseCase("test-grant", {
       metadata: {
@@ -78,34 +60,21 @@ describe("submitApplicationUseCase", () => {
         crn: "CRN123456",
         defraId: "DEFRA123456",
       },
-      answers: {
-        question1: "answer1",
-      },
+      phases: [
+        {
+          code: ApplicationPhase.PreAward,
+          answers: {
+            question1: "answer1",
+          },
+        },
+      ],
     });
 
     expect(save).toHaveBeenCalledWith(application);
   });
 
   it("publishes ApplicationCreatedEvent", async () => {
-    findGrantByCodeUseCase.mockResolvedValue(
-      new Grant({
-        code: "test-grant",
-        metadata: {
-          description: "Test Grant",
-          startDate: "2023-01-01T00:00:00Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-            },
-          },
-        },
-      }),
-    );
+    findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
 
     await submitApplicationUseCase("test-grant", {
       metadata: {
@@ -150,25 +119,7 @@ describe("submitApplicationUseCase", () => {
   });
 
   it("publishes CreateNewCaseEvent", async () => {
-    findGrantByCodeUseCase.mockResolvedValue(
-      new Grant({
-        code: "test-grant",
-        metadata: {
-          description: "Test Grant",
-          startDate: "2023-01-01T00:00:00Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-            },
-          },
-        },
-      }),
-    );
+    findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
 
     await submitApplicationUseCase("test-grant", {
       metadata: {
@@ -200,34 +151,21 @@ describe("submitApplicationUseCase", () => {
         crn: "CRN123456",
         defraId: "DEFRA123456",
       },
-      answers: {
-        question1: "answer1",
-      },
+      phases: [
+        {
+          code: ApplicationPhase.PreAward,
+          answers: {
+            question1: "answer1",
+          },
+        },
+      ],
     });
 
     expect(publishCreateNewCase).toHaveBeenCalledWith(application);
   });
 
   it("throws when answers do not match the schema", async () => {
-    findGrantByCodeUseCase.mockResolvedValue(
-      new Grant({
-        code: "test-grant",
-        metadata: {
-          description: "Test Grant",
-          startDate: "2023-01-01T00:00:00Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-            },
-          },
-        },
-      }),
-    );
+    findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
 
     await expect(
       submitApplicationUseCase("test-grant", {
@@ -250,43 +188,48 @@ describe("submitApplicationUseCase", () => {
 
   it("throws when answers do not match schema format", async () => {
     findGrantByCodeUseCase.mockResolvedValue(
-      new Grant({
-        code: "test-grant",
-        metadata: {
-          description: "Test Grant",
-          startDate: "2023-01-01T00:00:00Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            answer1: {
-              type: "string",
-              format: "date-time",
-            },
-            answer2: {
-              type: "string",
-              format: "date",
-            },
-            answer3: {
-              type: "string",
-              format: "time",
-            },
-            answer4: {
-              type: "string",
-              format: "duration",
-            },
-            answer5: {
-              type: "string",
-              format: "email",
-            },
-            answer6: {
-              type: "string",
-              format: "uri",
+      createTestGrant({
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                answer1: {
+                  type: "string",
+                  format: "date-time",
+                },
+                answer2: {
+                  type: "string",
+                  format: "date",
+                },
+                answer3: {
+                  type: "string",
+                  format: "time",
+                },
+                answer4: {
+                  type: "string",
+                  format: "duration",
+                },
+                answer5: {
+                  type: "string",
+                  format: "email",
+                },
+                answer6: {
+                  type: "string",
+                  format: "uri",
+                },
+              },
             },
           },
-        },
+        ],
       }),
     );
 
@@ -323,23 +266,28 @@ describe("submitApplicationUseCase", () => {
 
   it("throws when an unsupported format is used in schema", async () => {
     findGrantByCodeUseCase.mockResolvedValue(
-      new Grant({
-        code: "test-grant",
-        metadata: {
-          description: "Test Grant",
-          startDate: "2023-01-01T00:00:00Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            answer1: {
-              type: "string",
-              format: "uuid", // Invalid format
+      createTestGrant({
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                answer1: {
+                  type: "string",
+                  format: "uuid", // Invalid format
+                },
+              },
             },
           },
-        },
+        ],
       }),
     );
 

@@ -9,7 +9,7 @@ export const toGrant = (doc) =>
     code: doc.code,
     metadata: doc.metadata,
     actions: doc.actions,
-    questions: doc.questions,
+    phases: doc.phases,
   });
 
 export const collection = "grants";

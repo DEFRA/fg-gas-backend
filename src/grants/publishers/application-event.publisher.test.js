@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { createTestApplication } from "../../../test/helpers/applications.js";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import {
@@ -76,12 +77,19 @@ it("publishes ApplicationStatusUpdatedEvent", async () => {
 });
 
 it("publishes publishCreateAgreementCommand", async () => {
-  await publishCreateAgreementCommand({
+  const application = createTestApplication({
     clientRef: "123",
     code: "grant-code",
     identifiers: { sbi: "123456789" },
-    answers: { question1: "answer1" },
+    phases: [
+      {
+        code: ApplicationPhase.PreAward,
+        answers: { question1: "answer1" },
+      },
+    ],
   });
+
+  await publishCreateAgreementCommand(application);
 
   expect(publish).toHaveBeenCalledWith(
     config.sns.createAgreementTopicArn,

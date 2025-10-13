@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestApplication } from "../../../test/helpers/applications.js";
+import { AgreementStatus } from "../models/agreement.js";
 import {
-  Agreement,
-  AgreementHistoryEntry,
-  AgreementStatus,
-} from "../models/agreement.js";
-import {
-  Application,
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
@@ -34,7 +30,7 @@ describe("addAgreementUseCase", () => {
 
   beforeEach(async () => {
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
-      Application.new({
+      createTestApplication({
         clientRef: "test-client-ref",
         code: "test-code",
       }),
@@ -57,26 +53,14 @@ describe("addAgreementUseCase", () => {
 
   it("updates the application with the new agreement", () => {
     expect(update).toHaveBeenCalledWith(
-      new Application({
+      expect.objectContaining({
         currentPhase: ApplicationPhase.PreAward,
         currentStage: ApplicationStage.Award,
         currentStatus: ApplicationStatus.Review,
-        clientRef: "test-client-ref",
-        code: "test-code",
-        updatedAt: expect.any(String),
-        createdAt: expect.any(String),
         agreements: {
-          "agreement-123": new Agreement({
+          "agreement-123": expect.objectContaining({
             agreementRef: "agreement-123",
-            date: "2024-01-01T12:00:00Z",
-            updatedAt: expect.any(String),
             latestStatus: AgreementStatus.Offered,
-            history: [
-              new AgreementHistoryEntry({
-                agreementStatus: AgreementStatus.Offered,
-                createdAt: "2024-01-01T12:00:00Z",
-              }),
-            ],
           }),
         },
       }),

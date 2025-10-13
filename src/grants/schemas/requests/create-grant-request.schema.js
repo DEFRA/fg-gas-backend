@@ -3,11 +3,11 @@ import { action } from "../grant/action/action.js";
 import { code } from "../grant/code.js";
 import { description } from "../grant/metadata/description.js";
 import { startDate } from "../grant/metadata/start-date.js";
-import { questions } from "../grant/questions.js";
+import { phases } from "../grant/phases.js";
 
 export const createGrantRequestSchema = Joi.object({
   code,
-  questions,
+  phases,
   metadata: Joi.object({
     description,
     startDate,

@@ -30,10 +30,21 @@ describe("createGrantRoute", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+            },
+          },
+        ],
       },
     });
 
@@ -48,10 +59,21 @@ describe("createGrantRoute", () => {
         startDate: new Date("2100-01-01T00:00:00.000Z"),
       },
       actions: [],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "ASSESSMENT",
+              statuses: [{ code: "RECEIVED" }],
+            },
+          ],
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+          },
+        },
+      ],
     });
   });
 
@@ -72,10 +94,21 @@ describe("createGrantRoute", () => {
           startDate: "invalid-date",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+            },
+          },
+        ],
       },
     });
 

@@ -64,7 +64,12 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
 export const submitApplicationUseCase = async (code, { metadata, answers }) => {
   const grant = await findGrantByCodeUseCase(code);
 
+  const { phase, stage, status } = grant.getInitialState();
+
   const application = Application.new({
+    currentPhase: phase.code,
+    currentStage: stage.code,
+    currentStatus: status.code,
     code,
     clientRef: metadata.clientRef,
     submittedAt: metadata.submittedAt,
@@ -74,7 +79,16 @@ export const submitApplicationUseCase = async (code, { metadata, answers }) => {
       crn: metadata.crn,
       defraId: metadata.defraId,
     },
-    answers: getAnswersInSchema(metadata.clientRef, grant.questions, answers),
+    phases: [
+      {
+        code: phase.code,
+        answers: getAnswersInSchema(
+          metadata.clientRef,
+          phase.questions,
+          answers,
+        ),
+      },
+    ],
   });
 
   await save(application);

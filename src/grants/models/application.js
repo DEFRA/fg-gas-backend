@@ -29,7 +29,7 @@ export class Application {
     updatedAt,
     submittedAt,
     identifiers,
-    answers,
+    phases,
     agreements,
   }) {
     this.currentPhase = currentPhase;
@@ -41,24 +41,33 @@ export class Application {
     this.updatedAt = updatedAt;
     this.submittedAt = submittedAt;
     this.identifiers = identifiers;
-    this.answers = answers;
+    this.phases = phases;
     this.agreements = agreements;
   }
 
-  static new({ clientRef, code, submittedAt, identifiers, answers }) {
+  static new({
+    currentPhase,
+    currentStage,
+    currentStatus,
+    clientRef,
+    code,
+    submittedAt,
+    identifiers,
+    phases,
+  }) {
     const createdAt = new Date().toISOString();
 
     return new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Received,
+      currentPhase,
+      currentStage,
+      currentStatus,
       clientRef,
       code,
       submittedAt,
       createdAt,
       updatedAt: createdAt,
       identifiers,
-      answers,
+      phases,
       agreements: {},
     });
   }
@@ -71,7 +80,7 @@ export class Application {
     }
 
     this.currentStatus = ApplicationStatus.Approved;
-    this.updatedAt = this.#getTmestamp();
+    this.updatedAt = this.#getTimestamp();
   }
 
   getFullyQualifiedStatus() {
@@ -88,7 +97,7 @@ export class Application {
     this.agreements[agreement.agreementRef] = agreement;
     this.currentStatus = ApplicationStatus.Review;
     this.currentStage = ApplicationStage.Award;
-    this.updatedAt = this.#getTmestamp();
+    this.updatedAt = this.#getTimestamp();
   }
 
   getAgreement(agreementRef) {
@@ -107,7 +116,7 @@ export class Application {
     agreement.accept(date);
 
     this.currentStatus = ApplicationStatus.Accepted;
-    this.updatedAt = this.#getTmestamp();
+    this.updatedAt = this.#getTimestamp();
   }
 
   withdrawAgreement(agreementRef, date) {
@@ -122,7 +131,7 @@ export class Application {
     agreement.withdraw(date);
 
     this.currentStatus = ApplicationStatus.Withdrawn;
-    this.updatedAt = this.#getTmestamp();
+    this.updatedAt = this.#getTimestamp();
   }
 
   getAgreementsData() {
@@ -134,7 +143,12 @@ export class Application {
     }));
   }
 
-  #getTmestamp() {
+  getAnswers() {
+    const phase = this.phases.find((p) => p.code === this.currentPhase);
+    return phase?.answers ?? {};
+  }
+
+  #getTimestamp() {
     return new Date().toISOString();
   }
 }

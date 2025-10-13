@@ -28,24 +28,35 @@ describe("Simple Grant Service Integration Tests", () => {
         description: "Test grant with validation rules",
         startDate: "2025-01-01T00:00:00.000Z",
       },
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-        properties: {
-          farmName: { type: "string", minLength: 2 },
-          farmSize: { type: "number", minimum: 1, maximum: 10000 },
-          animalTypes: {
-            type: "array",
-            items: {
-              type: "string",
-              enum: ["cattle", "sheep", "pigs", "poultry"],
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              farmName: { type: "string", minLength: 2 },
+              farmSize: { type: "number", minimum: 1, maximum: 10000 },
+              animalTypes: {
+                type: "array",
+                items: {
+                  type: "string",
+                  enum: ["cattle", "sheep", "pigs", "poultry"],
+                },
+                minItems: 1,
+              },
+              organicCertified: { type: "boolean" },
             },
-            minItems: 1,
+            required: [
+              "farmName",
+              "farmSize",
+              "animalTypes",
+              "organicCertified",
+            ],
           },
-          organicCertified: { type: "boolean" },
+          stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
         },
-        required: ["farmName", "farmSize", "animalTypes", "organicCertified"],
-      },
+      ],
       actions: [
         {
           name: "calculate-subsidy",
@@ -64,7 +75,9 @@ describe("Simple Grant Service Integration Tests", () => {
     const dbGrant = await grants.findOne({ code: grantCode });
     expect(dbGrant).toBeTruthy();
     expect(dbGrant.code).toBe(grantCode);
-    expect(dbGrant.questions.properties.farmSize.minimum).toBe(1);
+    expect(dbGrant.phases[0].code).toBe("PHASE_1");
+    expect(dbGrant.phases[0].questions.properties.farmSize.minimum).toBe(1);
+    expect(dbGrant.phases[0].stages[0].statuses[0].code).toBe("NEW");
     expect(dbGrant.actions).toHaveLength(1);
 
     // Submit application
@@ -97,8 +110,11 @@ describe("Simple Grant Service Integration Tests", () => {
     });
     expect(dbApplication).toBeTruthy();
     expect(dbApplication.code).toBe(grantCode);
-    expect(dbApplication.answers.farmName).toBe("Test Service Farm");
-    expect(dbApplication.answers.animalTypes).toContain("cattle");
+    expect(dbApplication.currentPhase).toBe("PHASE_1");
+    expect(dbApplication.currentStage).toBe("STAGE_1");
+    expect(dbApplication.currentStatus).toBe("NEW");
+    expect(dbApplication.phases[0].answers.farmName).toBe("Test Service Farm");
+    expect(dbApplication.phases[0].answers.animalTypes).toContain("cattle");
     expect(dbApplication.identifiers.sbi).toBe("123456789");
   });
 
@@ -113,15 +129,21 @@ describe("Simple Grant Service Integration Tests", () => {
         description: "Test grant for validation",
         startDate: "2025-01-01T00:00:00.000Z",
       },
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-        properties: {
-          email: { type: "string", format: "email" },
-          age: { type: "integer", minimum: 18, maximum: 100 },
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              email: { type: "string", format: "email" },
+              age: { type: "integer", minimum: 18, maximum: 100 },
+            },
+            required: ["email", "age"],
+          },
+          stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
         },
-        required: ["email", "age"],
-      },
+      ],
       actions: [],
     };
 
@@ -176,14 +198,20 @@ describe("Simple Grant Service Integration Tests", () => {
         description: "Test duplicate prevention",
         startDate: "2025-01-01T00:00:00.000Z",
       },
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-        properties: {
-          testField: { type: "string" },
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              testField: { type: "string" },
+            },
+            required: ["testField"],
+          },
+          stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
         },
-        required: ["testField"],
-      },
+      ],
       actions: [],
     };
 

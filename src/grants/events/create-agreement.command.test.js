@@ -19,7 +19,12 @@ describe("CreateAgreementCommand", () => {
       createdAt: new Date().toISOString(),
       submittedAt: new Date().toISOString(),
       identifiers: { name: "Test App" },
-      answers: { question1: "answer1" },
+      phases: [
+        {
+          code: ApplicationPhase.PreAward,
+          answers: { question1: "answer1" },
+        },
+      ],
     });
 
     const event = new CreateAgreementCommand(application);

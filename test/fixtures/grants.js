@@ -11,16 +11,27 @@ export const grant1 = {
       url: "http://example.com",
     },
   ],
-  questions: {
-    $schema: "https://json-schema.org/draft/2020-12/schema",
-    type: "object",
-    properties: {
-      question1: {
-        type: "string",
-        description: "This is a test question",
+  phases: [
+    {
+      code: "PRE_AWARD",
+      stages: [
+        {
+          code: "ASSESSMENT",
+          statuses: [{ code: "RECEIVED" }, { code: "REVIEW" }],
+        },
+      ],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+        properties: {
+          question1: {
+            type: "string",
+            description: "This is a test question",
+          },
+        },
       },
     },
-  },
+  ],
 };
 
 export const grant2 = {
@@ -36,16 +47,27 @@ export const grant2 = {
       url: "http://example.com",
     },
   ],
-  questions: {
-    $schema: "https://json-schema.org/draft/2020-12/schema",
-    type: "object",
-    properties: {
-      question2: {
-        type: "string",
-        description: "This is another test question",
+  phases: [
+    {
+      code: "PRE_AWARD",
+      stages: [
+        {
+          code: "ASSESSMENT",
+          statuses: [{ code: "RECEIVED" }, { code: "REVIEW" }],
+        },
+      ],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+        properties: {
+          question2: {
+            type: "string",
+            description: "This is another test question",
+          },
+        },
       },
     },
-  },
+  ],
 };
 
 export const grant3 = {
@@ -61,76 +83,88 @@ export const grant3 = {
       url: "http://example.com",
     },
   ],
-  questions: {
-    $schema: "https://json-schema.org/draft/2020-12/schema",
-    type: "object",
-    additionalProperties: false,
-    required: [
-      "scheme",
-      "year",
-      "hasCheckedLandIsUpToDate",
-      "actionApplications",
-    ],
-    properties: {
-      scheme: {
-        type: "string",
-        title: "Defra scheme name",
-      },
-      year: {
-        type: "integer",
-        title: "Scheme year",
-      },
-      hasCheckedLandIsUpToDate: {
-        type: "boolean",
-        title: "Has the applicant checked that their land data is up to date?",
-      },
-      actionApplications: {
-        type: "array",
-        title: "Details of the actions applied for",
-        minItems: 1,
-        items: {
-          $ref: "#/$defs/ActionApplication",
+  phases: [
+    {
+      code: "PRE_AWARD",
+      stages: [
+        {
+          code: "ASSESSMENT",
+          statuses: [{ code: "RECEIVED" }, { code: "REVIEW" }],
         },
-      },
-    },
-    $defs: {
-      ActionApplication: {
+      ],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
         type: "object",
         additionalProperties: false,
-        required: ["parcelId", "sheetId", "code", "appliedFor"],
+        required: [
+          "scheme",
+          "year",
+          "hasCheckedLandIsUpToDate",
+          "actionApplications",
+        ],
         properties: {
-          parcelId: {
+          scheme: {
             type: "string",
-            title: "Land parcel ID, unique within a OS Sheet ID",
-            pattern: "^\\d+$",
+            title: "Defra scheme name",
           },
-          sheetId: {
-            type: "string",
-            title: "OS Sheet ID",
-            pattern: "[A-Z]{2}[0-9]{4}",
+          year: {
+            type: "integer",
+            title: "Scheme year",
           },
-          code: {
-            type: "string",
-            title: "Code for the action to be taken on the land parcel",
+          hasCheckedLandIsUpToDate: {
+            type: "boolean",
+            title:
+              "Has the applicant checked that their land data is up to date?",
           },
-          appliedFor: {
+          actionApplications: {
+            type: "array",
+            title: "Details of the actions applied for",
+            minItems: 1,
+            items: {
+              $ref: "#/$defs/ActionApplication",
+            },
+          },
+        },
+        $defs: {
+          ActionApplication: {
             type: "object",
             additionalProperties: false,
-            required: ["unit", "quantity"],
+            required: ["parcelId", "sheetId", "code", "appliedFor"],
             properties: {
-              unit: {
+              parcelId: {
                 type: "string",
-                title: "Unit of measurement",
-                enum: ["kg", "m", "100m", "count", "ha", "m2"],
+                title: "Land parcel ID, unique within a OS Sheet ID",
+                pattern: "^\\d+$",
               },
-              quantity: {
-                type: "number",
-                title: "Quantity of units applied for",
+              sheetId: {
+                type: "string",
+                title: "OS Sheet ID",
+                pattern: "[A-Z]{2}[0-9]{4}",
+              },
+              code: {
+                type: "string",
+                title: "Code for the action to be taken on the land parcel",
+              },
+              appliedFor: {
+                type: "object",
+                additionalProperties: false,
+                required: ["unit", "quantity"],
+                properties: {
+                  unit: {
+                    type: "string",
+                    title: "Unit of measurement",
+                    enum: ["kg", "m", "100m", "count", "ha", "m2"],
+                  },
+                  quantity: {
+                    type: "number",
+                    title: "Quantity of units applied for",
+                  },
+                },
               },
             },
           },
         },
       },
     },
-  },
+  ],
 };

@@ -12,7 +12,7 @@ export const replaceGrantUseCase = async (code, replaceGrantCommand) => {
       startDate: replaceGrantCommand.metadata.startDate,
     },
     actions: replaceGrantCommand.actions,
-    questions: replaceGrantCommand.questions,
+    phases: replaceGrantCommand.phases,
   });
 
   await replace(grant);

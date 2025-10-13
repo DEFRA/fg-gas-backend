@@ -14,7 +14,7 @@ export class ApplicationDocument {
       crn: application.identifiers.crn,
       defraId: application.identifiers.defraId,
     };
-    this.answers = application.answers;
+    this.phases = application.phases;
     this.agreements = application.agreements;
   }
 }

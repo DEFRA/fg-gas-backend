@@ -1,12 +1,25 @@
 import { expect, it } from "vitest";
 import { createGrantRequestSchema } from "./create-grant-request.schema.js";
 
-it("requires a code", () => {
-  const { error } = createGrantRequestSchema.validate({
+const validPhases = [
+  {
+    code: "PRE_AWARD",
+    stages: [
+      {
+        code: "ASSESSMENT",
+        statuses: [{ code: "RECEIVED" }],
+      },
+    ],
     questions: {
       $schema: "https://json-schema.org/draft/2020-12/schema",
       type: "object",
     },
+  },
+];
+
+it("requires a code", () => {
+  const { error } = createGrantRequestSchema.validate({
+    phases: validPhases,
     metadata: {
       description: "test",
       startDate: "2100-01-01T00:00:00.000Z",
@@ -20,17 +33,14 @@ it("requires a code", () => {
 it("requires a metadata property", () => {
   const { error } = createGrantRequestSchema.validate({
     code: "test",
-    questions: {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      type: "object",
-    },
+    phases: validPhases,
     actions: [],
   });
 
   expect(error.message).toEqual('"Metadata" is required');
 });
 
-it("requires a questions property", () => {
+it("requires a phases property", () => {
   const { error } = createGrantRequestSchema.validate({
     code: "test",
     metadata: {
@@ -40,7 +50,7 @@ it("requires a questions property", () => {
     actions: [],
   });
 
-  expect(error.message).toEqual('"Questions" is required');
+  expect(error.message).toEqual('"Phases" is required');
 });
 
 it("requires a metadata.description property", () => {
@@ -49,10 +59,7 @@ it("requires a metadata.description property", () => {
     metadata: {
       startDate: "2100-01-01T00:00:00.000Z",
     },
-    questions: {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      type: "object",
-    },
+    phases: validPhases,
     actions: [],
   });
 
@@ -65,10 +72,7 @@ it("requires a metadata.startDate property", () => {
     metadata: {
       description: "test",
     },
-    questions: {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      type: "object",
-    },
+    phases: validPhases,
     actions: [],
   });
 
@@ -82,10 +86,7 @@ it("requires actions property", () => {
       description: "test",
       startDate: "2100-01-01T00:00:00.000Z",
     },
-    questions: {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      type: "object",
-    },
+    phases: validPhases,
   });
 
   expect(error.message).toEqual('"Actions" is required');
@@ -98,10 +99,7 @@ it("requires actions to be unique by name", () => {
       description: "test",
       startDate: "2100-01-01T00:00:00.000Z",
     },
-    questions: {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      type: "object",
-    },
+    phases: validPhases,
     actions: [
       {
         name: "action1",
