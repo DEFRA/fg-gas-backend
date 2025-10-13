@@ -1,7 +1,12 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { Application } from "../../src/grants/models/application";
+import {
+  Application,
+  ApplicationPhase,
+  ApplicationStage,
+  ApplicationStatus,
+} from "../../src/grants/models/application.js";
 import { wreck } from "../helpers/wreck.js";
 
 let applications;
@@ -25,8 +30,27 @@ describe("GET /grants/{code}/applications/{clientRef}/status", () => {
       Application.new({
         clientRef,
         code,
-        answers: [],
-        identifiers: [],
+        currentPhase: ApplicationPhase.PreAward,
+        currentStage: ApplicationStage.Assessment,
+        currentStatus: ApplicationStatus.Received,
+        phases: [
+          {
+            code: ApplicationPhase.PreAward,
+            questions: {},
+            stages: [
+              {
+                code: ApplicationStage.Assessment,
+                statuses: [{ code: ApplicationStatus.Received }],
+              },
+            ],
+          },
+        ],
+        identifiers: {
+          sbi: "123",
+          frn: "456",
+          crn: "789",
+          defraId: "abc",
+        },
       }),
     );
 
