@@ -13,6 +13,9 @@ import { replaceGrantRoute } from "./routes/replace-grant.route.js";
 import { submitApplicationRoute } from "./routes/submit-application.route.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
+import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
+
+const polltimeout = 300000;
 
 export const grants = {
   name: "grants",
@@ -22,14 +25,18 @@ export const grants = {
     migrated.forEach((fileName) => logger.info(`Migrated: ${fileName}`));
     logger.info("Finished running migrations");
 
+    const outboxSubscriber = new OutboxSubscriber(polltimeout);
+
     server.events.on("start", async () => {
       agreementStatusUpdatedSubscriber.start();
       caseStatusUpdatedSubscriber.start();
+      outboxSubscriber.start();
     });
 
     server.events.on("stop", async () => {
       agreementStatusUpdatedSubscriber.stop();
       caseStatusUpdatedSubscriber.stop();
+      outboxSubscriber.stop();
     });
 
     server.route([

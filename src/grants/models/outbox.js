@@ -1,8 +1,16 @@
+export const OutboxStatus = {
+  PUBLISHED: "PUBLISHED",
+  PROCESSING: "PROCESSING",
+  FAILED: "FAILED",
+  COMPLETED: "COMPLETED",
+  RESUBMITTED: "RESUBMITTED",
+  DEAD_LETTER: "DEAD_LETTER",
+};
+
 export class Outbox {
   constructor(props) {
     this._id = props._id;
     this.publicationDate = props.publicationDate || new Date().toISOString();
-    this.owner = props.owner;
     this.target = props.target;
     this.event = props.event;
     this.lastResubmissionDate = props.lastResubmissionDate;
@@ -34,7 +42,6 @@ export class Outbox {
     return {
       _id: this._id,
       publicationDate: this.publicationDate,
-      owner: this.owner,
       target: this.target,
       event: this.event,
       lastResubmissionDate: this.lastResubmissionDate,
@@ -51,7 +58,6 @@ export class Outbox {
     return new Outbox({
       _id: doc._id,
       publicationDate: doc.publicationDate,
-      owner: doc.owner,
       target: doc.target,
       event: doc.event,
       lastResubmissionDate: doc.lastResubmissionDate,
@@ -64,12 +70,3 @@ export class Outbox {
     });
   }
 }
-
-export const OutboxStatus = {
-  PROCESSING: "PROCESSING",
-  PUBLISHED: "PUBLISHED",
-  FAILED: "FAILED",
-  COMPLETED: "COMPLETED",
-  RESUBMITTED: "RESUBMITTED",
-  DEAD_LETTER: "DEAD_LETTER",
-};

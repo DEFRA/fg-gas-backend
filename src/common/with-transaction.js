@@ -13,8 +13,8 @@ export const withTransaction = async (callback) => {
   try {
     await session.withTransaction(callback, transactionOptions);
   } catch (e) {
-    logger.error("ERROR: Transaction failed");
-    logger.error(e);
+    logger.error("ERROR: Transaction failed.");
+    logger.error(e.message);
 
     throw new Error(`Transaction failed: ${e.message}`);
   } finally {
