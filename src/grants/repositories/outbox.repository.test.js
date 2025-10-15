@@ -1,8 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
+import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
-import { fetchPendingEvents, insertMany } from "./outbox.repository.js";
+import {
+  claimEvents,
+  insertMany,
+  update,
+  updateDeadEvents,
+  updateFailedEvents,
+  updateResubmittedEvents,
+} from "./outbox.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -41,7 +49,7 @@ describe("outbox.repository", () => {
     });
   });
 
-  describe("fetchPendingEvents", () => {
+  describe("claimEvents", () => {
     it("should fetch any pending events", async () => {
       const claimedBy = randomUUID();
       const mockDocument = {
@@ -61,9 +69,135 @@ describe("outbox.repository", () => {
 
       db.collection.mockReturnValue({ findOneAndUpdate: findOneAndUpdateMock });
 
-      const results = await fetchPendingEvents(claimedBy);
+      const results = await claimEvents(claimedBy);
       expect(results[0]).toBeInstanceOf(Outbox);
       expect(results).toHaveLength(1);
+    });
+  });
+
+  describe("update", () => {
+    it("calls updateOne", async () => {
+      const mockUpdate = vi.fn();
+      db.collection.mockReturnValue({
+        updateOne: mockUpdate,
+      });
+      const claimedBy = randomUUID();
+      const _id = randomUUID();
+      const event = {};
+
+      const outboxEvent = new Outbox({
+        _id,
+        event,
+        publicationDate: new Date(),
+        target: "arn:foo:bar",
+        completionAttempts: 1,
+        status: OutboxStatus.PROCESSING,
+      });
+
+      await update(outboxEvent, claimedBy);
+      expect(mockUpdate).toHaveBeenCalledWith(
+        {
+          _id,
+          claimedBy,
+        },
+        {
+          $set: {
+            claimExpiresAt: null,
+            claimedAt: null,
+            claimedBy: null,
+            completionAttempts: 1,
+            completionDate: undefined,
+            event: {},
+            lastResubmissionDate: undefined,
+            publicationDate: expect.any(Date),
+            status: "PROCESSING",
+            target: "arn:foo:bar",
+          },
+        },
+      );
+    });
+  });
+
+  describe("updateFailedEvents", () => {
+    it("should call updateMany", async () => {
+      const updateMany = vi.fn().mockResolvedValue({});
+      db.collection.mockReturnValue({
+        updateMany,
+      });
+
+      await updateFailedEvents();
+
+      expect(updateMany).toHaveBeenCalledWith(
+        {
+          status: OutboxStatus.FAILED,
+        },
+        {
+          $set: {
+            status: OutboxStatus.RESUBMITTED,
+            claimedAt: null,
+            claimedBy: null,
+            claimExpiresAt: null,
+          },
+        },
+      );
+    });
+  });
+
+  describe("updateResubmittedEvents", () => {
+    it("should call updateMany", async () => {
+      const updateMany = vi.fn().mockResolvedValue({});
+      db.collection.mockReturnValue({
+        updateMany,
+      });
+      await updateResubmittedEvents();
+
+      expect(updateMany).toHaveBeenCalledWith(
+        {
+          status: OutboxStatus.RESUBMITTED,
+        },
+        {
+          $set: {
+            status: OutboxStatus.PUBLISHED,
+            claimedAt: null,
+            claimExpiresAt: null,
+            claimedBy: null,
+          },
+          $inc: { completionAttempts: 1 },
+        },
+      );
+    });
+  });
+
+  describe("updateDeadEvents", () => {
+    it("should call updateMany", async () => {
+      const MAX_RETRIES = config.outboxMaxRetries;
+      const updateMany = vi.fn().mockResolvedValue({});
+      db.collection.mockReturnValue({
+        updateMany,
+      });
+      const mockDate = new Date(20245, 10, 9);
+      vi.setSystemTime(mockDate);
+      await updateDeadEvents();
+      expect(updateMany).toBeCalledWith(
+        {
+          $or: [
+            {
+              completionAttempts: { $gte: MAX_RETRIES },
+            },
+            {
+              claimExpiresAt: { $lt: mockDate },
+            },
+          ],
+        },
+        {
+          $set: {
+            status: OutboxStatus.DEAD_LETTER,
+            claimedAt: null,
+            claimExpiresAt: null,
+            claimedBy: null,
+          },
+        },
+      );
     });
   });
 });

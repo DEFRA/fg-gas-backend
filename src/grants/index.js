@@ -15,7 +15,7 @@ import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 
-const polltimeout = 300000;
+const polltimeout = 30000;
 
 export const grants = {
   name: "grants",
