@@ -10,7 +10,7 @@ export const OutboxStatus = {
 export class Outbox {
   constructor(props) {
     this._id = props._id;
-    this.publicationDate = props.publicationDate || new Date().toISOString();
+    this.publicationDate = props.publicationDate || new Date();
     this.target = props.target;
     this.event = props.event;
     this.lastResubmissionDate = props.lastResubmissionDate;

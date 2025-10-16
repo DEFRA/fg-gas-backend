@@ -27,9 +27,8 @@ export class OutboxSubscriber {
 
       if (pendingEvents?.length > 0) {
         logger.info(`Claimed ${pendingEvents.length} outbox events`);
-        this.asyncLocalStorage.run(
-          claimToken,
-          async () => await this.processEvents(pendingEvents),
+        this.asyncLocalStorage.run(claimToken, async () =>
+          this.processEvents(pendingEvents),
         );
       }
 
