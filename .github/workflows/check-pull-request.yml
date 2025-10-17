@@ -49,3 +49,30 @@ jobs:
           set +e
           docker build --no-cache --tag fg-gas-backend .
           exit $?
+  pact:
+    needs: pr-validator
+    runs-on: self-hosted
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run contract tests on PRs
+        env:
+          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
+          PACT_BROKER_USERNAME: ${{ secrets.PACT_USER }}
+          PACT_BROKER_PASSWORD: ${{ secrets.PACT_PASS }}
+        shell: bash
+        run: SERVICE_VERSION=$(git describe --tags --abbrev=0) npm run test:contracts
