@@ -24,6 +24,7 @@ export default defineConfig({
       OUTBOX_MAX_RETRIES: 5,
       OUTBOX_CLAIM_MAX_RECORDS: 2,
       OUTBOX_EXPIRES_MS: 5000,
+      OUTBOX_POLL_MS: 250,
     },
   },
 });

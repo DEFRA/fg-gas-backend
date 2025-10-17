@@ -15,8 +15,6 @@ import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 
-const polltimeout = 30000;
-
 export const grants = {
   name: "grants",
   async register(server) {
@@ -25,7 +23,7 @@ export const grants = {
     migrated.forEach((fileName) => logger.info(`Migrated: ${fileName}`));
     logger.info("Finished running migrations");
 
-    const outboxSubscriber = new OutboxSubscriber(polltimeout);
+    const outboxSubscriber = new OutboxSubscriber();
 
     server.events.on("start", async () => {
       agreementStatusUpdatedSubscriber.start();

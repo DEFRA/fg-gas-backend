@@ -50,7 +50,7 @@ describe("outbox.subscriber", () => {
 
   it("should start polling on start()", async () => {
     claimEvents.mockResolvedValue([new Outbox({})]);
-    const subscriber = new OutboxSubscriber(3000);
+    const subscriber = new OutboxSubscriber();
     subscriber.start();
     expect(claimEvents).toHaveBeenCalled();
     expect(subscriber.running).toBeTruthy();
@@ -72,7 +72,7 @@ describe("outbox.subscriber", () => {
       event: {},
       markAsFailed: vi.fn(),
     };
-    const outbox = new OutboxSubscriber(3000);
+    const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
     expect(mockEvent.markAsFailed).toHaveBeenCalled();
   });
@@ -85,7 +85,7 @@ describe("outbox.subscriber", () => {
       event: {},
       markAsComplete: vi.fn(),
     };
-    const outbox = new OutboxSubscriber(3000);
+    const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
@@ -99,7 +99,7 @@ describe("outbox.subscriber", () => {
       event: {},
       markAsComplete: vi.fn(),
     };
-    const outbox = new OutboxSubscriber(3000);
+    const outbox = new OutboxSubscriber();
     await outbox.markEventComplete(mockEvent);
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith(mockEvent, "1234");
@@ -114,7 +114,7 @@ describe("outbox.subscriber", () => {
       event: {},
       markAsFailed: vi.fn(),
     };
-    const outbox = new OutboxSubscriber(3000);
+    const outbox = new OutboxSubscriber();
     await outbox.markEventUnsent(mockEvent);
     expect(mockEvent.markAsFailed).toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith(mockEvent, "1234");
@@ -123,7 +123,7 @@ describe("outbox.subscriber", () => {
   it("should processFailedEvents", async () => {
     claimEvents.mockResolvedValue([]);
     updateFailedEvents.mockResolvedValue({ modifiedCount: 1 });
-    const subscriber = new OutboxSubscriber(1000);
+    const subscriber = new OutboxSubscriber();
     await subscriber.processFailedEvents();
     expect(updateFailedEvents).toHaveBeenCalled();
   });
@@ -131,7 +131,7 @@ describe("outbox.subscriber", () => {
   it("should processResubmittedEvents", async () => {
     claimEvents.mockResolvedValue([]);
     updateResubmittedEvents.mockResolvedValue({ modifiedCount: 1 });
-    const subscriber = new OutboxSubscriber(1000);
+    const subscriber = new OutboxSubscriber();
     await subscriber.processResubmittedEvents();
     expect(updateResubmittedEvents).toHaveBeenCalled();
   });
@@ -139,7 +139,7 @@ describe("outbox.subscriber", () => {
   it("should processDeadEvents", async () => {
     claimEvents.mockResolvedValue([]);
     updateDeadEvents.mockResolvedValue({ modifiedCount: 1 });
-    const subscriber = new OutboxSubscriber(1000);
+    const subscriber = new OutboxSubscriber();
     await subscriber.processDeadEvents();
     expect(updateDeadEvents).toHaveBeenCalled();
   });

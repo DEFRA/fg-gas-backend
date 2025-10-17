@@ -9,9 +9,12 @@ beforeEach(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   const db = client.db();
 
-  db.collection("applications").deleteMany({});
-  db.collection("grants").deleteMany({});
-  db.collection("users").deleteMany({});
+  await Promise.all([
+    db.collection("outbox").deleteMany({}),
+    db.collection("applications").deleteMany({}),
+    db.collection("grants").deleteMany({}),
+    db.collection("users").deleteMany({}),
+  ]);
 
   await purgeQueues([
     env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL,

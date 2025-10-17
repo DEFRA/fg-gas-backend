@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PRIMARY="${PRIMARY:-mongodb:27017}"
+PRIMARY="${PRIMARY:-127.0.0.1:27017}"
 REPLSET="${REPLSET:-mongoRepl}"
 
 echo "Waiting for mongod to respond on $PRIMARY..."

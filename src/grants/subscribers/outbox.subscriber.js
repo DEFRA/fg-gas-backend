@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
+import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import {
@@ -14,15 +15,14 @@ import {
 export class OutboxSubscriber {
   asyncLocalStorage = new AsyncLocalStorage();
 
-  constructor(interval) {
-    this.interval = interval;
+  constructor() {
+    this.interval = config.outboxPollMs;
     this.running = false;
   }
 
   async poll() {
     while (this.running) {
       const claimToken = randomUUID();
-
       const pendingEvents = await claimEvents(claimToken);
 
       if (pendingEvents?.length > 0) {

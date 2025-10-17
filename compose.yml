@@ -76,6 +76,7 @@ services:
     env_file:
       - .env
     environment:
+      OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
       MONGO_URI: mongodb://mongodb:27017/?replicaSet=mongoRepl
     networks:
       - cdp-tenant
