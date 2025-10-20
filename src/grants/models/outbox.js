@@ -14,7 +14,7 @@ export class Outbox {
     this.target = props.target;
     this.event = props.event;
     this.lastResubmissionDate = props.lastResubmissionDate;
-    this.completionAttempts = props.completionAttempts | 1;
+    this.completionAttempts = props.completionAttempts || 1;
     this.status = props.status || OutboxStatus.PUBLISHED;
     this.completionDate = props.completionDate;
     this.claimedBy = null;
