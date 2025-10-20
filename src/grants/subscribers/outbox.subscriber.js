@@ -8,6 +8,7 @@ import {
   claimEvents,
   update,
   updateDeadEvents,
+  updateExpiredEvents,
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
@@ -35,8 +36,15 @@ export class OutboxSubscriber {
       await this.processResubmittedEvents();
       await this.processFailedEvents();
       await this.processDeadEvents();
+      await this.processExpiredEvents();
       await setTimeout(this.interval);
     }
+  }
+
+  async processExpiredEvents() {
+    logger.info("Processing expired outbox events");
+    const results = await updateExpiredEvents();
+    logger.info(`Updated ${results?.modifiedCount} expired outbox events`);
   }
 
   async processDeadEvents() {

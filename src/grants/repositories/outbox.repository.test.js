@@ -8,6 +8,7 @@ import {
   insertMany,
   update,
   updateDeadEvents,
+  updateExpiredEvents,
   updateFailedEvents,
   updateResubmittedEvents,
 } from "./outbox.repository.js";
@@ -118,6 +119,33 @@ describe("outbox.repository", () => {
     });
   });
 
+  describe("updateExpiredEvents", () => {
+    it("should call updateMany", async () => {
+      const updateMany = vi.fn().mockResolvedValue({});
+      db.collection.mockReturnValue({
+        updateMany,
+      });
+
+      await updateExpiredEvents();
+
+      expect(updateMany).toHaveBeenCalledWith(
+        {
+          claimExpiresAt: {
+            $lt: expect.any(Date),
+          },
+        },
+        {
+          $set: {
+            status: OutboxStatus.FAILED,
+            claimedAt: null,
+            claimedBy: null,
+            claimExpiresAt: null,
+          },
+        },
+      );
+    });
+  });
+
   describe("updateFailedEvents", () => {
     it("should call updateMany", async () => {
       const updateMany = vi.fn().mockResolvedValue({});
@@ -180,14 +208,7 @@ describe("outbox.repository", () => {
       await updateDeadEvents();
       expect(updateMany).toBeCalledWith(
         {
-          $or: [
-            {
-              completionAttempts: { $gte: MAX_RETRIES },
-            },
-            {
-              claimExpiresAt: { $lt: mockDate },
-            },
-          ],
+          completionAttempts: { $gte: MAX_RETRIES },
         },
         {
           $set: {

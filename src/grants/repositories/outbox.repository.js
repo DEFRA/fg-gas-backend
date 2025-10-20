@@ -62,6 +62,23 @@ export const insertMany = async (events, session) => {
   );
 };
 
+export const updateExpiredEvents = async () => {
+  const results = await db.collection(collection).updateMany(
+    {
+      claimExpiresAt: { $lt: new Date() },
+    },
+    {
+      $set: {
+        status: OutboxStatus.FAILED,
+        claimedAt: null,
+        claimExpiresAt: null,
+        claimedBy: null,
+      },
+    },
+  );
+  return results;
+};
+
 export const updateFailedEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {
@@ -100,14 +117,7 @@ export const updateResubmittedEvents = async () => {
 export const updateDeadEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {
-      $or: [
-        {
-          completionAttempts: { $gte: MAX_RETRIES },
-        },
-        {
-          claimExpiresAt: { $lt: new Date() },
-        },
-      ],
+      completionAttempts: { $gte: MAX_RETRIES },
     },
     {
       $set: {
