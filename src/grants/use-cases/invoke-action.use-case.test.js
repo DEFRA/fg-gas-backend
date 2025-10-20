@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { wreck } from "../../common/wreck.js";
-import { Grant } from "../models/grant.ts";
+import { Grant } from "../models/grant.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 import { invokeActionUseCase } from "./invoke-action.use-case.js";
 

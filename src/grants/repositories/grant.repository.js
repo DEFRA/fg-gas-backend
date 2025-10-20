@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
-import { Grant } from "../models/grant.ts";
+import { Grant } from "../models/grant.js";
 
 export const toGrant = (doc) =>
   new Grant({
@@ -10,6 +10,7 @@ export const toGrant = (doc) =>
     metadata: doc.metadata,
     actions: doc.actions,
     phases: doc.phases,
+    externalStatusMap: doc.externalStatusMap,
   });
 
 export const collection = "grants";

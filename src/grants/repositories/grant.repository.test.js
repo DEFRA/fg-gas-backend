@@ -3,7 +3,7 @@ import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
-import { Grant } from "../models/grant.ts";
+import { Grant } from "../models/grant.js";
 import { findAll, findByCode, replace, save } from "./grant.repository.js";
 
 vi.mock("../../common/mongo-client.js");

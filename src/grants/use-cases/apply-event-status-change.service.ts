@@ -1,94 +1,126 @@
-
-import { findByClientRef } from "../repositories/application.repository.js";
-import { findByCode } from "../repositories/grant.repository.js";
-import {Application} from "../models/application";
+import Boom from "@hapi/boom";
+import { Application } from "../models/application.js";
+import type {
+  ExternalStatusMapping,
+  ValidExternalStatusMapping,
+} from "../models/grant.js";
 import {
-  publishApplicationApproved,
-  publishApplicationStatusUpdated
+  publishApplicationStatusUpdated,
+  publishCreateAgreementCommand,
 } from "../publishers/application-event.publisher.js";
-import { update } from "../repositories/application.repository.js";
-// import Boom from "@hapi/boom";
-import {ExternalStatusMapping, Grant, ValidExternalStatusMapping} from "../models/grant";
+import {
+  findByClientRef,
+  update,
+} from "../repositories/application.repository.js";
+import { findByCode } from "../repositories/grant.repository.js";
 
 export type ApplyStateChangeCommand = {
   sourceSystem: string;
   clientRef: string;
   externalRequestedState: string;
-  eventData: any
-}
+  eventData: any;
+};
 
-export const applyStateChange = async () => {
+export const applyExternalStateChange = async (
+  command: ApplyStateChangeCommand,
+) => {
+  // Find the application by client reference
+  const application = await findByClientRef(command.clientRef);
 
-}
+  if (!application) {
+    throw Boom.notFound(
+      `Application with clientRef "${command.clientRef}" not found`,
+    );
+  }
 
-export const applyExternalStateChange = async (command: ApplyStateChangeCommand) => {
+  // Find the grant definition for this application
+  const grant = await findByCode(application.code);
 
-  // Should be run in a transaction started by the 'event handler' (important when we use inbox for marking incoming events as done)
+  if (!grant) {
+    throw Boom.notFound(`Grant with code "${application.code}" not found`);
+  }
 
-  const application : Application = await findByClientRef(command.clientRef);
-  // return if not found - GAS knows nothing about this
-
-  const grant : Grant = await findByCode(application.code);
-  // return if not found - GAS knows nothing about this
-
+  // Capture the original status for comparison and event publishing
   const originalFqStatus = application.getFullyQualifiedStatus();
 
-  const mapping : ExternalStatusMapping  = grant.mapExternalStateToInternalState(
+  // Map the external status from the source system to our internal phase/stage/status
+  const mapping: ExternalStatusMapping = grant.mapExternalStateToInternalState(
     application.currentPhase,
     application.currentStage,
     command.externalRequestedState,
-    command.sourceSystem
+    command.sourceSystem,
   );
 
-  // Only process if the external event is mapped for a source system
+  // Only process if the external event is mapped for the source system
+  // If not mapped, we silently ignore it (e.g., source system not configured for this grant)
   if (!mapping.valid) {
-    return
+    return;
   }
 
-  // It is valid so cast
-  const validMapping = mapping as ValidExternalStatusMapping
+  // Cast to valid mapping since we've confirmed it's valid
+  const validMapping = mapping as ValidExternalStatusMapping;
 
-  // Transition and get and additional processes
-  const additionalProcesses = application.transitionStatus(
-    grant,
+  // Validate the transition is allowed based on the grant's validFrom rules
+  // @ts-ignore - Grant.isValidTransition is defined in grant.js
+  const transitionValidation = grant.isValidTransition(
     validMapping.targetPhase,
     validMapping.targetStage,
-    validMapping.targetStatus
-  )
+    validMapping.targetStatus,
+    originalFqStatus,
+  );
 
-  // Should we stop if the status didn't change ????
-
-
-  // Publish the general ApplicationStatusUpdatedEvent is the status has changed
-  await publishApplicationStatusUpdated({
-    clientRef: application.clientRef,
-    oldStatus: originalFqStatus,
-    newStatus: application.getFullyQualifiedStatus()
-  });
-
-  // Now execute the AdditionalProcesses
-  // This may manipulate the application further (such as store the agreement data)
-  // and publish any specific Command messages to other systems such as Case Working
-  // or Agreements Service
-
-  additionalProcesses.processes.forEach(process => {
-    const processFunction = resolveProcessNameToFunction(process);
-    if (processFunction) {
-      processFunction(application, originalFqStatus, command.eventData);
-    }
-  })
-
-  // Persist the updated application
-  await update(application);
-
-  // Commit transaction will be handled by the inbox poller that called this method
-
-}
-
-function resolveProcessNameToFunction(process: string) {
-  // Hopefully this could be built dynamically by some sort of type or convention
-  const register = {
-    "GENERATE_AGREEMENT": publishApplicationApproved
+  // If transition is not valid according to grant rules, silently ignore
+  if (!transitionValidation.valid) {
+    return;
   }
-  return register[process];
+
+  // Update the application's current phase, stage, and status
+  application.currentPhase = validMapping.targetPhase;
+  application.currentStage = validMapping.targetStage;
+  application.currentStatus = validMapping.targetStatus;
+  application.updatedAt = new Date().toISOString();
+
+  // Get the new status after transition
+  const newFqStatus = application.getFullyQualifiedStatus();
+
+  // Only publish status update event if the status actually changed
+  if (originalFqStatus !== newFqStatus) {
+    await publishApplicationStatusUpdated({
+      clientRef: application.clientRef,
+      code: application.code,
+      previousStatus: originalFqStatus,
+      currentStatus: newFqStatus,
+    });
+  }
+
+  // Execute any additional entryProcesses that were triggered by this transition
+  // This may manipulate the application further (such as storing agreement data)
+  // and publish specific Command messages to other systems such as Case Working or Agreements Service
+  if (
+    transitionValidation.entryProcesses &&
+    transitionValidation.entryProcesses.length > 0
+  ) {
+    for (const processName of transitionValidation.entryProcesses) {
+      const processFunction = resolveProcessNameToFunction(processName);
+      if (processFunction) {
+        await processFunction(application, command.eventData);
+      }
+    }
+  }
+
+  // Persist the updated application to the database
+  await update(application);
+};
+
+function resolveProcessNameToFunction(processName: string) {
+  // Registry of process names to their implementation functions
+  // This could be built dynamically by some sort of type or convention in the future
+  const processRegister: Record<
+    string,
+    (application: Application, eventData: any) => Promise<void>
+  > = {
+    GENERATE_AGREEMENT: publishCreateAgreementCommand,
+  };
+
+  return processRegister[processName];
 }

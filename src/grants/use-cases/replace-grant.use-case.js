@@ -1,4 +1,4 @@
-import { Grant } from "../models/grant.ts";
+import { Grant } from "../models/grant.js";
 import { replace } from "../repositories/grant.repository.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 

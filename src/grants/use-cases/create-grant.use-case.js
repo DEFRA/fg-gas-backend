@@ -1,4 +1,4 @@
-import { Grant } from "../models/grant.ts";
+import { Grant } from "../models/grant.js";
 import { save } from "../repositories/grant.repository.js";
 
 export const createGrantUseCase = async (createGrantCommand) => {

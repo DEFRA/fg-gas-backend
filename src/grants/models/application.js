@@ -155,21 +155,4 @@ export class Application {
   #getTimestamp() {
     return new Date().toISOString();
   }
-
-  transitionStatus(grant, targetPhase, targetStage, targetStatus) {
-    // grantStageStatuses would be a Map<string, Status>
-    const pos = {
-      phase: this.currentPhase,
-      stage: this.currentStage,
-      status: null,
-    };
-    const grantStageStatuses = grant.findStatuses(pos);
-    const targetedStatus = grantStageStatuses[targetStatus];
-    const transitionInfo = targetedStatus.transitionInfo(this.currentStatus);
-    if (transitionInfo.validFrom.contains(this.currentStatus)) {
-      return transitionInfo.processes;
-    } else {
-      return { processes: [] };
-    }
-  }
 }
