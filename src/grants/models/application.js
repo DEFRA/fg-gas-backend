@@ -19,10 +19,6 @@ export const ApplicationStatus = {
 };
 
 export class Application {
-  transitionStage(grant, targetPhase, targetStage, targetStatus) {
-    throw new Error("Method not implemented.");
-  }
-
   constructor({
     currentPhase,
     currentStage,
