@@ -2,7 +2,8 @@ import Boom from "@hapi/boom";
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 
-import { Application } from "../models/application.ts";
+import { logger } from "../../common/logger.js";
+import { Application } from "../models/application.js";
 import { publishApplicationCreated } from "../publishers/application-event.publisher.js";
 import { publishCreateNewCase } from "../publishers/case-event.publisher.js";
 import { save } from "../repositories/application.repository.js";
@@ -63,7 +64,12 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
 export const submitApplicationUseCase = async (code, { metadata, answers }) => {
   const grant = await findGrantByCodeUseCase(code);
 
+  const { phase, stage, status } = grant.getInitialState();
+
   const application = Application.new({
+    currentPhase: phase.code,
+    currentStage: stage.code,
+    currentStatus: status.code,
     code,
     clientRef: metadata.clientRef,
     submittedAt: metadata.submittedAt,
@@ -73,10 +79,23 @@ export const submitApplicationUseCase = async (code, { metadata, answers }) => {
       crn: metadata.crn,
       defraId: metadata.defraId,
     },
-    answers: getAnswersInSchema(metadata.clientRef, grant.questions, answers),
+    phases: [
+      {
+        code: phase.code,
+        answers: getAnswersInSchema(
+          metadata.clientRef,
+          phase.questions,
+          answers,
+        ),
+      },
+    ],
   });
 
   await save(application);
+
+  logger.info(
+    `Received application "${application.clientRef}" for grant "${application.code}"`,
+  );
 
   await publishApplicationCreated({
     clientRef: application.clientRef,

@@ -3,7 +3,7 @@ import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
 import { Agreement, AgreementHistoryEntry } from "../models/agreement.js";
 import { ApplicationDocument } from "../models/application-document.js";
-import { Application } from "../models/application.ts";
+import { Application } from "../models/application.js";
 
 const toApplication = (doc) =>
   new Application({
@@ -21,7 +21,7 @@ const toApplication = (doc) =>
       crn: doc.identifiers.crn,
       defraId: doc.identifiers.defraId,
     },
-    answers: doc.answers,
+    phases: doc.phases,
     agreements: Object.entries(doc.agreements).reduce((acc, [key, value]) => {
       const history = value.history.map(
         (entry) => new AgreementHistoryEntry(entry),

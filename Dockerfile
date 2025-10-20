@@ -1,4 +1,4 @@
-ARG PARENT_VERSION=latest-22
+ARG PARENT_VERSION=2.8.14-node22.20.0
 ARG PORT=3000
 ARG PORT_DEBUG=9229
 
@@ -14,6 +14,8 @@ USER node
 
 COPY --chown=node:node package*.json ./
 COPY --chown=node:node scripts/run.sh scripts/run.sh
+COPY --chown=node:node migrate-mongo-config.js ./
+COPY --chown=node:node migrations ./migrations
 
 RUN npm ci --omit=dev \
   chmod +x scripts/run.sh

@@ -1,18 +1,15 @@
 import { MongoClient } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { grant3 } from "../fixtures/grants.js";
-import { purgeQueue, receiveMessages } from "../helpers/sqs.js";
 import { wreck } from "../helpers/wreck.js";
 
-let grants;
 let applications;
 let client;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  grants = client.db().collection("grants");
   applications = client.db().collection("applications");
 });
 
@@ -21,13 +18,6 @@ afterAll(async () => {
 });
 
 describe("POST /grants/{code}/applications", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({});
-    await applications.deleteMany({});
-    await purgeQueue(env.GRANT_APPLICATION_CREATED_QUEUE_URL);
-    await purgeQueue(env.CREATE_NEW_CASE_QUEUE_URL);
-  });
-
   it("stores submitted application", async () => {
     await wreck.post("/grants", {
       json: true,
@@ -38,16 +28,22 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-              description: "This is a test question",
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                question1: {
+                  type: "string",
+                  description: "This is a test question",
+                },
+              },
             },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-        },
+        ],
       },
     });
 
@@ -83,9 +79,9 @@ describe("POST /grants/{code}/applications", () => {
 
     expect(documents).toEqual([
       {
-        currentPhase: "PRE_AWARD",
-        currentStage: "ASSESSMENT",
-        currentStatus: "RECEIVED",
+        currentPhase: "PHASE_1",
+        currentStage: "STAGE_1",
+        currentStatus: "NEW",
         clientRef,
         submittedAt,
         code: "test-code-1",
@@ -98,55 +94,43 @@ describe("POST /grants/{code}/applications", () => {
           crn: "1234567890",
           defraId: "1234567890",
         },
-        answers: {
-          question1: "test answer",
-        },
+        phases: [
+          {
+            code: "PHASE_1",
+            answers: {
+              question1: "test answer",
+            },
+          },
+        ],
       },
     ]);
 
-    const grantApplicationCreatedMessages = await receiveMessages(
-      env.GRANT_APPLICATION_CREATED_QUEUE_URL,
-    );
-
-    const applicationCreatedEvent = grantApplicationCreatedMessages.find(
-      (message) => message.data.clientRef === clientRef,
-    );
-
-    expect(applicationCreatedEvent).toEqual({
+    expect(env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL).toHaveReceived({
       id: expect.any(String),
       time: expect.any(String),
       source: "fg-gas-backend",
       specversion: "1.0",
-      type: `cloud.defra.development.fg-gas-backend.application.created`,
+      type: `cloud.defra.local.fg-gas-backend.application.created`,
       datacontenttype: "application/json",
       traceparent: "xxxx-xxxx-xxxx-xxxx",
       data: {
         clientRef,
         code: "test-code-1",
-        status: "PRE_AWARD:ASSESSMENT:RECEIVED",
+        status: "PHASE_1:STAGE_1:NEW",
       },
     });
 
-    const createNewCaseMessages = await receiveMessages(
-      env.CREATE_NEW_CASE_QUEUE_URL,
-    );
-
-    const createNewCaseEvent = createNewCaseMessages.find(
-      (message) => message.data.caseRef === clientRef,
-    );
-
-    expect(createNewCaseEvent).toEqual({
+    expect(env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL).toHaveReceived({
       id: expect.any(String),
       time: expect.any(String),
       source: "fg-gas-backend",
       specversion: "1.0",
-      type: `cloud.defra.development.fg-gas-backend.case.create`,
+      type: `cloud.defra.local.fg-gas-backend.case.create`,
       datacontenttype: "application/json",
       traceparent: "xxxx-xxxx-xxxx-xxxx",
       data: {
         caseRef: clientRef,
         workflowCode: "test-code-1",
-        status: "NEW",
         payload: {
           createdAt: expect.any(String),
           submittedAt: expect.any(String),
@@ -174,16 +158,23 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-              description: "This is a test question",
+
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                question1: {
+                  type: "string",
+                  description: "This is a test question",
+                },
+              },
             },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-        },
+        ],
       },
     });
 
@@ -233,16 +224,23 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-          properties: {
-            question1: {
-              type: "string",
-              description: "This is a test question",
+
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                question1: {
+                  type: "string",
+                  description: "This is a test question",
+                },
+              },
             },
+            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
           },
-        },
+        ],
       },
     });
 
@@ -291,9 +289,7 @@ describe("POST /grants/{code}/applications", () => {
 
     expect(documents).toEqual([
       {
-        answers: {
-          question1: "test answer",
-        },
+        phases: [{ code: "PHASE_1", answers: { question1: "test answer" } }],
         clientRef: "12345",
         code: "test-code-1",
         identifiers: {
@@ -303,9 +299,9 @@ describe("POST /grants/{code}/applications", () => {
           sbi: "1234567890",
         },
         agreements: {},
-        currentPhase: "PRE_AWARD",
-        currentStage: "ASSESSMENT",
-        currentStatus: "RECEIVED",
+        currentPhase: "PHASE_1",
+        currentStage: "STAGE_1",
+        currentStatus: "NEW",
         createdAt: expect.any(String),
         submittedAt: expect.any(Date),
         updatedAt: expect.any(String),

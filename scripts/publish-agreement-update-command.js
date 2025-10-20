@@ -35,13 +35,19 @@ const message = {
 };
 
 console.log("Sending message to SQS queue:", queueUrl);
+console.log(process.argv);
 
-if (process.argv.length === 4) {
+if (process.argv.length > 3) {
   console.log(
-    "Sending sqs case for " + process.argv[2] + " " + process.argv[3],
+    "Setting clientRef and code to" + process.argv[2] + " " + process.argv[3],
   );
   message.data.clientRef = process.argv[2];
   message.data.code = process.argv[3];
+}
+if (process.argv.length > 4) {
+  const status = process.argv[4];
+  console.log("Setting status to " + status);
+  message.data.status = status;
 }
 
 await sqs.send(

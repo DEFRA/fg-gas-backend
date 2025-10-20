@@ -1,13 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestApplication } from "../../../test/helpers/applications.js";
 import { config } from "../../common/config.js";
 import { publish } from "../../common/sns-client.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
-import {
-  Application,
-  ApplicationPhase,
-  ApplicationStage,
-  ApplicationStatus,
-} from "../models/application.ts";
 import {
   publishCreateNewCase,
   publishUpdateCaseStatus,
@@ -26,10 +21,7 @@ afterEach(() => {
 
 describe("publishCreateNewCase", () => {
   it("publishes CreateNewCaseEvent to SNS topic", async () => {
-    const application = new Application({
-      phase: ApplicationPhase.PreAward,
-      stage: ApplicationStage.Assessment,
-      status: ApplicationStatus.Received,
+    const application = createTestApplication({
       clientRef: "123",
       code: "grant-code",
       createdAt: new Date().toISOString(),
@@ -47,15 +39,14 @@ describe("publishCreateNewCase", () => {
         source: "fg-gas-backend",
         specversion: "1.0",
         time: "2025-05-28T20:40:48.451Z",
-        type: "cloud.defra.test.fg-gas-backend.case.create",
+        type: "cloud.defra.local.fg-gas-backend.case.create",
         datacontenttype: "application/json",
         data: {
           caseRef: "123",
           workflowCode: "grant-code",
-          status: "NEW",
           payload: {
             answers: {
-              question1: "answer1",
+              answer1: "test",
             },
             createdAt: "2025-05-28T20:40:48.451Z",
             identifiers: {
@@ -74,6 +65,7 @@ describe("publishUpdateApplicationStatus", () => {
     await publishUpdateCaseStatus({
       clientRef: "1w4",
       code: "grant-code",
+      targetNode: "agreements",
       agreementData: {
         agreementRef: "Agreement-1",
       },

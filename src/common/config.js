@@ -20,12 +20,10 @@ const schema = Joi.object({
   MONGO_URI: Joi.string(),
   MONGO_DATABASE: Joi.string(),
   TRACING_HEADER: Joi.string(),
-  GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string(),
-  GRANT_APPLICATION_APPROVED_TOPIC_ARN: Joi.string().optional(),
   AWS_REGION: Joi.string(),
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
-  CASE_STAGE_UPDATES_QUEUE_URL: Joi.string().uri(),
   ENVIRONMENT: Joi.string(),
+  GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: Joi.string().optional(),
@@ -60,13 +58,11 @@ export const config = {
   mongoUri: vars.MONGO_URI,
   mongoDatabase: vars.MONGO_DATABASE,
   tracingHeader: vars.TRACING_HEADER,
-  applicationCreatedTopic: vars.GRANT_APPLICATION_CREATED_TOPIC_ARN,
-  applicationApprovedTopic: vars.GRANT_APPLICATION_APPROVED_TOPIC_ARN,
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
-  caseStageUpdatesQueueUrl: vars.CASE_STAGE_UPDATES_QUEUE_URL,
   cdpEnvironment: vars.ENVIRONMENT,
   sns: {
+    createAgreementTopicArn: vars.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
     grantApplicationCreatedTopicArn:
       vars.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
     grantApplicationStatusUpdatedTopicArn:

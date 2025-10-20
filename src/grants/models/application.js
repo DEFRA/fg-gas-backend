@@ -1,6 +1,4 @@
 import Boom from "@hapi/boom";
-import {Grant} from "./grant.js";
-import {LifecyclePosition} from "./lifecycle-position";
 
 export const ApplicationPhase = {
   PreAward: "PRE_AWARD",
@@ -12,25 +10,19 @@ export const ApplicationStage = {
 };
 
 export const ApplicationStatus = {
+  Approved: "APPROVED",
   Received: "RECEIVED",
-  Offered: "OFFERED",
+  Review: "REVIEW",
   Accepted: "OFFER_ACCEPTED",
   Rejected: "OFFER_REJECTED",
   Withdrawn: "OFFER_WITHDRAWN",
 };
 
 export class Application {
-
-  currentPhase: string;
-  currentStage: string;
-  currentStatus: string;
-  readonly clientRef: string;
-  readonly code: string;
-  readonly createdAt: Date;
-
   transitionStage(grant, targetPhase, targetStage, targetStatus) {
-      throw new Error("Method not implemented.");
+    throw new Error("Method not implemented.");
   }
+
   constructor({
     currentPhase,
     currentStage,
@@ -41,7 +33,7 @@ export class Application {
     updatedAt,
     submittedAt,
     identifiers,
-    answers,
+    phases,
     agreements,
   }) {
     this.currentPhase = currentPhase;
@@ -53,26 +45,46 @@ export class Application {
     this.updatedAt = updatedAt;
     this.submittedAt = submittedAt;
     this.identifiers = identifiers;
-    this.answers = answers;
+    this.phases = phases;
     this.agreements = agreements;
   }
 
-  static new({ clientRef, code, submittedAt, identifiers, answers }) {
+  static new({
+    currentPhase,
+    currentStage,
+    currentStatus,
+    clientRef,
+    code,
+    submittedAt,
+    identifiers,
+    phases,
+  }) {
     const createdAt = new Date().toISOString();
 
     return new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Received,
+      currentPhase,
+      currentStage,
+      currentStatus,
       clientRef,
       code,
       submittedAt,
       createdAt,
       updatedAt: createdAt,
       identifiers,
-      answers,
+      phases,
       agreements: {},
     });
+  }
+
+  approve() {
+    if (this.currentStatus === ApplicationStatus.Approved) {
+      throw new Error(
+        `Application with clientRef "${this.clientRef}" and code "${this.code}" is already approved`,
+      );
+    }
+
+    this.currentStatus = ApplicationStatus.Approved;
+    this.updatedAt = this.#getTimestamp();
   }
 
   getFullyQualifiedStatus() {
@@ -87,8 +99,9 @@ export class Application {
     }
 
     this.agreements[agreement.agreementRef] = agreement;
-    this.currentStatus = ApplicationStatus.Offered;
-    this.updatedAt = this.#getTmestamp();
+    this.currentStatus = ApplicationStatus.Review;
+    this.currentStage = ApplicationStage.Award;
+    this.updatedAt = this.#getTimestamp();
   }
 
   getAgreement(agreementRef) {
@@ -107,7 +120,7 @@ export class Application {
     agreement.accept(date);
 
     this.currentStatus = ApplicationStatus.Accepted;
-    this.updatedAt = this.#getTmestamp();
+    this.updatedAt = this.#getTimestamp();
   }
 
   withdrawAgreement(agreementRef, date) {
@@ -122,29 +135,41 @@ export class Application {
     agreement.withdraw(date);
 
     this.currentStatus = ApplicationStatus.Withdrawn;
-    this.updatedAt = this.#getTmestamp();
+    this.updatedAt = this.#getTimestamp();
   }
 
-  #getTmestamp() {
+  getAgreementsData() {
+    return Object.values(this.agreements).map((agreement) => ({
+      agreementRef: agreement.agreementRef,
+      agreementStatus: agreement.latestStatus,
+      createdAt: agreement.history[0]?.createdAt,
+      updatedAt: agreement.updatedAt,
+    }));
+  }
+
+  getAnswers() {
+    const phase = this.phases.find((p) => p.code === this.currentPhase);
+    return phase?.answers ?? {};
+  }
+
+  #getTimestamp() {
     return new Date().toISOString();
   }
 
-  transitionStatus(grant: Grant, targetPhase: string, targetStage: string, targetStatus: string) : AdditionalProcesses {
-
+  transitionStatus(grant, targetPhase, targetStage, targetStatus) {
     // grantStageStatuses would be a Map<string, Status>
-    const pos : LifecyclePosition = {phase: this.currentPhase, stage: this.currentStage, status: null}
+    const pos = {
+      phase: this.currentPhase,
+      stage: this.currentStage,
+      status: null,
+    };
     const grantStageStatuses = grant.findStatuses(pos);
     const targetedStatus = grantStageStatuses[targetStatus];
     const transitionInfo = targetedStatus.transitionInfo(this.currentStatus);
     if (transitionInfo.validFrom.contains(this.currentStatus)) {
       return transitionInfo.processes;
     } else {
-      return { processes:[] };
+      return { processes: [] };
     }
   }
-
-}
-
-export type AdditionalProcesses = {
-  processes: string[];
 }

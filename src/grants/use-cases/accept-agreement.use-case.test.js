@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -9,8 +9,10 @@ import {
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
-} from "../models/application.ts";
+} from "../models/application.js";
+import { CaseStatus } from "../models/case-status.js";
 import { publishApplicationStatusUpdated } from "../publishers/application-event.publisher.js";
+import { publishUpdateCaseStatus } from "../publishers/case-event.publisher.js";
 import { update } from "../repositories/application.repository.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
@@ -21,6 +23,15 @@ vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
 
 describe("acceptAgreementUseCase", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-15T10:30:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(async () => {
     const agreement = new Agreement({
       agreementRef: "agreement-123",
@@ -38,7 +49,7 @@ describe("acceptAgreementUseCase", () => {
       new Application({
         currentPhase: ApplicationPhase.PreAward,
         currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Offered,
+        currentStatus: ApplicationStatus.Review,
         clientRef: "test-client-ref",
         code: "test-code",
         agreements: {
@@ -96,16 +107,34 @@ describe("acceptAgreementUseCase", () => {
   it("publishes the ApplicationStatusUpdated", () => {
     expect(publishApplicationStatusUpdated).toHaveBeenCalledWith({
       clientRef: "test-client-ref",
-      oldStatus: [
+      code: "test-code",
+      previousStatus: [
         ApplicationPhase.PreAward,
         ApplicationStage.Assessment,
-        ApplicationStatus.Offered,
+        ApplicationStatus.Review,
       ].join(":"),
-      newStatus: [
+      currentStatus: [
         ApplicationPhase.PreAward,
         ApplicationStage.Assessment,
         ApplicationStatus.Accepted,
       ].join(":"),
+    });
+  });
+
+  it("publishes the case status update", () => {
+    expect(publishUpdateCaseStatus).toHaveBeenCalledWith({
+      caseRef: "test-client-ref",
+      workflowCode: "test-code",
+      newStatus: CaseStatus.OfferAccepted,
+      targetNode: "agreements",
+      data: [
+        {
+          createdAt: "2024-01-01T12:00:00Z",
+          updatedAt: "2024-01-15T10:30:00.000Z",
+          agreementStatus: AgreementStatus.Accepted,
+          agreementRef: "agreement-123",
+        },
+      ],
     });
   });
 });

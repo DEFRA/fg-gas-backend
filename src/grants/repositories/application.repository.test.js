@@ -13,7 +13,7 @@ import {
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
-} from "../models/application.ts";
+} from "../models/application.js";
 import {
   findByClientRef,
   findByClientRefAndCode,

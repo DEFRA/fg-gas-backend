@@ -28,10 +28,21 @@ describe("findGrantsRoute", () => {
           startDate: "2023-01-01T00:00:00Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+            },
+          },
+        ],
       }),
       new Grant({
         code: "test-grant",
@@ -40,10 +51,21 @@ describe("findGrantsRoute", () => {
           startDate: "2023-01-01T00:00:00Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+            },
+          },
+        ],
       }),
     ]);
 
@@ -61,10 +83,21 @@ describe("findGrantsRoute", () => {
           startDate: "2023-01-01T00:00:00Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+            },
+          },
+        ],
       },
       {
         code: "test-grant",
@@ -73,10 +106,21 @@ describe("findGrantsRoute", () => {
           startDate: "2023-01-01T00:00:00Z",
         },
         actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+            },
+          },
+        ],
       },
     ]);
   });

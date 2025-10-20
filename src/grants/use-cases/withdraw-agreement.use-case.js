@@ -1,3 +1,4 @@
+import { CaseStatus } from "../models/case-status.js";
 import { publishApplicationStatusUpdated } from "../publishers/application-event.publisher.js";
 import { publishUpdateCaseStatus } from "../publishers/case-event.publisher.js";
 import { update } from "../repositories/application.repository.js";
@@ -14,30 +15,24 @@ export const withdrawAgreementUseCase = async ({
     code,
   );
 
-  const oldStatus = application.getFullyQualifiedStatus();
+  const previousStatus = application.getFullyQualifiedStatus();
 
   application.withdrawAgreement(agreementRef, date);
-
-  const newStatus = application.getFullyQualifiedStatus();
-
-  const agreement = application.getAgreement(agreementRef);
 
   await update(application);
 
   await publishApplicationStatusUpdated({
     clientRef,
-    oldStatus,
-    newStatus,
+    code,
+    previousStatus,
+    currentStatus: application.getFullyQualifiedStatus(),
   });
 
   await publishUpdateCaseStatus({
     caseRef: clientRef,
     workflowCode: code,
-    newStatus,
-    data: {
-      createdAt: date,
-      agreementStatus: agreement.status,
-      agreementRef: agreement.agreementRef,
-    },
+    newStatus: CaseStatus.OfferWithdrawn,
+    targetNode: "agreements",
+    data: application.getAgreementsData(),
   });
 };
