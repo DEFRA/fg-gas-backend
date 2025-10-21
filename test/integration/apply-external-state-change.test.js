@@ -8,7 +8,7 @@ import {
   save as saveApplication,
 } from "../../src/grants/repositories/application.repository.js";
 import { save as saveGrant } from "../../src/grants/repositories/grant.repository.js";
-import { applyExternalStateChange } from "../../src/grants/use-cases/apply-event-status-change.service.ts";
+import { applyExternalStateChange } from "../../src/grants/use-cases/apply-event-status-change.service.js";
 
 let client;
 let grants, applications;
