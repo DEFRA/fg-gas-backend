@@ -6,6 +6,7 @@ import { db, mongoClient } from "../common/mongo-client.js";
 import { grants } from "./index.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
+import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 
 vi.mock("../common/logger.js", () => ({
   logger: {
@@ -20,6 +21,7 @@ vi.mock("../common/mongo-client.js");
 vi.mock("migrate-mongo");
 vi.mock("./subscribers/agreement-status-updated.subscriber.js");
 vi.mock("./subscribers/case-status-updated.subscriber.js");
+vi.mock("./subscribers/outbox.subscriber.js");
 
 describe("grants", () => {
   let server;
@@ -52,6 +54,9 @@ describe("grants", () => {
   });
 
   it("starts subscribers on startup", async () => {
+    const outboxStart = vi.fn();
+    OutboxSubscriber.prototype.start = outboxStart;
+
     await server.register(grants);
     await server.initialize();
 
@@ -59,9 +64,12 @@ describe("grants", () => {
 
     expect(agreementStatusUpdatedSubscriber.start).toHaveBeenCalled();
     expect(caseStatusUpdatedSubscriber.start).toHaveBeenCalled();
+    expect(outboxStart).toHaveBeenCalled();
   });
 
   it("stops subscribers on stop", async () => {
+    const outboxStop = vi.fn();
+    OutboxSubscriber.prototype.stop = outboxStop;
     await server.register(grants);
     await server.initialize();
 
@@ -69,6 +77,7 @@ describe("grants", () => {
 
     expect(agreementStatusUpdatedSubscriber.stop).toHaveBeenCalled();
     expect(caseStatusUpdatedSubscriber.stop).toHaveBeenCalled();
+    expect(outboxStop).toHaveBeenCalled();
   });
 
   it("registers routes", async () => {

@@ -21,6 +21,10 @@ export default defineConfig({
       AWS_REGION: "eu-west-2",
       AWS_ENDPOINT_URL: "http://localhost:4566",
       ENVIRONMENT: "local",
+      OUTBOX_MAX_RETRIES: 5,
+      OUTBOX_CLAIM_MAX_RECORDS: 2,
+      OUTBOX_EXPIRES_MS: 5000,
+      OUTBOX_POLL_MS: 250,
     },
   },
 });

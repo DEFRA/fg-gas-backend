@@ -18,13 +18,45 @@ services:
 
   mongodb:
     image: mongo:6.0.13
+    container_name: mongodb
     networks:
       - cdp-tenant
     ports:
       - "${MONGO_PORT:-27017}:27017"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --eval 'db.runCommand({ping:1}).ok' || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    command:
+      ["mongod", "--replSet", "mongoRepl", "--bind_ip", "localhost,mongodb"]
     volumes:
       - mongodb-data:/data
     restart: always
+
+  mongo-ready:
+    image: mongo:6.0.13
+    container_name: "mongo-ready"
+    networks: [cdp-tenant]
+    environment:
+      PRIMARY: "mongodb:27017"
+      REPLSET: "mongoRepl"
+    volumes:
+      - ./scripts/wait-for-replicaset.sh:/wait-for-replicaset.sh:ro
+    entrypoint: ["/bin/bash", "/wait-for-replicaset.sh"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh 'mongodb://mongodb:27017/?directConnection=true' --quiet --eval 'db.hello().isWritablePrimary' | grep -q true || exit 1",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 60
 
   gas:
     build: .
@@ -33,15 +65,19 @@ services:
     links:
       - "localstack:localstack"
       - "mongodb:mongodb"
+      - "mongo-ready:mongo-ready"
     depends_on:
       localstack:
         condition: service_healthy
+      mongo-ready:
+        condition: service_healthy
       mongodb:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - .env
     environment:
-      MONGO_URI: mongodb://mongodb:27017/
+      OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
+      MONGO_URI: mongodb://mongodb:27017/?replicaSet=mongoRepl
     networks:
       - cdp-tenant
     develop:

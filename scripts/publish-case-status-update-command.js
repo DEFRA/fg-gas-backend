@@ -23,6 +23,7 @@ const message = {
   time: "2025-09-09T11:30:52.000Z",
   source: "urn:service:agreement",
   specversion: "1.0",
+  traceparent: "mock-traceparent",
   type: "io.onsite.agreement.offer.offered",
   datacontenttype: "application/json",
   data: {

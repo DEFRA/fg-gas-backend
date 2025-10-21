@@ -6,11 +6,13 @@ import { createGrant } from "../helpers/grants.js";
 import { sendMessage } from "../helpers/sqs.js";
 
 let applications;
+let outbox;
 let client;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   applications = client.db().collection("applications");
+  outbox = client.db().collection("outbox");
 });
 
 afterAll(async () => {
@@ -19,6 +21,7 @@ afterAll(async () => {
 
 describe("On CaseStatusUpdated", () => {
   it("approves an application when the case status is 'APPROVED'", async () => {
+    const traceparent = "ts-001";
     await createGrant();
 
     const { clientRef, code } = await submitApplication(applications);
@@ -30,6 +33,7 @@ describe("On CaseStatusUpdated", () => {
     });
 
     await sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
+      traceparent,
       data: {
         caseRef: clientRef,
         workflowCode: code,
@@ -44,11 +48,22 @@ describe("On CaseStatusUpdated", () => {
       currentStatus: "APPROVED",
     });
 
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
+    });
+
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 500)); // wait for outbox to pick up queue
+
     await expect(
       env.GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL,
     ).toHaveReceived({
       id: expect.any(String),
       type: "cloud.defra.local.fg-gas-backend.application.status.updated",
+      traceparent,
       source: "fg-gas-backend",
       time: expect.any(String),
       specversion: "1.0",
@@ -63,6 +78,7 @@ describe("On CaseStatusUpdated", () => {
 
     await expect(env.CREATE_AGREEMENT_QUEUE_URL).toHaveReceived({
       id: expect.any(String),
+      traceparent,
       type: "cloud.defra.local.fg-gas-backend.agreement.create",
       source: "fg-gas-backend",
       time: expect.any(String),

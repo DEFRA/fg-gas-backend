@@ -13,10 +13,12 @@ export const setup = async ({ globalConfig }) => {
     composeFilePath,
     "compose.yml",
   )
+    .withBuild()
     .withEnvironment({
       GAS_PORT: env.GAS_PORT,
       MONGO_PORT: env.MONGO_PORT,
       LOCALSTACK_PORT: env.LOCALSTACK_PORT,
+      OUTBOX_POLL_MS: env.OUTBOX_POLL_MS,
     })
     .withWaitStrategy("gas", Wait.forHttp("/health"))
     .withNoRecreate()
