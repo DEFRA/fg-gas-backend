@@ -1,6 +1,7 @@
 import { up } from "migrate-mongo";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
+import { addOutboxRoute } from "./routes/add-outbox.js";
 import { applicationStatusRoute } from "./routes/application-status.route.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";
@@ -14,6 +15,12 @@ import { submitApplicationRoute } from "./routes/submit-application.route.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 
+import { InboxSubscriber } from "../common/inbox-subscriber.js";
+import { OutboxSubscriber } from "../common/outbox-subscriber.js";
+
+const outboxSub = new OutboxSubscriber(30000);
+const inboxSub = new InboxSubscriber(30000);
+
 export const grants = {
   name: "grants",
   async register(server) {
@@ -25,14 +32,19 @@ export const grants = {
     server.events.on("start", async () => {
       agreementStatusUpdatedSubscriber.start();
       caseStatusUpdatedSubscriber.start();
+      outboxSub.start();
+      inboxSub.start();
     });
 
     server.events.on("stop", async () => {
       agreementStatusUpdatedSubscriber.stop();
       caseStatusUpdatedSubscriber.stop();
+      outboxSub.stop();
+      inboxSub.stop();
     });
 
     server.route([
+      addOutboxRoute,
       createGrantRoute,
       replaceGrantRoute,
       findGrantsRoute,
