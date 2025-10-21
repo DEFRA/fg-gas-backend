@@ -1,3 +1,6 @@
+// Constants for fully qualified status path format: "PHASE:STAGE:STATUS"
+const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
+
 export class Grant {
   constructor({ code, metadata, actions, phases, externalStatusMap }) {
     this.code = code;
@@ -87,7 +90,7 @@ export class Grant {
     if (mappedTo.includes(":")) {
       // Format: "PHASE:STAGE:STATUS" - full path specification
       const parts = mappedTo.split(":");
-      if (parts.length === 3) {
+      if (parts.length === FULLY_QUALIFIED_STATUS_PARTS_COUNT) {
         return {
           valid: true,
           targetPhase: parts[0],
