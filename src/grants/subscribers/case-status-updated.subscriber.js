@@ -1,6 +1,6 @@
 import { config } from "../../common/config.js";
 import { SqsSubscriber } from "../../common/sqs-subscriber.js";
-import { applyExternalStateChange } from "../use-cases/apply-event-status-change.service.ts";
+import { applyExternalStateChange } from "../use-cases/apply-event-status-change.service.js";
 
 export const caseStatusUpdatedSubscriber = new SqsSubscriber({
   queueUrl: config.sqs.updateStatusQueueUrl,
