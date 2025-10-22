@@ -144,7 +144,7 @@ export class Application {
   }
 
   getAnswers() {
-    const phase = this.phases.find((p) => p.code === this.currentPhase);
+    const phase = this.phases?.find((p) => p.code === this.currentPhase);
     return phase?.answers ?? {};
   }
 
