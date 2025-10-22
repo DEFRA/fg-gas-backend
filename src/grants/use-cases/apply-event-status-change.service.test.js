@@ -3,19 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Application } from "../models/application.js";
 import { Grant } from "../models/grant.js";
 import {
-  publishApplicationStatusUpdated,
-  publishCreateAgreementCommand,
-} from "../publishers/application-event.publisher.js";
-import {
   findByClientRef,
   update,
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
+import { insertMany } from "../repositories/outbox.repository.js";
 import { applyExternalStateChange } from "./apply-event-status-change.service.js";
 
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/grant.repository.js");
-vi.mock("../publishers/application-event.publisher.js");
+vi.mock("../repositories/outbox.repository.js");
+vi.mock("../../common/with-transaction.js", () => ({
+  withTransaction: vi.fn((fn) => fn({})),
+}));
 
 describe("applyExternalStateChange", () => {
   const mockApplication = new Application({
@@ -155,6 +155,7 @@ describe("applyExternalStateChange", () => {
           currentStatus: "IN_PROGRESS",
           updatedAt: expect.any(String),
         }),
+        {}, // session
       );
     });
 
@@ -173,12 +174,21 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
-      expect(publishApplicationStatusUpdated).toHaveBeenCalledWith({
-        clientRef: "APP-123",
-        code: "test-grant",
-        previousStatus: "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
-        currentStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
-      });
+      expect(insertMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: expect.objectContaining({
+              data: expect.objectContaining({
+                clientRef: "APP-123",
+                grantCode: "test-grant",
+                previousStatus: "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
+                currentStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+              }),
+            }),
+          }),
+        ]),
+        {},
+      );
     });
 
     it("should not publish status update event when status remains the same", async () => {
@@ -213,7 +223,7 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
-      expect(publishApplicationStatusUpdated).not.toHaveBeenCalled();
+      expect(insertMany).not.toHaveBeenCalled();
     });
 
     it("should execute entry processes when status has them", async () => {
@@ -231,12 +241,26 @@ describe("applyExternalStateChange", () => {
         eventData: { caseRef: "CASE-123" },
       });
 
-      expect(publishCreateAgreementCommand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          clientRef: "APP-123",
-          currentStatus: "APPROVED",
-        }),
-        { caseRef: "CASE-123" },
+      // Should create outbox records for both status update and agreement
+      expect(insertMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          // Status update outbox record
+          expect.objectContaining({
+            event: expect.objectContaining({
+              type: "cloud.defra.local.fg-gas-backend.application.status.updated",
+            }),
+          }),
+          // Create agreement outbox record
+          expect.objectContaining({
+            event: expect.objectContaining({
+              type: "cloud.defra.local.fg-gas-backend.agreement.create",
+              data: expect.objectContaining({
+                clientRef: "APP-123",
+              }),
+            }),
+          }),
+        ]),
+        {},
       );
     });
   });
@@ -254,7 +278,7 @@ describe("applyExternalStateChange", () => {
       });
 
       expect(update).not.toHaveBeenCalled();
-      expect(publishApplicationStatusUpdated).not.toHaveBeenCalled();
+      expect(insertMany).not.toHaveBeenCalled();
     });
   });
 
@@ -276,7 +300,7 @@ describe("applyExternalStateChange", () => {
       });
 
       expect(update).not.toHaveBeenCalled();
-      expect(publishApplicationStatusUpdated).not.toHaveBeenCalled();
+      expect(insertMany).not.toHaveBeenCalled();
     });
   });
 
@@ -293,7 +317,7 @@ describe("applyExternalStateChange", () => {
       });
 
       expect(update).not.toHaveBeenCalled();
-      expect(publishApplicationStatusUpdated).not.toHaveBeenCalled();
+      expect(insertMany).not.toHaveBeenCalled();
     });
   });
 
@@ -339,6 +363,7 @@ describe("applyExternalStateChange", () => {
         expect.objectContaining({
           currentStatus: "IN_PROGRESS",
         }),
+        {}, // session
       );
     });
   });
@@ -379,6 +404,7 @@ describe("applyExternalStateChange", () => {
         expect.objectContaining({
           currentStatus: "IN_PROGRESS",
         }),
+        {}, // session
       );
     });
   });
@@ -454,6 +480,7 @@ describe("applyExternalStateChange", () => {
           currentStage: "REVIEW_OFFER",
           currentStatus: "OFFERED",
         }),
+        {}, // session
       );
     });
   });
@@ -504,6 +531,7 @@ describe("applyExternalStateChange", () => {
           currentStage: "REVIEW_APPLICATION",
           currentStatus: "IN_PROGRESS",
         }),
+        {}, // session
       );
     });
   });
@@ -547,10 +575,16 @@ describe("applyExternalStateChange", () => {
         eventData: { data: "test" },
       });
 
-      // GENERATE_AGREEMENT should be called
-      expect(publishCreateAgreementCommand).toHaveBeenCalledWith(
-        expect.objectContaining({ currentStatus: "IN_PROGRESS" }),
-        { data: "test" },
+      // GENERATE_AGREEMENT outbox record should be created
+      expect(insertMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: expect.objectContaining({
+              type: "cloud.defra.local.fg-gas-backend.agreement.create",
+            }),
+          }),
+        ]),
+        {},
       );
 
       // Application should still be updated even if unknown process exists
@@ -597,7 +631,17 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
-      expect(publishCreateAgreementCommand).not.toHaveBeenCalled();
+      // Should only create status update outbox, not agreement
+      expect(insertMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: expect.objectContaining({
+              type: "cloud.defra.local.fg-gas-backend.application.status.updated",
+            }),
+          }),
+        ]),
+        {},
+      );
       expect(update).toHaveBeenCalled();
     });
 
@@ -638,7 +682,17 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
-      expect(publishCreateAgreementCommand).not.toHaveBeenCalled();
+      // Should only create status update outbox, not agreement
+      expect(insertMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: expect.objectContaining({
+              type: "cloud.defra.local.fg-gas-backend.application.status.updated",
+            }),
+          }),
+        ]),
+        {},
+      );
       expect(update).toHaveBeenCalled();
     });
   });
@@ -716,6 +770,7 @@ describe("applyExternalStateChange", () => {
           currentStage: "REVIEW_OFFER",
           currentStatus: "OFFERED",
         }),
+        {}, // session
       );
     });
   });
@@ -762,6 +817,7 @@ describe("applyExternalStateChange", () => {
         expect.objectContaining({
           currentStatus: "IN_PROGRESS",
         }),
+        {}, // session
       );
     });
   });
