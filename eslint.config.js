@@ -74,9 +74,10 @@ export default [
                 "**/models/**",
                 "**/publishers/**",
                 "**/use-cases/**",
+                "**/commands/**",
               ],
               message:
-                "Use cases should only import repositories, models, events, publishers and common",
+                "Use cases should only import commands, repositories, models, events, publishers and common",
             },
             {
               target: "**/publishers/**/!(*.test).js",

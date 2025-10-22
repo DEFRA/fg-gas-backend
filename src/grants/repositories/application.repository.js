@@ -38,11 +38,11 @@ const toApplication = (doc) =>
 
 export const collection = "applications";
 
-export const save = async (application) => {
+export const save = async (application, session) => {
   const document = new ApplicationDocument(application);
 
   try {
-    await db.collection(collection).insertOne(document);
+    await db.collection(collection).insertOne(document, { session });
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
       throw Boom.conflict(
