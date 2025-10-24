@@ -1,3 +1,4 @@
+import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
 import { mongoClient } from "./mongo-client.js";
 import { transactionOptions, withTransaction } from "./with-transaction.js";
@@ -26,14 +27,19 @@ describe("withTransaction", () => {
   it("should handle errors", async () => {
     const mockSession = {
       withTransaction: vi.fn().mockImplementation((cb, opts) => {
-        throw new Error("db error");
+        throw Boom.badRequest("bad request");
       }),
       endSession: vi.fn(),
     };
     vi.spyOn(mongoClient, "startSession").mockReturnValue(mockSession);
     const transactionSpy = vi.fn().mockImplementation();
 
-    await expect(() => withTransaction(transactionSpy)).rejects.toThrowError();
+    try {
+      await withTransaction(transactionSpy);
+    } catch (e) {
+      expect(e.output.payload.message).toBe("bad request");
+      expect(e.output.payload.statusCode).toBe(400);
+    }
 
     expect(mockSession.withTransaction).toHaveBeenCalledWith(
       transactionSpy,
