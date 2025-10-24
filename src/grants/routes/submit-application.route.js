@@ -18,7 +18,6 @@ export const submitApplicationRoute = {
   },
   async handler(request, h) {
     await submitApplicationUseCase(request.params.code, request.payload);
-
     return h.response().code(204);
   },
 };
