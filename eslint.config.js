@@ -36,33 +36,42 @@ export default [
                 "**/routes/**",
                 "**/subscribers/**",
                 "**/use-cases/**",
+                "**/services/**",
                 "**/repositories/**",
               ],
               message:
-                "Models should not import routes, subscribers, use cases or repositories",
+                "Models should not import routes, subscribers, use cases, services or repositories",
             },
             {
               target: "**/repositories/**/!(*.test).js",
-              from: ["**/routes/**", "**/subscribers/**", "**/use-cases/**"],
+              from: [
+                "**/routes/**",
+                "**/subscribers/**",
+                "**/use-cases/**",
+                "**/services/**",
+              ],
               message:
-                "Respositories should not import routes, subscribers, use cases or models",
+                "Respositories should not import routes, subscribers, use cases, services or models",
             },
             {
               target: "**/routes/**/!(*.test).js",
               from: ["src/**/**"],
-              except: ["**/use-cases/**", "**/schemas/**"],
-              message: "Routes should only import use cases and schemas",
+              except: ["**/use-cases/**", "**/services/**", "**/schemas/**"],
+              message:
+                "Routes should only import use cases, services and schemas",
             },
             {
               target: "**/subscribers/**/!(*.test).js",
               from: ["src/**/**"],
               except: [
                 "**/use-cases/**",
+                "**/services/**",
                 "**/schemas/**",
                 "src/common/**",
                 "**/repositories/**",
               ],
-              message: "Subscribers should only import use cases and schemas",
+              message:
+                "Subscribers should only import use cases, services and schemas",
             },
             {
               target: "**/use-cases/**/!(*.test).js",
@@ -83,6 +92,20 @@ export default [
               from: ["src/**/**"],
               except: ["src/common/**", "**/events/**", "**/commands/**"],
               message: "Publishers should only import common and events",
+            },
+            {
+              target: "**/services/**/!(*.test).js",
+              from: ["src/**/**"],
+              except: [
+                "**/events/**",
+                "src/common/**",
+                "**/repositories/**",
+                "**/models/**",
+                "**/publishers/**",
+                "**/services/**",
+              ],
+              message:
+                "Services should only import repositories, models, events, publishers and common",
             },
           ],
         },

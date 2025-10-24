@@ -47,7 +47,14 @@ export const createGrant = async () => {
         stages: [
           {
             code: "ASSESSMENT",
-            statuses: [{ code: "RECEIVED" }],
+            statuses: [
+              { code: "RECEIVED" },
+              {
+                code: "APPROVED",
+                validFrom: ["RECEIVED"],
+                entryProcesses: ["GENERATE_AGREEMENT"],
+              },
+            ],
           },
         ],
         questions: {
@@ -62,6 +69,25 @@ export const createGrant = async () => {
         },
       },
     ],
+    externalStatusMap: {
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "ASSESSMENT",
+              statuses: [
+                {
+                  code: "APPROVED",
+                  source: "CW",
+                  mappedTo: "::APPROVED",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
   };
 
   await wreck.post("/grants", {
