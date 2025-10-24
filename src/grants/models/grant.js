@@ -33,6 +33,31 @@ export class Grant {
     };
   }
 
+  // Helper methods to navigate the hierarchy
+  #findPhase(phases, phaseCode) {
+    return phases?.find((p) => p.code === phaseCode);
+  }
+
+  #findStage(phase, stageCode) {
+    return phase?.stages?.find((s) => s.code === stageCode);
+  }
+
+  #findStatus(stage, statusCode) {
+    return stage?.statuses?.find((s) => s.code === statusCode);
+  }
+
+  #findPhaseStage(phases, phaseCode, stageCode) {
+    const phase = this.#findPhase(phases, phaseCode);
+    const stage = this.#findStage(phase, stageCode);
+    return { phase, stage };
+  }
+
+  #findPhaseStageStatus(phases, phaseCode, stageCode, statusCode) {
+    const { phase, stage } = this.#findPhaseStage(phases, phaseCode, stageCode);
+    const status = this.#findStatus(stage, statusCode);
+    return { phase, stage, status };
+  }
+
   mapExternalStateToInternalState(
     currentPhase,
     currentStage,
@@ -57,6 +82,12 @@ export class Grant {
     );
   }
 
+  #matchesExternalStatus(status, externalRequestedState, sourceSystem) {
+    return (
+      status.code === externalRequestedState && status.source === sourceSystem
+    );
+  }
+
   // eslint-disable-next-line complexity
   #findExternalStatusMapping(
     currentPhase,
@@ -64,16 +95,21 @@ export class Grant {
     externalRequestedState,
     sourceSystem,
   ) {
-    const phaseMap = this.externalStatusMap?.phases?.find(
-      (p) => p.code === currentPhase,
+    const { stage: stageMap } = this.#findPhaseStage(
+      this.externalStatusMap?.phases,
+      currentPhase,
+      currentStage,
     );
-    const stageMap = phaseMap?.stages?.find((s) => s.code === currentStage);
-    const statusMapping = stageMap?.statuses?.find(
-      (status) =>
-        status.code === externalRequestedState &&
-        status.source === sourceSystem,
+
+    const statusMapping = stageMap?.statuses?.find((status) =>
+      this.#matchesExternalStatus(status, externalRequestedState, sourceSystem),
     );
-    return statusMapping?.mappedTo ? statusMapping : null;
+
+    if (!statusMapping?.mappedTo) {
+      return null;
+    }
+
+    return statusMapping;
   }
 
   #parseMappedToField(mappedTo, currentPhase, currentStage) {
@@ -139,11 +175,14 @@ export class Grant {
     };
   }
 
-  // eslint-disable-next-line complexity
   #findStatusDefinition(targetPhase, targetStage, targetStatus) {
-    const phase = this.phases?.find((p) => p.code === targetPhase);
-    const stage = phase?.stages?.find((s) => s.code === targetStage);
-    return stage?.statuses?.find((s) => s.code === targetStatus);
+    const { status } = this.#findPhaseStageStatus(
+      this.phases,
+      targetPhase,
+      targetStage,
+      targetStatus,
+    );
+    return status;
   }
 
   #isValidFromMatch(validFrom, currentStatus) {
@@ -160,10 +199,13 @@ export class Grant {
     });
   }
 
-  // eslint-disable-next-line complexity
   findStatuses(position) {
-    const phase = this.phases?.find((p) => p.code === position.phase);
-    const stage = phase?.stages?.find((s) => s.code === position.stage);
+    const { stage } = this.#findPhaseStage(
+      this.phases,
+      position.phase,
+      position.stage,
+    );
+
     const statuses = stage?.statuses || [];
 
     // Convert array to object map for easier lookup

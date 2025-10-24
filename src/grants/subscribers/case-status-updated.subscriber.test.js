@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { applyExternalStateChange } from "../use-cases/apply-event-status-change.service.js";
+import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 import { caseStatusUpdatedSubscriber } from "./case-status-updated.subscriber.js";
 
-vi.mock("../use-cases/apply-event-status-change.service.js");
+vi.mock("../services/apply-event-status-change.service.js");
 
 describe("case status updated subscriber", () => {
   beforeEach(() => {
