@@ -16,7 +16,7 @@ export const withTransaction = async (callback) => {
     logger.error("ERROR: Transaction failed.");
     logger.error(e.message);
 
-    throw new Error(`Transaction failed: ${e.message}`);
+    throw e;
   } finally {
     await session.endSession();
   }
