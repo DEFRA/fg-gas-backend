@@ -116,3 +116,105 @@ it("requires actions to be unique by name", () => {
 
   expect(error.message).toEqual('"Actions" contains a duplicate value');
 });
+
+it("accepts externalStatusMap as optional", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    externalStatusMap: {
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "REVIEW",
+              statuses: [
+                {
+                  code: "IN_PROGRESS",
+                  source: "CW",
+                  mappedTo: "IN_PROGRESS",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  expect(error).toBeUndefined();
+});
+
+it("validates externalStatusMap structure - requires phases", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    externalStatusMap: {},
+  });
+
+  expect(error.message).toEqual('"externalStatusMap.phases" is required');
+});
+
+it("validates externalStatusMap structure - requires at least one phase", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    externalStatusMap: {
+      phases: [],
+    },
+  });
+
+  expect(error.message).toEqual(
+    '"externalStatusMap.phases" must contain at least 1 items',
+  );
+});
+
+it("validates externalStatusMap structure - requires status code, source, and mappedTo", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    externalStatusMap: {
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "REVIEW",
+              statuses: [
+                {
+                  code: "IN_PROGRESS",
+                  source: "CW",
+                  // missing mappedTo
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  expect(error.message).toEqual(
+    '"externalStatusMap.phases[0].stages[0].statuses[0].mappedTo" is required',
+  );
+});

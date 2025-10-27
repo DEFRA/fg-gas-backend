@@ -4,5 +4,6 @@ export class GrantDocument {
     this.metadata = grant.metadata;
     this.actions = grant.actions;
     this.phases = grant.phases;
+    this.externalStatusMap = grant.externalStatusMap;
   }
 }

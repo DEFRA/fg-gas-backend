@@ -13,6 +13,7 @@ export const replaceGrantUseCase = async (code, replaceGrantCommand) => {
     },
     actions: replaceGrantCommand.actions,
     phases: replaceGrantCommand.phases,
+    externalStatusMap: replaceGrantCommand.externalStatusMap,
   });
 
   await replace(grant);
