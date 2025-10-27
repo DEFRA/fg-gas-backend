@@ -65,10 +65,18 @@ export const config = {
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
   cdpEnvironment: vars.ENVIRONMENT,
-  outboxMaxRetries: vars.OUTBOX_MAX_RETRIES,
-  outboxExpiresMs: vars.OUTBOX_EXPIRES_MS,
-  outboxClaimMaxRecords: vars.OUTBOX_CLAIM_MAX_RECORDS,
-  outboxPollMs: vars.OUTBOX_POLL_MS,
+  outbox: {
+    outboxMaxRetries: vars.OUTBOX_MAX_RETRIES,
+    outboxExpiresMs: vars.OUTBOX_EXPIRES_MS,
+    outboxClaimMaxRecords: vars.OUTBOX_CLAIM_MAX_RECORDS,
+    outboxPollMs: vars.OUTBOX_POLL_MS,
+  },
+  inbox: {
+    inboxMaxRetries: vars.OUTBOX_MAX_RETRIES,
+    inboxExpiresMs: vars.OUTBOX_EXPIRES_MS,
+    inboxClaimMaxRecords: vars.OUTBOX_CLAIM_MAX_RECORDS,
+    inboxPollMs: vars.OUTBOX_POLL_MS,
+  },
   sns: {
     createAgreementTopicArn: vars.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
     grantApplicationCreatedTopicArn:
