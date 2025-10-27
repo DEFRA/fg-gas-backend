@@ -1,0 +1,176 @@
+{
+  "code": "frps-private-beta",
+  "metadata": {
+    "description": "Future RPS private beta grant",
+    "startDate": "2100-04-01T00:00:00.000Z"
+  },
+  "phases": [
+    {
+      "code": "PRE_AWARD",
+      "name": "Pre-award",
+      "description": "Pre-award phase",
+      "questions": {},
+      "stages": [
+        {
+          "code": "REVIEW_APPLICATION",
+          "name": "Review Application",
+          "description": "Review the application for eligibility",
+          "statuses": [
+            {
+              "code": "RECEIVED"
+            },
+            {
+              "code": "IN_PROGRESS",
+              "validFrom": ["RECEIVED"]
+            },
+            {
+              "code": "APPROVED",
+              "validFrom": ["IN_PROGRESS"],
+              "entryProcesses": ["GENERATE_OFFER"]
+            },
+            {
+              "code": "REJECTED",
+              "validFrom": ["IN_PROGRESS"]
+            },
+            {
+              "code": "APPLICATION_WITHDRAWN",
+              "validFrom": ["RECEIVED", "IN_PROGRESS", "APPROVED"]
+            }
+          ]
+        },
+        {
+          "code": "REVIEW_OFFER",
+          "name": "Review Offer",
+          "description": "Review the offer made to the applicant",
+          "statuses": [
+            {
+              "code": "OFFERED",
+              "validFrom": ["PRE_AWARD:REVIEW_APPLICATION:APPROVED"],
+              "entryProcesses": "STORE_AGREEMENT_CASE"
+            },
+            {
+              "code": "REJECTED",
+              "validFrom": ["OFFERED"]
+            },
+            {
+              "code": "OFFER_IN_REVIEW",
+              "validFrom": ["OFFERED"]
+            },
+            {
+              "code": "AWAITING_RESPONSE",
+              "validFrom": ["OFFER_IN_REVIEW"]
+            },
+            {
+              "code": "OFFER_ACCEPTED",
+              "validFrom": ["AWAITING_RESPONSE"],
+              "entryProcesses": ["STORE_AGREEMENT_CASE"]
+            },
+            {
+              "code": "DECLINED",
+              "validFrom": ["OFFER_IN_REVIEW"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "AWARD_AND_MONITORING",
+      "name": "Award and Monitoring",
+      "stages": [
+        {
+          "code": "MONITORING",
+          "name": "Monitoring",
+          "statuses": [
+            {
+              "code": "ACTIVE",
+              "validFrom": ["PRE_AWARD:REVIEW_OFFER:OFFER_ACCEPTED"]
+            },
+            {
+              "code": "COMPLETE_AGREEMENT",
+              "validFrom": ["ACTIVE"]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "externalStatusMap": {
+    "phases": [
+      {
+        "code": "PRE_AWARD",
+        "stages": [
+          {
+            "code": "REVIEW_APPLICATION",
+            "statuses": [
+              {
+                "code": "IN_PROGRESS",
+                "source": "CW",
+                "mappedTo": "::IN_PROGRESS"
+              },
+              {
+                "code": "APPROVED",
+                "source": "CW",
+                "mappedTo": "::APPROVED"
+              },
+              {
+                "code": "OFFER_IN_REVIEW",
+                "source": "CW",
+                "mappedTo": "::OFFER_IN_REVIEW"
+              },
+              {
+                "code": "AWAITING_RESPONSE",
+                "source": "CW",
+                "mappedTo": "::AWAITING_RESPONSE"
+              },
+              {
+                "code": "WITHDRAWN",
+                "source": "CW",
+                "mappedTo": "::WITHDRAWN"
+              },
+              {
+                "code": "offered",
+                "source": "AS",
+                "mappedTo": "PRE_AWARD:REVIEW_OFFER:OFFERED"
+              },
+              {
+                "code": "rejected",
+                "source": "AS",
+                "mappedTo": "::OFFER_REJECTED"
+              },
+              {
+                "code": "withdrawn",
+                "source": "AS",
+                "mappedTo": "::OFFER_WITHDRAWN"
+              },
+              {
+                "code": "accepted",
+                "source": "AS",
+                "mappedTo": "PRE_AWARD:REVIEW_OFFER:OFFER_ACCEPTED"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "code": "AWARD_AND_MONITORING",
+        "stages": [
+          {
+            "code": "MONITORING",
+            "statuses": [
+              {
+                "code": "ACTIVE",
+                "source": "CW",
+                "mappedTo": "::ACTIVE"
+              },
+              {
+                "code": "COMPLETE_AGREEMENT",
+                "source": "CW",
+                "mappedTo": "::COMPLETE_AGREEMENT"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

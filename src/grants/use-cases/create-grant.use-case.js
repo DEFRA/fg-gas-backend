@@ -14,6 +14,7 @@ export const createGrantUseCase = async (createGrantCommand) => {
       url: e.url,
     })),
     phases: createGrantCommand.phases,
+    externalStatusMap: createGrantCommand.externalStatusMap,
   });
 
   await save(grant);
