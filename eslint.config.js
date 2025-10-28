@@ -81,7 +81,6 @@ export default [
                 "src/common/**",
                 "**/repositories/**",
                 "**/models/**",
-                "**/publishers/**",
                 "**/use-cases/**",
                 "**/commands/**",
               ],
