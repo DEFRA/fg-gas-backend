@@ -36,6 +36,8 @@ export default defineConfig({
       GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_status_updated",
       CREATE_AGREEMENT_QUEUE_URL: `${SQS_URL}/create_agreement`,
+      GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_new_case",
       OUTBOX_MAX_RETRIES: 2,
       OUTBOX_CLAIM_MAX_RECORDS: 2,
       OUTBOX_EXPIRES_MS: 5000,

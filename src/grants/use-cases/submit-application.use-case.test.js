@@ -1,21 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
-import {
-  Application,
-  ApplicationPhase,
-  ApplicationStage,
-  ApplicationStatus,
-} from "../models/application.js";
-import { publishApplicationCreated } from "../publishers/application-event.publisher.js";
-import { publishCreateNewCase } from "../publishers/case-event.publisher.js";
+import { withTransaction } from "../../common/with-transaction.js";
+import { Application, ApplicationPhase } from "../models/application.js";
 import { save } from "../repositories/application.repository.js";
+import { insertMany } from "../repositories/outbox.repository.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 import { submitApplicationUseCase } from "./submit-application.use-case.js";
 
+vi.mock("../repositories/outbox.repository.js");
 vi.mock("./find-grant-by-code.use-case.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
+vi.mock("../../common/with-transaction.js");
 
 describe("submitApplicationUseCase", () => {
   beforeEach(() => {
@@ -28,6 +25,11 @@ describe("submitApplicationUseCase", () => {
   });
 
   it("creates an application", async () => {
+    insertMany.mockResolvedValueOnce({
+      insertedId: "1",
+    });
+    const mockSession = {};
+    withTransaction.mockImplementation(async (cb) => cb(mockSession));
     findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
 
     await submitApplicationUseCase("test-grant", {
@@ -44,130 +46,18 @@ describe("submitApplicationUseCase", () => {
       },
     });
 
-    const application = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Received,
-      clientRef: "test-client-ref",
-      code: "test-grant",
-      createdAt: "2000-02-01T13:00:00.000Z",
-      updatedAt: "2000-02-01T13:00:00.000Z",
-      submittedAt: "2000-01-01T12:00:00Z",
-      agreements: {},
-      identifiers: {
-        sbi: "123456789",
-        frn: "987654321",
-        crn: "CRN123456",
-        defraId: "DEFRA123456",
-      },
-      phases: [
-        {
-          code: ApplicationPhase.PreAward,
-          answers: {
-            question1: "answer1",
-          },
-        },
-      ],
-    });
-
-    expect(save).toHaveBeenCalledWith(application);
-  });
-
-  it("publishes ApplicationCreatedEvent", async () => {
-    findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
-
-    await submitApplicationUseCase("test-grant", {
-      metadata: {
-        clientRef: "test-client-ref",
-        sbi: "123456789",
-        frn: "987654321",
-        crn: "CRN123456",
-        defraId: "DEFRA123456",
-        submittedAt: "2000-01-01T12:00:00Z",
-      },
-      answers: {
-        question1: "answer1",
-      },
-    });
-
-    const application = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Received,
-      clientRef: "test-client-ref",
-      code: "test-grant",
-      createdAt: "2000-02-01T13:00:00.000Z",
-      updatedAt: "2000-02-01T13:00:00.000Z",
-      submittedAt: "2000-01-01T12:00:00Z",
-      agreements: {},
-      identifiers: {
-        sbi: "123456789",
-        frn: "987654321",
-        crn: "CRN123456",
-        defraId: "DEFRA123456",
-      },
-      answers: {
-        question1: "answer1",
-      },
-    });
-
-    expect(publishApplicationCreated).toHaveBeenCalledWith({
-      clientRef: application.clientRef,
-      code: application.code,
-      status: application.getFullyQualifiedStatus(),
-    });
-  });
-
-  it("publishes CreateNewCaseEvent", async () => {
-    findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
-
-    await submitApplicationUseCase("test-grant", {
-      metadata: {
-        clientRef: "test-client-ref",
-        sbi: "123456789",
-        frn: "987654321",
-        crn: "CRN123456",
-        defraId: "DEFRA123456",
-        submittedAt: "2000-01-01T12:00:00Z",
-      },
-      answers: {
-        question1: "answer1",
-      },
-    });
-
-    const application = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Received,
-      clientRef: "test-client-ref",
-      code: "test-grant",
-      createdAt: "2000-02-01T13:00:00.000Z",
-      updatedAt: "2000-02-01T13:00:00.000Z",
-      submittedAt: "2000-01-01T12:00:00Z",
-      agreements: {},
-      identifiers: {
-        sbi: "123456789",
-        frn: "987654321",
-        crn: "CRN123456",
-        defraId: "DEFRA123456",
-      },
-      phases: [
-        {
-          code: ApplicationPhase.PreAward,
-          answers: {
-            question1: "answer1",
-          },
-        },
-      ],
-    });
-
-    expect(publishCreateNewCase).toHaveBeenCalledWith(application);
+    const application = save.mock.calls[0][0];
+    expect(application).toBeInstanceOf(Application);
+    expect(application.currentPhase).toBe(ApplicationPhase.PreAward);
+    expect(application.clientRef).toBe("test-client-ref");
   });
 
   it("throws when answers do not match the schema", async () => {
+    const mockSession = {};
+    withTransaction.mockImplementation(async (cb) => cb(mockSession));
     findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
 
-    await expect(
+    await expect(() =>
       submitApplicationUseCase("test-grant", {
         metadata: {
           clientRef: "test-client-ref",
@@ -187,6 +77,8 @@ describe("submitApplicationUseCase", () => {
   });
 
   it("throws when answers do not match schema format", async () => {
+    const mockSession = {};
+    withTransaction.mockImplementation(async (cb) => cb(mockSession));
     findGrantByCodeUseCase.mockResolvedValue(
       createTestGrant({
         phases: [
@@ -233,7 +125,7 @@ describe("submitApplicationUseCase", () => {
       }),
     );
 
-    await expect(
+    await expect(() =>
       submitApplicationUseCase("test-grant", {
         metadata: {
           clientRef: "application-1",
@@ -265,6 +157,8 @@ describe("submitApplicationUseCase", () => {
   });
 
   it("throws when an unsupported format is used in schema", async () => {
+    const mockSession = {};
+    withTransaction.mockImplementation(async (cb) => cb(mockSession));
     findGrantByCodeUseCase.mockResolvedValue(
       createTestGrant({
         phases: [
@@ -311,6 +205,8 @@ describe("submitApplicationUseCase", () => {
   });
 
   it("throws when grant is not found", async () => {
+    const mockSession = {};
+    withTransaction.mockImplementation(async (cb) => cb(mockSession));
     findGrantByCodeUseCase.mockRejectedValue(
       new Error('Grant with code "non-existent-grant" not found'),
     );

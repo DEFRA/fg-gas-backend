@@ -2,10 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { withTransaction } from "../../common/with-transaction.js";
 import { Application, ApplicationStatus } from "../models/application.js";
 import { Outbox } from "../models/outbox.js";
-import {
-  publishApplicationStatusUpdated,
-  publishCreateAgreementCommand,
-} from "../publishers/application-event.publisher.js";
 import { update } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import { approveApplicationUseCase } from "./approve-application.use-case.js";
@@ -88,7 +84,5 @@ describe("approveApplicationUseCase", () => {
     );
 
     expect(update).not.toHaveBeenCalled();
-    expect(publishApplicationStatusUpdated).not.toHaveBeenCalled();
-    expect(publishCreateAgreementCommand).not.toHaveBeenCalled();
   });
 });
