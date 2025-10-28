@@ -10,13 +10,20 @@ export const AgreementStatus = {
   Rejected: "rejected",
 };
 
-export const handleAgreementStatusChangeUseCase = async (data) => {
+export const handleAgreementStatusChangeUseCase = async (message) => {
+  const {
+    event: { data },
+    source,
+  } = message;
+
   if (data.status === AgreementStatus.Offered) {
     await addAgreementUseCase({
       clientRef: data.clientRef,
       code: data.code,
       agreementRef: data.agreementNumber,
       date: data.date,
+      requestedStatus: AgreementStatus.Offered,
+      source,
     });
 
     return;
@@ -28,6 +35,8 @@ export const handleAgreementStatusChangeUseCase = async (data) => {
       code: data.code,
       agreementRef: data.agreementNumber,
       date: data.date,
+      requestedStatus: AgreementStatus.Accepted,
+      source,
     });
 
     return;
@@ -39,6 +48,7 @@ export const handleAgreementStatusChangeUseCase = async (data) => {
       code: data.code,
       agreementRef: data.agreementNumber,
       date: data.date,
+      source,
     });
     return;
   }

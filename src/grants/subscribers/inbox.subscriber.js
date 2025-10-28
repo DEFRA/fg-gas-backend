@@ -67,17 +67,24 @@ export class InboxSubscriber {
     logger.info(`Marked inbox event as complete ${inboxEvent.messageId}`);
   }
 
+  // eslint-disable-next-line complexity
   async handleEvent(msg) {
-    const { type, event, traceparent, messageId } = msg;
-    logger.info(`Handle event for inbox message ${type}:${messageId}`);
+    const { type, event, traceparent, source, messageId } = msg;
+    logger.info(
+      `Handle event for inbox message ${type}:${source}:${messageId}`,
+    );
     try {
       const { data } = event;
 
-      if (event.data.currentStatus) {
+      const handler = useCaseMap[type];
+
+      if (handler) {
+        await withTraceParent(traceparent, async () => handler(msg));
+      } else if (event.data.currentStatus && source) {
         // status transition/update
         await withTraceParent(traceparent, async () =>
           applyExternalStateChange({
-            sourceSystem: "CW",
+            sourceSystem: source,
             clientRef: data.caseRef,
             code: data.workflowCode,
             externalRequestedState: data.currentStatus,
@@ -85,11 +92,7 @@ export class InboxSubscriber {
           }),
         );
       } else {
-        // map to a usecase
-        const fn = useCaseMap[type];
-        if (fn) {
-          await withTraceParent(traceparent, async () => fn(data));
-        }
+        throw new Error(`Unable to handle inbox message ${msg.id}`);
       }
 
       await this.markEventComplete(msg);

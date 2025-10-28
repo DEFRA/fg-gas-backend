@@ -84,6 +84,9 @@ const getOutboxCreatorForProcess = (processName) => {
         target: config.sns.createAgreementTopicArn,
       });
     },
+    STORE_AGREEMENT_CASE: (application) => {
+      logger.info("TODO: STORE_AGREEMENT_CASE");
+    },
     // Add more process handlers here as needed
   };
 

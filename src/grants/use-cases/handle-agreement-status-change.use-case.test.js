@@ -14,60 +14,74 @@ vi.mock("../use-cases/withdraw-agreement.use-case.js");
 describe("agreementStatusUpdatedSubscriber", () => {
   it("adds agreement to application when agreement status 'offered'", async () => {
     const mockMessage = {
-      data: {
-        clientRef: "test-client-ref",
-        code: "test-code",
-        agreementNumber: "AG123",
-        date: "2024-01-01T00:00:00Z",
-        status: AgreementStatus.Offered,
+      source: "AS",
+      event: {
+        data: {
+          clientRef: "test-client-ref",
+          code: "test-code",
+          agreementNumber: "AG123",
+          date: "2024-01-01T00:00:00Z",
+          status: AgreementStatus.Offered,
+        },
       },
     };
 
-    await handleAgreementStatusChangeUseCase(mockMessage.data);
+    await handleAgreementStatusChangeUseCase(mockMessage);
 
     expect(addAgreementUseCase).toHaveBeenCalledWith({
       agreementRef: "AG123",
       clientRef: "test-client-ref",
       code: "test-code",
       date: "2024-01-01T00:00:00Z",
+      requestedStatus: "offered",
+      source: "AS",
     });
   });
 
   it("marks agreement as accepted when agreement status 'accepted'", async () => {
     const mockMessage = {
-      data: {
-        clientRef: "test-client-ref",
-        code: "test-code",
-        agreementNumber: "AG123",
-        date: "2024-01-01T00:00:00Z",
-        status: AgreementStatus.Accepted,
+      source: "AS",
+      event: {
+        data: {
+          clientRef: "test-client-ref",
+          code: "test-code",
+          agreementNumber: "AG123",
+          date: "2024-01-01T00:00:00Z",
+          status: AgreementStatus.Accepted,
+        },
       },
     };
 
-    await handleAgreementStatusChangeUseCase(mockMessage.data);
+    await handleAgreementStatusChangeUseCase(mockMessage);
 
     expect(acceptAgreementUseCase).toHaveBeenCalledWith({
       agreementRef: "AG123",
       clientRef: "test-client-ref",
       code: "test-code",
       date: "2024-01-01T00:00:00Z",
+      requestedStatus: AgreementStatus.Accepted,
+      source: "AS",
     });
   });
 
   it("marks agreement as withdrawn when agreement status 'withdrawn'", async () => {
     const mockMessage = {
-      data: {
-        clientRef: "test-client-ref",
-        code: "test-code",
-        agreementNumber: "AG123",
-        date: "2024-01-01T00:00:00Z",
-        status: AgreementStatus.Withdrawn,
+      source: "AS",
+      event: {
+        data: {
+          clientRef: "test-client-ref",
+          code: "test-code",
+          agreementNumber: "AG123",
+          date: "2024-01-01T00:00:00Z",
+          status: AgreementStatus.Withdrawn,
+        },
       },
     };
 
-    await handleAgreementStatusChangeUseCase(mockMessage.data);
+    await handleAgreementStatusChangeUseCase(mockMessage);
 
     expect(withdrawAgreementUseCase).toHaveBeenCalledWith({
+      source: "AS",
       agreementRef: "AG123",
       clientRef: "test-client-ref",
       code: "test-code",
@@ -77,17 +91,20 @@ describe("agreementStatusUpdatedSubscriber", () => {
 
   it("throws an error for unsupported agreement status", async () => {
     const mockMessage = {
-      data: {
-        clientRef: "test-client-ref",
-        code: "test-code",
-        agreementNumber: "AG123",
-        date: "2024-01-01T00:00:00Z",
-        status: "invalid-status",
+      source: "AS",
+      event: {
+        data: {
+          clientRef: "test-client-ref",
+          code: "test-code",
+          agreementNumber: "AG123",
+          date: "2024-01-01T00:00:00Z",
+          status: "invalid-status",
+        },
       },
     };
 
     await expect(() =>
-      handleAgreementStatusChangeUseCase(mockMessage.data),
+      handleAgreementStatusChangeUseCase(mockMessage),
     ).rejects.toThrow('Unsupported agreement status "invalid-status"');
   });
 });

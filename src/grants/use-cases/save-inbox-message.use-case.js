@@ -5,7 +5,12 @@ import {
   insertOne,
 } from "../repositories/inbox.repository.js";
 
-export const saveInboxMessageUseCase = async (message) => {
+export const messageSource = {
+  AgreementService: "AS",
+  CaseWorking: "CW",
+};
+
+export const saveInboxMessageUseCase = async (message, source) => {
   logger.info("Save inbox message use case");
   const existing = await findByMessageId(message.id);
   if (existing !== null) {
@@ -19,6 +24,7 @@ export const saveInboxMessageUseCase = async (message) => {
     event: message,
     messageId: message.id,
     type: message.type,
+    source,
   });
 
   await insertOne(inbox);

@@ -2,6 +2,7 @@ export class Inbox {
   constructor(props) {
     this._id = props._id;
     this.publicationDate = new Date().toISOString();
+    this.source = props.source;
     this.type = props.type;
     this.event = props.event;
     this.messageId = props.messageId;
@@ -34,6 +35,7 @@ export class Inbox {
     return {
       _id: this._id,
       publicationDate: this.publicationDate,
+      source: this.source,
       type: this.type,
       messageId: this.messageId,
       event: this.event,
@@ -51,6 +53,7 @@ export class Inbox {
     return new Inbox({
       _id: doc._id,
       publicationDate: doc.publicationDate,
+      source: doc.source,
       type: doc.type,
       messageId: doc.messageId,
       event: doc.event,

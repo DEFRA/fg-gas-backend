@@ -19,6 +19,6 @@ describe("agreementStatusUpdatedSubscriber", () => {
 
     await agreementStatusUpdatedSubscriber.onMessage(mockMessage);
 
-    expect(saveInboxMessageUseCase).toHaveBeenCalledWith(mockMessage);
+    expect(saveInboxMessageUseCase).toHaveBeenCalledWith(mockMessage, "AS");
   });
 });

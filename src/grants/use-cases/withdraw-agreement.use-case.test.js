@@ -3,7 +3,7 @@ import { withTransaction } from "../../common/with-transaction.js";
 import {
   Agreement,
   AgreementHistoryEntry,
-  AgreementStatus,
+  AgreementStatus as Status,
 } from "../models/agreement.js";
 import {
   Application,
@@ -12,9 +12,12 @@ import {
   ApplicationStatus,
 } from "../models/application.js";
 import { update } from "../repositories/application.repository.js";
+import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
+import { AgreementStatus } from "./handle-agreement-status-change.use-case.js";
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 
+vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
@@ -38,14 +41,16 @@ describe("withdrawAgreementUseCase", () => {
     const agreement = new Agreement({
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
-      latestStatus: AgreementStatus.Offered,
+      latestStatus: Status.Offered,
       history: [
         new AgreementHistoryEntry({
-          agreementStatus: AgreementStatus.Offered,
+          agreementStatus: Status.Offered,
           createdAt: "2024-01-01T12:00:00Z",
         }),
       ],
     });
+
+    applyExternalStateChange.mockResolvedValue(true);
 
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
       new Application({
@@ -65,6 +70,8 @@ describe("withdrawAgreementUseCase", () => {
       code: "test-code",
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
+      requestedStatus: AgreementStatus.Withdrawn,
+      source: "AS",
     });
   });
 
@@ -78,6 +85,12 @@ describe("withdrawAgreementUseCase", () => {
   it("updates the status of the application and marks agreement as withdrawn", () => {
     const appl = update.mock.calls[0][0];
     expect(appl).toBeInstanceOf(Application);
-    expect(appl.currentStatus).toBe(ApplicationStatus.Withdrawn);
+
+    expect(applyExternalStateChange).toHaveBeenCalledWith({
+      clientRef: "test-client-ref",
+      code: "test-code",
+      externalRequestedState: "withdrawn",
+      sourceSystem: "AS",
+    });
   });
 });
