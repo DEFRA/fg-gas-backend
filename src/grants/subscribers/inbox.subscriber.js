@@ -12,10 +12,10 @@ import {
   updateResubmittedEvents,
 } from "../repositories/inbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
-import { approveApplicationUseCase } from "../use-cases/approve-application.use-case.js";
+import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
 
 export const useCaseMap = {
-  "io.onsite.agreement.offer.offered": approveApplicationUseCase,
+  "io.onsite.agreement.offer.offered": handleAgreementStatusChangeUseCase,
 };
 
 export class InboxSubscriber {
@@ -38,21 +38,21 @@ export class InboxSubscriber {
   }
 
   async processDeadEvents() {
-    logger.info("Processing dead inbox events");
     const results = await updateDeadEvents();
-    logger.info(`Updated ${results?.modifiedCount} dead inbox events`);
+    results?.modifiedCount &&
+      logger.info(`Updated ${results?.modifiedCount} dead inbox events`);
   }
 
   async processResubmittedEvents() {
-    logger.info("Processing resubmitted inbox events");
     const results = await updateResubmittedEvents();
-    logger.info(`Updated ${results?.modifiedCount} resubmitted inbox events`);
+    results?.modifiedCount &&
+      logger.info(`Updated ${results?.modifiedCount} resubmitted inbox events`);
   }
 
   async processFailedEvents() {
-    logger.info("Processing failed inbox events");
     const results = await updateFailedEvents();
-    logger.info(`Updated ${results?.modifiedCount} failed inbox events`);
+    results?.modifiedCount &&
+      logger.info(`Updated ${results?.modifiedCount} failed inbox events`);
   }
 
   async markEventFailed(inboxEvent) {

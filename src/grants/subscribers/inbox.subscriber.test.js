@@ -12,13 +12,14 @@ import { withTraceParent } from "../../common/trace-parent.js";
 import { Inbox } from "../models/inbox.js";
 import { claimEvents } from "../repositories/inbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
-import { approveApplicationUseCase } from "../use-cases/approve-application.use-case.js";
+import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
 import { InboxSubscriber } from "./inbox.subscriber.js";
 
 vi.mock("../../common/trace-parent.js");
 vi.mock("../use-cases/approve-application.use-case.js");
 vi.mock("../repositories/inbox.repository.js");
 vi.mock("../services/apply-event-status-change.service.js");
+vi.mock("../use-cases/handle-agreement-status-change.use-case.js");
 
 describe("inbox.subscriber", () => {
   beforeAll(() => {
@@ -65,7 +66,7 @@ describe("inbox.subscriber", () => {
       const mockEventData = {
         foo: "barr",
       };
-      approveApplicationUseCase.mockResolvedValue(true);
+      handleAgreementStatusChangeUseCase.mockResolvedValue(true);
 
       withTraceParent.mockImplementation((_, fn) => fn());
       const mockEvent = {
@@ -109,7 +110,7 @@ describe("inbox.subscriber", () => {
       const mockEventData = {
         foo: "barr",
       };
-      approveApplicationUseCase.mockResolvedValue("complete");
+      handleAgreementStatusChangeUseCase.mockResolvedValue("complete");
 
       withTraceParent.mockImplementationOnce((_, fn) => fn());
       const mockEvent = {

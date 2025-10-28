@@ -1,15 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
+import { describe, expect, it, vi } from "vitest";
+import { saveInboxMessageUseCase } from "../use-cases/save-inbox-message.use-case.js";
 import { caseStatusUpdatedSubscriber } from "./case-status-updated.subscriber.js";
-
-vi.mock("../services/apply-event-status-change.service.js");
+vi.mock("../use-cases/save-inbox-message.use-case.js");
 
 describe("case status updated subscriber", () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-  });
-
-  it("should apply external state change with correct parameters", async () => {
+  it("should save message to inbox", async () => {
     const message = {
       data: {
         caseRef: "TEST-CASE-123",
@@ -17,27 +12,6 @@ describe("case status updated subscriber", () => {
       },
     };
     await caseStatusUpdatedSubscriber.onMessage(message);
-    expect(applyExternalStateChange).toHaveBeenCalledWith({
-      sourceSystem: "CW",
-      clientRef: "TEST-CASE-123",
-      externalRequestedState: "APPROVED",
-      eventData: message.data,
-    });
-  });
-
-  it("should apply external state change for withdrawn status", async () => {
-    const message = {
-      data: {
-        caseRef: "TEST-CASE-456",
-        currentStatus: "WITHDRAWN",
-      },
-    };
-    await caseStatusUpdatedSubscriber.onMessage(message);
-    expect(applyExternalStateChange).toHaveBeenCalledWith({
-      sourceSystem: "CW",
-      clientRef: "TEST-CASE-456",
-      externalRequestedState: "WITHDRAWN",
-      eventData: message.data,
-    });
+    expect(saveInboxMessageUseCase).toHaveBeenCalledWith(message);
   });
 });
