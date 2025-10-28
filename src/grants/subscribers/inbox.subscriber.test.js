@@ -11,12 +11,14 @@ import { config } from "../../common/config.js";
 import { withTraceParent } from "../../common/trace-parent.js";
 import { Inbox } from "../models/inbox.js";
 import { claimEvents } from "../repositories/inbox.repository.js";
+import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 import { approveApplicationUseCase } from "../use-cases/approve-application.use-case.js";
 import { InboxSubscriber } from "./inbox.subscriber.js";
 
 vi.mock("../../common/trace-parent.js");
 vi.mock("../use-cases/approve-application.use-case.js");
 vi.mock("../repositories/inbox.repository.js");
+vi.mock("../services/apply-event-status-change.service.js");
 
 describe("inbox.subscriber", () => {
   beforeAll(() => {
@@ -59,13 +61,36 @@ describe("inbox.subscriber", () => {
   });
 
   describe("processEvents", () => {
-    it("should mark events as failed", async () => {
+    it("should use use-cases if not updating status", async () => {
       const mockEventData = {
         foo: "barr",
       };
-      approveApplicationUseCase.mockRejectedValue("oops");
+      approveApplicationUseCase.mockResolvedValue(true);
 
-      withTraceParent.mockImplementationOnce((traceId, fn) => fn());
+      withTraceParent.mockImplementation((_, fn) => fn());
+      const mockEvent = {
+        type: "io.onsite.agreement.offer.offered",
+        traceparent: "1234-abcd",
+        event: {
+          data: mockEventData,
+        },
+        markAsComplete: vi.fn(),
+      };
+      const inbox = new InboxSubscriber();
+      await inbox.processEvents([mockEvent]);
+      expect(withTraceParent).toHaveBeenCalled();
+      expect(withTraceParent.mock.calls[0][0]).toBe("1234-abcd");
+      expect(mockEvent.markAsComplete).toHaveBeenCalled();
+    });
+
+    it("should mark events as failed", async () => {
+      applyExternalStateChange.mockRejectedValueOnce(false);
+      const mockEventData = {
+        currentStatus: "APPROVE",
+        foo: "barr",
+      };
+
+      withTraceParent.mockImplementation((_, fn) => fn());
       const mockEvent = {
         type: "io.onsite.agreement.offer.offered",
         traceparent: "1234-abcd",
@@ -86,7 +111,7 @@ describe("inbox.subscriber", () => {
       };
       approveApplicationUseCase.mockResolvedValue("complete");
 
-      withTraceParent.mockImplementationOnce((traceId, fn) => fn());
+      withTraceParent.mockImplementationOnce((_, fn) => fn());
       const mockEvent = {
         type: "io.onsite.agreement.offer.offered",
         traceparent: "1234-abcd",

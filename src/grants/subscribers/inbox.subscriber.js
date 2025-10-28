@@ -11,6 +11,7 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/inbox.repository.js";
+import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 import { approveApplicationUseCase } from "../use-cases/approve-application.use-case.js";
 
 export const useCaseMap = {
@@ -66,18 +67,32 @@ export class InboxSubscriber {
     logger.info(`Marked inbox event as complete ${inboxEvent.messageId}`);
   }
 
-  async mapEventToUseCase(msg) {
-    const { type, event, messageId } = msg;
-    logger.info(`Handler event for inbox message ${type}:${messageId}`);
+  async handleEvent(msg) {
+    const { type, event, traceparent, messageId } = msg;
+    logger.info(`Handle event for inbox message ${type}:${messageId}`);
     try {
-      const fn = useCaseMap[type];
-      if (fn) {
-        // pass along traceparent from incoming event
-        await withTraceParent(event.traceparent, async () => fn(event.data));
-        await this.markEventComplete(msg);
+      const { data } = event;
+
+      if (event.data.currentStatus) {
+        // status transition/update
+        await withTraceParent(traceparent, async () =>
+          applyExternalStateChange({
+            sourceSystem: "CW",
+            clientRef: data.caseRef,
+            code: data.workflowCode,
+            externalRequestedState: data.currentStatus,
+            eventData: data,
+          }),
+        );
       } else {
-        await this.markEventFailed(msg);
+        // map to a usecase
+        const fn = useCaseMap[type];
+        if (fn) {
+          await withTraceParent(traceparent, async () => fn(data));
+        }
       }
+
+      await this.markEventComplete(msg);
     } catch (ex) {
       logger.error(
         `Error handling event for inbox message ${type}:${messageId}`,
@@ -89,7 +104,7 @@ export class InboxSubscriber {
 
   async processEvents(events) {
     logger.info(`Processing ${events.length} inbox messages`);
-    await Promise.all(events.map((event) => this.mapEventToUseCase(event)));
+    await Promise.all(events.map((event) => this.handleEvent(event)));
     logger.info("All inbox messages processed");
   }
 

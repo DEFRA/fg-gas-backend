@@ -1,3 +1,4 @@
+import { withTransaction } from "../../common/with-transaction.js";
 import { Agreement } from "../models/agreement.js";
 import { CaseStatus } from "../models/case-status.js";
 import { publishApplicationStatusUpdated } from "../publishers/application-event.publisher.js";
@@ -11,33 +12,35 @@ export const addAgreementUseCase = async ({
   agreementRef,
   date,
 }) => {
-  const application = await findApplicationByClientRefAndCodeUseCase(
-    clientRef,
-    code,
-  );
+  await withTransaction(async (session) => {
+    const application = await findApplicationByClientRefAndCodeUseCase(
+      clientRef,
+      code,
+    );
 
-  const oldStatus = application.getFullyQualifiedStatus();
+    const oldStatus = application.getFullyQualifiedStatus();
 
-  const agreement = Agreement.new({
-    agreementRef,
-    date,
-  });
+    const agreement = Agreement.new({
+      agreementRef,
+      date,
+    });
 
-  application.addAgreement(agreement);
+    application.addAgreement(agreement);
 
-  await update(application);
+    await update(application);
 
-  await publishApplicationStatusUpdated({
-    clientRef,
-    oldStatus,
-    newStatus: application.getFullyQualifiedStatus(),
-  });
+    await publishApplicationStatusUpdated({
+      clientRef,
+      oldStatus,
+      newStatus: application.getFullyQualifiedStatus(),
+    });
 
-  await publishUpdateCaseStatus({
-    caseRef: clientRef,
-    workflowCode: code,
-    newStatus: CaseStatus.Review,
-    targetNode: "agreements",
-    data: application.getAgreementsData(),
+    await publishUpdateCaseStatus({
+      caseRef: clientRef,
+      workflowCode: code,
+      newStatus: CaseStatus.Review,
+      targetNode: "agreements",
+      data: application.getAgreementsData(),
+    });
   });
 };

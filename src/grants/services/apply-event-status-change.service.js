@@ -16,12 +16,13 @@
 
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { CreateAgreementCommand } from "../events/create-agreement.command.js";
 import { Outbox } from "../models/outbox.js";
 import {
-  findByClientRef,
+  findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
@@ -169,7 +170,10 @@ const createOutboxForStatusUpdate = (
 const processStateTransition = (application, grant, command) => {
   const originalFullyQualifiedStatus = application.getFullyQualifiedStatus();
 
+  logger.info(`process state transition: ${originalFullyQualifiedStatus}`);
+
   const validMapping = getValidatedMapping(grant, application, command);
+
   if (!validMapping) {
     return null;
   }
@@ -191,7 +195,6 @@ const processStateTransition = (application, grant, command) => {
 
   // Collect all outbox records
   const outboxRecords = [];
-
   // Add status update outbox record if status changed
   const statusUpdateOutbox = createOutboxForStatusUpdate(
     application,
@@ -208,7 +211,6 @@ const processStateTransition = (application, grant, command) => {
     application,
   );
   outboxRecords.push(...entryProcessOutboxes);
-
   return { application, outboxRecords };
 };
 
@@ -254,7 +256,9 @@ const saveApplicationWithOutbox = async (
  */
 export const applyExternalStateChange = async (command) => {
   return withTransaction(async (session) => {
-    const application = await findByClientRef(command.clientRef);
+    logger.info("applyExternalStateChange", command);
+    const { clientRef, code } = command;
+    const application = await findByClientRefAndCode({ clientRef, code });
 
     if (!application) {
       throw Boom.notFound(
@@ -279,6 +283,8 @@ export const applyExternalStateChange = async (command) => {
       );
     }
 
-    return null;
+    throw new Error(
+      `Unable to process state change from ${application.currentStatus} to ${command.externalRequestedState}`,
+    );
   });
 };
