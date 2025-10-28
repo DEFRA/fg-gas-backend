@@ -7,10 +7,12 @@ import { wreck } from "../helpers/wreck.js";
 
 let applications;
 let client;
+let outbox;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   applications = client.db().collection("applications");
+  outbox = client.db().collection("outbox");
 });
 
 afterAll(async () => {
@@ -104,6 +106,14 @@ describe("POST /grants/{code}/applications", () => {
         ],
       },
     ]);
+
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
+    });
+
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN,
+    });
 
     expect(env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL).toHaveReceived({
       id: expect.any(String),
