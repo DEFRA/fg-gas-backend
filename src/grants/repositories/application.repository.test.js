@@ -91,6 +91,8 @@ describe("save", () => {
       insertedId: "1",
     });
 
+    const session = {};
+
     db.collection.mockReturnValue({
       insertOne,
     });
@@ -115,6 +117,7 @@ describe("save", () => {
           anything: "test",
         },
       }),
+      session,
     );
 
     expect(db.collection).toHaveBeenCalledWith("applications");
@@ -139,6 +142,8 @@ describe("save", () => {
           anything: "test",
         },
       }),
+
+      { session },
     );
   });
 
