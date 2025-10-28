@@ -21,6 +21,7 @@ export const saveInboxMessageUseCase = async (message, source) => {
 
   logger.info(`Storing message with id ${message.id}.`);
   const inbox = new Inbox({
+    traceparent: message.traceparent,
     event: message,
     messageId: message.id,
     type: message.type,
