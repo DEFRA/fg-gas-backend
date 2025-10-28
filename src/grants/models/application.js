@@ -79,7 +79,7 @@ export class Application {
       );
     }
 
-    this.currentStatus = ApplicationStatus.Approved; // TODO use state transition code
+    this.currentStatus = ApplicationStatus.Approved;
     this.updatedAt = this.#getTimestamp();
   }
 
@@ -95,8 +95,6 @@ export class Application {
     }
 
     this.agreements[agreement.agreementRef] = agreement;
-    // this.currentStatus = ApplicationStatus.Review; // TODO use state transition code
-    // this.currentStage = ApplicationStage.Award;
     this.updatedAt = this.#getTimestamp();
   }
 
