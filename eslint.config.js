@@ -7,6 +7,9 @@ export default [
   }),
   eslintConfigPrettier,
   {
+    ignores: ["test/reports/**", "coverage/**", "node_modules/**", "dist/**"],
+  },
+  {
     files: ["src/**/*"],
     rules: {
       "func-style": ["error", "expression"],
