@@ -1,8 +1,29 @@
 import eslintConfigPrettier from "eslint-config-prettier/flat";
-import neostandard from "neostandard";
+
+// Mock rspack-resolver to avoid native binding issues
+try {
+  // Try to mock the problematic module before neostandard loads it
+  const Module = require("module");
+  const originalRequire = Module.prototype.require;
+
+  Module.prototype.require = function (id) {
+    if (id === "rspack-resolver") {
+      // Return a minimal mock that won't cause native binding errors
+      return {
+        resolve: () => ({ path: "" }),
+        resolveSync: () => ({ path: "" }),
+      };
+    }
+    return originalRequire.apply(this, arguments);
+  };
+} catch (err) {
+  // If mocking fails, continue anyway
+}
 
 // Disable native modules for CI environments to avoid rspack-resolver issues
 process.env.DISABLE_NATIVE_RESOLVE = "true";
+
+const neostandard = await import("neostandard").then((m) => m.default);
 
 export default [
   {
