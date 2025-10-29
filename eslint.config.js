@@ -11,7 +11,7 @@ export default [
   {
     settings: {
       "import-x/resolver-next": null,
-      "import-x/resolver": {
+      "import-x/resolver-legacy": {
         node: {
           extensions: [".js", ".json"],
         },
