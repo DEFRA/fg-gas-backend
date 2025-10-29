@@ -92,7 +92,7 @@ export class InboxSubscriber {
           }),
         );
       } else {
-        throw new Error(`Unable to handle inbox message ${msg.id}`);
+        throw new Error(`Unable to handle inbox message ${msg.messageId}`);
       }
 
       await this.markEventComplete(msg);

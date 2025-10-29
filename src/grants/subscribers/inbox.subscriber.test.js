@@ -84,16 +84,37 @@ describe("inbox.subscriber", () => {
       expect(mockEvent.markAsComplete).toHaveBeenCalled();
     });
 
+    it("throws if unable to handle inbox message", async () => {
+      const mockEventData = {
+        foo: "barr",
+      };
+
+      const mockMessage = {
+        messageId: "message-1234",
+        type: "u.nknown.event.id",
+        traceparent: "1234-abcd",
+        event: {
+          data: mockEventData,
+        },
+        markAsFailed: vi.fn(),
+      };
+      const inbox = new InboxSubscriber();
+      inbox.handleEvent(mockMessage);
+      expect(mockMessage.markAsFailed).toHaveBeenCalled();
+    });
+
     it("should mark events as failed", async () => {
       applyExternalStateChange.mockRejectedValueOnce(false);
+      withTraceParent.mockImplementation((_, fn) => fn());
+
       const mockEventData = {
         currentStatus: "APPROVE",
         foo: "barr",
       };
 
-      withTraceParent.mockImplementation((_, fn) => fn());
       const mockEvent = {
-        type: "io.onsite.agreement.offer.offered",
+        type: "u.nknown.event.id",
+        source: "CW",
         traceparent: "1234-abcd",
         event: {
           data: mockEventData,
@@ -102,6 +123,7 @@ describe("inbox.subscriber", () => {
       };
       const inbox = new InboxSubscriber();
       await inbox.processEvents([mockEvent]);
+      expect(applyExternalStateChange).toHaveBeenCalled();
       expect(withTraceParent).toHaveBeenCalled();
       expect(mockEvent.markAsFailed).toHaveBeenCalled();
     });
