@@ -10,7 +10,8 @@ export default [
   }),
   {
     settings: {
-      "import-x/resolver-legacy": {
+      "import-x/resolver-next": null,
+      "import-x/resolver": {
         node: {
           extensions: [".js", ".json"],
         },
