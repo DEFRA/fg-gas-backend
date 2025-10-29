@@ -8,6 +8,15 @@ export default [
   ...neostandard({
     env: ["node"],
   }),
+  {
+    settings: {
+      "import-x/resolver-legacy": {
+        node: {
+          extensions: [".js", ".json"],
+        },
+      },
+    },
+  },
   eslintConfigPrettier,
   {
     files: ["src/**/*"],
