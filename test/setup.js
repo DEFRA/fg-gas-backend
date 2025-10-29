@@ -13,10 +13,12 @@ export const setup = async ({ globalConfig }) => {
     composeFilePath,
     "compose.yml",
   )
+    .withBuild()
     .withEnvironment({
       GAS_PORT: env.GAS_PORT,
       MONGO_PORT: env.MONGO_PORT,
       LOCALSTACK_PORT: env.LOCALSTACK_PORT,
+      OUTBOX_POLL_MS: env.OUTBOX_POLL_MS,
     })
     .withWaitStrategy("gas", Wait.forHttp("/health"))
     .withNoRecreate()
@@ -24,8 +26,10 @@ export const setup = async ({ globalConfig }) => {
 
   await ensureQueues([
     env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL,
+    env.GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL,
     env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL,
     env.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
+    env.CREATE_AGREEMENT_QUEUE_URL,
   ]);
 };
 

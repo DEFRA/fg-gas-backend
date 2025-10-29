@@ -2,11 +2,15 @@ import Boom from "@hapi/boom";
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 
+import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
+import { withTransaction } from "../../common/with-transaction.js";
+import { CreateNewCaseCommand } from "../commands/create-new-case.command.js";
+import { ApplicationCreatedEvent } from "../events/application-created.event.js";
 import { Application } from "../models/application.js";
-import { publishApplicationCreated } from "../publishers/application-event.publisher.js";
-import { publishCreateNewCase } from "../publishers/case-event.publisher.js";
+import { Outbox } from "../models/outbox.js";
 import { save } from "../repositories/application.repository.js";
+import { insertMany } from "../repositories/outbox.repository.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 
 const getAnswersInSchema = (clientRef, schema, answers) => {
@@ -62,32 +66,62 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
 };
 
 export const submitApplicationUseCase = async (code, { metadata, answers }) => {
-  const grant = await findGrantByCodeUseCase(code);
+  return withTransaction(async (session) => {
+    const grant = await findGrantByCodeUseCase(code);
 
-  const application = Application.new({
-    code,
-    clientRef: metadata.clientRef,
-    submittedAt: metadata.submittedAt,
-    identifiers: {
-      sbi: metadata.sbi,
-      frn: metadata.frn,
-      crn: metadata.crn,
-      defraId: metadata.defraId,
-    },
-    answers: getAnswersInSchema(metadata.clientRef, grant.questions, answers),
+    const { phase, stage, status } = grant.getInitialState();
+
+    const application = Application.new({
+      currentPhase: phase.code,
+      currentStage: stage.code,
+      currentStatus: status.code,
+      code,
+      clientRef: metadata.clientRef,
+      submittedAt: metadata.submittedAt,
+      identifiers: {
+        sbi: metadata.sbi,
+        frn: metadata.frn,
+        crn: metadata.crn,
+        defraId: metadata.defraId,
+      },
+      phases: [
+        {
+          code: phase.code,
+          answers: getAnswersInSchema(
+            metadata.clientRef,
+            phase.questions,
+            answers,
+          ),
+        },
+      ],
+    });
+
+    await save(application, session);
+
+    logger.info(
+      `Received application "${application.clientRef}" for grant "${application.code}"`,
+    );
+
+    const applicationCreatedEvent = new ApplicationCreatedEvent({
+      clientRef: application.clientRef,
+      code: application.code,
+      status: application.getFullyQualifiedStatus(),
+    });
+
+    const createNewCaseCommand = new CreateNewCaseCommand(application);
+
+    await insertMany(
+      [
+        new Outbox({
+          event: applicationCreatedEvent,
+          target: config.sns.grantApplicationCreatedTopicArn,
+        }),
+        new Outbox({
+          event: createNewCaseCommand,
+          target: config.sns.createNewCaseTopicArn,
+        }),
+      ],
+      session,
+    );
   });
-
-  await save(application);
-
-  logger.info(
-    `Received application "${application.clientRef}" for grant "${application.code}"`,
-  );
-
-  await publishApplicationCreated({
-    clientRef: application.clientRef,
-    code: application.code,
-    status: application.getFullyQualifiedStatus(),
-  });
-
-  await publishCreateNewCase(application);
 };

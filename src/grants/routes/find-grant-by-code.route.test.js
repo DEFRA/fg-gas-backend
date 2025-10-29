@@ -1,6 +1,6 @@
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { Grant } from "../models/grant.js";
+import { createTestGrant } from "../../../test/helpers/grants.js";
 import { findGrantByCodeUseCase } from "../use-cases/find-grant-by-code.use-case.js";
 import { findGrantByCodeRoute } from "./find-grant-by-code.route.js";
 
@@ -21,16 +21,11 @@ describe("findGrantByCodeRoute", () => {
 
   it("finds a grant by code", async () => {
     findGrantByCodeUseCase.mockResolvedValue(
-      new Grant({
+      createTestGrant({
         code: "test-code",
         metadata: {
           description: "Test Grant",
           startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
         },
       }),
     );
@@ -49,28 +44,31 @@ describe("findGrantByCodeRoute", () => {
         startDate: "2100-01-01T00:00:00.000Z",
       },
       actions: [],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "ASSESSMENT",
+              statuses: [{ code: "RECEIVED" }, { code: "REVIEW" }],
+            },
+          ],
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              question1: {
+                type: "string",
+              },
+            },
+          },
+        },
+      ],
     });
   });
 
   it("validates grant code using code schema", async () => {
-    findGrantByCodeUseCase.mockResolvedValue(
-      new Grant({
-        code: "test-code",
-        metadata: {
-          description: "Test Grant",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
-      }),
-    );
+    findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
 
     const { statusCode, result } = await server.inject({
       method: "GET",

@@ -1,14 +1,6 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { wreck } from "../helpers/wreck.js";
 
 let client;
@@ -25,16 +17,6 @@ afterAll(async () => {
 });
 
 describe("Simple Integration Tests", () => {
-  beforeEach(async () => {
-    await grants.deleteMany({ code: { $regex: "^simple-test-" } });
-    await applications.deleteMany({ clientRef: { $regex: "^simple-test-" } });
-  });
-
-  afterEach(async () => {
-    await grants.deleteMany({ code: { $regex: "^simple-test-" } });
-    await applications.deleteMany({ clientRef: { $regex: "^simple-test-" } });
-  });
-
   it("should create a simple grant and application", async () => {
     const testId = Date.now();
     const grantCode = `simple-test-${testId}`;
@@ -46,22 +28,28 @@ describe("Simple Integration Tests", () => {
         description: "Simple integration test grant",
         startDate: "2025-01-01T00:00:00.000Z",
       },
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-        properties: {
-          farmName: {
-            type: "string",
-            description: "Name of the farm",
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              farmName: {
+                type: "string",
+                description: "Name of the farm",
+              },
+              farmSize: {
+                type: "number",
+                minimum: 1,
+                description: "Size of the farm in hectares",
+              },
+            },
+            required: ["farmName", "farmSize"],
           },
-          farmSize: {
-            type: "number",
-            minimum: 1,
-            description: "Size of the farm in hectares",
-          },
+          stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
         },
-        required: ["farmName", "farmSize"],
-      },
+      ],
       actions: [],
     };
 
@@ -86,7 +74,7 @@ describe("Simple Integration Tests", () => {
     const dbGrant = await grants.findOne({ code: grantCode });
     expect(dbGrant).toBeTruthy();
     expect(dbGrant.code).toBe(grantCode);
-    expect(dbGrant.questions.properties.farmName.type).toBe("string");
+    expect(dbGrant.phases[0].questions.properties.farmName.type).toBe("string");
 
     // Verify grant can be retrieved via API
     const getResponse = await wreck.get(`/grants/${grantCode}`, {
@@ -125,8 +113,8 @@ describe("Simple Integration Tests", () => {
     });
     expect(dbApplication).toBeTruthy();
     expect(dbApplication.code).toBe(grantCode);
-    expect(dbApplication.answers.farmName).toBe("Simple Test Farm");
-    expect(dbApplication.answers.farmSize).toBe(50.5);
+    expect(dbApplication.phases[0].answers.farmName).toBe("Simple Test Farm");
+    expect(dbApplication.phases[0].answers.farmSize).toBe(50.5);
     expect(dbApplication.identifiers.sbi).toBe("123456789");
   });
 

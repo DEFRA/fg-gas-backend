@@ -3,6 +3,7 @@ export class GrantDocument {
     this.code = grant.code;
     this.metadata = grant.metadata;
     this.actions = grant.actions;
-    this.questions = grant.questions;
+    this.phases = grant.phases;
+    this.externalStatusMap = grant.externalStatusMap;
   }
 }

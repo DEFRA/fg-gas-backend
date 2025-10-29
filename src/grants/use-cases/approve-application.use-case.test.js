@@ -1,19 +1,28 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withTransaction } from "../../common/with-transaction.js";
 import { Application, ApplicationStatus } from "../models/application.js";
-import {
-  publishApplicationStatusUpdated,
-  publishCreateAgreementCommand,
-} from "../publishers/application-event.publisher.js";
+import { Outbox } from "../models/outbox.js";
 import { update } from "../repositories/application.repository.js";
+import { insertMany } from "../repositories/outbox.repository.js";
 import { approveApplicationUseCase } from "./approve-application.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../repositories/application.repository.js");
+vi.mock("../../common/with-transaction.js");
+vi.mock("../repositories/outbox.repository.js");
 
 describe("approveApplicationUseCase", () => {
+  let mockSession;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockSession = vi.fn();
+  });
+
   it("finds an existing application", async () => {
+    withTransaction.mockImplementation((cb) => cb(mockSession));
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
       new Application({}),
     );
@@ -30,66 +39,32 @@ describe("approveApplicationUseCase", () => {
   });
 
   it("approves and updates the application", async () => {
-    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
-      new Application({
-        currentStatus: ApplicationStatus.Received,
-      }),
-    );
+    withTransaction.mockImplementation(async (cb) => await cb(mockSession));
+    const app = new Application({
+      currentStatus: ApplicationStatus.Received,
+      code: "12345-43423",
+      clientRef: "0000000",
+      identifiers: [],
+    });
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(app);
 
     await approveApplicationUseCase({
       clientRef: "test-client-ref",
       code: "test-grant",
     });
 
-    expect(update).toHaveBeenCalledWith(
-      new Application({
-        currentStatus: ApplicationStatus.Approved,
-        updatedAt: expect.any(String),
-      }),
+    expect(update.mock.calls[0][0]).toBeInstanceOf(Application);
+
+    expect(update.mock.calls[0][0].currentStatus).toBe(
+      ApplicationStatus.Approved,
     );
-  });
-
-  it("publishes ApplicationStatusUpdatedEvent", async () => {
-    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
-      new Application({
-        clientRef: "test-client-ref",
-        code: "test-grant",
-        currentPhase: ApplicationStatus.PreAward,
-        currentStage: ApplicationStatus.Assessment,
-        currentStatus: ApplicationStatus.Received,
-      }),
-    );
-
-    await approveApplicationUseCase({
-      clientRef: "test-client-ref",
-      code: "test-grant",
-    });
-
-    expect(publishApplicationStatusUpdated).toHaveBeenCalledWith({
-      clientRef: "test-client-ref",
-      code: "test-grant",
-      previousStatus: `${ApplicationStatus.PreAward}:${ApplicationStatus.Assessment}:${ApplicationStatus.Received}`,
-      currentStatus: `${ApplicationStatus.PreAward}:${ApplicationStatus.Assessment}:${ApplicationStatus.Approved}`,
-    });
-  });
-
-  it("publishes CreateAgreementCommand", async () => {
-    const application = new Application({
-      clientRef: "test-client-ref",
-      code: "test-grant",
-    });
-
-    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
-
-    await approveApplicationUseCase({
-      clientRef: "test-client-ref",
-      code: "test-grant",
-    });
-
-    expect(publishCreateAgreementCommand).toHaveBeenCalledWith(application);
+    expect(insertMany).toHaveBeenCalled();
+    expect(insertMany.mock.calls[0][0][0]).toBeInstanceOf(Outbox);
+    expect(insertMany.mock.calls[0][0][1]).toBeInstanceOf(Outbox);
   });
 
   it("does nothing when application has already been approved", async () => {
+    withTransaction.mockImplementation(async (cb) => cb(mockSession));
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
       new Application({
         clientRef: "test-client-ref",
@@ -109,7 +84,5 @@ describe("approveApplicationUseCase", () => {
     );
 
     expect(update).not.toHaveBeenCalled();
-    expect(publishApplicationStatusUpdated).not.toHaveBeenCalled();
-    expect(publishCreateAgreementCommand).not.toHaveBeenCalled();
   });
 });

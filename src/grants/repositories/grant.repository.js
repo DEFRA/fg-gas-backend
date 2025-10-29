@@ -9,7 +9,8 @@ export const toGrant = (doc) =>
     code: doc.code,
     metadata: doc.metadata,
     actions: doc.actions,
-    questions: doc.questions,
+    phases: doc.phases,
+    externalStatusMap: doc.externalStatusMap,
   });
 
 export const collection = "grants";

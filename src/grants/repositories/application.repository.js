@@ -21,7 +21,7 @@ const toApplication = (doc) =>
       crn: doc.identifiers.crn,
       defraId: doc.identifiers.defraId,
     },
-    answers: doc.answers,
+    phases: doc.phases,
     agreements: Object.entries(doc.agreements).reduce((acc, [key, value]) => {
       const history = value.history.map(
         (entry) => new AgreementHistoryEntry(entry),
@@ -38,11 +38,11 @@ const toApplication = (doc) =>
 
 export const collection = "applications";
 
-export const save = async (application) => {
+export const save = async (application, session) => {
   const document = new ApplicationDocument(application);
 
   try {
-    await db.collection(collection).insertOne(document);
+    await db.collection(collection).insertOne(document, { session });
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
       throw Boom.conflict(
@@ -54,7 +54,7 @@ export const save = async (application) => {
   }
 };
 
-export const update = async (application) => {
+export const update = async (application, session) => {
   const document = new ApplicationDocument(application);
   const result = await db.collection(collection).replaceOne(
     {
@@ -62,6 +62,7 @@ export const update = async (application) => {
       code: application.code,
     },
     document,
+    { session },
   );
   if (result.modifiedCount === 0) {
     throw Boom.notFound(

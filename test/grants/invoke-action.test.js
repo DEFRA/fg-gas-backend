@@ -29,8 +29,6 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
   let server;
 
   beforeEach(async () => {
-    await grants.deleteMany({});
-
     server = http
       .createServer((_req, res) => {
         if (

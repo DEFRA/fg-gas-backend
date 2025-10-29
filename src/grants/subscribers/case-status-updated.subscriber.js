@@ -1,19 +1,19 @@
 import { config } from "../../common/config.js";
 import { SqsSubscriber } from "../../common/sqs-subscriber.js";
-import { approveApplicationUseCase } from "../use-cases/approve-application.use-case.js";
-
-const APPROVED = "APPROVED";
+import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 
 export const caseStatusUpdatedSubscriber = new SqsSubscriber({
   queueUrl: config.sqs.updateStatusQueueUrl,
   async onMessage(message) {
     const { data } = message;
 
-    if (data.currentStatus === APPROVED) {
-      await approveApplicationUseCase({
-        clientRef: data.caseRef,
-        code: data.workflowCode,
-      });
-    }
+    // Use the generic state change handler
+    // This maps the external status from Case Working (CW) to internal application state
+    await applyExternalStateChange({
+      sourceSystem: "CW",
+      clientRef: data.caseRef,
+      externalRequestedState: data.currentStatus,
+      eventData: data,
+    });
   },
 });

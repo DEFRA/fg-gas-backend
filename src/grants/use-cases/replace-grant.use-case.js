@@ -12,7 +12,8 @@ export const replaceGrantUseCase = async (code, replaceGrantCommand) => {
       startDate: replaceGrantCommand.metadata.startDate,
     },
     actions: replaceGrantCommand.actions,
-    questions: replaceGrantCommand.questions,
+    phases: replaceGrantCommand.phases,
+    externalStatusMap: replaceGrantCommand.externalStatusMap,
   });
 
   await replace(grant);

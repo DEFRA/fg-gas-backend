@@ -23,7 +23,11 @@ const schema = Joi.object({
   AWS_REGION: Joi.string(),
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
   ENVIRONMENT: Joi.string(),
-  GAS__SNS_CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
+  OUTBOX_MAX_RETRIES: Joi.number(),
+  OUTBOX_EXPIRES_MS: Joi.number(),
+  OUTBOX_CLAIM_MAX_RECORDS: Joi.number(),
+  OUTBOX_POLL_MS: Joi.number(),
+  GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: Joi.string().optional(),
@@ -61,8 +65,12 @@ export const config = {
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
   cdpEnvironment: vars.ENVIRONMENT,
+  outboxMaxRetries: vars.OUTBOX_MAX_RETRIES,
+  outboxExpiresMs: vars.OUTBOX_EXPIRES_MS,
+  outboxClaimMaxRecords: vars.OUTBOX_CLAIM_MAX_RECORDS,
+  outboxPollMs: vars.OUTBOX_POLL_MS,
   sns: {
-    createAgreementTopicArn: vars.GAS__SNS_CREATE_AGREEMENT_TOPIC_ARN,
+    createAgreementTopicArn: vars.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
     grantApplicationCreatedTopicArn:
       vars.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
     grantApplicationStatusUpdatedTopicArn:
