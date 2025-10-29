@@ -1,5 +1,5 @@
 const Module = require("module");
-const resolve = require("resolve");
+const path = require("node:path");
 
 class ResolverFactory {
   constructor(options = {}) {
@@ -8,21 +8,26 @@ class ResolverFactory {
   }
 
   sync(context, request) {
-    try {
-      const path = resolve.sync(request, {
-        basedir: context,
-        extensions: this.extensions,
-        packageFilter(pkg) {
-          if (pkg && pkg.exports) {
-            delete pkg.exports;
-          }
-          return pkg;
-        },
-      });
-      return { path };
-    } catch {
-      return { path: undefined };
+    const base = context || process.cwd();
+
+    const lookupPaths = [base, path.join(base, "node_modules")];
+
+    for (const candidate of lookupPaths) {
+      try {
+        const resolved = Module._resolveFilename(request, {
+          id: candidate,
+          filename: candidate,
+          paths: Module._nodeModulePaths(candidate),
+        });
+        if (resolved) {
+          return { path: resolved };
+        }
+      } catch {
+        // continue
+      }
     }
+
+    return { path: undefined };
   }
 }
 
