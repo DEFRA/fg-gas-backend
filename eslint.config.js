@@ -1,27 +1,33 @@
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 
-// Mock rspack-resolver to avoid native binding issues
-try {
-  // Try to mock the problematic module before neostandard loads it
-  const Module = require("module");
-  const originalRequire = Module.prototype.require;
-
-  Module.prototype.require = function (id) {
-    if (id === "rspack-resolver") {
-      // Return a minimal mock that won't cause native binding errors
-      return {
-        resolve: () => ({ path: "" }),
-        resolveSync: () => ({ path: "" }),
-      };
-    }
-    return originalRequire.apply(this, arguments);
-  };
-} catch (err) {
-  // If mocking fails, continue anyway
-}
-
 // Disable native modules for CI environments to avoid rspack-resolver issues
 process.env.DISABLE_NATIVE_RESOLVE = "true";
+
+// Mock rspack-resolver before loading any modules that might use it
+if (typeof require !== "undefined") {
+  try {
+    const Module = require("module");
+    const originalRequireFn = Module.prototype.require;
+
+    Module.prototype.require = function (id) {
+      if (
+        id === "rspack-resolver" ||
+        id.endsWith("/rspack-resolver/index.js")
+      ) {
+        // Return a safe mock that won't cause native binding errors
+        return {
+          resolve: () => null,
+          resolveSync: () => null,
+          // Add other potential methods that might be called
+          create: () => ({ resolve: () => null, resolveSync: () => null }),
+        };
+      }
+      return originalRequireFn.apply(this, arguments);
+    };
+  } catch (err) {
+    // Silently continue if mocking fails
+  }
+}
 
 const neostandard = await import("neostandard").then((m) => m.default);
 
@@ -34,7 +40,7 @@ export default [
   }),
   eslintConfigPrettier,
   {
-    // Disable import-x resolver rules that cause rspack-resolver issues
+    // Override import-x resolver to avoid native dependencies
     settings: {
       "import-x/resolver": {
         node: {
@@ -49,18 +55,19 @@ export default [
       "func-style": ["error", "expression"],
       "no-console": "error",
       complexity: ["error", { max: 4 }],
-      // Disable import-x rules that use rspack-resolver to avoid native binding issues
+      // Temporarily disable import-x rules that require resolvers to avoid CI issues
       "import-x/extensions": "off",
       "import-x/no-unresolved": "off",
       "import-x/named": "off",
       "import-x/default": "off",
       "import-x/export": "off",
+      "import-x/no-cycle": "off",
+      "import-x/no-extraneous-dependencies": "off",
+      // Keep rules that don't require complex resolution
       "import-x/no-default-export": "error",
       "import-x/no-mutable-exports": "error",
       "import-x/no-duplicates": "error",
       "import-x/no-useless-path-segments": "error",
-      "import-x/no-cycle": "off", // This might also use resolver
-      "import-x/no-extraneous-dependencies": "off", // This might also use resolver
       "import-x/no-restricted-paths": [
         "error",
         {
