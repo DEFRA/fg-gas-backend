@@ -1,73 +1,34 @@
 import eslintConfigPrettier from "eslint-config-prettier/flat";
-
-// Disable native modules for CI environments to avoid rspack-resolver issues
-process.env.DISABLE_NATIVE_RESOLVE = "true";
-
-// Mock rspack-resolver before loading any modules that might use it
-if (typeof require !== "undefined") {
-  try {
-    const Module = require("module");
-    const originalRequireFn = Module.prototype.require;
-
-    Module.prototype.require = function (id) {
-      if (
-        id === "rspack-resolver" ||
-        id.endsWith("/rspack-resolver/index.js")
-      ) {
-        // Return a safe mock that won't cause native binding errors
-        return {
-          resolve: () => null,
-          resolveSync: () => null,
-          // Add other potential methods that might be called
-          create: () => ({ resolve: () => null, resolveSync: () => null }),
-        };
-      }
-      return originalRequireFn.apply(this, arguments);
-    };
-  } catch (err) {
-    // Silently continue if mocking fails
-  }
-}
-
-const neostandard = await import("neostandard").then((m) => m.default);
+import neostandard from "neostandard";
 
 export default [
   {
-    ignores: ["test/reports/**", "coverage/**", "node_modules/**", "dist/**"],
+    ignores: ["test/reports/**", "coverage/**"],
   },
   ...neostandard({
     env: ["node"],
   }),
   eslintConfigPrettier,
   {
-    // Override import-x resolver to avoid native dependencies
-    settings: {
-      "import-x/resolver": {
-        node: {
-          extensions: [".js", ".json"],
-        },
-      },
-    },
-  },
-  {
     files: ["src/**/*"],
     rules: {
       "func-style": ["error", "expression"],
       "no-console": "error",
       complexity: ["error", { max: 4 }],
-      // Temporarily disable import-x rules that require resolvers to avoid CI issues
-      "import-x/extensions": "off",
-      "import-x/no-unresolved": "off",
-      "import-x/named": "off",
-      "import-x/default": "off",
-      "import-x/export": "off",
-      "import-x/no-cycle": "off",
-      "import-x/no-extraneous-dependencies": "off",
-      // Keep rules that don't require complex resolution
+      "import-x/extensions": ["error", { js: "always", json: "always" }],
+      "import-x/no-unresolved": "error",
+      "import-x/named": "error",
+      "import-x/default": "error",
+      "import-x/export": "error",
       "import-x/no-default-export": "error",
       "import-x/no-mutable-exports": "error",
       "import-x/no-duplicates": "error",
       "import-x/no-useless-path-segments": "error",
+      "import-x/no-cycle": "error",
+      "import-x/no-extraneous-dependencies": [
+        "error",
+        { devDependencies: ["src/**/*.test.js", "test/**"] },
+      ],
       "import-x/no-restricted-paths": [
         "error",
         {
