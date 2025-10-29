@@ -1,14 +1,17 @@
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 import neostandard from "neostandard";
 
+// Disable native modules for CI environments to avoid rspack-resolver issues
+process.env.DISABLE_NATIVE_RESOLVE = "true";
+
 export default [
+  {
+    ignores: ["test/reports/**", "coverage/**", "node_modules/**", "dist/**"],
+  },
   ...neostandard({
     env: ["node"],
   }),
   eslintConfigPrettier,
-  {
-    ignores: ["test/reports/**", "coverage/**", "node_modules/**", "dist/**"],
-  },
   {
     files: ["src/**/*"],
     rules: {
