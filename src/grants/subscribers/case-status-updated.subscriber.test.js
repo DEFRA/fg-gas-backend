@@ -12,6 +12,6 @@ describe("case status updated subscriber", () => {
       },
     };
     await caseStatusUpdatedSubscriber.onMessage(message);
-    expect(saveInboxMessageUseCase).toHaveBeenCalledWith(message);
+    expect(saveInboxMessageUseCase).toHaveBeenCalledWith(message, "CW");
   });
 });
