@@ -68,6 +68,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check Docker availability
+        run: |
+          docker --version
+          docker info
+          echo "Docker socket check:"
+          ls -la /var/run/docker.sock || echo "Docker socket not found"
+
       - name: Run contract tests
         run: DEBUG=testcontainers:containers npm run test:contracts
         env:
@@ -75,3 +82,5 @@ jobs:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
           PACT_USER: ${{ secrets.PACT_USER }}
           PACT_PASS: ${{ secrets.PACT_PASS }}
+          DOCKER_HOST: unix:///var/run/docker.sock
+          TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
