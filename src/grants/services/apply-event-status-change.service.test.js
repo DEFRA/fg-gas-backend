@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Application } from "../models/application.js";
 import { Grant } from "../models/grant.js";
 import {
-  findByClientRef,
+  findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
@@ -93,11 +93,12 @@ describe("applyExternalStateChange", () => {
 
   describe("when application is not found", () => {
     it("should throw Boom.notFound error", async () => {
-      findByClientRef.mockResolvedValue(null);
+      findByClientRefAndCode.mockResolvedValue(null);
 
       await expect(
         applyExternalStateChange({
           clientRef: "NON-EXISTENT",
+          code: "foo",
           externalRequestedState: "IN_PROGRESS",
           sourceSystem: "CW",
         }),
@@ -105,19 +106,23 @@ describe("applyExternalStateChange", () => {
         Boom.notFound('Application with clientRef "NON-EXISTENT" not found'),
       );
 
-      expect(findByClientRef).toHaveBeenCalledWith("NON-EXISTENT");
+      expect(findByClientRefAndCode).toHaveBeenCalledWith({
+        clientRef: "NON-EXISTENT",
+        code: "foo",
+      });
       expect(update).not.toHaveBeenCalled();
     });
   });
 
   describe("when grant is not found", () => {
     it("should throw Boom.notFound error", async () => {
-      findByClientRef.mockResolvedValue(mockApplication);
+      findByClientRefAndCode.mockResolvedValue(mockApplication);
       findByCode.mockResolvedValue(null);
 
       await expect(
         applyExternalStateChange({
           clientRef: "APP-123",
+          code: "foo",
           externalRequestedState: "IN_PROGRESS",
           sourceSystem: "CW",
         }),
@@ -125,7 +130,10 @@ describe("applyExternalStateChange", () => {
         Boom.notFound('Grant with code "test-grant" not found'),
       );
 
-      expect(findByClientRef).toHaveBeenCalledWith("APP-123");
+      expect(findByClientRefAndCode).toHaveBeenCalledWith({
+        clientRef: "APP-123",
+        code: "foo",
+      });
       expect(findByCode).toHaveBeenCalledWith("test-grant");
       expect(update).not.toHaveBeenCalled();
     });
@@ -137,11 +145,12 @@ describe("applyExternalStateChange", () => {
         ...mockApplication,
         currentStatus: "RECEIVED",
       });
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(mockGrant);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "IN_PROGRESS",
         sourceSystem: "CW",
         eventData: { caseRef: "CASE-123" },
@@ -164,7 +173,7 @@ describe("applyExternalStateChange", () => {
         ...mockApplication,
         currentStatus: "RECEIVED",
       });
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(mockGrant);
 
       await applyExternalStateChange({
@@ -213,7 +222,7 @@ describe("applyExternalStateChange", () => {
         ],
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantNoValidFrom);
 
       await applyExternalStateChange({
@@ -231,11 +240,12 @@ describe("applyExternalStateChange", () => {
         ...mockApplication,
         currentStatus: "IN_PROGRESS",
       });
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(mockGrant);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "APPROVED",
         sourceSystem: "CW",
         eventData: { caseRef: "CASE-123" },
@@ -267,15 +277,19 @@ describe("applyExternalStateChange", () => {
 
   describe("when external status is not mapped", () => {
     it("should not update application", async () => {
-      findByClientRef.mockResolvedValue(mockApplication);
+      findByClientRefAndCode.mockResolvedValue(mockApplication);
       findByCode.mockResolvedValue(mockGrant);
 
-      await applyExternalStateChange({
-        clientRef: "APP-123",
-        externalRequestedState: "UNMAPPED_STATUS",
-        sourceSystem: "CW",
-        eventData: {},
-      });
+      await expect(() =>
+        applyExternalStateChange({
+          clientRef: "APP-123",
+          externalRequestedState: "UNMAPPED_STATUS",
+          sourceSystem: "CW",
+          eventData: {},
+        }),
+      ).rejects.toThrow(
+        "Unable to process state change from RECEIVED to UNMAPPED_STATUS",
+      );
 
       expect(update).not.toHaveBeenCalled();
       expect(insertMany).not.toHaveBeenCalled();
@@ -288,16 +302,21 @@ describe("applyExternalStateChange", () => {
         ...mockApplication,
         currentStatus: "RECEIVED",
       });
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(mockGrant);
 
       // Try to go directly from RECEIVED to APPROVED (should only be from IN_PROGRESS)
-      await applyExternalStateChange({
-        clientRef: "APP-123",
-        externalRequestedState: "APPROVED",
-        sourceSystem: "CW",
-        eventData: {},
-      });
+      await expect(() =>
+        applyExternalStateChange({
+          clientRef: "APP-123",
+          code: "foo",
+          externalRequestedState: "APPROVED",
+          sourceSystem: "CW",
+          eventData: {},
+        }),
+      ).rejects.toThrow(
+        "Unable to process state change from RECEIVED to APPROVED",
+      );
 
       expect(update).not.toHaveBeenCalled();
       expect(insertMany).not.toHaveBeenCalled();
@@ -306,15 +325,20 @@ describe("applyExternalStateChange", () => {
 
   describe("when source system is different", () => {
     it("should not find mapping and not update application", async () => {
-      findByClientRef.mockResolvedValue(mockApplication);
+      findByClientRefAndCode.mockResolvedValue(mockApplication);
       findByCode.mockResolvedValue(mockGrant);
 
-      await applyExternalStateChange({
-        clientRef: "APP-123",
-        externalRequestedState: "IN_PROGRESS",
-        sourceSystem: "DIFFERENT_SYSTEM",
-        eventData: {},
-      });
+      await expect(() =>
+        applyExternalStateChange({
+          clientRef: "APP-123",
+          code: "foo",
+          externalRequestedState: "IN_PROGRESS",
+          sourceSystem: "DIFFERENT_SYSTEM",
+          eventData: {},
+        }),
+      ).rejects.toThrow(
+        "Unable to process state change from RECEIVED to IN_PROGRESS",
+      );
 
       expect(update).not.toHaveBeenCalled();
       expect(insertMany).not.toHaveBeenCalled();
@@ -349,11 +373,12 @@ describe("applyExternalStateChange", () => {
         ],
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithEmptyValidFrom);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
@@ -390,11 +415,12 @@ describe("applyExternalStateChange", () => {
         ],
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithNoValidFrom);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
@@ -464,11 +490,12 @@ describe("applyExternalStateChange", () => {
         },
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithFullyQualifiedMapping);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "OFFERED",
         sourceSystem: "AS",
         eventData: {},
@@ -515,11 +542,12 @@ describe("applyExternalStateChange", () => {
         },
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithSimpleMapping);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
@@ -565,11 +593,12 @@ describe("applyExternalStateChange", () => {
         ],
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithMultipleProcesses);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "IN_PROGRESS",
         sourceSystem: "CW",
         eventData: { data: "test" },
@@ -621,11 +650,12 @@ describe("applyExternalStateChange", () => {
         ],
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithNoProcesses);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
@@ -672,11 +702,12 @@ describe("applyExternalStateChange", () => {
         ],
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithStatusNoValidFrom);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
@@ -754,11 +785,12 @@ describe("applyExternalStateChange", () => {
         },
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithFQValidFrom);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "OFFERED",
         sourceSystem: "AS",
         eventData: {},
@@ -803,11 +835,12 @@ describe("applyExternalStateChange", () => {
         ],
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithSimpleValidFrom);
 
       await applyExternalStateChange({
         clientRef: "APP-123",
+        code: "foo",
         externalRequestedState: "IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
@@ -834,15 +867,20 @@ describe("applyExternalStateChange", () => {
         externalStatusMap: undefined,
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithNoMapping);
 
-      await applyExternalStateChange({
-        clientRef: "APP-123",
-        externalRequestedState: "IN_PROGRESS",
-        sourceSystem: "CW",
-        eventData: {},
-      });
+      await expect(() =>
+        applyExternalStateChange({
+          clientRef: "APP-123",
+          code: "foo",
+          externalRequestedState: "IN_PROGRESS",
+          sourceSystem: "CW",
+          eventData: {},
+        }),
+      ).rejects.toThrow(
+        "Unable to process state change from RECEIVED to IN_PROGRESS",
+      );
 
       expect(update).not.toHaveBeenCalled();
     });
@@ -860,15 +898,20 @@ describe("applyExternalStateChange", () => {
         externalStatusMap: {},
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithNoPhases);
 
-      await applyExternalStateChange({
-        clientRef: "APP-123",
-        externalRequestedState: "IN_PROGRESS",
-        sourceSystem: "CW",
-        eventData: {},
-      });
+      await expect(() =>
+        applyExternalStateChange({
+          clientRef: "APP-123",
+          code: "foo",
+          externalRequestedState: "IN_PROGRESS",
+          sourceSystem: "CW",
+          eventData: {},
+        }),
+      ).rejects.toThrow(
+        "Unable to process state change from RECEIVED to IN_PROGRESS",
+      );
 
       expect(update).not.toHaveBeenCalled();
     });
@@ -923,15 +966,20 @@ describe("applyExternalStateChange", () => {
         },
       });
 
-      findByClientRef.mockResolvedValue(application);
+      findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithMissingTargetStatus);
 
-      await applyExternalStateChange({
-        clientRef: "APP-123",
-        externalRequestedState: "IN_PROGRESS",
-        sourceSystem: "CW",
-        eventData: {},
-      });
+      await expect(() =>
+        applyExternalStateChange({
+          clientRef: "APP-123",
+          code: "foo",
+          externalRequestedState: "IN_PROGRESS",
+          sourceSystem: "CW",
+          eventData: {},
+        }),
+      ).rejects.toThrow(
+        "Unable to process state change from RECEIVED to IN_PROGRESS",
+      );
 
       expect(update).not.toHaveBeenCalled();
     });

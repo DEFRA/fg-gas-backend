@@ -198,7 +198,7 @@ describe("outbox.repository", () => {
 
   describe("updateDeadEvents", () => {
     it("should call updateMany", async () => {
-      const MAX_RETRIES = config.outboxMaxRetries;
+      const MAX_RETRIES = config.outbox.outboxMaxRetries;
       const updateMany = vi.fn().mockResolvedValue({});
       db.collection.mockReturnValue({
         updateMany,

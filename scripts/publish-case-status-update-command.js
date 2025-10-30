@@ -19,7 +19,7 @@ const queueUrl =
   "http://sqs.eu-west-2.127.0.0.1:4566/000000000000/gas__sqs__update_status";
 
 const message = {
-  id: "event-id-300",
+  id: "event-id-301",
   time: "2025-09-09T11:30:52.000Z",
   source: "urn:service:agreement",
   specversion: "1.0",
@@ -27,8 +27,8 @@ const message = {
   type: "io.onsite.agreement.offer.offered",
   datacontenttype: "application/json",
   data: {
-    caseRef: "APPLICATION-PMF-001",
-    workflowCode: "pigs-might-fly",
+    caseRef: "APPLICATION-FRPS-001",
+    workflowCode: "frps-private-beta",
     currentStatus: "APPROVED",
   },
 };
