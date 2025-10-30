@@ -86,6 +86,7 @@ describe("agreementStatusUpdatedSubscriber", () => {
       clientRef: "test-client-ref",
       code: "test-code",
       date: "2024-01-01T00:00:00Z",
+      requestedStatus: "withdrawn",
     });
   });
 
