@@ -68,30 +68,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Start services for contract testing
-        run: |
-          # Start Docker services for contract testing (using Docker Compose V2)
-          docker compose up -d --wait
-          # Wait for service to be ready
-          timeout 60 bash -c 'until curl -f http://localhost:3001/health; do sleep 2; done'
-        env:
-          GAS_PORT: 3001
-          MONGO_PORT: 27017
-          LOCALSTACK_PORT: 4566
-
       - name: Run contract tests
         env:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
           PACT_BROKER_USERNAME: ${{ secrets.PACT_USER }}
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_PASS }}
-          # Provider service configuration for self-hosted runner
+          # Provider service URL - should point to staging environment or pre-running service
           PROVIDER_BASE_URL: ${{ secrets.PROVIDER_BASE_URL }}
-          MONGO_URI: ${{ secrets.CONTRACT_TEST_MONGO_URI }}
-          # Alternative: use localhost if services are running locally on runner
-          GAS_PORT: 3001
-          PORT: 3001
         run: npm run test:contracts
-
-      - name: Cleanup services
-        if: always()
-        run: docker compose down
