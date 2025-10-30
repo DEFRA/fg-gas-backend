@@ -73,4 +73,10 @@ jobs:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
           PACT_BROKER_USERNAME: ${{ secrets.PACT_USER }}
           PACT_BROKER_PASSWORD: ${{ secrets.PACT_PASS }}
+          # Provider service configuration for self-hosted runner
+          PROVIDER_BASE_URL: ${{ secrets.PROVIDER_BASE_URL }}
+          MONGO_URI: ${{ secrets.CONTRACT_TEST_MONGO_URI }}
+          # Alternative: use localhost if services are running locally on runner
+          GAS_PORT: 3001
+          PORT: 3001
         run: npm run test:contracts
