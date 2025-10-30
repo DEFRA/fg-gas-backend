@@ -70,12 +70,14 @@ jobs:
 
       - name: Start services for contract testing
         run: |
-          # Start Docker services for contract testing
-          docker-compose up -d --wait
+          # Start Docker services for contract testing (using Docker Compose V2)
+          docker compose up -d --wait
           # Wait for service to be ready
           timeout 60 bash -c 'until curl -f http://localhost:3001/health; do sleep 2; done'
         env:
           GAS_PORT: 3001
+          MONGO_PORT: 27017
+          LOCALSTACK_PORT: 4566
 
       - name: Run contract tests
         env:
@@ -92,4 +94,4 @@ jobs:
 
       - name: Cleanup services
         if: always()
-        run: docker-compose down
+        run: docker compose down
