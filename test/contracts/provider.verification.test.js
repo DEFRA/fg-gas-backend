@@ -8,7 +8,10 @@ import { afterAll, beforeAll, describe, it } from "vitest";
 dotenv.config();
 
 // Use the same MongoDB URI as integration tests
-const MONGO_URI = env.MONGO_URI || "mongodb://localhost:27018/fg-gas-backend";
+const MONGO_URI =
+  env.MONGO_URI ||
+  env.MONGODB_URI ||
+  "mongodb://localhost:27017/fg-gas-backend";
 
 let client;
 let db;
@@ -109,9 +112,15 @@ const testGrantDefinitions = [
 // Helper function to ensure MongoDB connection
 async function ensureMongoConnection() {
   if (!client) {
-    console.log("Connecting to MongoDB:", MONGO_URI);
-    client = await MongoClient.connect(MONGO_URI);
-    db = client.db(); // Database name is already in the URI
+    console.log("Attempting to connect to MongoDB:", MONGO_URI);
+    try {
+      client = await MongoClient.connect(MONGO_URI);
+      db = client.db(); // Database name is already in the URI
+      console.log("Successfully connected to MongoDB");
+    } catch (error) {
+      console.error("Failed to connect to MongoDB:", error.message);
+      throw error;
+    }
   }
 }
 

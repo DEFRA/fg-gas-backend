@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     globalSetup: "./test/setup.js",
     setupFiles: ["./test/matchers.js", "./test/cleanup.js"],
+    exclude: ["**/contracts/**", "**/node_modules/**"],
     sequence: {
       concurrent: false,
     },
