@@ -68,6 +68,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Start services for contract testing
+        run: |
+          # Start Docker services for contract testing
+          docker-compose up -d --wait
+          # Wait for service to be ready
+          timeout 60 bash -c 'until curl -f http://localhost:3001/health; do sleep 2; done'
+        env:
+          GAS_PORT: 3001
+
       - name: Run contract tests
         env:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
@@ -80,3 +89,7 @@ jobs:
           GAS_PORT: 3001
           PORT: 3001
         run: npm run test:contracts
+
+      - name: Cleanup services
+        if: always()
+        run: docker-compose down
