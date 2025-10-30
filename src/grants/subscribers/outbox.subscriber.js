@@ -17,7 +17,7 @@ export class OutboxSubscriber {
   asyncLocalStorage = new AsyncLocalStorage();
 
   constructor() {
-    this.interval = config.outboxPollMs;
+    this.interval = config.outbox.outboxPollMs;
     this.running = false;
   }
 
