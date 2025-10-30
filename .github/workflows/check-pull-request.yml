@@ -15,7 +15,8 @@ on:
 jobs:
   pr-validator:
     name: Run Pull Request Checks
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -44,6 +45,16 @@ jobs:
 
       - name: Run integration tests
         run: DEBUG=testcontainers:containers npm run test:integration
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+          PACT_USER: ${{ secrets.PACT_USER }}
+          PACT_PASS: ${{ secrets.PACT_PASS }}
+
+      - name: Run contract tests
+        run: npm run test:contracts
+        env:
+          PACT_USER: ${{ secrets.PACT_USER }}
+          PACT_PASS: ${{ secrets.PACT_PASS }}
 
       - name: Build docker image
         run: |
