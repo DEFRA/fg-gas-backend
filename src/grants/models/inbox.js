@@ -1,4 +1,5 @@
 export class Inbox {
+  // eslint-disable-next-line complexity
   constructor(props) {
     this._id = props._id;
     this.publicationDate = new Date().toISOString();
@@ -8,7 +9,7 @@ export class Inbox {
     this.event = props.event;
     this.messageId = props.messageId;
     this.lastResubmissionDate = props.lastResubmissionDate || null;
-    this.completionAttempts = 1;
+    this.completionAttempts = props.completionAttempts || 1;
     this.status = props.status || InboxStatus.PUBLISHED;
     this.completionDate = props.completionDate || null;
     this.claimedBy = null;
@@ -77,5 +78,5 @@ export const InboxStatus = {
   FAILED: "FAILED",
   COMPLETED: "COMPLETED",
   RESUBMITTED: "RESUBMITTED",
-  DEAD: "DEAD",
+  DEAD: "DEAD_LETTER",
 };

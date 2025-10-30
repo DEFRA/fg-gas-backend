@@ -48,6 +48,7 @@ export const handleAgreementStatusChangeUseCase = async (message) => {
       code: data.code,
       agreementRef: data.agreementNumber,
       date: data.date,
+      requestedStatus: AgreementStatus.Withdrawn,
       source,
     });
     return;
