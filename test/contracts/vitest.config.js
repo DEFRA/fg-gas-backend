@@ -6,6 +6,7 @@ const LOCALSTACK_PORT = 4567;
 
 export default defineConfig({
   test: {
+    globalSetup: "./test/setup.js",
     testTimeout: 60000,
     environment: "node",
     globals: true,

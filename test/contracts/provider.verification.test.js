@@ -7,19 +7,15 @@ import { afterAll, describe, it } from "vitest";
 // Load .env file for PACT_BROKER credentials
 dotenv.config();
 
-// MongoDB connection for state setup
-const MONGO_URI =
-  env.MONGO_URI ||
-  env.MONGODB_URI ||
-  "mongodb://localhost:27017/fg-gas-backend";
+// MongoDB connection for state setup - use same as integration tests
+const MONGO_URI = env.MONGO_URI || "mongodb://localhost:27018/fg-gas-backend";
 let client;
 let db;
 
 describe("fg-gas-backend Provider Verification", () => {
-  // Connect to the running service - use staging URL in CI, localhost in development
-  const PORT = env.GAS_PORT || env.PORT || 3001;
-  const PROVIDER_BASE_URL =
-    env.PROVIDER_BASE_URL || env.PROVIDER_URL || `http://localhost:${PORT}`;
+  // Connect to the running service - use same ports as integration tests
+  const PORT = env.GAS_PORT || 3001;
+  const PROVIDER_BASE_URL = env.PROVIDER_BASE_URL || `http://localhost:${PORT}`;
 
   console.log("Provider Base URL:", PROVIDER_BASE_URL);
 

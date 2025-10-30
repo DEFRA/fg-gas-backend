@@ -68,23 +68,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Start required services for contract testing
-        run: |
-          # Start services following the guide's documented approach
-          GAS_PORT=3003 MONGO_PORT=27017 LOCALSTACK_PORT=4566 docker compose up -d
-          # Wait for services to be ready
-          sleep 30
-          curl --retry 10 --retry-delay 5 --retry-connrefused http://localhost:3003/health
-
       - name: Run contract tests
+        run: DEBUG=testcontainers:containers npm run test:contracts
         env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
           PACT_USER: ${{ secrets.PACT_USER }}
           PACT_PASS: ${{ secrets.PACT_PASS }}
-          PROVIDER_BASE_URL: http://localhost:3003
-          MONGO_URI: mongodb://localhost:27017/fg-gas-backend
-        run: npm run test:contracts
-
-      - name: Cleanup services
-        if: always()
-        run: docker compose down
