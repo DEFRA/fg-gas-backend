@@ -7,12 +7,24 @@ import { describe, it } from "vitest";
 dotenv.config();
 
 describe("fg-gas-backend Provider Verification", () => {
-  // Connect to the running service - flexible port for different environments
+  // Connect to the running service - use staging URL in CI, localhost in development
   const PORT = env.GAS_PORT || env.PORT || 3001;
-  const PROVIDER_BASE_URL = env.PROVIDER_BASE_URL || `http://localhost:${PORT}`;
+  const PROVIDER_BASE_URL =
+    env.PROVIDER_BASE_URL || env.PROVIDER_URL || `http://localhost:${PORT}`;
+
+  console.log("Provider Base URL:", PROVIDER_BASE_URL);
 
   describe("Contract Verification", () => {
     it("should verify contracts from grants-ui consumer", async () => {
+      // Debug environment variables
+      console.log("Environment check:");
+      console.log("- PROVIDER_BASE_URL:", env.PROVIDER_BASE_URL || "[NOT SET]");
+      console.log(
+        "- PACT_BROKER_USERNAME:",
+        env.PACT_BROKER_USERNAME || "[NOT SET]",
+      );
+      console.log("- Using Provider URL:", PROVIDER_BASE_URL);
+
       const opts = {
         provider: "fg-gas-backend",
         providerBaseUrl: PROVIDER_BASE_URL,
