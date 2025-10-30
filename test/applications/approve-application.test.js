@@ -1,4 +1,5 @@
 import { MongoClient } from "mongodb";
+import { randomUUID } from "node:crypto";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { submitApplication } from "../helpers/applications.js";
@@ -7,12 +8,14 @@ import { sendMessage } from "../helpers/sqs.js";
 
 let applications;
 let outbox;
+let inbox;
 let client;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   applications = client.db().collection("applications");
   outbox = client.db().collection("outbox");
+  inbox = client.db().collection("inbox");
 });
 
 afterAll(async () => {
@@ -32,15 +35,25 @@ describe("On CaseStatusUpdated", () => {
       currentStatus: "RECEIVED",
     });
 
+    const messageId = randomUUID();
     await sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
+      id: messageId,
       traceparent,
+      type: "fg.cw-backend.",
       data: {
         caseRef: clientRef,
         workflowCode: code,
-        previousStatus: "NEW",
+        previousStatus: "IN_PROGRESS",
         currentStatus: "APPROVED",
       },
     });
+
+    await expect(inbox).toHaveRecord({
+      messageId,
+      source: "CW",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 500)); // wait for inbox to pick up queue
 
     await expect(applications).toHaveRecord({
       clientRef,

@@ -6,6 +6,7 @@ import { db, mongoClient } from "../common/mongo-client.js";
 import { grants } from "./index.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
+import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
 import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 
 vi.mock("../common/logger.js", () => ({
@@ -22,6 +23,7 @@ vi.mock("migrate-mongo");
 vi.mock("./subscribers/agreement-status-updated.subscriber.js");
 vi.mock("./subscribers/case-status-updated.subscriber.js");
 vi.mock("./subscribers/outbox.subscriber.js");
+vi.mock("./subscribers/inbox.subscriber.js");
 
 describe("grants", () => {
   let server;
@@ -55,7 +57,9 @@ describe("grants", () => {
 
   it("starts subscribers on startup", async () => {
     const outboxStart = vi.fn();
+    const inboxStart = vi.fn();
     OutboxSubscriber.prototype.start = outboxStart;
+    InboxSubscriber.prototype.start = inboxStart;
 
     await server.register(grants);
     await server.initialize();
@@ -64,12 +68,16 @@ describe("grants", () => {
 
     expect(agreementStatusUpdatedSubscriber.start).toHaveBeenCalled();
     expect(caseStatusUpdatedSubscriber.start).toHaveBeenCalled();
+    expect(inboxStart).toHaveBeenCalled();
     expect(outboxStart).toHaveBeenCalled();
   });
 
   it("stops subscribers on stop", async () => {
+    const inboxStop = vi.fn();
     const outboxStop = vi.fn();
     OutboxSubscriber.prototype.stop = outboxStop;
+    InboxSubscriber.prototype.stop = inboxStop;
+
     await server.register(grants);
     await server.initialize();
 
@@ -78,6 +86,7 @@ describe("grants", () => {
     expect(agreementStatusUpdatedSubscriber.stop).toHaveBeenCalled();
     expect(caseStatusUpdatedSubscriber.stop).toHaveBeenCalled();
     expect(outboxStop).toHaveBeenCalled();
+    expect(inboxStop).toHaveBeenCalled();
   });
 
   it("registers routes", async () => {

@@ -95,8 +95,6 @@ export class Application {
     }
 
     this.agreements[agreement.agreementRef] = agreement;
-    this.currentStatus = ApplicationStatus.Review;
-    this.currentStage = ApplicationStage.Award;
     this.updatedAt = this.#getTimestamp();
   }
 
@@ -114,8 +112,6 @@ export class Application {
     }
 
     agreement.accept(date);
-
-    this.currentStatus = ApplicationStatus.Accepted;
     this.updatedAt = this.#getTimestamp();
   }
 
@@ -130,7 +126,6 @@ export class Application {
 
     agreement.withdraw(date);
 
-    this.currentStatus = ApplicationStatus.Withdrawn;
     this.updatedAt = this.#getTimestamp();
   }
 

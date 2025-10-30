@@ -78,8 +78,6 @@ describe("Application", () => {
 
     application.addAgreement(agreement);
 
-    expect(application.currentStatus).toBe(ApplicationStatus.Review);
-
     expect(application.agreements).toEqual({
       "agreement-1": agreement,
     });
@@ -113,7 +111,6 @@ describe("Application", () => {
     application.addAgreement(agreement);
     application.acceptAgreement("agreement-1", "2021-02-02T14:00:00.000Z");
 
-    expect(application.currentStatus).toBe(ApplicationStatus.Accepted);
     expect(application.getAgreement("agreement-1").latestStatus).toBe(
       AgreementStatus.Accepted,
     );
@@ -142,14 +139,13 @@ describe("Application", () => {
 
     application.addAgreement(agreement);
 
-    expect(application.currentStatus).toBe(ApplicationStatus.Review);
+    expect(application.currentStatus).toBe(ApplicationStatus.Received);
     expect(application.getAgreement("agreement-1").latestStatus).toBe(
       AgreementStatus.Offered,
     );
 
     application.withdrawAgreement("agreement-1", "2021-02-03T15:00:00.000Z");
 
-    expect(application.currentStatus).toBe(ApplicationStatus.Withdrawn);
     expect(application.getAgreement("agreement-1").latestStatus).toBe(
       AgreementStatus.Withdrawn,
     );

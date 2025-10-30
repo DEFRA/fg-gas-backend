@@ -3,7 +3,7 @@ import { withTransaction } from "../../common/with-transaction.js";
 import {
   Agreement,
   AgreementHistoryEntry,
-  AgreementStatus,
+  AgreementStatus as Status,
 } from "../models/agreement.js";
 import {
   Application,
@@ -13,9 +13,12 @@ import {
 } from "../models/application.js";
 import { update } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
+import { AgreementStatus } from "./handle-agreement-status-change.use-case.js";
 
+vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
@@ -44,10 +47,10 @@ describe("acceptAgreementUseCase", () => {
     const agreement = new Agreement({
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
-      latestStatus: AgreementStatus.Offered,
+      latestStatus: Status.Offered,
       history: [
         new AgreementHistoryEntry({
-          agreementStatus: AgreementStatus.Offered,
+          agreementStatus: Status.Offered,
           createdAt: "2024-01-01T12:00:00Z",
         }),
       ],
@@ -66,11 +69,15 @@ describe("acceptAgreementUseCase", () => {
       }),
     );
 
+    applyExternalStateChange.mockResolvedValue(true);
+
     await acceptAgreementUseCase({
       clientRef: "test-client-ref",
       code: "test-code",
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
+      source: "AS",
+      requestedStatus: AgreementStatus.Accepted,
     });
   });
 
@@ -84,6 +91,11 @@ describe("acceptAgreementUseCase", () => {
   it("updates the status of the application and marks agreement as accepted", () => {
     const appl = update.mock.calls[0][0];
     expect(appl).toBeInstanceOf(Application);
-    expect(appl.currentStatus).toBe(ApplicationStatus.Accepted);
+    expect(applyExternalStateChange).toHaveBeenCalledWith({
+      clientRef: "test-client-ref",
+      code: "test-code",
+      externalRequestedState: "accepted",
+      sourceSystem: "AS",
+    });
   });
 });

@@ -5,9 +5,9 @@ import { Outbox, OutboxStatus } from "../models/outbox.js";
 
 const collection = "outbox";
 
-const MAX_RETRIES = config.outboxMaxRetries;
-const EXPIRES_IN_MS = config.outboxExpiresMs;
-const NUMBER_OF_RECORDS = config.outboxClaimMaxRecords;
+const MAX_RETRIES = config.outbox.outboxMaxRetries;
+const EXPIRES_IN_MS = config.outbox.outboxExpiresMs;
+const NUMBER_OF_RECORDS = config.outbox.outboxClaimMaxRecords;
 
 export const claimEvents = async (claimedBy) => {
   const promises = [];

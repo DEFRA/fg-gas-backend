@@ -27,6 +27,10 @@ const schema = Joi.object({
   OUTBOX_EXPIRES_MS: Joi.number(),
   OUTBOX_CLAIM_MAX_RECORDS: Joi.number(),
   OUTBOX_POLL_MS: Joi.number(),
+  INBOX_MAX_RETRIES: Joi.number(),
+  INBOX_EXPIRES_MS: Joi.number(),
+  INBOX_CLAIM_MAX_RECORDS: Joi.number(),
+  INBOX_POLL_MS: Joi.number(),
   GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
@@ -65,10 +69,18 @@ export const config = {
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
   cdpEnvironment: vars.ENVIRONMENT,
-  outboxMaxRetries: vars.OUTBOX_MAX_RETRIES,
-  outboxExpiresMs: vars.OUTBOX_EXPIRES_MS,
-  outboxClaimMaxRecords: vars.OUTBOX_CLAIM_MAX_RECORDS,
-  outboxPollMs: vars.OUTBOX_POLL_MS,
+  outbox: {
+    outboxMaxRetries: vars.OUTBOX_MAX_RETRIES,
+    outboxExpiresMs: vars.OUTBOX_EXPIRES_MS,
+    outboxClaimMaxRecords: vars.OUTBOX_CLAIM_MAX_RECORDS,
+    outboxPollMs: vars.OUTBOX_POLL_MS,
+  },
+  inbox: {
+    inboxMaxRetries: vars.INBOX_MAX_RETRIES,
+    inboxExpiresMs: vars.INBOX_EXPIRES_MS,
+    inboxClaimMaxRecords: vars.INBOX_CLAIM_MAX_RECORDS,
+    inboxPollMs: vars.INBOX_POLL_MS,
+  },
   sns: {
     createAgreementTopicArn: vars.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
     grantApplicationCreatedTopicArn:
