@@ -44,6 +44,10 @@ jobs:
 
       - name: Run integration tests
         run: DEBUG=testcontainers:containers npm run test:integration
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+          PACT_USER: ${{ secrets.PACT_USER }}
+          PACT_PASS: ${{ secrets.PACT_PASS }}
 
       - name: Build docker image
         run: |
