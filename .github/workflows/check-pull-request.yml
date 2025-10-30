@@ -71,8 +71,7 @@ jobs:
       - name: Run contract tests
         env:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
-          PACT_BROKER_USERNAME: ${{ secrets.PACT_USER }}
-          PACT_BROKER_PASSWORD: ${{ secrets.PACT_PASS }}
-          # Provider service URL - should point to staging environment or pre-running service
+          PACT_USER: ${{ secrets.PACT_USER }}
+          PACT_PASS: ${{ secrets.PACT_PASS }}
           PROVIDER_BASE_URL: ${{ secrets.PROVIDER_BASE_URL }}
         run: npm run test:contracts

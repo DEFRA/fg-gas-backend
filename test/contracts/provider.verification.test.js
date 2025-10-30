@@ -19,10 +19,8 @@ describe("fg-gas-backend Provider Verification", () => {
       // Debug environment variables
       console.log("Environment check:");
       console.log("- PROVIDER_BASE_URL:", env.PROVIDER_BASE_URL || "[NOT SET]");
-      console.log(
-        "- PACT_BROKER_USERNAME:",
-        env.PACT_BROKER_USERNAME || "[NOT SET]",
-      );
+      console.log("- PACT_USER:", env.PACT_USER ? "[SET]" : "[NOT SET]");
+      console.log("- PACT_PASS:", env.PACT_PASS ? "[SET]" : "[NOT SET]");
       console.log("- Using Provider URL:", PROVIDER_BASE_URL);
 
       const opts = {
@@ -32,8 +30,8 @@ describe("fg-gas-backend Provider Verification", () => {
           env.PACT_BROKER_BASE_URL ||
           "https://ffc-pact-broker.azure.defra.cloud",
         consumerVersionSelectors: [{ latest: true }],
-        pactBrokerUsername: env.PACT_BROKER_USERNAME,
-        pactBrokerPassword: env.PACT_BROKER_PASSWORD,
+        pactBrokerUsername: env.PACT_USER,
+        pactBrokerPassword: env.PACT_PASS,
         stateHandlers: {
           // Mock all state handlers - focus on HTTP contract, not database setup
           "example-grant-with-auth-v3 is configured in fg-gas-backend":
