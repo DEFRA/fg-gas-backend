@@ -1,7 +1,13 @@
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 import neostandard from "neostandard";
 
+// Minimal workaround for CI rspack-resolver native binding issues
+process.env.DISABLE_NATIVE_RESOLVE = "true";
+
 export default [
+  {
+    ignores: ["test/reports/**", "coverage/**"],
+  },
   ...neostandard({
     env: ["node"],
   }),
