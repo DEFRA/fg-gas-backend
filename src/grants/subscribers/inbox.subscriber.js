@@ -26,6 +26,7 @@ export class InboxSubscriber {
 
   async poll() {
     while (this.running) {
+      logger.trace("polling inbox");
       const claimToken = randomUUID();
       const events = await claimEvents(claimToken);
       await this.processEvents(events);
@@ -106,9 +107,7 @@ export class InboxSubscriber {
   }
 
   async processEvents(events) {
-    logger.info(`Processing ${events.length} inbox messages`);
     await Promise.all(events.map((event) => this.handleEvent(event)));
-    logger.info("All inbox messages processed");
   }
 
   start() {
