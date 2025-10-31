@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "nodemon --env-file=.env src/main.js",
-    "lint": "eslint",
+    "lint": "DISABLE_NATIVE_RESOLVE=true eslint",
     "test": "npm run test:unit -- --run && npm run test:integration -- --run",
     "test:unit": "vitest --config vitest.config.js --dir src",
     "test:integration": "vitest --config test/vitest.config.js --dir test",
