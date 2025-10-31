@@ -27,6 +27,8 @@ export default [
         clearInterval: "readonly",
         setImmediate: "readonly",
         clearImmediate: "readonly",
+        URLSearchParams: "readonly",
+        structuredClone: "readonly",
       },
     },
     rules: {
