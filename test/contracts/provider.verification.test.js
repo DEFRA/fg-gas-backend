@@ -1,11 +1,7 @@
 import { Verifier } from "@pact-foundation/pact";
-import dotenv from "dotenv";
 import { createServer } from "http";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, it } from "vitest";
-
-// Load .env file for PACT_BROKER credentials
-dotenv.config();
 
 describe("fg-gas-backend Provider Verification", () => {
   let mockServer;
