@@ -1,5 +1,4 @@
 import { config } from "../../common/config.js";
-import { logger } from "../../common/logger.js";
 import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 
@@ -40,8 +39,6 @@ export const claimEvents = async (claimedBy) => {
   }
   const docs = await Promise.all(promises);
   const documents = docs.filter((d) => d !== null);
-
-  logger.info(`Found ${documents.length} outbox documents to process.`);
 
   return documents.map((doc) => Outbox.fromDocument(doc));
 };
