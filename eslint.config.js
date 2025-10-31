@@ -3,7 +3,7 @@ import eslintConfigPrettier from "eslint-config-prettier/flat";
 
 export default [
   {
-    ignores: ["test/reports/**", "coverage/**"],
+    ignores: ["test/reports/**", "coverage/**", "test/contracts/**"],
   },
   js.configs.recommended,
   eslintConfigPrettier,
@@ -33,10 +33,13 @@ export default [
     },
     rules: {
       "no-console": "error",
-      "prefer-const": "off", // Disabled for contract testing PR
+      "prefer-const": "error",
       "no-var": "error",
       eqeqeq: "error",
-      "no-unused-vars": "off", // Disabled for contract testing PR
+      "no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
     },
   },
   {
