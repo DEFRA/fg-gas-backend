@@ -50,3 +50,30 @@ jobs:
           set +e
           docker build --no-cache --tag fg-gas-backend .
           exit $?
+
+  contract-tests:
+    name: Run Contract Tests
+    runs-on: self-hosted
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run contract tests
+        run: |
+          # Run contract tests with separate linting
+          npm run lint:contracts
+          npm run test:contracts
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
+          PACT_USER: ${{ secrets.PACT_USER }}

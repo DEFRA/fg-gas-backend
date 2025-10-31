@@ -15,6 +15,7 @@ export default defineConfig({
       concurrent: false,
     },
     fileParallelism: false,
+    exclude: ["**/contracts/**"],
     env: {
       GAS_PORT,
       MONGO_PORT,
