@@ -2,22 +2,9 @@ import eslintConfigPrettier from "eslint-config-prettier/flat";
 import neostandard from "neostandard";
 
 export default [
-  {
-    ignores: ["test/reports/**", "coverage/**"],
-  },
   ...neostandard({
     env: ["node"],
   }),
-  {
-    settings: {
-      "import-x/resolver-next": null,
-      "import-x/resolver-legacy": {
-        node: {
-          extensions: [".js", ".json"],
-        },
-      },
-    },
-  },
   eslintConfigPrettier,
   {
     files: ["src/**/*"],
