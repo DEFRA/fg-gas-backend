@@ -47,9 +47,10 @@ export default [
     },
   },
   {
-    files: ["test/**/*", "**/*.test.js"],
+    files: ["test/**/*", "**/*.test.js", "scripts/**/*", "migrations/**/*"],
     rules: {
-      "no-console": "off", // Allow console in tests
+      "no-console": "off", // Allow console in tests, scripts, and migrations
+      "no-unused-vars": ["error", { argsIgnorePattern: "^_" }], // Allow unused vars with _ prefix
     },
   },
 ];
