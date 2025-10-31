@@ -69,11 +69,11 @@ jobs:
         run: npm ci
 
       - name: Run contract tests
-        run: npm run test:contracts
+        run: npm run test:contract
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
           PACT_USER: ${{ secrets.PACT_USER }}
           PACT_PASS: ${{ secrets.PACT_PASS }}
           DOCKER_HOST: unix:///var/run/docker.sock
-          TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock}
+          TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock

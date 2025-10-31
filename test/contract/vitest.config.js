@@ -9,7 +9,7 @@ export default defineConfig({
     testTimeout: 60000,
     environment: "node",
     globals: true,
-    setupFiles: ["./test/contracts/setup.js"],
+    setupFiles: ["./test/contract/setup.js"],
     sequence: {
       concurrent: false,
     },
