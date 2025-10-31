@@ -11,3 +11,4 @@ coverage
 .env
 /.env.test
 test/reports/
+src/contracts/consumer/pacts/
