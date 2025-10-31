@@ -68,21 +68,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check available services on self-hosted runner
-        run: |
-          echo "Checking for pre-running services..."
-          curl -f http://localhost:3001/health || echo "Port 3001: No service"
-          curl -f http://localhost:3002/health || echo "Port 3002: No service" 
-          curl -f http://localhost:3003/health || echo "Port 3003: No service"
-          curl -f http://localhost:3004/health || echo "Port 3004: No service"
-          curl -f http://localhost:3005/health || echo "Port 3005: No service"
-
-          echo "Checking MongoDB availability..."
-          nc -z localhost 27017 && echo "MongoDB on 27017: Available" || echo "MongoDB on 27017: Not available"
-          nc -z localhost 27018 && echo "MongoDB on 27018: Available" || echo "MongoDB on 27018: Not available"
-
       - name: Run contract tests
-        run: DEBUG=testcontainers:containers npm run test:contracts
+        run: npm run test:contracts
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud

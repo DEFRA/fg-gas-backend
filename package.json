@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "nodemon --env-file=.env src/main.js",
-    "lint": "NODE_OPTIONS='--require ./scripts/mock-rspack-resolver.cjs' NAPI_RS_FORCE_WASI=1 eslint",
+    "lint": "eslint",
     "test": "npm run test:unit -- --run && npm run test:integration -- --run",
     "test:unit": "vitest --config vitest.config.js --dir src",
     "test:integration": "vitest --config test/vitest.config.js --dir test",
@@ -60,7 +60,6 @@
     "dotenv": "^17.2.2",
     "eslint": "^9.38.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-import-resolver-node": "^0.3.9",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.4",
     "neostandard": "^0.12.1",
