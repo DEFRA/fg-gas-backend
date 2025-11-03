@@ -87,6 +87,14 @@ describe("fg-gas-backend Provider Verification", () => {
     // Set environment variables for server configuration
     process.env.PORT = "0"; // Use random available port
     process.env.MONGO_URI = "mongodb://mocked-mongo/test"; // Mocked MongoDB URI
+    process.env.SERVICE_NAME = "fg-gas-backend";
+    process.env.SERVICE_VERSION = "test";
+    process.env.LOG_ENABLED = "false";
+    process.env.LOG_LEVEL = "error";
+    process.env.TRACING_HEADER = "x-test";
+    process.env.ENVIRONMENT = "test";
+    process.env.OUTBOX_POLL_MS = "1000";
+    process.env.INBOX_POLL_MS = "1000";
 
     // Start the real fg-gas-backend server with mocked dependencies
     const { createServer } = await import("../../src/server.js");
