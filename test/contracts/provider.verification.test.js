@@ -87,13 +87,22 @@ describe("fg-gas-backend Provider Verification", () => {
     // Set environment variables for server configuration
     process.env.PORT = "0"; // Use random available port
     process.env.MONGO_URI = "mongodb://mocked-mongo/test"; // Mocked MongoDB URI
+    process.env.MONGO_DATABASE = "test";
     process.env.SERVICE_NAME = "fg-gas-backend";
     process.env.SERVICE_VERSION = "test";
     process.env.LOG_ENABLED = "false";
     process.env.LOG_LEVEL = "error";
+    process.env.LOG_FORMAT = "pino-pretty";
     process.env.TRACING_HEADER = "x-test";
+    process.env.AWS_REGION = "eu-west-2";
     process.env.ENVIRONMENT = "test";
+    process.env.OUTBOX_MAX_RETRIES = "5";
+    process.env.OUTBOX_CLAIM_MAX_RECORDS = "2";
+    process.env.OUTBOX_EXPIRES_MS = "5000";
     process.env.OUTBOX_POLL_MS = "1000";
+    process.env.INBOX_MAX_RETRIES = "5";
+    process.env.INBOX_CLAIM_MAX_RECORDS = "2";
+    process.env.INBOX_EXPIRES_MS = "5000";
     process.env.INBOX_POLL_MS = "1000";
 
     // Start the real fg-gas-backend server with mocked dependencies
