@@ -25,8 +25,18 @@ vi.mock("mongodb", () => ({
             required: ["applicantName", "applicantEmail"],
           },
         }),
+        findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
         insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
+        insertMany: vi
+          .fn()
+          .mockResolvedValue({ insertedCount: 0, insertedIds: [] }),
         replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
+        updateOne: vi
+          .fn()
+          .mockResolvedValue({ acknowledged: true, matchedCount: 1 }),
+        updateMany: vi
+          .fn()
+          .mockResolvedValue({ acknowledged: true, matchedCount: 0 }),
         createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
       }),
     }),
