@@ -11,3 +11,7 @@ This directory contains comprehensive TestContainers-based integration tests tha
 ## Running Tests
 
 `npm run test:integration`
+
+## Contract Tests
+
+`npm run test:contract`
