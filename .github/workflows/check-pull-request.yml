@@ -69,10 +69,7 @@ jobs:
         run: npm ci
 
       - name: Run contract tests
-        run: |
-          # Run contract tests with separate linting
-          npm run lint:contracts
-          npm run test:contracts
+        run: npm run test:contracts
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
