@@ -1,13 +1,12 @@
 import { config } from "../../common/config.js";
-import { logger } from "../../common/logger.js";
 import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 
 const collection = "outbox";
 
-const MAX_RETRIES = config.outboxMaxRetries;
-const EXPIRES_IN_MS = config.outboxExpiresMs;
-const NUMBER_OF_RECORDS = config.outboxClaimMaxRecords;
+const MAX_RETRIES = config.outbox.outboxMaxRetries;
+const EXPIRES_IN_MS = config.outbox.outboxExpiresMs;
+const NUMBER_OF_RECORDS = config.outbox.outboxClaimMaxRecords;
 
 export const claimEvents = async (claimedBy) => {
   const promises = [];
@@ -40,8 +39,6 @@ export const claimEvents = async (claimedBy) => {
   }
   const docs = await Promise.all(promises);
   const documents = docs.filter((d) => d !== null);
-
-  logger.info(`Found ${documents.length} outbox documents to process.`);
 
   return documents.map((doc) => Outbox.fromDocument(doc));
 };

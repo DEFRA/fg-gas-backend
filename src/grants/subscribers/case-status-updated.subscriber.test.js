@@ -1,31 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { approveApplicationUseCase } from "../use-cases/approve-application.use-case.js";
+import { describe, expect, it, vi } from "vitest";
+import { saveInboxMessageUseCase } from "../use-cases/save-inbox-message.use-case.js";
 import { caseStatusUpdatedSubscriber } from "./case-status-updated.subscriber.js";
-
-vi.mock("../use-cases/approve-application.use-case.js");
+vi.mock("../use-cases/save-inbox-message.use-case.js");
 
 describe("case status updated subscriber", () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-  });
-
-  it("should approve a case/application", async () => {
+  it("should save message to inbox", async () => {
     const message = {
       data: {
+        caseRef: "TEST-CASE-123",
         currentStatus: "APPROVED",
       },
     };
     await caseStatusUpdatedSubscriber.onMessage(message);
-    expect(approveApplicationUseCase).toHaveBeenCalled();
-  });
-
-  it("should not approve a case/application if currentStatus is not approved", async () => {
-    const message = {
-      data: {
-        currentStatus: "WITHDRAWN",
-      },
-    };
-    await caseStatusUpdatedSubscriber.onMessage(message);
-    expect(approveApplicationUseCase).not.toHaveBeenCalled();
+    expect(saveInboxMessageUseCase).toHaveBeenCalledWith(message, "CW");
   });
 });
