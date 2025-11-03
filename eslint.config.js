@@ -7,6 +7,13 @@ export default [
   }),
   eslintConfigPrettier,
   {
+    settings: {
+      "import-x/resolver": {
+        node: true,
+      },
+    },
+  },
+  {
     files: ["src/**/*"],
     rules: {
       "func-style": ["error", "expression"],

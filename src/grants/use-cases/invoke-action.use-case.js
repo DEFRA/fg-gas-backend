@@ -47,11 +47,8 @@ export const invokeActionUseCase = async ({
 
 // Keep the existing helper functions unchanged
 const parameterisedUrl = (params, url, code) => {
-  let { queryParams, url: newUrl } = updateUrlAndExtractQueryParam(
-    params,
-    code,
-    url,
-  );
+  const { queryParams } = updateUrlAndExtractQueryParam(params, code, url);
+  let { url: newUrl } = updateUrlAndExtractQueryParam(params, code, url);
   errorIfUnassignedPlaceholders(newUrl, code);
   newUrl = addQueryParams(queryParams, newUrl);
 
