@@ -102,6 +102,16 @@ describe("fg-gas-backend Provider Verification", () => {
     const { health } = await import("../../src/health/index.js");
 
     server = await createServer();
+
+    // Add error logging for debugging
+    server.events.on(
+      { name: "request", channels: "error" },
+      (request, event) => {
+        console.error("Request error:", event.error?.message || event.error);
+        console.error("Stack:", event.error?.stack);
+      },
+    );
+
     await server.register([health, grants]);
     await server.start();
     mockPort = server.info.port;
