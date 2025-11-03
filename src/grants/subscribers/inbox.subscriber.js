@@ -16,6 +16,7 @@ import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreemen
 
 export const useCaseMap = {
   "io.onsite.agreement.offer.offered": handleAgreementStatusChangeUseCase,
+  "io.onsite.agreement.status.updated": handleAgreementStatusChangeUseCase,
 };
 
 export class InboxSubscriber {
