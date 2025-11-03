@@ -2,88 +2,62 @@ import { Verifier } from "@pact-foundation/pact";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, it, vi } from "vitest";
 
+// Mock MongoDB at the top level before any imports
+vi.mock("mongodb", () => ({
+  MongoClient: vi.fn().mockImplementation(() => ({
+    connect: vi.fn().mockResolvedValue(),
+    close: vi.fn().mockResolvedValue(),
+    db: vi.fn().mockReturnValue({
+      collection: vi.fn().mockReturnValue({
+        findOne: vi.fn().mockResolvedValue({
+          code: "example-grant-with-auth-v3",
+          metadata: {
+            description: "Example Grant with Auth v3",
+            startDate: "2025-01-01T00:00:00.000Z",
+          },
+          actions: [],
+          questions: {
+            type: "object",
+            properties: {
+              applicantName: { type: "string" },
+              applicantEmail: { type: "string" },
+            },
+            required: ["applicantName", "applicantEmail"],
+          },
+        }),
+        insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
+        replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
+        createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
+      }),
+    }),
+  })),
+}));
+
+// Mock AWS services to avoid external dependencies
+vi.mock("@aws-sdk/client-sns", () => ({
+  SNSClient: vi.fn().mockImplementation(() => ({
+    send: vi.fn().mockResolvedValue({ MessageId: "test-message-id" }),
+  })),
+  PublishCommand: vi.fn(),
+}));
+
+vi.mock("@aws-sdk/client-sqs", () => ({
+  SQSClient: vi.fn().mockImplementation(() => ({
+    send: vi.fn().mockResolvedValue({ MessageId: "test-message-id" }),
+  })),
+  SendMessageCommand: vi.fn(),
+}));
+
+// Mock migrate-mongo to avoid database migrations
+vi.mock("migrate-mongo", () => ({
+  up: vi.fn().mockResolvedValue([]),
+}));
+
 describe("fg-gas-backend Provider Verification", () => {
   let server;
   let mockPort;
 
   beforeAll(async () => {
-    // Mock MongoDB client to avoid database dependencies
-    vi.doMock("../common/mongo-client.js", () => ({
-      mongoClient: {
-        connect: vi.fn(),
-        close: vi.fn(),
-        db: vi.fn().mockReturnValue({
-          collection: vi.fn().mockReturnValue({
-            findOne: vi.fn().mockResolvedValue({
-              code: "example-grant-with-auth-v3",
-              metadata: {
-                description: "Example Grant with Auth v3",
-                startDate: "2025-01-01T00:00:00.000Z",
-              },
-              actions: [],
-              questions: {
-                type: "object",
-                properties: {
-                  applicantName: { type: "string" },
-                  applicantEmail: { type: "string" },
-                },
-                required: ["applicantName", "applicantEmail"],
-              },
-            }),
-            insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
-            replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
-            createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
-          }),
-        }),
-      },
-    }));
-
-    // Mock MongoDB to avoid database dependencies
-    vi.doMock("mongodb", () => ({
-      MongoClient: {
-        connect: vi.fn().mockResolvedValue({
-          db: vi.fn().mockReturnValue({
-            collection: vi.fn().mockReturnValue({
-              findOne: vi.fn().mockResolvedValue({
-                code: "example-grant-with-auth-v3",
-                metadata: {
-                  description: "Example Grant with Auth v3",
-                  startDate: "2025-01-01T00:00:00.000Z",
-                },
-                actions: [],
-                questions: {
-                  type: "object",
-                  properties: {
-                    applicantName: { type: "string" },
-                    applicantEmail: { type: "string" },
-                  },
-                  required: ["applicantName", "applicantEmail"],
-                },
-              }),
-              insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
-              createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
-            }),
-          }),
-          close: vi.fn().mockResolvedValue(),
-        }),
-      },
-    }));
-
-    // Mock AWS services to avoid external dependencies
-    vi.doMock("@aws-sdk/client-sns", () => ({
-      SNSClient: vi.fn().mockImplementation(() => ({
-        send: vi.fn().mockResolvedValue({ MessageId: "test-message-id" }),
-      })),
-      PublishCommand: vi.fn(),
-    }));
-
-    vi.doMock("@aws-sdk/client-sqs", () => ({
-      SQSClient: vi.fn().mockImplementation(() => ({
-        send: vi.fn().mockResolvedValue({ MessageId: "test-message-id" }),
-      })),
-      SendMessageCommand: vi.fn(),
-    }));
-
     // Set environment variables for server configuration
     process.env.PORT = "0"; // Use random available port
     process.env.MONGO_URI = "mongodb://mocked-mongo/test"; // Mocked MongoDB URI
