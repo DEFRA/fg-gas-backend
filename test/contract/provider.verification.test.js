@@ -31,6 +31,26 @@ vi.mock("mongodb", () => ({
             },
             required: ["applicantName", "applicantEmail"],
           },
+          phases: [
+            {
+              code: "APPLICATION",
+              name: "Application",
+              description: "Application phase",
+              questions: {},
+              stages: [
+                {
+                  code: "SUBMIT",
+                  name: "Submit",
+                  description: "Submit application",
+                  statuses: [
+                    {
+                      code: "RECEIVED",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
         }),
         findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
         insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
