@@ -1,53 +1,118 @@
 import { Verifier } from "@pact-foundation/pact";
-import { createServer } from "http";
 import { env } from "node:process";
-import { afterAll, beforeAll, describe, it } from "vitest";
+import { afterAll, beforeAll, describe, it, vi } from "vitest";
 
 describe("fg-gas-backend Provider Verification", () => {
-  let mockServer;
+  let server;
   let mockPort;
 
   beforeAll(async () => {
-    // Create a simple mock server that responds like fg-gas-backend should
-    mockServer = createServer((req, res) => {
-      console.log(`Mock provider received: ${req.method} ${req.url}`);
+    // Mock MongoDB client to avoid database dependencies
+    vi.doMock("../common/mongo-client.js", () => ({
+      mongoClient: {
+        connect: vi.fn(),
+        close: vi.fn(),
+        db: vi.fn().mockReturnValue({
+          collection: vi.fn().mockReturnValue({
+            findOne: vi.fn().mockResolvedValue({
+              code: "example-grant-with-auth-v3",
+              metadata: {
+                description: "Example Grant with Auth v3",
+                startDate: "2025-01-01T00:00:00.000Z",
+              },
+              actions: [],
+              questions: {
+                type: "object",
+                properties: {
+                  applicantName: { type: "string" },
+                  applicantEmail: { type: "string" },
+                },
+                required: ["applicantName", "applicantEmail"],
+              },
+            }),
+            insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
+            replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
+            createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
+          }),
+        }),
+      },
+    }));
 
-      // Handle the grant application submission endpoint
-      if (
-        req.method === "POST" &&
-        req.url.includes("/grants/") &&
-        req.url.includes("/applications")
-      ) {
-        // For the happy path contract test - grant exists, application is valid
-        res.writeHead(204, { "Content-Type": "application/json" });
-        res.end(); // No content for 204 response
-        return;
-      }
+    // Mock MongoDB to avoid database dependencies
+    vi.doMock("mongodb", () => ({
+      MongoClient: {
+        connect: vi.fn().mockResolvedValue({
+          db: vi.fn().mockReturnValue({
+            collection: vi.fn().mockReturnValue({
+              findOne: vi.fn().mockResolvedValue({
+                code: "example-grant-with-auth-v3",
+                metadata: {
+                  description: "Example Grant with Auth v3",
+                  startDate: "2025-01-01T00:00:00.000Z",
+                },
+                actions: [],
+                questions: {
+                  type: "object",
+                  properties: {
+                    applicantName: { type: "string" },
+                    applicantEmail: { type: "string" },
+                  },
+                  required: ["applicantName", "applicantEmail"],
+                },
+              }),
+              insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
+              createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
+            }),
+          }),
+          close: vi.fn().mockResolvedValue(),
+        }),
+      },
+    }));
 
-      // Default response for other endpoints
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Not Found" }));
-    });
+    // Mock AWS services to avoid external dependencies
+    vi.doMock("@aws-sdk/client-sns", () => ({
+      SNSClient: vi.fn().mockImplementation(() => ({
+        send: vi.fn().mockResolvedValue({ MessageId: "test-message-id" }),
+      })),
+      PublishCommand: vi.fn(),
+    }));
 
-    // Start server on a random available port
-    await new Promise((resolve) => {
-      mockServer.listen(0, () => {
-        mockPort = mockServer.address().port;
-        console.log(`Mock provider server started on port ${mockPort}`);
-        resolve();
-      });
-    });
+    vi.doMock("@aws-sdk/client-sqs", () => ({
+      SQSClient: vi.fn().mockImplementation(() => ({
+        send: vi.fn().mockResolvedValue({ MessageId: "test-message-id" }),
+      })),
+      SendMessageCommand: vi.fn(),
+    }));
+
+    // Set environment variables for server configuration
+    process.env.PORT = "0"; // Use random available port
+    process.env.MONGO_URI = "mongodb://mocked-mongo/test"; // Mocked MongoDB URI
+
+    // Start the real fg-gas-backend server with mocked dependencies
+    const { createServer } = await import("../../src/server.js");
+    const { grants } = await import("../../src/grants/index.js");
+    const { health } = await import("../../src/health/index.js");
+
+    server = await createServer();
+    await server.register([health, grants]);
+    await server.start();
+    mockPort = server.info.port;
+
+    console.log(`Real fg-gas-backend server started on port ${mockPort}`);
   });
 
   afterAll(async () => {
-    if (mockServer) {
-      mockServer.close();
+    if (server) {
+      await server.stop();
     }
+    vi.restoreAllMocks();
   });
 
   describe("Contract Verification", () => {
     it("should verify contracts from grants-ui consumer", async () => {
-      console.log("Running contract verification against mock provider");
+      console.log(
+        "Running contract verification against real fg-gas-backend with mocked dependencies",
+      );
 
       const opts = {
         provider: "fg-gas-backend",
@@ -59,78 +124,90 @@ describe("fg-gas-backend Provider Verification", () => {
         pactBrokerUsername: env.PACT_USER,
         pactBrokerPassword: env.PACT_PASS,
         stateHandlers: {
-          // Mock state handlers - simulate that grants are configured
+          // State handlers with mocked backend - real service, mocked data layer
           "example-grant-with-auth-v3 is configured in fg-gas-backend":
             async () => {
               console.log(
-                "State: example-grant-with-auth-v3 is configured (mocked for contract testing)",
+                "State: example-grant-with-auth-v3 is configured (real service, mocked data)",
               );
-              // Mock provider assumes grant is properly configured
+              // Real service will use mocked MongoDB that returns the grant
               return Promise.resolve();
             },
 
           "adding value grant scheme is available": async () => {
             console.log(
-              "State: adding value grant scheme is available (mocked)",
+              "State: adding value grant scheme is available (real service, mocked data)",
             );
             return Promise.resolve();
           },
 
           "adding value grant has minimum cost threshold": async () => {
-            console.log("State: grant has minimum cost threshold (mocked)");
+            console.log(
+              "State: grant has minimum cost threshold (real service, mocked data)",
+            );
             return Promise.resolve();
           },
 
           "application submission service is available": async () => {
             console.log(
-              "State: application submission service is available (mocked)",
+              "State: application submission service is available (real service, mocked data)",
             );
             return Promise.resolve();
           },
 
           "application validation is enforced": async () => {
-            console.log("State: application validation is enforced (mocked)");
+            console.log(
+              "State: application validation is enforced (real service, mocked data)",
+            );
             return Promise.resolve();
           },
 
           "application AV-2024-001 exists and is under review": async () => {
-            console.log("State: application AV-2024-001 exists (mocked)");
+            console.log(
+              "State: application AV-2024-001 exists (real service, mocked data)",
+            );
             return Promise.resolve();
           },
 
           "application AV-2024-999 does not exist": async () => {
             console.log(
-              "State: application AV-2024-999 does not exist (mocked)",
+              "State: application AV-2024-999 does not exist (real service, mocked data)",
             );
             return Promise.resolve();
           },
 
           "grants are available in the system": async () => {
-            console.log("State: grants are available in the system (mocked)");
+            console.log(
+              "State: grants are available in the system (real service, mocked data)",
+            );
             return Promise.resolve();
           },
 
           "grant frps-private-beta exists": async () => {
-            console.log("State: grant frps-private-beta exists (mocked)");
+            console.log(
+              "State: grant frps-private-beta exists (real service, mocked data)",
+            );
             return Promise.resolve();
           },
 
           "grant system is available for application submission": async () => {
             console.log(
-              "State: grant system is available for application submission (mocked)",
+              "State: grant system is available for application submission (real service, mocked data)",
             );
             return Promise.resolve();
           },
 
           "grant system validates grant codes": async () => {
-            console.log("State: grant system validates grant codes (mocked)");
+            console.log(
+              "State: grant system validates grant codes (real service, mocked data)",
+            );
             return Promise.resolve();
           },
 
           "application with clientRef duplicate-ref-123 already exists":
             async () => {
               console.log(
-                "State: application with duplicate clientRef exists (mocked)",
+                "State: application with duplicate clientRef exists (real service, mocked data)",
               );
               return Promise.resolve();
             },
@@ -138,33 +215,37 @@ describe("fg-gas-backend Provider Verification", () => {
           "application AV240115001 is approved and ready for agreement":
             async () => {
               console.log(
-                "State: application approved and ready for agreement (mocked)",
+                "State: application approved and ready for agreement (real service, mocked data)",
               );
               return Promise.resolve();
             },
 
           "application AV240199999 does not exist": async () => {
             console.log(
-              "State: application AV240199999 does not exist (mocked)",
+              "State: application AV240199999 does not exist (real service, mocked data)",
             );
             return Promise.resolve();
           },
 
           "application AV240116001 exists but is still under review":
             async () => {
-              console.log("State: application under review (mocked)");
+              console.log(
+                "State: application under review (real service, mocked data)",
+              );
               return Promise.resolve();
             },
 
           "application AV240115001 is approved": async () => {
-            console.log("State: application is approved (mocked)");
+            console.log(
+              "State: application is approved (real service, mocked data)",
+            );
             return Promise.resolve();
           },
 
           "application AV240115001 has detailed parcel information":
             async () => {
               console.log(
-                "State: application has detailed parcel information (mocked)",
+                "State: application has detailed parcel information (real service, mocked data)",
               );
               return Promise.resolve();
             },
