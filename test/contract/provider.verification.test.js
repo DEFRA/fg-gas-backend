@@ -7,6 +7,13 @@ vi.mock("mongodb", () => ({
   MongoClient: vi.fn().mockImplementation(() => ({
     connect: vi.fn().mockResolvedValue(),
     close: vi.fn().mockResolvedValue(),
+    startSession: vi.fn().mockReturnValue({
+      withTransaction: vi.fn().mockImplementation(async (callback) => {
+        // Execute callback with mock session
+        return callback({});
+      }),
+      endSession: vi.fn().mockResolvedValue(),
+    }),
     db: vi.fn().mockReturnValue({
       collection: vi.fn().mockReturnValue({
         findOne: vi.fn().mockResolvedValue({
