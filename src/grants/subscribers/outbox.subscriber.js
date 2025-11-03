@@ -17,17 +17,17 @@ export class OutboxSubscriber {
   asyncLocalStorage = new AsyncLocalStorage();
 
   constructor() {
-    this.interval = config.outboxPollMs;
+    this.interval = config.outbox.outboxPollMs;
     this.running = false;
   }
 
   async poll() {
     while (this.running) {
+      logger.trace("Polling outbox");
       const claimToken = randomUUID();
       const pendingEvents = await claimEvents(claimToken);
 
       if (pendingEvents?.length > 0) {
-        logger.info(`Claimed ${pendingEvents.length} outbox events`);
         this.asyncLocalStorage.run(claimToken, async () =>
           this.processEvents(pendingEvents),
         );
@@ -42,62 +42,60 @@ export class OutboxSubscriber {
   }
 
   async processExpiredEvents() {
-    logger.info("Processing expired outbox events");
     const results = await updateExpiredEvents();
-    logger.info(`Updated ${results?.modifiedCount} expired outbox events`);
+    results?.modifiedCount &&
+      logger.trace(`Updated ${results?.modifiedCount} expired outbox events`);
   }
 
   async processDeadEvents() {
-    logger.info("Processing dead outbox events");
     const results = await updateDeadEvents();
-    logger.info(`Updated ${results?.modifiedCount} dead outbox events`);
+    results?.modifiedCount &&
+      logger.trace(`Updated ${results?.modifiedCount} dead outbox events`);
   }
 
   async processResubmittedEvents() {
-    logger.info("Processing resubmitted outbox events");
     const results = await updateResubmittedEvents();
-    logger.info(`Updated ${results?.modifiedCount} resubmitted outbox events`);
+    results?.modifiedCount &&
+      logger.trace(
+        `Updated ${results?.modifiedCount} resubmitted outbox events`,
+      );
   }
 
   async processFailedEvents() {
-    logger.info("Processing failed outbox events");
     const results = await updateFailedEvents();
-    logger.info(`Updated ${results?.modifiedCount} failed outbox events`);
+    results?.modifiedCount &&
+      logger.trace(`Updated ${results?.modifiedCount} failed outbox events`);
   }
 
   async markEventUnsent(event) {
     const claimedBy = this.asyncLocalStorage.getStore();
-    logger.info(`mark event failed with claim token: ${claimedBy}`);
     event.markAsFailed();
     await update(event, claimedBy);
-    logger.info(`Marked outbox event unsent ${event._id}`);
+    logger.trace(`Marked outbox event unsent ${event._id}`);
   }
 
   async markEventComplete(event) {
     const claimedBy = this.asyncLocalStorage.getStore();
-    logger.info(`mark event complete with claim token: ${claimedBy}`);
     event.markAsComplete();
     await update(event, claimedBy);
-    logger.info(`Marked outbox event as complete: ${event._id}`);
+    logger.trace(`Marked outbox event as complete: ${event._id}`);
   }
 
   async sendEvent(event) {
     const { target: topic, event: data } = event;
-    logger.info(`Send outbox event to ${topic}`);
+    logger.trace(`Send outbox event to ${topic}`);
     try {
       await publish(topic, data);
       await this.markEventComplete(event);
     } catch (ex) {
-      logger.error(`Error sending outbox event to topic ${topic}`);
       logger.error(ex);
       this.markEventUnsent(event);
     }
   }
 
   async processEvents(events) {
-    logger.info(`Processing ${events.length} outbox events.`);
     await Promise.all(events.map((event) => this.sendEvent(event)));
-    logger.info("All outbox events processed.");
+    logger.trace("All outbox events processed.");
   }
 
   async start() {
