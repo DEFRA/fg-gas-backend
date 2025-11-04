@@ -6,6 +6,13 @@ export default defineConfig({
     restoreMocks: true,
     coverage: {
       reporter: ["text", "lcov", "html"],
+      include: ["src/**/*.js"],
+      exclude: [
+        "**/migrations/**",
+        "**/src/main.js",
+        "**/test/**",
+        "**/scripts/**",
+      ],
     },
     env: {
       NODE_ENV: "test",
