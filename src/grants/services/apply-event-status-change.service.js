@@ -19,7 +19,6 @@ import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { CreateAgreementCommand } from "../events/create-agreement.command.js";
 import { Outbox } from "../models/outbox.js";
 import {
   findByClientRefAndCode,
@@ -27,6 +26,10 @@ import {
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+// eslint-disable-next-line import-x/no-restricted-paths
+import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
+// eslint-disable-next-line import-x/no-restricted-paths
+import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 
 /**
  * Maps an external status to an internal state and validates the mapping.
@@ -59,34 +62,13 @@ const updateApplicationState = (application, validMapping) => {
   application.updatedAt = new Date().toISOString();
 };
 
-// ============================================================================
-// OUTBOX CREATION - Entry Process Handlers
-// ============================================================================
-// "Entry processes" are side-effect actions that should be triggered when
-// an application transitions into a specific state. For example, when an
-// application moves to an "approved" state, we might need to generate an
-// agreement document. These processes are defined in the grant configuration
-// and are executed by publishing messages to the outbox for eventual processing.
-
 /**
- * Registry mapping process names to their outbox record creators.
- * Each entry process (e.g., "GENERATE_AGREEMENT") has a corresponding
- * function that creates an outbox record with the appropriate command/event.
- */
-const getOutboxCreatorForProcess = (processName) => {
+  mapping for transition process to use-cases
+*/
+const getHandlerForProcess = (processName) => {
   const processHandlers = {
-    // When entering a state that requires an agreement, create a command
-    // to generate the agreement document asynchronously
-    GENERATE_AGREEMENT: (application) => {
-      const createAgreementCommand = new CreateAgreementCommand(application);
-      return new Outbox({
-        event: createAgreementCommand,
-        target: config.sns.createAgreementTopicArn,
-      });
-    },
-    STORE_AGREEMENT_CASE: () => {
-      logger.info("TODO: STORE_AGREEMENT_CASE");
-    },
+    GENERATE_AGREEMENT: createAgreementCommandUseCase,
+    STORE_AGREEMENT_CASE: addAgreementUseCase,
     // Add more process handlers here as needed
   };
 
@@ -94,41 +76,28 @@ const getOutboxCreatorForProcess = (processName) => {
 };
 
 /**
- * Creates an outbox record for a single entry process.
- * Entry processes are actions that need to happen when transitioning into a state,
- * like sending notifications, generating documents, or triggering external workflows.
+Attempt to map any additional actions that may need to be performed
+on this state transition to a usecase which will be exectuted within the 
+withTransaction call
  */
-const createOutboxRecordForEntryProcess = (processName, application) => {
-  const outboxCreator = getOutboxCreatorForProcess(processName);
-  if (outboxCreator) {
-    return outboxCreator(application);
-  }
-  return null;
-};
-
-/**
- * Creates outbox records for all entry processes defined in the transition.
- * When an application transitions to a new state, the grant configuration may
- * specify multiple processes that should be triggered (e.g., send notification,
- * generate agreement, update external system). This function creates outbox
- * records for all of them.
- */
-const createOutboxRecordsForAllEntryProcesses = (
-  transitionValidation,
-  application,
-) => {
+// eslint-disable-next-line complexity
+const getHandlersForAllEntryProcesses = (transitionValidation) => {
   if (!transitionValidation.entryProcesses) {
     return [];
   }
 
-  const outboxRecords = [];
-  for (const processName of transitionValidation.entryProcesses) {
-    const outbox = createOutboxRecordForEntryProcess(processName, application);
-    if (outbox) {
-      outboxRecords.push(outbox);
+  const handlers = [];
+
+  if (typeof transitionValidation.entryProcesses === "string") {
+    const handler = getHandlerForProcess(transitionValidation.entryProcesses);
+    handler && handlers.push(handler);
+  } else {
+    for (const processName of transitionValidation.entryProcesses) {
+      const handler = getHandlerForProcess(processName);
+      handler && handlers.push(handler);
     }
   }
-  return outboxRecords;
+  return handlers;
 };
 
 /**
@@ -136,15 +105,17 @@ const createOutboxRecordsForAllEntryProcesses = (
  * This publishes an ApplicationStatusUpdatedEvent that downstream systems can
  * subscribe to (e.g., case working service, agreement service).
  */
+// TODO move this to a usecase
 const createOutboxForStatusUpdate = (
   application,
   originalFullyQualifiedStatus,
   newFullyQualifiedStatus,
 ) => {
   if (originalFullyQualifiedStatus !== newFullyQualifiedStatus) {
+    const { clientRef, code } = application;
     const statusEvent = new ApplicationStatusUpdatedEvent({
-      clientRef: application.clientRef,
-      code: application.code,
+      clientRef,
+      code,
       previousStatus: originalFullyQualifiedStatus,
       currentStatus: newFullyQualifiedStatus,
     });
@@ -170,6 +141,7 @@ const createOutboxForStatusUpdate = (
  *
  * Returns null if the transition is invalid (no mapping or not allowed by grant rules).
  */
+// eslint-disable-next-line complexity
 const processStateTransition = (application, grant, command) => {
   const originalFullyQualifiedStatus = application.getFullyQualifiedStatus();
 
@@ -199,22 +171,20 @@ const processStateTransition = (application, grant, command) => {
   // Collect all outbox records
   const outboxRecords = [];
   // Add status update outbox record if status changed
-  const statusUpdateOutbox = createOutboxForStatusUpdate(
+  const outboxMessages = createOutboxForStatusUpdate(
     application,
     originalFullyQualifiedStatus,
     newFullyQualifiedStatus,
+    command.eventData,
   );
-  if (statusUpdateOutbox) {
-    outboxRecords.push(statusUpdateOutbox);
+  if (outboxMessages?.length > 0) {
+    outboxRecords.concat(outboxMessages);
   }
 
-  // Add entry process outbox records
-  const entryProcessOutboxes = createOutboxRecordsForAllEntryProcesses(
-    transitionValidation,
-    application,
-  );
-  outboxRecords.push(...entryProcessOutboxes);
-  return { application, outboxRecords };
+  // some transitions require additional logic - this is handled by external use
+  // cases and run alongside the application update.
+  const handlers = getHandlersForAllEntryProcesses(transitionValidation);
+  return { application, outboxRecords, handlers };
 };
 
 // ============================================================================
@@ -259,7 +229,9 @@ const saveApplicationWithOutbox = async (
  */
 export const applyExternalStateChange = async (command) => {
   return withTransaction(async (session) => {
-    logger.info("applyExternalStateChange", command);
+    logger.info("applyExternalStateChange");
+    logger.info(command);
+
     const { clientRef, code } = command;
     const application = await findByClientRefAndCode({ clientRef, code });
 
@@ -278,16 +250,25 @@ export const applyExternalStateChange = async (command) => {
     const result = processStateTransition(application, grant, command);
 
     if (result) {
-      const { application: updatedApplication, outboxRecords } = result;
-      return await saveApplicationWithOutbox(
+      const {
+        application: updatedApplication,
+        outboxRecords,
+        handlers,
+      } = result;
+      await saveApplicationWithOutbox(
         updatedApplication,
         outboxRecords,
         session,
       );
+      await Promise.all(
+        handlers.map((handler) =>
+          handler({ application: updatedApplication, command }, session),
+        ),
+      );
+    } else {
+      throw new Error(
+        `Unable to process state change from ${application.currentStatus} to ${command.externalRequestedState}`,
+      );
     }
-
-    throw new Error(
-      `Unable to process state change from ${application.currentStatus} to ${command.externalRequestedState}`,
-    );
   });
 };

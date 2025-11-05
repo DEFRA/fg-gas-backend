@@ -15,7 +15,6 @@ import { applyExternalStateChange } from "../services/apply-event-status-change.
 import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
 
 export const useCaseMap = {
-  "io.onsite.agreement.offer.offered": handleAgreementStatusChangeUseCase,
   "io.onsite.agreement.status.updated": handleAgreementStatusChangeUseCase,
 };
 
@@ -79,17 +78,20 @@ export class InboxSubscriber {
       const { data } = event;
 
       const handler = useCaseMap[type];
+      const status = data.currentStatus || data.status || null;
+      const clientRef = data.clientRef || data.caseRef || null;
+      const code = data.workflowCode || data.code || null;
 
       if (handler) {
         await withTraceParent(traceparent, async () => handler(msg));
-      } else if (event.data.currentStatus && source) {
+      } else if (status && source) {
         // status transition/update
         await withTraceParent(traceparent, async () =>
           applyExternalStateChange({
             sourceSystem: source,
-            clientRef: data.caseRef,
-            code: data.workflowCode,
-            externalRequestedState: data.currentStatus,
+            clientRef,
+            code,
+            externalRequestedState: status,
             eventData: data,
           }),
         );
