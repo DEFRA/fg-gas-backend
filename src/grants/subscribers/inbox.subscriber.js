@@ -15,7 +15,7 @@ import { applyExternalStateChange } from "../services/apply-event-status-change.
 import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
 
 export const useCaseMap = {
-  "io.onsite.agreement.status.updated": handleAgreementStatusChangeUseCase,
+  "io.onsite.agreement.status.foo": handleAgreementStatusChangeUseCase,
 };
 
 export class InboxSubscriber {
