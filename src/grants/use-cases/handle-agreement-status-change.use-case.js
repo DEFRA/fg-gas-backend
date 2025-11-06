@@ -1,6 +1,5 @@
 import Boom from "@hapi/boom";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
-import { addAgreementUseCase } from "./add-agreement.use-case.js";
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 
 export const AgreementStatus = {
@@ -15,19 +14,6 @@ export const handleAgreementStatusChangeUseCase = async (message) => {
     event: { data },
     source,
   } = message;
-
-  if (data.status === AgreementStatus.Offered) {
-    await addAgreementUseCase({
-      clientRef: data.clientRef,
-      code: data.code,
-      agreementRef: data.agreementNumber,
-      date: data.date,
-      requestedStatus: AgreementStatus.Offered,
-      source,
-    });
-
-    return;
-  }
 
   if (data.status === AgreementStatus.Accepted) {
     await acceptAgreementUseCase({

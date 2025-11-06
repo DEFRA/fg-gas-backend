@@ -7,7 +7,6 @@ import { update } from "../repositories/application.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 import { addAgreementUseCase } from "./add-agreement.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
-import { AgreementStatus } from "./handle-agreement-status-change.use-case.js";
 
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
@@ -40,32 +39,27 @@ describe("addAgreementUseCase", () => {
 
     applyExternalStateChange.mockResolvedValue(true);
 
-    await addAgreementUseCase({
-      clientRef: "test-client-ref",
-      code: "test-code",
-      agreementRef: "agreement-123",
-      date: "2024-01-01T12:00:00Z",
-      source: "AS",
-      requestedStatus: AgreementStatus.Offered,
-    });
-  });
-
-  it("uses the repository to retrieve the application", () => {
-    expect(findApplicationByClientRefAndCodeUseCase).toHaveBeenCalledWith(
-      "test-client-ref",
-      "test-code",
+    await addAgreementUseCase(
+      {
+        application: {
+          clientRef: "test-client-ref",
+          code: "test-code",
+          currentStatus: "",
+          currentPhase: "",
+          currentStage: "",
+        },
+        eventData: {
+          agreementNumber: "agreement-123",
+          date: "2024-01-01T12:00:00Z",
+        },
+      },
+      {},
     );
   });
 
   it("updates the application with the new agreement", () => {
     const application = update.mock.calls[0][0];
     expect(application).toBeInstanceOf(Application);
-    expect(applyExternalStateChange).toHaveBeenCalledWith({
-      clientRef: "test-client-ref",
-      code: "test-code",
-      externalRequestedState: "offered",
-      sourceSystem: "AS",
-    });
     expect(application.agreements["agreement-123"]).toBeInstanceOf(Agreement);
   });
 });
