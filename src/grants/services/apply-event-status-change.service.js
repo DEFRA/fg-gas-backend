@@ -174,7 +174,6 @@ const processStateTransition = (application, grant, command) => {
     application,
     originalFullyQualifiedStatus,
     newFullyQualifiedStatus,
-    command.eventData,
   );
   if (outboxMessage) {
     outboxRecords.push(outboxMessage);
