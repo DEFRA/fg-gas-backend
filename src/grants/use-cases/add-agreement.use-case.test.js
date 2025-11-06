@@ -39,28 +39,21 @@ describe("addAgreementUseCase", () => {
 
     applyExternalStateChange.mockResolvedValue(true);
 
-    await addAgreementUseCase({
-      application: {
-        clientRef: "test-client-ref",
-        code: "test-code",
-        currentStatus: "",
-        currentPhase: "",
-        currentStage: "",
-      },
-      command: {
+    await addAgreementUseCase(
+      {
+        application: {
+          clientRef: "test-client-ref",
+          code: "test-code",
+          currentStatus: "",
+          currentPhase: "",
+          currentStage: "",
+        },
         eventData: {
-          agreementRef: "agreement-123",
+          agreementNumber: "agreement-123",
           date: "2024-01-01T12:00:00Z",
         },
       },
-      session: {},
-    });
-  });
-
-  it("uses the repository to retrieve the application", () => {
-    expect(findApplicationByClientRefAndCodeUseCase).toHaveBeenCalledWith(
-      "test-client-ref",
-      "test-code",
+      {},
     );
   });
 

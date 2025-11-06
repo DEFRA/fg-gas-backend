@@ -1,26 +1,19 @@
 import { config } from "../../common/config.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { Agreement } from "../models/agreement.js";
+import { Application } from "../models/application.js";
 import { Outbox } from "../models/outbox.js";
 import { update } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
-export const addAgreementUseCase = async (data, session) => {
-  const {
-    command,
-    application: { clientRef, code, currentStatus, currentPhase, currentStage },
-  } = data;
-  const { eventData } = command;
-  const { agreementRef, date } = eventData;
-
-  const application = await findApplicationByClientRefAndCodeUseCase(
-    clientRef,
-    code,
-  );
+export const addAgreementUseCase = async (command, session) => {
+  const { application: app, clientRef, code, eventData } = command;
+  const { currentStatus, currentPhase, currentStage } = app;
+  const { agreementNumber, date } = eventData;
+  const application = Application.new(app);
 
   const agreement = Agreement.new({
-    agreementRef,
+    agreementRef: agreementNumber,
     date,
   });
 

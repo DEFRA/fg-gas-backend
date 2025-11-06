@@ -258,11 +258,13 @@ export const applyExternalStateChange = async (command) => {
         outboxRecords,
         session,
       );
+      const handlerData = {
+        ...command,
+        application: updatedApplication,
+      };
       if (handlers?.length > 0) {
         await Promise.all(
-          handlers.map((handler) =>
-            handler({ application: updatedApplication, command }, session),
-          ),
+          handlers.map((handler) => handler(handlerData, session)),
         );
       }
     } else {
