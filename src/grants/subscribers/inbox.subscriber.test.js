@@ -70,7 +70,7 @@ describe("inbox.subscriber", () => {
 
       withTraceParent.mockImplementation((_, fn) => fn());
       const mockEvent = {
-        type: "io.onsite.agreement.offer.offered",
+        type: "io.onsite.agreement.status.updated",
         traceparent: "1234-abcd",
         event: {
           data: mockEventData,
@@ -136,7 +136,7 @@ describe("inbox.subscriber", () => {
 
       withTraceParent.mockImplementationOnce((_, fn) => fn());
       const mockEvent = {
-        type: "io.onsite.agreement.offer.offered",
+        type: "io.onsite.agreement.status.updated",
         traceparent: "1234-abcd",
         event: {
           data: mockEventData,

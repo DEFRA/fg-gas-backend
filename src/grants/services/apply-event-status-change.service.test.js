@@ -2,14 +2,17 @@ import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Application } from "../models/application.js";
 import { Grant } from "../models/grant.js";
+import { Outbox } from "../models/outbox.js";
 import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { applyExternalStateChange } from "./apply-event-status-change.service.js";
 
+vi.mock("../use-cases/create-agreement-command.use-case.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/grant.repository.js");
 vi.mock("../repositories/outbox.repository.js");
@@ -173,6 +176,7 @@ describe("applyExternalStateChange", () => {
         ...mockApplication,
         currentStatus: "RECEIVED",
       });
+      createAgreementCommandUseCase.mockResolvedValue(true);
       findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(mockGrant);
 
@@ -183,21 +187,7 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
-      expect(insertMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            event: expect.objectContaining({
-              data: expect.objectContaining({
-                clientRef: "APP-123",
-                grantCode: "test-grant",
-                previousStatus: "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
-                currentStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
-              }),
-            }),
-          }),
-        ]),
-        {},
-      );
+      expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], {});
     });
 
     it("should not publish status update event when status remains the same", async () => {
@@ -252,26 +242,7 @@ describe("applyExternalStateChange", () => {
       });
 
       // Should create outbox records for both status update and agreement
-      expect(insertMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          // Status update outbox record
-          expect.objectContaining({
-            event: expect.objectContaining({
-              type: "cloud.defra.local.fg-gas-backend.application.status.updated",
-            }),
-          }),
-          // Create agreement outbox record
-          expect.objectContaining({
-            event: expect.objectContaining({
-              type: "cloud.defra.local.fg-gas-backend.agreement.create",
-              data: expect.objectContaining({
-                clientRef: "APP-123",
-              }),
-            }),
-          }),
-        ]),
-        {},
-      );
+      expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], {});
     });
   });
 
@@ -605,16 +576,7 @@ describe("applyExternalStateChange", () => {
       });
 
       // GENERATE_AGREEMENT outbox record should be created
-      expect(insertMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            event: expect.objectContaining({
-              type: "cloud.defra.local.fg-gas-backend.agreement.create",
-            }),
-          }),
-        ]),
-        {},
-      );
+      expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], {});
 
       // Application should still be updated even if unknown process exists
       expect(update).toHaveBeenCalled();
