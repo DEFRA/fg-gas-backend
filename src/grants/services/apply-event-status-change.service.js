@@ -77,7 +77,7 @@ const getHandlerForProcess = (processName) => {
 
 /**
 Attempt to map any additional actions that may need to be performed
-on this state transition to a usecase which will be exectuted within the 
+on this state transition to a usecase which will be exectuted within the
 withTransaction call
  */
 // eslint-disable-next-line complexity
@@ -141,7 +141,6 @@ const createOutboxForStatusUpdate = (
  *
  * Returns null if the transition is invalid (no mapping or not allowed by grant rules).
  */
-// eslint-disable-next-line complexity
 const processStateTransition = (application, grant, command) => {
   const originalFullyQualifiedStatus = application.getFullyQualifiedStatus();
 
@@ -171,14 +170,14 @@ const processStateTransition = (application, grant, command) => {
   // Collect all outbox records
   const outboxRecords = [];
   // Add status update outbox record if status changed
-  const outboxMessages = createOutboxForStatusUpdate(
+  const outboxMessage = createOutboxForStatusUpdate(
     application,
     originalFullyQualifiedStatus,
     newFullyQualifiedStatus,
     command.eventData,
   );
-  if (outboxMessages?.length > 0) {
-    outboxRecords.concat(outboxMessages);
+  if (outboxMessage) {
+    outboxRecords.push(outboxMessage);
   }
 
   // some transitions require additional logic - this is handled by external use
@@ -228,9 +227,9 @@ const saveApplicationWithOutbox = async (
  * 4. Saves application and outbox records atomically
  */
 export const applyExternalStateChange = async (command) => {
+  // eslint-disable-next-line complexity
   return withTransaction(async (session) => {
     logger.info("applyExternalStateChange");
-    logger.info(command);
 
     const { clientRef, code } = command;
     const application = await findByClientRefAndCode({ clientRef, code });
@@ -260,11 +259,13 @@ export const applyExternalStateChange = async (command) => {
         outboxRecords,
         session,
       );
-      await Promise.all(
-        handlers.map((handler) =>
-          handler({ application: updatedApplication, command }, session),
-        ),
-      );
+      if (handlers?.length > 0) {
+        await Promise.all(
+          handlers.map((handler) =>
+            handler({ application: updatedApplication, command }, session),
+          ),
+        );
+      }
     } else {
       throw new Error(
         `Unable to process state change from ${application.currentStatus} to ${command.externalRequestedState}`,
