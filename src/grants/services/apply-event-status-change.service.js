@@ -181,14 +181,15 @@ export const applyExternalStateChange = async (command) => {
     if (result) {
       const {
         application: updatedApplication,
-        stateTransitionHandler,
+        statusTransitionHandler,
         sideEffects,
       } = result;
 
       await saveApplication(updatedApplication, session);
 
-      stateTransitionHandler && (await stateTransitionHandler(session));
-
+      if (statusTransitionHandler) {
+        await statusTransitionHandler(session);
+      }
       if (sideEffects?.length > 0) {
         await Promise.all(
           sideEffects.map((handler) => handler(command, session)),
