@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
-import { withTransaction } from "../../common/with-transaction.js";
 import { Agreement } from "../models/agreement.js";
 import { Application } from "../models/application.js";
-import { update } from "../repositories/application.repository.js";
+import {
+  findByClientRefAndCode,
+  update,
+} from "../repositories/application.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 import { addAgreementUseCase } from "./add-agreement.use-case.js";
-import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
@@ -28,9 +29,8 @@ describe("addAgreementUseCase", () => {
 
   beforeEach(async () => {
     const mockSession = {};
-    withTransaction.mockImplementation(async (cb) => cb(mockSession));
 
-    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
+    findByClientRefAndCode.mockResolvedValue(
       createTestApplication({
         clientRef: "test-client-ref",
         code: "test-code",
@@ -41,19 +41,17 @@ describe("addAgreementUseCase", () => {
 
     await addAgreementUseCase(
       {
-        application: {
-          clientRef: "test-client-ref",
-          code: "test-code",
-          currentStatus: "",
-          currentPhase: "",
-          currentStage: "",
-        },
+        clientRef: "test-client-ref",
+        code: "test-code",
+        currentStatus: "",
+        currentPhase: "",
+        currentStage: "",
         eventData: {
           agreementNumber: "agreement-123",
           date: "2024-01-01T12:00:00Z",
         },
       },
-      {},
+      mockSession,
     );
   });
 

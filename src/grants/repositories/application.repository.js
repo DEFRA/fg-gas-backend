@@ -71,8 +71,10 @@ export const update = async (application, session) => {
   }
 };
 
-export const findByClientRefAndCode = async ({ clientRef, code }) => {
-  const doc = await db.collection(collection).findOne({ clientRef, code });
+export const findByClientRefAndCode = async ({ clientRef, code }, session) => {
+  const doc = await db
+    .collection(collection)
+    .findOne({ clientRef, code }, { session });
 
   if (doc === null) {
     return null;
