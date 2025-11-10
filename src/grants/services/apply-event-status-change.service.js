@@ -59,7 +59,7 @@ const getHandlerForProcess = (processName) => {
 
 /**
  * Attempt to map any additional actions (side-effects) that may need to be performed
- * on this state transition to a use-case which will be exectuted within the
+ * on this state transition to a use-case which will be executed within the
  * withTransaction call.
  *
  * Returns an array of methods that can be called.
