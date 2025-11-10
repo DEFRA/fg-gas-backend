@@ -23,6 +23,11 @@ vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/outbox.repository.js");
 
 describe("addAgreementUseCase", () => {
+  const testApplication = createTestApplication({
+    clientRef: "test-client-ref",
+    code: "test-code",
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-15T10:30:00.000Z"));
@@ -35,12 +40,7 @@ describe("addAgreementUseCase", () => {
   beforeEach(async () => {
     const mockSession = {};
 
-    findByClientRefAndCode.mockResolvedValue(
-      createTestApplication({
-        clientRef: "test-client-ref",
-        code: "test-code",
-      }),
-    );
+    findByClientRefAndCode.mockResolvedValue(testApplication);
 
     insertMany.mockResolvedValue(true);
 
@@ -65,6 +65,14 @@ describe("addAgreementUseCase", () => {
     expect(application).toBeInstanceOf(Application);
     expect(application.agreements["agreement-123"]).toBeInstanceOf(Agreement);
     expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], {});
-    expect(UpdateCaseStatusCommand).toHaveBeenCalled();
+    expect(UpdateCaseStatusCommand).toHaveBeenCalledWith({
+      caseRef: "test-client-ref",
+      workflowCode: "test-code",
+      newStatus: "RECEIVED",
+      phase: "PRE_AWARD",
+      stage: "ASSESSMENT",
+      targetNode: "agreements",
+      data: testApplication.agreements,
+    });
   });
 });
