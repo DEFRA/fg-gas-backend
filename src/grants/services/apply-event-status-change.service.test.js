@@ -1,17 +1,24 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../../common/logger.js";
 import { Application } from "../models/application.js";
 import { Grant } from "../models/grant.js";
-import { Outbox } from "../models/outbox.js";
 import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
-import { applyExternalStateChange } from "./apply-event-status-change.service.js";
+import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
+import {
+  applyExternalStateChange,
+  getHandlersForAllEntryProcesses,
+} from "./apply-event-status-change.service.js";
 
+vi.mock("../use-cases/create-status-transition-update.use-case.js");
+vi.mock("../use-cases/add-agreement.use-case.js");
 vi.mock("../use-cases/create-agreement-command.use-case.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/grant.repository.js");
@@ -91,7 +98,33 @@ describe("applyExternalStateChange", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  describe("getHandlersForAllEntryProcesses", () => {
+    it("should log warning if entry process is a string", () => {
+      vi.spyOn(logger, "warn").mockImplementationOnce(() => {});
+      expect(getHandlersForAllEntryProcesses("process")).toHaveLength(0);
+      expect(logger.warn).toBeCalled();
+    });
+
+    it("should return empty array for no entry processes", () => {
+      const entryProcesses = [];
+      expect(getHandlersForAllEntryProcesses(entryProcesses)).toHaveLength(0);
+      expect(getHandlersForAllEntryProcesses(undefined)).toHaveLength(0);
+    });
+
+    it("should return handlers for valid entry process", () => {
+      const entryProcesses = ["GENERATE_AGREEMENT"];
+      const handlers = getHandlersForAllEntryProcesses(entryProcesses);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(createAgreementCommandUseCase);
+    });
+
+    it("should ignore unknown processes", () => {
+      const entryProcesses = ["GENERATE_AGREEMENT", "UNKNOWN"];
+      const handlers = getHandlersForAllEntryProcesses(entryProcesses);
+      expect(handlers).toHaveLength(1);
+    });
   });
 
   describe("when application is not found", () => {
@@ -187,7 +220,7 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
-      expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], {});
+      expect(createStatusTransitionUpdateUseCase).toHaveBeenCalled();
     });
 
     it("should not publish status update event when status remains the same", async () => {
@@ -223,26 +256,6 @@ describe("applyExternalStateChange", () => {
       });
 
       expect(insertMany).not.toHaveBeenCalled();
-    });
-
-    it("should execute entry processes when status has them", async () => {
-      const application = new Application({
-        ...mockApplication,
-        currentStatus: "IN_PROGRESS",
-      });
-      findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(mockGrant);
-
-      await applyExternalStateChange({
-        clientRef: "APP-123",
-        code: "foo",
-        externalRequestedState: "APPROVED",
-        sourceSystem: "CW",
-        eventData: { caseRef: "CASE-123" },
-      });
-
-      // Should create outbox records for both status update and agreement
-      expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], {});
     });
   });
 
@@ -555,7 +568,10 @@ describe("applyExternalStateChange", () => {
                   {
                     code: "IN_PROGRESS",
                     validFrom: ["RECEIVED"],
-                    entryProcesses: ["GENERATE_AGREEMENT", "UNKNOWN_PROCESS"],
+                    entryProcesses: [
+                      "GENERATE_AGREEMENT",
+                      "STORE_AGREEMENT_CASE",
+                    ],
                   },
                 ],
               },
@@ -575,10 +591,9 @@ describe("applyExternalStateChange", () => {
         eventData: { data: "test" },
       });
 
-      // GENERATE_AGREEMENT outbox record should be created
-      expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], {});
+      expect(createAgreementCommandUseCase).toHaveBeenCalled();
+      expect(addAgreementUseCase).toHaveBeenCalled();
 
-      // Application should still be updated even if unknown process exists
       expect(update).toHaveBeenCalled();
     });
   });
@@ -623,17 +638,7 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
-      // Should only create status update outbox, not agreement
-      expect(insertMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            event: expect.objectContaining({
-              type: "cloud.defra.local.fg-gas-backend.application.status.updated",
-            }),
-          }),
-        ]),
-        {},
-      );
+      expect(createStatusTransitionUpdateUseCase).toHaveBeenCalled();
       expect(update).toHaveBeenCalled();
     });
 
@@ -643,6 +648,7 @@ describe("applyExternalStateChange", () => {
         currentStatus: "RECEIVED",
       });
 
+      addAgreementUseCase.mockReturnValue(true);
       const grantWithStatusNoValidFrom = new Grant({
         ...mockGrant,
         phases: [
@@ -676,16 +682,7 @@ describe("applyExternalStateChange", () => {
       });
 
       // Should only create status update outbox, not agreement
-      expect(insertMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            event: expect.objectContaining({
-              type: "cloud.defra.local.fg-gas-backend.application.status.updated",
-            }),
-          }),
-        ]),
-        {},
-      );
+      expect(createStatusTransitionUpdateUseCase).toHaveBeenCalled();
       expect(update).toHaveBeenCalled();
     });
   });

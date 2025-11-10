@@ -355,10 +355,13 @@ describe("findByClientRefAndCode", () => {
 
     expect(db.collection).toHaveBeenCalledWith("applications");
 
-    expect(findOne).toHaveBeenCalledWith({
-      clientRef: "application-1",
-      code: "grant-1",
-    });
+    expect(findOne).toHaveBeenCalledWith(
+      {
+        clientRef: "application-1",
+        code: "grant-1",
+      },
+      {},
+    );
   });
 
   it("returns null when application not found", async () => {

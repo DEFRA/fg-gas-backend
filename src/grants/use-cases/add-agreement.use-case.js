@@ -1,16 +1,22 @@
 import { config } from "../../common/config.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { Agreement } from "../models/agreement.js";
-import { Application } from "../models/application.js";
 import { Outbox } from "../models/outbox.js";
-import { update } from "../repositories/application.repository.js";
+import {
+  findByClientRefAndCode,
+  update,
+} from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 
 export const addAgreementUseCase = async (command, session) => {
-  const { application: app, clientRef, code, eventData } = command;
-  const { currentStatus, currentPhase, currentStage } = app;
+  const { clientRef, code, eventData } = command;
   const { agreementNumber, date } = eventData;
-  const application = Application.new(app);
+
+  const application = await findByClientRefAndCode(
+    { clientRef, code },
+    session,
+  );
+  const { currentStatus, currentPhase, currentStage } = application;
 
   const agreement = Agreement.new({
     agreementRef: agreementNumber,
@@ -28,7 +34,7 @@ export const addAgreementUseCase = async (command, session) => {
     phase: currentPhase,
     stage: currentStage,
     targetNode: "agreements",
-    data: eventData,
+    data: application.agreements,
   });
 
   await insertMany(
