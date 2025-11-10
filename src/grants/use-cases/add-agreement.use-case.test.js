@@ -1,16 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
+import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { Agreement } from "../models/agreement.js";
 import { Application } from "../models/application.js";
+import { Outbox } from "../models/outbox.js";
 import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
-import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
+import { insertMany } from "../repositories/outbox.repository.js";
 import { addAgreementUseCase } from "./add-agreement.use-case.js";
 
+vi.mock("../commands/update-case-status.command.js");
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
+vi.mock("../models/outbox.js");
+vi.mock("../repositories/outbox.repository.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
@@ -37,7 +42,7 @@ describe("addAgreementUseCase", () => {
       }),
     );
 
-    applyExternalStateChange.mockResolvedValue(true);
+    insertMany.mockResolvedValue(true);
 
     await addAgreementUseCase(
       {
@@ -59,5 +64,7 @@ describe("addAgreementUseCase", () => {
     const application = update.mock.calls[0][0];
     expect(application).toBeInstanceOf(Application);
     expect(application.agreements["agreement-123"]).toBeInstanceOf(Agreement);
+    expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], {});
+    expect(UpdateCaseStatusCommand).toHaveBeenCalled();
   });
 });

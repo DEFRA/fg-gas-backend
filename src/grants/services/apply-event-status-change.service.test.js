@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../../common/logger.js";
 import { Application } from "../models/application.js";
 import { Grant } from "../models/grant.js";
 import {
@@ -11,7 +12,10 @@ import { insertMany } from "../repositories/outbox.repository.js";
 import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
-import { applyExternalStateChange } from "./apply-event-status-change.service.js";
+import {
+  applyExternalStateChange,
+  getHandlersForAllEntryProcesses,
+} from "./apply-event-status-change.service.js";
 
 vi.mock("../use-cases/create-status-transition-update.use-case.js");
 vi.mock("../use-cases/add-agreement.use-case.js");
@@ -94,6 +98,33 @@ describe("applyExternalStateChange", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe("getHandlersForAllEntryProcesses", () => {
+    it("should log warning if entry process is a string", () => {
+      vi.spyOn(logger, "warn").mockImplementationOnce(() => {});
+      expect(getHandlersForAllEntryProcesses("process")).toHaveLength(0);
+      expect(logger.warn).toBeCalled();
+    });
+
+    it("should return empty array for no entry processes", () => {
+      const entryProcesses = [];
+      expect(getHandlersForAllEntryProcesses(entryProcesses)).toHaveLength(0);
+      expect(getHandlersForAllEntryProcesses(undefined)).toHaveLength(0);
+    });
+
+    it("should return handlers for valid entry process", () => {
+      const entryProcesses = ["GENERATE_AGREEMENT"];
+      const handlers = getHandlersForAllEntryProcesses(entryProcesses);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(createAgreementCommandUseCase);
+    });
+
+    it("should ignore unknown processes", () => {
+      const entryProcesses = ["GENERATE_AGREEMENT", "UNKNOWN"];
+      const handlers = getHandlersForAllEntryProcesses(entryProcesses);
+      expect(handlers).toHaveLength(1);
+    });
   });
 
   describe("when application is not found", () => {

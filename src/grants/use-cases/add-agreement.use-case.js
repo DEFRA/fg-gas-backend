@@ -34,7 +34,7 @@ export const addAgreementUseCase = async (command, session) => {
     phase: currentPhase,
     stage: currentStage,
     targetNode: "agreements",
-    data: eventData,
+    data: application.agreements,
   });
 
   await insertMany(

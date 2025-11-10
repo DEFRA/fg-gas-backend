@@ -64,25 +64,22 @@ const getHandlerForProcess = (processName) => {
  *
  * Returns an array of methods that can be called.
  */
-// eslint-disable-next-line complexity
-const getHandlersForAllEntryProcesses = (transitionValidation) => {
-  if (!transitionValidation.entryProcesses) {
-    return [];
-  }
-
+export const getHandlersForAllEntryProcesses = (entryProcesses) => {
   const handlers = [];
-
-  // sometimes the entryProcess is just a string, not an array
-  if (typeof transitionValidation.entryProcesses === "string") {
-    const handler = getHandlerForProcess(transitionValidation.entryProcesses);
-    handler && handlers.push(handler);
-  } else {
-    for (const processName of transitionValidation.entryProcesses) {
-      const handler = getHandlerForProcess(processName);
-      handler && handlers.push(handler);
-    }
+  if (!entryProcesses) {
+    return handlers;
   }
-  return handlers;
+
+  if (typeof entryProcesses === "string") {
+    logger.warn("entryProcesses is type string");
+    return handlers;
+  }
+
+  for (const processName of entryProcesses) {
+    const handler = getHandlerForProcess(processName);
+    handlers.push(handler);
+  }
+  return handlers.filter((h) => typeof h !== "undefined");
 };
 
 // ============================================================================
@@ -135,7 +132,9 @@ const processStateTransition = (application, grant, command) => {
 
   // Some transitions require additional logic (side-effects)
   // These are handled by external use-cases and run alongside the application update.
-  const sideEffects = getHandlersForAllEntryProcesses(transitionValidation);
+  const sideEffects = getHandlersForAllEntryProcesses(
+    transitionValidation.entryProcesses,
+  );
   return { application, statusTransitionHandler, sideEffects };
 };
 
