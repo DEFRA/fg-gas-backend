@@ -46,7 +46,7 @@ export const up = async (db) => {
           {
             code: "WITHDRAWAL_REQUESTED",
             source: "CW",
-            mappedTo: "::WITDRAWAL_REQUESTED",
+            mappedTo: "::WITHDRAWAL_REQUESTED",
           },
           {
             code: "accepted",
