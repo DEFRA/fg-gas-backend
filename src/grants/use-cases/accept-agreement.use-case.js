@@ -1,54 +1,58 @@
 import { config } from "../../common/config.js";
-import { withTransaction } from "../../common/with-transaction.js";
+import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { Outbox } from "../models/outbox.js";
-import { update } from "../repositories/application.repository.js";
+import {
+  findByClientRefAndCode,
+  update,
+} from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
-import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
-export const acceptAgreementUseCase = async ({
-  clientRef,
-  code,
-  agreementRef,
-  date,
-  requestedStatus,
-  source,
-}) => {
-  return withTransaction(async (session) => {
-    const application = await findApplicationByClientRefAndCodeUseCase(
-      clientRef,
-      code,
-    );
+export const acceptAgreementUseCase = async (command, session) => {
+  const { clientRef, code, eventData } = command;
+  const { agreementNumber, date } = eventData;
 
-    const previousStatus = application.getFullyQualifiedStatus();
+  const application = await findByClientRefAndCode(
+    { clientRef, code },
+    session,
+  );
 
-    await applyExternalStateChange({
-      sourceSystem: source,
-      clientRef,
-      code,
-      externalRequestedState: requestedStatus,
-    });
+  const previousStatus = application.getFullyQualifiedStatus();
 
-    application.acceptAgreement(agreementRef, date);
+  application.acceptAgreement(agreementNumber, date);
 
-    await update(application, session);
+  const { currentStatus, currentPhase, currentStage } = application;
 
-    const statusEvent = new ApplicationStatusUpdatedEvent({
-      clientRef,
-      code,
-      previousStatus,
-      currentStatus: application.getFullyQualifiedStatus(),
-    });
+  await update(application, session);
 
-    await insertMany(
-      [
-        new Outbox({
-          event: statusEvent,
-          target: config.sns.grantApplicationStatusUpdatedTopicArn,
-        }),
-      ],
-      session,
-    );
+  const statusEvent = new ApplicationStatusUpdatedEvent({
+    clientRef,
+    code,
+    previousStatus,
+    currentStatus: application.getFullyQualifiedStatus(),
   });
+
+  const statusCommand = new UpdateCaseStatusCommand({
+    caseRef: clientRef,
+    workflowCode: code,
+    newStatus: currentStatus,
+    phase: currentPhase,
+    stage: currentStage,
+    targetNode: "agreements",
+    data: application.getAgreementsData(),
+  });
+
+  await insertMany(
+    [
+      new Outbox({
+        event: statusEvent,
+        target: config.sns.grantApplicationStatusUpdatedTopicArn,
+      }),
+      new Outbox({
+        event: statusCommand,
+        target: config.sns.updateCaseStatusTopicArn,
+      }),
+    ],
+    session,
+  );
 };

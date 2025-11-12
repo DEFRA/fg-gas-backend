@@ -24,7 +24,7 @@ const message = {
   source: "urn:service:agreement",
   specversion: "1.0",
   traceparent: "mock-traceparent",
-  type: "io.onsite.agreement.offer.offered",
+  type: "io.onsite.agreement.status.updated",
   datacontenttype: "application/json",
   data: {
     caseRef: "APPLICATION-FRPS-001",
