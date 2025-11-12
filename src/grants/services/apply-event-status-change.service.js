@@ -25,6 +25,7 @@ import { findByCode } from "../repositories/grant.repository.js";
 import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
+import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
 
 const getValidatedMapping = (grant, application, command) => {
   const mapping = grant.mapExternalStateToInternalState(
@@ -52,6 +53,7 @@ const getHandlerForProcess = (processName) => {
   const processHandlers = {
     GENERATE_AGREEMENT: createAgreementCommandUseCase,
     STORE_AGREEMENT_CASE: addAgreementUseCase,
+    UPDATE_AGREEMENT_CASE: handleAgreementStatusChangeUseCase,
   };
 
   return processHandlers[processName];
@@ -114,6 +116,9 @@ const processStateTransition = (application, grant, command) => {
   );
 
   if (!transitionValidation.valid) {
+    logger.warn(
+      `Invalid state transition: ${originalFullyQualifiedStatus} to ${validMapping.targetStatus}`,
+    );
     return null;
   }
 

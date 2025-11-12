@@ -4,7 +4,6 @@ import {
   AgreementStatus,
   handleAgreementStatusChangeUseCase,
 } from "./handle-agreement-status-change.use-case.js";
-import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 
 vi.mock("../use-cases/accept-agreement.use-case.js");
 vi.mock("../use-cases/withdraw-agreement.use-case.js");
@@ -13,66 +12,29 @@ describe("agreementStatusUpdatedSubscriber", () => {
   it("marks agreement as accepted when agreement status 'accepted'", async () => {
     const mockMessage = {
       source: "AS",
-      event: {
-        data: {
-          clientRef: "test-client-ref",
-          code: "test-code",
-          agreementNumber: "AG123",
-          date: "2024-01-01T00:00:00Z",
-          status: AgreementStatus.Accepted,
-        },
+      eventData: {
+        clientRef: "test-client-ref",
+        code: "test-code",
+        agreementNumber: "AG123",
+        date: "2024-01-01T00:00:00Z",
+        status: AgreementStatus.Accepted,
       },
     };
 
-    await handleAgreementStatusChangeUseCase(mockMessage);
+    await handleAgreementStatusChangeUseCase(mockMessage, {});
 
-    expect(acceptAgreementUseCase).toHaveBeenCalledWith({
-      agreementRef: "AG123",
-      clientRef: "test-client-ref",
-      code: "test-code",
-      date: "2024-01-01T00:00:00Z",
-      requestedStatus: AgreementStatus.Accepted,
-      source: "AS",
-    });
-  });
-
-  it("marks agreement as withdrawn when agreement status 'withdrawn'", async () => {
-    const mockMessage = {
-      source: "AS",
-      event: {
-        data: {
-          clientRef: "test-client-ref",
-          code: "test-code",
-          agreementNumber: "AG123",
-          date: "2024-01-01T00:00:00Z",
-          status: AgreementStatus.Withdrawn,
-        },
-      },
-    };
-
-    await handleAgreementStatusChangeUseCase(mockMessage);
-
-    expect(withdrawAgreementUseCase).toHaveBeenCalledWith({
-      source: "AS",
-      agreementRef: "AG123",
-      clientRef: "test-client-ref",
-      code: "test-code",
-      date: "2024-01-01T00:00:00Z",
-      requestedStatus: "withdrawn",
-    });
+    expect(acceptAgreementUseCase).toHaveBeenCalledWith(mockMessage, {});
   });
 
   it("throws an error for unsupported agreement status", async () => {
     const mockMessage = {
       source: "AS",
-      event: {
-        data: {
-          clientRef: "test-client-ref",
-          code: "test-code",
-          agreementNumber: "AG123",
-          date: "2024-01-01T00:00:00Z",
-          status: "invalid-status",
-        },
+      eventData: {
+        clientRef: "test-client-ref",
+        code: "test-code",
+        agreementNumber: "AG123",
+        date: "2024-01-01T00:00:00Z",
+        status: "invalid-status",
       },
     };
 

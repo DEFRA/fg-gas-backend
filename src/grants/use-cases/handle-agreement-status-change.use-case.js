@@ -1,6 +1,5 @@
 import Boom from "@hapi/boom";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
-import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 
 export const AgreementStatus = {
   Accepted: "accepted",
@@ -9,36 +8,17 @@ export const AgreementStatus = {
   Rejected: "rejected",
 };
 
-export const handleAgreementStatusChangeUseCase = async (message) => {
-  const {
-    event: { data },
-    source,
-  } = message;
+export const handleAgreementStatusChangeUseCase = async (command, session) => {
+  const { eventData } = command;
+  const { status } = eventData;
 
-  if (data.status === AgreementStatus.Accepted) {
-    await acceptAgreementUseCase({
-      clientRef: data.clientRef,
-      code: data.code,
-      agreementRef: data.agreementNumber,
-      date: data.date,
-      requestedStatus: AgreementStatus.Accepted,
-      source,
-    });
+  if (status === AgreementStatus.Accepted) {
+    await acceptAgreementUseCase(command, session);
 
     return;
   }
 
-  if (data.status === AgreementStatus.Withdrawn) {
-    await withdrawAgreementUseCase({
-      clientRef: data.clientRef,
-      code: data.code,
-      agreementRef: data.agreementNumber,
-      date: data.date,
-      requestedStatus: AgreementStatus.Withdrawn,
-      source,
-    });
-    return;
-  }
-
-  throw Boom.badData(`Unsupported agreement status "${data.status}"`);
+  throw Boom.badData(
+    `Can not update agreement status. Unsupported agreement status "${status}"`,
+  );
 };
