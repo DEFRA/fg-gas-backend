@@ -32,14 +32,20 @@ export const acceptAgreementUseCase = async (command, session) => {
     currentStatus: application.getFullyQualifiedStatus(),
   });
 
+  const agreementData = application
+    .getAgreementsData()
+    .find((a) => a.agreementRef === agreementNumber);
+
   const statusCommand = new UpdateCaseStatusCommand({
     caseRef: clientRef,
     workflowCode: code,
     newStatus: currentStatus,
     phase: currentPhase,
     stage: currentStage,
+    dataType: "ARRAY",
+    key: "agreementRef",
     targetNode: "agreements",
-    data: application.getAgreementsData(),
+    data: agreementData,
   });
 
   await insertMany(
