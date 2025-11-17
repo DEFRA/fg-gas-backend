@@ -104,7 +104,7 @@ export class InboxSubscriber {
       logger.error(
         `Error handling event for inbox message ${type}:${messageId}`,
       );
-      logger.error(ex.message);
+      logger.error(ex);
       await this.markEventFailed(msg);
     }
   }
