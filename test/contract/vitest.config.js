@@ -29,11 +29,6 @@ export default defineConfig({
       GRANT_APPLICATION_CREATED_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/gas__sqs__handle_grant_application_created`,
       CASE_STAGE_UPDATES_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/case_stage_updated`,
       CREATE_NEW_CASE_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/cw__sqs__create_new_case`,
-      PACT_BROKER_BASE_URL:
-        process.env.PACT_BROKER_BASE_URL ||
-        "https://ffc-pact-broker.azure.defra.cloud",
-      PACT_USER: process.env.PACT_USER || "pactuser01",
-      PACT_PASS: process.env.PACT_PASS || "UhHBOk!VL%0X?S0wUY~~0au952nkk",
     },
   },
 });
