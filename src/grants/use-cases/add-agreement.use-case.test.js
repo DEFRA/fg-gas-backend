@@ -71,15 +71,15 @@ describe("addAgreementUseCase", () => {
       newStatus: "RECEIVED",
       phase: "PRE_AWARD",
       stage: "ASSESSMENT",
+      dataType: "ARRAY",
+      key: "agreementRef",
       targetNode: "agreements",
-      data: [
-        {
-          agreementRef: "agreement-123",
-          agreementStatus: "OFFERED",
-          createdAt: "2024-01-01T12:00:00Z",
-          updatedAt: "2024-01-15T10:30:00.000Z",
-        },
-      ],
+      data: {
+        agreementRef: "agreement-123",
+        agreementStatus: "OFFERED",
+        createdAt: "2024-01-01T12:00:00Z",
+        updatedAt: "2024-01-15T10:30:00.000Z",
+      },
     });
   });
 });
