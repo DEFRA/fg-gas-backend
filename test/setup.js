@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import { styleText } from "node:util";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import { ensureQueues } from "./helpers/sqs.js";
 
@@ -31,6 +32,15 @@ export const setup = async ({ globalConfig }) => {
     env.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
     env.CREATE_AGREEMENT_QUEUE_URL,
   ]);
+
+  if (env.PRINT_LOGS) {
+    const backendContainer = environment.getContainer("gas-1");
+    const logStream = await backendContainer.logs();
+
+    logStream.on("data", (line) =>
+      process.stdout.write(styleText("gray", line)),
+    );
+  }
 };
 
 export const teardown = async () => {
