@@ -10,7 +10,11 @@ const SQS_URL = `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000`
 export default defineConfig({
   test: {
     globalSetup: "./test/setup.js",
-    setupFiles: ["./test/matchers.js", "./test/cleanup.js"],
+    setupFiles: [
+      "./test/matchers.js",
+      "./test/cleanup.js",
+      ".test/auth-setup.js",
+    ],
     sequence: {
       concurrent: false,
     },
