@@ -8,6 +8,8 @@ export class UpdateCaseStatusCommand extends CloudEvent {
     phase,
     stage,
     targetNode,
+    dataType,
+    key,
     data,
   }) {
     super("case.update.status", {
@@ -16,6 +18,8 @@ export class UpdateCaseStatusCommand extends CloudEvent {
       newStatus,
       supplementaryData: {
         targetNode,
+        dataType,
+        key,
         phase,
         stage,
         data,

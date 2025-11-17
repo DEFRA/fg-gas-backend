@@ -27,6 +27,10 @@ export const addAgreementUseCase = async (command, session) => {
   application.addAgreement(agreement);
   await update(application, session);
 
+  const agreementData = application
+    .getAgreementsData()
+    .find((a) => a.agreementRef === agreementNumber);
+
   const statusCommand = new UpdateCaseStatusCommand({
     caseRef: clientRef,
     workflowCode: code,
@@ -34,7 +38,9 @@ export const addAgreementUseCase = async (command, session) => {
     phase: currentPhase,
     stage: currentStage,
     targetNode: "agreements",
-    data: application.getAgreementsData(),
+    dataType: "ARRAY",
+    key: "agreementRef",
+    data: agreementData,
   });
 
   await insertMany(
