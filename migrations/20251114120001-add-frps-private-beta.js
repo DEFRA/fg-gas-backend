@@ -369,17 +369,17 @@ export const up = async (db) => {
                 {
                   code: "IN_REVIEW",
                   source: "CW",
-                  mappedTo: "::IN_REVIEW",
+                  mappedTo: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
                 },
                 {
                   code: "AGREEMENT_GENERATING",
                   source: "CW",
-                  mappedTo: "::AGREEMENT_GENERATING",
+                  mappedTo: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
                 },
                 {
                   code: "APPLICATION_REJECTED",
                   source: "CW",
-                  mappedTo: "::APPLICATION_REJECTED",
+                  mappedTo: "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_REJECTED",
                 },
                 {
                   code: "offered",
@@ -394,7 +394,7 @@ export const up = async (db) => {
                 {
                   code: "rejected",
                   source: "AS",
-                  mappedTo: "::OFFER_REJECTED",
+                  mappedTo: "PRE_AWARD:REVIEW_OFFER:OFFER_REJECTED",
                 },
               ],
             },
@@ -404,17 +404,20 @@ export const up = async (db) => {
                 {
                   code: "AGREEMENT_OFFERED",
                   source: "CW",
-                  mappedTo: "::AGREEMENT_OFFERED",
+                  mappedTo:
+                    "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
                 },
                 {
                   code: "accepted",
                   source: "AS",
-                  mappedTo: "POST_AGREEMENT_MONITORING::",
+                  mappedTo:
+                    "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
                 },
                 {
                   code: "withdrawn",
                   source: "AS",
-                  mappedTo: "::OFFER_WITHDRAWN",
+                  mappedTo:
+                    "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:OFFER_WITHDRAWN",
                 },
               ],
             },
@@ -429,12 +432,14 @@ export const up = async (db) => {
                 {
                   code: "AGREEMENT_ACCEPTED",
                   source: "CW",
-                  mappedTo: "::AGREEMENT_ACCEPTED",
+                  mappedTo:
+                    "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
                 },
                 {
                   code: "COMPLETE_AGREEMENT",
                   source: "CW",
-                  mappedTo: "::COMPLETE_AGREEMENT",
+                  mappedTo:
+                    "POST_AGREEMENT_MONITORING:MONITORING:COMPLETE_AGREEMENT",
                 },
               ],
             },
