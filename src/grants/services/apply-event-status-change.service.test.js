@@ -14,7 +14,7 @@ import { createAgreementCommandUseCase } from "../use-cases/create-agreement-com
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
 import {
   applyExternalStateChange,
-  getHandlersForAllEntryProcesses,
+  getHandlersForAllProcesses,
 } from "./apply-event-status-change.service.js";
 
 vi.mock("../use-cases/create-status-transition-update.use-case.js");
@@ -63,7 +63,7 @@ describe("applyExternalStateChange", () => {
               {
                 code: "APPROVED",
                 validFrom: ["IN_PROGRESS"],
-                entryProcesses: ["GENERATE_AGREEMENT"],
+                processes: ["GENERATE_AGREEMENT"],
               },
             ],
           },
@@ -100,29 +100,29 @@ describe("applyExternalStateChange", () => {
     vi.clearAllMocks();
   });
 
-  describe("getHandlersForAllEntryProcesses", () => {
+  describe("getHandlersForAllProcesses", () => {
     it("should log warning if entry process is a string", () => {
       vi.spyOn(logger, "warn").mockImplementationOnce(() => {});
-      expect(getHandlersForAllEntryProcesses("process")).toHaveLength(0);
+      expect(getHandlersForAllProcesses("process")).toHaveLength(0);
       expect(logger.warn).toBeCalled();
     });
 
     it("should return empty array for no entry processes", () => {
-      const entryProcesses = [];
-      expect(getHandlersForAllEntryProcesses(entryProcesses)).toHaveLength(0);
-      expect(getHandlersForAllEntryProcesses(undefined)).toHaveLength(0);
+      const processes = [];
+      expect(getHandlersForAllProcesses(processes)).toHaveLength(0);
+      expect(getHandlersForAllProcesses(undefined)).toHaveLength(0);
     });
 
     it("should return handlers for valid entry process", () => {
-      const entryProcesses = ["GENERATE_AGREEMENT"];
-      const handlers = getHandlersForAllEntryProcesses(entryProcesses);
+      const processes = ["GENERATE_AGREEMENT"];
+      const handlers = getHandlersForAllProcesses(processes);
       expect(handlers).toHaveLength(1);
       expect(handlers[0]).toBe(createAgreementCommandUseCase);
     });
 
     it("should ignore unknown processes", () => {
-      const entryProcesses = ["GENERATE_AGREEMENT", "UNKNOWN"];
-      const handlers = getHandlersForAllEntryProcesses(entryProcesses);
+      const processes = ["GENERATE_AGREEMENT", "UNKNOWN"];
+      const handlers = getHandlersForAllProcesses(processes);
       expect(handlers).toHaveLength(1);
     });
   });
@@ -568,10 +568,7 @@ describe("applyExternalStateChange", () => {
                   {
                     code: "IN_PROGRESS",
                     validFrom: ["RECEIVED"],
-                    entryProcesses: [
-                      "GENERATE_AGREEMENT",
-                      "STORE_AGREEMENT_CASE",
-                    ],
+                    processes: ["GENERATE_AGREEMENT", "STORE_AGREEMENT_CASE"],
                   },
                 ],
               },
@@ -618,7 +615,7 @@ describe("applyExternalStateChange", () => {
                   {
                     code: "IN_PROGRESS",
                     validFrom: ["RECEIVED"],
-                    // No entryProcesses
+                    // No processes
                   },
                 ],
               },

@@ -395,7 +395,7 @@ describe("Grant", () => {
                 {
                   code: "APPROVED",
                   validFrom: ["IN_PROGRESS"],
-                  entryProcesses: ["GENERATE_OFFER"],
+                  processes: ["GENERATE_OFFER"],
                 },
                 {
                   code: "REJECTED",
@@ -413,7 +413,7 @@ describe("Grant", () => {
                 {
                   code: "OFFERED",
                   validFrom: ["PRE_AWARD:REVIEW_APPLICATION:APPROVED"],
-                  entryProcesses: ["SEND_OFFER_EMAIL"],
+                  processes: ["SEND_OFFER_EMAIL"],
                 },
               ],
             },
@@ -432,7 +432,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: true,
-        entryProcesses: [],
+        processes: [],
       });
     });
 
@@ -446,11 +446,11 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: false,
-        entryProcesses: [],
+        processes: [],
       });
     });
 
-    it("should return entryProcesses when transition is valid", () => {
+    it("should return processes when transition is valid", () => {
       const result = grantWithValidFrom.isValidTransition(
         "PRE_AWARD",
         "REVIEW_APPLICATION",
@@ -460,7 +460,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: true,
-        entryProcesses: ["GENERATE_OFFER"],
+        processes: ["GENERATE_OFFER"],
       });
     });
 
@@ -474,7 +474,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: true,
-        entryProcesses: [],
+        processes: [],
       });
     });
 
@@ -488,7 +488,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: true,
-        entryProcesses: [],
+        processes: [],
       });
     });
 
@@ -502,7 +502,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: true,
-        entryProcesses: ["SEND_OFFER_EMAIL"],
+        processes: ["SEND_OFFER_EMAIL"],
       });
     });
 
@@ -516,7 +516,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: true,
-        entryProcesses: [],
+        processes: [],
       });
     });
 
@@ -530,7 +530,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: false,
-        entryProcesses: [],
+        processes: [],
       });
     });
 
@@ -544,7 +544,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: false,
-        entryProcesses: [],
+        processes: [],
       });
     });
 
@@ -558,7 +558,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: false,
-        entryProcesses: [],
+        processes: [],
       });
     });
   });

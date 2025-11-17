@@ -52,7 +52,7 @@ export const createGrant = async () => {
               {
                 code: "APPROVED",
                 validFrom: ["RECEIVED"],
-                entryProcesses: ["GENERATE_AGREEMENT"],
+                processes: ["GENERATE_AGREEMENT"],
               },
             ],
           },
