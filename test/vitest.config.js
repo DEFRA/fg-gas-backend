@@ -13,7 +13,7 @@ export default defineConfig({
     setupFiles: [
       "./test/matchers.js",
       "./test/cleanup.js",
-      ".test/auth-setup.js",
+      "./test/auth-setup.js",
     ],
     sequence: {
       concurrent: false,
