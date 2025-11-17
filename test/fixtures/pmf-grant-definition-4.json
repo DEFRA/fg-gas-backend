@@ -26,7 +26,7 @@
             {
               "code": "APPROVED",
               "validFrom": ["IN_PROGRESS"],
-              "entryProcesses": ["GENERATE_OFFER"]
+              "processes": ["GENERATE_OFFER"]
             },
             {
               "code": "REJECTED",
@@ -46,7 +46,7 @@
             {
               "code": "OFFERED",
               "validFrom": ["PRE_AWARD:REVIEW_APPLICATION:APPROVED"],
-              "entryProcesses": "STORE_AGREEMENT_CASE"
+              "processes": "STORE_AGREEMENT_CASE"
             },
             {
               "code": "REJECTED",
@@ -63,7 +63,7 @@
             {
               "code": "OFFER_ACCEPTED",
               "validFrom": ["AWAITING_RESPONSE"],
-              "entryProcesses": ["STORE_AGREEMENT_CASE"]
+              "processes": ["STORE_AGREEMENT_CASE"]
             },
             {
               "code": "DECLINED",

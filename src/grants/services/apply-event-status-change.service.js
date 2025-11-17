@@ -51,7 +51,7 @@ const updateApplicationState = (application, validMapping) => {
 
 const getHandlerForProcess = (processName) => {
   const processHandlers = {
-    GENERATE_AGREEMENT: createAgreementCommandUseCase,
+    GENERATE_OFFER: createAgreementCommandUseCase,
     STORE_AGREEMENT_CASE: addAgreementUseCase,
     UPDATE_AGREEMENT_CASE: handleAgreementStatusChangeUseCase,
   };
@@ -66,18 +66,18 @@ const getHandlerForProcess = (processName) => {
  *
  * Returns an array of methods that can be called.
  */
-export const getHandlersForAllEntryProcesses = (entryProcesses) => {
+export const getHandlersForAllProcesses = (processes) => {
   const handlers = [];
-  if (!entryProcesses) {
+  if (!processes) {
     return handlers;
   }
 
-  if (typeof entryProcesses === "string") {
-    logger.warn("entryProcesses is type string");
+  if (typeof processes === "string") {
+    logger.warn("processes is type string");
     return handlers;
   }
 
-  for (const processName of entryProcesses) {
+  for (const processName of processes) {
     const handler = getHandlerForProcess(processName);
     handlers.push(handler);
   }
@@ -137,8 +137,8 @@ const processStateTransition = (application, grant, command) => {
 
   // Some transitions require additional logic (side-effects)
   // These are handled by external use-cases and run alongside the application update.
-  const sideEffects = getHandlersForAllEntryProcesses(
-    transitionValidation.entryProcesses,
+  const sideEffects = getHandlersForAllProcesses(
+    transitionValidation.processes,
   );
   return { application, statusTransitionHandler, sideEffects };
 };
