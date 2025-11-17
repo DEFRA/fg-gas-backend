@@ -30,19 +30,25 @@ describe("On CaseStatusUpdated", () => {
     await expect(applications).toHaveRecord({
       clientRef,
       code,
-      currentStatus: "RECEIVED",
+      currentStatus: "APPLICATION_RECEIVED",
     });
+
+    await applications.updateOne(
+      { clientRef },
+      { $set: { currentStatus: "IN_REVIEW" } },
+    );
 
     const messageId = randomUUID();
     await sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
       id: messageId,
       traceparent,
       type: "fg.cw-backend.test.case.status.updated",
+      source: "CW",
       data: {
         caseRef: clientRef,
         workflowCode: code,
-        previousStatus: "IN_PROGRESS",
-        currentStatus: "APPROVED",
+        previousStatus: "IN_REVIEW",
+        currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
       },
     });
 
@@ -51,7 +57,7 @@ describe("On CaseStatusUpdated", () => {
     await expect(applications).toHaveRecord({
       clientRef,
       code,
-      currentStatus: "APPROVED",
+      currentStatus: "AGREEMENT_GENERATING",
     });
 
     await expect(outbox).toHaveRecord({
@@ -74,8 +80,8 @@ describe("On CaseStatusUpdated", () => {
       data: {
         clientRef,
         grantCode: "test-code-1",
-        currentStatus: "PRE_AWARD:ASSESSMENT:APPROVED",
-        previousStatus: "PRE_AWARD:ASSESSMENT:RECEIVED",
+        currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+        previousStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
       },
     });
 
