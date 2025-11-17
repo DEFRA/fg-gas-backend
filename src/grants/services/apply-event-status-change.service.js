@@ -51,7 +51,7 @@ const updateApplicationState = (application, validMapping) => {
 
 const getHandlerForProcess = (processName) => {
   const processHandlers = {
-    GENERATE_AGREEMENT: createAgreementCommandUseCase,
+    GENERATE_OFFER: createAgreementCommandUseCase,
     STORE_AGREEMENT_CASE: addAgreementUseCase,
     UPDATE_AGREEMENT_CASE: handleAgreementStatusChangeUseCase,
   };
