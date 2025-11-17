@@ -432,12 +432,14 @@ export const up = async (db) => {
                 {
                   code: "AGREEMENT_ACCEPTED",
                   source: "CW",
-                  mappedTo: "::AGREEMENT_ACCEPTED",
+                  mappedTo:
+                    "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
                 },
                 {
                   code: "COMPLETE_AGREEMENT",
                   source: "CW",
-                  mappedTo: "::COMPLETE_AGREEMENT",
+                  mappedTo:
+                    "POST_AGREEMENT_MONITORING:MONITORING:COMPLETE_AGREEMENT",
                 },
               ],
             },
