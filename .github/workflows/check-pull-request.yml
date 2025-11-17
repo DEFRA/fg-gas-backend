@@ -43,7 +43,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: Run integration tests
-        run: DEBUG=testcontainers:containers npm run test:integration
+        run: npm run test:integration:verbose
 
       - name: Build docker image
         run: |
