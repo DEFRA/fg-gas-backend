@@ -16,7 +16,7 @@ export const addAgreementUseCase = async (command, session) => {
     { clientRef, code },
     session,
   );
-  const { currentStatus, currentPhase, currentStage } = application;
+  const { currentPhase, currentStage } = application;
 
   const agreement = Agreement.new({
     agreementRef: agreementNumber,
@@ -34,7 +34,7 @@ export const addAgreementUseCase = async (command, session) => {
   const statusCommand = new UpdateCaseStatusCommand({
     caseRef: clientRef,
     workflowCode: code,
-    newStatus: currentStatus,
+    newStatus: application.getFullyQualifiedStatus(),
     phase: currentPhase,
     stage: currentStage,
     targetNode: "agreements",

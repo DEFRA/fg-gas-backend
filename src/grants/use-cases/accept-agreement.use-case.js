@@ -21,7 +21,7 @@ export const acceptAgreementUseCase = async (command, session) => {
 
   application.acceptAgreement(agreementNumber, date);
 
-  const { currentStatus, currentPhase, currentStage } = application;
+  const { currentPhase, currentStage } = application;
 
   await update(application, session);
 
@@ -39,7 +39,7 @@ export const acceptAgreementUseCase = async (command, session) => {
   const statusCommand = new UpdateCaseStatusCommand({
     caseRef: clientRef,
     workflowCode: code,
-    newStatus: currentStatus,
+    newStatus: application.getFullyQualifiedStatus(),
     phase: currentPhase,
     stage: currentStage,
     dataType: "ARRAY",
