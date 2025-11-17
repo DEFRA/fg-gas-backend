@@ -64,10 +64,12 @@ export class Grant {
     externalRequestedState,
     sourceSystem,
   ) {
+    const parts = externalRequestedState.split(":");
+
     const statusMapping = this.#findExternalStatusMapping(
       currentPhase,
       currentStage,
-      externalRequestedState,
+      parts[parts.length - 1],
       sourceSystem,
     );
 
@@ -155,14 +157,14 @@ export class Grant {
     );
 
     if (!statusDef) {
-      return { valid: false, entryProcesses: [] };
+      return { valid: false, processes: [] };
     }
 
     // If there's no validFrom, the transition is always valid
     if (!statusDef.validFrom || statusDef.validFrom.length === 0) {
       return {
         valid: true,
-        entryProcesses: statusDef.entryProcesses || [],
+        processes: statusDef.processes || [],
       };
     }
 
@@ -171,7 +173,7 @@ export class Grant {
 
     return {
       valid: isValid,
-      entryProcesses: isValid ? statusDef.entryProcesses || [] : [],
+      processes: isValid ? statusDef.processes || [] : [],
     };
   }
 

@@ -347,7 +347,7 @@ export const up = async (db) => {
                 validFrom: [
                   "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
                 ],
-                processes: ["STORE_AGREEMENT_CASE"],
+                processes: ["UPDATE_AGREEMENT_CASE"],
               },
               {
                 code: "COMPLETE_AGREEMENT",
