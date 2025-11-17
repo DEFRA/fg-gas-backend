@@ -63,7 +63,7 @@ describe("applyExternalStateChange", () => {
               {
                 code: "APPROVED",
                 validFrom: ["IN_PROGRESS"],
-                processes: ["GENERATE_AGREEMENT"],
+                processes: ["GENERATE_OFFER"],
               },
             ],
           },
@@ -114,14 +114,14 @@ describe("applyExternalStateChange", () => {
     });
 
     it("should return handlers for valid entry process", () => {
-      const processes = ["GENERATE_AGREEMENT"];
+      const processes = ["GENERATE_OFFER"];
       const handlers = getHandlersForAllProcesses(processes);
       expect(handlers).toHaveLength(1);
       expect(handlers[0]).toBe(createAgreementCommandUseCase);
     });
 
     it("should ignore unknown processes", () => {
-      const processes = ["GENERATE_AGREEMENT", "UNKNOWN"];
+      const processes = ["GENERATE_OFFER", "UNKNOWN"];
       const handlers = getHandlersForAllProcesses(processes);
       expect(handlers).toHaveLength(1);
     });
@@ -568,7 +568,7 @@ describe("applyExternalStateChange", () => {
                   {
                     code: "IN_PROGRESS",
                     validFrom: ["RECEIVED"],
-                    processes: ["GENERATE_AGREEMENT", "STORE_AGREEMENT_CASE"],
+                    processes: ["GENERATE_OFFER", "STORE_AGREEMENT_CASE"],
                   },
                 ],
               },
