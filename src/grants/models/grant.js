@@ -66,14 +66,16 @@ export class Grant {
   ) {
     const parts = externalRequestedState.split(":");
 
-    console.log("mapexternalstate", parts);
     let statusMapping;
 
-    if(parts.length === 3) {
+    if (parts.length === 3) {
       statusMapping = this.#findExternalStatusMapping(
-        parts[0], parts[1], parts[2], sourceSystem
+        parts[0],
+        parts[1],
+        parts[2],
+        sourceSystem,
       );
-    }else{
+    } else {
       statusMapping = this.#findExternalStatusMapping(
         currentPhase,
         currentStage,
