@@ -1,4 +1,10 @@
 export const up = async (db) => {
+  const accessTokens = db.collection("access_tokens");
+  accessTokens.drop().catch(() => {});
+  accessTokens.createIndex({ id: 1 }, { unique: true });
+  accessTokens.createIndex({ client: 1 });
+  accessTokens.createIndex({ expiresAt: 1 });
+
   const grants = db.collection("grants");
   await grants.drop().catch(() => {});
   await grants.createIndex({ code: 1 }, { unique: true });
