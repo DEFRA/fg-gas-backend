@@ -272,7 +272,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to UNMAPPED_STATUS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to UNMAPPED_STATUS",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -299,7 +299,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to APPROVED",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to APPROVED",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -321,7 +321,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to IN_PROGRESS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -835,7 +835,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to IN_PROGRESS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -866,7 +866,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to IN_PROGRESS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -934,7 +934,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to IN_PROGRESS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
       );
 
       expect(update).not.toHaveBeenCalled();
