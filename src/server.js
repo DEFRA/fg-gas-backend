@@ -5,6 +5,7 @@ import Vision from "@hapi/vision";
 import hapiPino from "hapi-pino";
 import hapiPulse from "hapi-pulse";
 import HapiSwagger from "hapi-swagger";
+import { auth } from "./auth/auth.js";
 import { config } from "./common/config.js";
 import { logger } from "./common/logger.js";
 import { mongoClient } from "./common/mongo-client.js";
@@ -76,8 +77,10 @@ export const createServer = async () => {
           title: "Grant Application Service",
           version: config.serviceVersion,
         },
+        auth: false,
       },
     },
+    auth,
   ]);
 
   return server;

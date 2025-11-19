@@ -12,3 +12,4 @@ coverage
 /.env.test
 test/reports/
 .tmp
+/http-client.private.env.json

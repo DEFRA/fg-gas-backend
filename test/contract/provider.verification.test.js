@@ -15,56 +15,77 @@ vi.mock("mongodb", () => ({
       endSession: vi.fn().mockResolvedValue(),
     }),
     db: vi.fn().mockReturnValue({
-      collection: vi.fn().mockReturnValue({
-        findOne: vi.fn().mockResolvedValue({
-          code: "example-grant-with-auth-v3",
-          metadata: {
-            description: "Example Grant with Auth v3",
-            startDate: "2025-01-01T00:00:00.000Z",
-          },
-          actions: [],
-          questions: {
-            type: "object",
-            properties: {
-              applicantName: { type: "string" },
-              applicantEmail: { type: "string" },
-            },
-            required: ["applicantName", "applicantEmail"],
-          },
-          phases: [
+      // Return a collection mock that varies by name
+      collection: vi.fn((name) => {
+        // Special behaviour for access_tokens used by auth
+        if (name === "access_tokens") {
+          const accessTokens = [
             {
-              code: "APPLICATION",
-              name: "Application",
-              description: "Application phase",
-              questions: {},
-              stages: [
-                {
-                  code: "SUBMIT",
-                  name: "Submit",
-                  description: "Submit application",
-                  statuses: [
-                    {
-                      code: "RECEIVED",
-                    },
-                  ],
-                },
-              ],
+              id: "12b9377cbe7e5c94e8a70d9d23929523d14afa954793130f8a3959c7b849aca8", // Hashed 00000000-0000-0000-0000-000000000000 token
+              client: "contract-test",
             },
-          ],
-        }),
-        findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
-        insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
-        insertMany: vi
-          .fn()
-          .mockResolvedValue({ insertedCount: 0, insertedIds: [] }),
-        replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
-        updateOne: vi
-          .fn()
-          .mockResolvedValue({ acknowledged: true, matchedCount: 1 }),
-        updateMany: vi
-          .fn()
-          .mockResolvedValue({ acknowledged: true, matchedCount: 0 }),
-        createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
+          ];
+
+          return {
+            findOne: vi.fn(async (query = {}) => {
+              const { id } = query;
+              return accessTokens.find((t) => t.id === id) || null;
+            }),
+          };
+        }
+
+        // Default collection mock
+        return {
+          findOne: vi.fn().mockResolvedValue({
+            code: "example-grant-with-auth-v3",
+            metadata: {
+              description: "Example Grant with Auth v3",
+              startDate: "2025-01-01T00:00:00.000Z",
+            },
+            actions: [],
+            questions: {
+              type: "object",
+              properties: {
+                applicantName: { type: "string" },
+                applicantEmail: { type: "string" },
+              },
+              required: ["applicantName", "applicantEmail"],
+            },
+            phases: [
+              {
+                code: "APPLICATION",
+                name: "Application",
+                description: "Application phase",
+                questions: {},
+                stages: [
+                  {
+                    code: "SUBMIT",
+                    name: "Submit",
+                    description: "Submit application",
+                    statuses: [
+                      {
+                        code: "RECEIVED",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }),
+          findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
+          insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
+          insertMany: vi
+            .fn()
+            .mockResolvedValue({ insertedCount: 0, insertedIds: [] }),
+          replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
+          updateOne: vi
+            .fn()
+            .mockResolvedValue({ acknowledged: true, matchedCount: 1 }),
+          updateMany: vi
+            .fn()
+            .mockResolvedValue({ acknowledged: true, matchedCount: 0 }),
+          createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
+        };
       }),
     }),
   })),
