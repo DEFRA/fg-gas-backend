@@ -35,7 +35,8 @@ services:
     command:
       ["mongod", "--replSet", "mongoRepl", "--bind_ip", "localhost,mongodb"]
     volumes:
-      - mongodb-data:/data
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
     restart: always
 
   mongo-ready:
@@ -94,6 +95,7 @@ services:
 
 volumes:
   mongodb-data:
+  mongodb-config:
 
 networks:
   cdp-tenant:
