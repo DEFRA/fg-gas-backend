@@ -202,7 +202,7 @@ export const applyExternalStateChange = async (command) => {
     } else {
       // must throw if we're to retry any inbox events
       throw new Error(
-        `Unable to process state change from ${application.currentStatus} to ${command.externalRequestedState}`,
+        `Unable to process state change from ${application.getFullyQualifiedStatus()} to ${command.externalRequestedState}`,
       );
     }
   });
