@@ -21,8 +21,39 @@ export const up = async (db) => {
           $schema: "https://json-schema.org/draft/2020-12/schema",
           type: "object",
           additionalProperties: false,
-          required: ["scheme", "parcels", "applicant"],
+          required: [
+            "rulesCalculations",
+            "scheme",
+            "applicant",
+            "application",
+            "payments",
+          ],
           properties: {
+            rulesCalculations: {
+              type: "object",
+              title: "Rules and calculations validation results",
+              additionalProperties: false,
+              required: ["id", "message", "valid", "date"],
+              properties: {
+                id: {
+                  type: "integer",
+                  title: "Validation run ID",
+                },
+                message: {
+                  type: "string",
+                  title: "Validation message",
+                },
+                valid: {
+                  type: "boolean",
+                  title: "Validation status",
+                },
+                date: {
+                  type: "string",
+                  format: "date-time",
+                  title: "Validation date and time",
+                },
+              },
+            },
             scheme: {
               type: "string",
               title: "Defra scheme name",
@@ -32,16 +63,52 @@ export const up = async (db) => {
               minimum: 0,
               title: "Total annual payment in pence",
             },
-            applicationValidationRunId: {
-              type: "integer",
-              title: "Land Grants Application validation run Id",
+            application: {
+              type: "object",
+              title: "Application data",
+              additionalProperties: false,
+              required: ["parcel", "agreement"],
+              properties: {
+                parcel: {
+                  type: "array",
+                  title: "Application parcels",
+                  minItems: 0,
+                  items: {
+                    $ref: "#/$defs/ApplicationParcel",
+                  },
+                },
+                agreement: {
+                  type: "array",
+                  title: "Agreement-level actions",
+                  minItems: 0,
+                  items: {
+                    $ref: "#/$defs/ApplicationAgreement",
+                  },
+                },
+              },
             },
-            parcels: {
-              type: "array",
-              title: "Land parcels with their actions",
-              minItems: 0,
-              items: {
-                $ref: "#/$defs/Parcel",
+            payments: {
+              type: "object",
+              title: "Payment data",
+              additionalProperties: false,
+              required: ["parcel", "agreement"],
+              properties: {
+                parcel: {
+                  type: "array",
+                  title: "Payment parcels",
+                  minItems: 0,
+                  items: {
+                    $ref: "#/$defs/PaymentParcel",
+                  },
+                },
+                agreement: {
+                  type: "array",
+                  title: "Agreement-level payments",
+                  minItems: 0,
+                  items: {
+                    $ref: "#/$defs/PaymentAgreement",
+                  },
+                },
               },
             },
             applicant: {
@@ -52,7 +119,7 @@ export const up = async (db) => {
             },
           },
           $defs: {
-            Parcel: {
+            ApplicationParcel: {
               type: "object",
               additionalProperties: false,
               required: ["sheetId", "parcelId", "actions"],
@@ -88,19 +155,118 @@ export const up = async (db) => {
                   title: "Actions applied to this parcel",
                   minItems: 0,
                   items: {
-                    $ref: "#/$defs/Action",
+                    $ref: "#/$defs/ApplicationAction",
                   },
                 },
               },
             },
-            Action: {
+            ApplicationAction: {
+              type: "object",
+              additionalProperties: false,
+              required: ["code", "durationYears", "version"],
+              properties: {
+                code: {
+                  type: "string",
+                  title: "Action code",
+                },
+                durationYears: {
+                  type: "integer",
+                  minimum: 1,
+                  title: "Duration in years",
+                },
+                version: {
+                  type: "integer",
+                  minimum: 1,
+                  title: "Action version",
+                },
+                appliedFor: {
+                  type: "object",
+                  title: "Applied for area or quantity",
+                  additionalProperties: false,
+                  properties: {
+                    unit: {
+                      type: "string",
+                      title: "Unit of measurement",
+                      enum: ["kg", "m", "100m", "count", "ha", "m2", "sqm"],
+                    },
+                    quantity: {
+                      type: "number",
+                      title: "Quantity applied for",
+                    },
+                  },
+                },
+              },
+            },
+            ApplicationAgreement: {
+              type: "object",
+              additionalProperties: false,
+              required: ["code", "durationYears", "version"],
+              properties: {
+                code: {
+                  type: "string",
+                  title: "Action code",
+                },
+                durationYears: {
+                  type: "integer",
+                  minimum: 1,
+                  title: "Duration in years",
+                },
+                version: {
+                  type: "integer",
+                  minimum: 1,
+                  title: "Action version",
+                },
+              },
+            },
+            PaymentParcel: {
+              type: "object",
+              additionalProperties: false,
+              required: ["sheetId", "parcelId", "actions"],
+              properties: {
+                sheetId: {
+                  type: "string",
+                  title: "OS Sheet ID",
+                  pattern: "[A-Z]{2}[0-9]{4}",
+                },
+                parcelId: {
+                  type: "string",
+                  title: "Land parcel ID, unique within a OS Sheet ID",
+                  pattern: "^\\d+$",
+                },
+                area: {
+                  type: "object",
+                  title: "Parcel area",
+                  additionalProperties: false,
+                  properties: {
+                    unit: {
+                      type: "string",
+                      title: "Unit of measurement",
+                      enum: ["kg", "m", "100m", "count", "ha", "m2", "sqm"],
+                    },
+                    quantity: {
+                      type: "number",
+                      title: "Area quantity",
+                    },
+                  },
+                },
+                actions: {
+                  type: "array",
+                  title: "Payment actions for this parcel",
+                  minItems: 0,
+                  items: {
+                    $ref: "#/$defs/PaymentAction",
+                  },
+                },
+              },
+            },
+            PaymentAction: {
               type: "object",
               additionalProperties: false,
               required: ["code"],
               properties: {
                 code: {
                   type: "string",
-                  title: "Code for the action to be taken on the land parcel",
+                  title: "Action code",
                 },
                 description: {
                   type: "string",
@@ -110,6 +276,16 @@ export const up = async (db) => {
                   type: "integer",
                   minimum: 1,
                   title: "Duration in years",
+                },
+                paymentRates: {
+                  type: "integer",
+                  minimum: 0,
+                  title: "Payment rate in pence",
+                },
+                annualPaymentPence: {
+                  type: "integer",
+                  minimum: 0,
+                  title: "Annual payment in pence",
                 },
                 eligible: {
                   type: "object",
@@ -143,22 +319,30 @@ export const up = async (db) => {
                     },
                   },
                 },
+              },
+            },
+            PaymentAgreement: {
+              type: "object",
+              additionalProperties: false,
+              required: ["code"],
+              properties: {
+                code: {
+                  type: "string",
+                  title: "Action code",
+                },
+                description: {
+                  type: "string",
+                  title: "Action description",
+                },
+                durationYears: {
+                  type: "integer",
+                  minimum: 1,
+                  title: "Duration in years",
+                },
                 paymentRates: {
-                  type: "object",
-                  title: "Payment rate information",
-                  additionalProperties: false,
-                  properties: {
-                    ratePerUnitPence: {
-                      type: "integer",
-                      minimum: 0,
-                      title: "Rate per unit in pence",
-                    },
-                    agreementLevelAmountPence: {
-                      type: "integer",
-                      minimum: 0,
-                      title: "Agreement level amount in pence",
-                    },
-                  },
+                  type: "integer",
+                  minimum: 0,
+                  title: "Payment rate in pence",
                 },
                 annualPaymentPence: {
                   type: "integer",
@@ -178,6 +362,10 @@ export const up = async (db) => {
                     name: {
                       type: "string",
                       description: "Business name",
+                    },
+                    reference: {
+                      type: "string",
+                      description: "Business reference number",
                     },
                     email: {
                       type: "object",
@@ -290,7 +478,11 @@ export const up = async (db) => {
               },
               {
                 code: "IN_REVIEW",
-                validFrom: ["APPLICATION_RECEIVED"],
+                validFrom: [
+                  "APPLICATION_RECEIVED",
+                  "APPLICATION_REJECTED",
+                  "ON_HOLD",
+                ],
               },
               {
                 code: "AGREEMENT_GENERATING",
@@ -298,12 +490,12 @@ export const up = async (db) => {
                 processes: ["GENERATE_OFFER"],
               },
               {
-                code: "REJECTED",
+                code: "ON_HOLD",
                 validFrom: ["IN_REVIEW"],
               },
               {
                 code: "APPLICATION_REJECTED",
-                validFrom: ["IN_REVIEW"],
+                validFrom: ["IN_REVIEW", "ON_HOLD"],
               },
             ],
           },
@@ -316,8 +508,13 @@ export const up = async (db) => {
                 code: "AGREEMENT_DRAFTED",
                 validFrom: [
                   "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+                  "APPLICATION_REJECTED",
                 ],
                 processes: ["STORE_AGREEMENT_CASE"],
+              },
+              {
+                code: "APPLICATION_REJECTED",
+                validFrom: ["AGREEMENT_DRAFTED"],
               },
             ],
           },
@@ -328,7 +525,14 @@ export const up = async (db) => {
             statuses: [
               {
                 code: "AGREEMENT_OFFERED",
-                validFrom: ["PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED"],
+                validFrom: [
+                  "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
+                  "APPLICATION_REJECTED",
+                ],
+              },
+              {
+                code: "APPLICATION_REJECTED",
+                validFrom: ["AGREEMENT_OFFERED"],
               },
             ],
           },
@@ -349,10 +553,6 @@ export const up = async (db) => {
                 ],
                 processes: ["UPDATE_AGREEMENT_CASE"],
               },
-              {
-                code: "COMPLETE_AGREEMENT",
-                validFrom: ["AGREEMENT_ACCEPTED"],
-              },
             ],
           },
         ],
@@ -367,17 +567,22 @@ export const up = async (db) => {
               code: "REVIEW_APPLICATION",
               statuses: [
                 {
-                  code: "IN_REVIEW",
+                  code: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
                   source: "CW",
                   mappedTo: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
                 },
                 {
-                  code: "AGREEMENT_GENERATING",
+                  code: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
                   source: "CW",
                   mappedTo: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
                 },
                 {
-                  code: "APPLICATION_REJECTED",
+                  code: "PRE_AWARD:REVIEW_APPLICATION:ON_HOLD",
+                  source: "CW",
+                  mappedTo: "PRE_AWARD:REVIEW_APPLICATION:ON_HOLD",
+                },
+                {
+                  code: "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_REJECTED",
                   source: "CW",
                   mappedTo: "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_REJECTED",
                 },
@@ -396,17 +601,33 @@ export const up = async (db) => {
                   source: "AS",
                   mappedTo: "PRE_AWARD:REVIEW_OFFER:OFFER_REJECTED",
                 },
+                {
+                  code: "PRE_AWARD:REVIEW_OFFER:AGREEMENT_GENERATING",
+                  source: "CW",
+                  mappedTo: "PRE_AWARD:REVIEW_OFFER:AGREEMENT_GENERATING",
+                },
+                {
+                  code: "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
+                  source: "CW",
+                  mappedTo: "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
+                },
+                {
+                  code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
+                  source: "CW",
+                  mappedTo:
+                    "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
+                },
+
+                {
+                  code: "PRE_AWARD:REVIEW_OFFER:APPLICATION_REJECTED",
+                  source: "CW",
+                  mappedTo: "PRE_AWARD:REVIEW_OFFER:APPLICATION_REJECTED",
+                },
               ],
             },
             {
               code: "CUSTOMER_AGREEMENT_REVIEW",
               statuses: [
-                {
-                  code: "AGREEMENT_OFFERED",
-                  source: "CW",
-                  mappedTo:
-                    "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
-                },
                 {
                   code: "accepted",
                   source: "AS",
@@ -414,10 +635,16 @@ export const up = async (db) => {
                     "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
                 },
                 {
-                  code: "withdrawn",
-                  source: "AS",
+                  code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
+                  source: "CW",
                   mappedTo:
-                    "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:OFFER_WITHDRAWN",
+                    "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
+                },
+                {
+                  code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_REJECTED",
+                  source: "CW",
+                  mappedTo:
+                    "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_REJECTED",
                 },
               ],
             },
@@ -430,16 +657,10 @@ export const up = async (db) => {
               code: "MONITORING",
               statuses: [
                 {
-                  code: "AGREEMENT_ACCEPTED",
+                  code: "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
                   source: "CW",
                   mappedTo:
                     "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
-                },
-                {
-                  code: "COMPLETE_AGREEMENT",
-                  source: "CW",
-                  mappedTo:
-                    "POST_AGREEMENT_MONITORING:MONITORING:COMPLETE_AGREEMENT",
                 },
               ],
             },

@@ -64,12 +64,10 @@ export class Grant {
     externalRequestedState,
     sourceSystem,
   ) {
-    const parts = externalRequestedState.split(":");
-
     const statusMapping = this.#findExternalStatusMapping(
       currentPhase,
       currentStage,
-      parts[parts.length - 1],
+      externalRequestedState,
       sourceSystem,
     );
 

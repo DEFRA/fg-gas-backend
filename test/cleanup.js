@@ -11,6 +11,7 @@ beforeEach(async () => {
 
   await Promise.all([
     db.collection("outbox").deleteMany({}),
+    db.collection("inbox").deleteMany({}),
     db.collection("applications").deleteMany({}),
     db.collection("grants").deleteMany({}),
     db.collection("users").deleteMany({}),
