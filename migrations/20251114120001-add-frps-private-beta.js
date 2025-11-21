@@ -495,7 +495,7 @@ export const up = async (db) => {
               },
               {
                 code: "APPLICATION_REJECTED",
-                validFrom: ["IN_REVIEW", "ON_HOLD"],
+                validFrom: ["IN_REVIEW"],
               },
             ],
           },
