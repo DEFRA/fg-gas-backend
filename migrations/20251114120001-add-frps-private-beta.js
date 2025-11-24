@@ -383,7 +383,7 @@ export const up = async (db) => {
                       properties: {
                         mobile: {
                           type: "string",
-                          pattern: "^[0-9]+$",
+                          pattern: "^\\+?[0-9\\s\\-()]+$",
                           description: "Mobile phone number",
                         },
                       },
