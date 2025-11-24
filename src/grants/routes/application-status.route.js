@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { logger } from "../../common/logger.js";
 import { clientRef } from "../schemas/application/metadata/client-ref.js";
 import { code } from "../schemas/grant/code.js";
 import { applicationStatusResponseSchema } from "../schemas/responses/application-status-response.schema.js";
@@ -21,11 +22,15 @@ export const applicationStatusRoute = {
     },
   },
   async handler(request) {
+    logger.info("Get application status");
+
     const { code, clientRef } = request.params;
     const applicationStatusData = await getApplicationStatusUseCase({
       clientRef,
       code,
     });
+
+    logger.info("Application status data retrieved:");
 
     return applicationStatusData;
   },

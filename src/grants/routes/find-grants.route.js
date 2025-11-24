@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { logger } from "../../common/logger.js";
 import { findGrantResponseSchema } from "../schemas/responses/find-grant-response.schema.js";
 import { findGrantsUseCase } from "../use-cases/find-grants.use-case.js";
 
@@ -15,8 +16,9 @@ export const findGrantsRoute = {
     },
   },
   async handler(_request, _h) {
+    logger.info("Finding all grants");
     const grants = await findGrantsUseCase();
-
+    logger.info("Grants found");
     return grants;
   },
 };
