@@ -10,6 +10,32 @@ import { config } from "./common/config.js";
 import { logger } from "./common/logger.js";
 import { mongoClient } from "./common/mongo-client.js";
 
+const handlePreResponse = (request, h) => {
+  const response = request.response;
+
+  // SonarCloud magic numbers
+  const statusCodes = {
+    badRequest: 400,
+    internalServerError: 500,
+  };
+
+  if (
+    response.isBoom &&
+    response.output.statusCode >= statusCodes.badRequest &&
+    response.output.statusCode < statusCodes.internalServerError
+  ) {
+    const error = new Error(response.message);
+
+    // CDP doesn't support error.stack
+    delete error.stack;
+    error.stack_trace = response.stack;
+
+    logger.error(error);
+  }
+
+  return h.continue;
+};
+
 export const createServer = async () => {
   const server = hapi.server({
     port: config.port,
@@ -83,31 +109,7 @@ export const createServer = async () => {
     auth,
   ]);
 
-  // SonarCloud magic numbers
-  const statusCodes = {
-    badRequest: 400,
-    internalServerError: 500,
-  };
-
-  server.ext("onPreResponse", (request, h) => {
-    const response = request.response;
-
-    if (
-      response.isBoom &&
-      response.output.statusCode >= statusCodes.badRequest &&
-      response.output.statusCode < statusCodes.internalServerError
-    ) {
-      const error = new Error(response.message);
-
-      // CDP doesn't support error.stack
-      delete error.stack;
-      error.stack_trace = response.stack;
-
-      logger.error(error);
-    }
-
-    return h.continue;
-  });
+  server.ext("onPreResponse", handlePreResponse);
 
   return server;
 };
