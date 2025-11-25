@@ -1,4 +1,5 @@
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { Outbox } from "../models/outbox.js";
@@ -15,6 +16,9 @@ export const withdrawAgreementUseCase = async ({
   source,
   requestedStatus,
 }) => {
+  logger.info(
+    `Withdrawing agreement ${agreementRef} for application ${clientRef} with code ${code}`,
+  );
   return withTransaction(async (session) => {
     const application = await findApplicationByClientRefAndCodeUseCase(
       clientRef,
@@ -32,7 +36,16 @@ export const withdrawAgreementUseCase = async ({
 
     application.withdrawAgreement(agreementRef, date);
 
+    logger.debug(
+      `Withdrawn agreement ${agreementRef} for application ${clientRef} with code ${code}. New status: ${application.getFullyQualifiedStatus()}`,
+    );
+
     await update(application, session);
+
+    logger.debug(
+      `Finished: Withdrawing agreement ${agreementRef} for application ${clientRef} with code ${code}. New status: ${application.getFullyQualifiedStatus()}`,
+    );
+
     const statusEvent = new ApplicationStatusUpdatedEvent({
       clientRef,
       code,

@@ -18,7 +18,7 @@ export const findGrantsRoute = {
   async handler(_request, _h) {
     logger.info("Finding all grants");
     const grants = await findGrantsUseCase();
-    logger.info("Grants found");
+    logger.info("Finished: Finding all grants");
     return grants;
   },
 };

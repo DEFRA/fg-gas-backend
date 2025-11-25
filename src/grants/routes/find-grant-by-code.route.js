@@ -20,9 +20,9 @@ export const findGrantByCodeRoute = {
     },
   },
   async handler(request, _h) {
-    logger.info("Finding grant by code");
+    logger.info(`Finding grant with code ${request.params.code}`);
     const grant = await findGrantByCodeUseCase(request.params.code);
-    logger.info("Grant found");
+    logger.info(`Finished: Finding grant with code ${request.params.code}`);
     return grant;
   },
 };

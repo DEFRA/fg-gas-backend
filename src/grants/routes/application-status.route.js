@@ -30,7 +30,7 @@ export const applicationStatusRoute = {
       code,
     });
 
-    logger.info("Application status data retrieved:");
+    logger.info("Finished: Get application status");
 
     return applicationStatusData;
   },

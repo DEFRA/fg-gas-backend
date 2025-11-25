@@ -15,7 +15,7 @@ export const createGrantRoute = {
   async handler(request, h) {
     logger.info("Creating grant");
     await createGrantUseCase(request.payload);
-    logger.info("Grant created");
+    logger.info("Finished: Grant created");
     return h.response().code(204);
   },
 };

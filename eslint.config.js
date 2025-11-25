@@ -56,7 +56,12 @@ export default [
             {
               target: "**/routes/**/!(*.test).js",
               from: ["src/**/**"],
-              except: ["**/use-cases/**", "**/services/**", "**/schemas/**"],
+              except: [
+                "**/use-cases/**",
+                "**/services/**",
+                "**/schemas/**",
+                "src/common/**",
+              ],
               message:
                 "Routes should only import use cases, services and schemas",
             },

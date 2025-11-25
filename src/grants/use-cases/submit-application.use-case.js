@@ -66,6 +66,10 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
 };
 
 export const submitApplicationUseCase = async (code, { metadata, answers }) => {
+  logger.debug(
+    `Application submitted for code ${code} and metadata ${JSON.stringify(metadata)} and answers ${JSON.stringify(answers)}`,
+  );
+
   return withTransaction(async (session) => {
     const grant = await findGrantByCodeUseCase(code);
 
@@ -122,6 +126,10 @@ export const submitApplicationUseCase = async (code, { metadata, answers }) => {
         }),
       ],
       session,
+    );
+
+    logger.debug(
+      `Finished: Application submitted for code ${code} and metadata ${JSON.stringify(metadata)} and answers ${JSON.stringify(answers)}`,
     );
   });
 };

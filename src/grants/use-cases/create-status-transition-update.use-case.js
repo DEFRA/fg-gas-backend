@@ -1,4 +1,5 @@
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { Outbox } from "../models/outbox.js";
 import { insertMany } from "../repositories/outbox.repository.js";
@@ -11,6 +12,9 @@ export const createStatusTransitionUpdateUseCase =
     code,
   }) =>
   async (session) => {
+    logger.debug(
+      `Creating status transition update for application ${clientRef} with code ${code}`,
+    );
     if (originalFullyQualifiedStatus !== newFullyQualifiedStatus) {
       const statusEvent = new ApplicationStatusUpdatedEvent({
         clientRef,
@@ -29,4 +33,8 @@ export const createStatusTransitionUpdateUseCase =
         session,
       );
     }
+
+    logger.debug(
+      `Finished: Creating status transition update for application ${clientRef} with code ${code}`,
+    );
   };

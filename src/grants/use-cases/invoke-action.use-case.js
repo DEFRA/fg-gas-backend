@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { wreck } from "../../common/wreck.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 
@@ -10,6 +11,10 @@ export const invokeActionUseCase = async ({
   payload,
   params,
 }) => {
+  logger.debug(
+    `Invoke action for grant ${code} with name ${name} and method ${method} `,
+  );
+
   const grant = await findGrantByCodeUseCase(code);
 
   const action = grant.actions.find(
@@ -41,6 +46,10 @@ export const invokeActionUseCase = async ({
       `Unsupported method ${method} for action named "${name}"`,
     );
   }
+
+  logger.debug(
+    `Finished: Invoke action for grant ${code} with name ${name} and method ${method} `,
+  );
 
   return response.payload;
 };

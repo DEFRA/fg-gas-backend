@@ -18,9 +18,13 @@ export const submitApplicationRoute = {
     },
   },
   async handler(request, h) {
-    logger.info("Submitting application");
+    logger.info(
+      `Submitting application for grant with code ${request.params.code}`,
+    );
     await submitApplicationUseCase(request.params.code, request.payload);
-    logger.info("Application submitted");
+    logger.info(
+      `Finished: Submitting application for grant with code ${request.params.code}`,
+    );
     return h.response().code(204);
   },
 };
