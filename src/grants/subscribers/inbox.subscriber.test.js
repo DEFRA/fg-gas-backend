@@ -8,6 +8,7 @@ import {
   vi,
 } from "vitest";
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { withTraceParent } from "../../common/trace-parent.js";
 import { Inbox } from "../models/inbox.js";
 import { claimEvents } from "../repositories/inbox.repository.js";
@@ -47,6 +48,18 @@ describe("inbox.subscriber", () => {
     const subscriber = new InboxSubscriber();
     subscriber.start();
     expect(claimEvents).toHaveBeenCalled();
+    expect(subscriber.running).toBeTruthy();
+  });
+
+  it("should handle poll failure start()", async () => {
+    const error = new Error("Poll failure");
+    vi.spyOn(logger, "error");
+    claimEvents.mockRejectedValue(error);
+    const subscriber = new InboxSubscriber();
+    subscriber.start();
+    await expect
+      .poll(() => logger.error)
+      .toHaveBeenCalledWith(error, `Error during polling inbox`);
     expect(subscriber.running).toBeTruthy();
   });
 

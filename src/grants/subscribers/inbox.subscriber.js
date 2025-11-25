@@ -25,16 +25,20 @@ export class InboxSubscriber {
   }
 
   async poll() {
-    while (this.running) {
-      logger.trace("polling inbox");
-      const claimToken = randomUUID();
-      const events = await claimEvents(claimToken);
-      await this.processEvents(events);
-      await this.processResubmittedEvents();
-      await this.processFailedEvents();
-      await this.processDeadEvents();
+    try {
+      while (this.running) {
+        logger.trace("polling inbox");
+        const claimToken = randomUUID();
+        const events = await claimEvents(claimToken);
+        await this.processEvents(events);
+        await this.processResubmittedEvents();
+        await this.processFailedEvents();
+        await this.processDeadEvents();
 
-      await setTimeout(this.interval);
+        await setTimeout(this.interval);
+      }
+    } catch (error) {
+      logger.error(error, `Error during polling inbox`);
     }
   }
 
