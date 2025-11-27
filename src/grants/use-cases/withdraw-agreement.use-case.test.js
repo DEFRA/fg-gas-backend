@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { withTransaction } from "../../common/with-transaction.js";
+import { describe, expect, it, vi, vitest } from "vitest";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -11,33 +10,24 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
-import { update } from "../repositories/application.repository.js";
-import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
-import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
-import { AgreementStatus } from "./handle-agreement-status-change.use-case.js";
+import {
+  findByClientRefAndCode,
+  update,
+} from "../repositories/application.repository.js";
+import { insertMany } from "../repositories/outbox.repository.js";
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 
 vi.mock("../services/apply-event-status-change.service.js");
-vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/outbox.repository.js");
 
-describe("withdrawAgreementUseCase", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2024-01-15T10:30:00.000Z"));
-  });
+vitest.mock("../repositories/outbox.repository.js");
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  beforeEach(async () => {
-    const mockSession = {};
-    withTransaction.mockImplementation((cb) => cb(mockSession));
+describe("withdraw agreement use case", () => {
+  it("should withdraw an agreement", async () => {
     const agreement = new Agreement({
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
@@ -50,47 +40,47 @@ describe("withdrawAgreementUseCase", () => {
       ],
     });
 
-    applyExternalStateChange.mockResolvedValue(true);
+    const application = new Application({
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.Withdrawn,
+      clientRef: "test-client-ref",
+      code: "test-code",
+      agreements: {
+        "agreement-123": agreement,
+      },
+    });
 
-    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
-      new Application({
-        currentPhase: ApplicationPhase.PreAward,
-        currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Review,
-        clientRef: "test-client-ref",
-        code: "test-code",
-        agreements: {
-          "agreement-123": agreement,
-        },
-      }),
-    );
+    const oldApplication = new Application({
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.WithdrawRequested,
+      clientRef: "test-client-ref",
+      code: "test-code",
+      agreements: {
+        "agreement-123": agreement,
+      },
+    });
 
-    await withdrawAgreementUseCase({
+    const session = {};
+    const command = {
       clientRef: "test-client-ref",
       code: "test-code",
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
-      requestedStatus: AgreementStatus.Withdrawn,
+      requestedStatus: Status.Withdrawn,
       source: "AS",
-    });
-  });
+      eventData: {
+        agreementNumber: "agreement-123",
+      },
+    };
 
-  it("retrieves the application from the repository", () => {
-    expect(findApplicationByClientRefAndCodeUseCase).toHaveBeenCalledWith(
-      "test-client-ref",
-      "test-code",
-    );
-  });
+    findByClientRefAndCode.mockResolvedValueOnce(application);
+    findByClientRefAndCode.mockResolvedValueOnce(oldApplication);
+    await withdrawAgreementUseCase(command, session);
 
-  it("updates the status of the application and marks agreement as withdrawn", () => {
-    const appl = update.mock.calls[0][0];
-    expect(appl).toBeInstanceOf(Application);
-
-    expect(applyExternalStateChange).toHaveBeenCalledWith({
-      clientRef: "test-client-ref",
-      code: "test-code",
-      externalRequestedState: "withdrawn",
-      sourceSystem: "AS",
-    });
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(agreement.latestStatus).toBe(Status.Withdrawn);
+    expect(insertMany).toBeCalledTimes(1);
   });
 });
