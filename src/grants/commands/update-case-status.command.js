@@ -17,10 +17,18 @@ export class UpdateCaseStatusCommand extends CloudEvent {
       phase,
       stage,
     };
-    if (targetNode) supplementaryData.targetNode = targetNode;
-    if (dataType) supplementaryData.dataType = dataType;
-    if (key) supplementaryData.key = key;
-    if (data) supplementaryData.data = data;
+    if (targetNode) {
+      supplementaryData.targetNode = targetNode;
+    }
+    if (dataType) {
+      supplementaryData.dataType = dataType;
+    }
+    if (key) {
+      supplementaryData.key = key;
+    }
+    if (data) {
+      supplementaryData.data = data;
+    }
 
     super("case.update.status", {
       caseRef,

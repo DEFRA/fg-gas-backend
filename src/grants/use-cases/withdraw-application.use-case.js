@@ -17,6 +17,7 @@ export const withdrawApplicationUseCase = async (command, session) => {
     { clientRef, code },
     session,
   );
+  const { currentStage, currentPhase } = application;
 
   const previousStatus = prevApplication.getFullyQualifiedStatus();
 
@@ -24,28 +25,11 @@ export const withdrawApplicationUseCase = async (command, session) => {
 
   const outboxObjects = [];
 
-  if (agreement) {
-    const { currentStage, currentPhase } = application;
-
-    const statusCommand = new UpdateCaseStatusCommand({
-      caseRef: clientRef,
-      workflowCode: code,
-      newStatus: application.getFullyQualifiedStatus(),
-      phase: currentPhase,
-      stage: currentStage,
-    });
-
-    outboxObjects.push(
-      new Outbox({
-        event: statusCommand,
-        target: config.sns.updateCaseStatusTopicArn,
-      }),
-    );
-  } else {
+  // if we have no agreement we simply withdraw the application...
+  if (!agreement) {
     application.withdraw();
     await update(application, session);
 
-    const { currentStage, currentPhase } = application;
     const statusCommand = new UpdateCaseStatusCommand({
       caseRef: clientRef,
       workflowCode: code,
