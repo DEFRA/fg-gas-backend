@@ -32,7 +32,7 @@ describe("GET /grants/{code}/applications/{clientRef}/status", () => {
         code,
         currentPhase: ApplicationPhase.PreAward,
         currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Received,
+        currentStatus: ApplicationStage.Assessment,
         phases: [
           {
             code: ApplicationPhase.PreAward,
@@ -63,9 +63,9 @@ describe("GET /grants/{code}/applications/{clientRef}/status", () => {
 
     expect(response.res.statusCode).toBe(200);
     expect(response.payload).toEqual({
-      phase: "PRE_AWARD",
-      stage: "ASSESSMENT",
-      status: "RECEIVED",
+      phase: ApplicationPhase.PreAward,
+      stage: ApplicationStage.Assessment,
+      status: ApplicationStage.Assessment,
       grantCode: code,
       clientRef,
     });

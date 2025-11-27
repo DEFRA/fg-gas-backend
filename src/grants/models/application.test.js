@@ -17,6 +17,44 @@ describe("Application", () => {
     vi.useRealTimers();
   });
 
+  describe("getActiveAgreement", () => {
+    it("should return undefined if application has no agreements", () => {
+      const application = createTestApplication();
+      const agreement = application.getActiveAgreement();
+      expect(agreement).toBeUndefined();
+    });
+
+    it("should get the active agreement", () => {
+      const ag1 = new Agreement({
+        agreementRef: "agreement-123",
+        latestStatus: AgreementStatus.Offered,
+        history: [],
+      });
+      const application = createTestApplication();
+      application.addAgreement(ag1);
+      const agreement = application.getActiveAgreement();
+      expect(agreement).toEqual(ag1);
+    });
+
+    it("should get active agreement when other agreements are published", () => {
+      const ag1 = new Agreement({
+        agreementRef: "agreement-123",
+        latestStatus: AgreementStatus.Rejected,
+        history: [],
+      });
+      const ag2 = new Agreement({
+        agreementRef: "agreement-567",
+        latestStatus: AgreementStatus.Offered,
+        history: [],
+      });
+      const application = createTestApplication();
+      application.addAgreement(ag1);
+      application.addAgreement(ag2);
+      const agreement = application.getActiveAgreement();
+      expect(agreement).toEqual(ag2);
+    });
+  });
+
   it("approves application", () => {
     const application = createTestApplication();
 

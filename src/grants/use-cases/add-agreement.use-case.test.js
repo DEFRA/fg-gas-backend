@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { Agreement } from "../models/agreement.js";
-import { Application } from "../models/application.js";
+import {
+  Application,
+  ApplicationPhase,
+  ApplicationStage,
+  ApplicationStatus,
+} from "../models/application.js";
 import { Outbox } from "../models/outbox.js";
 import {
   findByClientRefAndCode,
@@ -48,9 +53,9 @@ describe("addAgreementUseCase", () => {
       {
         clientRef: "test-client-ref",
         code: "test-code",
-        currentStatus: "",
-        currentPhase: "",
-        currentStage: "",
+        currentStatus: ApplicationStatus.Review,
+        currentPhase: ApplicationPhase.PreAward,
+        currentStage: ApplicationStage.Assessment,
         eventData: {
           agreementNumber: "agreement-123",
           date: "2024-01-01T12:00:00Z",
@@ -68,7 +73,7 @@ describe("addAgreementUseCase", () => {
     expect(UpdateCaseStatusCommand).toHaveBeenCalledWith({
       caseRef: "test-client-ref",
       workflowCode: "test-code",
-      newStatus: "PRE_AWARD:ASSESSMENT:RECEIVED",
+      newStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
       phase: "PRE_AWARD",
       stage: "ASSESSMENT",
       dataType: "ARRAY",

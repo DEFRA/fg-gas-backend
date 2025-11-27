@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
+import {
+  ApplicationPhase,
+  ApplicationStage,
+  ApplicationStatus,
+} from "../models/application.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import { getApplicationStatusUseCase } from "./get-application-status.use-case.js";
 
@@ -17,9 +22,9 @@ describe("get application status use case", () => {
     await expect(
       getApplicationStatusUseCase({ code, clientRef }),
     ).resolves.toEqual({
-      phase: "PRE_AWARD",
-      stage: "ASSESSMENT",
-      status: "RECEIVED",
+      phase: ApplicationPhase.PreAward,
+      stage: ApplicationStage.Assessment,
+      status: ApplicationStatus.Received,
       clientRef,
       grantCode: code,
     });
