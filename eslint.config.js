@@ -60,7 +60,7 @@ export default [
                 "**/use-cases/**",
                 "**/services/**",
                 "**/schemas/**",
-                "src/common/**",
+                "src/common/logger.js",
               ],
               message:
                 "Routes should only import use cases, services and schemas",
