@@ -9,7 +9,7 @@ import { insertMany } from "../repositories/outbox.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
 export const approveApplicationUseCase = async ({ clientRef, code }) => {
-  logger.debug(`Approving application ${clientRef} with code ${code}`);
+  logger.info(`Approving application ${clientRef} with code ${code}`);
   return withTransaction(async (session) => {
     const application = await findApplicationByClientRefAndCodeUseCase(
       clientRef,
@@ -22,7 +22,7 @@ export const approveApplicationUseCase = async ({ clientRef, code }) => {
 
     await update(application, session);
 
-    logger.debug(
+    logger.info(
       `Application ${clientRef} status updated from ${previousStatus} to ${application.getFullyQualifiedStatus()}`,
     );
 
@@ -52,7 +52,7 @@ export const approveApplicationUseCase = async ({ clientRef, code }) => {
       session,
     );
 
-    logger.debug(
+    logger.info(
       `Finished: Approving application ${clientRef} with code ${code}`,
     );
 

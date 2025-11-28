@@ -11,7 +11,7 @@ export const invokeActionUseCase = async ({
   payload,
   params,
 }) => {
-  logger.debug(
+  logger.info(
     `Invoke action for grant ${code} with name ${name} and method ${method} `,
   );
 
@@ -47,7 +47,7 @@ export const invokeActionUseCase = async ({
     );
   }
 
-  logger.debug(
+  logger.info(
     `Finished: Invoke action for grant ${code} with name ${name} and method ${method} `,
   );
 

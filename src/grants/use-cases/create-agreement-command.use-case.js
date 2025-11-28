@@ -9,7 +9,7 @@ export const createAgreementCommandUseCase = async (
   { clientRef, code },
   session,
 ) => {
-  logger.debug(
+  logger.info(
     `Creating agreement for application ${clientRef} with code ${code}`,
   );
 
@@ -28,7 +28,7 @@ export const createAgreementCommandUseCase = async (
     session,
   );
 
-  logger.debug(
+  logger.info(
     `Finished: Creating agreement for application ${clientRef} with code ${code}`,
   );
 };

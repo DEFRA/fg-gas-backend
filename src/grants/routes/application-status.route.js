@@ -22,15 +22,19 @@ export const applicationStatusRoute = {
     },
   },
   async handler(request) {
-    logger.info("Get application status");
-
     const { code, clientRef } = request.params;
+    logger.info(
+      `Get application status for code ${code} and clientRef ${clientRef}`,
+    );
+
     const applicationStatusData = await getApplicationStatusUseCase({
       clientRef,
       code,
     });
 
-    logger.info("Finished: Get application status");
+    logger.info(
+      `Finished: Get application status for code ${code} and clientRef ${clientRef}`,
+    );
 
     return applicationStatusData;
   },

@@ -13,7 +13,7 @@ export const acceptAgreementUseCase = async (command, session) => {
   const { clientRef, code, eventData } = command;
   const { agreementNumber, date } = eventData;
 
-  logger.debug(
+  logger.info(
     `Accepting agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
   );
 
@@ -30,7 +30,7 @@ export const acceptAgreementUseCase = async (command, session) => {
 
   await update(application, session);
 
-  logger.debug(
+  logger.info(
     `Application ${clientRef} status updated from ${previousStatus} to ${application.getFullyQualifiedStatus()}`,
   );
 
@@ -70,7 +70,7 @@ export const acceptAgreementUseCase = async (command, session) => {
     ],
     session,
   );
-  logger.debug(
+  logger.info(
     `Finished: Accepting agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
   );
 };

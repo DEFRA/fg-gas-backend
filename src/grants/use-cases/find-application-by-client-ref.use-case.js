@@ -3,7 +3,7 @@ import { logger } from "../../common/logger.js";
 import { findByClientRef } from "../repositories/application.repository.js";
 
 export const findApplicationByClientRefUseCase = async (clientRef) => {
-  logger.debug(`Finding application by clientRef ${clientRef}`);
+  logger.info(`Finding application by clientRef ${clientRef}`);
 
   const application = await findByClientRef(clientRef);
 
@@ -11,7 +11,7 @@ export const findApplicationByClientRefUseCase = async (clientRef) => {
     throw Boom.notFound(`Application with clientRef "${clientRef}" not found`);
   }
 
-  logger.debug(`Finished: Finding application by clientRef ${clientRef}`);
+  logger.info(`Finished: Finding application by clientRef ${clientRef}`);
 
   return application;
 };

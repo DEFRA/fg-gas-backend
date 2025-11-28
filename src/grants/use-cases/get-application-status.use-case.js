@@ -2,7 +2,7 @@ import { logger } from "../../common/logger.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
 export const getApplicationStatusUseCase = async ({ code, clientRef }) => {
-  logger.debug(
+  logger.info(
     `Getting application status for application ${clientRef} with code ${code}`,
   );
 
@@ -12,7 +12,7 @@ export const getApplicationStatusUseCase = async ({ code, clientRef }) => {
     currentStatus: status,
   } = await findApplicationByClientRefAndCodeUseCase(clientRef, code);
 
-  logger.debug(
+  logger.info(
     `Finished: Getting application status for application ${clientRef} with code ${code}`,
   );
 

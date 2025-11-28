@@ -13,7 +13,7 @@ export const addAgreementUseCase = async (command, session) => {
   const { clientRef, code, eventData } = command;
   const { agreementNumber, date } = eventData;
 
-  logger.debug(
+  logger.info(
     `Adding agreement ${agreementNumber} for application ${clientRef} with code ${code} on ${date}`,
   );
 
@@ -32,7 +32,7 @@ export const addAgreementUseCase = async (command, session) => {
   application.addAgreement(agreement);
   await update(application, session);
 
-  logger.debug(
+  logger.info(
     `Application updated with agreement for ${clientRef} with code ${code}`,
   );
 
@@ -62,7 +62,7 @@ export const addAgreementUseCase = async (command, session) => {
     session,
   );
 
-  logger.debug(
+  logger.info(
     `Finished: Adding agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
   );
 };

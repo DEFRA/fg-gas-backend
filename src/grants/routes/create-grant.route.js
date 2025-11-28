@@ -13,9 +13,9 @@ export const createGrantRoute = {
     },
   },
   async handler(request, h) {
-    logger.info("Creating grant");
+    logger.info(`Creating grant for code ${request.payload.code}`);
     await createGrantUseCase(request.payload);
-    logger.info("Finished: Grant created");
+    logger.info(`Finished: Creating grant for code ${request.payload.code}`);
     return h.response().code(204);
   },
 };

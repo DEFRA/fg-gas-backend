@@ -6,9 +6,7 @@ export const findApplicationByClientRefAndCodeUseCase = async (
   clientRef,
   code,
 ) => {
-  logger.debug(
-    `Finding application by clientRef ${clientRef} and code ${code}`,
-  );
+  logger.info(`Finding application by clientRef ${clientRef} and code ${code}`);
 
   const application = await findByClientRefAndCode({
     clientRef,
@@ -21,7 +19,7 @@ export const findApplicationByClientRefAndCodeUseCase = async (
     );
   }
 
-  logger.debug(
+  logger.info(
     `Finished: Finding application by clientRef ${clientRef} and code ${code}`,
   );
   return application;

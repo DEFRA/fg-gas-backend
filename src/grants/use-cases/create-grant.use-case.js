@@ -3,7 +3,7 @@ import { Grant } from "../models/grant.js";
 import { save } from "../repositories/grant.repository.js";
 
 export const createGrantUseCase = async (createGrantCommand) => {
-  logger.debug(`Creating grant with code ${createGrantCommand.code}`);
+  logger.info(`Creating grant with code ${createGrantCommand.code}`);
   const grant = new Grant({
     code: createGrantCommand.code,
     metadata: {
@@ -21,7 +21,7 @@ export const createGrantUseCase = async (createGrantCommand) => {
 
   await save(grant);
 
-  logger.debug(`Finished: Created grant with code ${createGrantCommand.code}`);
+  logger.info(`Finished: Created grant with code ${createGrantCommand.code}`);
 
   return grant;
 };

@@ -11,7 +11,9 @@ export const messageSource = {
 };
 
 export const saveInboxMessageUseCase = async (message, source) => {
-  logger.info("Save inbox message use case");
+  logger.info(
+    `Save inbox message use ccase for message with id: ${message.id}`,
+  );
   const existing = await findByMessageId(message.id);
   if (existing !== null) {
     // message has already been stored
@@ -29,5 +31,7 @@ export const saveInboxMessageUseCase = async (message, source) => {
   });
 
   await insertOne(inbox);
-  logger.info("Inbox message stored");
+  logger.info(
+    `Finished: Save inbox message use ccase for message with id: ${message.id}`,
+  );
 };

@@ -12,7 +12,7 @@ export const createStatusTransitionUpdateUseCase =
     code,
   }) =>
   async (session) => {
-    logger.debug(
+    logger.info(
       `Creating status transition update for application ${clientRef} with code ${code}`,
     );
     if (originalFullyQualifiedStatus !== newFullyQualifiedStatus) {
@@ -34,7 +34,7 @@ export const createStatusTransitionUpdateUseCase =
       );
     }
 
-    logger.debug(
+    logger.info(
       `Finished: Creating status transition update for application ${clientRef} with code ${code}`,
     );
   };
