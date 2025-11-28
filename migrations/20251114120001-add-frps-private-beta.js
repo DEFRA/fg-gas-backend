@@ -525,14 +525,7 @@ export const up = async (db) => {
             statuses: [
               {
                 code: "AGREEMENT_OFFERED",
-                validFrom: [
-                  "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
-                  "APPLICATION_REJECTED",
-                ],
-              },
-              {
-                code: "APPLICATION_REJECTED",
-                validFrom: ["AGREEMENT_OFFERED"],
+                validFrom: ["PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED"],
               },
             ],
           },
@@ -617,7 +610,6 @@ export const up = async (db) => {
                   mappedTo:
                     "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
                 },
-
                 {
                   code: "PRE_AWARD:REVIEW_OFFER:APPLICATION_REJECTED",
                   source: "CW",
@@ -639,12 +631,6 @@ export const up = async (db) => {
                   source: "CW",
                   mappedTo:
                     "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
-                },
-                {
-                  code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_REJECTED",
-                  source: "CW",
-                  mappedTo:
-                    "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_REJECTED",
                 },
               ],
             },
