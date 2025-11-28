@@ -1,4 +1,5 @@
 import { Verifier } from "@pact-foundation/pact";
+import { execSync } from "node:child_process";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, it, vi } from "vitest";
 
@@ -110,6 +111,13 @@ vi.mock("@aws-sdk/client-sqs", () => ({
 vi.mock("migrate-mongo", () => ({
   up: vi.fn().mockResolvedValue([]),
 }));
+
+// Get the latest git tag for provider version
+function getLatestGitTag() {
+  return execSync("git describe --tags --abbrev=0 --always", {
+    encoding: "utf8",
+  }).trim();
+}
 
 describe("fg-gas-backend Provider Verification", () => {
   let server;
@@ -309,8 +317,8 @@ describe("fg-gas-backend Provider Verification", () => {
               return Promise.resolve();
             },
         },
-        publishVerificationResult: true,
-        providerVersion: process.env.GIT_COMMIT || "1.0.0",
+        publishVerificationResult: env.PACT_PUBLISH_VERIFICATION === "true",
+        providerVersion: getLatestGitTag(),
       };
 
       return new Verifier(opts).verifyProvider();

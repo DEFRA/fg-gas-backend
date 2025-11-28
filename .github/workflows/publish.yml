@@ -45,3 +45,36 @@ jobs:
         uses: DEFRA/cdp-build-action/build@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  contract-tests:
+    name: Run Contract Tests
+    runs-on: self-hosted
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
+    needs: build
+    steps:
+      - name: Mask secrets
+        run: |
+          echo "::add-mask::$PACT_USER"
+          echo "::add-mask::$PACT_PASS"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fetch latest tags
+        run: git fetch --tags --force
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - name: Run contract tests
+        env:
+          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
+          PACT_PUBLISH_VERIFICATION: true
+        run: |
+          export PACT_USER="$PACT_USER"
+          export PACT_PASS="$PACT_PASS"
+          npm ci --ignore-scripts
+          npm run test:contract
