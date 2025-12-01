@@ -25,7 +25,7 @@ export const logger = pino({
     paths:
       config.env === "production"
         ? ["req.headers.authorization", "req.headers.cookie", "res.headers"]
-        : ["req", "res", "responseTime"],
+        : [],
     remove: true,
   },
   level: config.logLevel,
