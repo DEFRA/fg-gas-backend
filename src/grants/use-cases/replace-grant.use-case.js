@@ -1,8 +1,11 @@
+import { logger } from "../../common/logger.js";
 import { Grant } from "../models/grant.js";
 import { replace } from "../repositories/grant.repository.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 
 export const replaceGrantUseCase = async (code, replaceGrantCommand) => {
+  logger.info(`Replacing grant with code ${code}`);
+
   await findGrantByCodeUseCase(code);
 
   const grant = new Grant({
@@ -17,4 +20,6 @@ export const replaceGrantUseCase = async (code, replaceGrantCommand) => {
   });
 
   await replace(grant);
+
+  logger.info(`Finished: Replacing grant with code ${code}`);
 };

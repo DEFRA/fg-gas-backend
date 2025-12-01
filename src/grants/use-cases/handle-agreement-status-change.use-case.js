@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { logger } from "../../common/logger.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
 
 export const AgreementStatus = {
@@ -12,13 +13,22 @@ export const handleAgreementStatusChangeUseCase = async (command, session) => {
   const { eventData } = command;
   const { status } = eventData;
 
-  if (status === AgreementStatus.Accepted) {
-    await acceptAgreementUseCase(command, session);
+  logger.info(
+    `Handling agreement status change for agreement ${eventData.agreementNumber} with status ${status}`,
+  );
 
+  if (status === AgreementStatus.Accepted) {
+    logger.info(
+      `Handling accepted agreement status change for agreement ${eventData.agreementNumber}`,
+    );
+    await acceptAgreementUseCase(command, session);
+    logger.info(
+      `Finished: Handling accepted agreement status change for agreement ${eventData.agreementNumber}`,
+    );
     return;
   }
 
   throw Boom.badData(
-    `Can not update agreement status. Unsupported agreement status "${status}"`,
+    `Error: Handling accepted agreement status change for agreement ${eventData.agreementNumber} with status ${status}. Status unsupported.`,
   );
 };

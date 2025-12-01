@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { logger } from "../../common/logger.js";
 import { name } from "../schemas/grant/action/name.js";
 import { code } from "../schemas/grant/code.js";
 import { invokePostActionRequest } from "../schemas/requests/invoke-post-action-request.schema.js";
@@ -24,6 +25,7 @@ export const invokeGetActionRoute = {
     },
   },
   async handler(request, _h) {
+    logger.info("Invoking GET action");
     return handleInvokeAction(request);
   },
 };
@@ -48,6 +50,7 @@ export const invokePostActionRoute = {
     },
   },
   async handler(request, _h) {
+    logger.info("Invoking POST action");
     return handleInvokeAction(request);
   },
 };
