@@ -30,7 +30,7 @@ export const acceptAgreementUseCase = async (command, session) => {
 
   await update(application, session);
 
-  logger.info(
+  logger.debug(
     `Application ${clientRef} status updated from ${previousStatus} to ${application.getFullyQualifiedStatus()}`,
   );
 

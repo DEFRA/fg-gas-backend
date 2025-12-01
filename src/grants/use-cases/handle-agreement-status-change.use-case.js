@@ -29,7 +29,7 @@ export const handleAgreementStatusChangeUseCase = async (command, session) => {
   }
 
   logger.info(
-    `Finished: Handling agreement status change for agreement ${eventData.agreementNumber} with status ${status}`,
+    `Error: Handling accepted agreement status change for agreement ${eventData.agreementNumber} with status ${status}. Status unsupported.`,
   );
 
   throw Boom.badData(

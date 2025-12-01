@@ -32,7 +32,7 @@ export const addAgreementUseCase = async (command, session) => {
   application.addAgreement(agreement);
   await update(application, session);
 
-  logger.info(
+  logger.debug(
     `Application updated with agreement for ${clientRef} with code ${code}`,
   );
 

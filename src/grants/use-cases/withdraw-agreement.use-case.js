@@ -36,7 +36,7 @@ export const withdrawAgreementUseCase = async ({
 
     application.withdrawAgreement(agreementRef, date);
 
-    logger.info(
+    logger.debug(
       `Withdrawn agreement ${agreementRef} for application ${clientRef} with code ${code}. New status: ${application.getFullyQualifiedStatus()}`,
     );
 
