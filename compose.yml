@@ -18,7 +18,6 @@ services:
 
   mongodb:
     image: mongo:6.0.13
-    container_name: mongodb
     networks:
       - cdp-tenant
     ports:
@@ -41,7 +40,6 @@ services:
 
   mongo-ready:
     image: mongo:6.0.13
-    container_name: "mongo-ready"
     networks: [cdp-tenant]
     environment:
       PRIMARY: "mongodb:27017"
