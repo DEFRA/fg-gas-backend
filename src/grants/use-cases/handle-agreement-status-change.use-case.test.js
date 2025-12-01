@@ -40,6 +40,8 @@ describe("agreementStatusUpdatedSubscriber", () => {
 
     await expect(() =>
       handleAgreementStatusChangeUseCase(mockMessage),
-    ).rejects.toThrow('Unsupported agreement status "invalid-status"');
+    ).rejects.toThrow(
+      "Error: Handling accepted agreement status change for agreement AG123 with status invalid-status. Status unsupported.",
+    );
   });
 });
