@@ -28,11 +28,7 @@ export const handleAgreementStatusChangeUseCase = async (command, session) => {
     return;
   }
 
-  logger.info(
-    `Error: Handling accepted agreement status change for agreement ${eventData.agreementNumber} with status ${status}. Status unsupported.`,
-  );
-
   throw Boom.badData(
-    `Can not update agreement status. Unsupported agreement status "${status}"`,
+    `Error: Handling accepted agreement status change for agreement ${eventData.agreementNumber} with status ${status}. Status unsupported.`,
   );
 };
