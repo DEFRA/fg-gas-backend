@@ -276,36 +276,38 @@ Repositories should never accept or return db records.
 
 This application uses [Pino](https://getpino.io/) for structured logging, configured with ECS (Elastic Common Schema) formatting for better observability and log analysis.
 
-Logging is configured in `src/common/logger.js`
+Logging is configured in `src/common/logger.js`.
 
-Basic Logging
+### Basic Logging
 
-We have entry and exit level logging. For example an entry log would look something like:
+We use entry and exit level logging patterns for better log correlation.
 
-logger.info(
-`Accepting agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
-);
+**Entry logs** indicate the start of an operation:
 
-An exit log would look something like:
+**Exit logs** indicate the completion of an operation:
 
-logger.info(
-`Finished: Accepting agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
-);
+> **Note**: We use consistent entry text to make it easier to correlate logs within OpenSearch.
 
-We use the entry text so it is easier to corollate the logs within OpenSearch
+### Conditional Logging
 
-Conditional logs
+For operations that have conditional logic between entry and exit logs, use `logger.debug()` or `logger.info()` based on relevance:
 
-If there are conditions in between the entry and exit logs we can use logger.debug but also if you feel it has relevance to log. Example file is:
+**Example implementation**: See `src/grants/use-cases/add-agreement.use-case.js`
 
-`src/grants/use-cases/add-agreement.use-case.js`
+### Log Levels
 
-Other logging types are:
+**Warning logs** for recoverable issues:
 
-Warning logs:
-`logger.warn("Retrying failed operation", { attempt: retryCount });`
+**Debug logs** for detailed diagnostic information:
 
-Note: If errors are thrown these will propogate up so do not require logger.error
+> **Note**: Error logging (`logger.error`) is typically not required in use cases as errors are thrown and will propagate up the call stack where they can be handled and logged by the error handling middleware.
+
+### Best Practices
+
+- Use structured logging with context objects for better searchability
+- Include relevant identifiers (IDs, codes, references) in log messages
+- Keep entry and exit log messages consistent for easier correlation
+- Use appropriate log levels based on the importance of the information
 
 ## Licence
 
