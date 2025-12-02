@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "nodemon --env-file=.env src/main.js",
+    "dev": "node scripts/dev-wrapper.js",
     "lint": "eslint",
     "test": "npm run test:unit -- --run && npm run test:integration -- --run",
     "test:unit": "vitest --config vitest.config.js --dir src",
@@ -67,7 +67,7 @@
     "nodemon": "^3.1.10",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.3.0",
-    "testcontainers": "^11.7.2",
+    "testcontainers": "^11.9.0",
     "vitest": "^3.1.2"
   }
 }
