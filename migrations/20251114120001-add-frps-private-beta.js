@@ -35,9 +35,18 @@ export const up = async (db) => {
               additionalProperties: false,
               required: ["id", "message", "valid", "date"],
               properties: {
-                id: { type: "integer", title: "Validation run ID" },
-                message: { type: "string", title: "Validation message" },
-                valid: { type: "boolean", title: "Validation status" },
+                id: {
+                  type: "integer",
+                  title: "Validation run ID",
+                },
+                message: {
+                  type: "string",
+                  title: "Validation message",
+                },
+                valid: {
+                  type: "boolean",
+                  title: "Validation status",
+                },
                 date: {
                   type: "string",
                   format: "date-time",
@@ -45,7 +54,10 @@ export const up = async (db) => {
                 },
               },
             },
-            scheme: { type: "string", title: "Defra scheme name" },
+            scheme: {
+              type: "string",
+              title: "Defra scheme name",
+            },
             totalAnnualPaymentPence: {
               type: "integer",
               minimum: 0,
@@ -61,13 +73,17 @@ export const up = async (db) => {
                   type: "array",
                   title: "Application parcels",
                   minItems: 0,
-                  items: { $ref: "#/$defs/ApplicationParcel" },
+                  items: {
+                    $ref: "#/$defs/ApplicationParcel",
+                  },
                 },
                 agreement: {
                   type: "array",
                   title: "Agreement-level actions",
                   minItems: 0,
-                  items: { $ref: "#/$defs/ApplicationAgreement" },
+                  items: {
+                    $ref: "#/$defs/ApplicationAgreement",
+                  },
                 },
               },
             },
@@ -81,13 +97,17 @@ export const up = async (db) => {
                   type: "array",
                   title: "Payment parcels",
                   minItems: 0,
-                  items: { $ref: "#/$defs/PaymentParcel" },
+                  items: {
+                    $ref: "#/$defs/PaymentParcel",
+                  },
                 },
                 agreement: {
                   type: "array",
                   title: "Agreement-level payments",
                   minItems: 0,
-                  items: { $ref: "#/$defs/PaymentAgreement" },
+                  items: {
+                    $ref: "#/$defs/PaymentAgreement",
+                  },
                 },
               },
             },
@@ -124,14 +144,19 @@ export const up = async (db) => {
                       title: "Unit of measurement",
                       enum: ["kg", "m", "100m", "count", "ha", "m2", "sqm"],
                     },
-                    quantity: { type: "number", title: "Area quantity" },
+                    quantity: {
+                      type: "number",
+                      title: "Area quantity",
+                    },
                   },
                 },
                 actions: {
                   type: "array",
                   title: "Actions applied to this parcel",
                   minItems: 0,
-                  items: { $ref: "#/$defs/ApplicationAction" },
+                  items: {
+                    $ref: "#/$defs/ApplicationAction",
+                  },
                 },
               },
             },
@@ -140,7 +165,10 @@ export const up = async (db) => {
               additionalProperties: false,
               required: ["code", "durationYears", "version"],
               properties: {
-                code: { type: "string", title: "Action code" },
+                code: {
+                  type: "string",
+                  title: "Action code",
+                },
                 durationYears: {
                   type: "integer",
                   minimum: 1,
@@ -161,7 +189,10 @@ export const up = async (db) => {
                       title: "Unit of measurement",
                       enum: ["kg", "m", "100m", "count", "ha", "m2", "sqm"],
                     },
-                    quantity: { type: "number", title: "Quantity applied for" },
+                    quantity: {
+                      type: "number",
+                      title: "Quantity applied for",
+                    },
                   },
                 },
               },
@@ -171,7 +202,10 @@ export const up = async (db) => {
               additionalProperties: false,
               required: ["code", "durationYears", "version"],
               properties: {
-                code: { type: "string", title: "Action code" },
+                code: {
+                  type: "string",
+                  title: "Action code",
+                },
                 durationYears: {
                   type: "integer",
                   minimum: 1,
@@ -209,14 +243,19 @@ export const up = async (db) => {
                       title: "Unit of measurement",
                       enum: ["kg", "m", "100m", "count", "ha", "m2", "sqm"],
                     },
-                    quantity: { type: "number", title: "Area quantity" },
+                    quantity: {
+                      type: "number",
+                      title: "Area quantity",
+                    },
                   },
                 },
                 actions: {
                   type: "array",
                   title: "Payment actions for this parcel",
                   minItems: 0,
-                  items: { $ref: "#/$defs/PaymentAction" },
+                  items: {
+                    $ref: "#/$defs/PaymentAction",
+                  },
                 },
               },
             },
@@ -225,8 +264,14 @@ export const up = async (db) => {
               additionalProperties: false,
               required: ["code"],
               properties: {
-                code: { type: "string", title: "Action code" },
-                description: { type: "string", title: "Action description" },
+                code: {
+                  type: "string",
+                  title: "Action code",
+                },
+                description: {
+                  type: "string",
+                  title: "Action description",
+                },
                 durationYears: {
                   type: "integer",
                   minimum: 1,
@@ -252,7 +297,10 @@ export const up = async (db) => {
                       title: "Unit of measurement",
                       enum: ["kg", "m", "100m", "count", "ha", "m2", "sqm"],
                     },
-                    quantity: { type: "number", title: "Eligible quantity" },
+                    quantity: {
+                      type: "number",
+                      title: "Eligible quantity",
+                    },
                   },
                 },
                 appliedFor: {
@@ -265,7 +313,10 @@ export const up = async (db) => {
                       title: "Unit of measurement",
                       enum: ["kg", "m", "100m", "count", "ha", "m2", "sqm"],
                     },
-                    quantity: { type: "number", title: "Quantity applied for" },
+                    quantity: {
+                      type: "number",
+                      title: "Quantity applied for",
+                    },
                   },
                 },
               },
@@ -275,8 +326,14 @@ export const up = async (db) => {
               additionalProperties: false,
               required: ["code"],
               properties: {
-                code: { type: "string", title: "Action code" },
-                description: { type: "string", title: "Action description" },
+                code: {
+                  type: "string",
+                  title: "Action code",
+                },
+                description: {
+                  type: "string",
+                  title: "Action description",
+                },
                 durationYears: {
                   type: "integer",
                   minimum: 1,
@@ -302,7 +359,10 @@ export const up = async (db) => {
                   type: "object",
                   description: "Business information for the applicant",
                   properties: {
-                    name: { type: "string", description: "Business name" },
+                    name: {
+                      type: "string",
+                      description: "Business name",
+                    },
                     reference: {
                       type: "string",
                       description: "Business reference number",
@@ -357,7 +417,10 @@ export const up = async (db) => {
                           type: ["string", "null"],
                           description: "Street name",
                         },
-                        city: { type: "string", description: "City name" },
+                        city: {
+                          type: "string",
+                          description: "City name",
+                        },
                         postalCode: {
                           type: "string",
                           pattern: "^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$",
@@ -381,12 +444,18 @@ export const up = async (db) => {
                           type: "string",
                           description: "Name title (e.g., Mr., Mrs., Dr.)",
                         },
-                        first: { type: "string", description: "First name" },
+                        first: {
+                          type: "string",
+                          description: "First name",
+                        },
                         middle: {
                           type: ["string", "null"],
                           description: "Middle name",
                         },
-                        last: { type: "string", description: "Last name" },
+                        last: {
+                          type: "string",
+                          description: "Last name",
+                        },
                       },
                       required: ["title", "first", "last"],
                     },
@@ -428,27 +497,6 @@ export const up = async (db) => {
                 code: "APPLICATION_REJECTED",
                 validFrom: ["IN_REVIEW"],
               },
-              {
-                code: "WITHDRAW_REQUESTED",
-                validFrom: [
-                  "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
-                  "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
-                  "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
-                  "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
-                ],
-                processes: ["UPDATE_AGREEMENT_CASE"],
-              },
-              {
-                code: "APPLICATION_WITHDRAWN",
-                validFrom: [
-                  "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
-                  "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
-                  "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
-                  "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
-                  "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
-                ],
-                processes: ["UPDATE_AGREEMENT_CASE"],
-              },
             ],
           },
           {
@@ -477,14 +525,7 @@ export const up = async (db) => {
             statuses: [
               {
                 code: "AGREEMENT_OFFERED",
-                validFrom: [
-                  "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
-                  "APPLICATION_REJECTED",
-                ],
-              },
-              {
-                code: "APPLICATION_REJECTED",
-                validFrom: ["AGREEMENT_OFFERED"],
+                validFrom: ["PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED"],
               },
             ],
           },
@@ -510,7 +551,6 @@ export const up = async (db) => {
         ],
       },
     ],
-
     externalStatusMap: {
       phases: [
         {
@@ -540,26 +580,9 @@ export const up = async (db) => {
                   mappedTo: "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_REJECTED",
                 },
                 {
-                  code: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
-                  source: "CW",
-                  mappedTo: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
-                },
-                {
-                  code: "withdrawn",
-                  source: "AS",
-                  mappedTo:
-                    "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_WITHDRAWN",
-                },
-                {
                   code: "offered",
                   source: "AS",
                   mappedTo: "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
-                },
-                {
-                  code: "withdrawn",
-                  source: "AS",
-                  mappedTo:
-                    "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_WITHDRAWN",
                 },
               ],
             },
@@ -570,12 +593,6 @@ export const up = async (db) => {
                   code: "rejected",
                   source: "AS",
                   mappedTo: "PRE_AWARD:REVIEW_OFFER:OFFER_REJECTED",
-                },
-                {
-                  code: "withdrawn",
-                  source: "AS",
-                  mappedTo:
-                    "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_WITHDRAWN",
                 },
                 {
                   code: "PRE_AWARD:REVIEW_OFFER:AGREEMENT_GENERATING",
@@ -598,11 +615,6 @@ export const up = async (db) => {
                   source: "CW",
                   mappedTo: "PRE_AWARD:REVIEW_OFFER:APPLICATION_REJECTED",
                 },
-                {
-                  code: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
-                  source: "CW",
-                  mappedTo: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
-                },
               ],
             },
             {
@@ -615,27 +627,10 @@ export const up = async (db) => {
                     "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
                 },
                 {
-                  code: "withdrawn",
-                  source: "AS",
-                  mappedTo:
-                    "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_WITHDRAWN",
-                },
-                {
                   code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
                   source: "CW",
                   mappedTo:
                     "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
-                },
-                {
-                  code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_REJECTED",
-                  source: "CW",
-                  mappedTo:
-                    "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_REJECTED",
-                },
-                {
-                  code: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
-                  source: "CW",
-                  mappedTo: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
                 },
               ],
             },

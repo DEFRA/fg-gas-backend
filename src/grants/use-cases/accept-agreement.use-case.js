@@ -1,4 +1,5 @@
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { Outbox } from "../models/outbox.js";
@@ -12,6 +13,10 @@ export const acceptAgreementUseCase = async (command, session) => {
   const { clientRef, code, eventData } = command;
   const { agreementNumber, date } = eventData;
 
+  logger.info(
+    `Accepting agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
+  );
+
   const application = await findByClientRefAndCode(
     { clientRef, code },
     session,
@@ -24,6 +29,10 @@ export const acceptAgreementUseCase = async (command, session) => {
   const { currentPhase, currentStage } = application;
 
   await update(application, session);
+
+  logger.debug(
+    `Application ${clientRef} status updated from ${previousStatus} to ${application.getFullyQualifiedStatus()}`,
+  );
 
   const statusEvent = new ApplicationStatusUpdatedEvent({
     clientRef,
@@ -60,5 +69,8 @@ export const acceptAgreementUseCase = async (command, session) => {
       }),
     ],
     session,
+  );
+  logger.info(
+    `Finished: Accepting agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
   );
 };

@@ -1,4 +1,5 @@
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { Agreement } from "../models/agreement.js";
 import { Outbox } from "../models/outbox.js";
@@ -11,6 +12,10 @@ import { insertMany } from "../repositories/outbox.repository.js";
 export const addAgreementUseCase = async (command, session) => {
   const { clientRef, code, eventData } = command;
   const { agreementNumber, date } = eventData;
+
+  logger.info(
+    `Adding agreement ${agreementNumber} for application ${clientRef} with code ${code} on ${date}`,
+  );
 
   const application = await findByClientRefAndCode(
     { clientRef, code },
@@ -26,6 +31,10 @@ export const addAgreementUseCase = async (command, session) => {
   // store the agreement on the application
   application.addAgreement(agreement);
   await update(application, session);
+
+  logger.debug(
+    `Application updated with agreement for ${clientRef} with code ${code}`,
+  );
 
   const agreementData = application
     .getAgreementsData()
@@ -51,5 +60,9 @@ export const addAgreementUseCase = async (command, session) => {
       }),
     ],
     session,
+  );
+
+  logger.info(
+    `Finished: Adding agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
   );
 };
