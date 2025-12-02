@@ -272,6 +272,41 @@ Routes and subscriptions should never respond with a domain object.
 Domain objects should never access use cases, repositories or subscriptions.
 Repositories should never accept or return db records.
 
+## Logging
+
+This application uses [Pino](https://getpino.io/) for structured logging, configured with ECS (Elastic Common Schema) formatting for better observability and log analysis.
+
+Logging is configured in `src/common/logger.js`
+
+Basic Logging
+
+We have entry and exit level logging. For example an entry log would look something like:
+
+logger.info(
+`Accepting agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
+);
+
+An exit log would look something like:
+
+logger.info(
+`Finished: Accepting agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
+);
+
+We use the entry text so it is easier to corollate the logs within OpenSearch
+
+Conditional logs
+
+If there are conditions in between the entry and exit logs we can use logger.debug but also if you feel it has relevance to log. Example file is:
+
+`src/grants/use-cases/add-agreement.use-case.js`
+
+Other logging types are:
+
+Warning logs:
+`logger.warn("Retrying failed operation", { attempt: retryCount });`
+
+Note: If errors are thrown these will propogate up so do not require logger.error
+
 ## Licence
 
 THIS INFORMATION IS LICENSED UNDER THE CONDITIONS OF THE OPEN GOVERNMENT LICENCE found at:
