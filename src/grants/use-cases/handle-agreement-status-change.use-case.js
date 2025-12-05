@@ -4,13 +4,7 @@ import { ApplicationStatus } from "../models/application.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
-
-export const AgreementStatus = {
-  Accepted: "accepted",
-  Withdrawn: "withdrawn",
-  Offered: "offered",
-  Rejected: "rejected",
-};
+import { AgreementServiceStatus } from "../models/agreement.js";
 
 export const sourceSystems = {
   CaseWorking: "CW",
@@ -26,7 +20,8 @@ export const handleAgreementStatusChangeUseCase = async (command, session) => {
     `Handling agreement status change for agreement ${eventData.agreementNumber} with status ${status}`,
   );
 
-  if (status === AgreementStatus.Accepted) {
+  // incoming status changes from AS
+  if (status === AgreementServiceStatus.Accepted) {
     logger.info(
       `Handling accepted agreement status change for agreement ${eventData.agreementNumber}`,
     );
@@ -37,11 +32,12 @@ export const handleAgreementStatusChangeUseCase = async (command, session) => {
     return;
   }
 
-  if (status === AgreementStatus.Withdrawn) {
+  if (status === AgreementServiceStatus.Withdrawn) {
     await withdrawAgreementUseCase(command, session);
     return;
   }
 
+  // incoming status changes from CW
   if (sourceSystem === sourceSystems.CaseWorking) {
     // case working commands use currentStatus which is fully qualified...
     const statusParts = currentStatus.split(":");

@@ -17,7 +17,7 @@ export const ApplicationStatus = {
   Accepted: "OFFER_ACCEPTED",
   Rejected: "OFFER_REJECTED",
   Withdrawn: "APPLICATION_WITHDRAWN",
-  WithdrawRequested: "WITHDRAW_REQUESTED",
+  WithdrawRequested: "WITHDRAWAL_REQUESTED",
 };
 
 export class Application {

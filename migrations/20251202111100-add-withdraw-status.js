@@ -1,8 +1,10 @@
-export const up = (db) => {
+import { withTransaction } from "../src/common/with-transaction.js";
+
+export const up = async (db) => {
   const collection = db.collection("grants");
   const query = { code: "frps-private-beta" };
   const withdrawRequestedStatus = {
-    code: "WITHDRAW_REQUESTED",
+    code: "WITHDRAWAL_REQUESTED",
     validFrom: [
       "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
       "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
@@ -15,7 +17,7 @@ export const up = (db) => {
   const applicationWithdrawnStatus = {
     code: "APPLICATION_WITHDRAWN",
     validFrom: [
-      "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
+      "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWAL_REQUESTED",
       "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
       "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
       "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
@@ -24,13 +26,24 @@ export const up = (db) => {
     processes: ["UPDATE_AGREEMENT_CASE"],
   };
 
-  {
-    const arrayFilters = [
-      { "phase.code": "PRE_AWARD" },
-      { "stage.code": "REVIEW_APPLICATION" },
-    ];
+  await withTransaction(async(session) => {
+    await collection.updateOne(
+      query,
+      {
+        $push: {
+          "phases.$[phase].stages.$[stage].statuses.$[status].validFrom": "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_WITHDRAWN"
+        },
+      },
+      {
+        arrayFilters: [
+          { "phase.code": "PRE_AWARD" },
+          { "stage.code": "REVIEW_APPLICATION" },
+          { "status.code": "IN_REVIEW" }
+        ], session
+      },
+    ); 
 
-    collection.updateOne(
+    await collection.updateOne(
       query,
       {
         $push: {
@@ -40,11 +53,14 @@ export const up = (db) => {
         },
       },
       {
-        arrayFilters,
+        arrayFilters: [
+          { "phase.code": "PRE_AWARD" },
+          { "stage.code": "REVIEW_APPLICATION" },
+        ], session
       },
     );
 
-    collection.updateOne(
+    await collection.updateOne(
       query,
       {
         $push: {
@@ -56,27 +72,23 @@ export const up = (db) => {
                 mappedTo: "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_WITHDRAWN",
               },
               {
-                code: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
+                code: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWAL_REQUESTED",
                 source: "CW",
-                mappedTo: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
+                mappedTo: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWAL_REQUESTED",
               },
             ],
           },
         },
       },
       {
-        arrayFilters,
+        arrayFilters: [
+          { "phase.code": "PRE_AWARD" },
+          { "stage.code": "REVIEW_APPLICATION" },
+        ], session
       },
     );
-  }
 
-  {
-    const arrayFilters = [
-      { "phase.code": "PRE_AWARD" },
-      { "stage.code": "REVIEW_OFFER" },
-    ];
-
-    collection.updateOne(
+    await collection.updateOne(
       query,
       {
         $push: {
@@ -88,27 +100,23 @@ export const up = (db) => {
                 mappedTo: "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_WITHDRAWN",
               },
               {
-                code: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
+                code: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWAL_REQUESTED",
                 source: "CW",
-                mappedTo: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
+                mappedTo: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWAL_REQUESTED",
               },
             ],
           },
         },
       },
       {
-        arrayFilters,
+        arrayFilters: [
+          { "phase.code": "PRE_AWARD" },
+          { "stage.code": "REVIEW_OFFER" },
+        ], session
       },
     );
-  }
 
-  {
-    const arrayFilters = [
-      { "phase.code": "PRE_AWARD" },
-      { "stage.code": "CUSTOMER_AGREEMENT_REVIEW" },
-    ];
-
-    collection.updateOne(
+    await collection.updateOne(
       query,
       {
         $push: {
@@ -120,17 +128,100 @@ export const up = (db) => {
                 mappedTo: "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_WITHDRAWN",
               },
               {
-                code: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
+                code: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWAL_REQUESTED",
                 source: "CW",
-                mappedTo: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAW_REQUESTED",
+                mappedTo: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWAL_REQUESTED",
               },
             ],
           },
         },
       },
       {
-        arrayFilters,
+        arrayFilters: [
+          { "phase.code": "PRE_AWARD" },
+          { "stage.code": "CUSTOMER_AGREEMENT_REVIEW" },
+        ], session
       },
     );
-  }
+  });
+};
+
+export const down = async (db) => { 
+  const collection = db.collection("grants");
+  const query = { code: "frps-private-beta" };
+  await withTransaction((session) => {
+    collection.updateOne(
+      query,
+      {
+        $pop: { "phases.$[phase].stages.$[stage].statuses.$[status].validFrom": 1 } 
+      },
+      {
+        arrayFilters: [
+          { "phase.code": "PRE_AWARD" },
+          { "stage.code": "REVIEW_APPLICATION" },
+          { "status.code": "IN_REVIEW" },
+        ], session
+      },
+    ); 
+
+    collection.updateOne(
+      query,
+      {
+        $pop: {
+          "phases.$[phase].stages.$[stage].statuses": 2,
+        },
+      },
+      {
+        arrayFilters: [
+          { "phase.code": "PRE_AWARD" },
+          { "stage.code": "REVIEW_APPLICATION" },
+        ], session
+      },
+    );
+
+    collection.updateOne(
+      query,
+      {
+        $push: {
+          "externalStatusMap.phases.$[phase].stages.$[stage].statuses": 2
+        },
+      },
+      {
+        arrayFilters: [
+          { "phase.code": "PRE_AWARD" },
+          { "stage.code": "REVIEW_APPLICATION" },
+        ], session
+      },
+    );
+
+    collection.updateOne(
+      query,
+      {
+        $push: {
+          "externalStatusMap.phases.$[phase].stages.$[stage].statuses": 2 
+        },
+      },
+      {
+        arrayFilters: [
+          { "phase.code": "PRE_AWARD" },
+          { "stage.code": "REVIEW_OFFER" },
+        ], session
+      },
+    );
+
+    collection.updateOne(
+      query,
+      {
+        $push: {
+          "externalStatusMap.phases.$[phase].stages.$[stage].statuses": 2 
+        },
+      },
+      {
+        arrayFilters: [
+          { "phase.code": "PRE_AWARD" },
+          { "stage.code": "CUSTOMER_AGREEMENT_REVIEW" },
+        ], session
+      },
+    );
+  });
 };
