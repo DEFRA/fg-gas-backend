@@ -33,6 +33,7 @@ export const withdrawApplicationUseCase = async (command, session) => {
       clientRef,
       code,
       status: AgreementServiceStatus.Withdrawn,
+      agreementNumber: agreement.agreementRef,
     });
 
     outboxObjects.push(

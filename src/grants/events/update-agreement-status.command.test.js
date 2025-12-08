@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { withTraceParent } from "../../common/trace-parent.js";
 import { AgreementServiceStatus } from "../models/agreement.js";
 import { UpdateAgreementStatusCommand } from "./update-agreement-status.command.js";
-import { withTraceParent } from "../../common/trace-parent.js";
 
 describe("UpdateAgreementStatusCommand", () => {
   it("should create event", () => {
     const command = {
       clientRef: "application-123",
       code: "grant-code",
-      status: AgreementServiceStatus.Withdrawn 
-    }
-    const event = withTraceParent("trace-id-1", () => new UpdateAgreementStatusCommand(command));
+      status: AgreementServiceStatus.Withdrawn,
+      agreementNumber: "agreement-1234",
+    };
+    const event = withTraceParent(
+      "trace-id-1",
+      () => new UpdateAgreementStatusCommand(command),
+    );
 
     expect(event).toEqual({
       id: expect.any(String),
@@ -23,7 +27,8 @@ describe("UpdateAgreementStatusCommand", () => {
       data: {
         clientRef: "application-123",
         code: "grant-code",
-        status: "withdrawn"
+        status: "withdrawn",
+        agreementNumber: "agreement-1234",
       },
     });
   });
