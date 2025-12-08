@@ -31,7 +31,6 @@ export const withdrawApplicationUseCase = async (command, session) => {
     // create a withdraw agreement command for Agreement Service
     const updateAgreementStatusCommand = new UpdateAgreementStatusCommand({
       clientRef,
-      code,
       status: AgreementServiceStatus.Withdrawn,
       agreementNumber: agreement.agreementRef,
     });

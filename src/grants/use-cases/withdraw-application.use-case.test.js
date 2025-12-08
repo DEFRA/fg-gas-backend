@@ -12,10 +12,7 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
-import {
-  findByClientRefAndCode,
-  update,
-} from "../repositories/application.repository.js";
+import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
@@ -138,24 +135,5 @@ describe("withdrawApplicationUseCase", () => {
     expect(application.getFullyQualifiedStatus().toString()).toBe(
       "PRE_AWARD:ASSESSMENT:APPLICATION_WITHDRAWN",
     );
-  });
-
-  it.skip("retrieves the application from the repository", () => {
-    expect(findByClientRefAndCode).toHaveBeenCalledWith(
-      "test-client-ref",
-      "test-code",
-    );
-  });
-
-  it.skip("updates the status of the application and marks agreement as withdrawn", () => {
-    const appl = update.mock.calls[0][0];
-    expect(appl).toBeInstanceOf(Application);
-
-    expect(applyExternalStateChange).toHaveBeenCalledWith({
-      clientRef: "test-client-ref",
-      code: "test-code",
-      externalRequestedState: "withdrawn",
-      sourceSystem: "AS",
-    });
   });
 });

@@ -7,7 +7,6 @@ describe("UpdateAgreementStatusCommand", () => {
   it("should create event", () => {
     const command = {
       clientRef: "application-123",
-      code: "grant-code",
       status: AgreementServiceStatus.Withdrawn,
       agreementNumber: "agreement-1234",
     };
@@ -26,7 +25,6 @@ describe("UpdateAgreementStatusCommand", () => {
       datacontenttype: "application/json",
       data: {
         clientRef: "application-123",
-        code: "grant-code",
         status: "withdrawn",
         agreementNumber: "agreement-1234",
       },
