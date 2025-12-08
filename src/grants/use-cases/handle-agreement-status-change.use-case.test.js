@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { AgreementServiceStatus } from "../models/agreement.js";
 import { ApplicationStatus } from "../models/application.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
-import {
-  AgreementStatus,
-  handleAgreementStatusChangeUseCase,
-} from "./handle-agreement-status-change.use-case.js";
+import { handleAgreementStatusChangeUseCase } from "./handle-agreement-status-change.use-case.js";
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
 
@@ -21,7 +19,7 @@ describe("handle agreement status chane use case", () => {
         code: "test-code",
         agreementNumber: "AG123",
         date: "2024-01-01T00:00:00Z",
-        status: AgreementStatus.Accepted,
+        status: AgreementServiceStatus.Accepted,
       },
     };
 
@@ -38,7 +36,7 @@ describe("handle agreement status chane use case", () => {
         code: "test-code",
         agreementNumber: "AG123",
         date: "2024-01-01T00:00:00Z",
-        status: AgreementStatus.Withdrawn,
+        status: AgreementServiceStatus.Withdrawn,
       },
     };
 

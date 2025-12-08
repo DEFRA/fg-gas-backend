@@ -3,6 +3,7 @@ import { withTransaction } from "../../common/with-transaction.js";
 import {
   Agreement,
   AgreementHistoryEntry,
+  AgreementServiceStatus,
   AgreementStatus as Status,
 } from "../models/agreement.js";
 import {
@@ -17,7 +18,6 @@ import {
 } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
-import { AgreementStatus } from "./handle-agreement-status-change.use-case.js";
 import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
 
 vi.mock("../services/apply-event-status-change.service.js");
@@ -86,7 +86,7 @@ describe("withdrawApplicationUseCase", () => {
       code: "test-code",
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
-      requestedStatus: AgreementStatus.Withdrawn,
+      requestedStatus: AgreementServiceStatus.Withdrawn,
       source: "AS",
       eventData: {
         agreementRef: "agreement-123",
@@ -125,7 +125,7 @@ describe("withdrawApplicationUseCase", () => {
       code: "test-code",
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
-      requestedStatus: AgreementStatus.Withdrawn,
+      requestedStatus: AgreementServiceStatus.Withdrawn,
       source: "AS",
       eventData: {},
     };
