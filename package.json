@@ -15,6 +15,7 @@
     "test:integration": "vitest --config test/vitest.config.js --dir test",
     "test:integration:verbose": "PRINT_LOGS=1 npm run test:integration",
     "test:contract": "vitest --config test/contract/vitest.config.js --dir test/contract",
+    "test:contract:local": "PACT_USE_LOCAL=true vitest --config test/contract/vitest.config.js --dir test/contract",
     "publish:agreement:update": "node scripts/publish-agreement-update-command.js",
     "publish:case:status:update": "node scripts/publish-case-status-update-command.js",
     "postinstall": "npm run setup:husky && npm run setup:env",

@@ -38,7 +38,7 @@ const schema = Joi.object({
   GAS__SNS__UPDATE_CASE_STATUS_TOPIC_ARN: Joi.string().optional(),
   GAS__SQS__UPDATE_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: Joi.string().uri().optional(),
-  GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional()
+  GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -83,7 +83,8 @@ export const config = {
     inboxPollMs: vars.INBOX_POLL_MS,
   },
   sns: {
-    updateAgreementStatusTopicArn: vars.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
+    updateAgreementStatusTopicArn:
+      vars.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
     createAgreementTopicArn: vars.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
     grantApplicationCreatedTopicArn:
       vars.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,

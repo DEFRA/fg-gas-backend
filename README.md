@@ -12,13 +12,11 @@ Grant Application Service defines and manages farming grants and applications. I
   - [Testing](#testing)
     - [Unit tests](#unit-tests)
     - [Integration tests](#integration-tests)
-  - [Production](#production)
+    - [Contract tests](#contract-tests)
 - [Service to service authentication](#service-to-service-authentication)
   - [Minting service access tokens](#minting-service-access-tokens)
 - [HTTP client and API examples](#http-client-and-api-examples)
 - [Docker](#docker)
-  - [Production image](#production-image)
-  - [Docker Compose](#docker-compose)
 - [Licence](#licence)
   - [About the licence](#about-the-licence)
 
@@ -161,6 +159,26 @@ To run the integration tests:
 ```bash
 npm run test:integration
 ```
+
+#### Contract tests
+
+This project uses Pact to verify consumer-provider contracts.
+
+- To run the contract tests against the Pact broker:
+
+```bash
+npm run test:contract
+```
+
+Note: This is normally used in CI, but if running locally it requires `.env.test` to be populated with the broker details and you must be connected to the Azure VPN.
+
+- To run the contract tests locally against local pact files (helpful when developing without Azure VPN access or iterating quickly), use the provided script which sets `PACT_USE_LOCAL=true`:
+
+```bash
+npm run test:contract:local
+```
+
+When `PACT_USE_LOCAL=true`, tests will read pact files from `tmp/pacts` (for example `tmp/pacts/grants-ui-fg-gas-backend.json`).
 
 ## Service to service authentication
 
