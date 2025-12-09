@@ -158,7 +158,6 @@ export class Grant {
       return { valid: false, processes: [] };
     }
 
-    // If there's no validFrom, the transition is always valid
     if (!statusDef.validFrom || statusDef.validFrom.length === 0) {
       return {
         valid: true,
@@ -166,12 +165,16 @@ export class Grant {
       };
     }
 
-    // Check if current status is in validFrom array
-    const isValid = this.#isValidFromMatch(statusDef.validFrom, currentStatus);
+    const normalisedValidFrom = this.#normaliseValidFrom(statusDef);
+
+    const isValid = this.#findMatchingValidFromEntry(
+      normalisedValidFrom,
+      currentStatus,
+    );
 
     return {
-      valid: isValid,
-      processes: isValid ? statusDef.processes || [] : [],
+      valid: !!isValid,
+      processes: isValid ? isValid.processes || [] : [],
     };
   }
 
@@ -185,18 +188,42 @@ export class Grant {
     return status;
   }
 
-  #isValidFromMatch(validFrom, currentStatus) {
-    return validFrom.some((validFromStatus) => {
-      if (validFromStatus.includes(":")) {
-        // Fully qualified status like "PRE_AWARD:REVIEW_APPLICATION:APPROVED"
-        return validFromStatus === currentStatus;
+  #normaliseValidFrom(statusDef) {
+    const statusLevelProcesses = Array.isArray(statusDef.processes)
+      ? statusDef.processes
+      : [];
+
+    return (statusDef.validFrom || []).map((v) => {
+      if (typeof v === "string") {
+        return { code: v, processes: statusLevelProcesses };
       }
-      // Simple status code - extract just the status part from currentStatus
-      const currentStatusCode = currentStatus.includes(":")
-        ? currentStatus.split(":").pop()
-        : currentStatus;
-      return validFromStatus === currentStatusCode;
+      return {
+        code: v.code,
+        processes: Array.isArray(v.processes) ? v.processes : [],
+      };
     });
+  }
+
+  // eslint-disable-next-line complexity
+  #findMatchingValidFromEntry(validFromEntries, currentStatus) {
+    const currentStatusCode = currentStatus.includes(":")
+      ? currentStatus.split(":").pop()
+      : currentStatus;
+
+    for (const entry of validFromEntries) {
+      const code = entry.code;
+      if (typeof code !== "string") continue;
+
+      if (code.includes(":")) {
+        if (code === currentStatus) {
+          return entry;
+        }
+      } else if (code === currentStatusCode) {
+        return entry;
+      }
+    }
+
+    return null;
   }
 
   findStatuses(position) {
