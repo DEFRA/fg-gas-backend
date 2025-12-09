@@ -1,6 +1,12 @@
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
+
+// Load .env.test if NOT running in local mode
+if (process.env.PACT_USE_LOCAL !== "true" && existsSync(".env.test")) {
+  process.loadEnvFile(".env.test");
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = resolve(__filename, "..");
