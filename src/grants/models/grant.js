@@ -212,7 +212,6 @@ export class Grant {
 
     for (const entry of validFromEntries) {
       const code = entry.code;
-      if (typeof code !== "string") continue;
 
       if (code.includes(":")) {
         if (code === currentStatus) {
