@@ -1,78 +1,51 @@
 export const up = async (db) => {
-  const collection = db.collection("grants");
-  const grants = await collection.find().toArray();
+  const grants = await db.collection("grants").find({}).toArray();
 
   for (const grant of grants) {
-    let changed = false;
+    if (grant.phases) {
+      for (const phase of grant.phases) {
+        if (phase.stages) {
+          for (const stage of phase.stages) {
+            if (stage.statuses) {
+              stage.statuses = stage.statuses.map((status) => {
+                if (status.validFrom && Array.isArray(status.validFrom)) {
+                  // Get the processes from the status level
+                  const statusLevelProcesses = status.processes || [];
 
-    for (const phase of grant.phases || []) {
-      for (const stage of phase.stages || []) {
-        for (const status of stage.statuses || []) {
-          const originalValidFrom = status.validFrom;
+                  const newValidFrom = status.validFrom.map((fromCode) => {
+                    // APPLICATION_REJECTED should always have empty processes
+                    if (fromCode === "APPLICATION_REJECTED") {
+                      return {
+                        code: fromCode,
+                        processes: [],
+                      };
+                    }
 
-          if (!Array.isArray(originalValidFrom)) {
-            continue;
-          }
+                    return {
+                      code: fromCode,
+                      processes: statusLevelProcesses,
+                    };
+                  });
 
-          const isAlreadyObjectForm = originalValidFrom.every(
-            (v) => typeof v === "object" && v !== null && "code" in v,
-          );
+                  return {
+                    code: status.code,
+                    validFrom: newValidFrom,
+                  };
+                }
 
-          let newValidFrom;
-          if (isAlreadyObjectForm) {
-            newValidFrom = originalValidFrom.map((v) => ({
-              code: v.code,
-              processes: Array.isArray(v.processes) ? v.processes : [],
-            }));
-          } else {
-            const statusLevelProcesses = Array.isArray(status.processes)
-              ? status.processes
-              : [];
-
-            newValidFrom = originalValidFrom.map((code) => ({
-              code,
-              processes: [...statusLevelProcesses],
-            }));
-          }
-
-          if (
-            grant.code === "frps-private-beta" &&
-            status.code === "AGREEMENT_DRAFTED"
-          ) {
-            const targetCode =
-              "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING";
-            newValidFrom = newValidFrom.map((entry) => ({
-              code: entry.code,
-              processes:
-                entry.code === targetCode ? ["STORE_AGREEMENT_CASE"] : [],
-            }));
-            changed = true;
-          }
-
-          // Determine if we changed anything compared to stored form
-          const needsUpdate =
-            !isAlreadyObjectForm ||
-            JSON.stringify(originalValidFrom) !== JSON.stringify(newValidFrom);
-
-          if (needsUpdate) {
-            status.validFrom = newValidFrom;
-            // Remove status-level processes to avoid ambiguity in the new model
-            if (status.processes) delete status.processes;
-            changed = true;
+                return status;
+              });
+            }
           }
         }
       }
     }
 
-    if (changed) {
-      await collection.updateOne(
-        { _id: grant._id },
-        {
-          $set: {
-            phases: grant.phases,
-          },
-        },
-      );
-    }
+    await db
+      .collection("grants")
+      .updateOne({ _id: grant._id }, { $set: { phases: grant.phases } });
+    console.log(`Updated grant: ${grant.code}`);
   }
+
+  console.log("Migration completed successfully");
 };
