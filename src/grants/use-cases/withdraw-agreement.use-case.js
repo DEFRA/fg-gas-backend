@@ -1,66 +1,64 @@
 import { config } from "../../common/config.js";
-import { logger } from "../../common/logger.js";
-import { withTransaction } from "../../common/with-transaction.js";
+import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { Outbox } from "../models/outbox.js";
-import { update } from "../repositories/application.repository.js";
+import {
+  findByClientRefAndCode,
+  update,
+} from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
-import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
-export const withdrawAgreementUseCase = async ({
-  clientRef,
-  code,
-  agreementRef,
-  date,
-  source,
-  requestedStatus,
-}) => {
-  logger.info(
-    `Withdrawing agreement ${agreementRef} for application ${clientRef} with code ${code}`,
+export const withdrawAgreementUseCase = async (command, session) => {
+  const { clientRef, code, eventData } = command;
+  const { agreementNumber } = eventData;
+  const application = await findByClientRefAndCode(
+    { clientRef, code },
+    session,
   );
-  return withTransaction(async (session) => {
-    const application = await findApplicationByClientRefAndCodeUseCase(
-      clientRef,
-      code,
-    );
+  const prevApplication = await findByClientRefAndCode({ clientRef, code });
+  const previousStatus = prevApplication.getFullyQualifiedStatus();
+  const agreement = application.getAgreement(agreementNumber);
 
-    const previousStatus = application.getFullyQualifiedStatus();
+  agreement.withdraw(new Date().toISOString());
 
-    await applyExternalStateChange({
-      sourceSystem: source,
-      clientRef,
-      code,
-      externalRequestedState: requestedStatus,
-    });
+  await update(application, session);
 
-    application.withdrawAgreement(agreementRef, date);
+  const { currentStage, currentPhase } = application;
 
-    logger.debug(
-      `Withdrawn agreement ${agreementRef} for application ${clientRef} with code ${code}. New status: ${application.getFullyQualifiedStatus()}`,
-    );
+  const agreementData = application
+    .getAgreementsData()
+    .find((a) => a.agreementRef === agreementNumber);
 
-    await update(application, session);
-
-    logger.info(
-      `Finished: Withdrawing agreement ${agreementRef} for application ${clientRef} with code ${code}. New status: ${application.getFullyQualifiedStatus()}`,
-    );
-
-    const statusEvent = new ApplicationStatusUpdatedEvent({
-      clientRef,
-      code,
-      previousStatus,
-      currentStatus: application.getFullyQualifiedStatus(),
-    });
-
-    await insertMany(
-      [
-        new Outbox({
-          event: statusEvent,
-          target: config.sns.grantApplicationStatusUpdatedTopicArn,
-        }),
-      ],
-      session,
-    );
+  const statusCommand = new UpdateCaseStatusCommand({
+    caseRef: clientRef,
+    workflowCode: code,
+    newStatus: application.getFullyQualifiedStatus(),
+    phase: currentPhase,
+    stage: currentStage,
+    dataType: "ARRAY",
+    key: "agreementRef",
+    targetNode: "agreements",
+    data: agreementData,
   });
+
+  const statusEvent = new ApplicationStatusUpdatedEvent({
+    clientRef,
+    code,
+    previousStatus,
+    currentStatus: application.getFullyQualifiedStatus(),
+  });
+
+  await insertMany(
+    [
+      new Outbox({
+        event: statusEvent,
+        target: config.sns.grantApplicationStatusUpdatedTopicArn,
+      }),
+      new Outbox({
+        event: statusCommand,
+        target: config.sns.updateCaseStatusTopicArn,
+      }),
+    ],
+    session,
+  );
 };
