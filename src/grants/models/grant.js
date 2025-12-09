@@ -213,11 +213,11 @@ export class Grant {
     for (const entry of validFromEntries) {
       const code = entry.code;
 
-      if (code.includes(":")) {
-        if (code === currentStatus) {
-          return entry;
-        }
-      } else if (code === currentStatusCode) {
+      const isMatch = code.includes(":")
+        ? code === currentStatus
+        : code === currentStatusCode;
+
+      if (isMatch) {
         return entry;
       }
     }
