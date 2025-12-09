@@ -1,11 +1,10 @@
-import { config } from "dotenv";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
 
 // Load .env.test if NOT running in local mode
 if (process.env.PACT_USE_LOCAL !== "true") {
-  config({ path: resolve(process.cwd(), ".env.test") });
+  process.loadEnvFile(".env.test");
 }
 
 const __filename = fileURLToPath(import.meta.url);
