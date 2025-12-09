@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../../common/logger.js";
 import { Application } from "../models/application.js";
 import { Grant } from "../models/grant.js";
 import {
@@ -8,8 +9,17 @@ import {
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { applyExternalStateChange } from "./apply-event-status-change.service.js";
+import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
+import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
+import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
+import {
+  applyExternalStateChange,
+  getHandlersForAllProcesses,
+} from "./apply-event-status-change.service.js";
 
+vi.mock("../use-cases/create-status-transition-update.use-case.js");
+vi.mock("../use-cases/add-agreement.use-case.js");
+vi.mock("../use-cases/create-agreement-command.use-case.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/grant.repository.js");
 vi.mock("../repositories/outbox.repository.js");
@@ -53,7 +63,7 @@ describe("applyExternalStateChange", () => {
               {
                 code: "APPROVED",
                 validFrom: ["IN_PROGRESS"],
-                entryProcesses: ["GENERATE_AGREEMENT"],
+                processes: ["GENERATE_OFFER"],
               },
             ],
           },
@@ -88,7 +98,33 @@ describe("applyExternalStateChange", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  describe("getHandlersForAllProcesses", () => {
+    it("should log warning if entry process is a string", () => {
+      vi.spyOn(logger, "warn").mockImplementationOnce(() => {});
+      expect(getHandlersForAllProcesses("process")).toHaveLength(0);
+      expect(logger.warn).toBeCalled();
+    });
+
+    it("should return empty array for no entry processes", () => {
+      const processes = [];
+      expect(getHandlersForAllProcesses(processes)).toHaveLength(0);
+      expect(getHandlersForAllProcesses(undefined)).toHaveLength(0);
+    });
+
+    it("should return handlers for valid entry process", () => {
+      const processes = ["GENERATE_OFFER"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(createAgreementCommandUseCase);
+    });
+
+    it("should ignore unknown processes", () => {
+      const processes = ["GENERATE_OFFER", "UNKNOWN"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+    });
   });
 
   describe("when application is not found", () => {
@@ -173,6 +209,7 @@ describe("applyExternalStateChange", () => {
         ...mockApplication,
         currentStatus: "RECEIVED",
       });
+      createAgreementCommandUseCase.mockResolvedValue(true);
       findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(mockGrant);
 
@@ -183,21 +220,7 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
-      expect(insertMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            event: expect.objectContaining({
-              data: expect.objectContaining({
-                clientRef: "APP-123",
-                grantCode: "test-grant",
-                previousStatus: "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
-                currentStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
-              }),
-            }),
-          }),
-        ]),
-        {},
-      );
+      expect(createStatusTransitionUpdateUseCase).toHaveBeenCalled();
     });
 
     it("should not publish status update event when status remains the same", async () => {
@@ -234,45 +257,6 @@ describe("applyExternalStateChange", () => {
 
       expect(insertMany).not.toHaveBeenCalled();
     });
-
-    it("should execute entry processes when status has them", async () => {
-      const application = new Application({
-        ...mockApplication,
-        currentStatus: "IN_PROGRESS",
-      });
-      findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(mockGrant);
-
-      await applyExternalStateChange({
-        clientRef: "APP-123",
-        code: "foo",
-        externalRequestedState: "APPROVED",
-        sourceSystem: "CW",
-        eventData: { caseRef: "CASE-123" },
-      });
-
-      // Should create outbox records for both status update and agreement
-      expect(insertMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          // Status update outbox record
-          expect.objectContaining({
-            event: expect.objectContaining({
-              type: "cloud.defra.local.fg-gas-backend.application.status.updated",
-            }),
-          }),
-          // Create agreement outbox record
-          expect.objectContaining({
-            event: expect.objectContaining({
-              type: "cloud.defra.local.fg-gas-backend.agreement.create",
-              data: expect.objectContaining({
-                clientRef: "APP-123",
-              }),
-            }),
-          }),
-        ]),
-        {},
-      );
-    });
   });
 
   describe("when external status is not mapped", () => {
@@ -288,7 +272,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to UNMAPPED_STATUS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to UNMAPPED_STATUS",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -315,7 +299,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to APPROVED",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to APPROVED",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -337,7 +321,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to IN_PROGRESS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -584,7 +568,7 @@ describe("applyExternalStateChange", () => {
                   {
                     code: "IN_PROGRESS",
                     validFrom: ["RECEIVED"],
-                    entryProcesses: ["GENERATE_AGREEMENT", "UNKNOWN_PROCESS"],
+                    processes: ["GENERATE_OFFER", "STORE_AGREEMENT_CASE"],
                   },
                 ],
               },
@@ -604,19 +588,9 @@ describe("applyExternalStateChange", () => {
         eventData: { data: "test" },
       });
 
-      // GENERATE_AGREEMENT outbox record should be created
-      expect(insertMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            event: expect.objectContaining({
-              type: "cloud.defra.local.fg-gas-backend.agreement.create",
-            }),
-          }),
-        ]),
-        {},
-      );
+      expect(createAgreementCommandUseCase).toHaveBeenCalled();
+      expect(addAgreementUseCase).toHaveBeenCalled();
 
-      // Application should still be updated even if unknown process exists
       expect(update).toHaveBeenCalled();
     });
   });
@@ -641,7 +615,7 @@ describe("applyExternalStateChange", () => {
                   {
                     code: "IN_PROGRESS",
                     validFrom: ["RECEIVED"],
-                    // No entryProcesses
+                    // No processes
                   },
                 ],
               },
@@ -661,17 +635,7 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
-      // Should only create status update outbox, not agreement
-      expect(insertMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            event: expect.objectContaining({
-              type: "cloud.defra.local.fg-gas-backend.application.status.updated",
-            }),
-          }),
-        ]),
-        {},
-      );
+      expect(createStatusTransitionUpdateUseCase).toHaveBeenCalled();
       expect(update).toHaveBeenCalled();
     });
 
@@ -681,6 +645,7 @@ describe("applyExternalStateChange", () => {
         currentStatus: "RECEIVED",
       });
 
+      addAgreementUseCase.mockReturnValue(true);
       const grantWithStatusNoValidFrom = new Grant({
         ...mockGrant,
         phases: [
@@ -714,16 +679,7 @@ describe("applyExternalStateChange", () => {
       });
 
       // Should only create status update outbox, not agreement
-      expect(insertMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            event: expect.objectContaining({
-              type: "cloud.defra.local.fg-gas-backend.application.status.updated",
-            }),
-          }),
-        ]),
-        {},
-      );
+      expect(createStatusTransitionUpdateUseCase).toHaveBeenCalled();
       expect(update).toHaveBeenCalled();
     });
   });
@@ -879,7 +835,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to IN_PROGRESS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -910,7 +866,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to IN_PROGRESS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -978,7 +934,7 @@ describe("applyExternalStateChange", () => {
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from RECEIVED to IN_PROGRESS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
       );
 
       expect(update).not.toHaveBeenCalled();

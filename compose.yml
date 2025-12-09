@@ -11,14 +11,13 @@ services:
       SERVICES: sqs,sns
       LOCALSTACK_HOST: 127.0.0.1
     volumes:
-      - "${TMPDIR:-/tmp}/localstack:/var/lib/localstack"
+      - ./tmp/localstack:/var/lib/localstack
       - ./compose/start-localstack.sh:/etc/localstack/init/ready.d/start-localstack.sh
     networks:
       - cdp-tenant
 
   mongodb:
     image: mongo:6.0.13
-    container_name: mongodb
     networks:
       - cdp-tenant
     ports:
@@ -35,12 +34,12 @@ services:
     command:
       ["mongod", "--replSet", "mongoRepl", "--bind_ip", "localhost,mongodb"]
     volumes:
-      - mongodb-data:/data
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
     restart: always
 
   mongo-ready:
     image: mongo:6.0.13
-    container_name: "mongo-ready"
     networks: [cdp-tenant]
     environment:
       PRIMARY: "mongodb:27017"
@@ -94,6 +93,7 @@ services:
 
 volumes:
   mongodb-data:
+  mongodb-config:
 
 networks:
   cdp-tenant:

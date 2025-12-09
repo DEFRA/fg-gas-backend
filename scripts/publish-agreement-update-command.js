@@ -1,5 +1,5 @@
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
-
+import { randomUUID } from "node:crypto";
 /**
  *  call npm run publish:case:agreement to publish agreement command
  *  you can add your own clientRef and workflow code npm run publish:case:agreement <CLIENT_REF> <WORKFLOW_CODE>
@@ -18,11 +18,11 @@ const queueUrl =
   "http://sqs.eu-west-2.127.0.0.1:4566/000000000000/gas__sqs__update_agreement_status";
 
 const message = {
-  id: "event-id-300",
+  id: randomUUID(),
   time: "2025-09-09T11:30:52.000Z",
   source: "urn:service:agreement",
   specversion: "1.0",
-  type: "io.onsite.agreement.offer.offered",
+  type: "io.onsite.agreement.status.updated",
   datacontenttype: "application/json",
   data: {
     clientRef: "APPLICATION-PMF-001",

@@ -15,24 +15,19 @@
  */
 
 import Boom from "@hapi/boom";
-import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { CreateAgreementCommand } from "../events/create-agreement.command.js";
-import { Outbox } from "../models/outbox.js";
 import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
-import { insertMany } from "../repositories/outbox.repository.js";
+import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
+import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
+import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
+import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
+import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
 
-/**
- * Maps an external status to an internal state and validates the mapping.
- * Different external systems (like Case Working) use different status codes,
- * which need to be translated to our internal phase/stage/status model.
- */
 const getValidatedMapping = (grant, application, command) => {
   const mapping = grant.mapExternalStateToInternalState(
     application.currentPhase,
@@ -48,10 +43,6 @@ const getValidatedMapping = (grant, application, command) => {
   return mapping;
 };
 
-/**
- * Updates the application's state with the new phase, stage, and status.
- * Mutates the application object in place.
- */
 const updateApplicationState = (application, validMapping) => {
   application.currentPhase = validMapping.targetPhase;
   application.currentStage = validMapping.targetStage;
@@ -59,102 +50,40 @@ const updateApplicationState = (application, validMapping) => {
   application.updatedAt = new Date().toISOString();
 };
 
-// ============================================================================
-// OUTBOX CREATION - Entry Process Handlers
-// ============================================================================
-// "Entry processes" are side-effect actions that should be triggered when
-// an application transitions into a specific state. For example, when an
-// application moves to an "approved" state, we might need to generate an
-// agreement document. These processes are defined in the grant configuration
-// and are executed by publishing messages to the outbox for eventual processing.
-
-/**
- * Registry mapping process names to their outbox record creators.
- * Each entry process (e.g., "GENERATE_AGREEMENT") has a corresponding
- * function that creates an outbox record with the appropriate command/event.
- */
-const getOutboxCreatorForProcess = (processName) => {
+const getHandlerForProcess = (processName) => {
   const processHandlers = {
-    // When entering a state that requires an agreement, create a command
-    // to generate the agreement document asynchronously
-    GENERATE_AGREEMENT: (application) => {
-      const createAgreementCommand = new CreateAgreementCommand(application);
-      return new Outbox({
-        event: createAgreementCommand,
-        target: config.sns.createAgreementTopicArn,
-      });
-    },
-    STORE_AGREEMENT_CASE: () => {
-      logger.info("TODO: STORE_AGREEMENT_CASE");
-    },
-    // Add more process handlers here as needed
+    GENERATE_OFFER: createAgreementCommandUseCase,
+    STORE_AGREEMENT_CASE: addAgreementUseCase,
+    UPDATE_AGREEMENT_CASE: handleAgreementStatusChangeUseCase,
+    WITHDRAW_OFFER: withdrawAgreementUseCase,
   };
 
   return processHandlers[processName];
 };
 
 /**
- * Creates an outbox record for a single entry process.
- * Entry processes are actions that need to happen when transitioning into a state,
- * like sending notifications, generating documents, or triggering external workflows.
+ * Attempt to map any additional actions (side-effects) that may need to be performed
+ * on this state transition to a use-case which will be executed within the
+ * withTransaction call.
+ *
+ * Returns an array of methods that can be called.
  */
-const createOutboxRecordForEntryProcess = (processName, application) => {
-  const outboxCreator = getOutboxCreatorForProcess(processName);
-  if (outboxCreator) {
-    return outboxCreator(application);
-  }
-  return null;
-};
-
-/**
- * Creates outbox records for all entry processes defined in the transition.
- * When an application transitions to a new state, the grant configuration may
- * specify multiple processes that should be triggered (e.g., send notification,
- * generate agreement, update external system). This function creates outbox
- * records for all of them.
- */
-const createOutboxRecordsForAllEntryProcesses = (
-  transitionValidation,
-  application,
-) => {
-  if (!transitionValidation.entryProcesses) {
-    return [];
+export const getHandlersForAllProcesses = (processes) => {
+  const handlers = [];
+  if (!processes) {
+    return handlers;
   }
 
-  const outboxRecords = [];
-  for (const processName of transitionValidation.entryProcesses) {
-    const outbox = createOutboxRecordForEntryProcess(processName, application);
-    if (outbox) {
-      outboxRecords.push(outbox);
-    }
+  if (typeof processes === "string") {
+    logger.warn("processes is type string");
+    return handlers;
   }
-  return outboxRecords;
-};
 
-/**
- * Creates an outbox record for a status update event if the status has changed.
- * This publishes an ApplicationStatusUpdatedEvent that downstream systems can
- * subscribe to (e.g., case working service, agreement service).
- */
-const createOutboxForStatusUpdate = (
-  application,
-  originalFullyQualifiedStatus,
-  newFullyQualifiedStatus,
-) => {
-  if (originalFullyQualifiedStatus !== newFullyQualifiedStatus) {
-    const statusEvent = new ApplicationStatusUpdatedEvent({
-      clientRef: application.clientRef,
-      code: application.code,
-      previousStatus: originalFullyQualifiedStatus,
-      currentStatus: newFullyQualifiedStatus,
-    });
-
-    return new Outbox({
-      event: statusEvent,
-      target: config.sns.grantApplicationStatusUpdatedTopicArn,
-    });
+  for (const processName of processes) {
+    const handler = getHandlerForProcess(processName);
+    handlers.push(handler);
   }
-  return null;
+  return handlers.filter((h) => typeof h !== "undefined");
 };
 
 // ============================================================================
@@ -166,7 +95,7 @@ const createOutboxForStatusUpdate = (
  * 1. Maps external status to internal state
  * 2. Validates the transition is allowed
  * 3. Updates the application state
- * 4. Creates outbox records for events and side effects
+ * 4. Creates side effects
  *
  * Returns null if the transition is invalid (no mapping or not allowed by grant rules).
  */
@@ -189,60 +118,37 @@ const processStateTransition = (application, grant, command) => {
   );
 
   if (!transitionValidation.valid) {
+    logger.warn(
+      `Invalid state transition: ${originalFullyQualifiedStatus} to ${validMapping.targetStatus}`,
+    );
     return null;
   }
 
   updateApplicationState(application, validMapping);
 
   const newFullyQualifiedStatus = application.getFullyQualifiedStatus();
+  const { clientRef, code } = application;
 
-  // Collect all outbox records
-  const outboxRecords = [];
-  // Add status update outbox record if status changed
-  const statusUpdateOutbox = createOutboxForStatusUpdate(
-    application,
+  // Create a status update event for the transition
+  const statusTransitionHandler = createStatusTransitionUpdateUseCase({
+    clientRef,
+    code,
     originalFullyQualifiedStatus,
     newFullyQualifiedStatus,
-  );
-  if (statusUpdateOutbox) {
-    outboxRecords.push(statusUpdateOutbox);
-  }
+  });
 
-  // Add entry process outbox records
-  const entryProcessOutboxes = createOutboxRecordsForAllEntryProcesses(
-    transitionValidation,
-    application,
+  // Some transitions require additional logic (side-effects)
+  // These are handled by external use-cases and run alongside the application update.
+  const sideEffects = getHandlersForAllProcesses(
+    transitionValidation.processes,
   );
-  outboxRecords.push(...entryProcessOutboxes);
-  return { application, outboxRecords };
+  return { application, statusTransitionHandler, sideEffects };
 };
 
-// ============================================================================
-// PERSISTENCE
-// ============================================================================
-
-/**
- * Persists the updated application and outbox records atomically within a transaction.
- * This ensures that either both the state change and the outbox records are saved,
- * or neither are (maintaining data consistency).
- */
-const saveApplicationWithOutbox = async (
-  updatedApplication,
-  outboxRecords,
-  session,
-) => {
+const saveApplication = async (updatedApplication, session) => {
   await update(updatedApplication, session);
-
-  if (outboxRecords.length > 0) {
-    await insertMany(outboxRecords, session);
-  }
-
   return { application: updatedApplication };
 };
-
-// ============================================================================
-// PUBLIC API
-// ============================================================================
 
 /**
  * Main entry point for applying external status changes to grant applications.
@@ -255,11 +161,13 @@ const saveApplicationWithOutbox = async (
  * 1. Looks up the application by clientRef
  * 2. Retrieves the grant configuration
  * 3. Processes the state transition (mapping, validation, state update)
- * 4. Saves application and outbox records atomically
+ * 4. Saves application and runs any side-effects atomically
  */
 export const applyExternalStateChange = async (command) => {
+  // eslint-disable-next-line complexity
   return withTransaction(async (session) => {
-    logger.info("applyExternalStateChange", command);
+    logger.info("applyExternalStateChange");
+
     const { clientRef, code } = command;
     const application = await findByClientRefAndCode({ clientRef, code });
 
@@ -276,18 +184,28 @@ export const applyExternalStateChange = async (command) => {
     }
 
     const result = processStateTransition(application, grant, command);
-
     if (result) {
-      const { application: updatedApplication, outboxRecords } = result;
-      return await saveApplicationWithOutbox(
-        updatedApplication,
-        outboxRecords,
-        session,
+      const {
+        application: updatedApplication,
+        statusTransitionHandler,
+        sideEffects,
+      } = result;
+
+      await saveApplication(updatedApplication, session);
+
+      if (statusTransitionHandler) {
+        await statusTransitionHandler(session);
+      }
+      if (sideEffects?.length > 0) {
+        await Promise.all(
+          sideEffects.map((handler) => handler(command, session)),
+        );
+      }
+    } else {
+      // must throw if we're to retry any inbox events
+      throw new Error(
+        `Unable to process state change from ${application.getFullyQualifiedStatus()} to ${command.externalRequestedState}`,
       );
     }
-
-    throw new Error(
-      `Unable to process state change from ${application.currentStatus} to ${command.externalRequestedState}`,
-    );
   });
 };

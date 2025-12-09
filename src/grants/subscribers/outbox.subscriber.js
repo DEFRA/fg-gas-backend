@@ -21,22 +21,29 @@ export class OutboxSubscriber {
     this.running = false;
   }
 
+  // eslint-disable-next-line complexity
   async poll() {
     while (this.running) {
       logger.trace("Polling outbox");
-      const claimToken = randomUUID();
-      const pendingEvents = await claimEvents(claimToken);
 
-      if (pendingEvents?.length > 0) {
-        this.asyncLocalStorage.run(claimToken, async () =>
-          this.processEvents(pendingEvents),
-        );
+      try {
+        const claimToken = randomUUID();
+        const pendingEvents = await claimEvents(claimToken);
+
+        if (pendingEvents?.length > 0) {
+          await this.asyncLocalStorage.run(claimToken, async () =>
+            this.processEvents(pendingEvents),
+          );
+        }
+
+        await this.processResubmittedEvents();
+        await this.processFailedEvents();
+        await this.processDeadEvents();
+        await this.processExpiredEvents();
+      } catch (error) {
+        logger.error(error, "Error polling outbox");
       }
 
-      await this.processResubmittedEvents();
-      await this.processFailedEvents();
-      await this.processDeadEvents();
-      await this.processExpiredEvents();
       await setTimeout(this.interval);
     }
   }

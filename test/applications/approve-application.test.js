@@ -8,14 +8,12 @@ import { sendMessage } from "../helpers/sqs.js";
 
 let applications;
 let outbox;
-let inbox;
 let client;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   applications = client.db().collection("applications");
   outbox = client.db().collection("outbox");
-  inbox = client.db().collection("inbox");
 });
 
 afterAll(async () => {
@@ -32,25 +30,26 @@ describe("On CaseStatusUpdated", () => {
     await expect(applications).toHaveRecord({
       clientRef,
       code,
-      currentStatus: "RECEIVED",
+      currentStatus: "APPLICATION_RECEIVED",
     });
+
+    await applications.updateOne(
+      { clientRef },
+      { $set: { currentStatus: "IN_REVIEW" } },
+    );
 
     const messageId = randomUUID();
     await sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
       id: messageId,
       traceparent,
-      type: "fg.cw-backend.",
+      type: "fg.cw-backend.test.case.status.updated",
+      source: "CW",
       data: {
         caseRef: clientRef,
         workflowCode: code,
-        previousStatus: "IN_PROGRESS",
-        currentStatus: "APPROVED",
+        previousStatus: "IN_REVIEW",
+        currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
       },
-    });
-
-    await expect(inbox).toHaveRecord({
-      messageId,
-      source: "CW",
     });
 
     await new Promise((resolve) => setTimeout(resolve, 500)); // wait for inbox to pick up queue
@@ -58,18 +57,15 @@ describe("On CaseStatusUpdated", () => {
     await expect(applications).toHaveRecord({
       clientRef,
       code,
-      currentStatus: "APPROVED",
-    });
-
-    await expect(outbox).toHaveRecord({
-      target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
+      currentStatus: "AGREEMENT_GENERATING",
     });
 
     await expect(outbox).toHaveRecord({
       target: env.GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN,
     });
-
-    await new Promise((resolve) => setTimeout(resolve, 500)); // wait for outbox to pick up queue
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
+    });
 
     await expect(
       env.GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL,
@@ -84,8 +80,8 @@ describe("On CaseStatusUpdated", () => {
       data: {
         clientRef,
         grantCode: "test-code-1",
-        currentStatus: "PRE_AWARD:ASSESSMENT:APPROVED",
-        previousStatus: "PRE_AWARD:ASSESSMENT:RECEIVED",
+        currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+        previousStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
       },
     });
 

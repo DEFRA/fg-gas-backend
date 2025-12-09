@@ -7,11 +7,14 @@ export const transactionOptions = {
   writeConcern: { w: "majority" },
 };
 
-export const withTransaction = async (callback) => {
+export const withTransaction = async (
+  callback,
+  options = transactionOptions,
+) => {
   const session = mongoClient.startSession();
 
   try {
-    await session.withTransaction(callback, transactionOptions);
+    await session.withTransaction(callback, options);
   } catch (e) {
     logger.error("ERROR: Transaction failed.");
     throw e;

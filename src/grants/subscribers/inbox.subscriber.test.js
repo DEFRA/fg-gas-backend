@@ -8,6 +8,7 @@ import {
   vi,
 } from "vitest";
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { withTraceParent } from "../../common/trace-parent.js";
 import { Inbox } from "../models/inbox.js";
 import { claimEvents } from "../repositories/inbox.repository.js";
@@ -50,6 +51,49 @@ describe("inbox.subscriber", () => {
     expect(subscriber.running).toBeTruthy();
   });
 
+  it("should continue polling and process events after an error", async () => {
+    const error = new Error("Temporary poll failure");
+    vi.spyOn(logger, "error");
+    vi.spyOn(logger, "info");
+
+    const mockEvent = new Inbox({
+      type: "io.onsite.agreement.status.foo",
+      traceparent: "test-trace",
+      event: { data: { foo: "bar" } },
+    });
+
+    claimEvents
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce([mockEvent])
+      .mockResolvedValue([]);
+
+    handleAgreementStatusChangeUseCase.mockResolvedValue(true);
+    withTraceParent.mockImplementation((_, fn) => fn());
+
+    const subscriber = new InboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(error, "Error polling inbox");
+    });
+
+    await vi.advanceTimersByTimeAsync(subscriber.interval);
+
+    await vi.waitFor(() => {
+      expect(handleAgreementStatusChangeUseCase).toHaveBeenCalled();
+    });
+
+    await vi.advanceTimersByTimeAsync(subscriber.interval);
+
+    await vi.waitFor(() => {
+      expect(claimEvents).toHaveBeenCalledTimes(3);
+    });
+
+    expect(subscriber.running).toBeTruthy();
+
+    subscriber.stop();
+  });
+
   it("should stop polling after stop()", async () => {
     claimEvents.mockResolvedValue([new Inbox({})]);
     const subscriber = new InboxSubscriber();
@@ -70,7 +114,7 @@ describe("inbox.subscriber", () => {
 
       withTraceParent.mockImplementation((_, fn) => fn());
       const mockEvent = {
-        type: "io.onsite.agreement.offer.offered",
+        type: "io.onsite.agreement.status.foo",
         traceparent: "1234-abcd",
         event: {
           data: mockEventData,
@@ -136,7 +180,7 @@ describe("inbox.subscriber", () => {
 
       withTraceParent.mockImplementationOnce((_, fn) => fn());
       const mockEvent = {
-        type: "io.onsite.agreement.offer.offered",
+        type: "io.onsite.agreement.status.foo",
         traceparent: "1234-abcd",
         event: {
           data: mockEventData,

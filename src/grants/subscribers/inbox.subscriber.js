@@ -15,8 +15,7 @@ import { applyExternalStateChange } from "../services/apply-event-status-change.
 import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
 
 export const useCaseMap = {
-  "io.onsite.agreement.offer.offered": handleAgreementStatusChangeUseCase,
-  "io.onsite.agreement.status.updated": handleAgreementStatusChangeUseCase,
+  "io.onsite.agreement.status.foo": handleAgreementStatusChangeUseCase,
 };
 
 export class InboxSubscriber {
@@ -28,12 +27,17 @@ export class InboxSubscriber {
   async poll() {
     while (this.running) {
       logger.trace("polling inbox");
-      const claimToken = randomUUID();
-      const events = await claimEvents(claimToken);
-      await this.processEvents(events);
-      await this.processResubmittedEvents();
-      await this.processFailedEvents();
-      await this.processDeadEvents();
+
+      try {
+        const claimToken = randomUUID();
+        const events = await claimEvents(claimToken);
+        await this.processEvents(events);
+        await this.processResubmittedEvents();
+        await this.processFailedEvents();
+        await this.processDeadEvents();
+      } catch (error) {
+        logger.error(error, "Error polling inbox");
+      }
 
       await setTimeout(this.interval);
     }
@@ -79,17 +83,20 @@ export class InboxSubscriber {
       const { data } = event;
 
       const handler = useCaseMap[type];
+      const status = data.currentStatus || data.status || null;
+      const clientRef = data.clientRef || data.caseRef || null;
+      const code = data.workflowCode || data.code || null;
 
       if (handler) {
         await withTraceParent(traceparent, async () => handler(msg));
-      } else if (event.data.currentStatus && source) {
+      } else if (status && source) {
         // status transition/update
         await withTraceParent(traceparent, async () =>
           applyExternalStateChange({
             sourceSystem: source,
-            clientRef: data.caseRef,
-            code: data.workflowCode,
-            externalRequestedState: data.currentStatus,
+            clientRef,
+            code,
+            externalRequestedState: status,
             eventData: data,
           }),
         );
@@ -102,7 +109,7 @@ export class InboxSubscriber {
       logger.error(
         `Error handling event for inbox message ${type}:${messageId}`,
       );
-      logger.error(ex.message);
+      logger.error(ex);
       await this.markEventFailed(msg);
     }
   }

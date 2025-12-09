@@ -56,7 +56,12 @@ export default [
             {
               target: "**/routes/**/!(*.test).js",
               from: ["src/**/**"],
-              except: ["**/use-cases/**", "**/services/**", "**/schemas/**"],
+              except: [
+                "**/use-cases/**",
+                "**/services/**",
+                "**/schemas/**",
+                "**/common/logger.js",
+              ],
               message:
                 "Routes should only import use cases, services and schemas",
             },
@@ -67,7 +72,7 @@ export default [
                 "**/use-cases/**",
                 "**/services/**",
                 "**/schemas/**",
-                "src/common/**",
+                "**/common/**",
                 "**/repositories/**",
               ],
               message:
@@ -78,7 +83,7 @@ export default [
               from: ["src/**/**"],
               except: [
                 "**/events/**",
-                "src/common/**",
+                "**/common/**",
                 "**/repositories/**",
                 "**/models/**",
                 "**/use-cases/**",
@@ -91,7 +96,7 @@ export default [
             {
               target: "**/publishers/**/!(*.test).js",
               from: ["src/**/**"],
-              except: ["src/common/**", "**/events/**", "**/commands/**"],
+              except: ["**/common/**", "**/events/**", "**/commands/**"],
               message: "Publishers should only import common and events",
             },
             {
@@ -99,14 +104,14 @@ export default [
               from: ["src/**/**"],
               except: [
                 "**/events/**",
-                "src/common/**",
+                "**/common/**",
                 "**/repositories/**",
-                "**/models/**",
                 "**/publishers/**",
                 "**/services/**",
+                "**/use-cases/**",
               ],
               message:
-                "Services should only import repositories, models, events, publishers and common",
+                "Services should only import repositories, use-cases, events, publishers and common",
             },
           ],
         },

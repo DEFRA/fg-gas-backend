@@ -31,15 +31,14 @@ export const logger = pino({
   level: config.logLevel,
   ...format,
   nesting: true,
+  errorKey: "error",
   mixin() {
     const mixinValues = {};
 
     const id = getTraceId() ?? getTraceParent();
 
     if (id) {
-      mixinValues.trace = {
-        id,
-      };
+      mixinValues["trace.id"] = id;
     }
 
     return mixinValues;

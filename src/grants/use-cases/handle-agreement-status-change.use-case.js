@@ -1,58 +1,56 @@
 import Boom from "@hapi/boom";
+import { logger } from "../../common/logger.js";
+import { AgreementServiceStatus } from "../models/agreement.js";
+import { ApplicationStatus } from "../models/application.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
-import { addAgreementUseCase } from "./add-agreement.use-case.js";
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
+import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
 
-export const AgreementStatus = {
-  Accepted: "accepted",
-  Withdrawn: "withdrawn",
-  Offered: "offered",
-  Rejected: "rejected",
+export const sourceSystems = {
+  CaseWorking: "CW",
+  AgreementService: "AS",
 };
 
-export const handleAgreementStatusChangeUseCase = async (message) => {
-  const {
-    event: { data },
-    source,
-  } = message;
+// eslint-disable-next-line complexity
+export const handleAgreementStatusChangeUseCase = async (command, session) => {
+  const { eventData, sourceSystem } = command;
+  const { status, currentStatus } = eventData;
 
-  if (data.status === AgreementStatus.Offered) {
-    await addAgreementUseCase({
-      clientRef: data.clientRef,
-      code: data.code,
-      agreementRef: data.agreementNumber,
-      date: data.date,
-      requestedStatus: AgreementStatus.Offered,
-      source,
-    });
+  logger.info(
+    `Handling agreement status change for agreement ${eventData.agreementNumber} with status ${status}`,
+  );
 
+  // incoming status changes from AS
+  if (status === AgreementServiceStatus.Accepted) {
+    logger.info(
+      `Handling accepted agreement status change for agreement ${eventData.agreementNumber}`,
+    );
+    await acceptAgreementUseCase(command, session);
+    logger.info(
+      `Finished: Handling accepted agreement status change for agreement ${eventData.agreementNumber}`,
+    );
     return;
   }
 
-  if (data.status === AgreementStatus.Accepted) {
-    await acceptAgreementUseCase({
-      clientRef: data.clientRef,
-      code: data.code,
-      agreementRef: data.agreementNumber,
-      date: data.date,
-      requestedStatus: AgreementStatus.Accepted,
-      source,
-    });
-
+  if (status === AgreementServiceStatus.Withdrawn) {
+    await withdrawAgreementUseCase(command, session);
     return;
   }
 
-  if (data.status === AgreementStatus.Withdrawn) {
-    await withdrawAgreementUseCase({
-      clientRef: data.clientRef,
-      code: data.code,
-      agreementRef: data.agreementNumber,
-      date: data.date,
-      requestedStatus: AgreementStatus.Withdrawn,
-      source,
-    });
-    return;
+  // incoming status changes from CW
+  if (sourceSystem === sourceSystems.CaseWorking) {
+    // case working commands use currentStatus which is fully qualified...
+    const statusParts = currentStatus.split(":");
+    if (
+      statusParts[statusParts.length - 1] ===
+      ApplicationStatus.WithdrawRequested
+    ) {
+      await withdrawApplicationUseCase(command, session);
+      return;
+    }
   }
 
-  throw Boom.badData(`Unsupported agreement status "${data.status}"`);
+  throw Boom.badData(
+    `Error: Handling accepted agreement status change for agreement ${eventData.agreementNumber} with status ${status}. Status unsupported.`,
+  );
 };

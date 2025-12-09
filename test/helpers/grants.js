@@ -46,13 +46,17 @@ export const createGrant = async () => {
         code: "PRE_AWARD",
         stages: [
           {
-            code: "ASSESSMENT",
+            code: "REVIEW_APPLICATION",
             statuses: [
-              { code: "RECEIVED" },
+              { code: "APPLICATION_RECEIVED" },
               {
-                code: "APPROVED",
-                validFrom: ["RECEIVED"],
-                entryProcesses: ["GENERATE_AGREEMENT"],
+                code: "IN_REVIEW",
+                validFrom: ["APPLICATION_RECEIVED"],
+              },
+              {
+                code: "AGREEMENT_GENERATING",
+                validFrom: ["IN_REVIEW"],
+                processes: ["GENERATE_OFFER"],
               },
             ],
           },
@@ -75,12 +79,12 @@ export const createGrant = async () => {
           code: "PRE_AWARD",
           stages: [
             {
-              code: "ASSESSMENT",
+              code: "REVIEW_APPLICATION",
               statuses: [
                 {
-                  code: "APPROVED",
+                  code: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
                   source: "CW",
-                  mappedTo: "::APPROVED",
+                  mappedTo: "AGREEMENT_GENERATING",
                 },
               ],
             },

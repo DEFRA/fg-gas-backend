@@ -5,7 +5,7 @@
   "main": "src/main.js",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "nodemon --env-file=.env src/main.js",
@@ -13,13 +13,16 @@
     "test": "npm run test:unit -- --run && npm run test:integration -- --run",
     "test:unit": "vitest --config vitest.config.js --dir src",
     "test:integration": "vitest --config test/vitest.config.js --dir test",
+    "test:integration:verbose": "PRINT_LOGS=1 npm run test:integration",
     "test:contract": "vitest --config test/contract/vitest.config.js --dir test/contract",
+    "test:contract:local": "PACT_USE_LOCAL=true vitest --config test/contract/vitest.config.js --dir test/contract",
     "publish:agreement:update": "node scripts/publish-agreement-update-command.js",
     "publish:case:status:update": "node scripts/publish-case-status-update-command.js",
     "postinstall": "npm run setup:husky && npm run setup:env",
     "setup:env": "cp --update=none .env.example .env || true",
     "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module",
-    "migration:create": "migrate-mongo create"
+    "migration:create": "migrate-mongo create",
+    "token:local": "node --env-file=.env scripts/write-http-client-token.js local http-client 2099-01-01T00:00:00Z"
   },
   "lint-staged": {
     "**/*.js": "npm run lint",
