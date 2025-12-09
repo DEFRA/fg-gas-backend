@@ -519,7 +519,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: false,
-        processes: [],
+        processes: undefined,
       });
     });
 

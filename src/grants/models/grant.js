@@ -189,7 +189,14 @@ export class Grant {
   }
 
   #normaliseValidFrom(statusDef) {
+    const statusLevelProcesses = Array.isArray(statusDef.processes)
+      ? statusDef.processes
+      : [];
+
     return (statusDef.validFrom || []).map((v) => {
+      if (typeof v === "string") {
+        return { code: v, processes: statusLevelProcesses };
+      }
       return {
         code: v.code,
         processes: Array.isArray(v.processes) ? v.processes : [],
