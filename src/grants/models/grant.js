@@ -174,7 +174,7 @@ export class Grant {
 
     return {
       valid: !!isValid,
-      processes: isValid ? isValid.processes || [] : [],
+      processes: isValid?.processes,
     };
   }
 
@@ -189,14 +189,7 @@ export class Grant {
   }
 
   #normaliseValidFrom(statusDef) {
-    const statusLevelProcesses = Array.isArray(statusDef.processes)
-      ? statusDef.processes
-      : [];
-
     return (statusDef.validFrom || []).map((v) => {
-      if (typeof v === "string") {
-        return { code: v, processes: statusLevelProcesses };
-      }
       return {
         code: v.code,
         processes: Array.isArray(v.processes) ? v.processes : [],
@@ -206,9 +199,7 @@ export class Grant {
 
   // eslint-disable-next-line complexity
   #findMatchingValidFromEntry(validFromEntries, currentStatus) {
-    const currentStatusCode = currentStatus.includes(":")
-      ? currentStatus.split(":").pop()
-      : currentStatus;
+    const currentStatusCode = currentStatus.split(":").pop();
 
     for (const entry of validFromEntries) {
       const code = entry.code;
