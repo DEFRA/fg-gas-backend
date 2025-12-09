@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { AgreementStatus } from "./agreement.js";
 
 export const ApplicationPhase = {
   PreAward: "PRE_AWARD",
@@ -10,12 +11,13 @@ export const ApplicationStage = {
 };
 
 export const ApplicationStatus = {
-  Approved: "APPROVED",
-  Received: "RECEIVED",
-  Review: "REVIEW",
+  Approved: "APPLICATION_APPROVED",
+  Received: "APPLICATION_RECEIVED",
+  Review: "IN_REVIEW",
   Accepted: "OFFER_ACCEPTED",
   Rejected: "OFFER_REJECTED",
-  Withdrawn: "OFFER_WITHDRAWN",
+  Withdrawn: "APPLICATION_WITHDRAWN",
+  WithdrawRequested: "WITHDRAWAL_REQUESTED",
 };
 
 export class Application {
@@ -98,6 +100,12 @@ export class Application {
     this.updatedAt = this.#getTimestamp();
   }
 
+  getActiveAgreement() {
+    return Object.values(this.agreements).find(
+      (agg) => agg.latestStatus === AgreementStatus.Offered,
+    );
+  }
+
   getAgreement(agreementRef) {
     return this.agreements[agreementRef] || null;
   }
@@ -112,6 +120,11 @@ export class Application {
     }
 
     agreement.accept(date);
+    this.updatedAt = this.#getTimestamp();
+  }
+
+  withdraw() {
+    this.currentStatus = ApplicationStatus.Withdrawn;
     this.updatedAt = this.#getTimestamp();
   }
 

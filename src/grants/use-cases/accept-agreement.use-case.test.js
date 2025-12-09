@@ -3,6 +3,7 @@ import { withTransaction } from "../../common/with-transaction.js";
 import {
   Agreement,
   AgreementHistoryEntry,
+  AgreementServiceStatus,
   AgreementStatus as Status,
 } from "../models/agreement.js";
 import {
@@ -18,7 +19,6 @@ import {
 import { insertMany } from "../repositories/outbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
-import { AgreementStatus } from "./handle-agreement-status-change.use-case.js";
 
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
@@ -82,7 +82,7 @@ describe("acceptAgreementUseCase", () => {
           date: "2024-01-01T12:00:00Z",
           agreementNumber: "agreement-123",
         },
-        requestedStatus: AgreementStatus.Accepted,
+        requestedStatus: AgreementServiceStatus.Accepted,
       },
       {},
     );

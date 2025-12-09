@@ -1,23 +1,27 @@
 import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
+import { ApplicationStatus } from "../models/application.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
+import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
+import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
+import { AgreementServiceStatus } from "../models/agreement.js";
 
-export const AgreementStatus = {
-  Accepted: "accepted",
-  Withdrawn: "withdrawn",
-  Offered: "offered",
-  Rejected: "rejected",
+export const sourceSystems = {
+  CaseWorking: "CW",
+  AgreementService: "AS",
 };
 
+// eslint-disable-next-line complexity
 export const handleAgreementStatusChangeUseCase = async (command, session) => {
-  const { eventData } = command;
-  const { status } = eventData;
+  const { eventData, sourceSystem } = command;
+  const { status, currentStatus } = eventData;
 
   logger.info(
     `Handling agreement status change for agreement ${eventData.agreementNumber} with status ${status}`,
   );
 
-  if (status === AgreementStatus.Accepted) {
+  // incoming status changes from AS
+  if (status === AgreementServiceStatus.Accepted) {
     logger.info(
       `Handling accepted agreement status change for agreement ${eventData.agreementNumber}`,
     );
@@ -26,6 +30,24 @@ export const handleAgreementStatusChangeUseCase = async (command, session) => {
       `Finished: Handling accepted agreement status change for agreement ${eventData.agreementNumber}`,
     );
     return;
+  }
+
+  if (status === AgreementServiceStatus.Withdrawn) {
+    await withdrawAgreementUseCase(command, session);
+    return;
+  }
+
+  // incoming status changes from CW
+  if (sourceSystem === sourceSystems.CaseWorking) {
+    // case working commands use currentStatus which is fully qualified...
+    const statusParts = currentStatus.split(":");
+    if (
+      statusParts[statusParts.length - 1] ===
+      ApplicationStatus.WithdrawRequested
+    ) {
+      await withdrawApplicationUseCase(command, session);
+      return;
+    }
   }
 
   throw Boom.badData(

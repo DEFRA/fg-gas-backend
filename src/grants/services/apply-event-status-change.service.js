@@ -26,6 +26,7 @@ import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
 import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
+import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
 
 const getValidatedMapping = (grant, application, command) => {
   const mapping = grant.mapExternalStateToInternalState(
@@ -54,6 +55,7 @@ const getHandlerForProcess = (processName) => {
     GENERATE_OFFER: createAgreementCommandUseCase,
     STORE_AGREEMENT_CASE: addAgreementUseCase,
     UPDATE_AGREEMENT_CASE: handleAgreementStatusChangeUseCase,
+    WITHDRAW_OFFER: withdrawAgreementUseCase,
   };
 
   return processHandlers[processName];

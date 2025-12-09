@@ -5,6 +5,13 @@ export const AgreementStatus = {
   Withdrawn: "WITHDRAWN",
 };
 
+export const AgreementServiceStatus = {
+  Accepted: "accepted",
+  Withdrawn: "withdrawn",
+  Offered: "offered",
+  Rejected: "rejected",
+};
+
 export class AgreementHistoryEntry {
   constructor({ agreementStatus, createdAt }) {
     this.agreementStatus = agreementStatus;
