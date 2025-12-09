@@ -1,12 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { Application } from "../../src/grants/models/application.js";
+import {
+  Application,
+  ApplicationPhase,
+  ApplicationStage,
+  ApplicationStatus,
+} from "../../src/grants/models/application.js";
 import { wreck } from "./wreck.js";
 
 export const createTestApplication = (overrides = {}) => {
   return Application.new({
-    currentPhase: "PRE_AWARD",
-    currentStage: "ASSESSMENT",
-    currentStatus: "RECEIVED",
+    currentPhase: ApplicationPhase.PreAward,
+    currentStage: ApplicationStage.Assessment,
+    currentStatus: ApplicationStatus.Received,
     clientRef: "application-1",
     code: "grant-1",
     submittedAt: "2021-01-01T00:00:00.000Z",

@@ -72,7 +72,7 @@ export default [
                 "**/use-cases/**",
                 "**/services/**",
                 "**/schemas/**",
-                "src/common/**",
+                "**/common/**",
                 "**/repositories/**",
               ],
               message:
@@ -83,7 +83,7 @@ export default [
               from: ["src/**/**"],
               except: [
                 "**/events/**",
-                "src/common/**",
+                "**/common/**",
                 "**/repositories/**",
                 "**/models/**",
                 "**/use-cases/**",
@@ -96,7 +96,7 @@ export default [
             {
               target: "**/publishers/**/!(*.test).js",
               from: ["src/**/**"],
-              except: ["src/common/**", "**/events/**", "**/commands/**"],
+              except: ["**/common/**", "**/events/**", "**/commands/**"],
               message: "Publishers should only import common and events",
             },
             {
@@ -104,7 +104,7 @@ export default [
               from: ["src/**/**"],
               except: [
                 "**/events/**",
-                "src/common/**",
+                "**/common/**",
                 "**/repositories/**",
                 "**/publishers/**",
                 "**/services/**",
