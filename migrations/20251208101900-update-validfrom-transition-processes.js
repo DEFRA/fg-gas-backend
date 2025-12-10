@@ -1,3 +1,5 @@
+import { withTransaction } from "../src/common/with-transaction.js";
+
 export const up = async (db) => {
   const grants = await db.collection("grants").find({}).toArray();
 
@@ -28,10 +30,13 @@ export const up = async (db) => {
       }
     }
 
-    await db
-      .collection("grants")
-      .updateOne({ _id: grant._id }, { $set: { phases: grant.phases } });
-    console.log(`Updated grant: ${grant.code}`);
+    await withTransaction(async () => {
+      await db
+        .collection("grants")
+        .updateOne({ _id: grant._id }, { $set: { phases: grant.phases } });
+
+      console.log(`Updated grant: ${grant.code}`);
+    });
   }
 
   console.log("Migration completed successfully");
