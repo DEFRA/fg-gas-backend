@@ -165,10 +165,8 @@ export class Grant {
       };
     }
 
-    const normalisedValidFrom = this.#normaliseValidFrom(statusDef);
-
-    const isValid = this.#findMatchingValidFromEntry(
-      normalisedValidFrom,
+    const isValid = this.#isValidFromMatch(
+      statusDef.validFrom,
       currentStatus,
     );
 
@@ -188,29 +186,13 @@ export class Grant {
     return status;
   }
 
-  #normaliseValidFrom(statusDef) {
-    const statusLevelProcesses = Array.isArray(statusDef.processes)
-      ? statusDef.processes
-      : [];
-
-    return (statusDef.validFrom || []).map((v) => {
-      if (typeof v === "string") {
-        return { code: v, processes: statusLevelProcesses };
-      }
-      return {
-        code: v.code,
-        processes: Array.isArray(v.processes) ? v.processes : [],
-      };
-    });
-  }
-
-  // eslint-disable-next-line complexity
   #findMatchingValidFromEntry(validFromEntries, currentStatus) {
     const currentStatusCode = currentStatus.split(":").pop();
 
     for (const entry of validFromEntries) {
       const code = entry.code;
 
+      console.log("valid from entries", validFromEntries);
       const isMatch = code.includes(":")
         ? code === currentStatus
         : code === currentStatusCode;
@@ -221,6 +203,22 @@ export class Grant {
     }
 
     return null;
+  }
+
+  #isValidFromMatch(validFrom, currentStatus) {
+    console.log("validfrom: ", validFrom, "currentStatus: ", currentStatus, "")
+    return validFrom.some((validFromStatus) => {
+      console.log("validfromstatus.code: ", validFromStatus.code, "");
+      if (validFromStatus.code.includes(":")) {
+        // Fully qualified status like "PRE_AWARD:REVIEW_APPLICATION:APPROVED"
+        return validFromStatus.code === currentStatus;
+      }
+      // Simple status code - extract just the status part from currentStatus
+      const currentStatusCode = currentStatus.includes(":")
+        ? currentStatus.split(":").pop()
+        : currentStatus;
+      return validFromStatus.code === currentStatusCode;
+    });
   }
 
   findStatuses(position) {

@@ -117,6 +117,8 @@ const processStateTransition = (application, grant, command) => {
     originalFullyQualifiedStatus,
   );
 
+  console.log("transition==", transitionValidation)
+
   if (!transitionValidation.valid) {
     logger.warn(
       `Invalid state transition: ${originalFullyQualifiedStatus} to ${validMapping.targetStatus}`,
