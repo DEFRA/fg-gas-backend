@@ -30,14 +30,14 @@ export const up = async (db) => {
       }
     }
 
-    await withTransaction(async () => {
+    await withTransaction(async (session) => {
       await db
         .collection("grants")
-        .updateOne({ _id: grant._id }, { $set: { phases: grant.phases } });
-
-      console.log(`Updated grant: ${grant.code}`);
+        .updateOne(
+          { _id: grant._id },
+          { $set: { phases: grant.phases } },
+          { session },
+        );
     });
   }
-
-  console.log("Migration completed successfully");
 };
