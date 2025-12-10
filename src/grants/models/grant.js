@@ -148,11 +148,20 @@ export class Grant {
 
   // eslint-disable-next-line complexity
   isValidTransition(targetPhase, targetStage, targetStatus, currentStatus) {
+    console.log("grant:isValidTransition", {
+      targetPhase,
+      targetStage,
+      targetStatus,
+      currentStatus,
+    });
     const statusDef = this.#findStatusDefinition(
       targetPhase,
       targetStage,
       targetStatus,
     );
+
+    console.log({statusDef})
+    console.log("statusdef.validFrom", statusDef.validFrom);
 
     if (!statusDef) {
       return { valid: false, processes: [] };
@@ -165,10 +174,8 @@ export class Grant {
       };
     }
 
-    const isValid = this.#isValidFromMatch(
-      statusDef.validFrom,
-      currentStatus,
-    );
+    const isValid = this.#isValidFromMatch(statusDef.validFrom, currentStatus);
+    console.log({ isValid });
 
     return {
       valid: !!isValid,
@@ -205,20 +212,27 @@ export class Grant {
     return null;
   }
 
-  #isValidFromMatch(validFrom, currentStatus) {
-    console.log("validfrom: ", validFrom, "currentStatus: ", currentStatus, "")
-    return validFrom.some((validFromStatus) => {
-      console.log("validfromstatus.code: ", validFromStatus.code, "");
-      if (validFromStatus.code.includes(":")) {
+  #isValidFromMatch(validFrom, currentStatus){
+    console.log("grant:isValidFromMatch"); 
+    console.log({validFrom, currentStatus})
+
+    const valid = validFrom.find((entry) => {
+      
+      console.log("validfrom entry", entry);
+
+      if (entry.code.includes(":")) {
         // Fully qualified status like "PRE_AWARD:REVIEW_APPLICATION:APPROVED"
-        return validFromStatus.code === currentStatus;
+        return entry.code === currentStatus;
       }
+
       // Simple status code - extract just the status part from currentStatus
-      const currentStatusCode = currentStatus.includes(":")
-        ? currentStatus.split(":").pop()
-        : currentStatus;
-      return validFromStatus.code === currentStatusCode;
+      const currentStatusCode = currentStatus.split(":").pop();
+      return entry.code === currentStatusCode;
     });
+
+    console.log({valid});
+
+    return valid;
   }
 
   findStatuses(position) {

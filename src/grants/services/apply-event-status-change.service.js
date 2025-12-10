@@ -69,6 +69,7 @@ const getHandlerForProcess = (processName) => {
  * Returns an array of methods that can be called.
  */
 export const getHandlersForAllProcesses = (processes) => {
+  console.log("getHandlersForALlProcesses", processes);
   const handlers = [];
   if (!processes) {
     return handlers;
@@ -117,7 +118,7 @@ const processStateTransition = (application, grant, command) => {
     originalFullyQualifiedStatus,
   );
 
-  console.log("transition==", transitionValidation)
+  console.log({ transitionValidation });
 
   if (!transitionValidation.valid) {
     logger.warn(
