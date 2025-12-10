@@ -66,7 +66,9 @@ describe("Grant Service Integration Tests", () => {
                 "contactEmail",
               ],
             },
-            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
           },
         ],
         actions: [
@@ -149,7 +151,9 @@ describe("Grant Service Integration Tests", () => {
               },
               required: ["landParcels"],
             },
-            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
           },
         ],
         actions: [],
@@ -195,7 +199,9 @@ describe("Grant Service Integration Tests", () => {
                 testField: { type: "string" },
               },
             },
-            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
           },
         ],
         actions: [],
@@ -254,7 +260,9 @@ describe("Grant Service Integration Tests", () => {
               },
               required: ["farmName", "totalAcres"],
             },
-            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
           },
         ],
         actions: [],
@@ -331,7 +339,12 @@ describe("Grant Service Integration Tests", () => {
                     testField: { type: "string" },
                   },
                 },
-                stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+                stages: [
+                  {
+                    code: "STAGE_1",
+                    statuses: [{ code: "NEW", validFrom: [] }],
+                  },
+                ],
               },
             ],
             actions: [],
@@ -447,7 +460,9 @@ describe("Grant Service Integration Tests", () => {
               },
               required: ["farmType", "totalLandSize", "previousGrantReceived"],
             },
-            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
           },
         ],
         actions: [
