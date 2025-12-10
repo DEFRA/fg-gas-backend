@@ -47,7 +47,9 @@ describe("Simple Integration Tests", () => {
             },
             required: ["farmName", "farmSize"],
           },
-          stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
         },
       ],
       actions: [],
