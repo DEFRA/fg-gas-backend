@@ -165,10 +165,7 @@ export class Grant {
       };
     }
 
-    const isValid = this.#isValidFromMatch(
-      statusDef.validFrom,
-      currentStatus,
-    );
+    const isValid = this.#isValidFromMatch(statusDef.validFrom, currentStatus);
 
     return {
       valid: !!isValid,
@@ -186,38 +183,16 @@ export class Grant {
     return status;
   }
 
-  #findMatchingValidFromEntry(validFromEntries, currentStatus) {
-    const currentStatusCode = currentStatus.split(":").pop();
-
-    for (const entry of validFromEntries) {
-      const code = entry.code;
-
-      console.log("valid from entries", validFromEntries);
-      const isMatch = code.includes(":")
-        ? code === currentStatus
-        : code === currentStatusCode;
-
-      if (isMatch) {
-        return entry;
-      }
-    }
-
-    return null;
-  }
-
   #isValidFromMatch(validFrom, currentStatus) {
-    console.log("validfrom: ", validFrom, "currentStatus: ", currentStatus, "")
-    return validFrom.some((validFromStatus) => {
-      console.log("validfromstatus.code: ", validFromStatus.code, "");
-      if (validFromStatus.code.includes(":")) {
+    return validFrom.find((entry) => {
+      if (entry.code.includes(":")) {
         // Fully qualified status like "PRE_AWARD:REVIEW_APPLICATION:APPROVED"
-        return validFromStatus.code === currentStatus;
+        return entry.code === currentStatus;
       }
+
       // Simple status code - extract just the status part from currentStatus
-      const currentStatusCode = currentStatus.includes(":")
-        ? currentStatus.split(":").pop()
-        : currentStatus;
-      return validFromStatus.code === currentStatusCode;
+      const currentStatusCode = currentStatus.split(":").pop();
+      return entry.code === currentStatusCode;
     });
   }
 
