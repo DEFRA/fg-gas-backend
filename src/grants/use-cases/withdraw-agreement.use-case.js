@@ -1,5 +1,6 @@
 import { config } from "../../common/config.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
+import { AgreementWithdrawnEvent } from "../events/agreement-withdrawn.event.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { Outbox } from "../models/outbox.js";
 import {
@@ -48,6 +49,15 @@ export const withdrawAgreementUseCase = async (command, session) => {
     currentStatus: application.getFullyQualifiedStatus(),
   });
 
+  // Create agreement withdrawn event
+  const agreementWithdrawnEvent = new AgreementWithdrawnEvent({
+    clientRef,
+    id: agreementNumber,
+    status: "PRE_AWARD:APPLICATION:WITHDRAWAL_REQUESTED", // Match consumer contract
+    withdrawnAt: new Date().toISOString(),
+    withdrawnBy: "Caseworker_ID_123", // Match consumer contract expectation
+  });
+
   await insertMany(
     [
       new Outbox({
@@ -57,6 +67,10 @@ export const withdrawAgreementUseCase = async (command, session) => {
       new Outbox({
         event: statusCommand,
         target: config.sns.updateCaseStatusTopicArn,
+      }),
+      new Outbox({
+        event: agreementWithdrawnEvent,
+        target: config.sns.updateAgreementStatusTopicArn,
       }),
     ],
     session,

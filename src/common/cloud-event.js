@@ -6,7 +6,7 @@ import { getTraceParent } from "./trace-parent.js";
 export class CloudEvent {
   id = randomUUID();
   source = config.serviceName;
-  specversion = "1.0";
+  specVersion = "1.0";
   datacontenttype = "application/json";
   time = new Date().toISOString();
   traceparent = getTraceId() ?? getTraceParent();
