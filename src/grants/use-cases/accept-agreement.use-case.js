@@ -1,7 +1,6 @@
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
-import { AgreementCreatedEvent } from "../events/agreement-created.event.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { Outbox } from "../models/outbox.js";
 import {
@@ -58,18 +57,6 @@ export const acceptAgreementUseCase = async (command, session) => {
     data: agreementData,
   });
 
-  // Create agreement created event with full application data
-  const agreementCreatedEvent = new AgreementCreatedEvent({
-    agreementNumber,
-    answers: application.answers || {},
-    clientRef,
-    code,
-    createdAt: date,
-    identifiers: application.identifiers || {},
-    notificationMessageId: `agreement-${agreementNumber}-${Date.now()}`,
-    submittedAt: application.submittedAt || date,
-  });
-
   await insertMany(
     [
       new Outbox({
@@ -79,10 +66,6 @@ export const acceptAgreementUseCase = async (command, session) => {
       new Outbox({
         event: statusCommand,
         target: config.sns.updateCaseStatusTopicArn,
-      }),
-      new Outbox({
-        event: agreementCreatedEvent,
-        target: config.sns.createAgreementTopicArn,
       }),
     ],
     session,
