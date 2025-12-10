@@ -35,8 +35,21 @@ describe("createGrantRoute", () => {
             code: "PRE_AWARD",
             stages: [
               {
-                code: "ASSESSMENT",
-                statuses: [{ code: "RECEIVED" }],
+                code: "APPLICATION_RECEIVED",
+                statuses: [
+                  {
+                    code: "APPLICATION_RECEIVED",
+                  },
+                  {
+                    code: "IN_REVIEW",
+                    validFrom: [
+                      {
+                        code: "APPLICATION_RECEIVED",
+                        processes: ["STORE_AGREEMENT_CASE"],
+                      },
+                    ],
+                  },
+                ],
               },
             ],
             questions: {
@@ -64,8 +77,21 @@ describe("createGrantRoute", () => {
           code: "PRE_AWARD",
           stages: [
             {
-              code: "ASSESSMENT",
-              statuses: [{ code: "RECEIVED" }],
+              code: "APPLICATION_RECEIVED",
+              statuses: [
+                {
+                  code: "APPLICATION_RECEIVED",
+                },
+                {
+                  code: "IN_REVIEW",
+                  validFrom: [
+                    {
+                      code: "APPLICATION_RECEIVED",
+                      processes: ["STORE_AGREEMENT_CASE"],
+                    },
+                  ],
+                },
+              ],
             },
           ],
           questions: {

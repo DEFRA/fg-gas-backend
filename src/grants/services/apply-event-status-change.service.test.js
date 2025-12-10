@@ -55,15 +55,26 @@ describe("applyExternalStateChange", () => {
           {
             code: "REVIEW_APPLICATION",
             statuses: [
-              { code: "RECEIVED" },
+              {
+                code: "RECEIVED",
+              },
               {
                 code: "IN_PROGRESS",
-                validFrom: ["RECEIVED"],
+                validFrom: [
+                  {
+                    code: "RECEIVED",
+                    processes: [],
+                  },
+                ],
               },
               {
                 code: "APPROVED",
-                validFrom: ["IN_PROGRESS"],
-                processes: ["GENERATE_OFFER"],
+                validFrom: [
+                  {
+                    code: "IN_PROGRESS",
+                    processes: ["GENERATE_OFFER"],
+                  },
+                ],
               },
             ],
           },
@@ -446,7 +457,12 @@ describe("applyExternalStateChange", () => {
                 statuses: [
                   {
                     code: "OFFERED",
-                    validFrom: ["PRE_AWARD:REVIEW_APPLICATION:RECEIVED"],
+                    validFrom: [
+                      {
+                        code: "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
+                        processes: [],
+                      },
+                    ],
                   },
                 ],
               },
@@ -567,8 +583,12 @@ describe("applyExternalStateChange", () => {
                   { code: "RECEIVED" },
                   {
                     code: "IN_PROGRESS",
-                    validFrom: ["RECEIVED"],
-                    processes: ["GENERATE_OFFER", "STORE_AGREEMENT_CASE"],
+                    validFrom: [
+                      {
+                        code: "RECEIVED",
+                        processes: ["GENERATE_OFFER", "STORE_AGREEMENT_CASE"],
+                      },
+                    ],
                   },
                 ],
               },
@@ -614,7 +634,7 @@ describe("applyExternalStateChange", () => {
                   { code: "RECEIVED" },
                   {
                     code: "IN_PROGRESS",
-                    validFrom: ["RECEIVED"],
+                    validFrom: [{ code: "RECEIVED", processes: [] }],
                     // No processes
                   },
                 ],
@@ -706,14 +726,19 @@ describe("applyExternalStateChange", () => {
             stages: [
               {
                 code: "REVIEW_APPLICATION",
-                statuses: [{ code: "APPROVED" }],
+                statuses: [{ code: "APPROVED", validFrom: [] }],
               },
               {
                 code: "REVIEW_OFFER",
                 statuses: [
                   {
                     code: "OFFERED",
-                    validFrom: ["PRE_AWARD:REVIEW_APPLICATION:APPROVED"],
+                    validFrom: [
+                      {
+                        code: "PRE_AWARD:REVIEW_APPLICATION:APPROVED",
+                        processes: [],
+                      },
+                    ],
                   },
                 ],
               },
@@ -782,7 +807,7 @@ describe("applyExternalStateChange", () => {
                   { code: "RECEIVED" },
                   {
                     code: "IN_PROGRESS",
-                    validFrom: ["RECEIVED"], // Simple status code
+                    validFrom: [{ code: "RECEIVED", processes: [] }], // Simple status code
                   },
                 ],
               },

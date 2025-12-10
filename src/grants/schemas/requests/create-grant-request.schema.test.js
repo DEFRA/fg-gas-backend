@@ -7,7 +7,12 @@ const validPhases = [
     stages: [
       {
         code: "ASSESSMENT",
-        statuses: [{ code: "RECEIVED" }],
+        statuses: [
+          {
+            code: "APPLICATION_RECEIVED",
+            processes: ["STORE_AGREEMENT_CASE"],
+          },
+        ],
       },
     ],
     questions: {
