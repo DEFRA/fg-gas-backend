@@ -39,6 +39,7 @@ describe("createGrantRoute", () => {
                 statuses: [
                   {
                     code: "APPLICATION_RECEIVED",
+                    validFrom: [],
                   },
                   {
                     code: "IN_REVIEW",
@@ -81,6 +82,7 @@ describe("createGrantRoute", () => {
               statuses: [
                 {
                   code: "APPLICATION_RECEIVED",
+                  validFrom: [],
                 },
                 {
                   code: "IN_REVIEW",

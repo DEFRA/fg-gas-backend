@@ -22,6 +22,7 @@ describe("Grant", () => {
               statuses: [
                 {
                   code: "APPLICATION_RECEIVED",
+                  validFrom: [],
                 },
                 {
                   code: "IN_REVIEW",
@@ -70,6 +71,7 @@ describe("Grant", () => {
               statuses: [
                 {
                   code: "APPLICATION_RECEIVED",
+                  validFrom: [],
                 },
                 {
                   code: "IN_REVIEW",

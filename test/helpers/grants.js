@@ -18,6 +18,7 @@ export const createTestGrant = (overrides = {}) => {
             statuses: [
               {
                 code: "APPLICATION_RECEIVED",
+                validFrom: [],
               },
               {
                 code: "IN_REVIEW",
@@ -69,15 +70,16 @@ export const createGrant = async () => {
           {
             code: "REVIEW_APPLICATION",
             statuses: [
-              { code: "APPLICATION_RECEIVED" },
+              { code: "APPLICATION_RECEIVED", validFrom: [] },
               {
                 code: "IN_REVIEW",
-                validFrom: ["APPLICATION_RECEIVED"],
+                validFrom: [{ code: "APPLICATION_RECEIVED", processes: [] }],
               },
               {
                 code: "AGREEMENT_GENERATING",
-                validFrom: ["IN_REVIEW"],
-                processes: ["GENERATE_OFFER"],
+                validFrom: [
+                  { code: "IN_REVIEW", processes: ["GENERATE_OFFER"] },
+                ],
               },
             ],
           },

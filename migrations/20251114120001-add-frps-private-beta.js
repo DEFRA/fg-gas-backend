@@ -475,6 +475,7 @@ export const up = async (db) => {
             statuses: [
               {
                 code: "APPLICATION_RECEIVED",
+                validFrom: [],
               },
               {
                 code: "IN_REVIEW",

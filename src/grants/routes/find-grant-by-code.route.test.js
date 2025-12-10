@@ -53,6 +53,7 @@ describe("findGrantByCodeRoute", () => {
               statuses: [
                 {
                   code: "APPLICATION_RECEIVED",
+                  validFrom: [],
                 },
                 {
                   code: "IN_REVIEW",

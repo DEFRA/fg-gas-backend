@@ -10,7 +10,7 @@ const validPhases = [
         statuses: [
           {
             code: "APPLICATION_RECEIVED",
-            processes: ["STORE_AGREEMENT_CASE"],
+            validFrom: [],
           },
         ],
       },

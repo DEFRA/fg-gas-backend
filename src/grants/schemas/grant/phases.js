@@ -8,7 +8,7 @@ const validFrom = Joi.object({
 
 const status = Joi.object({
   code: Joi.string().required(),
-  validFrom: Joi.array().items(validFrom).optional(),
+  validFrom: Joi.array().items(validFrom).required(),
 })
   .unknown()
   .label("Status");
