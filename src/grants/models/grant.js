@@ -158,7 +158,6 @@ export class Grant {
       return { valid: false, processes: [] };
     }
 
-    // If there's no validFrom, the transition is always valid
     if (!statusDef.validFrom || statusDef.validFrom.length === 0) {
       return {
         valid: true,
@@ -166,12 +165,11 @@ export class Grant {
       };
     }
 
-    // Check if current status is in validFrom array
     const isValid = this.#isValidFromMatch(statusDef.validFrom, currentStatus);
 
     return {
-      valid: isValid,
-      processes: isValid ? statusDef.processes || [] : [],
+      valid: !!isValid,
+      processes: isValid?.processes,
     };
   }
 
@@ -186,16 +184,15 @@ export class Grant {
   }
 
   #isValidFromMatch(validFrom, currentStatus) {
-    return validFrom.some((validFromStatus) => {
-      if (validFromStatus.includes(":")) {
+    return validFrom.find((entry) => {
+      if (entry.code.includes(":")) {
         // Fully qualified status like "PRE_AWARD:REVIEW_APPLICATION:APPROVED"
-        return validFromStatus === currentStatus;
+        return entry.code === currentStatus;
       }
+
       // Simple status code - extract just the status part from currentStatus
-      const currentStatusCode = currentStatus.includes(":")
-        ? currentStatus.split(":").pop()
-        : currentStatus;
-      return validFromStatus === currentStatusCode;
+      const currentStatusCode = currentStatus.split(":").pop();
+      return entry.code === currentStatusCode;
     });
   }
 

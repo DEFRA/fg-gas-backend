@@ -17,7 +17,10 @@ export const grant1 = {
       stages: [
         {
           code: "ASSESSMENT",
-          statuses: [{ code: "RECEIVED" }, { code: "REVIEW" }],
+          statuses: [
+            { code: "RECEIVED", validFrom: [] },
+            { code: "REVIEW", validFrom: [] },
+          ],
         },
       ],
       questions: {
@@ -53,7 +56,10 @@ export const grant2 = {
       stages: [
         {
           code: "ASSESSMENT",
-          statuses: [{ code: "RECEIVED" }, { code: "REVIEW" }],
+          statuses: [
+            { code: "RECEIVED", validFrom: [] },
+            { code: "REVIEW", validFrom: [] },
+          ],
         },
       ],
       questions: {
@@ -89,7 +95,10 @@ export const grant3 = {
       stages: [
         {
           code: "ASSESSMENT",
-          statuses: [{ code: "RECEIVED" }, { code: "REVIEW" }],
+          statuses: [
+            { code: "RECEIVED", validFrom: [] },
+            { code: "REVIEW", validFrom: [] },
+          ],
         },
       ],
       questions: {

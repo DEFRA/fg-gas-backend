@@ -18,8 +18,30 @@ describe("Grant", () => {
           code: "PRE_AWARD",
           stages: [
             {
-              code: "ASSESSMENT",
-              statuses: [{ code: "RECEIVED" }],
+              code: "APPLICATION_RECEIVED",
+              statuses: [
+                {
+                  code: "APPLICATION_RECEIVED",
+                  validFrom: [],
+                },
+                {
+                  code: "IN_REVIEW",
+                  validFrom: [
+                    {
+                      code: "APPLICATION_RECEIVED",
+                      processes: ["STORE_AGREEMENT_CASE"],
+                    },
+                    {
+                      code: "APPLICATION_REJECTED",
+                      processes: [],
+                    },
+                    {
+                      code: "ON_HOLD",
+                      processes: [],
+                    },
+                  ],
+                },
+              ],
             },
           ],
           questions: {
@@ -45,8 +67,30 @@ describe("Grant", () => {
           code: "PRE_AWARD",
           stages: [
             {
-              code: "ASSESSMENT",
-              statuses: [{ code: "RECEIVED" }],
+              code: "APPLICATION_RECEIVED",
+              statuses: [
+                {
+                  code: "APPLICATION_RECEIVED",
+                  validFrom: [],
+                },
+                {
+                  code: "IN_REVIEW",
+                  validFrom: [
+                    {
+                      code: "APPLICATION_RECEIVED",
+                      processes: ["STORE_AGREEMENT_CASE"],
+                    },
+                    {
+                      code: "APPLICATION_REJECTED",
+                      processes: [],
+                    },
+                    {
+                      code: "ON_HOLD",
+                      processes: [],
+                    },
+                  ],
+                },
+              ],
             },
           ],
           questions: {
@@ -390,20 +434,47 @@ describe("Grant", () => {
                 { code: "RECEIVED" },
                 {
                   code: "IN_PROGRESS",
-                  validFrom: ["RECEIVED"],
+                  validFrom: [
+                    {
+                      code: "RECEIVED",
+                      processes: [],
+                    },
+                  ],
                 },
                 {
                   code: "APPROVED",
-                  validFrom: ["IN_PROGRESS"],
-                  processes: ["GENERATE_OFFER"],
+                  validFrom: [
+                    {
+                      code: "IN_PROGRESS",
+                      processes: ["GENERATE_OFFER"],
+                    },
+                  ],
                 },
                 {
                   code: "REJECTED",
-                  validFrom: ["IN_PROGRESS"],
+                  validFrom: [
+                    {
+                      code: "IN_PROGRESS",
+                      processes: [],
+                    },
+                  ],
                 },
                 {
                   code: "WITHDRAWN",
-                  validFrom: ["RECEIVED", "IN_PROGRESS", "APPROVED"],
+                  validFrom: [
+                    {
+                      code: "RECEIVED",
+                      processes: [],
+                    },
+                    {
+                      code: "IN_PROGRESS",
+                      processes: [],
+                    },
+                    {
+                      code: "APPROVED",
+                      processes: [],
+                    },
+                  ],
                 },
               ],
             },
@@ -412,8 +483,12 @@ describe("Grant", () => {
               statuses: [
                 {
                   code: "OFFERED",
-                  validFrom: ["PRE_AWARD:REVIEW_APPLICATION:APPROVED"],
-                  processes: ["SEND_OFFER_EMAIL"],
+                  validFrom: [
+                    {
+                      code: "PRE_AWARD:REVIEW_APPLICATION:APPROVED",
+                      processes: ["SEND_OFFER_EMAIL"],
+                    },
+                  ],
                 },
               ],
             },
@@ -446,7 +521,7 @@ describe("Grant", () => {
 
       expect(result).toEqual({
         valid: false,
-        processes: [],
+        processes: undefined,
       });
     });
 
