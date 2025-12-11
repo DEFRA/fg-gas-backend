@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, it } from "vitest";
 
 // Generate real messages using actual CloudEvent classes
 async function generateAgreementCreatedMessage() {
-  // Import here to avoid config issues at module load
   const { AgreementCreatedEvent } = await import(
     "../../src/grants/events/agreement-created.event.js"
   );
@@ -139,7 +138,160 @@ async function generateAgreementCreatedMessage() {
             paymentDate: "2025-12-05",
             totalPaymentPence: 8007,
           },
-          // Add all 12 payment entries here...
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2026-03-05",
+            totalPaymentPence: 8001,
+          },
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2026-06-05",
+            totalPaymentPence: 8001,
+          },
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2026-09-07",
+            totalPaymentPence: 8001,
+          },
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2026-12-07",
+            totalPaymentPence: 8001,
+          },
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2027-03-05",
+            totalPaymentPence: 8001,
+          },
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2027-06-07",
+            totalPaymentPence: 8001,
+          },
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2027-09-06",
+            totalPaymentPence: 8001,
+          },
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2027-12-06",
+            totalPaymentPence: 8001,
+          },
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2028-03-06",
+            totalPaymentPence: 8001,
+          },
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2028-06-05",
+            totalPaymentPence: 8001,
+          },
+          {
+            lineItems: [
+              {
+                parcelItemId: 1,
+                paymentPence: 1201,
+              },
+              {
+                agreementLevelItemId: 1,
+                paymentPence: 6800,
+              },
+            ],
+            paymentDate: "2028-09-05",
+            totalPaymentPence: 8001,
+          },
         ],
       },
       scheme: "SFI",
