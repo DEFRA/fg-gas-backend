@@ -50,7 +50,29 @@ describe("findGrantByCodeRoute", () => {
           stages: [
             {
               code: "ASSESSMENT",
-              statuses: [{ code: "RECEIVED" }, { code: "REVIEW" }],
+              statuses: [
+                {
+                  code: "APPLICATION_RECEIVED",
+                  validFrom: [],
+                },
+                {
+                  code: "IN_REVIEW",
+                  validFrom: [
+                    {
+                      code: "APPLICATION_RECEIVED",
+                      processes: ["STORE_AGREEMENT_CASE"],
+                    },
+                    {
+                      code: "APPLICATION_REJECTED",
+                      processes: [],
+                    },
+                    {
+                      code: "ON_HOLD",
+                      processes: [],
+                    },
+                  ],
+                },
+              ],
             },
           ],
           questions: {

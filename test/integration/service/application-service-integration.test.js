@@ -108,7 +108,9 @@ describe("Application Service Integration Tests", () => {
               },
               required: ["applicantDetails", "farmOperation", "financialInfo"],
             },
-            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
           },
         ],
         actions: [],
@@ -271,7 +273,9 @@ describe("Application Service Integration Tests", () => {
                 "organicCertified",
               ],
             },
-            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
           },
         ],
         actions: [],
@@ -395,7 +399,9 @@ describe("Application Service Integration Tests", () => {
               },
               required: ["email", "age", "phoneNumber", "categories"],
             },
-            stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
           },
         ],
         actions: [],

@@ -36,7 +36,7 @@ describe("replaceGrantRoute", () => {
             stages: [
               {
                 code: "ASSESSMENT",
-                statuses: [{ code: "RECEIVED" }],
+                statuses: [{ code: "RECEIVED", validFrom: [] }],
               },
             ],
             questions: {
@@ -63,7 +63,7 @@ describe("replaceGrantRoute", () => {
           stages: [
             {
               code: "ASSESSMENT",
-              statuses: [{ code: "RECEIVED" }],
+              statuses: [{ code: "RECEIVED", validFrom: [] }],
             },
           ],
           questions: {

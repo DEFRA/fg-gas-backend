@@ -34,7 +34,7 @@ describe("findGrantsRoute", () => {
             stages: [
               {
                 code: "ASSESSMENT",
-                statuses: [{ code: "RECEIVED" }],
+                statuses: [{ code: "RECEIVED", validFrom: [] }],
               },
             ],
             questions: {
@@ -57,7 +57,7 @@ describe("findGrantsRoute", () => {
             stages: [
               {
                 code: "ASSESSMENT",
-                statuses: [{ code: "RECEIVED" }],
+                statuses: [{ code: "RECEIVED", validFrom: [] }],
               },
             ],
             questions: {
@@ -89,7 +89,7 @@ describe("findGrantsRoute", () => {
             stages: [
               {
                 code: "ASSESSMENT",
-                statuses: [{ code: "RECEIVED" }],
+                statuses: [{ code: "RECEIVED", validFrom: [] }],
               },
             ],
             questions: {
@@ -112,7 +112,7 @@ describe("findGrantsRoute", () => {
             stages: [
               {
                 code: "ASSESSMENT",
-                statuses: [{ code: "RECEIVED" }],
+                statuses: [{ code: "RECEIVED", validFrom: [] }],
               },
             ],
             questions: {

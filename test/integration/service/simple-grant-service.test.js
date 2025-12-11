@@ -54,7 +54,9 @@ describe("Simple Grant Service Integration Tests", () => {
               "organicCertified",
             ],
           },
-          stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
         },
       ],
       actions: [
@@ -141,7 +143,9 @@ describe("Simple Grant Service Integration Tests", () => {
             },
             required: ["email", "age"],
           },
-          stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
         },
       ],
       actions: [],
@@ -209,7 +213,9 @@ describe("Simple Grant Service Integration Tests", () => {
             },
             required: ["testField"],
           },
-          stages: [{ code: "STAGE_1", statuses: [{ code: "NEW" }] }],
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
         },
       ],
       actions: [],

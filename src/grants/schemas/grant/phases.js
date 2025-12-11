@@ -1,8 +1,14 @@
 import Joi from "joi";
 import { questions } from "./questions.js";
 
+const validFrom = Joi.object({
+  code: Joi.string().required(),
+  processes: Joi.array().items(Joi.string()).required(),
+});
+
 const status = Joi.object({
   code: Joi.string().required(),
+  validFrom: Joi.array().items(validFrom).required(),
 })
   .unknown()
   .label("Status");
