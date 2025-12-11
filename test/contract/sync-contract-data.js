@@ -12,7 +12,7 @@ const PACT_BROKER_URL = "https://ffc-pact-broker.azure.defra.cloud";
 const PACT_URL = `${PACT_BROKER_URL}/pacts/provider/fg-gas-backend-sns/consumer/farming-grants-agreements-api-sqs/latest`;
 const TEST_FILE_PATH = resolve(process.cwd(), "test/contract/provider.sns.verification.test.js");
 
-async function syncContractData() {
+export async function syncContractData() {
   try {
     console.log("🔄 Syncing contract data from PACT broker...");
     console.log(`📥 Fetching: ${PACT_URL}`);
@@ -155,5 +155,7 @@ if (!process.env.PACT_USER || !process.env.PACT_PASS) {
   process.exit(1);
 }
 
-// Run the sync
-syncContractData();
+// Run the sync if this file is executed directly (not imported)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  syncContractData();
+}

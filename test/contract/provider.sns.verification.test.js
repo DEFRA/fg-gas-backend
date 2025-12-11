@@ -2,342 +2,66 @@
 import { Verifier } from "@pact-foundation/pact";
 import { afterAll, beforeAll, describe, it } from "vitest";
 
-// Contract data reference (for data structure) - auto-generated from PACT broker on 2025-12-11T10:38:58.328Z
-// Source: https://ffc-pact-broker.azure.defra.cloud/pacts/provider/fg-gas-backend-sns/consumer/farming-grants-agreements-api-sqs/latest
+// Contract data structure reference (auto-synced from PACT broker)
+let contractDataReference = {};
 
-// Reference contract data structure (used in CloudEvent generation)
-const contractDataReference = {
-  createdMessage: {
-  "data": {
-    "agreementNumber": "SFI987654321",
-    "answers": {
-      "actionApplications": [],
-      "agreementName": "Example agreement 2",
-      "applicant": {
-        "business": {
-          "address": {
-            "city": "Clitheroe",
-            "line1": "Mason House Farm Clitheroe Rd",
-            "line2": "Bashall Eaves",
-            "line3": null,
-            "line4": null,
-            "line5": null,
-            "postalCode": "BB7 3DD",
-            "street": "Bartindale Road"
-          },
-          "email": {
-            "address": "cliffspencetasabbeyfarmf@mrafyebbasatecnepsffilcm.com.test"
-          },
-          "name": "J&S Hartley",
-          "phone": {
-            "mobile": "01234031670"
-          }
-        },
-        "customer": {
-          "name": {
-            "first": "Edward",
-            "last": "Jones",
-            "middle": "Paul",
-            "title": "Mr."
-          }
-        }
-      },
-      "application": {
-        "_id": "69262bb2331fd3b45b76ee90",
-        "agreement": [],
-        "parcel": [
-          {
-            "_id": "69262bb2331fd3b45b76ee91",
-            "actions": [
-              {
-                "_id": "69262bb2331fd3b45b76ee93",
-                "appliedFor": {
-                  "_id": "69262bb2331fd3b45b76ee94",
-                  "quantity": 4.7575,
-                  "unit": "ha"
-                },
-                "code": "CMOR1",
-                "durationYears": 3,
-                "version": 1
-              }
-            ],
-            "area": {
-              "_id": "69262bb2331fd3b45b76ee92",
-              "quantity": 5.2182,
-              "unit": "ha"
-            },
-            "parcelId": "8083",
-            "sheetId": "SD6743"
-          },
-          {
-            "_id": "69262bb2331fd3b45b76ee97",
-            "actions": [
-              {
-                "_id": "69262bb2331fd3b45b76ee99",
-                "appliedFor": {
-                  "_id": "69262bb2331fd3b45b76ee9a",
-                  "quantity": 2.1705,
-                  "unit": "ha"
-                },
-                "code": "CMOR1",
-                "durationYears": 3,
-                "version": 1
-              }
-            ],
-            "area": {
-              "_id": "69262bb2331fd3b45b76ee98",
-              "quantity": 2.1703,
-              "unit": "ha"
-            },
-            "parcelId": "8084",
-            "sheetId": "SD6743"
-          }
-        ]
-      },
-      "hasCheckedLandIsUpToDate": true,
-      "payment": {
-        "agreementEndDate": "2028-09-01",
-        "agreementLevelItems": {
-          "1": {
-            "annualPaymentPence": 27200,
-            "code": "CMOR1",
-            "description": "CMOR1: Assess moorland and produce a written record",
-            "version": 1
-          }
-        },
-        "agreementStartDate": "2025-09-01",
-        "agreementTotalPence": 96018,
-        "annualTotalPence": 32006,
-        "frequency": "Quarterly",
-        "parcelItems": {
-          "1": {
-            "annualPaymentPence": 4806,
-            "code": "CMOR1",
-            "description": "CMOR1: Assess moorland and produce a written record",
-            "parcelId": "8083",
-            "quantity": 4.53411078,
-            "rateInPence": 1060,
-            "sheetId": "SD6743",
-            "unit": "ha",
-            "version": 1
-          }
-        },
-        "payments": [
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1204
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6803
-              }
-            ],
-            "paymentDate": "2025-12-05",
-            "totalPaymentPence": 8007
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2026-03-05",
-            "totalPaymentPence": 8001
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2026-06-05",
-            "totalPaymentPence": 8001
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2026-09-07",
-            "totalPaymentPence": 8001
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2026-12-07",
-            "totalPaymentPence": 8001
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2027-03-05",
-            "totalPaymentPence": 8001
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2027-06-07",
-            "totalPaymentPence": 8001
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2027-09-06",
-            "totalPaymentPence": 8001
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2027-12-06",
-            "totalPaymentPence": 8001
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2028-03-06",
-            "totalPaymentPence": 8001
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2028-06-05",
-            "totalPaymentPence": 8001
-          },
-          {
-            "lineItems": [
-              {
-                "parcelItemId": 1,
-                "paymentPence": 1201
-              },
-              {
-                "agreementLevelItemId": 1,
-                "paymentPence": 6800
-              }
-            ],
-            "paymentDate": "2028-09-05",
-            "totalPaymentPence": 8001
-          }
-        ]
-      },
-      "scheme": "SFI",
-      "year": 2025
-    },
-    "clientRef": "client-ref-002",
-    "code": "frps-private-beta",
-    "createdAt": "2025-08-19T09:36:45.131Z",
-    "identifiers": {
-      "crn": "crn",
-      "defraId": "defraId",
-      "frn": "frn",
-      "sbi": "106284736"
-    },
-    "notificationMessageId": "sample-notification-2",
-    "submittedAt": "2025-08-19T09:36:44.509Z"
-  },
-  "datacontenttype": "application/json",
-  "id": "12-34-56-78-90",
-  "source": "fg-gas-backend",
-  "specVersion": "1.0",
-  "type": "cloud.defra.test.fg-gas-backend.agreement.create"
-  },
-  withdrawnMessage: {
-  "data": {
-    "clientRef": "client-ref-002",
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "status": "PRE_AWARD:APPLICATION:WITHDRAWAL_REQUESTED",
-    "withdrawnAt": "2025-03-27T14:30:00Z",
-    "withdrawnBy": "Caseworker_ID_123"
-  },
-  "datacontenttype": "application/json",
-  "id": "12-34-56-78-90",
-  "source": "fg-gas-backend",
-  "specVersion": "1.0",
-  "type": "cloud.defra.test.fg-gas-backend.agreement.withdraw"
-  }
-};
+// Generate real messages using actual CloudEvent classes
+async function generateAgreementCreatedMessage() {
+  const { AgreementCreatedEvent } = await import("../../src/grants/events/agreement-created.event.js");
+  
+  const realEvent = new AgreementCreatedEvent({
+    agreementNumber: "SFI987654321",
+    answers: contractDataReference.createdMessage?.data?.answers || {},
+    clientRef: "client-ref-002",
+    code: "frps-private-beta",
+    createdAt: "2025-08-19T09:36:45.131Z",
+    identifiers: { crn: "crn", defraId: "defraId", frn: "frn", sbi: "106284736" },
+    notificationMessageId: "sample-notification-2",
+    submittedAt: "2025-08-19T09:36:44.509Z",
+  });
+  
+  // Return the REAL CloudEvent as-is - let it fail if there are contract violations!
+  return realEvent;
+}
 
-// Contract constants now defined above from PACT broker sync
+async function generateAgreementWithdrawnMessage() {
+  const { AgreementWithdrawnEvent } = await import("../../src/grants/events/agreement-withdrawn.event.js");
+  
+  const realEvent = new AgreementWithdrawnEvent({
+    clientRef: "client-ref-002",
+    id: "123e4567-e89b-12d3-a456-426614174000",
+    status: "PRE_AWARD:APPLICATION:WITHDRAWAL_REQUESTED",
+    withdrawnAt: "2025-03-27T14:30:00Z",
+    withdrawnBy: "Caseworker_ID_123",
+  });
+  
+  // Return the REAL CloudEvent as-is - let it fail if there are contract violations!
+  return realEvent;
+}
 
 describe("fg-gas-backend-sns Provider Verification", () => {
   let mockServer;
   let mockPort;
 
   beforeAll(async () => {
-    // Set environment for real CloudEvent classes first
+    // Load current contract data reference for realistic CloudEvent generation
+    try {
+      const { readFileSync } = await import("fs");
+      const contractData = JSON.parse(readFileSync("test/contract/contract-data.json", "utf8"));
+      contractDataReference = {
+        createdMessage: contractData.contractData["an agreement created message"],
+        withdrawnMessage: contractData.contractData["an agreement withdrawn message"]
+      };
+      console.log(`📋 Loaded contract data reference (last updated: ${contractData.lastUpdated})`);
+    } catch (error) {
+      console.warn("⚠️ Could not load contract data reference, using minimal structure:", error.message);
+      contractDataReference = {
+        createdMessage: { data: { answers: {} } },
+        withdrawnMessage: { data: {} }
+      };
+    }
+
+    // Set environment for real CloudEvent classes
     process.env.SERVICE_NAME = "fg-gas-backend";
     process.env.SERVICE_VERSION = "test";
     process.env.PORT = "0";
@@ -358,17 +82,6 @@ describe("fg-gas-backend-sns Provider Verification", () => {
     process.env.INBOX_EXPIRES_MS = "5000";
     process.env.INBOX_POLL_MS = "1000";
 
-    
-    // Using auto-synchronized contract data from PACT broker (constants defined above)
-
-    // console.log("Generated real CloudEvent messages using production classes");
-    // console.log(
-    //   "specversion field check:",
-    //   agreementCreatedMessage.specversion
-    //     ? "lowercase (will fail)"
-    //     : "uppercase (will pass)",
-    // );
-
     // HTTP server required by PACT v15 - serves the REAL generated CloudEvent messages
     const { createServer } = await import("http");
     mockServer = createServer((req, res) => {
@@ -384,26 +97,9 @@ describe("fg-gas-backend-sns Provider Verification", () => {
           // Generate and serve REAL CloudEvent messages (will show actual contract violations)
           let realMessage;
           if (isCreatedMessage) {
-            const { AgreementCreatedEvent } = await import("../../src/grants/events/agreement-created.event.js");
-            realMessage = new AgreementCreatedEvent({
-              agreementNumber: "SFI987654321",
-              answers: contractDataReference.createdMessage.data.answers, // Use contract data structure
-              clientRef: "client-ref-002",
-              code: "frps-private-beta",
-              createdAt: "2025-08-19T09:36:45.131Z",
-              identifiers: { crn: "crn", defraId: "defraId", frn: "frn", sbi: "106284736" },
-              notificationMessageId: "sample-notification-2",
-              submittedAt: "2025-08-19T09:36:44.509Z",
-            });
+            realMessage = await generateAgreementCreatedMessage();
           } else {
-            const { AgreementWithdrawnEvent } = await import("../../src/grants/events/agreement-withdrawn.event.js");
-            realMessage = new AgreementWithdrawnEvent({
-              clientRef: "client-ref-002",
-              id: "123e4567-e89b-12d3-a456-426614174000",
-              status: "PRE_AWARD:APPLICATION:WITHDRAWAL_REQUESTED",
-              withdrawnAt: "2025-03-27T14:30:00Z",
-              withdrawnBy: "Caseworker_ID_123",
-            });
+            realMessage = await generateAgreementWithdrawnMessage();
           }
 
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -419,13 +115,11 @@ describe("fg-gas-backend-sns Provider Verification", () => {
     await new Promise((resolve) => {
       mockServer.listen(0, () => {
         mockPort = mockServer.address().port;
-        console.log(
-          `HTTP server started on port ${mockPort} - serving REAL CloudEvents`,
-        );
+        console.log(`HTTP server started on port ${mockPort} - serving REAL CloudEvents`);
         resolve();
       });
     });
-  });
+  }, 30000); // Increased timeout for auto-sync operation
 
   afterAll(async () => {
     if (mockServer) {
@@ -435,9 +129,7 @@ describe("fg-gas-backend-sns Provider Verification", () => {
 
   describe("SNS Message Verification", () => {
     it("should verify SNS messages for agreement events", async () => {
-      console.log(
-        "Running SNS provider verification with REAL CloudEvent implementation",
-      );
+      console.log("Running SNS provider verification with REAL CloudEvent implementation");
 
       const stateHandlers = {
         "agreement created event": async () => {
@@ -464,18 +156,16 @@ describe("fg-gas-backend-sns Provider Verification", () => {
       const opts = {
         provider: "fg-gas-backend-sns",
         providerBaseUrl: `http://localhost:${mockPort}`,
-        messages: true, // Ctells PACT this is message verification
+        messages: true, // CRITICAL: tells PACT this is message verification
         stateHandlers,
         messageProviders,
-        providerVersion:
-          process.env.GIT_COMMIT || process.env.npm_package_version || "dev",
+        providerVersion: process.env.GIT_COMMIT || process.env.npm_package_version || "dev",
         pactUrls: [
           "https://ffc-pact-broker.azure.defra.cloud/pacts/provider/fg-gas-backend-sns/consumer/farming-grants-agreements-api-sqs/latest",
         ],
         pactBrokerUsername: process.env.PACT_USER,
         pactBrokerPassword: process.env.PACT_PASS,
-        publishVerificationResult:
-          process.env.PACT_PUBLISH_VERIFICATION === "true",
+        publishVerificationResult: process.env.PACT_PUBLISH_VERIFICATION === "true",
         logLevel: process.env.PACT_LOG_LEVEL || "INFO",
       };
 
