@@ -17,9 +17,9 @@ export const sendMessage = async (message, delay, url) => {
     new SendMessageCommand({
       QueueUrl: url,
       MessageBody: JSON.stringify(message),
-      MessageGroupId: "julian-test-007",
-      MessageDeduplicationId: message.id,
-      //      DelaySeconds: delay,
+      //      MessageGroupId: "julian-test-007",
+      //      MessageDeduplicationId: message.id,
+      DelaySeconds: delay,
     }),
   );
 };
@@ -108,8 +108,8 @@ const urls = [
   env.GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL,
 ];
 
-// this means the events will arrive out of order
-const times = [0, 1, 5, 7, 2];
+// this (hopefully) means the events will arrive out of order
+const times = [0, 1, 2, 7, 3];
 
 const queueMessages = async () => {
   let i = 0;
