@@ -35,10 +35,12 @@ export class InboxSubscriber {
         await this.processResubmittedEvents();
         await this.processFailedEvents();
         await this.processDeadEvents();
+        logger.info("finished events")
       } catch (error) {
         logger.error(error, "Error polling inbox");
       }
 
+      logger.info("about to rerun loop")
       await setTimeout(this.interval);
     }
   }
@@ -87,6 +89,7 @@ export class InboxSubscriber {
       const clientRef = data.clientRef || data.caseRef || null;
       const code = data.workflowCode || data.code || null;
 
+      logger.info({handler, status, source, clientRef, code});
       if (handler) {
         await withTraceParent(traceparent, async () => handler(msg));
       } else if (status && source) {
@@ -115,7 +118,12 @@ export class InboxSubscriber {
   }
 
   async processEvents(events) {
-    await Promise.all(events.map((event) => this.handleEvent(event)));
+    events.length && logger.info(events.map(e => e.event.data), "INBOX process events:" );
+      for await(const ev of events) {
+        logger.info(ev.event.data, "INBOX: about to handle event" );
+        await this.handleEvent(ev);
+        logger.info("INBOX event handled")
+      }
   }
 
   start() {

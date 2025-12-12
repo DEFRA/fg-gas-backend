@@ -1,18 +1,25 @@
 import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import { Inbox, InboxStatus } from "../models/inbox.js";
+import { logger } from "../../common/logger.js";
 
 const collection = "inbox";
 const MAX_RETRIES = config.inbox.inboxMaxRetries;
 const NUMBER_OF_RECORDS = config.inbox.inboxClaimMaxRecords;
 const EXPIRES_IN_MS = config.inbox.inboxExpiresMs;
 
-export const claimEvents = async (claimedBy) => {
-  const promises = [];
+async function* asyncGenerator() {
+  let i = 0;
+  while (i < NUMBER_OF_RECORDS) {
+    yield i++;
+  }
+}
 
-  for (let i = 0; i < NUMBER_OF_RECORDS; i++) {
-    promises.push(
-      db.collection(collection).findOneAndUpdate(
+export const claimEvents = async (claimedBy) => {
+  const docs = [];
+  
+  for await (const _ of asyncGenerator()) {
+    const doc = await db.collection(collection).findOneAndUpdate(
         {
           status: { $eq: InboxStatus.PUBLISHED },
           claimedBy: { $eq: null },
@@ -26,14 +33,12 @@ export const claimEvents = async (claimedBy) => {
             claimExpiresAt: new Date(Date.now() + EXPIRES_IN_MS),
           },
         },
-        { sort: { publicationDate: 1 }, returnDocument: "after" },
-      ),
-    );
+        { sort: { "event.time": 1 }, returnDocument: "after" },
+      )
+    docs.push(doc); 
   }
 
-  const docs = await Promise.all(promises);
   const documents = docs.filter((d) => d !== null);
-
   return documents.map((doc) => Inbox.fromDocument(doc));
 };
 
