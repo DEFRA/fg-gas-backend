@@ -1,24 +1,15 @@
 // test/contract/provider.sns.verification.test.js
 import { Verifier } from "@pact-foundation/pact";
 import { afterAll, beforeAll, describe, it } from "vitest";
+import domainAgreementCreated from "./fixtures/agreement-created-domain.json";
+import domainAgreementWithdrawn from "./fixtures/agreement-withdrawn-domain.json";
 
-// Contract data structure reference (auto-synced from PACT broker)
-let contractDataReference = {};
-
-// Generate real messages using actual CloudEvent classes
+// Generate real messages using actual CloudEvent classes with domain fixtures
 async function generateAgreementCreatedMessage() {
   const { AgreementCreatedEvent } = await import("../../src/grants/events/agreement-created.event.js");
   
-  const realEvent = new AgreementCreatedEvent({
-    agreementNumber: "SFI987654321",
-    answers: contractDataReference.createdMessage?.data?.answers || {},
-    clientRef: "client-ref-002",
-    code: "frps-private-beta",
-    createdAt: "2025-08-19T09:36:45.131Z",
-    identifiers: { crn: "crn", defraId: "defraId", frn: "frn", sbi: "106284736" },
-    notificationMessageId: "sample-notification-2",
-    submittedAt: "2025-08-19T09:36:44.509Z",
-  });
+  // Use OUR domain data, not consumer contract data
+  const realEvent = new AgreementCreatedEvent(domainAgreementCreated);
   
   // Return the REAL CloudEvent as-is - let it fail if there are contract violations!
   return realEvent;
@@ -27,13 +18,8 @@ async function generateAgreementCreatedMessage() {
 async function generateAgreementWithdrawnMessage() {
   const { AgreementWithdrawnEvent } = await import("../../src/grants/events/agreement-withdrawn.event.js");
   
-  const realEvent = new AgreementWithdrawnEvent({
-    clientRef: "client-ref-002",
-    id: "123e4567-e89b-12d3-a456-426614174000",
-    status: "PRE_AWARD:APPLICATION:WITHDRAWAL_REQUESTED",
-    withdrawnAt: "2025-03-27T14:30:00Z",
-    withdrawnBy: "Caseworker_ID_123",
-  });
+  // Use OUR domain data, not consumer contract data
+  const realEvent = new AgreementWithdrawnEvent(domainAgreementWithdrawn);
   
   // Return the REAL CloudEvent as-is - let it fail if there are contract violations!
   return realEvent;
@@ -44,23 +30,6 @@ describe("fg-gas-backend-sns Provider Verification", () => {
   let mockPort;
 
   beforeAll(async () => {
-    // Load current contract data reference for realistic CloudEvent generation
-    try {
-      const { readFileSync } = await import("fs");
-      const contractData = JSON.parse(readFileSync("test/contract/contract-data.json", "utf8"));
-      contractDataReference = {
-        createdMessage: contractData.contractData["an agreement created message"],
-        withdrawnMessage: contractData.contractData["an agreement withdrawn message"]
-      };
-      console.log(`📋 Loaded contract data reference (last updated: ${contractData.lastUpdated})`);
-    } catch (error) {
-      console.warn("⚠️ Could not load contract data reference, using minimal structure:", error.message);
-      contractDataReference = {
-        createdMessage: { data: { answers: {} } },
-        withdrawnMessage: { data: {} }
-      };
-    }
-
     // Set environment for real CloudEvent classes
     process.env.SERVICE_NAME = "fg-gas-backend";
     process.env.SERVICE_VERSION = "test";
@@ -81,8 +50,8 @@ describe("fg-gas-backend-sns Provider Verification", () => {
     process.env.INBOX_CLAIM_MAX_RECORDS = "2";
     process.env.INBOX_EXPIRES_MS = "5000";
     process.env.INBOX_POLL_MS = "1000";
-
-    // HTTP server required by PACT v15 - serves the REAL generated CloudEvent messages
+    
+    // HTTP server required by PACT v15 - serves real CloudEvents from domain fixtures
     const { createServer } = await import("http");
     mockServer = createServer((req, res) => {
       let body = "";
@@ -94,7 +63,7 @@ describe("fg-gas-backend-sns Provider Verification", () => {
           const requestData = JSON.parse(body || "{}");
           const isCreatedMessage = requestData.description?.includes("created");
 
-          // Generate and serve REAL CloudEvent messages (will show actual contract violations)
+          // Generate real CloudEvent from domain fixtures
           let realMessage;
           if (isCreatedMessage) {
             realMessage = await generateAgreementCreatedMessage();
@@ -103,7 +72,7 @@ describe("fg-gas-backend-sns Provider Verification", () => {
           }
 
           res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(realMessage)); // Real CloudEvent with potential bugs
+          res.end(JSON.stringify(realMessage));
         } catch (error) {
           console.error("HTTP server error:", error);
           res.writeHead(500, { "Content-Type": "application/json" });
@@ -115,11 +84,13 @@ describe("fg-gas-backend-sns Provider Verification", () => {
     await new Promise((resolve) => {
       mockServer.listen(0, () => {
         mockPort = mockServer.address().port;
-        console.log(`HTTP server started on port ${mockPort} - serving REAL CloudEvents`);
+        console.log(`HTTP server started on port ${mockPort} - serving real CloudEvents from domain fixtures`);
         resolve();
       });
     });
-  }, 30000); // Increased timeout for auto-sync operation
+    
+    console.log("✅ Environment setup complete for real CloudEvent testing");
+  });
 
   afterAll(async () => {
     if (mockServer) {
@@ -129,7 +100,7 @@ describe("fg-gas-backend-sns Provider Verification", () => {
 
   describe("SNS Message Verification", () => {
     it("should verify SNS messages for agreement events", async () => {
-      console.log("Running SNS provider verification with REAL CloudEvent implementation");
+      console.log("Running SNS provider verification with REAL domain fixtures");
 
       const stateHandlers = {
         "agreement created event": async () => {
@@ -142,21 +113,23 @@ describe("fg-gas-backend-sns Provider Verification", () => {
 
       const messageProviders = {
         "An agreement created message": async () => {
-          // Generate using REAL CloudEvent class - will catch implementation bugs!
+          // Generate using REAL CloudEvent class with OUR domain data
           const realEvent = await generateAgreementCreatedMessage();
-          return realEvent; // Real CloudEvent from production class
+          console.log("Generated real CloudEvent from domain fixture");
+          return realEvent; // Real CloudEvent from our domain model
         },
         "An agreement withdrawn message": async () => {
-          // Generate using REAL CloudEvent class - will catch implementation bugs!
+          // Generate using REAL CloudEvent class with OUR domain data  
           const realEvent = await generateAgreementWithdrawnMessage();
-          return realEvent; // Real CloudEvent from production class
+          console.log("Generated real CloudEvent from domain fixture");
+          return realEvent; // Real CloudEvent from our domain model
         },
       };
 
       const opts = {
         provider: "fg-gas-backend-sns",
         providerBaseUrl: `http://localhost:${mockPort}`,
-        messages: true, // CRITICAL: tells PACT this is message verification
+        messages: true, // Pure message verification
         stateHandlers,
         messageProviders,
         providerVersion: process.env.GIT_COMMIT || process.env.npm_package_version || "dev",
@@ -178,7 +151,7 @@ describe("fg-gas-backend-sns Provider Verification", () => {
         publishVerificationResult: opts.publishVerificationResult,
       });
 
-      // This will now test REAL CloudEvent implementation against consumer contract
+      // This tests OUR domain data through REAL CloudEvent classes against consumer contract
       return new Verifier(opts).verifyProvider();
     }, 120000);
   });

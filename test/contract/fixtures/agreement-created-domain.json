@@ -1,0 +1,84 @@
+{
+  "agreementNumber": "SFI987654321",
+  "answers": {
+    "actionApplications": [],
+    "agreementName": "Example agreement 2",
+    "applicant": {
+      "business": {
+        "address": {
+          "city": "Clitheroe",
+          "line1": "Mason House Farm Clitheroe Rd",
+          "line2": "Bashall Eaves",
+          "line3": null,
+          "line4": null,
+          "line5": null,
+          "postalCode": "BB7 3DD",
+          "street": "Bartindale Road"
+        },
+        "email": {
+          "address": "cliffspencetasabbeyfarmf@mrafyebbasatecnepsffilcm.com.test"
+        },
+        "name": "J&S Hartley",
+        "phone": {
+          "mobile": "01234031670"
+        }
+      },
+      "customer": {
+        "name": {
+          "first": "Edward",
+          "last": "Jones",
+          "middle": "Paul",
+          "title": "Mr."
+        }
+      }
+    },
+    "application": {
+      "_id": "69262bb2331fd3b45b76ee90",
+      "agreement": [],
+      "parcel": [
+        {
+          "_id": "69262bb2331fd3b45b76ee91",
+          "actions": [
+            {
+              "_id": "69262bb2331fd3b45b76ee93",
+              "appliedFor": {
+                "_id": "69262bb2331fd3b45b76ee94",
+                "quantity": 4.7575,
+                "unit": "ha"
+              },
+              "code": "CMOR1",
+              "durationYears": 3,
+              "version": 1
+            }
+          ],
+          "area": {
+            "_id": "69262bb2331fd3b45b76ee92",
+            "quantity": 5.2182,
+            "unit": "ha"
+          },
+          "parcelId": "8083",
+          "sheetId": "SD6743"
+        }
+      ]
+    },
+    "hasCheckedLandIsUpToDate": true,
+    "payment": {
+      "agreementEndDate": "2028-09-01",
+      "agreementStartDate": "2025-09-01",
+      "frequency": "Quarterly"
+    },
+    "scheme": "SFI",
+    "year": 2025
+  },
+  "clientRef": "client-ref-002",
+  "code": "frps-private-beta",
+  "createdAt": "2025-08-19T09:36:45.131Z",
+  "identifiers": {
+    "crn": "crn",
+    "defraId": "defraId",
+    "frn": "frn",
+    "sbi": "106284736"
+  },
+  "notificationMessageId": "sample-notification-2",
+  "submittedAt": "2025-08-19T09:36:44.509Z"
+}
