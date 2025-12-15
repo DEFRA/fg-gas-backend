@@ -3,32 +3,35 @@
   "answers": {
     "actionApplications": [],
     "agreementName": "Example agreement 2",
+    "scheme": "SFI",
+    "year": 2025,
+    "hasCheckedLandIsUpToDate": true,
     "applicant": {
       "business": {
+        "name": "J&S Hartley",
         "address": {
-          "city": "Clitheroe",
           "line1": "Mason House Farm Clitheroe Rd",
           "line2": "Bashall Eaves",
           "line3": null,
           "line4": null,
           "line5": null,
-          "postalCode": "BB7 3DD",
-          "street": "Bartindale Road"
+          "street": "Bartindale Road",
+          "city": "Clitheroe",
+          "postalCode": "BB7 3DD"
         },
         "email": {
           "address": "cliffspencetasabbeyfarmf@mrafyebbasatecnepsffilcm.com.test"
         },
-        "name": "J&S Hartley",
         "phone": {
           "mobile": "01234031670"
         }
       },
       "customer": {
         "name": {
+          "title": "Mr.",
           "first": "Edward",
-          "last": "Jones",
           "middle": "Paul",
-          "title": "Mr."
+          "last": "Jones"
         }
       }
     },
@@ -38,37 +41,96 @@
       "parcel": [
         {
           "_id": "69262bb2331fd3b45b76ee91",
-          "actions": [
-            {
-              "_id": "69262bb2331fd3b45b76ee93",
-              "appliedFor": {
-                "_id": "69262bb2331fd3b45b76ee94",
-                "quantity": 4.7575,
-                "unit": "ha"
-              },
-              "code": "CMOR1",
-              "durationYears": 3,
-              "version": 1
-            }
-          ],
+          "sheetId": "SD6743",
+          "parcelId": "8083",
           "area": {
             "_id": "69262bb2331fd3b45b76ee92",
             "quantity": 5.2182,
             "unit": "ha"
           },
-          "parcelId": "8083",
-          "sheetId": "SD6743"
+          "actions": [
+            {
+              "_id": "69262bb2331fd3b45b76ee93",
+              "code": "CMOR1",
+              "durationYears": 3,
+              "version": 1,
+              "appliedFor": {
+                "_id": "69262bb2331fd3b45b76ee94",
+                "quantity": 4.7575,
+                "unit": "ha"
+              }
+            }
+          ]
+        },
+        {
+          "_id": "69262bb2331fd3b45b76ee97",
+          "sheetId": "SD6743",
+          "parcelId": "8084",
+          "area": {
+            "_id": "69262bb2331fd3b45b76ee98",
+            "quantity": 2.1703,
+            "unit": "ha"
+          },
+          "actions": [
+            {
+              "_id": "69262bb2331fd3b45b76ee99",
+              "code": "CMOR1",
+              "durationYears": 3,
+              "version": 1,
+              "appliedFor": {
+                "_id": "69262bb2331fd3b45b76ee9a",
+                "quantity": 2.1705,
+                "unit": "ha"
+              }
+            }
+          ]
         }
       ]
     },
-    "hasCheckedLandIsUpToDate": true,
     "payment": {
       "agreementEndDate": "2028-09-01",
       "agreementStartDate": "2025-09-01",
-      "frequency": "Quarterly"
-    },
-    "scheme": "SFI",
-    "year": 2025
+      "agreementTotalPence": 96018,
+      "annualTotalPence": 32006,
+      "frequency": "Quarterly",
+      "agreementLevelItems": {
+        "1": {
+          "annualPaymentPence": 27200,
+          "code": "CMOR1",
+          "description": "CMOR1: Assess moorland and produce a written record",
+          "version": 1
+        }
+      },
+      "parcelItems": {
+        "1": {
+          "annualPaymentPence": 4806,
+          "code": "CMOR1",
+          "description": "CMOR1: Assess moorland and produce a written record",
+          "parcelId": "8083",
+          "quantity": 4.53411078,
+          "rateInPence": 1060,
+          "sheetId": "SD6743",
+          "unit": "ha",
+          "version": 1
+        }
+      },
+      "payments": [
+        {
+          "lineItems": [
+            {
+              "parcelItemId": 1,
+              "paymentPence": 1204
+            },
+            {
+              "agreementLevelItemId": 1,
+              "paymentPence": 6803
+            }
+          ],
+          "paymentDate": "2025-12-05",
+          "totalPaymentPence": 8007
+        }
+      ]
+    }
   },
   "clientRef": "client-ref-002",
   "code": "frps-private-beta",
@@ -79,6 +141,6 @@
     "frn": "frn",
     "sbi": "106284736"
   },
-  "notificationMessageId": "sample-notification-2",
+  "notificationMessageId": "agreement-notification-123",
   "submittedAt": "2025-08-19T09:36:44.509Z"
 }

@@ -6,21 +6,34 @@ import domainAgreementWithdrawn from "./fixtures/agreement-withdrawn-domain.json
 
 // Generate real messages using actual CloudEvent classes with domain fixtures
 async function generateAgreementCreatedMessage() {
-  const { AgreementCreatedEvent } = await import("../../src/grants/events/agreement-created.event.js");
-  
-  // Use OUR domain data, not consumer contract data
+  const { AgreementCreatedEvent } = await import(
+    "../../src/grants/events/agreement-created.event.js"
+  );
+
   const realEvent = new AgreementCreatedEvent(domainAgreementCreated);
-  
+
+  // Log the actual result we're returning to PACT
+  console.log("=== ACTUAL RESULT (Agreement Created) ===");
+  console.log(JSON.stringify(realEvent, null, 2));
+  console.log("==========================================");
+
   // Return the REAL CloudEvent as-is - let it fail if there are contract violations!
   return realEvent;
 }
 
 async function generateAgreementWithdrawnMessage() {
-  const { AgreementWithdrawnEvent } = await import("../../src/grants/events/agreement-withdrawn.event.js");
-  
-  // Use OUR domain data, not consumer contract data
+  const { AgreementWithdrawnEvent } = await import(
+    "../../src/grants/events/agreement-withdrawn.event.js"
+  );
+
+  // Use OUR domain data
   const realEvent = new AgreementWithdrawnEvent(domainAgreementWithdrawn);
-  
+
+  // Log the actual result we're returning to PACT
+  console.log("=== ACTUAL RESULT (Agreement Withdrawn) ===");
+  console.log(JSON.stringify(realEvent, null, 2));
+  console.log("=============================================");
+
   // Return the REAL CloudEvent as-is - let it fail if there are contract violations!
   return realEvent;
 }
@@ -50,7 +63,7 @@ describe("fg-gas-backend-sns Provider Verification", () => {
     process.env.INBOX_CLAIM_MAX_RECORDS = "2";
     process.env.INBOX_EXPIRES_MS = "5000";
     process.env.INBOX_POLL_MS = "1000";
-    
+
     // HTTP server required by PACT v15 - serves real CloudEvents from domain fixtures
     const { createServer } = await import("http");
     mockServer = createServer((req, res) => {
@@ -84,11 +97,13 @@ describe("fg-gas-backend-sns Provider Verification", () => {
     await new Promise((resolve) => {
       mockServer.listen(0, () => {
         mockPort = mockServer.address().port;
-        console.log(`HTTP server started on port ${mockPort} - serving real CloudEvents from domain fixtures`);
+        console.log(
+          `HTTP server started on port ${mockPort} - serving real CloudEvents from domain fixtures`,
+        );
         resolve();
       });
     });
-    
+
     console.log("✅ Environment setup complete for real CloudEvent testing");
   });
 
@@ -100,7 +115,9 @@ describe("fg-gas-backend-sns Provider Verification", () => {
 
   describe("SNS Message Verification", () => {
     it("should verify SNS messages for agreement events", async () => {
-      console.log("Running SNS provider verification with REAL domain fixtures");
+      console.log(
+        "Running SNS provider verification with REAL domain fixtures",
+      );
 
       const stateHandlers = {
         "agreement created event": async () => {
@@ -119,7 +136,7 @@ describe("fg-gas-backend-sns Provider Verification", () => {
           return realEvent; // Real CloudEvent from our domain model
         },
         "An agreement withdrawn message": async () => {
-          // Generate using REAL CloudEvent class with OUR domain data  
+          // Generate using REAL CloudEvent class with OUR domain data
           const realEvent = await generateAgreementWithdrawnMessage();
           console.log("Generated real CloudEvent from domain fixture");
           return realEvent; // Real CloudEvent from our domain model
@@ -132,13 +149,15 @@ describe("fg-gas-backend-sns Provider Verification", () => {
         messages: true, // Pure message verification
         stateHandlers,
         messageProviders,
-        providerVersion: process.env.GIT_COMMIT || process.env.npm_package_version || "dev",
+        providerVersion:
+          process.env.GIT_COMMIT || process.env.npm_package_version || "dev",
         pactUrls: [
           "https://ffc-pact-broker.azure.defra.cloud/pacts/provider/fg-gas-backend-sns/consumer/farming-grants-agreements-api-sqs/latest",
         ],
         pactBrokerUsername: process.env.PACT_USER,
         pactBrokerPassword: process.env.PACT_PASS,
-        publishVerificationResult: process.env.PACT_PUBLISH_VERIFICATION === "true",
+        publishVerificationResult:
+          process.env.PACT_PUBLISH_VERIFICATION === "true",
         logLevel: process.env.PACT_LOG_LEVEL || "INFO",
       };
 
