@@ -12,11 +12,6 @@ async function generateAgreementCreatedMessage() {
 
   const realEvent = new AgreementCreatedEvent(domainAgreementCreated);
 
-  // Log the actual result we're returning to PACT
-  console.log("=== ACTUAL RESULT (Agreement Created) ===");
-  console.log(JSON.stringify(realEvent, null, 2));
-  console.log("==========================================");
-
   // Return the REAL CloudEvent as-is - let it fail if there are contract violations!
   return realEvent;
 }
@@ -28,11 +23,6 @@ async function generateAgreementWithdrawnMessage() {
 
   // Use OUR domain data
   const realEvent = new AgreementWithdrawnEvent(domainAgreementWithdrawn);
-
-  // Log the actual result we're returning to PACT
-  console.log("=== ACTUAL RESULT (Agreement Withdrawn) ===");
-  console.log(JSON.stringify(realEvent, null, 2));
-  console.log("=============================================");
 
   // Return the REAL CloudEvent as-is - let it fail if there are contract violations!
   return realEvent;
