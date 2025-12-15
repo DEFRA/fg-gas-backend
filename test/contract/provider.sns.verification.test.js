@@ -6,25 +6,57 @@ import domainAgreementWithdrawn from "./fixtures/agreement-withdrawn-domain.json
 
 // Generate real messages using actual CloudEvent classes with domain fixtures
 async function generateAgreementCreatedMessage() {
-  const { AgreementCreatedEvent } = await import(
-    "../../src/grants/events/agreement-created.event.js"
+  // Use the REAL event class that production actually uses
+  const { CreateAgreementCommand } = await import(
+    "../../src/grants/events/create-agreement.command.js"
   );
 
-  const realEvent = new AgreementCreatedEvent(domainAgreementCreated);
+  // Create mock application that mimics real Application domain model
+  const mockApplication = {
+    clientRef: domainAgreementCreated.clientRef,
+    code: domainAgreementCreated.code,
+    identifiers: domainAgreementCreated.identifiers,
+    getAnswers: () => domainAgreementCreated.answers, // Real method that returns answers
+  };
 
-  // Return the REAL CloudEvent as-is - let it fail if there are contract violations!
+  const realEvent = new CreateAgreementCommand(mockApplication);
+
+  // Log the actual result we're returning to PACT
+  console.log(
+    "=== ACTUAL RESULT (Agreement Created - REAL CreateAgreementCommand) ===",
+  );
+  console.log(JSON.stringify(realEvent, null, 2));
+  console.log(
+    "========================================================================",
+  );
+
+  // Return the REAL CloudEvent that production actually sends!
   return realEvent;
 }
 
 async function generateAgreementWithdrawnMessage() {
-  const { AgreementWithdrawnEvent } = await import(
-    "../../src/grants/events/agreement-withdrawn.event.js"
+  // Use the REAL event class that production actually uses
+  const { UpdateAgreementStatusCommand } = await import(
+    "../../src/grants/events/update-agreement-status.command.js"
   );
 
-  // Use OUR domain data
-  const realEvent = new AgreementWithdrawnEvent(domainAgreementWithdrawn);
+  // Use real withdraw data structure that production sends
+  const realEvent = new UpdateAgreementStatusCommand({
+    clientRef: domainAgreementWithdrawn.clientRef,
+    status: domainAgreementWithdrawn.status,
+    agreementNumber: domainAgreementWithdrawn.id,
+  });
 
-  // Return the REAL CloudEvent as-is - let it fail if there are contract violations!
+  // Log the actual result we're returning to PACT
+  console.log(
+    "=== ACTUAL RESULT (Agreement Withdrawn - REAL UpdateAgreementStatusCommand) ===",
+  );
+  console.log(JSON.stringify(realEvent, null, 2));
+  console.log(
+    "==================================================================================",
+  );
+
+  // Return the REAL CloudEvent that production actually sends!
   return realEvent;
 }
 
