@@ -37,7 +37,7 @@
   "license": "OGL-UK-3.0",
   "dependencies": {
     "@aws-sdk/client-sns": "^3.962.0",
-    "@aws-sdk/client-sqs": "^3.917.0",
+    "@aws-sdk/client-sqs": "^3.962.0",
     "@defra/hapi-tracing": "^1.28.0",
     "@elastic/ecs-pino-format": "^1.5.0",
     "@hapi/boom": "^10.0.1",
