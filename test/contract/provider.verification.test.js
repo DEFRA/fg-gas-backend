@@ -2,135 +2,142 @@ import { Verifier } from "@pact-foundation/pact";
 import { afterAll, beforeAll, describe, it, vi } from "vitest";
 import { buildVerifierOptions } from "./verifierConfig.js";
 
-// Mock MongoDB at the top level before any imports
-vi.mock("mongodb", () => ({
-  MongoClient: vi.fn().mockImplementation(() => ({
-    connect: vi.fn().mockResolvedValue(),
-    close: vi.fn().mockResolvedValue(),
-    startSession: vi.fn().mockReturnValue({
-      withTransaction: vi.fn().mockImplementation(async (callback) => {
-        // Execute callback with mock session
-        return callback({});
-      }),
-      endSession: vi.fn().mockResolvedValue(),
-    }),
-    db: vi.fn().mockReturnValue({
-      // Return a collection mock that varies by name
-      collection: vi.fn((name) => {
-        // Special behaviour for access_tokens used by auth
-        if (name === "access_tokens") {
-          const accessTokens = [
-            {
-              id: "12b9377cbe7e5c94e8a70d9d23929523d14afa954793130f8a3959c7b849aca8", // Hashed 00000000-0000-0000-0000-000000000000 token
-              client: "contract-test",
-            },
-          ];
+// Mock mongo-client at the top level before any imports
+vi.mock("../../src/common/mongo-client.js", () => {
+  const createCollectionMock = (name) => {
+    if (name === "access_tokens") {
+      const accessTokens = [
+        {
+          id: "12b9377cbe7e5c94e8a70d9d23929523d14afa954793130f8a3959c7b849aca8", // Hashed 00000000-0000-0000-0000-000000000000 token
+          clientId: "contract-test",
+        },
+      ];
 
-          return {
-            findOne: vi.fn(async (query = {}) => {
-              const { id } = query;
-              return accessTokens.find((t) => t.id === id) || null;
-            }),
-          };
-        }
-        if (name === "applications") {
-          return {
-            findOne: vi.fn(async (query = {}) => {
-              const { code, clientRef } = query;
-              if (
-                code === "example-grant-with-auth-v3" &&
-                clientRef === "egwa-123-abc"
-              ) {
-                return {
-                  code: "example-grant-with-auth-v3",
-                  clientRef: "egwa-123-abc",
-                  currentPhase: "PRE_AWARD",
-                  currentStage: "ASSESSMENT",
-                  currentStatus: "RECEIVED",
-                  identifiers: {
-                    sbi: "sbi",
-                    frn: "frn",
-                    crn: "crn",
-                    defraId: "defraId",
-                  },
-                  agreements: [],
-                };
-              }
-              // All others, not found
-              return null;
-            }),
-            findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
-            insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
-            insertMany: vi
-              .fn()
-              .mockResolvedValue({ insertedCount: 0, insertedIds: [] }),
-            replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
-            updateOne: vi
-              .fn()
-              .mockResolvedValue({ acknowledged: true, matchedCount: 1 }),
-            updateMany: vi
-              .fn()
-              .mockResolvedValue({ acknowledged: true, matchedCount: 0 }),
-            createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
-          };
-        }
-
-        // Default collection mock
-        return {
-          findOne: vi.fn().mockResolvedValue({
-            code: "example-grant-with-auth-v3",
-            metadata: {
-              description: "Example Grant with Auth v3",
-              startDate: "2025-01-01T00:00:00.000Z",
-            },
-            actions: [],
-            questions: {
-              type: "object",
-              properties: {
-                applicantName: { type: "string" },
-                applicantEmail: { type: "string" },
+      return {
+        findOne: vi.fn(async (query = {}) => {
+          const { id } = query;
+          return accessTokens.find((t) => t.id === id) || null;
+        }),
+      };
+    }
+    if (name === "applications") {
+      return {
+        findOne: vi.fn(async (query = {}) => {
+          const { code, clientRef } = query;
+          if (
+            code === "example-grant-with-auth-v3" &&
+            clientRef === "egwa-123-abc"
+          ) {
+            return {
+              code: "example-grant-with-auth-v3",
+              clientRef: "egwa-123-abc",
+              currentPhase: "PRE_AWARD",
+              currentStage: "ASSESSMENT",
+              currentStatus: "RECEIVED",
+              identifiers: {
+                sbi: "sbi",
+                frn: "frn",
+                crn: "crn",
+                defraId: "defraId",
               },
-              required: ["applicantName", "applicantEmail"],
-            },
-            phases: [
+              agreements: [],
+            };
+          }
+          return null;
+        }),
+        findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
+        insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
+        insertMany: vi
+          .fn()
+          .mockResolvedValue({ insertedCount: 0, insertedIds: [] }),
+        replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
+        updateOne: vi
+          .fn()
+          .mockResolvedValue({ acknowledged: true, matchedCount: 1 }),
+        updateMany: vi
+          .fn()
+          .mockResolvedValue({ acknowledged: true, matchedCount: 0 }),
+        createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
+      };
+    }
+
+    return {
+      findOne: vi.fn().mockResolvedValue({
+        code: "example-grant-with-auth-v3",
+        metadata: {
+          description: "Example Grant with Auth v3",
+          startDate: "2025-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        questions: {
+          type: "object",
+          properties: {
+            applicantName: { type: "string" },
+            applicantEmail: { type: "string" },
+          },
+          required: ["applicantName", "applicantEmail"],
+        },
+        phases: [
+          {
+            code: "APPLICATION",
+            name: "Application",
+            description: "Application phase",
+            questions: {},
+            stages: [
               {
-                code: "APPLICATION",
-                name: "Application",
-                description: "Application phase",
-                questions: {},
-                stages: [
+                code: "SUBMIT",
+                name: "Submit",
+                description: "Submit application",
+                statuses: [
                   {
-                    code: "SUBMIT",
-                    name: "Submit",
-                    description: "Submit application",
-                    statuses: [
-                      {
-                        code: "RECEIVED",
-                      },
-                    ],
+                    code: "RECEIVED",
                   },
                 ],
               },
             ],
-          }),
-          findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
-          insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
-          insertMany: vi
-            .fn()
-            .mockResolvedValue({ insertedCount: 0, insertedIds: [] }),
-          replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
-          updateOne: vi
-            .fn()
-            .mockResolvedValue({ acknowledged: true, matchedCount: 1 }),
-          updateMany: vi
-            .fn()
-            .mockResolvedValue({ acknowledged: true, matchedCount: 0 }),
-          createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
-        };
+          },
+        ],
       }),
+      findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
+      insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
+      insertMany: vi
+        .fn()
+        .mockResolvedValue({ insertedCount: 0, insertedIds: [] }),
+      replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
+      updateOne: vi
+        .fn()
+        .mockResolvedValue({ acknowledged: true, matchedCount: 1 }),
+      updateMany: vi
+        .fn()
+        .mockResolvedValue({ acknowledged: true, matchedCount: 0 }),
+      createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
+    };
+  };
+
+  const createMockSession = () => ({
+    withTransaction: vi.fn().mockImplementation(async (callback) => {
+      // Execute callback with mock session
+      return callback({});
     }),
-  })),
-}));
+    endSession: vi.fn().mockResolvedValue(),
+  });
+
+  const mockMongoClient = {
+    connect: vi.fn().mockResolvedValue(),
+    close: vi.fn().mockResolvedValue(),
+    startSession() {
+      return createMockSession();
+    },
+  };
+
+  return {
+    mongoClient: mockMongoClient,
+    db: {
+      collection: vi.fn((name) => createCollectionMock(name)),
+    },
+    getReadPreference: vi.fn(),
+  };
+});
 
 // Mock AWS services to avoid external dependencies
 vi.mock("@aws-sdk/client-sns", () => ({
