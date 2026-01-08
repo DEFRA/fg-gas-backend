@@ -34,6 +34,8 @@ describe("update", () => {
         sbi: "sbi-1",
         frn: "frn-1",
         crn: "crn-1",
+      },
+      metadata: {
         defraId: "defraId-1",
       },
       answers: {
@@ -65,6 +67,8 @@ describe("update", () => {
         sbi: "sbi-1",
         frn: "frn-1",
         crn: "crn-1",
+      },
+      metadata: {
         defraId: "defraId-1",
       },
       answers: {
@@ -111,6 +115,8 @@ describe("save", () => {
           sbi: "sbi-1",
           frn: "frn-1",
           crn: "crn-1",
+        },
+        metadata: {
           defraId: "defraId-1",
         },
         answers: {
@@ -136,6 +142,8 @@ describe("save", () => {
           sbi: "sbi-1",
           frn: "frn-1",
           crn: "crn-1",
+        },
+        metadata: {
           defraId: "defraId-1",
         },
         answers: {
@@ -222,6 +230,8 @@ describe("findByClientRef", () => {
           sbi: "sbi-1",
           frn: "frn-1",
           crn: "crn-1",
+        },
+        metadata: {
           defraId: "defraId-1",
         },
         answers: {
@@ -247,6 +257,8 @@ describe("findByClientRef", () => {
           sbi: "sbi-1",
           frn: "frn-1",
           crn: "crn-1",
+        },
+        metadata: {
           defraId: "defraId-1",
         },
         answers: {
@@ -289,6 +301,8 @@ describe("findByClientRefAndCode", () => {
           sbi: "sbi-1",
           frn: "frn-1",
           crn: "crn-1",
+        },
+        metadata: {
           defraId: "defraId-1",
         },
         answers: {
@@ -332,6 +346,8 @@ describe("findByClientRefAndCode", () => {
           sbi: "sbi-1",
           frn: "frn-1",
           crn: "crn-1",
+        },
+        metadata: {
           defraId: "defraId-1",
         },
         answers: {
