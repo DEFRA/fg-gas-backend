@@ -6,6 +6,9 @@ const LOCALSTACK_PORT = 4567;
 
 export default defineConfig({
   test: {
+    restoreMocks: true,
+    clearMocks: true,
+    mockReset: true,
     testTimeout: 60000,
     environment: "node",
     globals: true,
