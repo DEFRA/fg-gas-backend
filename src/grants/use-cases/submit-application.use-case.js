@@ -73,27 +73,26 @@ export const submitApplicationUseCase = async (code, { metadata, answers }) => {
 
     const { phase, stage, status } = grant.getInitialState();
 
+    const { clientRef, submittedAt, sbi, frn, crn, ...extraMetadata } =
+      metadata;
+
     const application = Application.new({
       currentPhase: phase.code,
       currentStage: stage.code,
       currentStatus: status.code,
       code,
-      clientRef: metadata.clientRef,
-      submittedAt: metadata.submittedAt,
+      clientRef,
+      submittedAt,
       identifiers: {
-        sbi: metadata.sbi,
-        frn: metadata.frn,
-        crn: metadata.crn,
-        defraId: metadata.defraId,
+        sbi,
+        frn,
+        crn,
       },
+      metadata: extraMetadata,
       phases: [
         {
           code: phase.code,
-          answers: getAnswersInSchema(
-            metadata.clientRef,
-            phase.questions,
-            answers,
-          ),
+          answers: getAnswersInSchema(clientRef, phase.questions, answers),
         },
       ],
     });

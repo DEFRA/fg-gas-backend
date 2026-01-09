@@ -15,25 +15,24 @@ const toApplication = (doc) =>
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     submittedAt: doc.submittedAt,
-    identifiers: {
-      sbi: doc.identifiers.sbi,
-      frn: doc.identifiers.frn,
-      crn: doc.identifiers.crn,
-      defraId: doc.identifiers.defraId,
-    },
+    identifiers: doc.identifiers ?? {},
+    metadata: doc.metadata ?? {},
     phases: doc.phases,
-    agreements: Object.entries(doc.agreements).reduce((acc, [key, value]) => {
-      const history = value.history.map(
-        (entry) => new AgreementHistoryEntry(entry),
-      );
+    agreements: Object.entries(doc.agreements ?? {}).reduce(
+      (acc, [key, value]) => {
+        const history = value.history.map(
+          (entry) => new AgreementHistoryEntry(entry),
+        );
 
-      acc[key] = new Agreement({
-        ...value,
-        history,
-      });
+        acc[key] = new Agreement({
+          ...value,
+          history,
+        });
 
-      return acc;
-    }, {}),
+        return acc;
+      },
+      {},
+    ),
   });
 
 export const collection = "applications";

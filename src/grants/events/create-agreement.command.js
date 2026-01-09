@@ -6,6 +6,7 @@ export class CreateAgreementCommand extends CloudEvent {
       clientRef: application.clientRef,
       code: application.code,
       identifiers: application.identifiers,
+      metadata: application.metadata,
       answers: application.getAnswers(),
     });
   }

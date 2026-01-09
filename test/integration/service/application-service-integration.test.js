@@ -203,7 +203,7 @@ describe("Application Service Integration Tests", () => {
       expect(dbApplication.identifiers.sbi).toBe("123456789");
       expect(dbApplication.identifiers.frn).toBe("987654321");
       expect(dbApplication.identifiers.crn).toBe("555666777");
-      expect(dbApplication.identifiers.defraId).toBe("DEF123456");
+      expect(dbApplication.metadata.defraId).toBe("DEF123456");
 
       // Verify timestamps
       expect(dbApplication.submittedAt).toBeDefined();

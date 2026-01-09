@@ -96,6 +96,8 @@ describe("POST /grants/{code}/applications", () => {
           sbi: "1234567890",
           frn: "1234567890",
           crn: "1234567890",
+        },
+        metadata: {
           defraId: "1234567890",
         },
         phases: [
@@ -117,7 +119,9 @@ describe("POST /grants/{code}/applications", () => {
       target: env.GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN,
     });
 
-    expect(env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL).toHaveReceived({
+    await expect(
+      env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL,
+    ).toHaveReceived({
       id: expect.any(String),
       time: expect.any(String),
       source: "fg-gas-backend",
@@ -132,7 +136,7 @@ describe("POST /grants/{code}/applications", () => {
       },
     });
 
-    expect(env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL).toHaveReceived({
+    await expect(env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL).toHaveReceived({
       id: expect.any(String),
       time: expect.any(String),
       source: "fg-gas-backend",
@@ -150,7 +154,129 @@ describe("POST /grants/{code}/applications", () => {
             sbi: "1234567890",
             frn: "1234567890",
             crn: "1234567890",
+          },
+          metadata: {
             defraId: "1234567890",
+          },
+          answers: {
+            question1: "test answer",
+          },
+        },
+      },
+    });
+  });
+
+  it("stores submitted application and preserves extra metadata", async () => {
+    await wreck.post("/grants", {
+      json: true,
+      payload: {
+        code: "test-code-1",
+        metadata: {
+          description: "test description 1",
+          startDate: "2100-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                question1: {
+                  type: "string",
+                  description: "This is a test question",
+                },
+              },
+            },
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
+          },
+        ],
+      },
+    });
+
+    const submittedAt = new Date();
+
+    const clientRef = `cr-12345-${randomUUID()}`;
+
+    const response = await wreck.post("/grants/test-code-1/applications", {
+      headers: {
+        "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
+      },
+      payload: {
+        metadata: {
+          clientRef,
+          submittedAt,
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          wubble: "wobble",
+        },
+        answers: {
+          question1: "test answer",
+        },
+      },
+    });
+
+    expect(response.res.statusCode).toEqual(204);
+
+    const documents = await applications
+      .find({}, { projection: { _id: 0 } })
+      .toArray();
+
+    expect(documents).toEqual([
+      {
+        currentPhase: "PHASE_1",
+        currentStage: "STAGE_1",
+        currentStatus: "NEW",
+        clientRef,
+        submittedAt,
+        code: "test-code-1",
+        agreements: {},
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+        identifiers: {
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+        },
+        metadata: {
+          wubble: "wobble",
+        },
+        phases: [
+          {
+            code: "PHASE_1",
+            answers: {
+              question1: "test answer",
+            },
+          },
+        ],
+      },
+    ]);
+
+    await expect(env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL).toHaveReceived({
+      id: expect.any(String),
+      time: expect.any(String),
+      source: "fg-gas-backend",
+      specversion: "1.0",
+      type: `cloud.defra.local.fg-gas-backend.case.create`,
+      datacontenttype: "application/json",
+      traceparent: "xxxx-xxxx-xxxx-xxxx",
+      data: {
+        caseRef: clientRef,
+        workflowCode: "test-code-1",
+        payload: {
+          createdAt: expect.any(String),
+          submittedAt: expect.any(String),
+          identifiers: {
+            sbi: "1234567890",
+            frn: "1234567890",
+            crn: "1234567890",
+          },
+          metadata: {
+            wubble: "wobble",
           },
           answers: {
             question1: "test answer",
@@ -310,9 +436,11 @@ describe("POST /grants/{code}/applications", () => {
         code: "test-code-1",
         identifiers: {
           crn: "1234567890",
-          defraId: "1234567890",
           frn: "1234567890",
           sbi: "1234567890",
+        },
+        metadata: {
+          defraId: "1234567890",
         },
         agreements: {},
         currentPhase: "PHASE_1",
