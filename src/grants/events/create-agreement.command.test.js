@@ -42,6 +42,7 @@ describe("CreateAgreementCommand", () => {
         identifiers: {
           name: "Test App",
         },
+        metadata: {},
         answers: {
           question1: "answer1",
         },

@@ -31,6 +31,7 @@ export class Application {
     updatedAt,
     submittedAt,
     identifiers,
+    metadata,
     phases,
     agreements,
   }) {
@@ -43,6 +44,7 @@ export class Application {
     this.updatedAt = updatedAt;
     this.submittedAt = submittedAt;
     this.identifiers = identifiers;
+    this.metadata = metadata ?? {};
     this.phases = phases;
     this.agreements = agreements;
   }
@@ -55,6 +57,7 @@ export class Application {
     code,
     submittedAt,
     identifiers,
+    metadata,
     phases,
   }) {
     const createdAt = new Date().toISOString();
@@ -69,6 +72,7 @@ export class Application {
       createdAt,
       updatedAt: createdAt,
       identifiers,
+      metadata,
       phases,
       agreements: {},
     });

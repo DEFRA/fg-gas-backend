@@ -8,12 +8,8 @@ export class ApplicationDocument {
     this.createdAt = application.createdAt;
     this.updatedAt = application.updatedAt;
     this.submittedAt = application.submittedAt;
-    this.identifiers = {
-      sbi: application.identifiers.sbi,
-      frn: application.identifiers.frn,
-      crn: application.identifiers.crn,
-      defraId: application.identifiers.defraId,
-    };
+    this.identifiers = application.identifiers;
+    this.metadata = application.metadata;
     this.phases = application.phases;
     this.agreements = application.agreements;
   }
