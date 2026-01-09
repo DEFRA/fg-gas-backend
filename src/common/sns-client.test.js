@@ -16,11 +16,13 @@ describe("publish", () => {
 
     const send = vi.fn();
 
-    SNSClient.mockReturnValue({
-      send,
+    SNSClient.mockImplementation(function () {
+      return { send };
     });
 
-    PublishCommand.mockImplementation((params) => params);
+    PublishCommand.mockImplementation(function (params) {
+      return params;
+    });
 
     const { publish } = await import("./sns-client.js");
 
