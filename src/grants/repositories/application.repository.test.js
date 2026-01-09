@@ -380,6 +380,34 @@ describe("findByClientRefAndCode", () => {
     );
   });
 
+  it("defaults identifiers, metadata and agreements when missing", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce({
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.Received,
+      clientRef: "application-1",
+      code: "grant-1",
+      createdAt: "2021-01-02T00:00:00.000Z",
+      updatedAt: "2021-01-02T00:00:00.000Z",
+      submittedAt: "2021-01-01T00:00:00.000Z",
+      phases: [],
+      // identifiers/metadata/agreements intentionally missing
+    });
+
+    db.collection.mockReturnValue({
+      findOne,
+    });
+
+    const result = await findByClientRefAndCode({
+      clientRef: "application-1",
+      code: "grant-1",
+    });
+
+    expect(result.identifiers).toEqual({});
+    expect(result.metadata).toEqual({});
+    expect(result.agreements).toEqual({});
+  });
+
   it("returns null when application not found", async () => {
     db.collection.mockReturnValue({
       findOne: vi.fn().mockResolvedValueOnce(null),
