@@ -141,16 +141,20 @@ vi.mock("../../src/common/mongo-client.js", () => {
 
 // Mock AWS services to avoid external dependencies
 vi.mock("@aws-sdk/client-sns", () => ({
-  SNSClient: vi.fn().mockImplementation(() => ({
-    send: vi.fn().mockResolvedValue({ MessageId: "test-message-id" }),
-  })),
-  PublishCommand: vi.fn(),
+  SNSClient: vi.fn().mockImplementation(function () {
+    return {
+      send: vi.fn().mockResolvedValue({ MessageId: "test-message-id" }),
+    };
+  }),
+  PublishCommand: vi.fn().mockImplementation(function () {}),
 }));
 
 vi.mock("@aws-sdk/client-sqs", () => ({
-  SQSClient: vi.fn().mockImplementation(() => ({
-    send: vi.fn().mockResolvedValue({ MessageId: "test-message-id" }),
-  })),
+  SQSClient: vi.fn().mockImplementation(function () {
+    return {
+      send: vi.fn().mockResolvedValue({ MessageId: "test-message-id" }),
+    };
+  }),
   SendMessageCommand: vi.fn(),
 }));
 

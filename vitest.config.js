@@ -4,6 +4,8 @@ import { defineConfig } from "vite";
 export default defineConfig({
   test: {
     restoreMocks: true,
+    clearMocks: true,
+    mockReset: true,
     coverage: {
       reporter: ["text", "lcov", "html"],
       include: ["src/**/*.js"],
