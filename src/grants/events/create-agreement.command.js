@@ -4,7 +4,7 @@ export class CreateAgreementCommand extends CloudEvent {
   constructor(application) {
     const identifiers = {
       ...application.identifiers,
-      defraId: application.metadata?.defraId ?? "defraId",
+      defraId: application.metadata?.defraId ?? "defraId", // TODO: This it temporary, remove once the agreement service have removed the requirement
     };
 
     super("agreement.create", {
