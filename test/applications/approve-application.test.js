@@ -100,6 +100,7 @@ describe("On CaseStatusUpdated", () => {
           sbi: "1234567890",
           frn: "1234567890",
           crn: "1234567890",
+          defraId: "1234567890",
         },
         metadata: {
           defraId: "1234567890",
