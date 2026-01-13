@@ -19,6 +19,7 @@ describe("CreateAgreementCommand", () => {
       createdAt: new Date().toISOString(),
       submittedAt: new Date().toISOString(),
       identifiers: { name: "Test App" },
+      metadata: { defraId: "DEFRA123456" },
       phases: [
         {
           code: ApplicationPhase.PreAward,
@@ -41,12 +42,45 @@ describe("CreateAgreementCommand", () => {
         code: "grant-code",
         identifiers: {
           name: "Test App",
+          defraId: "DEFRA123456",
         },
-        metadata: {},
+        metadata: {
+          defraId: "DEFRA123456",
+        },
         answers: {
           question1: "answer1",
         },
       },
+    });
+  });
+
+  it("includes defraId in identifiers when present", () => {
+    const application = Application.new({
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.Received,
+      clientRef: "123",
+      code: "grant-code",
+      createdAt: new Date().toISOString(),
+      submittedAt: new Date().toISOString(),
+      identifiers: { name: "Test App" },
+      metadata: { defraId: "DEFRA123456" },
+      phases: [
+        {
+          code: ApplicationPhase.PreAward,
+          answers: { question1: "answer1" },
+        },
+      ],
+    });
+
+    const event = new CreateAgreementCommand(application);
+
+    expect(event.data.identifiers).toEqual({
+      name: "Test App",
+      defraId: "DEFRA123456",
+    });
+    expect(event.data.metadata).toEqual({
+      defraId: "DEFRA123456",
     });
   });
 });
