@@ -22,6 +22,13 @@ vi.mock("../repositories/inbox.repository.js");
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("../use-cases/handle-agreement-status-change.use-case.js");
 
+const createInbox = () =>
+  new Inbox({
+    event: {
+      time: new Date().toISOString(),
+    },
+  });
+
 describe("inbox.subscriber", () => {
   beforeAll(() => {
     vi.useFakeTimers();
@@ -44,7 +51,7 @@ describe("inbox.subscriber", () => {
   });
 
   it("should poll on start()", async () => {
-    claimEvents.mockResolvedValue([new Inbox({})]);
+    claimEvents.mockResolvedValue([createInbox()]);
     const subscriber = new InboxSubscriber();
     subscriber.start();
     expect(claimEvents).toHaveBeenCalled();
@@ -95,7 +102,7 @@ describe("inbox.subscriber", () => {
   });
 
   it("should stop polling after stop()", async () => {
-    claimEvents.mockResolvedValue([new Inbox({})]);
+    claimEvents.mockResolvedValue([createInbox()]);
     const subscriber = new InboxSubscriber();
     subscriber.start();
     expect(claimEvents).toHaveBeenCalledTimes(1);

@@ -20,7 +20,7 @@ vi.mock("../../common/mongo-client.js");
 describe("inbox.repository", () => {
   it("should claim events", async () => {
     const claimedBy = randomUUID();
-    const mockDocument = {};
+    const mockDocument = Inbox.createMock();
 
     const findOneAndUpdate = vi.fn();
     findOneAndUpdate
@@ -40,7 +40,7 @@ describe("inbox.repository", () => {
     const insertMany = vi.fn().mockResolvedValueOnce({ modifiedCount: 1 });
     db.collection.mockReturnValue({ insertMany });
 
-    const events = [new Inbox({}), new Inbox({})];
+    const events = [Inbox.createMock(), Inbox.createMock()];
 
     const mockSession = vi.fn();
     await insertMany(events, mockSession);
@@ -139,29 +139,16 @@ describe("inbox.repository", () => {
     db.collection.mockReturnValue({ insertMany: insertManySpy });
     const session = {};
 
-    const events = [
-      new Inbox({
-        event: {
-          some_data_bar: "foo",
-        },
-      }),
-    ];
+    const events = [Inbox.createMock()];
 
     await insertMany(events, session);
 
-    expect(insertManySpy).toHaveBeenLastCalledWith(
-      [
-        expect.objectContaining({
-          event: {
-            some_data_bar: "foo",
-          },
-        }),
-      ],
-      { session },
+    expect(insertManySpy.mock.calls[0][0][0]).toStrictEqual(
+      events[0].toDocument(),
     );
   });
 
-  it("should finsByMessageId", async () => {
+  it("should findByMessageId", async () => {
     const id = randomUUID();
     const mockDoc = { _id: id };
     const findOneMock = vi.fn().mockResolvedValue(mockDoc);
@@ -172,39 +159,26 @@ describe("inbox.repository", () => {
   });
 
   it("should insertOne", async () => {
-    const id = randomUUID();
     const insertOneMock = vi.fn();
     db.collection.mockReturnValue({ insertOne: insertOneMock });
     const session = {};
-    const doc = new Inbox({
-      _id: id,
-    });
+    const doc = Inbox.createMock();
     await insertOne(doc, session);
-    expect(insertOneMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        _id: id,
-      }),
-      { session },
-    );
+    expect(insertOneMock.mock.calls[0][0]).toStrictEqual(doc.toDocument());
   });
 
   it("should update a document", async () => {
-    const id = randomUUID();
-    const inbox = new Inbox({ _id: id });
-    vi.spyOn(inbox, "toDocument").mockReturnValue({
-      _id: id,
-      someOtherValue: "foo",
-    });
+    const inbox = Inbox.createMock();
     const updateOneMock = vi.fn();
     db.collection.mockReturnValue({ updateOne: updateOneMock });
 
     await update(inbox);
 
-    expect(inbox.toDocument).toHaveBeenCalled();
+    const { _id, ...expected } = inbox;
     expect(updateOneMock).toHaveBeenCalledWith(
-      { _id: id },
+      { _id: inbox._id },
       {
-        $set: expect.objectContaining({ someOtherValue: "foo" }),
+        $set: expected,
       },
     );
   });
