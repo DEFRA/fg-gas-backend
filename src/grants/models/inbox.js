@@ -74,7 +74,7 @@ export class Inbox {
     });
   }
 
-  static createMock() {
+  static createMock(obj) {
     return new Inbox({
       _id: "1234",
       publicationDate: new Date(Date.now()),
@@ -88,6 +88,7 @@ export class Inbox {
       completionAttempts: 1,
       status: "PUBLISHED",
       eventTime: new Date().toISOString(),
+      ...obj,
     });
   }
 }
