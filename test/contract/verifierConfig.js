@@ -44,7 +44,7 @@ export function buildVerifierOptions({
     ...baseOpts,
     pactBrokerUrl:
       env.PACT_BROKER_BASE_URL || "https://ffc-pact-broker.azure.defra.cloud",
-    consumerVersionSelectors: [{ latest: true }],
+    consumerVersionSelectors: [{ consumer: 'grants-ui', latest: true }],
     pactBrokerUsername: env.PACT_USER,
     pactBrokerPassword: env.PACT_PASS,
     publishVerificationResult: env.PACT_PUBLISH_VERIFICATION === "true",
