@@ -42,7 +42,6 @@ describe("CreateAgreementCommand", () => {
         code: "grant-code",
         identifiers: {
           name: "Test App",
-          defraId: "DEFRA123456",
         },
         metadata: {
           defraId: "DEFRA123456",
@@ -54,7 +53,7 @@ describe("CreateAgreementCommand", () => {
     });
   });
 
-  it("includes defraId in identifiers when present", () => {
+  it("preserves defraId in metadata when present", () => {
     const application = Application.new({
       currentPhase: ApplicationPhase.PreAward,
       currentStage: ApplicationStage.Assessment,
@@ -77,7 +76,6 @@ describe("CreateAgreementCommand", () => {
 
     expect(event.data.identifiers).toEqual({
       name: "Test App",
-      defraId: "DEFRA123456",
     });
     expect(event.data.metadata).toEqual({
       defraId: "DEFRA123456",
