@@ -1,22 +1,18 @@
-import { withTransaction } from "../src/common/with-transaction.js";
-
 export const up = async (db) => {
   const collection = db.collection("inbox");
-  const query = {};
 
-  await withTransaction(async (session) => {
-    await collection.updateMany(
-      query,
-      [
-        {
-          $set: {
-            eventTime: "$event.time",
-          },
-        },
-      ],
-      {
-        session,
-      },
-    );
+  await collection.createIndex({
+    status: 1,
+    claimedBy: 1,
+    completionAttempts: 1,
+    eventTime: 1,
   });
+
+  await collection.updateMany({}, [
+    {
+      $set: {
+        eventTime: "$event.time",
+      },
+    },
+  ]);
 };
