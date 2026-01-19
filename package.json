@@ -61,7 +61,7 @@
   "devDependencies": {
     "@pact-foundation/pact": "^15.0.1",
     "@vitest/coverage-v8": "^4.0.15",
-    "eslint": "^9.39.0",
+    "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.6",
