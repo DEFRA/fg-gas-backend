@@ -227,4 +227,117 @@ describe("submitApplicationUseCase", () => {
       }),
     ).rejects.toThrow('Grant with code "non-existent-grant" not found');
   });
+
+  it("validates fgSumEquals custom keyword when sum matches target", async () => {
+    insertMany.mockResolvedValueOnce({
+      insertedId: "1",
+    });
+    const mockSession = {};
+    withTransaction.mockImplementation(async (cb) => cb(mockSession));
+    findGrantByCodeUseCase.mockResolvedValue(
+      createTestGrant({
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                field1: { type: "number" },
+                field2: { type: "number" },
+                total: { type: "number" },
+              },
+              fgSumEquals: {
+                fields: ["field1", "field2"],
+                targetField: "total",
+              },
+            },
+          },
+        ],
+      }),
+    );
+
+    await submitApplicationUseCase("test-grant", {
+      metadata: {
+        clientRef: "test-client-ref",
+        sbi: "123456789",
+        frn: "987654321",
+        crn: "CRN123456",
+        defraId: "DEFRA123456",
+        submittedAt: "2000-01-01T12:00:00Z",
+      },
+      answers: {
+        field1: 10,
+        field2: 20,
+        total: 30,
+      },
+    });
+
+    const application = save.mock.calls[0][0];
+    expect(application).toBeInstanceOf(Application);
+    expect(application.phases[0].answers).toEqual({
+      field1: 10,
+      field2: 20,
+      total: 30,
+    });
+  });
+
+  it("throws when fgSumEquals validation fails", async () => {
+    const mockSession = {};
+    withTransaction.mockImplementation(async (cb) => cb(mockSession));
+    findGrantByCodeUseCase.mockResolvedValue(
+      createTestGrant({
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                field1: { type: "number" },
+                field2: { type: "number" },
+                total: { type: "number" },
+              },
+              fgSumEquals: {
+                fields: ["field1", "field2"],
+                targetField: "total",
+              },
+            },
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      submitApplicationUseCase("test-grant", {
+        metadata: {
+          clientRef: "test-client-ref",
+          sbi: "123456789",
+          frn: "987654321",
+          crn: "CRN123456",
+          defraId: "DEFRA123456",
+          submittedAt: "2000-01-01T12:00:00Z",
+        },
+        answers: {
+          field1: 10,
+          field2: 20,
+          total: 50,
+        },
+      }),
+    ).rejects.toThrow(
+      'Application with clientRef "test-client-ref" has invalid answers: data fgSumEquals validation failed: sum of fields field1, field2 must equal total',
+    );
+  });
 });
