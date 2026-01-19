@@ -1,3 +1,4 @@
+import { setTimeout } from "node:timers/promises";
 import {
   afterAll,
   afterEach,
@@ -22,6 +23,13 @@ vi.mock("../repositories/inbox.repository.js");
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("../use-cases/handle-agreement-status-change.use-case.js");
 
+const createInbox = () =>
+  new Inbox({
+    event: {
+      time: new Date().toISOString(),
+    },
+  });
+
 describe("inbox.subscriber", () => {
   beforeAll(() => {
     vi.useFakeTimers();
@@ -44,7 +52,7 @@ describe("inbox.subscriber", () => {
   });
 
   it("should poll on start()", async () => {
-    claimEvents.mockResolvedValue([new Inbox({})]);
+    claimEvents.mockResolvedValue([createInbox()]);
     const subscriber = new InboxSubscriber();
     subscriber.start();
     expect(claimEvents).toHaveBeenCalled();
@@ -95,7 +103,7 @@ describe("inbox.subscriber", () => {
   });
 
   it("should stop polling after stop()", async () => {
-    claimEvents.mockResolvedValue([new Inbox({})]);
+    claimEvents.mockResolvedValue([createInbox()]);
     const subscriber = new InboxSubscriber();
     subscriber.start();
     expect(claimEvents).toHaveBeenCalledTimes(1);
@@ -106,6 +114,33 @@ describe("inbox.subscriber", () => {
   });
 
   describe("processEvents", () => {
+    it("should process events in correct order", async () => {
+      const events = [
+        Inbox.createMock({
+          _id: "1",
+          event: { time: new Date(Date.now()).toISOString() },
+        }),
+        Inbox.createMock({
+          _id: "2",
+          event: { time: new Date(Date.now()).toISOString() },
+        }),
+      ];
+
+      claimEvents.mockResolvedValue(events);
+      const subscriber = new InboxSubscriber();
+      const spy1 = vi
+        .spyOn(subscriber, "handleEvent")
+        .mockImplementationOnce(async () => {
+          return setTimeout(500);
+        })
+        .mockImplementationOnce(async () => setTimeout(500));
+      await subscriber.processEvents(events);
+      expect(spy1).toHaveBeenCalledTimes(2);
+
+      expect(subscriber.handleEvent.mock.calls[0][0]).toEqual(events[0]);
+      expect(subscriber.handleEvent.mock.calls[1][0]).toEqual(events[1]);
+    });
+
     it("should use use-cases if not updating status", async () => {
       const mockEventData = {
         foo: "barr",
