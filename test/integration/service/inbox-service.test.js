@@ -27,7 +27,7 @@ const createMockInbox = (id, time) => {
 
 describe("inbox", () => {
   it("should claim events in order", async () => {
-    inbox.insertMany([
+    await inbox.insertMany([
       createMockInbox("2", new Date(Date.now() - 3000).toISOString()),
       createMockInbox("3", new Date(Date.now() - 2000).toISOString()),
       createMockInbox("4", new Date(Date.now() - 1000).toISOString()),
