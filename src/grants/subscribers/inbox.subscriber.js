@@ -115,7 +115,9 @@ export class InboxSubscriber {
   }
 
   async processEvents(events) {
-    await Promise.all(events.map((event) => this.handleEvent(event)));
+    for await (const ev of events) {
+      await this.handleEvent(ev);
+    }
   }
 
   start() {

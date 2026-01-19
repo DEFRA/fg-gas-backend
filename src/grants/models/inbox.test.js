@@ -66,6 +66,7 @@ describe("inbox model", () => {
     const messageId = randomUUID();
     const obj = new Inbox({
       event: {
+        time: new Date().toISOString(),
         data: {
           foo: "barr",
         },

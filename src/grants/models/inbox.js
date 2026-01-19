@@ -15,6 +15,7 @@ export class Inbox {
     this.claimedBy = null;
     this.claimedAt = null;
     this.claimExpiresAt = null;
+    this.eventTime = props.event.time;
   }
 
   markAsComplete() {
@@ -49,6 +50,7 @@ export class Inbox {
       claimedAt: this.claimedAt,
       claimedBy: this.claimedBy,
       claimExpiresAt: this.claimExpiresAt,
+      eventTime: this.eventTime,
     };
   }
 
@@ -68,6 +70,25 @@ export class Inbox {
       claimedAt: doc.claimedAt,
       claimedBy: doc.claimedBy,
       claimExpiresAt: doc.claimExpiresAt,
+      eventTime: doc.eventTime,
+    });
+  }
+
+  static createMock(obj) {
+    return new Inbox({
+      _id: "1234",
+      publicationDate: new Date(Date.now()),
+      traceparent: "mock-trace-parent",
+      source: "CW",
+      type: "type",
+      messageId: "message-id",
+      event: {
+        time: new Date().toISOString(),
+      },
+      completionAttempts: 1,
+      status: "PUBLISHED",
+      eventTime: new Date().toISOString(),
+      ...obj,
     });
   }
 }
