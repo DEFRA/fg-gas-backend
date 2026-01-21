@@ -28,7 +28,6 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
     type: "object",
     schemaType: "object",
     validate: function (schema, data) {
-      logger.info(`fgSumEquals: ${JSON.stringify({ schema, data })}`);
       const fields = schema.fields;
       const targetField = schema.targetField;
       const sum = fields.reduce((acc, field) => acc + (data[field] || 0), 0);

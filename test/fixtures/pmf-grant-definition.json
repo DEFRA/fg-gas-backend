@@ -11,9 +11,115 @@
       "url": "https://fg-gss-pmf.%ENVIRONMENT%.cdp-int.defra.cloud/grantFundingCalculator"
     }
   ],
-  "questions": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "properties": {}
+  "phases": [
+    {
+      "code": "PRE_AWARD",
+      "name": "Pre-award",
+      "description": "Pre-award phase",
+      "questions": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "isPigFarmer": {
+            "type": "boolean",
+            "const": true
+          },
+          "totalPigs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "whitePigsCount": {
+            "type": "integer"
+          },
+          "britishLandracePigsCount": {
+            "type": "integer"
+          },
+          "berkshirePigsCount": {
+            "type": "integer"
+          },
+          "otherPigsCount": {
+            "type": "integer"
+          }
+        },
+        "required": ["isPigFarmer", "totalPigs"],
+        "fgSumEquals": {
+          "fields": [
+            "whitePigsCount",
+            "berkshirePigsCount",
+            "britishLandracePigsCount",
+            "otherPigsCount"
+          ],
+          "targetField": "totalPigs"
+        }
+      },
+      "stages": [
+        {
+          "code": "REVIEW_APPLICATION",
+          "name": "Review Application",
+          "description": "Review the application for eligibility",
+          "statuses": [
+            {
+              "code": "APPLICATION_RECEIVED",
+              "validFrom": []
+            },
+            {
+              "code": "IN_REVIEW",
+              "validFrom": [
+                { "code": "APPLICATION_RECEIVED", "processes": [] },
+                { "code": "APPLICATION_REJECTED", "processes": [] },
+                { "code": "ON_HOLD", "processes": [] }
+              ]
+            },
+            {
+              "code": "ON_HOLD",
+              "validFrom": [{ "code": "IN_REVIEW", "processes": [] }]
+            },
+            {
+              "code": "APPLICATION_REJECTED",
+              "validFrom": [{ "code": "IN_REVIEW", "processes": [] }]
+            },
+            {
+              "code": "APPLICATION_APPROVED",
+              "validFrom": [{ "code": "IN_REVIEW", "processes": [] }]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "externalStatusMap": {
+    "phases": [
+      {
+        "code": "PRE_AWARD",
+        "stages": [
+          {
+            "code": "REVIEW_APPLICATION",
+            "statuses": [
+              {
+                "code": "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW"
+              },
+              {
+                "code": "PRE_AWARD:REVIEW_APPLICATION:ON_HOLD",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:ON_HOLD"
+              },
+              {
+                "code": "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_REJECTED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_REJECTED"
+              },
+              {
+                "code": "PRE_AWARD:FINAL_REVIEW:APPLICATION_APPROVED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_APPROVED"
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

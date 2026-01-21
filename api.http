@@ -6,78 +6,7 @@ POST {{base}}/grants HTTP/1.1
 Content-Type: application/json
 Authorization: Bearer {{serviceToken}}
 
-{
-  "actions": [
-    {
-      "method": "POST",
-      "name": "calculate-pig-totals",
-      "url": "https://fg-gss-pmf.%ENVIRONMENT%.cdp-int.defra.cloud/grantFundingCalculator"
-    }
-  ],
-  "code": "pigs-might-fly",
-  "metadata": {
-    "description": "Pigs Might Fly",
-    "startDate": "2100-01-01T00:00:00.000Z"
-  },
-  "questions": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "if": {
-      "properties": {
-        "isPigFarmer": {
-          "const": true,
-          "type": "boolean"
-        }
-      }
-    },
-    "properties": {
-      "isPigFarmer": {
-        "type": "boolean"
-      }
-    },
-    "required": [
-      "isPigFarmer"
-    ],
-    "then": {
-      "fgSumEquals": {
-        "fields": [
-          "whitePigsCount",
-          "berkshireCount",
-          "britishLandraceCount",
-          "otherCount"
-        ],
-        "targetField": "totalPigs"
-      },
-      "properties": {
-        "berkshireCount": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "britishLandraceCount": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "otherCount": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "totalPigs": {
-          "maximum": 1000,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "whitePigsCount": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "totalPigs"
-      ]
-    },
-    "type": "object",
-    "unevaluatedProperties": false
-  }
-}
+< ./test/fixtures/pmf-grant-definition.json
 
 
 ### Get a Grant
@@ -135,6 +64,7 @@ Authorization: Bearer {{serviceToken}}
     "submittedAt": "{{$date}}T12:00:00Z"
   }
 }
+
 
 ### Get health
 
