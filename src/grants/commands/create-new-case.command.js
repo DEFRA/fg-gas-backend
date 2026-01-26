@@ -9,6 +9,7 @@ export class CreateNewCaseCommand extends CloudEvent {
         createdAt: application.createdAt,
         submittedAt: application.submittedAt,
         identifiers: application.identifiers,
+        metadata: application.metadata,
         answers: application.getAnswers(),
       },
     });

@@ -19,6 +19,8 @@ export const createTestApplication = (overrides = {}) => {
       sbi: "sbi-1",
       frn: "frn-1",
       crn: "crn-1",
+    },
+    metadata: {
       defraId: "defraId-1",
     },
     phases: [
