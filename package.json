@@ -36,7 +36,7 @@
   "author": "Defra DDTS",
   "license": "OGL-UK-3.0",
   "dependencies": {
-    "@aws-sdk/client-sns": "^3.972.0",
+    "@aws-sdk/client-sns": "^3.975.0",
     "@aws-sdk/client-sqs": "^3.972.0",
     "@aws-sdk/credential-providers": "^3.972.0",
     "@defra/hapi-tracing": "^1.28.0",
