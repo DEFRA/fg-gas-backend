@@ -48,5 +48,6 @@ export function buildVerifierOptions({
     pactBrokerUsername: env.PACT_USER,
     pactBrokerPassword: env.PACT_PASS,
     publishVerificationResult: env.PACT_PUBLISH_VERIFICATION === "true",
+    failIfNoPactsFound: true,
   };
 }
