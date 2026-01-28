@@ -42,8 +42,15 @@ Case Working Service
 
 **Messages Defined**:
 
-1. Agreement Created - `agreement.create` event
-2. Agreement Withdrawn - `agreement.withdraw` event
+1. **Agreement Accepted** - Event type: `cloud.defra.(test|local|prod).(farming-grants-agreements-api|fg-gas-backend).agreement.accepted`
+   - Required fields: `id`, `source`, `specVersion`, `datacontenttype`, `time`, `type`
+   - Data: `status: "accepted"`, `clientRef`, `code`, `agreementNumber`, `date`
+
+2. **Agreement Withdrawn** - Event type: `cloud.defra.(test|local|prod).(farming-grants-agreements-api|fg-gas-backend).agreement.(withdrawn|withdraw)`
+   - Required fields: `id`, `source`, `specVersion`, `datacontenttype`, `time`, `type`
+   - Data: `status: "withdrawn"`, `clientRef`, `code`, `agreementNumber`
+
+**⚠️ Critical Assumption**: `data.status` values are lowercase `"accepted"` or `"withdrawn"`. If agreements-api sends workflow codes (e.g., `"PRE_AWARD:APPLICATION:WITHDRAWAL_REQUESTED"`), provider verification will fail and transformation logic will be needed.
 
 ### 2. Provider Tests (HTTP API)
 
@@ -76,12 +83,14 @@ This generates: `tmp/pacts/fg-gas-backend-farming-grants-agreements-api.json`
 
 ```bash
 # Publish the pact so Agreement Service team can verify against it
-npx pact-broker publish tmp/pacts \
-  --consumer-app-version=$(git rev-parse HEAD) \
+pact broker publish --merge tmp/pacts/*.json \
+  --consumer-app-version=$(git describe --tags --abbrev=0 --always) \
   --broker-base-url=https://ffc-pact-broker.azure.defra.cloud \
   --broker-username=$PACT_USER \
   --broker-password=$PACT_PASS
 ```
+
+**Note**: The `--merge` flag allows updating pacts for the same version without conflicts. CI/CD automatically publishes after tests pass.
 
 ### Run Provider Tests (Verify HTTP API)
 
@@ -107,7 +116,7 @@ PACT_PUBLISH_VERIFICATION=true npm run test:contract
 The original contract had consumer/provider roles reversed:
 
 - ❌ Consumer: farming-grants-agreements-api
-- ❌ Provider: fg-gas-backend-sns
+- ❌ Provider: fg-gas-backend
 - ❌ Implied: GAS produces agreement events (WRONG)
 
 **Resolution**:
@@ -116,6 +125,8 @@ Corrected to reflect actual architecture:
 - ✅ Consumer: fg-gas-backend (receives events)
 - ✅ Provider: farming-grants-agreements-api (sends events)
 - ✅ GAS processes incoming agreement events and forwards to CW
+
+**Note**: The participant name is simply `fg-gas-backend`, not `fg-gas-backend-sns`. The SNS/SQS transport is an implementation detail, not part of the contract identity.
 
 ## Pact Broker
 
