@@ -1,4 +1,5 @@
-// test/contract/provider.sns.verification.test.js
+// test/contract/provider.agreements-api.verification.test.js
+// Contract test for SNS messages consumed by farming-grants-agreements-api
 import { Verifier } from "@pact-foundation/pact";
 import { afterAll, beforeAll, describe, it } from "vitest";
 import domainAgreementCreated from "./fixtures/agreement-created-domain.json";
@@ -6,66 +7,57 @@ import domainAgreementWithdrawn from "./fixtures/agreement-withdrawn-domain.json
 
 // Generate real messages using actual CloudEvent classes with domain fixtures
 async function generateAgreementCreatedMessage() {
-  // Use the REAL event class that production actually uses
   const { CreateAgreementCommand } = await import(
     "../../src/grants/events/create-agreement.command.js"
   );
 
   // Create mock application that mimics real Application domain model
+  // NOTE: Consumer expects additional fields (agreementNumber, createdAt, submittedAt, notificationMessageId)
+  // but our current implementation doesn't include them. See CONTRACT_ISSUES.md
   const mockApplication = {
     clientRef: domainAgreementCreated.clientRef,
     code: domainAgreementCreated.code,
     identifiers: domainAgreementCreated.identifiers,
-    getAnswers: () => domainAgreementCreated.answers, // Real method that returns answers
+    metadata: domainAgreementCreated.metadata,
+    getAnswers: () => domainAgreementCreated.answers,
   };
 
   const realEvent = new CreateAgreementCommand(mockApplication);
 
-  // Log the actual result we're returning to PACT
   console.log(
-    "=== ACTUAL RESULT (Agreement Created - REAL CreateAgreementCommand) ===",
+    "=== Agreement Created Message (for farming-grants-agreements-api) ===",
   );
   console.log(JSON.stringify(realEvent, null, 2));
-  console.log(
-    "========================================================================",
-  );
 
-  // Return the REAL CloudEvent that production actually sends!
   return realEvent;
 }
 
 async function generateAgreementWithdrawnMessage() {
-  // Use the REAL event class that production actually uses
+  // Using existing UpdateAgreementStatusCommand (will fail contract test)
+  // Consumer expects 'agreement.withdraw' but we send 'agreement.status.update'
   const { UpdateAgreementStatusCommand } = await import(
     "../../src/grants/events/update-agreement-status.command.js"
   );
 
-  // Use real withdraw data structure that production sends
   const realEvent = new UpdateAgreementStatusCommand({
     clientRef: domainAgreementWithdrawn.clientRef,
     status: domainAgreementWithdrawn.status,
     agreementNumber: domainAgreementWithdrawn.id,
   });
 
-  // Log the actual result we're returning to PACT
   console.log(
-    "=== ACTUAL RESULT (Agreement Withdrawn - REAL UpdateAgreementStatusCommand) ===",
+    "=== Agreement Withdrawn Message (for farming-grants-agreements-api) ===",
   );
   console.log(JSON.stringify(realEvent, null, 2));
-  console.log(
-    "==================================================================================",
-  );
 
-  // Return the REAL CloudEvent that production actually sends!
   return realEvent;
 }
 
-describe("fg-gas-backend-sns Provider Verification", () => {
+describe("fg-gas-backend Provider Verification (Agreements API Consumer)", () => {
   let mockServer;
   let mockPort;
 
   beforeAll(async () => {
-    // Set environment for real CloudEvent classes
     process.env.SERVICE_NAME = "fg-gas-backend";
     process.env.SERVICE_VERSION = "test";
     process.env.PORT = "0";
@@ -86,7 +78,7 @@ describe("fg-gas-backend-sns Provider Verification", () => {
     process.env.INBOX_EXPIRES_MS = "5000";
     process.env.INBOX_POLL_MS = "1000";
 
-    // HTTP server required by PACT v15 - serves real CloudEvents from domain fixtures
+    // HTTP server to serve CloudEvents for PACT message verification
     const { createServer } = await import("http");
     mockServer = createServer((req, res) => {
       let body = "";
@@ -98,7 +90,6 @@ describe("fg-gas-backend-sns Provider Verification", () => {
           const requestData = JSON.parse(body || "{}");
           const isCreatedMessage = requestData.description?.includes("created");
 
-          // Generate real CloudEvent from domain fixtures
           let realMessage;
           if (isCreatedMessage) {
             realMessage = await generateAgreementCreatedMessage();
@@ -120,13 +111,11 @@ describe("fg-gas-backend-sns Provider Verification", () => {
       mockServer.listen(0, () => {
         mockPort = mockServer.address().port;
         console.log(
-          `HTTP server started on port ${mockPort} - serving real CloudEvents from domain fixtures`,
+          `Mock server started on port ${mockPort} for farming-grants-agreements-api consumer`,
         );
         resolve();
       });
     });
-
-    console.log("✅ Environment setup complete for real CloudEvent testing");
   });
 
   afterAll(async () => {
@@ -136,9 +125,9 @@ describe("fg-gas-backend-sns Provider Verification", () => {
   });
 
   describe("SNS Message Verification", () => {
-    it("should verify SNS messages for agreement events", async () => {
+    it("should verify SNS messages against farming-grants-agreements-api consumer contract", async () => {
       console.log(
-        "Running SNS provider verification with REAL domain fixtures",
+        "Verifying SNS messages for farming-grants-agreements-api consumer",
       );
 
       const stateHandlers = {
@@ -152,29 +141,28 @@ describe("fg-gas-backend-sns Provider Verification", () => {
 
       const messageProviders = {
         "An agreement created message": async () => {
-          // Generate using REAL CloudEvent class with OUR domain data
           const realEvent = await generateAgreementCreatedMessage();
-          console.log("Generated real CloudEvent from domain fixture");
-          return realEvent; // Real CloudEvent from our domain model
+          return realEvent;
         },
         "An agreement withdrawn message": async () => {
-          // Generate using REAL CloudEvent class with OUR domain data
           const realEvent = await generateAgreementWithdrawnMessage();
-          console.log("Generated real CloudEvent from domain fixture");
-          return realEvent; // Real CloudEvent from our domain model
+          return realEvent;
         },
       };
 
       const opts = {
-        provider: "fg-gas-backend-sns",
+        provider: "fg-gas-backend",
         providerBaseUrl: `http://localhost:${mockPort}`,
-        messages: true, // Pure message verification
+        messages: true,
         stateHandlers,
         messageProviders,
         providerVersion:
           process.env.GIT_COMMIT || process.env.npm_package_version || "dev",
-        pactUrls: [
-          "https://ffc-pact-broker.azure.defra.cloud/pacts/provider/fg-gas-backend-sns/consumer/farming-grants-agreements-api-sqs/latest",
+        pactBrokerUrl:
+          process.env.PACT_BROKER_BASE_URL ||
+          "https://ffc-pact-broker.azure.defra.cloud",
+        consumerVersionSelectors: [
+          { consumer: "farming-grants-agreements-api", latest: true },
         ],
         pactBrokerUsername: process.env.PACT_USER,
         pactBrokerPassword: process.env.PACT_PASS,
@@ -183,16 +171,6 @@ describe("fg-gas-backend-sns Provider Verification", () => {
         logLevel: process.env.PACT_LOG_LEVEL || "INFO",
       };
 
-      console.log("SNS Verifier opts structure:", {
-        provider: opts.provider,
-        messages: opts.messages,
-        stateHandlers: Object.keys(opts.stateHandlers),
-        messageProviders: Object.keys(opts.messageProviders),
-        pactUrls: opts.pactUrls,
-        publishVerificationResult: opts.publishVerificationResult,
-      });
-
-      // This tests OUR domain data through REAL CloudEvent classes against consumer contract
       return new Verifier(opts).verifyProvider();
     }, 120000);
   });
