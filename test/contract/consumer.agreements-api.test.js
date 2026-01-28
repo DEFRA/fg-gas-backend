@@ -1,17 +1,27 @@
 // test/contract/consumer.agreements-api.test.js
-// Consumer test: fg-gas-backend consumes agreement status events FROM farming-grants-agreements-api
+// Consumer test: fg-gas-backend consumes agreement events FROM farming-grants-agreements-api
 //
-// What our code reads (from src/grants/subscribers and use-cases):
-// - CloudEvent fields: id, type, source, specversion, datacontenttype, traceparent (optional)
-// - data.status (to route: "Accepted" | "Withdrawn")
-// - data.clientRef (to find application)
-// - data.code (to find grant)
-// - data.agreementNumber (used by accept/withdraw use cases)
-// - data.date (only for Accepted status, used by acceptAgreementUseCase)
+// ⚠️ CRITICAL ASSUMPTION: data.status values ⚠️
 //
-import { MessageConsumerPact } from "@pact-foundation/pact";
+// Our code expects (src/grants/use-cases/handle-agreement-status-change.use-case.js):
+//   if (status === AgreementServiceStatus.Accepted)  // "accepted" (lowercase)
+//   if (status === AgreementServiceStatus.Withdrawn) // "withdrawn" (lowercase)
+//
+// But agreements-api provider tests showed workflow codes like "PRE_AWARD:APPLICATION:WITHDRAWAL_REQUESTED"
+// If they send workflow codes instead of normalized values, this contract will FAIL
+// → We'll add transformation logic in GAS to map workflow codes to normalized values
+//
+// Event type: Flexible regex accepts known variants seen in their tests
+// - namespace: "farming-grants-agreements-api" or "fg-gas-backend"
+// - suffix: "accepted"/"created" or "withdrawn"/"withdraw"
+//
+// Source: Locked to "farming-grants-agreements-api" (what our code checks for routing)
+//
+import { Matchers, MessageConsumerPact } from "@pact-foundation/pact";
 import path from "path";
 import { describe, expect, it } from "vitest";
+
+const { like, uuid, iso8601DateTimeWithMillis, term } = Matchers;
 
 describe("fg-gas-backend Consumer (receives messages from farming-grants-agreements-api)", () => {
   const messagePact = new MessageConsumerPact({
@@ -26,20 +36,41 @@ describe("fg-gas-backend Consumer (receives messages from farming-grants-agreeme
       await messagePact
         .expectsToReceive("an agreement accepted message")
         .withContent({
-          // CloudEvent fields we use
-          id: "12345678-1234-1234-1234-123456789012",
-          type: "cloud.defra.test.farming-grants-agreements-api.agreement.status.update",
-          source: "farming-grants-agreements-api",
-          specversion: "1.0",
-          datacontenttype: "application/json",
+          // CloudEvent fields
+          id: uuid("12345678-1234-1234-1234-123456789012"),
 
-          // Data fields our code reads
+          // Flexible for namespace variants seen in their tests
+          // But strict on "accepted" suffix - don't accept "created" (different semantic)
+          type: term({
+            generate:
+              "cloud.defra.test.farming-grants-agreements-api.agreement.accepted",
+            matcher:
+              "^cloud\\.defra\\.(test|local|prod)\\.(farming-grants-agreements-api|fg-gas-backend)\\.agreement\\.accepted$",
+          }),
+
+          // Lock to known agreement service source
+          source: term({
+            generate: "farming-grants-agreements-api",
+            matcher: "^farming-grants-agreements-api$",
+          }),
+          specVersion: "1.0", // Exact - CloudEvents spec constant
+          datacontenttype: "application/json", // Exact - constant
+          time: iso8601DateTimeWithMillis("2025-08-19T09:36:45.131Z"),
+
+          // Data fields - explicit about exact vs flexible matching
           data: {
-            status: "Accepted", // Used by handleAgreementStatusChangeUseCase
-            clientRef: "client-ref-002", // Used to find application
-            code: "frps-private-beta", // Used to find grant
-            agreementNumber: "SFI987654321", // Used by acceptAgreementUseCase
-            date: "2025-08-19T09:36:45.131Z", // Used by acceptAgreementUseCase
+            // CRITICAL: status must be exactly "accepted" (not type-matched)
+            // Our code: if (status === AgreementServiceStatus.Accepted) where Accepted = "accepted"
+            // If they send workflow codes like "PRE_AWARD:APPLICATION:WITHDRAWAL_REQUESTED", this FAILS
+            status: "accepted", // exact match (no wrapper = exact)
+
+            // Flexible type matching for identifiers (any string value)
+            clientRef: like("client-ref-002"),
+            code: like("frps-private-beta"),
+            agreementNumber: like("SFI987654321"),
+
+            // date must be ISO8601 format
+            date: iso8601DateTimeWithMillis("2025-08-19T09:36:45.131Z"),
           },
         })
         .withMetadata({
@@ -48,18 +79,8 @@ describe("fg-gas-backend Consumer (receives messages from farming-grants-agreeme
         .verify(async (message) => {
           const cloudEvent = message.contents;
 
-          // Verify CloudEvent structure
-          expect(cloudEvent.id).toBeDefined();
-          expect(cloudEvent.type).toBeDefined();
-          expect(cloudEvent.source).toBeDefined();
-          expect(cloudEvent.specversion).toBe("1.0");
-          expect(cloudEvent.datacontenttype).toBe("application/json");
-
-          // Verify data fields our code uses
-          expect(cloudEvent.data.status).toBe("Accepted");
-          expect(cloudEvent.data.clientRef).toBeDefined();
-          expect(cloudEvent.data.code).toBeDefined();
-          expect(cloudEvent.data.agreementNumber).toBeDefined();
+          // Only check meaningful invariants (withContent already enforces structure)
+          expect(cloudEvent.data.status).toBe("accepted");
           expect(cloudEvent.data.date).toBeDefined();
         });
     });
@@ -70,19 +91,37 @@ describe("fg-gas-backend Consumer (receives messages from farming-grants-agreeme
       await messagePact
         .expectsToReceive("an agreement withdrawn message")
         .withContent({
-          // CloudEvent fields we use
-          id: "87654321-4321-4321-4321-210987654321",
-          type: "cloud.defra.test.farming-grants-agreements-api.agreement.status.update",
-          source: "farming-grants-agreements-api",
-          specversion: "1.0",
-          datacontenttype: "application/json",
+          // CloudEvent fields
+          id: uuid("87654321-4321-4321-4321-210987654321"),
 
-          // Data fields our code reads
+          // Flexible for known variants:
+          // - namespace: both possibilities seen in their tests
+          // - suffix: "withdrawn" or "withdraw" (they might use either)
+          type: term({
+            generate:
+              "cloud.defra.test.farming-grants-agreements-api.agreement.withdrawn",
+            matcher:
+              "^cloud\\.defra\\.(test|local|prod)\\.(farming-grants-agreements-api|fg-gas-backend)\\.agreement\\.(withdrawn|withdraw)$",
+          }),
+
+          // Lock to known agreement service source
+          source: term({
+            generate: "farming-grants-agreements-api",
+            matcher: "^farming-grants-agreements-api$",
+          }),
+          specVersion: "1.0", // Exact
+          datacontenttype: "application/json", // Exact
+          time: iso8601DateTimeWithMillis("2025-08-19T09:36:45.131Z"),
+
+          // Data fields - explicit about exact vs flexible matching
           data: {
-            status: "Withdrawn", // Used by handleAgreementStatusChangeUseCase
-            clientRef: "client-ref-003", // Used to find application
-            code: "frps-private-beta", // Used to find grant
-            agreementNumber: "SFI123456789", // Used by withdrawAgreementUseCase
+            // CRITICAL: status must be exactly "withdrawn" (not type-matched)
+            status: "withdrawn", // exact match (no wrapper = exact)
+
+            // Flexible type matching for identifiers
+            clientRef: like("client-ref-003"),
+            code: like("frps-private-beta"),
+            agreementNumber: like("SFI123456789"),
           },
         })
         .withMetadata({
@@ -91,18 +130,8 @@ describe("fg-gas-backend Consumer (receives messages from farming-grants-agreeme
         .verify(async (message) => {
           const cloudEvent = message.contents;
 
-          // Verify CloudEvent structure
-          expect(cloudEvent.id).toBeDefined();
-          expect(cloudEvent.type).toBeDefined();
-          expect(cloudEvent.source).toBeDefined();
-          expect(cloudEvent.specversion).toBe("1.0");
-          expect(cloudEvent.datacontenttype).toBe("application/json");
-
-          // Verify data fields our code uses
-          expect(cloudEvent.data.status).toBe("Withdrawn");
-          expect(cloudEvent.data.clientRef).toBeDefined();
-          expect(cloudEvent.data.code).toBeDefined();
-          expect(cloudEvent.data.agreementNumber).toBeDefined();
+          // Only check meaningful invariants
+          expect(cloudEvent.data.status).toBe("withdrawn");
         });
     });
   });
