@@ -92,5 +92,5 @@ jobs:
             --broker-base-url "${PACT_BROKER_BASE_URL}" \
             --broker-username "${PACT_USER}" \
             --broker-password "${PACT_PASS}" \
-            --consumer-app-version "$(git describe --tags --abbrev=0)" \
+            --consumer-app-version "$(git describe --tags --abbrev=0 --always)" \
             tmp/pacts/*.json
