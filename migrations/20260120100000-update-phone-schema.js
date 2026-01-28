@@ -9,12 +9,16 @@ export const up = async (db) => {
   };
 
   // Update phone schema from object with mobile property to simple string
-  await collection.updateOne(query, {
-    $set: {
-      "phases.$[phase].questions.$defs.Applicant.properties.business.properties.phone":
-        newPhoneSchema,
+  await collection.updateOne(
+    query,
+    {
+      $set: {
+        "phases.$[phase].questions.$defs.Applicant.properties.business.properties.phone":
+          newPhoneSchema,
+      },
     },
-  }, {
-    arrayFilters: [{ "phase.code": "PRE_AWARD" }],
-  });
+    {
+      arrayFilters: [{ "phase.code": "PRE_AWARD" }],
+    },
+  );
 };
