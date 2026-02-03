@@ -27,7 +27,9 @@ export const up = async (db) => {
                   code: {
                     $ifNull: [
                       "$event.data.workflowCode",
-                      "$event.data.grantCode",
+                      {
+                        $ifNull: ["$event.data.code", "$event.data.grantCode"],
+                      },
                     ],
                   },
                 },

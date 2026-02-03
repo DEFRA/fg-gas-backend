@@ -89,7 +89,11 @@ export class OutboxSubscriber {
   }
 
   async sendEvent(event) {
-    const { target: topic, event: data, messageGroupId } = event;
+    const {
+      target: topic,
+      event: data,
+      event: { messageGroupId },
+    } = event;
     logger.trace(`Send outbox event to ${topic}`);
     try {
       await publish(
@@ -111,10 +115,14 @@ export class OutboxSubscriber {
 
   // TODO: remove once there are no more standard events
   // temp while we transition to fifo
+  // eslint-disable-next-line complexity
   getMessageGroupId(id, data) {
     if (!id) {
-      if (data.clientRef) {
+      if (data.clientRef && data.grantCode) {
         return `${data.clientRef}-${data.grantCode}`;
+      }
+      if (data.clientRef && data.code) {
+        return `${data.clientRef}-${data.code}`;
       }
       if (data.caseRef) {
         return `${data.caseRef}-${data.workflowCode}`;
