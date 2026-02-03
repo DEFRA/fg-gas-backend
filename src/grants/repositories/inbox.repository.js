@@ -15,11 +15,26 @@ async function* asyncGenerator(limit) {
   }
 }
 
+export const findNextMessage = async (lockIds) => {
+  const doc = await db.collection(collection).findOne(
+    {
+      status: { $eq: InboxStatus.PUBLISHED },
+      claimedBy: { $eq: null },
+      completionAttempts: { $lte: MAX_RETRIES },
+      segregationRef: { $nin: lockIds },
+    },
+    { sort: { eventTime: 1 } },
+  );
+  return doc;
+};
+
 export const claimEvents = async (
   claimedBy,
+  segregationRef,
   numRecords = NUMBER_OF_RECORDS,
 ) => {
   const docs = [];
+  // TODO: remove asynGenerator
   // eslint-disable-next-line no-unused-vars
   for await (const _ of asyncGenerator(numRecords)) {
     const document = await db.collection(collection).findOneAndUpdate(
@@ -27,6 +42,7 @@ export const claimEvents = async (
         status: { $eq: InboxStatus.PUBLISHED },
         claimedBy: { $eq: null },
         completionAttempts: { $lte: MAX_RETRIES },
+        segregationRef,
       },
       {
         $set: {

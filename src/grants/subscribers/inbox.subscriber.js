@@ -5,7 +5,13 @@ import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { withTraceParent } from "../../common/trace-parent.js";
 import {
+  freeFifoLock,
+  getFifoLocks,
+  setFifoLock,
+} from "../repositories/fifo-lock.repository.js";
+import {
   claimEvents,
+  findNextMessage,
   update,
   updateDeadEvents,
   updateFailedEvents,
@@ -30,8 +36,13 @@ export class InboxSubscriber {
 
       try {
         const claimToken = randomUUID();
-        const events = await claimEvents(claimToken);
-        await this.processEvents(events);
+        const availableSegregationRef = await this.getNextAvailable();
+        if (availableSegregationRef) {
+          await setFifoLock(availableSegregationRef);
+          const events = await claimEvents(claimToken, availableSegregationRef);
+          await this.processEvents(events);
+          await freeFifoLock(availableSegregationRef);
+        }
         await this.processResubmittedEvents();
         await this.processFailedEvents();
         await this.processDeadEvents();
@@ -41,6 +52,13 @@ export class InboxSubscriber {
 
       await setTimeout(this.interval);
     }
+  }
+
+  async getNextAvailable() {
+    const locks = await getFifoLocks();
+    const lockIds = locks.map((lock) => lock.segregationRef);
+    const available = await findNextMessage(lockIds);
+    return available?.segregationRef;
   }
 
   async processDeadEvents() {

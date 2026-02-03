@@ -89,10 +89,14 @@ export class OutboxSubscriber {
   }
 
   async sendEvent(event) {
-    const { target: topic, event: data } = event;
+    const { target: topic, event: data, messageGroupId } = event;
     logger.trace(`Send outbox event to ${topic}`);
     try {
-      await publish(topic, data);
+      await publish(
+        this.topicStringToFifo(topic),
+        data,
+        this.getMessageGroupId(messageGroupId, data),
+      );
       await this.markEventComplete(event);
     } catch (ex) {
       logger.error(ex);
@@ -103,6 +107,31 @@ export class OutboxSubscriber {
   async processEvents(events) {
     await Promise.all(events.map((event) => this.sendEvent(event)));
     logger.trace("All outbox events processed.");
+  }
+
+  // TODO: remove once there are no more standard events
+  // temp while we transition to fifo
+  getMessageGroupId(id, data) {
+    if (!id) {
+      if (data.clientRef) {
+        return `${data.clientRef}-${data.grantCode}`;
+      }
+      if (data.caseRef) {
+        return `${data.caseRef}-${data.workflowCode}`;
+      }
+    }
+
+    return id;
+  }
+
+  // TODO: remove once there are no more standard events
+  // temp while we transition to fifo
+  topicStringToFifo(topic) {
+    if (topic.search(/_fifo.fifo$/) === -1) {
+      return `${topic}_fifo.fifo`;
+    }
+
+    return topic;
   }
 
   async start() {

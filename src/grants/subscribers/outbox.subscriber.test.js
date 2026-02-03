@@ -49,7 +49,7 @@ describe("outbox.subscriber", () => {
   });
 
   it("should start polling on start()", async () => {
-    claimEvents.mockResolvedValue([new Outbox({})]);
+    claimEvents.mockResolvedValue([Outbox.createMock()]);
     const subscriber = new OutboxSubscriber();
     subscriber.start();
     expect(claimEvents).toHaveBeenCalled();
@@ -99,7 +99,7 @@ describe("outbox.subscriber", () => {
   });
 
   it("should stop polling after stop()", () => {
-    claimEvents.mockResolvedValue([new Outbox({})]);
+    claimEvents.mockResolvedValue([Outbox.createMock()]);
     const subscriber = new OutboxSubscriber(10);
     subscriber.start();
     expect(claimEvents).toHaveBeenCalledTimes(1);
@@ -117,6 +117,53 @@ describe("outbox.subscriber", () => {
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
     expect(mockEvent.markAsFailed).toHaveBeenCalled();
+  });
+
+  it("should handle messageIds for legacy event types (agreements)", async () => {
+    publish.mockResolvedValue(1);
+    const mockEvent = {
+      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
+      event: {
+        clientRef: "client-ref",
+        grantCode: "grant-code",
+      },
+      markAsComplete: vi.fn(),
+    };
+
+    const outbox = new OutboxSubscriber();
+    await outbox.sendEvent(mockEvent);
+    expect(publish.mock.calls[0][2]).toBe("client-ref-grant-code");
+  });
+
+  it("should handle messageIds for legacy event types (case working)", async () => {
+    publish.mockResolvedValue(1);
+    const mockEvent = {
+      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
+      event: {
+        caseRef: "case-ref",
+        workflowCode: "workflow-code",
+      },
+      markAsComplete: vi.fn(),
+    };
+
+    const outbox = new OutboxSubscriber();
+    await outbox.sendEvent(mockEvent);
+    expect(publish.mock.calls[0][2]).toBe("case-ref-workflow-code");
+  });
+
+  it("should handle legacy event types", async () => {
+    publish.mockResolvedValue(1);
+    const mockEvent = {
+      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
+      event: {},
+      markAsComplete: vi.fn(),
+    };
+
+    const outbox = new OutboxSubscriber();
+    await outbox.sendEvent(mockEvent);
+    expect(publish.mock.calls[0][0]).toBe(
+      "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo",
+    );
   });
 
   it("should mark events as sent", async () => {

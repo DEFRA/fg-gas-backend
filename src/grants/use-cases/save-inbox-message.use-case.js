@@ -10,10 +10,18 @@ export const messageSource = {
   CaseWorking: "CW",
 };
 
+export const getSegregationRef = (event) => {
+  const { data } = event;
+  if (data.clientRef) {
+    return `${data.clientRef}-${data.grantCode}`;
+  }
+  if (data.caseRef) {
+    return `${data.caseRef}-${data.workflowCode}`;
+  }
+};
+
 export const saveInboxMessageUseCase = async (message, source) => {
-  logger.info(
-    `Save inbox message use ccase for message with id: ${message.id}`,
-  );
+  logger.info(`Save inbox message use case for message with id: ${message.id}`);
   const existing = await findByMessageId(message.id);
   if (existing !== null) {
     // message has already been stored
@@ -22,12 +30,14 @@ export const saveInboxMessageUseCase = async (message, source) => {
   }
 
   logger.info(`Storing message with id ${message.id}.`);
+
   const inbox = new Inbox({
     traceparent: message.traceparent,
     event: message,
     messageId: message.id,
     type: message.type,
     source,
+    segregationRef: getSegregationRef(message),
   });
 
   await insertOne(inbox);

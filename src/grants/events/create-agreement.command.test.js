@@ -37,6 +37,7 @@ describe("CreateAgreementCommand", () => {
       specversion: "1.0",
       time: expect.any(String),
       datacontenttype: "application/json",
+      messageGroupId: "123-grant-code",
       data: {
         clientRef: "123",
         code: "grant-code",

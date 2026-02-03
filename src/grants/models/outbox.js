@@ -69,4 +69,13 @@ export class Outbox {
       claimExpiresAt: doc.claimExpiresAt,
     });
   }
+
+  static createMock(doc) {
+    return new Outbox({
+      event: {
+        messageGroupId: "foo-barr",
+      },
+      ...doc,
+    });
+  }
 }
