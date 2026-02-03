@@ -17,11 +17,11 @@
 //
 // Source: Locked to "farming-grants-agreements-api" (what our code checks for routing)
 //
-import { MatchersV3, MessageConsumerPact } from "@pact-foundation/pact";
+import { MatchersV2, MessageConsumerPact } from "@pact-foundation/pact";
 import path from "path";
 import { describe, expect, it } from "vitest";
 
-const { like, uuid, iso8601DateTimeWithMillis, term } = MatchersV3;
+const { like, uuid, iso8601DateTimeWithMillis, term } = MatchersV2;
 
 describe("fg-gas-backend Consumer (receives messages from farming-grants-agreements-api)", () => {
   const messagePact = new MessageConsumerPact({
