@@ -5,6 +5,13 @@ export const up = async (db) => {
   fifoLock.createIndex({ segregationRef: 1 }, { unique: true });
   fifoLock.createIndex({ locked: 1, segregationRef: 1, lockedAt: 1 });
 
+  db.collection("inbox").createIndex({
+    segregationRef: 1,
+    status: 1,
+    claimedBy: 1,
+    completionAttempts: 1,
+  });
+
   await withTransaction(async (session) => {
     await await db.collection("inbox").updateMany(
       {},
