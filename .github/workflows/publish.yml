@@ -78,3 +78,19 @@ jobs:
           export PACT_PASS="$PACT_PASS"
           npm ci --ignore-scripts
           npm run test:contract
+
+      - name: Setup Pact CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/pact-foundation/pact-standalone/master/install.sh | PACT_CLI_VERSION=v2.5.9 bash
+          echo "PATH=${PATH}:${PWD}/pact/bin/" >> $GITHUB_ENV
+
+      - name: Publish consumer pacts
+        env:
+          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
+        run: |
+          pact broker publish --merge \
+            --broker-base-url "${PACT_BROKER_BASE_URL}" \
+            --broker-username "${PACT_USER}" \
+            --broker-password "${PACT_PASS}" \
+            --consumer-app-version "$(git describe --tags --abbrev=0 --always)" \
+            tmp/pacts/*.json
