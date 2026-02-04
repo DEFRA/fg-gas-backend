@@ -74,6 +74,7 @@ create_topic_and_queue "cw__sns__case_status_updated_fifo.fifo" "gas__sqs__updat
 create_topic_and_queue "gas__sns__update_agreement_status_fifo.fifo" "update_agreement_status_fifo.fifo" &
 create_topic_and_queue "agreement_status_updated_fifo.fifo" "gas__sqs__update_agreement_status_fifo.fifo" &
 create_topic_and_queue "gas__sns__grant_application_created_fifo.fifo" "gas__sqs__handle_grant_application_created_fifo.fifo" &
+create_topic_and_queue "gas__sns__grant_application_created_fifo.fifo" "gas__sqs__grant_application_created_fifo.fifo" &
 create_topic_and_queue "gas__sns__grant_application_status_updated_fifo.fifo" "gas__sqs__handle_grant_application_status_updated_fifo.fifo" &
 create_topic_and_queue "gas__sns__grant_application_status_updated_fifo.fifo" "gas__sqs__grant_application_status_updated_fifo.fifo" &
 create_topic_and_queue "gas__sns__create_new_case_fifo.fifo" "cw__sqs__create_new_case_fifo.fifo" &
@@ -81,7 +82,6 @@ create_topic_and_queue "gas__sns__update_case_status_fifo.fifo" "cw__sqs__update
 create_topic_and_queue "gas__sns__create_agreement_fifo.fifo" "create_agreement_fifo.fifo" &
 
 create_topic "gas__sns__update_agreement_status_fifo.fifo" &
-create_queue "gas__sqs__grant_application_created_fifo.fifo" &
 
 wait
 

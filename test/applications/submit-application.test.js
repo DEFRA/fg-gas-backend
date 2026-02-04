@@ -134,6 +134,7 @@ describe("POST /grants/{code}/applications", () => {
         code: "test-code-1",
         status: "PHASE_1:STAGE_1:NEW",
       },
+      messageGroupId: `${clientRef}-test-code-1`,
     });
 
     await expect(env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL).toHaveReceived({
@@ -144,8 +145,7 @@ describe("POST /grants/{code}/applications", () => {
       type: `cloud.defra.local.fg-gas-backend.case.create`,
       datacontenttype: "application/json",
       traceparent: "xxxx-xxxx-xxxx-xxxx",
-      messageGroupId:
-        "cr-12345-e6fbe910-38a2-4b6a-b9de-9b1978d7e4d4-test-code-1",
+      messageGroupId: `${clientRef}-test-code-1`,
       data: {
         caseRef: clientRef,
         workflowCode: "test-code-1",
