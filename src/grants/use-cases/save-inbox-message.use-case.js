@@ -1,3 +1,4 @@
+import { getMessageGroupId } from "../../common/get-message-group-id.js";
 import { logger } from "../../common/logger.js";
 import { Inbox } from "../models/inbox.js";
 import {
@@ -12,12 +13,7 @@ export const messageSource = {
 
 export const getSegregationRef = (event) => {
   const { data } = event;
-  if (data.clientRef) {
-    return `${data.clientRef}-${data.grantCode}`;
-  }
-  if (data.caseRef) {
-    return `${data.caseRef}-${data.workflowCode}`;
-  }
+  return getMessageGroupId(null, data);
 };
 
 export const saveInboxMessageUseCase = async (message, source) => {

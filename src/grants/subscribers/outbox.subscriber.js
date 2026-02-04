@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { config } from "../../common/config.js";
+import { getMessageGroupId } from "../../common/get-message-group-id.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import {
@@ -114,22 +115,8 @@ export class OutboxSubscriber {
   }
 
   // TODO: remove once there are no more standard events
-  // temp while we transition to fifo
-  // eslint-disable-next-line complexity
   getMessageGroupId(id, data) {
-    if (!id) {
-      if (data.clientRef && data.grantCode) {
-        return `${data.clientRef}-${data.grantCode}`;
-      }
-      if (data.clientRef && data.code) {
-        return `${data.clientRef}-${data.code}`;
-      }
-      if (data.caseRef) {
-        return `${data.caseRef}-${data.workflowCode}`;
-      }
-    }
-
-    return id;
+    return getMessageGroupId(id, data);
   }
 
   // TODO: remove once there are no more standard events

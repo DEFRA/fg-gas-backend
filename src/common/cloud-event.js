@@ -15,11 +15,15 @@ export class CloudEvent {
   messageGroupId;
 
   constructor(type, data, messageGroupId) {
-    if (!type) throw new Error("CloudEvent requires input 'type'");
-    if (!data) throw new Error("CloudEvent requires input 'data'");
-    if (!messageGroupId)
+    if (!type) {
+      throw new Error("CloudEvent requires input 'type'");
+    }
+    if (!data) {
+      throw new Error("CloudEvent requires input 'data'");
+    }
+    if (!messageGroupId) {
       throw new Error("CloudEvent requires input 'messageGroupId'");
-
+    }
     this.type = `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.${type}`;
     this.data = data;
     this.messageGroupId = messageGroupId;

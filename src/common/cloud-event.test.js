@@ -31,4 +31,16 @@ describe("CloudEvent", () => {
       },
     });
   });
+
+  it("requires type, data and messageGroupId", () => {
+    expect(() => new CloudEvent()).toThrow("CloudEvent requires input 'type'");
+
+    expect(() => new CloudEvent("test.type")).toThrow(
+      "CloudEvent requires input 'data'",
+    );
+
+    expect(() => new CloudEvent("test.type", { key: "value" })).toThrow(
+      "CloudEvent requires input 'messageGroupId'",
+    );
+  });
 });

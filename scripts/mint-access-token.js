@@ -52,7 +52,7 @@
 import { MongoClient } from "mongodb";
 import crypto from "node:crypto";
 
-const mongoUri = process.env.MONGO_URI;
+const mongoUri = `${process.env.MONGO_URI}?directConnection=true`;
 const dbName = process.env.MONGO_DATABASE;
 const clientName = process.argv[2] || "grants-ui";
 const expires = process.argv[3] || null; // ISO date string or null
