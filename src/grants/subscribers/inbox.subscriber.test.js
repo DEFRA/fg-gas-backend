@@ -74,8 +74,8 @@ describe("inbox.subscriber", () => {
       expect(claimEvents).toHaveBeenCalled();
     });
     expect(claimEvents).toHaveBeenCalled();
-    expect(setFifoLock).toHaveBeenCalledWith("ref_1");
-    expect(freeFifoLock).toHaveBeenCalledWith("ref_1");
+    expect(setFifoLock).toHaveBeenCalledWith(InboxSubscriber.ACTOR, "ref_1");
+    expect(freeFifoLock).toHaveBeenCalledWith(InboxSubscriber.ACTOR, "ref_1");
     expect(subscriber.running).toBeTruthy();
   });
 

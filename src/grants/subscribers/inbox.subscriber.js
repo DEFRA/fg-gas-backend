@@ -25,6 +25,8 @@ export const useCaseMap = {
 };
 
 export class InboxSubscriber {
+  static ACTOR = "INBOX";
+
   constructor() {
     this.interval = config.inbox.inboxPollMs;
     this.running = false;
@@ -38,10 +40,10 @@ export class InboxSubscriber {
         const claimToken = randomUUID();
         const availableSegregationRef = await this.getNextAvailable();
         if (availableSegregationRef) {
-          await setFifoLock(availableSegregationRef);
+          await setFifoLock(InboxSubscriber.ACTOR, availableSegregationRef);
           const events = await claimEvents(claimToken, availableSegregationRef);
           await this.processEvents(events);
-          await freeFifoLock(availableSegregationRef);
+          await freeFifoLock(InboxSubscriber.ACTOR, availableSegregationRef);
         }
         await this.processResubmittedEvents();
         await this.processFailedEvents();
@@ -55,7 +57,7 @@ export class InboxSubscriber {
   }
 
   async getNextAvailable() {
-    const locks = await getFifoLocks();
+    const locks = await getFifoLocks(InboxSubscriber.ACTOR);
     const lockIds = locks.map((lock) => lock.segregationRef);
     const available = await findNextMessage(lockIds);
     return available?.segregationRef;

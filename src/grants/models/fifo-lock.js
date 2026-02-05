@@ -4,6 +4,7 @@ export class FifoLock {
     this.locked = props.locked;
     this.segregationRef = props.segregationRef;
     this.lockedAt = props.lockedAt;
+    this.actor = props.actor;
   }
 
   toDocument() {
@@ -12,6 +13,7 @@ export class FifoLock {
       locked: this.locked,
       segregationRef: this.segregationRef,
       lockedAt: this.lockedAt,
+      actor: this.actor,
     };
   }
 
@@ -21,6 +23,7 @@ export class FifoLock {
       locked: !!doc.locked,
       segregationRef: doc.segregationRef,
       lockedAt: doc.lockedAt,
+      actor: doc.actor,
     });
   }
 
@@ -30,6 +33,7 @@ export class FifoLock {
       locked: true,
       segregationRef: "5678",
       lockedAt: new Date(Date.now),
+      actor: "INBOX",
       ...obj,
     });
   }

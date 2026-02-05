@@ -13,7 +13,13 @@ import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import { Outbox } from "../models/outbox.js";
 import {
+  freeFifoLock,
+  getFifoLocks,
+  setFifoLock,
+} from "../repositories/fifo-lock.repository.js";
+import {
   claimEvents,
+  findNextMessage,
   update,
   updateDeadEvents,
   updateFailedEvents,
@@ -22,7 +28,17 @@ import {
 import { OutboxSubscriber } from "./outbox.subscriber.js";
 
 vi.mock("../../common/sns-client.js");
+
+vi.mock("../repositories/fifo-lock.repository.js");
 vi.mock("../repositories/outbox.repository.js");
+
+const createOutbox = (doc) =>
+  new Outbox({
+    event: {
+      time: new Date().toISOString(),
+    },
+    ...doc,
+  });
 
 describe("outbox.subscriber", () => {
   beforeEach(() => {
@@ -49,10 +65,22 @@ describe("outbox.subscriber", () => {
   });
 
   it("should start polling on start()", async () => {
+    findNextMessage.mockResolvedValue(
+      createOutbox({ segregationRef: "ref_1" }),
+    );
     claimEvents.mockResolvedValue([Outbox.createMock()]);
+    getFifoLocks.mockResolvedValue([]);
+    setFifoLock.mockResolvedValue();
+    freeFifoLock.mockResolvedValue();
+    vi.spyOn(OutboxSubscriber.prototype, "processEvents").mockResolvedValue();
     const subscriber = new OutboxSubscriber();
     subscriber.start();
+    await vi.waitFor(() => {
+      expect(claimEvents).toHaveBeenCalled();
+    });
     expect(claimEvents).toHaveBeenCalled();
+    expect(setFifoLock).toHaveBeenCalledWith(OutboxSubscriber.ACTOR, "ref_1");
+    expect(freeFifoLock).toHaveBeenCalledWith(OutboxSubscriber.ACTOR, "ref_1");
     expect(subscriber.running).toBeTruthy();
   });
 
@@ -66,6 +94,14 @@ describe("outbox.subscriber", () => {
       event: { data: { foo: "bar" } },
     });
     mockEvent.markAsComplete = vi.fn();
+
+    findNextMessage.mockResolvedValue(
+      createOutbox({ segregationRef: "ref_1" }),
+    );
+    claimEvents.mockResolvedValue([Outbox.createMock()]);
+    getFifoLocks.mockResolvedValue([]);
+    setFifoLock.mockResolvedValue();
+    freeFifoLock.mockResolvedValue();
 
     claimEvents
       .mockRejectedValueOnce(error)
@@ -98,10 +134,20 @@ describe("outbox.subscriber", () => {
     subscriber.stop();
   });
 
-  it("should stop polling after stop()", () => {
+  it("should stop polling after stop()", async () => {
+    findNextMessage.mockResolvedValue(
+      createOutbox({ segregationRef: "ref_1" }),
+    );
+    claimEvents.mockResolvedValue([Outbox.createMock()]);
+    getFifoLocks.mockResolvedValue([]);
+    setFifoLock.mockResolvedValue();
+    freeFifoLock.mockResolvedValue();
     claimEvents.mockResolvedValue([Outbox.createMock()]);
     const subscriber = new OutboxSubscriber(10);
     subscriber.start();
+    await vi.waitFor(() => {
+      expect(claimEvents).toHaveBeenCalled();
+    });
     expect(claimEvents).toHaveBeenCalledTimes(1);
     subscriber.stop();
     expect(subscriber.running).toBeFalsy();

@@ -37,6 +37,7 @@ export const approveApplicationUseCase = async ({ clientRef, code }) => {
     const statusEventPublication = new Outbox({
       event: statusEvent,
       target: config.sns.grantApplicationStatusUpdatedTopicArn,
+      getSegregationRef: Outbox.getSegregationRef(statusEvent),
     });
 
     // CREATE AGREEMENT COMMAND
@@ -45,6 +46,7 @@ export const approveApplicationUseCase = async ({ clientRef, code }) => {
     const createAgreementPublication = new Outbox({
       event: createAgreementCommand,
       target: config.sns.createAgreementTopicArn,
+      getSegregationRef: Outbox.getSegregationRef(createAgreementCommand),
     });
 
     await insertMany(

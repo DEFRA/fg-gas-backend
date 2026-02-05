@@ -6,7 +6,13 @@ import { getMessageGroupId } from "../../common/get-message-group-id.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import {
+  freeFifoLock,
+  getFifoLocks,
+  setFifoLock,
+} from "../repositories/fifo-lock.repository.js";
+import {
   claimEvents,
+  findNextMessage,
   update,
   updateDeadEvents,
   updateExpiredEvents,
@@ -15,11 +21,19 @@ import {
 } from "../repositories/outbox.repository.js";
 
 export class OutboxSubscriber {
+  static ACTOR = "OUTBOX";
   asyncLocalStorage = new AsyncLocalStorage();
 
   constructor() {
     this.interval = config.outbox.outboxPollMs;
     this.running = false;
+  }
+
+  async getNextAvailable() {
+    const locks = await getFifoLocks(OutboxSubscriber.ACTOR);
+    const lockIds = locks.map((lock) => lock.segregationRef);
+    const available = await findNextMessage(lockIds);
+    return available?.segregationRef;
   }
 
   // eslint-disable-next-line complexity
@@ -29,12 +43,17 @@ export class OutboxSubscriber {
 
       try {
         const claimToken = randomUUID();
-        const pendingEvents = await claimEvents(claimToken);
+        const availableSegregationRef = await this.getNextAvailable();
+        if (availableSegregationRef) {
+          await setFifoLock(OutboxSubscriber.ACTOR, availableSegregationRef);
+          const events = await claimEvents(claimToken, availableSegregationRef);
 
-        if (pendingEvents?.length > 0) {
-          await this.asyncLocalStorage.run(claimToken, async () =>
-            this.processEvents(pendingEvents),
-          );
+          if (events?.length > 0) {
+            await this.asyncLocalStorage.run(claimToken, async () =>
+              this.processEvents(events),
+            );
+          }
+          await freeFifoLock(OutboxSubscriber.ACTOR, availableSegregationRef);
         }
 
         await this.processResubmittedEvents();

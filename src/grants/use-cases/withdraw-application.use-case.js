@@ -40,6 +40,7 @@ export const withdrawApplicationUseCase = async (command, session) => {
       new Outbox({
         event: updateAgreementStatusCommand,
         target: config.sns.updateAgreementStatusTopicArn,
+        segregationRef: Outbox.getSegregationRef(updateAgreementStatusCommand),
       }),
     );
   } else {
@@ -59,6 +60,7 @@ export const withdrawApplicationUseCase = async (command, session) => {
       new Outbox({
         event: statusCommand,
         target: config.sns.updateCaseStatusTopicArn,
+        segregationRef: Outbox.getSegregationRef(statusCommand),
       }),
     );
   }
@@ -74,6 +76,7 @@ export const withdrawApplicationUseCase = async (command, session) => {
     new Outbox({
       event: statusEvent,
       target: config.sns.grantApplicationStatusUpdatedTopicArn,
+      segregationRef: Outbox.getSegregationRef(statusEvent),
     }),
   );
   await insertMany(outboxObjects, session);
