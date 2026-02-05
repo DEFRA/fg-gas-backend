@@ -9,7 +9,7 @@ vi.mock("../repositories/outbox.repository.js");
 vi.mock("../repositories/application.repository.js");
 
 describe("create agreement use case", () => {
-  it.only("should create outbox publication", async () => {
+  it("should create outbox publication", async () => {
     const session = {};
     const application = Application.new({
       currentPhase: "PRE_AWARD",
