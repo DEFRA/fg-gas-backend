@@ -30,11 +30,15 @@ export class UpdateCaseStatusCommand extends CloudEvent {
       supplementaryData.data = data;
     }
 
-    super("case.update.status", {
-      caseRef,
-      workflowCode,
-      newStatus,
-      supplementaryData,
-    });
+    super(
+      "case.update.status",
+      {
+        caseRef,
+        workflowCode,
+        newStatus,
+        supplementaryData,
+      },
+      `${caseRef}-${workflowCode}`,
+    );
   }
 }

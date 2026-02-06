@@ -13,7 +13,26 @@ describe("save inbox message", () => {
   it("saves a message", async () => {
     insertOne.mockResolvedValue(true);
     findByMessageId.mockResolvedValue(null);
-    const message = {};
+    const message = {
+      data: {
+        caseRef: "caseref-1234",
+        workflowCode: "workflow-1",
+      },
+    };
+    await saveInboxMessageUseCase(message, "CW");
+    expect(findByMessageId).toHaveBeenCalledTimes(1);
+    expect(insertOne).toHaveBeenCalledWith(expect.any(Inbox));
+  });
+
+  it("saves a message using clientRef", async () => {
+    insertOne.mockResolvedValue(true);
+    findByMessageId.mockResolvedValue(null);
+    const message = {
+      data: {
+        clientRef: "client-ref-1234",
+        grantCode: "grant-1",
+      },
+    };
     await saveInboxMessageUseCase(message, "CW");
     expect(findByMessageId).toHaveBeenCalledTimes(1);
     expect(insertOne).toHaveBeenCalledWith(expect.any(Inbox));

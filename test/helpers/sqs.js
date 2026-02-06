@@ -5,6 +5,7 @@ import {
   SendMessageCommand,
   SQSClient,
 } from "@aws-sdk/client-sqs";
+import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { env } from "process";
 
@@ -59,6 +60,7 @@ export const sendMessage = async (queueUrl, message) =>
       QueueUrl: queueUrl,
       MessageBody: JSON.stringify(message),
       DelaySeconds: 0,
+      MessageGroupId: randomUUID(),
     }),
   );
 

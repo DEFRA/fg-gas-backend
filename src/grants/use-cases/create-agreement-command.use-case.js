@@ -23,6 +23,7 @@ export const createAgreementCommandUseCase = async (
       new Outbox({
         event: createAgreementCommand,
         target: config.sns.createAgreementTopicArn,
+        segregationRef: Outbox.getSegregationRef(createAgreementCommand),
       }),
     ],
     session,
