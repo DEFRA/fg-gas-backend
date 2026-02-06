@@ -31,7 +31,7 @@ const schema = Joi.object({
   INBOX_EXPIRES_MS: Joi.number(),
   INBOX_CLAIM_MAX_RECORDS: Joi.number(),
   INBOX_POLL_MS: Joi.number(),
-  FIFO_LOCK_TTL_MS: Joi.number().default(300000),
+  FIFO_LOCK_TTL_MS: Joi.number(),
   GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
