@@ -13,6 +13,7 @@ import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import { Outbox } from "../models/outbox.js";
 import {
+  cleanupStaleLocks,
   freeFifoLock,
   getFifoLocks,
   setFifoLock,
@@ -277,5 +278,93 @@ describe("outbox.subscriber", () => {
     const subscriber = new OutboxSubscriber();
     await subscriber.processDeadEvents();
     expect(updateDeadEvents).toHaveBeenCalled();
+  });
+
+  it("should release lock even when claimEvents throws an error", async () => {
+    const error = new Error("claimEvents failed");
+    vi.spyOn(logger, "error");
+
+    findNextMessage.mockResolvedValue(
+      createOutbox({ segregationRef: "ref_1" }),
+    );
+    getFifoLocks.mockResolvedValue([]);
+    setFifoLock.mockResolvedValue();
+    freeFifoLock.mockResolvedValue();
+    claimEvents.mockRejectedValueOnce(error).mockResolvedValue([]);
+
+    const subscriber = new OutboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(error, "Error polling outbox");
+    });
+
+    expect(setFifoLock).toHaveBeenCalledWith(OutboxSubscriber.ACTOR, "ref_1");
+    expect(freeFifoLock).toHaveBeenCalledWith(OutboxSubscriber.ACTOR, "ref_1");
+
+    subscriber.stop();
+  });
+
+  it("should release lock even when processEvents throws an error", async () => {
+    const error = new Error("processEvents failed");
+    vi.spyOn(logger, "error");
+
+    findNextMessage.mockResolvedValue(
+      createOutbox({ segregationRef: "ref_1" }),
+    );
+    getFifoLocks.mockResolvedValue([]);
+    setFifoLock.mockResolvedValue();
+    freeFifoLock.mockResolvedValue();
+    claimEvents
+      .mockResolvedValueOnce([Outbox.createMock()])
+      .mockResolvedValue([]);
+    vi.spyOn(OutboxSubscriber.prototype, "processEvents").mockRejectedValueOnce(
+      error,
+    );
+
+    const subscriber = new OutboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(error, "Error polling outbox");
+    });
+
+    expect(setFifoLock).toHaveBeenCalledWith(OutboxSubscriber.ACTOR, "ref_1");
+    expect(freeFifoLock).toHaveBeenCalledWith(OutboxSubscriber.ACTOR, "ref_1");
+
+    subscriber.stop();
+  });
+
+  it("should call cleanupStaleLocks during poll", async () => {
+    findNextMessage.mockResolvedValue(null);
+    getFifoLocks.mockResolvedValue([]);
+    cleanupStaleLocks.mockResolvedValue({ modifiedCount: 0 });
+
+    const subscriber = new OutboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(cleanupStaleLocks).toHaveBeenCalled();
+    });
+
+    subscriber.stop();
+  });
+
+  it("should log when stale locks are cleaned up", async () => {
+    vi.spyOn(logger, "trace");
+    findNextMessage.mockResolvedValue(null);
+    getFifoLocks.mockResolvedValue([]);
+    cleanupStaleLocks.mockResolvedValue({ modifiedCount: 3 });
+
+    const subscriber = new OutboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.trace).toHaveBeenCalledWith(
+        "Cleaned up 3 stale fifo locks",
+      );
+    });
+
+    subscriber.stop();
   });
 });

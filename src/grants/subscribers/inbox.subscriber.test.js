@@ -13,6 +13,7 @@ import { logger } from "../../common/logger.js";
 import { withTraceParent } from "../../common/trace-parent.js";
 import { Inbox } from "../models/inbox.js";
 import {
+  cleanupStaleLocks,
   freeFifoLock,
   getFifoLocks,
   setFifoLock,
@@ -145,6 +146,86 @@ describe("inbox.subscriber", () => {
     vi.advanceTimersByTime(500);
     expect(subscriber.running).toBeFalsy();
     expect(claimEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("should release lock even when claimEvents throws an error", async () => {
+    const error = new Error("claimEvents failed");
+    vi.spyOn(logger, "error");
+
+    findNextMessage.mockResolvedValue(createInbox({ segregationRef: "ref_1" }));
+    getFifoLocks.mockResolvedValue([]);
+    setFifoLock.mockResolvedValue();
+    freeFifoLock.mockResolvedValue();
+    claimEvents.mockRejectedValueOnce(error).mockResolvedValue([]);
+
+    const subscriber = new InboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(error, "Error polling inbox");
+    });
+
+    expect(setFifoLock).toHaveBeenCalledWith(InboxSubscriber.ACTOR, "ref_1");
+    expect(freeFifoLock).toHaveBeenCalledWith(InboxSubscriber.ACTOR, "ref_1");
+
+    subscriber.stop();
+  });
+
+  it("should release lock even when processEvents throws an error", async () => {
+    const error = new Error("processEvents failed");
+    vi.spyOn(logger, "error");
+
+    findNextMessage.mockResolvedValue(createInbox({ segregationRef: "ref_1" }));
+    getFifoLocks.mockResolvedValue([]);
+    setFifoLock.mockResolvedValue();
+    freeFifoLock.mockResolvedValue();
+    claimEvents.mockResolvedValueOnce([createInbox()]).mockResolvedValue([]);
+    vi.spyOn(InboxSubscriber.prototype, "processEvents").mockRejectedValueOnce(
+      error,
+    );
+
+    const subscriber = new InboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(error, "Error polling inbox");
+    });
+
+    expect(setFifoLock).toHaveBeenCalledWith(InboxSubscriber.ACTOR, "ref_1");
+    expect(freeFifoLock).toHaveBeenCalledWith(InboxSubscriber.ACTOR, "ref_1");
+
+    subscriber.stop();
+  });
+
+  it("should call cleanupStaleLocks during poll", async () => {
+    findNextMessage.mockResolvedValue(null);
+    getFifoLocks.mockResolvedValue([]);
+    cleanupStaleLocks.mockResolvedValue({ modifiedCount: 0 });
+
+    const subscriber = new InboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(cleanupStaleLocks).toHaveBeenCalled();
+    });
+
+    subscriber.stop();
+  });
+
+  it("should log when stale locks are cleaned up", async () => {
+    vi.spyOn(logger, "info");
+    findNextMessage.mockResolvedValue(null);
+    getFifoLocks.mockResolvedValue([]);
+    cleanupStaleLocks.mockResolvedValue({ modifiedCount: 3 });
+
+    const subscriber = new InboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.info).toHaveBeenCalledWith("Cleaned up 3 stale fifo locks");
+    });
+
+    subscriber.stop();
   });
 
   describe("available segregation Ref", () => {
