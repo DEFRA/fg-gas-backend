@@ -37,7 +37,6 @@ export class OutboxSubscriber {
     return available?.segregationRef;
   }
 
-  // eslint-disable-next-line complexity
   async poll() {
     while (this.running) {
       logger.trace("Polling outbox");
@@ -46,21 +45,7 @@ export class OutboxSubscriber {
         const claimToken = randomUUID();
         const availableSegregationRef = await this.getNextAvailable();
         if (availableSegregationRef) {
-          await setFifoLock(OutboxSubscriber.ACTOR, availableSegregationRef);
-          try {
-            const events = await claimEvents(
-              claimToken,
-              availableSegregationRef,
-            );
-
-            if (events?.length > 0) {
-              await this.asyncLocalStorage.run(claimToken, async () =>
-                this.processEvents(events),
-              );
-            }
-          } finally {
-            await freeFifoLock(OutboxSubscriber.ACTOR, availableSegregationRef);
-          }
+          await this.processWithLock(claimToken, availableSegregationRef);
         }
 
         await this.processResubmittedEvents();
@@ -73,6 +58,21 @@ export class OutboxSubscriber {
       }
 
       await setTimeout(this.interval);
+    }
+  }
+
+  async processWithLock(claimToken, segregationRef) {
+    await setFifoLock(OutboxSubscriber.ACTOR, segregationRef);
+    try {
+      const events = await claimEvents(claimToken, segregationRef);
+
+      if (events?.length > 0) {
+        await this.asyncLocalStorage.run(claimToken, async () =>
+          this.processEvents(events),
+        );
+      }
+    } finally {
+      await freeFifoLock(OutboxSubscriber.ACTOR, segregationRef);
     }
   }
 

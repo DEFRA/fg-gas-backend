@@ -41,16 +41,7 @@ export class InboxSubscriber {
         const claimToken = randomUUID();
         const availableSegregationRef = await this.getNextAvailable();
         if (availableSegregationRef) {
-          await setFifoLock(InboxSubscriber.ACTOR, availableSegregationRef);
-          try {
-            const events = await claimEvents(
-              claimToken,
-              availableSegregationRef,
-            );
-            await this.processEvents(events);
-          } finally {
-            await freeFifoLock(InboxSubscriber.ACTOR, availableSegregationRef);
-          }
+          await this.processWithLock(claimToken, availableSegregationRef);
         }
         await this.processResubmittedEvents();
         await this.processFailedEvents();
@@ -61,6 +52,16 @@ export class InboxSubscriber {
       }
 
       await setTimeout(this.interval);
+    }
+  }
+
+  async processWithLock(claimToken, segregationRef) {
+    await setFifoLock(InboxSubscriber.ACTOR, segregationRef);
+    try {
+      const events = await claimEvents(claimToken, segregationRef);
+      await this.processEvents(events);
+    } finally {
+      await freeFifoLock(InboxSubscriber.ACTOR, segregationRef);
     }
   }
 
