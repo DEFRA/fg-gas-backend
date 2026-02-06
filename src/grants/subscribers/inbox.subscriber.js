@@ -46,7 +46,7 @@ export class InboxSubscriber {
         await this.processResubmittedEvents();
         await this.processFailedEvents();
         await this.processDeadEvents();
-        await this.cleanupStaleLocks();
+        await this.cleanupStaleLocks(InboxSubscriber.ACTOR);
       } catch (error) {
         logger.error(error, "Error polling inbox");
       }

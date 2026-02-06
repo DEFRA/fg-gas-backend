@@ -37,12 +37,13 @@ export const freeFifoLock = async (actor, segregationRef) => {
   );
 };
 
-export const cleanupStaleLocks = async () => {
+export const cleanupStaleLocks = async (actor) => {
   const staleThreshold = new Date(Date.now() - config.fifoLock.ttlMs);
   const result = await db.collection(collection).updateMany(
     {
       locked: true,
       lockedAt: { $lt: staleThreshold },
+      actor,
     },
     {
       $set: {

@@ -52,7 +52,7 @@ export class OutboxSubscriber {
         await this.processFailedEvents();
         await this.processDeadEvents();
         await this.processExpiredEvents();
-        await this.cleanupStaleLocks();
+        await this.cleanupStaleLocks(OutboxSubscriber.ACTOR);
       } catch (error) {
         logger.error(error, "Error polling outbox");
       }
