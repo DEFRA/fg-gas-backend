@@ -147,7 +147,6 @@ export class OutboxSubscriber {
     logger.trace("All outbox events processed.");
   }
 
-  // TODO: remove once there are no more standard events
   getMessageGroupId(id, data) {
     return getMessageGroupId(id, data);
   }
