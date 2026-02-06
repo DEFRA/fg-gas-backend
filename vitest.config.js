@@ -38,6 +38,7 @@ export default defineConfig({
       INBOX_CLAIM_MAX_RECORDS: 2,
       INBOX_EXPIRES_MS: 5000,
       INBOX_POLL_MS: 250,
+      FIFO_LOCK_TTL_MS: 300000,
     },
   },
 });

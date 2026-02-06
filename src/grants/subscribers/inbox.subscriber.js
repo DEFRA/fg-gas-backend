@@ -5,6 +5,7 @@ import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { withTraceParent } from "../../common/trace-parent.js";
 import {
+  cleanupStaleLocks,
   freeFifoLock,
   getFifoLocks,
   setFifoLock,
@@ -41,13 +42,20 @@ export class InboxSubscriber {
         const availableSegregationRef = await this.getNextAvailable();
         if (availableSegregationRef) {
           await setFifoLock(InboxSubscriber.ACTOR, availableSegregationRef);
-          const events = await claimEvents(claimToken, availableSegregationRef);
-          await this.processEvents(events);
-          await freeFifoLock(InboxSubscriber.ACTOR, availableSegregationRef);
+          try {
+            const events = await claimEvents(
+              claimToken,
+              availableSegregationRef,
+            );
+            await this.processEvents(events);
+          } finally {
+            await freeFifoLock(InboxSubscriber.ACTOR, availableSegregationRef);
+          }
         }
         await this.processResubmittedEvents();
         await this.processFailedEvents();
         await this.processDeadEvents();
+        await this.cleanupStaleLocks();
       } catch (error) {
         logger.error(error, "Error polling inbox");
       }
@@ -79,6 +87,12 @@ export class InboxSubscriber {
     const results = await updateFailedEvents();
     results?.modifiedCount &&
       logger.info(`Updated ${results?.modifiedCount} failed inbox events`);
+  }
+
+  async cleanupStaleLocks() {
+    const results = await cleanupStaleLocks();
+    results?.modifiedCount &&
+      logger.info(`Cleaned up ${results?.modifiedCount} stale fifo locks`);
   }
 
   async markEventFailed(inboxEvent) {

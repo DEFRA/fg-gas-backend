@@ -1,3 +1,4 @@
+import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import { FifoLock } from "../models/fifo-lock.js";
 
@@ -34,4 +35,21 @@ export const freeFifoLock = async (actor, segregationRef) => {
       },
     },
   );
+};
+
+export const cleanupStaleLocks = async () => {
+  const staleThreshold = new Date(Date.now() - config.fifoLock.ttlMs);
+  const result = await db.collection(collection).updateMany(
+    {
+      locked: true,
+      lockedAt: { $lt: staleThreshold },
+    },
+    {
+      $set: {
+        lockedAt: null,
+        locked: false,
+      },
+    },
+  );
+  return result;
 };

@@ -6,6 +6,7 @@ import { getMessageGroupId } from "../../common/get-message-group-id.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import {
+  cleanupStaleLocks,
   freeFifoLock,
   getFifoLocks,
   setFifoLock,
@@ -46,20 +47,27 @@ export class OutboxSubscriber {
         const availableSegregationRef = await this.getNextAvailable();
         if (availableSegregationRef) {
           await setFifoLock(OutboxSubscriber.ACTOR, availableSegregationRef);
-          const events = await claimEvents(claimToken, availableSegregationRef);
-
-          if (events?.length > 0) {
-            await this.asyncLocalStorage.run(claimToken, async () =>
-              this.processEvents(events),
+          try {
+            const events = await claimEvents(
+              claimToken,
+              availableSegregationRef,
             );
+
+            if (events?.length > 0) {
+              await this.asyncLocalStorage.run(claimToken, async () =>
+                this.processEvents(events),
+              );
+            }
+          } finally {
+            await freeFifoLock(OutboxSubscriber.ACTOR, availableSegregationRef);
           }
-          await freeFifoLock(OutboxSubscriber.ACTOR, availableSegregationRef);
         }
 
         await this.processResubmittedEvents();
         await this.processFailedEvents();
         await this.processDeadEvents();
         await this.processExpiredEvents();
+        await this.cleanupStaleLocks();
       } catch (error) {
         logger.error(error, "Error polling outbox");
       }
@@ -94,6 +102,12 @@ export class OutboxSubscriber {
       logger.trace(`Updated ${results?.modifiedCount} failed outbox events`);
   }
 
+  async cleanupStaleLocks() {
+    const results = await cleanupStaleLocks();
+    results?.modifiedCount &&
+      logger.trace(`Cleaned up ${results?.modifiedCount} stale fifo locks`);
+  }
+
   async markEventUnsent(event) {
     const claimedBy = this.asyncLocalStorage.getStore();
     event.markAsFailed();
@@ -124,7 +138,7 @@ export class OutboxSubscriber {
       await this.markEventComplete(event);
     } catch (ex) {
       logger.error(ex);
-      this.markEventUnsent(event);
+      await this.markEventUnsent(event);
     }
   }
 
