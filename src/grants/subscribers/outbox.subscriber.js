@@ -143,7 +143,9 @@ export class OutboxSubscriber {
   }
 
   async processEvents(events) {
-    await Promise.all(events.map((event) => this.sendEvent(event)));
+    for (const event of events) {
+      await this.sendEvent(event);
+    }
     logger.trace("All outbox events processed.");
   }
 
