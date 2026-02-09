@@ -1,5 +1,6 @@
 import { Verifier } from "@pact-foundation/pact";
 import { afterAll, beforeAll, describe, it, vi } from "vitest";
+import { getGrant } from "./load-grants.js";
 import { buildVerifierOptions } from "./verifierConfig.js";
 
 // Mock mongo-client at the top level before any imports
@@ -43,6 +44,22 @@ vi.mock("../../src/common/mongo-client.js", () => {
               agreements: [],
             };
           }
+          // New pact: frps-private-beta with client reference 710-877-8fd
+          if (code === "frps-private-beta" && clientRef === "710-877-8fd") {
+            return {
+              code: "frps-private-beta",
+              clientRef: "710-877-8fd",
+              currentPhase: "PRE_AWARD",
+              currentStage: "REVIEW_APPLICATION",
+              currentStatus: "APPLICATION_RECEIVED",
+              identifiers: {
+                sbi: "107365747",
+                frn: "1101313269",
+                crn: "1103623923",
+              },
+              agreements: [],
+            };
+          }
           return null;
         }),
         findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
@@ -61,42 +78,52 @@ vi.mock("../../src/common/mongo-client.js", () => {
       };
     }
 
+    // Grants collection - return grant based on query
     return {
-      findOne: vi.fn().mockResolvedValue({
-        code: "example-grant-with-auth-v3",
-        metadata: {
-          description: "Example Grant with Auth v3",
-          startDate: "2025-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        questions: {
-          type: "object",
-          properties: {
-            applicantName: { type: "string" },
-            applicantEmail: { type: "string" },
+      findOne: vi.fn(async (query = {}) => {
+        const { code } = query;
+
+        // New pact: frps-private-beta - use grant from migrations
+        if (code === "frps-private-beta") {
+          return getGrant("frps-private-beta");
+        }
+
+        return {
+          code: "example-grant-with-auth-v3",
+          metadata: {
+            description: "Example Grant with Auth v3",
+            startDate: "2025-01-01T00:00:00.000Z",
           },
-          required: ["applicantName", "applicantEmail"],
-        },
-        phases: [
-          {
-            code: "APPLICATION",
-            name: "Application",
-            description: "Application phase",
-            questions: {},
-            stages: [
-              {
-                code: "SUBMIT",
-                name: "Submit",
-                description: "Submit application",
-                statuses: [
-                  {
-                    code: "RECEIVED",
-                  },
-                ],
-              },
-            ],
+          actions: [],
+          questions: {
+            type: "object",
+            properties: {
+              applicantName: { type: "string" },
+              applicantEmail: { type: "string" },
+            },
+            required: ["applicantName", "applicantEmail"],
           },
-        ],
+          phases: [
+            {
+              code: "APPLICATION",
+              name: "Application",
+              description: "Application phase",
+              questions: {},
+              stages: [
+                {
+                  code: "SUBMIT",
+                  name: "Submit",
+                  description: "Submit application",
+                  statuses: [
+                    {
+                      code: "RECEIVED",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        };
       }),
       findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
       insertOne: vi.fn().mockResolvedValue({ insertedId: "test-id" }),
@@ -227,12 +254,41 @@ describe("fg-gas-backend Provider Verification", () => {
 
       const stateHandlers = {
         // State handlers with mocked backend - real service, mocked data layer
+
+        // ============================================================
+        // Old pact: example-grant-with-auth-v3 state handlers
+        // ============================================================
         "example-grant-with-auth-v3 is configured in fg-gas-backend":
           async () => {
             console.log(
               "State: example-grant-with-auth-v3 is configured (real service, mocked data)",
             );
-            // Real service will use mocked MongoDB that returns the grant
+            return Promise.resolve();
+          },
+
+        "example-grant-with-auth-v3 is configured in fg-gas-backend with a client reference egwa-123-abc":
+          async () => {
+            console.log(
+              "State: example-grant-with-auth-v3 with client ref egwa-123-abc (real service, mocked data)",
+            );
+            return Promise.resolve();
+          },
+
+        // ============================================================
+        // New pact: frps-private-beta state handlers
+        // ============================================================
+        "frps-private-beta is configured in fg-gas-backend": async () => {
+          console.log(
+            "State: frps-private-beta is configured (real service, mocked data)",
+          );
+          return Promise.resolve();
+        },
+
+        "frps-private-beta is configured in fg-gas-backend with a client reference 710-877-8fd":
+          async () => {
+            console.log(
+              "State: frps-private-beta with client ref 710-877-8fd (real service, mocked data)",
+            );
             return Promise.resolve();
           },
 
