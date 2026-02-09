@@ -138,11 +138,20 @@ Corrected to reflect actual architecture:
    - Consumer: fg-gas-backend
    - Provider: farming-grants-agreements-api
    - Type: Message contract
+   - Test: `consumer.agreements-api.test.js`
 
-2. **grants-ui → fg-gas-backend** (HTTP API)
+2. **fg-gas-backend → fg-cw-backend** (SNS Messages)
+   - Consumer: fg-gas-backend
+   - Provider: fg-cw-backend
+   - Type: Message contract
+   - Test: `consumer.cw-backend.test.js`
+   - Messages: CaseStatusUpdatedEvent
+
+3. **grants-ui → fg-gas-backend** (HTTP API)
    - Consumer: grants-ui
    - Provider: fg-gas-backend
    - Type: HTTP contract
+   - Test: `provider.verification.test.js`
 
 ## Workflow
 
@@ -159,6 +168,24 @@ Corrected to reflect actual architecture:
 2. Write provider verification tests
 3. Verify their message producer meets GAS expectations
 4. Publish verification results
+
+### For Case Working Integration (GAS ↔ CW):
+
+**GAS as Consumer (receives from CW):**
+
+1. Define what messages GAS expects from CW (`consumer.cw-backend.test.js`)
+2. Run consumer tests to generate pact
+3. Publish pact to broker
+4. CW team writes provider tests to verify they meet contract
+
+**Key Message: CaseStatusUpdatedEvent**
+
+- **Purpose**: CW notifies GAS when case status changes
+- **Critical Fields**:
+  - `source`: Must be "fg-cw-backend", "CaseWorking", or "CW" (for routing)
+  - `data.currentStatus`: Format "PHASE:STAGE:STATUS" (e.g., "PRE_AWARD:ASSESSMENT:WITHDRAWAL_REQUESTED")
+  - `data.caseRef`: Maps to application.clientRef in GAS
+  - `data.workflowCode`: For validation
 
 ## Related Documentation
 
