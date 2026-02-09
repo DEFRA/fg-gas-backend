@@ -56,7 +56,13 @@ export class InboxSubscriber {
   }
 
   async processWithLock(claimToken, segregationRef) {
-    await setFifoLock(InboxSubscriber.ACTOR, segregationRef);
+    const lock = await setFifoLock(InboxSubscriber.ACTOR, segregationRef);
+    if (lock.matchedCount === 0 && lock.modifiedCount === 0) {
+      logger.info(
+        `Inbox Unable to process lock for segregationRef ${segregationRef}`,
+      );
+      return;
+    }
     try {
       const events = await claimEvents(claimToken, segregationRef);
       await this.processEvents(events);
@@ -90,8 +96,8 @@ export class InboxSubscriber {
       logger.info(`Updated ${results?.modifiedCount} failed inbox events`);
   }
 
-  async cleanupStaleLocks() {
-    const results = await cleanupStaleLocks();
+  async cleanupStaleLocks(actor) {
+    const results = await cleanupStaleLocks(actor);
     results?.modifiedCount &&
       logger.info(`Cleaned up ${results?.modifiedCount} stale fifo locks`);
   }

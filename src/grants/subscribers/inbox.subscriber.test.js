@@ -66,7 +66,7 @@ describe("inbox.subscriber", () => {
     findNextMessage.mockResolvedValue(createInbox({ segregationRef: "ref_1" }));
     claimEvents.mockResolvedValue([createInbox()]);
     getFifoLocks.mockResolvedValue([]);
-    setFifoLock.mockResolvedValue();
+    setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     freeFifoLock.mockResolvedValue();
     vi.spyOn(InboxSubscriber.prototype, "processEvents").mockResolvedValue();
     const subscriber = new InboxSubscriber();
@@ -94,7 +94,7 @@ describe("inbox.subscriber", () => {
     findNextMessage.mockResolvedValue(createInbox({ segregationRef: "ref_1" }));
     claimEvents.mockResolvedValue([createInbox()]);
     getFifoLocks.mockResolvedValue([]);
-    setFifoLock.mockResolvedValue();
+    setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     freeFifoLock.mockResolvedValue();
 
     claimEvents
@@ -133,7 +133,7 @@ describe("inbox.subscriber", () => {
     findNextMessage.mockResolvedValue(createInbox({ segregationRef: "ref_1" }));
     claimEvents.mockResolvedValue([createInbox()]);
     getFifoLocks.mockResolvedValue([]);
-    setFifoLock.mockResolvedValue();
+    setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     freeFifoLock.mockResolvedValue();
     claimEvents.mockResolvedValue([createInbox()]);
     const subscriber = new InboxSubscriber();
@@ -154,7 +154,7 @@ describe("inbox.subscriber", () => {
 
     findNextMessage.mockResolvedValue(createInbox({ segregationRef: "ref_1" }));
     getFifoLocks.mockResolvedValue([]);
-    setFifoLock.mockResolvedValue();
+    setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     freeFifoLock.mockResolvedValue();
     claimEvents.mockRejectedValueOnce(error).mockResolvedValue([]);
 
@@ -177,7 +177,7 @@ describe("inbox.subscriber", () => {
 
     findNextMessage.mockResolvedValue(createInbox({ segregationRef: "ref_1" }));
     getFifoLocks.mockResolvedValue([]);
-    setFifoLock.mockResolvedValue();
+    setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     freeFifoLock.mockResolvedValue();
     claimEvents.mockResolvedValueOnce([createInbox()]).mockResolvedValue([]);
     vi.spyOn(InboxSubscriber.prototype, "processEvents").mockRejectedValueOnce(
@@ -250,7 +250,7 @@ describe("inbox.subscriber", () => {
 
       const spy1 = vi.spyOn(InboxSubscriber.prototype, "processEvents");
       spy1.mockResolvedValue();
-      setFifoLock.mockResolvedValue();
+      setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
       freeFifoLock.mockResolvedValue();
       getFifoLocks.mockResolvedValue([]);
       findNextMessage.mockResolvedValue({ segregationRef: "ref-2" });
@@ -264,6 +264,28 @@ describe("inbox.subscriber", () => {
       });
       expect(spy1).toHaveBeenCalledTimes(1);
       expect(spy1.mock.calls[0][0][0]._id).toEqual("3");
+    });
+
+    it("should not proceed with processing if setFifoLock fails", async () => {
+      const claimToken = "test-token";
+      const segregationRef = "ref-x";
+      setFifoLock.mockResolvedValue({
+        matchedCount: 0,
+        modifiedCount: 0,
+      }); // Simulate lock not acquired
+      const processEventsSpy = vi.spyOn(
+        InboxSubscriber.prototype,
+        "processEvents",
+      );
+      const loggerInfoSpy = vi.spyOn(logger, "info");
+
+      const subscriber = new InboxSubscriber();
+      await subscriber.processWithLock(claimToken, segregationRef);
+
+      expect(processEventsSpy).not.toHaveBeenCalled();
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        `Inbox Unable to process lock for segregationRef ${segregationRef}`,
+      );
     });
   });
 

@@ -27,14 +27,14 @@ describe("fifo-lock.repository", () => {
     });
     await setFifoLock(ACTOR, "1234");
     expect(updateOne).toHaveBeenCalledWith(
-      { segregationRef: "1234", actor: ACTOR },
+      { locked: false, segregationRef: "1234", actor: ACTOR },
       {
         $set: {
           lockedAt: mockDate,
           locked: true,
         },
       },
-      { upsert: true },
+      { upsert: true, returnDocument: "after" },
     );
   });
 

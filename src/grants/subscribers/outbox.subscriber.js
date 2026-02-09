@@ -61,8 +61,15 @@ export class OutboxSubscriber {
     }
   }
 
+  // eslint-disable-next-line complexity
   async processWithLock(claimToken, segregationRef) {
-    await setFifoLock(OutboxSubscriber.ACTOR, segregationRef);
+    const lock = await setFifoLock(OutboxSubscriber.ACTOR, segregationRef);
+    if (lock.matchedCount === 0 && lock.modifiedCount === 0) {
+      logger.info(
+        `Outbox Unable to process lock for segregationref ${segregationRef}`,
+      );
+      return;
+    }
     try {
       const events = await claimEvents(claimToken, segregationRef);
 
@@ -102,8 +109,8 @@ export class OutboxSubscriber {
       logger.trace(`Updated ${results?.modifiedCount} failed outbox events`);
   }
 
-  async cleanupStaleLocks() {
-    const results = await cleanupStaleLocks();
+  async cleanupStaleLocks(actor) {
+    const results = await cleanupStaleLocks(actor);
     results?.modifiedCount &&
       logger.trace(`Cleaned up ${results?.modifiedCount} stale fifo locks`);
   }

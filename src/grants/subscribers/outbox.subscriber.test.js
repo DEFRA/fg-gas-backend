@@ -71,7 +71,7 @@ describe("outbox.subscriber", () => {
     );
     claimEvents.mockResolvedValue([Outbox.createMock()]);
     getFifoLocks.mockResolvedValue([]);
-    setFifoLock.mockResolvedValue();
+    setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     freeFifoLock.mockResolvedValue();
     vi.spyOn(OutboxSubscriber.prototype, "processEvents").mockResolvedValue();
     const subscriber = new OutboxSubscriber();
@@ -101,7 +101,7 @@ describe("outbox.subscriber", () => {
     );
     claimEvents.mockResolvedValue([Outbox.createMock()]);
     getFifoLocks.mockResolvedValue([]);
-    setFifoLock.mockResolvedValue();
+    setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     freeFifoLock.mockResolvedValue();
 
     claimEvents
@@ -141,7 +141,7 @@ describe("outbox.subscriber", () => {
     );
     claimEvents.mockResolvedValue([Outbox.createMock()]);
     getFifoLocks.mockResolvedValue([]);
-    setFifoLock.mockResolvedValue();
+    setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     freeFifoLock.mockResolvedValue();
     claimEvents.mockResolvedValue([Outbox.createMock()]);
     const subscriber = new OutboxSubscriber(10);
@@ -288,7 +288,7 @@ describe("outbox.subscriber", () => {
       createOutbox({ segregationRef: "ref_1" }),
     );
     getFifoLocks.mockResolvedValue([]);
-    setFifoLock.mockResolvedValue();
+    setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     freeFifoLock.mockResolvedValue();
     claimEvents.mockRejectedValueOnce(error).mockResolvedValue([]);
 
@@ -313,7 +313,7 @@ describe("outbox.subscriber", () => {
       createOutbox({ segregationRef: "ref_1" }),
     );
     getFifoLocks.mockResolvedValue([]);
-    setFifoLock.mockResolvedValue();
+    setFifoLock.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
     freeFifoLock.mockResolvedValue();
     claimEvents
       .mockResolvedValueOnce([Outbox.createMock()])
