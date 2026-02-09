@@ -46,6 +46,7 @@ describe("inbox claim events", () => {
       segregationRef: "ref_1",
       locked: true,
       lockedAt: new Date(Date.now()),
+      actor: "INBOX",
     });
   });
 
@@ -74,6 +75,7 @@ describe("inbox fifo", () => {
       segregationRef: "ref_1",
       locked: true,
       lockedAt: new Date(Date.now()),
+      actor: "INBOX",
     });
 
     await inbox.insertMany([

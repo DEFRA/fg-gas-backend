@@ -64,7 +64,7 @@ export class OutboxSubscriber {
   // eslint-disable-next-line complexity
   async processWithLock(claimToken, segregationRef) {
     const lock = await setFifoLock(OutboxSubscriber.ACTOR, segregationRef);
-    if (lock.matchedCount === 0 && lock.modifiedCount === 0) {
+    if (!lock.upsertedCount && !lock.modifiedCount) {
       logger.info(
         `Outbox Unable to process lock for segregationref ${segregationRef}`,
       );
