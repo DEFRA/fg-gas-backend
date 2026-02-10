@@ -70,6 +70,47 @@ describe("GAS Provider (sends messages to CW)", () => {
     });
   });
 
+  describe("CreateNewCaseCommand Provider Verification (without optional fields)", () => {
+    it("should verify GAS sends CreateNewCaseCommand without optional fields matching CW expectations", async () => {
+      const messagePact = new MessageProviderPact({
+        messageProviders: {
+          "a create new case command from GAS without optional fields": () => {
+            const mockApplication = {
+              clientRef: "CASE-REF-002",
+              code: "frps-private-beta",
+              createdAt: "2025-02-09T11:00:00.000Z",
+              submittedAt: "2025-02-09T12:00:00.000Z",
+              identifiers: {
+                sbi: "SBI002",
+                frn: "FIRM0002",
+                crn: "CUST0002",
+              },
+              getAnswers() {
+                return {
+                  scheme: "SFI",
+                  year: 2025,
+                  hasCheckedLandIsUpToDate: true,
+                };
+              },
+            };
+
+            const command = new CreateNewCaseCommand(mockApplication);
+
+            return providerWithMetadata(command, {
+              contentType: "application/json",
+            });
+          },
+        },
+      });
+
+      const verifyOpts = buildMessageVerifierOptions({
+        consumerName: "fg-cw-backend",
+      });
+
+      return messagePact.verify(verifyOpts);
+    });
+  });
+
   describe("UpdateCaseStatusCommand Provider Verification", () => {
     it("should verify GAS sends UpdateCaseStatusCommand matching CW expectations", async () => {
       const messagePact = new MessageProviderPact({
@@ -103,6 +144,35 @@ describe("GAS Provider (sends messages to CW)", () => {
       });
 
       // Verify against the pact file from broker (or local if PACT_USE_LOCAL=true)
+      const verifyOpts = buildMessageVerifierOptions({
+        consumerName: "fg-cw-backend",
+      });
+
+      return messagePact.verify(verifyOpts);
+    });
+  });
+
+  describe("UpdateCaseStatusCommand Provider Verification (without optional supplementary data fields)", () => {
+    it("should verify GAS sends UpdateCaseStatusCommand with minimal supplementary data matching CW expectations", async () => {
+      const messagePact = new MessageProviderPact({
+        messageProviders: {
+          "a case status update command from GAS without optional supplementary data fields":
+            () => {
+              const command = new UpdateCaseStatusCommand({
+                caseRef: "CASE-REF-002",
+                workflowCode: "frps-private-beta",
+                newStatus: "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+                phase: "PRE_AWARD",
+                stage: "ASSESSMENT",
+              });
+
+              return providerWithMetadata(command, {
+                contentType: "application/json",
+              });
+            },
+        },
+      });
+
       const verifyOpts = buildMessageVerifierOptions({
         consumerName: "fg-cw-backend",
       });
