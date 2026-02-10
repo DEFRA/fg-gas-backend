@@ -104,11 +104,43 @@ npm run test:contract -- test/contract/provider.verification.test.js
 npm run test:contract
 ```
 
+This runs all contract tests (consumer and provider) and fetches pacts from the broker by default.
+
+### Run Tests in Local Mode
+
+```bash
+npm run test:contract:local
+```
+
+This runs tests using local pact files from `tmp/pacts/` instead of fetching from the broker. Useful for local development when you want to test against locally generated pacts.
+
+**Environment Variables**:
+
+- `PACT_USE_LOCAL=true` - Use local pact files instead of broker
+- `PACT_LOCAL_DIR` - Custom directory for local pacts (default: `tmp/pacts`)
+- `PACT_BROKER_BASE_URL` - Pact broker URL (default: `https://ffc-pact-broker.azure.defra.cloud`)
+- `PACT_USER` - Broker username
+- `PACT_PASS` - Broker password
+- `PACT_PUBLISH_VERIFICATION` - Publish verification results to broker (default: `false`)
+
 ### Publish Verification Results
 
 ```bash
 PACT_PUBLISH_VERIFICATION=true npm run test:contract
 ```
+
+### Provider Tests for Message Contracts
+
+Provider tests for message contracts (CW and Agreement Service) use `MessageProviderPact` and fetch pacts from the broker by default. The configuration is handled by `messageVerifierConfig.js`:
+
+- In CI: Fetches from broker using `PACT_USER` and `PACT_PASS`
+- Locally: Set `PACT_USE_LOCAL=true` to test against local pact files
+
+**Files**:
+
+- `provider.cw-backend.test.js` - Verifies GAS sends correct messages to CW
+- `verifierConfig.js` - Configuration for HTTP provider verification
+- `messageVerifierConfig.js` - Configuration for message provider verification
 
 ## Historical Issue: Reversed Roles
 
