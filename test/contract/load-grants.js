@@ -91,8 +91,8 @@ async function loadGrantsFromMigrations() {
       `Successfully loaded ${grants.size} grant(s) from migrations: ${[...grants.keys()].join(", ")}`,
     );
   } finally {
-    await memoryClient.close();
-    await mongoMemoryServer.stop();
+    // Cleanup handled by Node.js on process exit
+    // Explicit cleanup causes race conditions with MongoDB background operations
   }
 
   return grants;
