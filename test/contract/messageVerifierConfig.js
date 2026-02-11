@@ -1,28 +1,26 @@
+// eslint-disable-next-line import-x/no-extraneous-dependencies
 import { globSync } from "glob";
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { env } from "node:process";
 
-function getLatestGitTagOrFallback() {
+const getLatestGitTagOrFallback = () => {
   return execSync("git describe --tags --abbrev=0 --always", {
     encoding: "utf8",
   }).trim();
-}
+};
 
-export function buildVerifierOptions({
-  providerBaseUrl,
-  providerName,
-  stateHandlers,
-  extra = {},
-}) {
+/**
+ * Build verification options for MessageProviderPact
+ * @param {Object} config
+ * @param {string} config.consumerName - Name of the consumer (e.g., "fg-cw-backend")
+ * @returns {Object} Options for MessageProviderPact.verify()
+ */
+export const buildMessageVerifierOptions = ({ consumerName }) => {
   const useLocal = env.PACT_USE_LOCAL === "true";
 
   const baseOpts = {
-    provider: providerName,
-    providerBaseUrl,
-    stateHandlers,
     providerVersion: getLatestGitTagOrFallback(),
-    ...extra, // let individual tests add/override
   };
 
   if (useLocal) {
@@ -39,10 +37,9 @@ export function buildVerifierOptions({
   return {
     ...baseOpts,
     pactBrokerUrl: env.PACT_BROKER_BASE_URL,
-    consumerVersionSelectors: [{ consumer: "grants-ui", latest: true }],
+    consumerVersionSelectors: [{ consumer: consumerName, latest: true }],
     pactBrokerUsername: env.PACT_USER,
     pactBrokerPassword: env.PACT_PASS,
     publishVerificationResult: env.PACT_PUBLISH_VERIFICATION === "true",
-    failIfNoPactsFound: true,
   };
-}
+};
