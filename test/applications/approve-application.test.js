@@ -61,8 +61,9 @@ describe("On CaseStatusUpdated", () => {
     });
 
     await expect(outbox).toHaveRecord({
-      target: env.GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN,
+      target: env.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
     });
+
     await expect(outbox).toHaveRecord({
       target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
     });
