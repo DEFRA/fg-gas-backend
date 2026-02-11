@@ -36,8 +36,7 @@ export const buildMessageVerifierOptions = ({ consumerName }) => {
 
   return {
     ...baseOpts,
-    pactBrokerUrl:
-      env.PACT_BROKER_BASE_URL || "https://ffc-pact-broker.azure.defra.cloud",
+    pactBrokerUrl: env.PACT_BROKER_BASE_URL,
     consumerVersionSelectors: [{ consumer: consumerName, latest: true }],
     pactBrokerUsername: env.PACT_USER,
     pactBrokerPassword: env.PACT_PASS,
