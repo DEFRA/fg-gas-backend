@@ -4,13 +4,9 @@ import path from "node:path";
 import { env } from "node:process";
 
 function getLatestGitTagOrFallback() {
-  try {
-    return execSync("git describe --tags --abbrev=0 --always", {
-      encoding: "utf8",
-    }).trim();
-  } catch {
-    return "dev";
-  }
+  return execSync("git describe --tags --abbrev=0 --always", {
+    encoding: "utf8",
+  }).trim();
 }
 
 export function buildVerifierOptions({
@@ -42,8 +38,7 @@ export function buildVerifierOptions({
 
   return {
     ...baseOpts,
-    pactBrokerUrl:
-      env.PACT_BROKER_BASE_URL || "https://ffc-pact-broker.azure.defra.cloud",
+    pactBrokerUrl: env.PACT_BROKER_BASE_URL,
     consumerVersionSelectors: [{ consumer: "grants-ui", latest: true }],
     pactBrokerUsername: env.PACT_USER,
     pactBrokerPassword: env.PACT_PASS,

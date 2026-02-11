@@ -14,3 +14,7 @@ test/reports/
 .tmp
 /http-client.private.env.json
 /tmp/
+test/contract/CONTRACT_TESTS_NEEDED.md
+
+# Pact CLI standalone installation
+pact/
