@@ -104,11 +104,43 @@ npm run test:contract -- test/contract/provider.verification.test.js
 npm run test:contract
 ```
 
+This runs all contract tests (consumer and provider) and fetches pacts from the broker by default.
+
+### Run Tests in Local Mode
+
+```bash
+npm run test:contract:local
+```
+
+This runs tests using local pact files from `tmp/pacts/` instead of fetching from the broker. Useful for local development when you want to test against locally generated pacts.
+
+**Environment Variables**:
+
+- `PACT_USE_LOCAL=true` - Use local pact files instead of broker
+- `PACT_LOCAL_DIR` - Custom directory for local pacts (default: `tmp/pacts`)
+- `PACT_BROKER_BASE_URL` - Pact broker URL (default: `https://ffc-pact-broker.azure.defra.cloud`)
+- `PACT_USER` - Broker username
+- `PACT_PASS` - Broker password
+- `PACT_PUBLISH_VERIFICATION` - Publish verification results to broker (default: `false`)
+
 ### Publish Verification Results
 
 ```bash
 PACT_PUBLISH_VERIFICATION=true npm run test:contract
 ```
+
+### Provider Tests for Message Contracts
+
+Provider tests for message contracts (CW and Agreement Service) use `MessageProviderPact` and fetch pacts from the broker by default. The configuration is handled by `messageVerifierConfig.js`:
+
+- In CI: Fetches from broker using `PACT_USER` and `PACT_PASS`
+- Locally: Set `PACT_USE_LOCAL=true` to test against local pact files
+
+**Files**:
+
+- `provider.cw-backend.test.js` - Verifies GAS sends correct messages to CW
+- `verifierConfig.js` - Configuration for HTTP provider verification
+- `messageVerifierConfig.js` - Configuration for message provider verification
 
 ## Historical Issue: Reversed Roles
 
@@ -138,11 +170,20 @@ Corrected to reflect actual architecture:
    - Consumer: fg-gas-backend
    - Provider: farming-grants-agreements-api
    - Type: Message contract
+   - Test: `consumer.agreements-api.test.js`
 
-2. **grants-ui → fg-gas-backend** (HTTP API)
+2. **fg-gas-backend → fg-cw-backend** (SNS Messages)
+   - Consumer: fg-gas-backend
+   - Provider: fg-cw-backend
+   - Type: Message contract
+   - Test: `consumer.cw-backend.test.js`
+   - Messages: CaseStatusUpdatedEvent
+
+3. **grants-ui → fg-gas-backend** (HTTP API)
    - Consumer: grants-ui
    - Provider: fg-gas-backend
    - Type: HTTP contract
+   - Test: `provider.verification.test.js`
 
 ## Workflow
 
@@ -159,6 +200,24 @@ Corrected to reflect actual architecture:
 2. Write provider verification tests
 3. Verify their message producer meets GAS expectations
 4. Publish verification results
+
+### For Case Working Integration (GAS ↔ CW):
+
+**GAS as Consumer (receives from CW):**
+
+1. Define what messages GAS expects from CW (`consumer.cw-backend.test.js`)
+2. Run consumer tests to generate pact
+3. Publish pact to broker
+4. CW team writes provider tests to verify they meet contract
+
+**Key Message: CaseStatusUpdatedEvent**
+
+- **Purpose**: CW notifies GAS when case status changes
+- **Critical Fields**:
+  - `source`: Must be "fg-cw-backend", "CaseWorking", or "CW" (for routing)
+  - `data.currentStatus`: Format "PHASE:STAGE:STATUS" (e.g., "PRE_AWARD:ASSESSMENT:WITHDRAWAL_REQUESTED")
+  - `data.caseRef`: Maps to application.clientRef in GAS
+  - `data.workflowCode`: For validation
 
 ## Related Documentation
 
