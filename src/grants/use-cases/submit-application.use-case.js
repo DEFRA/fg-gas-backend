@@ -116,10 +116,12 @@ export const submitApplicationUseCase = async (code, { metadata, answers }) => {
         new Outbox({
           event: applicationCreatedEvent,
           target: config.sns.grantApplicationCreatedTopicArn,
+          segregationRef: Outbox.getSegregationRef(applicationCreatedEvent),
         }),
         new Outbox({
           event: createNewCaseCommand,
           target: config.sns.createNewCaseTopicArn,
+          segregationRef: Outbox.getSegregationRef(createNewCaseCommand),
         }),
       ],
       session,

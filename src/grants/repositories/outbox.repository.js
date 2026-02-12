@@ -8,7 +8,20 @@ const MAX_RETRIES = config.outbox.outboxMaxRetries;
 const EXPIRES_IN_MS = config.outbox.outboxExpiresMs;
 const NUMBER_OF_RECORDS = config.outbox.outboxClaimMaxRecords;
 
-export const claimEvents = async (claimedBy) => {
+export const findNextMessage = async (lockIds) => {
+  const doc = await db.collection(collection).findOne(
+    {
+      status: { $eq: OutboxStatus.PUBLISHED },
+      claimedBy: { $eq: null },
+      completionAttempts: { $lte: MAX_RETRIES },
+      segregationRef: { $nin: lockIds },
+    },
+    { sort: { publicationDate: 1 } },
+  );
+  return doc;
+};
+
+export const claimEvents = async (claimedBy, segregationRef) => {
   const promises = [];
 
   for (let i = 0; i < NUMBER_OF_RECORDS; i++) {
@@ -24,6 +37,7 @@ export const claimEvents = async (claimedBy) => {
           completionAttempts: {
             $lte: MAX_RETRIES,
           },
+          segregationRef,
         },
         {
           $set: {

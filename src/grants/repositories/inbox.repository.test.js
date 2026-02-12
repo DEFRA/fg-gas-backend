@@ -6,6 +6,7 @@ import { Inbox, InboxStatus } from "../models/inbox.js";
 import {
   claimEvents,
   findByMessageId,
+  findNextMessage,
   insertMany,
   insertOne,
   processExpiredEvents,
@@ -27,6 +28,27 @@ const createMockInbox = (id, time) => {
 };
 
 describe("inbox.repository", () => {
+  it("should find next message excluding locked segregationRefs", async () => {
+    const lockIds = ["ref-1", "ref-2"];
+    const mockDoc = { _id: "1" };
+    const findOne = vi.fn().mockResolvedValue(mockDoc);
+
+    db.collection.mockReturnValue({ findOne });
+
+    const result = await findNextMessage(lockIds);
+
+    expect(findOne).toHaveBeenCalledWith(
+      {
+        status: { $eq: InboxStatus.PUBLISHED },
+        claimedBy: { $eq: null },
+        completionAttempts: { $lte: config.inbox.inboxMaxRetries },
+        segregationRef: { $nin: lockIds },
+      },
+      { sort: { eventTime: 1 } },
+    );
+    expect(result).toBe(mockDoc);
+  });
+
   it("should claim events", async () => {
     const claimedBy = randomUUID();
     const mockDocuments = [

@@ -61,8 +61,9 @@ describe("On CaseStatusUpdated", () => {
     });
 
     await expect(outbox).toHaveRecord({
-      target: env.GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN,
+      target: env.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
     });
+
     await expect(outbox).toHaveRecord({
       target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
     });
@@ -83,6 +84,7 @@ describe("On CaseStatusUpdated", () => {
         currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
         previousStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
       },
+      messageGroupId: `${clientRef}-${code}`,
     });
 
     await expect(env.CREATE_AGREEMENT_QUEUE_URL).toHaveReceived({
@@ -108,6 +110,7 @@ describe("On CaseStatusUpdated", () => {
           question1: "test answer",
         },
       },
+      messageGroupId: `${clientRef}-${code}`,
     });
   });
 });

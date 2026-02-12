@@ -57,6 +57,7 @@ export const addAgreementUseCase = async (command, session) => {
       new Outbox({
         event: statusCommand,
         target: config.sns.updateCaseStatusTopicArn,
+        segregationRef: Outbox.getSegregationRef(statusCommand),
       }),
     ],
     session,

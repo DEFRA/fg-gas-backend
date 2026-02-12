@@ -2,10 +2,18 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { config } from "../../common/config.js";
+import { getMessageGroupId } from "../../common/get-message-group-id.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import {
+  cleanupStaleLocks,
+  freeFifoLock,
+  getFifoLocks,
+  setFifoLock,
+} from "../repositories/fifo-lock.repository.js";
+import {
   claimEvents,
+  findNextMessage,
   update,
   updateDeadEvents,
   updateExpiredEvents,
@@ -14,6 +22,7 @@ import {
 } from "../repositories/outbox.repository.js";
 
 export class OutboxSubscriber {
+  static ACTOR = "OUTBOX";
   asyncLocalStorage = new AsyncLocalStorage();
 
   constructor() {
@@ -21,30 +30,56 @@ export class OutboxSubscriber {
     this.running = false;
   }
 
-  // eslint-disable-next-line complexity
+  async getNextAvailable() {
+    const locks = await getFifoLocks(OutboxSubscriber.ACTOR);
+    const lockIds = locks.map((lock) => lock.segregationRef);
+    const available = await findNextMessage(lockIds);
+    return available?.segregationRef;
+  }
+
   async poll() {
     while (this.running) {
       logger.trace("Polling outbox");
 
       try {
         const claimToken = randomUUID();
-        const pendingEvents = await claimEvents(claimToken);
-
-        if (pendingEvents?.length > 0) {
-          await this.asyncLocalStorage.run(claimToken, async () =>
-            this.processEvents(pendingEvents),
-          );
+        const availableSegregationRef = await this.getNextAvailable();
+        if (availableSegregationRef) {
+          await this.processWithLock(claimToken, availableSegregationRef);
         }
 
         await this.processResubmittedEvents();
         await this.processFailedEvents();
         await this.processDeadEvents();
         await this.processExpiredEvents();
+        await this.cleanupStaleLocks(OutboxSubscriber.ACTOR);
       } catch (error) {
         logger.error(error, "Error polling outbox");
       }
 
       await setTimeout(this.interval);
+    }
+  }
+
+  // eslint-disable-next-line complexity
+  async processWithLock(claimToken, segregationRef) {
+    const lock = await setFifoLock(OutboxSubscriber.ACTOR, segregationRef);
+    if (!lock.upsertedCount && !lock.modifiedCount) {
+      logger.info(
+        `Outbox Unable to process lock for segregationref ${segregationRef}`,
+      );
+      return;
+    }
+    try {
+      const events = await claimEvents(claimToken, segregationRef);
+
+      if (events?.length > 0) {
+        await this.asyncLocalStorage.run(claimToken, async () =>
+          this.processEvents(events),
+        );
+      }
+    } finally {
+      await freeFifoLock(OutboxSubscriber.ACTOR, segregationRef);
     }
   }
 
@@ -74,6 +109,12 @@ export class OutboxSubscriber {
       logger.trace(`Updated ${results?.modifiedCount} failed outbox events`);
   }
 
+  async cleanupStaleLocks(actor) {
+    const results = await cleanupStaleLocks(actor);
+    results?.modifiedCount &&
+      logger.trace(`Cleaned up ${results?.modifiedCount} stale fifo locks`);
+  }
+
   async markEventUnsent(event) {
     const claimedBy = this.asyncLocalStorage.getStore();
     event.markAsFailed();
@@ -89,20 +130,44 @@ export class OutboxSubscriber {
   }
 
   async sendEvent(event) {
-    const { target: topic, event: data } = event;
+    const {
+      target: topic,
+      event: data,
+      event: { messageGroupId },
+    } = event;
     logger.trace(`Send outbox event to ${topic}`);
     try {
-      await publish(topic, data);
+      await publish(
+        this.topicStringToFifo(topic),
+        data,
+        this.getMessageGroupId(messageGroupId, data),
+      );
       await this.markEventComplete(event);
     } catch (ex) {
       logger.error(ex);
-      this.markEventUnsent(event);
+      await this.markEventUnsent(event);
     }
   }
 
   async processEvents(events) {
-    await Promise.all(events.map((event) => this.sendEvent(event)));
+    for (const event of events) {
+      await this.sendEvent(event);
+    }
     logger.trace("All outbox events processed.");
+  }
+
+  getMessageGroupId(id, data) {
+    return getMessageGroupId(id, data);
+  }
+
+  // TODO: remove once there are no more standard events
+  // temp while we transition to fifo
+  topicStringToFifo(topic) {
+    if (topic.search(/_fifo.fifo$/) === -1) {
+      return `${topic}_fifo.fifo`;
+    }
+
+    return topic;
   }
 
   async start() {

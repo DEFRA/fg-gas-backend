@@ -26,16 +26,18 @@ describe("publish", () => {
 
     const { publish } = await import("./sns-client.js");
 
-    await publish(topicArn, message);
+    await publish(topicArn, message, "mock-message-id");
 
     expect(PublishCommand).toHaveBeenCalledWith({
       TopicArn: topicArn,
       Message: '{"key":"value"}',
+      MessageGroupId: "mock-message-id",
     });
 
     expect(send).toHaveBeenCalledWith({
       TopicArn: topicArn,
       Message: '{"key":"value"}',
+      MessageGroupId: "mock-message-id",
     });
   });
 });

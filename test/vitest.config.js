@@ -41,18 +41,21 @@ export default defineConfig({
       TRACING_HEADER: "x-cdp-request-id",
       ENVIRONMENT: "local",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created",
-      GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL: `${SQS_URL}/gas__sqs__grant_application_created`,
-      GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL: `${SQS_URL}/gas__sqs__grant_application_status_updated`,
-      CW__SQS__CREATE_NEW_CASE_QUEUE_URL: `${SQS_URL}/cw__sqs__create_new_case`,
-      GAS__SQS__UPDATE_STATUS_QUEUE_URL: `${SQS_URL}/gas__sqs__update_status`,
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created_fifo.fifo",
+      GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: `${SQS_URL}/gas__sqs__update_agreement_status_fifo.fifo`,
+      GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL: `${SQS_URL}/gas__sqs__grant_application_created_fifo.fifo`,
+      GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL: `${SQS_URL}/gas__sqs__application_status_updated_fifo.fifo`,
+      CW__SQS__CREATE_NEW_CASE_QUEUE_URL: `${SQS_URL}/cw__sqs__create_new_case_fifo.fifo`,
+      GAS__SQS__UPDATE_STATUS_QUEUE_URL: `${SQS_URL}/gas__sqs__update_status_fifo.fifo`,
       GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement",
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement_fifo.fifo",
       GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_status_updated",
-      CREATE_AGREEMENT_QUEUE_URL: `${SQS_URL}/create_agreement`,
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__application_status_updated_fifo.fifo",
+      CREATE_AGREEMENT_QUEUE_URL: `${SQS_URL}/create_agreement_fifo.fifo`,
       GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_new_case",
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_new_case_fifo.fifo",
+      GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_agreement_status_fifo.fifo",
       OUTBOX_MAX_RETRIES: 2,
       OUTBOX_CLAIM_MAX_RECORDS: 2,
       OUTBOX_EXPIRES_MS: 5000,
@@ -61,6 +64,7 @@ export default defineConfig({
       INBOX_CLAIM_MAX_RECORDS: 2,
       INBOX_EXPIRES_MS: 5000,
       INBOX_POLL_MS: 250,
+      FIFO_LOCK_TTL_MS: 5000,
       PRINT_LOGS: process.env.PRINT_LOGS,
     },
     hookTimeout: 30000,

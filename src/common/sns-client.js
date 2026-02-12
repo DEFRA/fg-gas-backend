@@ -7,12 +7,13 @@ const snsClient = new SNSClient({
   endpoint: config.awsEndpointUrl,
 });
 
-export const publish = async (topic, data) => {
+export const publish = async (topic, data, messageGroupId) => {
   logger.info(`Publish command ${topic}`);
   await snsClient.send(
     new PublishCommand({
       TopicArn: topic,
       Message: JSON.stringify(data),
+      MessageGroupId: messageGroupId,
     }),
   );
 };
