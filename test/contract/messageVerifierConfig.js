@@ -13,13 +13,15 @@ const getLatestGitTagOrFallback = () => {
 /**
  * Build verification options for MessageProviderPact
  * @param {Object} config
+ * @param {string} config.providerName - Name of the provider (e.g., "fg-gas-backend")
  * @param {string} config.consumerName - Name of the consumer (e.g., "fg-cw-backend")
  * @returns {Object} Options for MessageProviderPact.verify()
  */
-export const buildMessageVerifierOptions = ({ consumerName }) => {
+export const buildMessageVerifierOptions = ({ providerName, consumerName }) => {
   const useLocal = env.PACT_USE_LOCAL === "true";
 
   const baseOpts = {
+    provider: providerName,
     providerVersion: getLatestGitTagOrFallback(),
   };
 

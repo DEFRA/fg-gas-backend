@@ -63,6 +63,7 @@ describe("GAS Provider (sends messages to CW)", () => {
 
       // Verify against the pact file from broker (or local if PACT_USE_LOCAL=true)
       const verifyOpts = buildMessageVerifierOptions({
+        providerName: "fg-gas-backend",
         consumerName: "fg-cw-backend",
       });
 
@@ -104,6 +105,7 @@ describe("GAS Provider (sends messages to CW)", () => {
       });
 
       const verifyOpts = buildMessageVerifierOptions({
+        providerName: "fg-gas-backend",
         consumerName: "fg-cw-backend",
       });
 
@@ -145,6 +147,7 @@ describe("GAS Provider (sends messages to CW)", () => {
 
       // Verify against the pact file from broker (or local if PACT_USE_LOCAL=true)
       const verifyOpts = buildMessageVerifierOptions({
+        providerName: "fg-gas-backend",
         consumerName: "fg-cw-backend",
       });
 
@@ -174,6 +177,7 @@ describe("GAS Provider (sends messages to CW)", () => {
       });
 
       const verifyOpts = buildMessageVerifierOptions({
+        providerName: "fg-gas-backend",
         consumerName: "fg-cw-backend",
       });
 
