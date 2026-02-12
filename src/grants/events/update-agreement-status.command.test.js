@@ -7,6 +7,7 @@ describe("UpdateAgreementStatusCommand", () => {
   it("should create event", () => {
     const command = {
       clientRef: "application-123",
+      code: "code-1",
       status: AgreementServiceStatus.Withdrawn,
       agreementNumber: "agreement-1234",
     };
@@ -28,6 +29,7 @@ describe("UpdateAgreementStatusCommand", () => {
         status: "withdrawn",
         agreementNumber: "agreement-1234",
       },
+      messageGroupId: "application-123-code-1",
     });
   });
 });

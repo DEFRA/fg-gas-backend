@@ -1,3 +1,4 @@
+import { getMessageGroupId } from "../../common/get-message-group-id.js";
 import { logger } from "../../common/logger.js";
 import { Inbox } from "../models/inbox.js";
 import {
@@ -10,10 +11,13 @@ export const messageSource = {
   CaseWorking: "CW",
 };
 
+export const getSegregationRef = (event) => {
+  const { data } = event;
+  return getMessageGroupId(null, data);
+};
+
 export const saveInboxMessageUseCase = async (message, source) => {
-  logger.info(
-    `Save inbox message use ccase for message with id: ${message.id}`,
-  );
+  logger.info(`Save inbox message use case for message with id: ${message.id}`);
   const existing = await findByMessageId(message.id);
   if (existing !== null) {
     // message has already been stored
@@ -22,12 +26,14 @@ export const saveInboxMessageUseCase = async (message, source) => {
   }
 
   logger.info(`Storing message with id ${message.id}.`);
+
   const inbox = new Inbox({
     traceparent: message.traceparent,
     event: message,
     messageId: message.id,
     type: message.type,
     source,
+    segregationRef: getSegregationRef(message),
   });
 
   await insertOne(inbox);

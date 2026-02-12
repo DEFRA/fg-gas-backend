@@ -7,26 +7,32 @@ const MAX_RETRIES = config.inbox.inboxMaxRetries;
 const NUMBER_OF_RECORDS = config.inbox.inboxClaimMaxRecords;
 const EXPIRES_IN_MS = config.inbox.inboxExpiresMs;
 
-// eslint-disable-next-line func-style
-async function* asyncGenerator(limit) {
-  let i = 0;
-  while (i < limit) {
-    yield i++;
-  }
-}
+export const findNextMessage = async (lockIds) => {
+  const doc = await db.collection(collection).findOne(
+    {
+      status: { $eq: InboxStatus.PUBLISHED },
+      claimedBy: { $eq: null },
+      completionAttempts: { $lte: MAX_RETRIES },
+      segregationRef: { $nin: lockIds },
+    },
+    { sort: { eventTime: 1 } },
+  );
+  return doc;
+};
 
 export const claimEvents = async (
   claimedBy,
+  segregationRef,
   numRecords = NUMBER_OF_RECORDS,
 ) => {
   const docs = [];
-  // eslint-disable-next-line no-unused-vars
-  for await (const _ of asyncGenerator(numRecords)) {
+  for (let i = 0; i < numRecords; i++) {
     const document = await db.collection(collection).findOneAndUpdate(
       {
         status: { $eq: InboxStatus.PUBLISHED },
         claimedBy: { $eq: null },
         completionAttempts: { $lte: MAX_RETRIES },
+        segregationRef,
       },
       {
         $set: {

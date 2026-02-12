@@ -28,6 +28,7 @@ export const createStatusTransitionUpdateUseCase =
           new Outbox({
             event: statusEvent,
             target: config.sns.grantApplicationStatusUpdatedTopicArn,
+            segregationRef: Outbox.getSegregationRef(statusEvent),
           }),
         ],
         session,
