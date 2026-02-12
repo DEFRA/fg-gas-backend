@@ -76,7 +76,7 @@ jobs:
       - name: Run contract tests
         env:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
-          PACT_PUBLISH_VERIFICATION: false
+          PACT_PUBLISH_VERIFICATION: true
         run: |
           export PACT_USER="$PACT_USER"
           export PACT_PASS="$PACT_PASS"
