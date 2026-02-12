@@ -15,7 +15,7 @@ const sqs = new SQSClient({
 });
 
 const queueUrl =
-  "http://sqs.eu-west-2.127.0.0.1:4566/000000000000/gas__sqs__update_agreement_status";
+  "http://sqs.eu-west-2.127.0.0.1:4566/000000000000/gas__sqs__update_agreement_status_fifo.fifo";
 
 const message = {
   id: randomUUID(),
@@ -52,6 +52,7 @@ if (process.argv.length > 4) {
 
 await sqs.send(
   new SendMessageCommand({
+    MessageGroupId: randomUUID(),
     QueueUrl: queueUrl,
     MessageBody: JSON.stringify(message),
     DelaySeconds: 0,

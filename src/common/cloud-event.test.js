@@ -8,9 +8,13 @@ describe("CloudEvent", () => {
     const event = await withTraceParent(
       "1234-0987",
       async () =>
-        new CloudEvent("test.type", {
-          key: "value",
-        }),
+        new CloudEvent(
+          "test.type",
+          {
+            key: "value",
+          },
+          "clientRef-code",
+        ),
     );
 
     expect(event).toEqual({
@@ -21,9 +25,22 @@ describe("CloudEvent", () => {
       datacontenttype: "application/json",
       type: `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.test.type`,
       traceparent: "1234-0987",
+      messageGroupId: "clientRef-code",
       data: {
         key: "value",
       },
     });
+  });
+
+  it("requires type, data and messageGroupId", () => {
+    expect(() => new CloudEvent()).toThrow("CloudEvent requires input 'type'");
+
+    expect(() => new CloudEvent("test.type")).toThrow(
+      "CloudEvent requires input 'data'",
+    );
+
+    expect(() => new CloudEvent("test.type", { key: "value" })).toThrow(
+      "CloudEvent requires input 'messageGroupId'",
+    );
   });
 });
