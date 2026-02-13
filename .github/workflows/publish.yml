@@ -73,7 +73,12 @@ jobs:
         env:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
           PACT_PUBLISH_VERIFICATION: true
+          PACT_USE_LOCAL: "false"
         run: |
+          echo "PACT_USE_LOCAL=${PACT_USE_LOCAL}"
+          echo "PACT_BROKER_BASE_URL=${PACT_BROKER_BASE_URL}"
+          if [ -z "${PACT_USER}" ]; then echo "PACT_USER is not set"; else echo "PACT_USER is set"; fi
+          if [ -z "${PACT_PASS}" ]; then echo "PACT_PASS is not set"; else echo "PACT_PASS is set"; fi
           npm ci --ignore-scripts
           npm run test:contract
 
