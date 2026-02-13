@@ -351,7 +351,7 @@ describe("outbox.subscriber", () => {
   });
 
   it("should log when stale locks are cleaned up", async () => {
-    vi.spyOn(logger, "trace");
+    vi.spyOn(logger, "info");
     findNextMessage.mockResolvedValue(null);
     getFifoLocks.mockResolvedValue([]);
     cleanupStaleLocks.mockResolvedValue({ modifiedCount: 3 });
@@ -360,9 +360,7 @@ describe("outbox.subscriber", () => {
     subscriber.start();
 
     await vi.waitFor(() => {
-      expect(logger.trace).toHaveBeenCalledWith(
-        "Cleaned up 3 stale fifo locks",
-      );
+      expect(logger.info).toHaveBeenCalledWith("Cleaned up 3 stale fifo locks");
     });
 
     subscriber.stop();

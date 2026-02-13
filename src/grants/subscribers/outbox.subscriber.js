@@ -34,7 +34,7 @@ export class OutboxSubscriber {
     const locks = await getFifoLocks(OutboxSubscriber.ACTOR);
     const lockIds = locks.map((lock) => lock.segregationRef);
     const available = await findNextMessage(lockIds);
-    logger.debug(
+    logger.info(
       `Outbox getNextAvailable with segregationRef: ${available?.segregationRef}`,
     );
     return available?.segregationRef;
@@ -66,10 +66,10 @@ export class OutboxSubscriber {
 
   // eslint-disable-next-line complexity
   async processWithLock(claimToken, segregationRef) {
-    logger.debug(`Outbox process lock with segregationRef ${segregationRef}`);
+    logger.info(`Outbox process lock with segregationRef ${segregationRef}`);
     const lock = await setFifoLock(OutboxSubscriber.ACTOR, segregationRef);
     if (!lock.upsertedCount && !lock.modifiedCount) {
-      logger.debug(
+      logger.info(
         `Outbox Unable to process lock for segregationref ${segregationRef}`,
       );
       return;
@@ -102,7 +102,7 @@ export class OutboxSubscriber {
   async processResubmittedEvents() {
     const results = await updateResubmittedEvents();
     results?.modifiedCount &&
-      logger.trace(
+      logger.info(
         `Updated ${results?.modifiedCount} resubmitted outbox events`,
       );
   }
@@ -116,7 +116,7 @@ export class OutboxSubscriber {
   async cleanupStaleLocks(actor) {
     const results = await cleanupStaleLocks(actor);
     results?.modifiedCount &&
-      logger.trace(`Cleaned up ${results?.modifiedCount} stale fifo locks`);
+      logger.info(`Cleaned up ${results?.modifiedCount} stale fifo locks`);
   }
 
   async markEventUnsent(event) {
@@ -139,7 +139,7 @@ export class OutboxSubscriber {
       event: data,
       event: { messageGroupId },
     } = event;
-    logger.debug(`Send outbox event to ${topic}`);
+    logger.info(`Send outbox event to ${topic}`);
     try {
       await publish(
         this.topicStringToFifo(topic),
@@ -157,7 +157,7 @@ export class OutboxSubscriber {
     for (const event of events) {
       await this.sendEvent(event);
     }
-    logger.debug("All outbox events processed.");
+    logger.info("All outbox events processed.");
   }
 
   getMessageGroupId(id, data) {

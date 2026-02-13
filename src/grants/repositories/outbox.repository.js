@@ -20,7 +20,7 @@ export const findNextMessage = async (lockIds) => {
     { sort: { publicationDate: 1 } },
   );
   if (!doc) {
-    logger.debug(
+    logger.info(
       `Outbox Unable to find next message using lockIds ${lockIds.toString()}`,
     );
   }
@@ -28,38 +28,43 @@ export const findNextMessage = async (lockIds) => {
 };
 
 export const claimEvents = async (claimedBy, segregationRef) => {
-  const promises = [];
+  const docs = [];
+
+  logger.info(
+    `Outbox repository claim events with segregationRef: ${segregationRef}`,
+  );
 
   for (let i = 0; i < NUMBER_OF_RECORDS; i++) {
-    promises.push(
-      db.collection(collection).findOneAndUpdate(
-        {
-          status: {
-            $eq: OutboxStatus.PUBLISHED,
-          },
-          claimedBy: {
-            $eq: null,
-          },
-          completionAttempts: {
-            $lte: MAX_RETRIES,
-          },
-          segregationRef,
+    const doc = await db.collection(collection).findOneAndUpdate(
+      {
+        status: {
+          $eq: OutboxStatus.PUBLISHED,
         },
-        {
-          $set: {
-            status: OutboxStatus.PROCESSING,
-            claimedBy,
-            claimedAt: new Date(),
-            claimExpiresAt: new Date(Date.now() + EXPIRES_IN_MS),
-          },
+        claimedBy: {
+          $eq: null,
         },
-        { sort: { publicationDate: 1 }, returnDocument: "after" },
-      ),
+        completionAttempts: {
+          $lte: MAX_RETRIES,
+        },
+        segregationRef,
+      },
+      {
+        $set: {
+          status: OutboxStatus.PROCESSING,
+          claimedBy,
+          claimedAt: new Date(),
+          claimExpiresAt: new Date(Date.now() + EXPIRES_IN_MS),
+        },
+      },
+      { sort: { publicationDate: 1 }, returnDocument: "after" },
     );
+    docs.push(doc);
   }
-  const docs = await Promise.all(promises);
   const documents = docs.filter((d) => d !== null);
 
+  logger.info(
+    `Outbox repository claim events (segregationRef ${segregationRef}) end with number of docs ${documents.length}`,
+  );
   return documents.map((doc) => Outbox.fromDocument(doc));
 };
 
