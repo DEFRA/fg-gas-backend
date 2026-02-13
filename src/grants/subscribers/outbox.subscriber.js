@@ -34,6 +34,9 @@ export class OutboxSubscriber {
     const locks = await getFifoLocks(OutboxSubscriber.ACTOR);
     const lockIds = locks.map((lock) => lock.segregationRef);
     const available = await findNextMessage(lockIds);
+    logger.info(
+      `Outbox getNextAvailable with segregationRef: ${available?.segregationRef}`,
+    );
     return available?.segregationRef;
   }
 
@@ -63,6 +66,7 @@ export class OutboxSubscriber {
 
   // eslint-disable-next-line complexity
   async processWithLock(claimToken, segregationRef) {
+    logger.info(`Outbox process lock with segregationRef ${segregationRef}`);
     const lock = await setFifoLock(OutboxSubscriber.ACTOR, segregationRef);
     if (!lock.upsertedCount && !lock.modifiedCount) {
       logger.info(
