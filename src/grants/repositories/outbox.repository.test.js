@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 import {
   claimEvents,
+  findNextMessage,
   insertMany,
   update,
   updateDeadEvents,
@@ -16,6 +18,44 @@ import {
 vi.mock("../../common/mongo-client.js");
 
 describe("outbox.repository", () => {
+  describe("findNextMessage", () => {
+    it("should return a document when one is available", async () => {
+      const mockDocument = {
+        _id: "1234",
+        status: OutboxStatus.PUBLISHED,
+        segregationRef: "ref_1",
+      };
+      const findOne = vi.fn().mockResolvedValue(mockDocument);
+      db.collection.mockReturnValue({ findOne });
+
+      const result = await findNextMessage(["locked_ref"]);
+
+      expect(result).toEqual(mockDocument);
+      expect(findOne).toHaveBeenCalledWith(
+        {
+          status: { $eq: OutboxStatus.PUBLISHED },
+          claimedBy: { $eq: null },
+          completionAttempts: { $lte: config.outbox.outboxMaxRetries },
+          segregationRef: { $nin: ["locked_ref"] },
+        },
+        { sort: { publicationDate: 1 } },
+      );
+    });
+
+    it("should log and return null when no document is found", async () => {
+      const findOne = vi.fn().mockResolvedValue(null);
+      db.collection.mockReturnValue({ findOne });
+      vi.spyOn(logger, "info");
+
+      const result = await findNextMessage(["ref_1", "ref_2"]);
+
+      expect(result).toBeNull();
+      expect(logger.info).toHaveBeenCalledWith(
+        "Outbox Unable to find next message using lockIds ref_1,ref_2",
+      );
+    });
+  });
+
   describe("insertMany", () => {
     it("should insert events", async () => {
       const mockInsertMany = vi.fn().mockResolvedValueOnce({
