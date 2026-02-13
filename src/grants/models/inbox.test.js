@@ -9,6 +9,8 @@ describe("inbox model", () => {
       event: {},
       messageId,
       type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
     });
 
     expect(obj).toBeInstanceOf(Inbox);
@@ -24,6 +26,8 @@ describe("inbox model", () => {
       },
       messageId,
       type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
     });
 
     obj.claimedBy = randomUUID();
@@ -48,6 +52,8 @@ describe("inbox model", () => {
       },
       messageId,
       type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
     });
 
     obj.claimedBy = randomUUID();
@@ -73,6 +79,8 @@ describe("inbox model", () => {
       },
       messageId,
       type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
     });
 
     obj.claimedBy = randomUUID();
@@ -103,6 +111,8 @@ describe("inbox model", () => {
       publicationDate: "2025-10-27T13:46:53.876Z",
       status: "PUBLISHED",
       type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
     };
 
     const model = Inbox.fromDocument(doc);
