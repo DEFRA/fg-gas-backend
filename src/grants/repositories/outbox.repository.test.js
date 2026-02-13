@@ -38,6 +38,7 @@ describe("outbox.repository", () => {
           completionAttempts: { $lte: config.outbox.outboxMaxRetries },
           segregationRef: { $nin: ["locked_ref"] },
         },
+        {},
         { sort: { publicationDate: 1 } },
       );
     });
