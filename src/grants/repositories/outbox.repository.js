@@ -1,4 +1,5 @@
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 
@@ -18,6 +19,11 @@ export const findNextMessage = async (lockIds) => {
     },
     { sort: { publicationDate: 1 } },
   );
+  if (!doc) {
+    logger.debug(
+      `Outbox Unable to find next message using lockIds ${lockIds.toString()}`,
+    );
+  }
   return doc;
 };
 
