@@ -72,12 +72,14 @@ describe("outbox.repository", () => {
           event: {
             clientRef: "1234-7778",
           },
+          segregationRef: "seg-ref-1",
         }),
         new Outbox({
           target: "arn:some:other:value",
           event: {
             clientRef: "0987-1234",
           },
+          segregationRef: "seg-ref-2",
         }),
       ];
 
@@ -103,6 +105,7 @@ describe("outbox.repository", () => {
         },
         completionAttempts: 1,
         status: OutboxStatus.PUBLISHED,
+        segregationRef: "seg-ref-1",
       };
       const findOneAndUpdateMock = vi.fn();
       findOneAndUpdateMock
@@ -134,6 +137,7 @@ describe("outbox.repository", () => {
         target: "arn:foo:bar",
         completionAttempts: 1,
         status: OutboxStatus.PROCESSING,
+        segregationRef: "seg-ref-1",
       });
 
       await update(outboxEvent, claimedBy);
@@ -152,6 +156,7 @@ describe("outbox.repository", () => {
             event: {},
             lastResubmissionDate: undefined,
             publicationDate: expect.any(Date),
+            segregationRef: "seg-ref-1",
             status: "PROCESSING",
             target: "arn:foo:bar",
           },
