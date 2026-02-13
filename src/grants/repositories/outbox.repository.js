@@ -19,11 +19,6 @@ export const findNextMessage = async (lockIds) => {
     },
     { sort: { publicationDate: 1 } },
   );
-  if (!doc) {
-    logger.info(
-      `Outbox Unable to find next message using lockIds ${lockIds.toString()}`,
-    );
-  }
   return doc;
 };
 

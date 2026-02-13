@@ -42,7 +42,7 @@ describe("outbox.repository", () => {
       );
     });
 
-    it("should log and return null when no document is found", async () => {
+    it("should return null when no document is found", async () => {
       const findOne = vi.fn().mockResolvedValue(null);
       db.collection.mockReturnValue({ findOne });
       vi.spyOn(logger, "info");
@@ -50,9 +50,6 @@ describe("outbox.repository", () => {
       const result = await findNextMessage(["ref_1", "ref_2"]);
 
       expect(result).toBeNull();
-      expect(logger.info).toHaveBeenCalledWith(
-        "Outbox Unable to find next message using lockIds ref_1,ref_2",
-      );
     });
   });
 
