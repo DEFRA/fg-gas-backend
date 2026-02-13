@@ -39,7 +39,10 @@ export function buildVerifierOptions({
   return {
     ...baseOpts,
     pactBrokerUrl: env.PACT_BROKER_BASE_URL,
-    consumerVersionSelectors: [{ consumer: "grants-ui", latest: true }],
+    consumerVersionSelectors: [
+      { consumer: "grants-ui", latest: true },
+      { consumer: "fg-cw-backend", latest: true },
+    ],
     pactBrokerUsername: env.PACT_USER,
     pactBrokerPassword: env.PACT_PASS,
     publishVerificationResult: env.PACT_PUBLISH_VERIFICATION === "true",
