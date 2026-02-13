@@ -93,8 +93,12 @@ jobs:
         run: |
           echo "PACT_USE_LOCAL=${PACT_USE_LOCAL}"
           echo "PACT_LOCAL_DIR=${PACT_LOCAL_DIR}"
+          echo "PACT_BROKER_BASE_URL=${PACT_BROKER_BASE_URL}"
+          if [ -z "${PACT_USER}" ]; then echo "PACT_USER is not set"; else echo "PACT_USER is set"; fi
+          if [ -z "${PACT_PASS}" ]; then echo "PACT_PASS is not set"; else echo "PACT_PASS is set"; fi
           mkdir -p "${PACT_LOCAL_DIR}"
-          npm run test:contract -- test/contract/provider.cw-backend.test.js
+          ls -la "${PACT_LOCAL_DIR}"
+          npx vitest --config test/contract/vitest.config.js test/contract/provider.cw-backend.test.js
 
       - name: Setup Pact CLI
         run: |
