@@ -69,7 +69,7 @@ jobs:
           node-version-file: ".nvmrc"
           cache: npm
 
-      - name: Run contract tests
+      - name: Run contract tests (consumer + HTTP provider)
         env:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
           PACT_PUBLISH_VERIFICATION: true
@@ -80,7 +80,21 @@ jobs:
           if [ -z "${PACT_USER}" ]; then echo "PACT_USER is not set"; else echo "PACT_USER is set"; fi
           if [ -z "${PACT_PASS}" ]; then echo "PACT_PASS is not set"; else echo "PACT_PASS is set"; fi
           npm ci --ignore-scripts
-          npm run test:contract
+          npm run test:contract -- test/contract/consumer.agreements-api.test.js
+          npm run test:contract -- test/contract/consumer.cw-backend.test.js
+          npm run test:contract -- test/contract/provider.verification.test.js
+
+      - name: Run contract tests (message provider against broker)
+        env:
+          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
+          PACT_PUBLISH_VERIFICATION: true
+          PACT_USE_LOCAL: "false"
+          PACT_LOCAL_DIR: "/tmp/empty-pacts"
+        run: |
+          echo "PACT_USE_LOCAL=${PACT_USE_LOCAL}"
+          echo "PACT_LOCAL_DIR=${PACT_LOCAL_DIR}"
+          mkdir -p "${PACT_LOCAL_DIR}"
+          npm run test:contract -- test/contract/provider.cw-backend.test.js
 
       - name: Setup Pact CLI
         run: |
