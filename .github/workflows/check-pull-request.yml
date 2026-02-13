@@ -78,7 +78,5 @@ jobs:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
           PACT_PUBLISH_VERIFICATION: false
         run: |
-          export PACT_USER="$PACT_USER"
-          export PACT_PASS="$PACT_PASS"
           npm ci --ignore-scripts
           npm run test:contract
