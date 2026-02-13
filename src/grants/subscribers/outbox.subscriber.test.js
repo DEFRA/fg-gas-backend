@@ -350,6 +350,59 @@ describe("outbox.subscriber", () => {
     subscriber.stop();
   });
 
+  it("should not process events when lock acquisition fails", async () => {
+    vi.spyOn(logger, "info");
+    findNextMessage.mockResolvedValue(
+      createOutbox({ segregationRef: "ref_1" }),
+    );
+    getFifoLocks.mockResolvedValue([]);
+    setFifoLock.mockResolvedValue({
+      matchedCount: 0,
+      modifiedCount: 0,
+      upsertedCount: 0,
+    });
+    freeFifoLock.mockResolvedValue();
+    cleanupStaleLocks.mockResolvedValue({ modifiedCount: 0 });
+
+    const subscriber = new OutboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.info).toHaveBeenCalledWith(
+        "Outbox Unable to process lock for segregationref ref_1",
+      );
+    });
+
+    expect(claimEvents).not.toHaveBeenCalled();
+
+    subscriber.stop();
+  });
+
+  it("should not append _fifo.fifo when topic already ends with _fifo.fifo", async () => {
+    publish.mockResolvedValue(1);
+    const mockEvent = {
+      target:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement_fifo.fifo",
+      event: {},
+      markAsComplete: vi.fn(),
+    };
+
+    const outbox = new OutboxSubscriber();
+    await outbox.sendEvent(mockEvent);
+    expect(publish.mock.calls[0][0]).toBe(
+      "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement_fifo.fifo",
+    );
+  });
+
+  it("should processExpiredEvents", async () => {
+    const { updateExpiredEvents } =
+      await import("../repositories/outbox.repository.js");
+    updateExpiredEvents.mockResolvedValue({ modifiedCount: 2 });
+    const subscriber = new OutboxSubscriber();
+    await subscriber.processExpiredEvents();
+    expect(updateExpiredEvents).toHaveBeenCalled();
+  });
+
   it("should log when stale locks are cleaned up", async () => {
     vi.spyOn(logger, "info");
     findNextMessage.mockResolvedValue(null);
