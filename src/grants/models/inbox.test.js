@@ -93,6 +93,24 @@ describe("inbox model", () => {
     expect(doc.messageId).toBe(obj.messageId);
   });
 
+  it("should throw Boom error when source is missing", () => {
+    expect(
+      () =>
+        new Inbox({
+          event: {},
+          messageId: randomUUID(),
+          type: "io.onsite.agreement.status.foo",
+          segregationRef: "ref-1",
+        }),
+    ).toThrow(/"source" is required/);
+  });
+
+  it("should throw Boom error with all validation failures", () => {
+    expect(() => new Inbox({})).toThrow(
+      /Invalid Inbox:.*"source" is required.*"event" is required.*"segregationRef" is required/,
+    );
+  });
+
   it("should create model from doc", () => {
     const doc = {
       _id: "09909-popopo",

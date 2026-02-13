@@ -145,6 +145,28 @@ describe("Outbox model", () => {
     expect(newDoc.event).toBe(out.event);
   });
 
+  it("should throw Boom error when required fields are missing", () => {
+    expect(() => new Outbox({})).toThrow(
+      /Invalid Outbox:.*"target" is required.*"event" is required.*"segregationRef" is required/,
+    );
+  });
+
+  it("should throw Boom error when target is missing", () => {
+    expect(
+      () =>
+        new Outbox({
+          event: { clientRef: "1234" },
+          segregationRef: "seg-ref-1",
+        }),
+    ).toThrow(/"target" is required/);
+  });
+
+  it("should return segregationRef from event data via getSegregationRef", () => {
+    const event = { data: { clientRef: "CR001", grantCode: "GC001" } };
+    const ref = Outbox.getSegregationRef(event);
+    expect(ref).toBe("CR001-GC001");
+  });
+
   it("should mark outbox as failed", () => {
     const obj = new Outbox({
       event: {
