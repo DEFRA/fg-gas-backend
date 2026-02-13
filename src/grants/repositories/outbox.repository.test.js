@@ -33,12 +33,11 @@ describe("outbox.repository", () => {
       expect(result).toEqual(mockDocument);
       expect(findOne).toHaveBeenCalledWith(
         {
-          status: { $eq: OutboxStatus.PUBLISHED },
-          claimedBy: { $eq: null },
+          status: OutboxStatus.PUBLISHED,
+          claimedBy: null,
           completionAttempts: { $lte: config.outbox.outboxMaxRetries },
           segregationRef: { $nin: ["locked_ref"] },
         },
-        {},
         { sort: { publicationDate: 1 } },
       );
     });
