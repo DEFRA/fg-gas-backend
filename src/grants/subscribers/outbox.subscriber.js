@@ -37,6 +37,7 @@ export class OutboxSubscriber {
     logger.info(
       `Outbox getNextAvailable with segregationRef: ${available?.segregationRef}`,
     );
+    logger.info(available);
     return available?.segregationRef;
   }
 

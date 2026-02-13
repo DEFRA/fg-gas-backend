@@ -17,6 +17,7 @@ export const findNextMessage = async (lockIds) => {
       completionAttempts: { $lte: MAX_RETRIES },
       segregationRef: { $nin: lockIds },
     },
+    {},
     { sort: { publicationDate: 1 } },
   );
   if (!doc) {
