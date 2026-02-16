@@ -28,11 +28,25 @@ export default defineConfig({
       AWS_ACCESS_KEY_ID: "test",
       AWS_SECRET_ACCESS_KEY: "test",
       FIFO_LOCK_TTL_MS: 5000,
-      GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created_fifo.fifo",
       GRANT_APPLICATION_CREATED_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/gas__sqs__handle_grant_application_created_fifo.fifo`,
       CASE_STAGE_UPDATES_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/case_stage_updated_fifo.fifo`,
       CREATE_NEW_CASE_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/cw__sqs__create_new_case_fifo.fifo`,
+      GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created_fifo.fifo",
+      GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/gas__sqs__update_agreement_status_fifo.fifo`,
+      GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/gas__sqs__grant_application_created_fifo.fifo`,
+      GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/gas__sqs__application_status_updated_fifo.fifo`,
+      CW__SQS__CREATE_NEW_CASE_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/cw__sqs__create_new_case_fifo.fifo`,
+      GAS__SQS__UPDATE_STATUS_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/gas__sqs__update_status_fifo.fifo`,
+      GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement_fifo.fifo",
+      GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__application_status_updated_fifo.fifo",
+      CREATE_AGREEMENT_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${LOCALSTACK_PORT}/000000000000/create_agreement_fifo.fifo`,
+      GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_new_case_fifo.fifo",
+      GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_agreement_status_fifo.fifo",
     },
   },
 });

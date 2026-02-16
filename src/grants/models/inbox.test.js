@@ -9,6 +9,8 @@ describe("inbox model", () => {
       event: {},
       messageId,
       type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
     });
 
     expect(obj).toBeInstanceOf(Inbox);
@@ -24,6 +26,8 @@ describe("inbox model", () => {
       },
       messageId,
       type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
     });
 
     obj.claimedBy = randomUUID();
@@ -48,6 +52,8 @@ describe("inbox model", () => {
       },
       messageId,
       type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
     });
 
     obj.claimedBy = randomUUID();
@@ -73,6 +79,8 @@ describe("inbox model", () => {
       },
       messageId,
       type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
     });
 
     obj.claimedBy = randomUUID();
@@ -83,6 +91,24 @@ describe("inbox model", () => {
     expect(doc.publicationDate).toBe(obj.publicationDate);
     expect(doc.status).toBe(obj.status);
     expect(doc.messageId).toBe(obj.messageId);
+  });
+
+  it("should throw Boom error when source is missing", () => {
+    expect(
+      () =>
+        new Inbox({
+          event: {},
+          messageId: randomUUID(),
+          type: "io.onsite.agreement.status.foo",
+          segregationRef: "ref-1",
+        }),
+    ).toThrow(/"source" is required/);
+  });
+
+  it("should throw Boom error with all validation failures", () => {
+    expect(() => new Inbox({})).toThrow(
+      /Invalid Inbox:.*"source" is required.*"event" is required.*"segregationRef" is required/,
+    );
   });
 
   it("should create model from doc", () => {
@@ -103,6 +129,8 @@ describe("inbox model", () => {
       publicationDate: "2025-10-27T13:46:53.876Z",
       status: "PUBLISHED",
       type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
     };
 
     const model = Inbox.fromDocument(doc);
