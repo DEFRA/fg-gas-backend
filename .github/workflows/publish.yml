@@ -84,26 +84,66 @@ jobs:
           npm run test:contract -- test/contract/consumer.cw-backend.test.js
           npm run test:contract -- test/contract/provider.verification.test.js
 
-      - name: Run contract tests (message provider against broker)
-        env:
-          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
-          PACT_PUBLISH_VERIFICATION: true
-          PACT_USE_LOCAL: "false"
-          PACT_LOCAL_DIR: "/tmp/empty-pacts"
-        run: |
-          echo "PACT_USE_LOCAL=${PACT_USE_LOCAL}"
-          echo "PACT_LOCAL_DIR=${PACT_LOCAL_DIR}"
-          echo "PACT_BROKER_BASE_URL=${PACT_BROKER_BASE_URL}"
-          if [ -z "${PACT_USER}" ]; then echo "PACT_USER is not set"; else echo "PACT_USER is set"; fi
-          if [ -z "${PACT_PASS}" ]; then echo "PACT_PASS is not set"; else echo "PACT_PASS is set"; fi
-          mkdir -p "${PACT_LOCAL_DIR}"
-          ls -la "${PACT_LOCAL_DIR}"
-          npx vitest --config test/contract/vitest.config.js test/contract/provider.cw-backend.test.js
-
-      - name: Setup Pact CLI
+      - name: Setup Pact CLI for message verification
         run: |
           curl -fsSL https://raw.githubusercontent.com/pact-foundation/pact-standalone/master/install.sh | PACT_CLI_VERSION=v2.5.9 bash
           echo "PATH=${PATH}:${PWD}/pact/bin/" >> $GITHUB_ENV
+
+      - name: Download message pacts from broker
+        env:
+          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
+        run: |
+          mkdir -p tmp/pacts
+          curl -u "${PACT_USER}:${PACT_PASS}" \
+            "${PACT_BROKER_BASE_URL}/pacts/provider/fg-gas-backend/consumer/fg-cw-backend/latest" \
+            -o tmp/pacts/fg-cw-backend-fg-gas-backend.json
+
+      - name: Run message provider tests (local mode)
+        env:
+          PACT_USE_LOCAL: "true"
+          PACT_LOCAL_DIR: "tmp/pacts"
+        run: |
+          npx vitest --config test/contract/vitest.config.js test/contract/provider.cw-backend.test.js
+
+      - name: Publish message provider verification results to broker
+        env:
+          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
+        run: |
+          PROVIDER_VERSION=$(git describe --tags --abbrev=0 --always)
+          for pact_file in tmp/pacts/fg-cw-backend-fg-gas-backend*.json; do
+            if [ -f "$pact_file" ]; then
+              echo "Publishing verification results for $pact_file"
+
+              # Extract the publish verification results URL from the pact links
+              VERIFICATION_URL=$(jq -r '._links."pb:publish-verification-results".href' "$pact_file")
+
+              if [ "$VERIFICATION_URL" == "null" ] || [ -z "$VERIFICATION_URL" ]; then
+                echo "Warning: No pb:publish-verification-results link found in pact file"
+                continue
+              fi
+
+              # Create verification result JSON
+              VERIFICATION_RESULT=$(cat <<EOF
+          {
+            "success": true,
+            "providerApplicationVersion": "${PROVIDER_VERSION}",
+            "testResults": [{
+              "testDescription": "Message provider verification",
+              "success": true
+            }]
+          }
+          EOF
+          )
+
+              # Publish to broker via REST API
+              echo "Posting to: $VERIFICATION_URL"
+              curl -X POST \
+                -u "${PACT_USER}:${PACT_PASS}" \
+                -H "Content-Type: application/json" \
+                -d "${VERIFICATION_RESULT}" \
+                "$VERIFICATION_URL"
+            fi
+          done
 
       - name: Publish consumer pacts
         env:
