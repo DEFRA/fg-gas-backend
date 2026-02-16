@@ -326,30 +326,27 @@ describe("GAS Provider (sends messages to Agreement Service)", () => {
     });
   });
 
-  describe("ApplicationStatusUpdatedEvent Provider Verification", () => {
-    it("should verify GAS sends ApplicationStatusUpdatedEvent matching Agreement Service expectations", async () => {
+  describe("UpdateAgreementStatusCommand Provider Verification", () => {
+    it("should verify GAS sends UpdateAgreementStatusCommand matching Agreement Service expectations", async () => {
       const messagePact = new MessageProviderPact({
         messageProviders: {
-          "application status updated event - an application status updated message":
-            () => {
-              return {
-                contents: {
-                  id: "87654321-4321-4321-4321-210987654321",
-                  source: "fg-gas-backend",
-                  specversion: "1.0",
-                  type: "cloud.defra.test.fg-gas-backend.application.status.updated",
-                  datacontenttype: "application/json",
-                  time: "2025-12-15T10:19:06.519Z",
-                  data: {
-                    clientRef: "client-ref-002",
-                    grantCode: "frps-private-beta",
-                    previousStatus:
-                      "PRE_AWARD:APPLICATION:APPLICATION_RECEIVED",
-                    currentStatus: "PRE_AWARD:APPLICATION:WITHDRAWAL_REQUESTED",
-                  },
+          "an agreement withdrawn message": () => {
+            return {
+              contents: {
+                id: "99887766-5544-3322-1100-998877665544",
+                source: "fg-gas-backend",
+                specversion: "1.0",
+                type: "cloud.defra.test.fg-gas-backend.agreement.status.update",
+                datacontenttype: "application/json",
+                time: "2025-12-15T10:19:06.519Z",
+                data: {
+                  clientRef: "client-ref-002",
+                  agreementNumber: "FPTT123456789",
+                  status: "Withdrawn",
                 },
-              };
-            },
+              },
+            };
+          },
         },
       });
 

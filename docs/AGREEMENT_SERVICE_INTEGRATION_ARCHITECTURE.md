@@ -123,65 +123,53 @@ GAS and Agreement Service have a **bidirectional** async message integration:
 
 ---
 
-#### Message: `application.status.updated` (Triggers Withdrawal)
+#### Message: `agreement.status.update` (Agreement Withdrawal)
 
-**Purpose**: GAS sends this event when an application status changes. Agreement Service listens to this to trigger agreement withdrawal.
+**Purpose**: GAS sends this command to Agreement Service to update agreement status (specifically for withdrawal).
 
-**When**: Triggered when:
-
-1. Application is withdrawn
-2. Agreement is withdrawn
-3. Application status transitions occur
+**When**: Triggered when an application with an active agreement is withdrawn.
 
 **Production Code**:
 
-- **Event Class**: `src/grants/events/application-status-updated.event.js`
+- **Event Class**: `src/grants/events/update-agreement-status.command.js`
 
   ```javascript
-  export class ApplicationStatusUpdatedEvent extends CloudEvent {
-    constructor(props) {
+  export class UpdateAgreementStatusCommand extends CloudEvent {
+    constructor(command) {
       super(
-        "application.status.updated",
+        "agreement.status.update",
         {
-          clientRef: props.clientRef,
-          grantCode: props.code,
-          previousStatus: props.previousStatus,
-          currentStatus: props.currentStatus,
+          clientRef: command.clientRef,
+          status: command.status,
+          agreementNumber: command.agreementNumber,
         },
-        `${props.clientRef}-${props.code}`,
+        `${command.clientRef}-${command.code}`,
       );
     }
   }
   ```
 
 - **Use Cases**:
-  1. `src/grants/use-cases/withdraw-agreement.use-case.js:53-57`
+  1. `src/grants/use-cases/withdraw-application.use-case.js:32-44`
 
      ```javascript
-     const statusEvent = new ApplicationStatusUpdatedEvent({
+     const updateAgreementStatusCommand = new UpdateAgreementStatusCommand({
        clientRef,
        code,
-       previousStatus,
-       currentStatus: application.getFullyQualifiedStatus(),
+       status: AgreementServiceStatus.Withdrawn,
+       agreementNumber: agreement.agreementRef,
      });
-     await insertMany(
-       [
-         new Outbox({
-           event: statusEvent,
-           target: config.sns.grantApplicationStatusUpdatedTopicArn,
-           segregationRef: Outbox.getSegregationRef(statusEvent),
-         }),
-       ],
-       session,
+
+     outboxObjects.push(
+       new Outbox({
+         event: updateAgreementStatusCommand,
+         target: config.sns.updateAgreementStatusTopicArn,
+         segregationRef: Outbox.getSegregationRef(updateAgreementStatusCommand),
+       }),
      );
      ```
 
-  2. `src/grants/use-cases/withdraw-application.use-case.js:76-80`
-  3. `src/grants/use-cases/approve-application.use-case.js:37-41`
-  4. `src/grants/use-cases/accept-agreement.use-case.js:62-66`
-  5. `src/grants/use-cases/create-status-transition-update.use-case.js:28-32`
-
-- **SNS Topic**: `config.sns.grantApplicationStatusUpdatedTopicArn` (env: `GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN`)
+- **SNS Topic**: `config.sns.updateAgreementStatusTopicArn` (env: `GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN`)
 - **Target Queue**: Agreement Service's `update_agreement` SQS queue
 
 **CloudEvent Structure**:
@@ -191,33 +179,31 @@ GAS and Agreement Service have a **bidirectional** async message integration:
   "id": "uuid",
   "source": "fg-gas-backend",
   "specversion": "1.0",
-  "type": "cloud.defra.{env}.fg-gas-backend.application.status.updated",
+  "type": "cloud.defra.{env}.fg-gas-backend.agreement.status.update",
   "datacontenttype": "application/json",
   "time": "ISO8601 timestamp",
   "data": {
     "clientRef": "string",
-    "grantCode": "string",
-    "previousStatus": "string",
-    "currentStatus": "string"
+    "agreementNumber": "string",
+    "status": "Withdrawn"
   }
 }
 ```
 
 **GAS Contract Tests**:
 
-- **Provider Test**: ✅ **Created** - `test/contract/provider.agreements-api.test.js` (ApplicationStatusUpdatedEvent Provider Verification)
-  - Verifies GAS sends `application.status.updated` message
+- **Provider Test**: ✅ **Created** - `test/contract/provider.agreements-api.test.js` (UpdateAgreementStatusCommand Provider Verification)
+  - Verifies GAS sends `agreement.status.update` message
   - Uses `MessageProviderPact` to define the message structure
 
 **Agreement Service Contract Tests**:
 
-- **Consumer Test**: ❌ **WRONG** - They have `gas-agreements.withdrawn.contract.test.js` but it expects wrong event type
-  - Current test expects: `agreement.withdraw` (wrong)
-  - Should expect: `application.status.updated` (correct)
+- **Consumer Test**: `gas-agreements.withdrawn.contract.test.js`
+  - Expects message with `clientRef`, `agreementNumber`, `status` fields
   - Handler: `handleUpdateAgreementEvent`
-  - Action: Calls `withdrawOffer` when status indicates withdrawal
+  - Action: Calls `withdrawOffer` to withdraw agreement
 
-**Status**: ⚠️ **GAS test created, Agreement Service test needs fixing**
+**Status**: ✅ **Complete**
 
 ---
 
@@ -323,12 +309,12 @@ GAS and Agreement Service have a **bidirectional** async message integration:
 
 ## Summary Table
 
-| Direction        | Message Type              | Event Type                   | GAS Role | GAS Test Location                                  | Agreements Test Location                                         | Status                            |
-| ---------------- | ------------------------- | ---------------------------- | -------- | -------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------- |
-| GAS → Agreements | Create Agreement Command  | `agreement.create`           | Provider | `test/contract/provider.agreements-api.test.js`    | `src/contracts/consumer/gas-agreements.created.contract.test.js` | ✅ Complete                       |
-| GAS → Agreements | Application Status Update | `application.status.updated` | Provider | ✅ `test/contract/provider.agreements-api.test.js` | ❌ Wrong (expects `agreement.withdraw`)                          | ⚠️ GAS done, Agreements needs fix |
-| Agreements → GAS | Agreement Accepted        | `agreement.accepted`         | Consumer | `test/contract/consumer.agreements-api.test.js`    | `src/contracts/provider/agreements-gas.contract.test.js`         | ✅ Complete                       |
-| Agreements → GAS | Agreement Status Updated  | `agreement_status_updated`   | Consumer | ⚠️ Needs verification                              | ⚠️ Needs verification                                            | ⚠️ Needs verification             |
+| Direction        | Message Type             | Event Type                 | GAS Role | GAS Test Location                               | Agreements Test Location                                           | Status      |
+| ---------------- | ------------------------ | -------------------------- | -------- | ----------------------------------------------- | ------------------------------------------------------------------ | ----------- |
+| GAS → Agreements | Create Agreement Command | `agreement.create`         | Provider | `test/contract/provider.agreements-api.test.js` | `src/contracts/consumer/gas-agreements.created.contract.test.js`   | ✅ Complete |
+| GAS → Agreements | Update Agreement Status  | `agreement.status.update`  | Provider | `test/contract/provider.agreements-api.test.js` | `src/contracts/consumer/gas-agreements.withdrawn.contract.test.js` | ✅ Complete |
+| Agreements → GAS | Agreement Accepted       | `agreement.accepted`       | Consumer | `test/contract/consumer.agreements-api.test.js` | `src/contracts/provider/agreements-gas.contract.test.js`           | ✅ Complete |
+| Agreements → GAS | Agreement Status Updated | `agreement_status_updated` | Consumer | ⚠️ Needs verification                           | ⚠️ Needs verification                                              | ⚠️ TBD      |
 
 ---
 
