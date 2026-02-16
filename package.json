@@ -55,7 +55,7 @@
     "joi": "^17.13.3",
     "migrate-mongo": "^14.0.7",
     "mongodb": "^7.0.0",
-    "pino": "^10.2.1",
+    "pino": "^10.3.1",
     "pino-pretty": "^13.1.1"
   },
   "devDependencies": {
