@@ -205,17 +205,19 @@ GAS and Agreement Service have a **bidirectional** async message integration:
 
 **GAS Contract Tests**:
 
-- **Provider Test**: ❌ **MISSING** - Should be created to verify GAS sends this message
+- **Provider Test**: ✅ **Created** - `test/contract/provider.agreements-api.test.js` (ApplicationStatusUpdatedEvent Provider Verification)
+  - Verifies GAS sends `application.status.updated` message
+  - Uses `MessageProviderPact` to define the message structure
 
 **Agreement Service Contract Tests**:
 
-- **Consumer Test**: ❌ **MISSING** - They have `gas-agreements.withdrawn.contract.test.js` but it expects wrong event type
+- **Consumer Test**: ❌ **WRONG** - They have `gas-agreements.withdrawn.contract.test.js` but it expects wrong event type
   - Current test expects: `agreement.withdraw` (wrong)
   - Should expect: `application.status.updated` (correct)
   - Handler: `handleUpdateAgreementEvent`
   - Action: Calls `withdrawOffer` when status indicates withdrawal
 
-**Status**: ❌ **Tests need to be created/fixed**
+**Status**: ⚠️ **GAS test created, Agreement Service test needs fixing**
 
 ---
 
@@ -321,12 +323,12 @@ GAS and Agreement Service have a **bidirectional** async message integration:
 
 ## Summary Table
 
-| Direction        | Message Type              | Event Type                   | GAS Role | GAS Test Location                               | Agreements Test Location                                         | Status                |
-| ---------------- | ------------------------- | ---------------------------- | -------- | ----------------------------------------------- | ---------------------------------------------------------------- | --------------------- |
-| GAS → Agreements | Create Agreement Command  | `agreement.create`           | Provider | `test/contract/provider.agreements-api.test.js` | `src/contracts/consumer/gas-agreements.created.contract.test.js` | ✅ Complete           |
-| GAS → Agreements | Application Status Update | `application.status.updated` | Provider | ❌ Missing                                      | ❌ Wrong (expects `agreement.withdraw`)                          | ❌ Needs creation/fix |
-| Agreements → GAS | Agreement Accepted        | `agreement.accepted`         | Consumer | `test/contract/consumer.agreements-api.test.js` | `src/contracts/provider/agreements-gas.contract.test.js`         | ✅ Complete           |
-| Agreements → GAS | Agreement Status Updated  | `agreement_status_updated`   | Consumer | ⚠️ Needs verification                           | ⚠️ Needs verification                                            | ⚠️ Needs verification |
+| Direction        | Message Type              | Event Type                   | GAS Role | GAS Test Location                                  | Agreements Test Location                                         | Status                            |
+| ---------------- | ------------------------- | ---------------------------- | -------- | -------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------- |
+| GAS → Agreements | Create Agreement Command  | `agreement.create`           | Provider | `test/contract/provider.agreements-api.test.js`    | `src/contracts/consumer/gas-agreements.created.contract.test.js` | ✅ Complete                       |
+| GAS → Agreements | Application Status Update | `application.status.updated` | Provider | ✅ `test/contract/provider.agreements-api.test.js` | ❌ Wrong (expects `agreement.withdraw`)                          | ⚠️ GAS done, Agreements needs fix |
+| Agreements → GAS | Agreement Accepted        | `agreement.accepted`         | Consumer | `test/contract/consumer.agreements-api.test.js`    | `src/contracts/provider/agreements-gas.contract.test.js`         | ✅ Complete                       |
+| Agreements → GAS | Agreement Status Updated  | `agreement_status_updated`   | Consumer | ⚠️ Needs verification                              | ⚠️ Needs verification                                            | ⚠️ Needs verification             |
 
 ---
 
@@ -381,7 +383,7 @@ GAS and Agreement Service have a **bidirectional** async message integration:
 
 **Problem**: GAS sends `application.status.updated` to Agreement Service, but has no provider test to verify the message structure.
 
-**Solution**: Create `test/contract/provider.agreements-api.application-status-updated.test.js` (or add to existing provider test file).
+**Solution**: ✅ **RESOLVED** - Created provider test in `test/contract/provider.agreements-api.test.js` (ApplicationStatusUpdatedEvent Provider Verification)
 
 ---
 
@@ -437,7 +439,7 @@ See `docs/MESSAGE_PACT_VERIFICATION.md` for implementation details.
 ## Next Steps
 
 1. ✅ Create GAS provider test for `agreement.create` - **DONE**
-2. ❌ Create GAS provider test for `application.status.updated` - **TODO**
+2. ✅ Create GAS provider test for `application.status.updated` - **DONE**
 3. ❌ Fix Agreement Service consumer test to expect `application.status.updated` instead of `agreement.withdraw` - **Agreements Team TODO**
 4. ⚠️ Verify `agreement_status_updated` consumer test exists in GAS - **TODO**
 5. ⚠️ Identify GAS queue that receives `agreement_status_updated` - **TODO**

@@ -325,4 +325,40 @@ describe("GAS Provider (sends messages to Agreement Service)", () => {
       return messagePact.verify(verifyOpts);
     });
   });
+
+  describe("ApplicationStatusUpdatedEvent Provider Verification", () => {
+    it("should verify GAS sends ApplicationStatusUpdatedEvent matching Agreement Service expectations", async () => {
+      const messagePact = new MessageProviderPact({
+        messageProviders: {
+          "application status updated event - an application status updated message":
+            () => {
+              return {
+                contents: {
+                  id: "87654321-4321-4321-4321-210987654321",
+                  source: "fg-gas-backend",
+                  specversion: "1.0",
+                  type: "cloud.defra.test.fg-gas-backend.application.status.updated",
+                  datacontenttype: "application/json",
+                  time: "2025-12-15T10:19:06.519Z",
+                  data: {
+                    clientRef: "client-ref-002",
+                    grantCode: "frps-private-beta",
+                    previousStatus:
+                      "PRE_AWARD:APPLICATION:APPLICATION_RECEIVED",
+                    currentStatus: "PRE_AWARD:APPLICATION:WITHDRAWAL_REQUESTED",
+                  },
+                },
+              };
+            },
+        },
+      });
+
+      const verifyOpts = buildMessageVerifierOptions({
+        providerName: "fg-gas-backend",
+        consumerName: "farming-grants-agreements-api",
+      });
+
+      return messagePact.verify(verifyOpts);
+    });
+  });
 });
