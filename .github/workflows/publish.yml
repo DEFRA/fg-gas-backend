@@ -89,7 +89,7 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/pact-foundation/pact-standalone/master/install.sh | PACT_CLI_VERSION=v2.5.9 bash
           echo "PATH=${PATH}:${PWD}/pact/bin/" >> $GITHUB_ENV
 
-      - name: Download message pacts from broker
+      - name: Download message pacts from broker (CW)
         env:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
         run: |
@@ -98,19 +98,28 @@ jobs:
             "${PACT_BROKER_BASE_URL}/pacts/provider/fg-gas-backend/consumer/fg-cw-backend/latest" \
             -o tmp/pacts/fg-cw-backend-fg-gas-backend.json
 
+      - name: Download message pacts from broker (Agreement Service)
+        env:
+          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
+        run: |
+          curl -u "${PACT_USER}:${PACT_PASS}" \
+            "${PACT_BROKER_BASE_URL}/pacts/provider/fg-gas-backend/consumer/farming-grants-agreements-api/latest" \
+            -o tmp/pacts/farming-grants-agreements-api-fg-gas-backend.json
+
       - name: Run message provider tests (local mode)
         env:
           PACT_USE_LOCAL: "true"
           PACT_LOCAL_DIR: "tmp/pacts"
         run: |
           npx vitest --config test/contract/vitest.config.js test/contract/provider.cw-backend.test.js
+          npx vitest --config test/contract/vitest.config.js test/contract/provider.agreements-api.test.js
 
       - name: Publish message provider verification results to broker
         env:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
         run: |
           PROVIDER_VERSION=$(git describe --tags --abbrev=0 --always)
-          for pact_file in tmp/pacts/fg-cw-backend-fg-gas-backend*.json; do
+          for pact_file in tmp/pacts/*-fg-gas-backend*.json; do
             if [ -f "$pact_file" ]; then
               echo "Publishing verification results for $pact_file"
 
