@@ -105,22 +105,43 @@ jobs:
         run: |
           npx vitest --config test/contract/vitest.config.js test/contract/provider.cw-backend.test.js
 
-      - name: Publish message provider verification results
+      - name: Publish message provider verification results to broker
         env:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
         run: |
           PROVIDER_VERSION=$(git describe --tags --abbrev=0 --always)
           for pact_file in tmp/pacts/fg-cw-backend-fg-gas-backend*.json; do
             if [ -f "$pact_file" ]; then
-              echo "Publishing verification for $pact_file"
-              pact-broker publish-verification-results \
-                "$pact_file" \
-                --broker-base-url="${PACT_BROKER_BASE_URL}" \
-                --broker-username="${PACT_USER}" \
-                --broker-password="${PACT_PASS}" \
-                --provider=fg-gas-backend \
-                --provider-app-version="${PROVIDER_VERSION}" \
-                --verification-success
+              echo "Publishing verification results for $pact_file"
+
+              # Extract the publish verification results URL from the pact links
+              VERIFICATION_URL=$(jq -r '._links."pb:publish-verification-results".href' "$pact_file")
+
+              if [ "$VERIFICATION_URL" == "null" ] || [ -z "$VERIFICATION_URL" ]; then
+                echo "Warning: No pb:publish-verification-results link found in pact file"
+                continue
+              fi
+
+              # Create verification result JSON
+              VERIFICATION_RESULT=$(cat <<EOF
+          {
+            "success": true,
+            "providerApplicationVersion": "${PROVIDER_VERSION}",
+            "testResults": [{
+              "testDescription": "Message provider verification",
+              "success": true
+            }]
+          }
+          EOF
+          )
+
+              # Publish to broker via REST API
+              echo "Posting to: $VERIFICATION_URL"
+              curl -X POST \
+                -u "${PACT_USER}:${PACT_PASS}" \
+                -H "Content-Type: application/json" \
+                -d "${VERIFICATION_RESULT}" \
+                "$VERIFICATION_URL"
             fi
           done
 
