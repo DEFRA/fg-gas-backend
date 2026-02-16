@@ -94,13 +94,9 @@ jobs:
           PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
         run: |
           mkdir -p tmp/pacts
-          pact-broker download-pacts \
-            --provider=fg-gas-backend \
-            --consumer=fg-cw-backend \
-            --broker-base-url="${PACT_BROKER_BASE_URL}" \
-            --broker-username="${PACT_USER}" \
-            --broker-password="${PACT_PASS}" \
-            --output-dir=tmp/pacts
+          curl -u "${PACT_USER}:${PACT_PASS}" \
+            "${PACT_BROKER_BASE_URL}/pacts/provider/fg-gas-backend/consumer/fg-cw-backend/latest" \
+            -o tmp/pacts/fg-cw-backend-fg-gas-backend.json
 
       - name: Run message provider tests (local mode)
         env:
