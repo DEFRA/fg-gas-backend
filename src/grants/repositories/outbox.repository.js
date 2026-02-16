@@ -12,19 +12,13 @@ const NUMBER_OF_RECORDS = config.outbox.outboxClaimMaxRecords;
 export const findNextMessage = async (lockIds) => {
   const doc = await db.collection(collection).findOne(
     {
-      status: { $eq: OutboxStatus.PUBLISHED },
-      claimedBy: { $eq: null },
+      status: OutboxStatus.PUBLISHED,
+      claimedBy: null,
       completionAttempts: { $lte: MAX_RETRIES },
       segregationRef: { $nin: lockIds },
     },
-    {},
     { sort: { publicationDate: 1 } },
   );
-  if (!doc) {
-    logger.info(
-      `Outbox Unable to find next message using lockIds ${lockIds.toString()}`,
-    );
-  }
   return doc;
 };
 

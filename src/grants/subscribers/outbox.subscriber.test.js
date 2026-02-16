@@ -35,9 +35,11 @@ vi.mock("../repositories/outbox.repository.js");
 
 const createOutbox = (doc) =>
   new Outbox({
+    target: "arn:aws:sns:eu-west-2:000000000000:test-topic",
     event: {
       time: new Date().toISOString(),
     },
+    segregationRef: "default-ref",
     ...doc,
   });
 
@@ -93,6 +95,7 @@ describe("outbox.subscriber", () => {
     const mockEvent = new Outbox({
       target: "arn:aws:sns:eu-west-2:000000000000:test-topic",
       event: { data: { foo: "bar" } },
+      segregationRef: "ref_1",
     });
     mockEvent.markAsComplete = vi.fn();
 
