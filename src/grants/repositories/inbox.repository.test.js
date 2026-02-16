@@ -5,6 +5,7 @@ import { db } from "../../common/mongo-client.js";
 import { Inbox, InboxStatus } from "../models/inbox.js";
 import {
   claimEvents,
+  deadLetterEvent,
   findByMessageId,
   findNextMessage,
   insertMany,
@@ -28,6 +29,37 @@ const createMockInbox = (id, time) => {
 };
 
 describe("inbox.repository", () => {
+  describe("deadLetterRecord", () => {
+    it("should DLQ a given record", async () => {
+      const mockUpdateOne = vi.fn().mockResolvedValueOnce({
+        modifiedCount: 1,
+      });
+      db.collection.mockReturnValue({
+        updateOne: mockUpdateOne,
+      });
+
+      const record = {
+        _id: "12345",
+      };
+
+      await deadLetterEvent(record);
+
+      expect(mockUpdateOne).toHaveBeenCalledWith(
+        {
+          _id: record._id,
+        },
+        {
+          $set: {
+            status: InboxStatus.DEAD_LETTER,
+            claimedAt: null,
+            claimExpiresAt: null,
+            claimedBy: null,
+          },
+        },
+      );
+    });
+  });
+
   it("should find next message excluding locked segregationRefs", async () => {
     const lockIds = ["ref-1", "ref-2"];
     const mockDoc = { _id: "1" };
