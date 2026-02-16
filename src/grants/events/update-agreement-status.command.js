@@ -6,6 +6,7 @@ export class UpdateAgreementStatusCommand extends CloudEvent {
       "agreement.status.update",
       {
         clientRef: command.clientRef,
+        code: command.code,
         status: command.status,
         agreementNumber: command.agreementNumber,
       },

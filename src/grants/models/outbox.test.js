@@ -1,6 +1,77 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Outbox, OutboxStatus } from "./outbox.js";
 
+describe("Outbox.validationSchema", () => {
+  const validProps = {
+    target: "arn:some:target",
+    event: { clientRef: "1234" },
+    segregationRef: "seg-ref-1",
+  };
+
+  it("should accept valid props", () => {
+    const { error } = Outbox.validationSchema.validate(validProps);
+    expect(error).toBeUndefined();
+  });
+
+  it("should require target", () => {
+    const { target, ...props } = validProps;
+    const { error } = Outbox.validationSchema.validate(props);
+    expect(error.message).toContain('"target" is required');
+  });
+
+  it("should require target to be a string", () => {
+    const { error } = Outbox.validationSchema.validate({
+      ...validProps,
+      target: 123,
+    });
+    expect(error.message).toContain('"target" must be a string');
+  });
+
+  it("should require event", () => {
+    const { event, ...props } = validProps;
+    const { error } = Outbox.validationSchema.validate(props);
+    expect(error.message).toContain('"event" is required');
+  });
+
+  it("should require event to be an object", () => {
+    const { error } = Outbox.validationSchema.validate({
+      ...validProps,
+      event: "not-an-object",
+    });
+    expect(error.message).toContain('"event" must be of type object');
+  });
+
+  it("should require segregationRef", () => {
+    const { segregationRef, ...props } = validProps;
+    const { error } = Outbox.validationSchema.validate(props);
+    expect(error.message).toContain('"segregationRef" is required');
+  });
+
+  it("should require segregationRef to be a string", () => {
+    const { error } = Outbox.validationSchema.validate({
+      ...validProps,
+      segregationRef: 42,
+    });
+    expect(error.message).toContain('"segregationRef" must be a string');
+  });
+
+  it("should strip unknown properties", () => {
+    const { value } = Outbox.validationSchema.validate(
+      { ...validProps, unknown: "field" },
+      { stripUnknown: true },
+    );
+    expect(value).not.toHaveProperty("unknown");
+  });
+
+  it("should report all errors when abortEarly is false", () => {
+    const { error } = Outbox.validationSchema.validate(
+      {},
+      { abortEarly: false },
+    );
+    expect(error.details).toHaveLength(3);
+  });
+});
+
 describe("Outbox model", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -18,6 +89,7 @@ describe("Outbox model", () => {
         clientRef: "1234",
       },
       target: "arn:some:target",
+      segregationRef: "seg-ref-1",
     });
     expect(obj).toBeInstanceOf(Outbox);
     expect(obj.target).toBe("arn:some:target");
@@ -59,6 +131,7 @@ describe("Outbox model", () => {
       claimedAt: null,
       claimedBy: null,
       claimExpiresAt: null,
+      segregationRef: "seg-ref-1",
     };
     const out = Outbox.fromDocument(doc);
     expect(out).toBeInstanceOf(Outbox);
@@ -72,16 +145,26 @@ describe("Outbox model", () => {
     expect(newDoc.event).toBe(out.event);
   });
 
-  it("should mark outbox as failed", () => {
-    const obj = new Outbox({
-      event: {
-        clientRef: "1234",
-      },
-      target: "arn:some:target",
-    });
-    expect(obj).toBeInstanceOf(Outbox);
-    obj.markAsFailed();
-    expect(obj.status).toBe(OutboxStatus.FAILED);
+  it("should throw Boom error when required fields are missing", () => {
+    expect(() => new Outbox({})).toThrow(
+      /Invalid Outbox:.*"target" is required.*"event" is required.*"segregationRef" is required/,
+    );
+  });
+
+  it("should throw Boom error when target is missing", () => {
+    expect(
+      () =>
+        new Outbox({
+          event: { clientRef: "1234" },
+          segregationRef: "seg-ref-1",
+        }),
+    ).toThrow(/"target" is required/);
+  });
+
+  it("should return segregationRef from event data via getSegregationRef", () => {
+    const event = { data: { clientRef: "CR001", grantCode: "GC001" } };
+    const ref = Outbox.getSegregationRef(event);
+    expect(ref).toBe("CR001-GC001");
   });
 
   it("should mark outbox as failed", () => {
@@ -90,6 +173,20 @@ describe("Outbox model", () => {
         clientRef: "1234",
       },
       target: "arn:some:target",
+      segregationRef: "seg-ref-1",
+    });
+    expect(obj).toBeInstanceOf(Outbox);
+    obj.markAsFailed();
+    expect(obj.status).toBe(OutboxStatus.FAILED);
+  });
+
+  it("should mark outbox as complete", () => {
+    const obj = new Outbox({
+      event: {
+        clientRef: "1234",
+      },
+      target: "arn:some:target",
+      segregationRef: "seg-ref-1",
     });
     expect(obj).toBeInstanceOf(Outbox);
     obj.markAsComplete();

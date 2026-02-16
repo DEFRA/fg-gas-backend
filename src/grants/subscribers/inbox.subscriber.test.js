@@ -38,6 +38,8 @@ const createInbox = (doc) =>
     event: {
       time: new Date().toISOString(),
     },
+    source: "CW",
+    segregationRef: "mock-ref",
     ...doc,
   });
 
@@ -89,6 +91,8 @@ describe("inbox.subscriber", () => {
       type: "io.onsite.agreement.status.foo",
       traceparent: "test-trace",
       event: { data: { foo: "bar" } },
+      source: "CW",
+      segregationRef: "ref-1",
     });
 
     findNextMessage.mockResolvedValue(createInbox({ segregationRef: "ref_1" }));

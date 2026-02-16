@@ -1,3 +1,5 @@
+import Boom from "@hapi/boom";
+import Joi from "joi";
 import { getMessageGroupId } from "../../common/get-message-group-id.js";
 
 export const OutboxStatus = {
@@ -10,7 +12,25 @@ export const OutboxStatus = {
 };
 
 export class Outbox {
+  static validationSchema = Joi.object({
+    target: Joi.string().required(),
+    event: Joi.object().required(),
+    segregationRef: Joi.string().required(),
+  });
+
+  // eslint-disable-next-line complexity
   constructor(props) {
+    const { error } = Outbox.validationSchema.validate(props, {
+      stripUnknown: true,
+      abortEarly: false,
+    });
+
+    if (error) {
+      throw Boom.badRequest(
+        `Invalid Outbox: ${error.details.map((d) => d.message).join(", ")}`,
+      );
+    }
+
     this._id = props._id;
     this.publicationDate = props.publicationDate || new Date();
     this.target = props.target;
@@ -82,6 +102,7 @@ export class Outbox {
 
   static createMock(doc) {
     return new Outbox({
+      target: "arn:aws:sns:eu-west-2:000000000000:mock-topic",
       event: {
         messageGroupId: "foo-barr",
       },

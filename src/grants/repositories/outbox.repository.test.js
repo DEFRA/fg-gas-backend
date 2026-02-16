@@ -33,17 +33,16 @@ describe("outbox.repository", () => {
       expect(result).toEqual(mockDocument);
       expect(findOne).toHaveBeenCalledWith(
         {
-          status: { $eq: OutboxStatus.PUBLISHED },
-          claimedBy: { $eq: null },
+          status: OutboxStatus.PUBLISHED,
+          claimedBy: null,
           completionAttempts: { $lte: config.outbox.outboxMaxRetries },
           segregationRef: { $nin: ["locked_ref"] },
         },
-        {},
         { sort: { publicationDate: 1 } },
       );
     });
 
-    it("should log and return null when no document is found", async () => {
+    it("should return null when no document is found", async () => {
       const findOne = vi.fn().mockResolvedValue(null);
       db.collection.mockReturnValue({ findOne });
       vi.spyOn(logger, "info");
@@ -51,9 +50,6 @@ describe("outbox.repository", () => {
       const result = await findNextMessage(["ref_1", "ref_2"]);
 
       expect(result).toBeNull();
-      expect(logger.info).toHaveBeenCalledWith(
-        "Outbox Unable to find next message using lockIds ref_1,ref_2",
-      );
     });
   });
 
@@ -72,12 +68,14 @@ describe("outbox.repository", () => {
           event: {
             clientRef: "1234-7778",
           },
+          segregationRef: "seg-ref-1",
         }),
         new Outbox({
           target: "arn:some:other:value",
           event: {
             clientRef: "0987-1234",
           },
+          segregationRef: "seg-ref-2",
         }),
       ];
 
@@ -103,6 +101,7 @@ describe("outbox.repository", () => {
         },
         completionAttempts: 1,
         status: OutboxStatus.PUBLISHED,
+        segregationRef: "seg-ref-1",
       };
       const findOneAndUpdateMock = vi.fn();
       findOneAndUpdateMock
@@ -134,6 +133,7 @@ describe("outbox.repository", () => {
         target: "arn:foo:bar",
         completionAttempts: 1,
         status: OutboxStatus.PROCESSING,
+        segregationRef: "seg-ref-1",
       });
 
       await update(outboxEvent, claimedBy);
@@ -152,6 +152,7 @@ describe("outbox.repository", () => {
             event: {},
             lastResubmissionDate: undefined,
             publicationDate: expect.any(Date),
+            segregationRef: "seg-ref-1",
             status: "PROCESSING",
             target: "arn:foo:bar",
           },

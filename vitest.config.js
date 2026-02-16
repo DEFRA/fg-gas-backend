@@ -39,6 +39,12 @@ export default defineConfig({
       INBOX_EXPIRES_MS: 5000,
       INBOX_POLL_MS: 250,
       FIFO_LOCK_TTL_MS: 300000,
+      GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: "some:arn",
+      GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: "some:arn",
+      GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: "some:arn",
+      GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: "some:arn",
+      GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: "some:arn",
+      GAS__SNS__UPDATE_CASE_STATUS_TOPIC_ARN: "some:arn",
     },
   },
 });

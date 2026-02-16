@@ -24,7 +24,10 @@ describe("approveApplicationUseCase", () => {
   it("finds an existing application", async () => {
     withTransaction.mockImplementation((cb) => cb(mockSession));
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
-      new Application({}),
+      new Application({
+        clientRef: "test-client-ref",
+        code: "test-grant",
+      }),
     );
 
     await approveApplicationUseCase({

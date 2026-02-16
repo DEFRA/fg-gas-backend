@@ -34,10 +34,6 @@ export class OutboxSubscriber {
     const locks = await getFifoLocks(OutboxSubscriber.ACTOR);
     const lockIds = locks.map((lock) => lock.segregationRef);
     const available = await findNextMessage(lockIds);
-    logger.info(
-      `Outbox getNextAvailable with segregationRef: ${available?.segregationRef}`,
-    );
-    logger.info(available);
     return available?.segregationRef;
   }
 

@@ -26,6 +26,7 @@ describe("UpdateAgreementStatusCommand", () => {
       datacontenttype: "application/json",
       data: {
         clientRef: "application-123",
+        code: "code-1",
         status: "withdrawn",
         agreementNumber: "agreement-1234",
       },
