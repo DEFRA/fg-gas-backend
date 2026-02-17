@@ -6,6 +6,7 @@ import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 import {
   claimEvents,
+  deadLetterEvent,
   findNextMessage,
   insertMany,
   update,
@@ -18,6 +19,37 @@ import {
 vi.mock("../../common/mongo-client.js");
 
 describe("outbox.repository", () => {
+  describe("deadLetterRecord", () => {
+    it("should DLQ a given record", async () => {
+      const mockUpdateOne = vi.fn().mockResolvedValueOnce({
+        modifiedCount: 1,
+      });
+      db.collection.mockReturnValue({
+        updateOne: mockUpdateOne,
+      });
+
+      const record = {
+        _id: "12345",
+      };
+
+      await deadLetterEvent(record);
+
+      expect(mockUpdateOne).toHaveBeenCalledWith(
+        {
+          _id: record._id,
+        },
+        {
+          $set: {
+            status: OutboxStatus.DEAD_LETTER,
+            claimedAt: null,
+            claimExpiresAt: null,
+            claimedBy: null,
+          },
+        },
+      );
+    });
+  });
+
   describe("findNextMessage", () => {
     it("should return a document when one is available", async () => {
       const mockDocument = {

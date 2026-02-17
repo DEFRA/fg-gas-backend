@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { env } from "node:process";
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -22,6 +23,11 @@ beforeAll(async () => {
   inbox = db.collection("inbox");
   fifo = db.collection("fifo_locks");
   await fifo.deleteMany({});
+  await inbox.deleteMany({});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 afterAll(async () => {
@@ -38,7 +44,7 @@ const createMockInbox = (id, time, segregationRef) => {
   });
 };
 
-describe("inbox claim events", () => {
+describe("inbox repository claim events", () => {
   beforeEach(async () => {
     await fifo.deleteMany({});
     await inbox.deleteMany({});
@@ -64,6 +70,54 @@ describe("inbox claim events", () => {
     expect(records[1]._id).toBe("2");
     expect(records[2]._id).toBe("3");
     expect(records[3]._id).toBe("4");
+  });
+});
+
+describe("getNextAvailable", () => {
+  beforeEach(async () => {
+    await fifo.deleteMany({});
+    await inbox.deleteMany({});
+    await fifo.insertOne({
+      segregationRef: "ref_1",
+      locked: true,
+      lockedAt: new Date(Date.now()),
+      actor: "INBOX",
+    });
+  });
+
+  it("should DLQ events with no segregationRef", async () => {
+    await inbox.deleteMany({});
+    const inbox1 = createMockInbox(
+      "1",
+      new Date(Date.now()).toISOString(),
+      "ref_1",
+    );
+    const inbox2 = createMockInbox(
+      "2",
+      new Date(Date.now()).toISOString(),
+      "ref_2",
+    );
+    inbox1.segregationRef = null;
+    await inbox.insertMany([inbox1, inbox2]);
+    const getNextAvailableSpy = vi.spyOn(
+      InboxSubscriber.prototype,
+      "getNextAvailable",
+    );
+    const processEventsSpy = vi
+      .spyOn(InboxSubscriber.prototype, "processEvents")
+      .mockResolvedValue(true);
+    const subscriber = new InboxSubscriber(1000);
+    subscriber.start();
+    for (let i = 0; i < 10 && processEventsSpy.mock.calls.length === 0; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    subscriber.stop();
+    expect(processEventsSpy).toHaveBeenCalledTimes(1);
+    expect(getNextAvailableSpy).toHaveBeenCalledTimes(2);
+    const [events] = processEventsSpy.mock.calls[0];
+    expect(events).toHaveLength(1);
+    expect(events[0]._id).toBe("2");
+    expect(events[0].segregationRef).toBe("ref_2");
   });
 });
 

@@ -9,6 +9,23 @@ const MAX_RETRIES = config.outbox.outboxMaxRetries;
 const EXPIRES_IN_MS = config.outbox.outboxExpiresMs;
 const NUMBER_OF_RECORDS = config.outbox.outboxClaimMaxRecords;
 
+export const deadLetterEvent = async (event) => {
+  const results = await db.collection(collection).updateOne(
+    {
+      _id: event._id,
+    },
+    {
+      $set: {
+        status: OutboxStatus.DEAD_LETTER,
+        claimedAt: null,
+        claimExpiresAt: null,
+        claimedBy: null,
+      },
+    },
+  );
+  return results;
+};
+
 export const findNextMessage = async (lockIds) => {
   const doc = await db.collection(collection).findOne(
     {

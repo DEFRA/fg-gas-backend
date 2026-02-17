@@ -20,6 +20,7 @@ import {
 } from "../repositories/fifo-lock.repository.js";
 import {
   claimEvents,
+  deadLetterEvent,
   findNextMessage,
 } from "../repositories/inbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
@@ -233,6 +234,37 @@ describe("inbox.subscriber", () => {
   });
 
   describe("available segregation Ref", () => {
+    it("should DLQ any records with no segregationRef and try getNextAvailable again", async () => {
+      findNextMessage
+        .mockResolvedValueOnce({ segregationRef: null })
+        .mockResolvedValueOnce({ segregationRef: "segregation_ref_1" });
+      getFifoLocks.mockResolvedValue(["segregation_ref_2"]);
+      setFifoLock.mockResolvedValue({
+        matchedCount: 0,
+        modifiedCount: 1,
+        upsertedCount: 1,
+      });
+      freeFifoLock.mockResolvedValue();
+      cleanupStaleLocks.mockResolvedValue({ modifiedCount: 1 });
+      deadLetterEvent.mockResolvedValue();
+
+      const subscriber = new InboxSubscriber();
+      subscriber.start();
+
+      await vi.waitFor(() => {
+        expect(claimEvents).toHaveBeenCalledWith(
+          expect.any(String),
+          "segregation_ref_1",
+        );
+      });
+
+      expect(claimEvents).toHaveBeenCalledTimes(1);
+      expect(findNextMessage).toHaveBeenCalledTimes(2);
+      expect(deadLetterEvent).toHaveBeenCalledTimes(1);
+
+      subscriber.stop();
+    });
+
     it("should claim next available message", async () => {
       const events = [
         Inbox.createMock({
