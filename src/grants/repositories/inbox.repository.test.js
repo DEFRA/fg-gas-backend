@@ -151,7 +151,7 @@ describe("inbox.repository", () => {
       { completionAttempts: { $gte: config.inbox.inboxMaxRetries } },
       {
         $set: {
-          status: InboxStatus.DEAD,
+          status: InboxStatus.DEAD_LETTER,
           claimedAt: null,
           claimExpiresAt: null,
           claimedBy: null,
