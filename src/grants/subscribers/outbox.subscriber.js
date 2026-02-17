@@ -13,6 +13,7 @@ import {
 } from "../repositories/fifo-lock.repository.js";
 import {
   claimEvents,
+  deadLetterEvent,
   findNextMessage,
   update,
   updateDeadEvents,
@@ -34,7 +35,17 @@ export class OutboxSubscriber {
     const locks = await getFifoLocks(OutboxSubscriber.ACTOR);
     const lockIds = locks.map((lock) => lock.segregationRef);
     const available = await findNextMessage(lockIds);
-    return available?.segregationRef;
+
+    if (!available) {
+      return null;
+    }
+
+    if (!available.segregationRef) {
+      await deadLetterEvent(available);
+      return this.getNextAvailable();
+    } else {
+      return available.segregationRef;
+    }
   }
 
   async poll() {
