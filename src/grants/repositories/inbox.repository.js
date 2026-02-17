@@ -7,6 +7,23 @@ const MAX_RETRIES = config.inbox.inboxMaxRetries;
 const NUMBER_OF_RECORDS = config.inbox.inboxClaimMaxRecords;
 const EXPIRES_IN_MS = config.inbox.inboxExpiresMs;
 
+export const deadLetterEvent = async (event) => {
+  const results = await db.collection(collection).updateOne(
+    {
+      _id: event._id,
+    },
+    {
+      $set: {
+        status: InboxStatus.DEAD_LETTER,
+        claimedAt: null,
+        claimExpiresAt: null,
+        claimedBy: null,
+      },
+    },
+  );
+  return results;
+};
+
 export const findNextMessage = async (lockIds) => {
   const doc = await db.collection(collection).findOne(
     {
@@ -73,7 +90,7 @@ export const updateDeadEvents = async () => {
     { completionAttempts: { $gte: MAX_RETRIES } },
     {
       $set: {
-        status: InboxStatus.DEAD,
+        status: InboxStatus.DEAD_LETTER,
         claimedAt: null,
         claimExpiresAt: null,
         claimedBy: null,
