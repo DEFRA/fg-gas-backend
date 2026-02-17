@@ -114,16 +114,16 @@ export class Application {
     return this.agreements[agreementRef] || null;
   }
 
-  acceptAgreement(agreementRef, date) {
-    const agreement = this.agreements[agreementRef];
+  acceptAgreement(agreementNumber, agreementDates) {
+    const agreement = this.agreements[agreementNumber];
 
     if (!agreement) {
       throw Boom.badData(
-        `Agreement "${agreementRef}" does not exist on application "${this.clientRef}"`,
+        `Agreement "${agreementNumber}" does not exist on application "${this.clientRef}"`,
       );
     }
 
-    agreement.accept(date);
+    agreement.accept(agreementDates);
     this.updatedAt = this.#getTimestamp();
   }
 
@@ -152,6 +152,9 @@ export class Application {
       agreementStatus: agreement.latestStatus,
       createdAt: agreement.history[0]?.createdAt,
       updatedAt: agreement.updatedAt,
+      acceptedDate: agreement.acceptedDate,
+      startDate: agreement.startDate,
+      endDate: agreement.endDate,
     }));
   }
 
