@@ -40,7 +40,7 @@ export class OutboxSubscriber {
       return null;
     }
 
-    if (available?.segregationRef === null) {
+    if (!available.segregationRef) {
       await deadLetterEvent(available);
       return this.getNextAvailable();
     } else {
