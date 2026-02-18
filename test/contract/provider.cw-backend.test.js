@@ -46,6 +46,92 @@ describe("GAS Provider (sends messages to CW)", () => {
                   scheme: "SFI",
                   year: 2025,
                   hasCheckedLandIsUpToDate: true,
+                  rulesCalculations: {
+                    id: 421,
+                    message: "Application validated successfully",
+                    valid: true,
+                    date: "2025-11-18T13:51:50.549Z",
+                  },
+                  applicant: {
+                    business: {
+                      name: "Example Ridge Farm Ltd",
+                      reference: "9100000002",
+                      email: {
+                        address: "test@example.com",
+                      },
+                      phone: "02079460901",
+                      address: {
+                        line1: "3 Example Lane",
+                        line2: "Example Village",
+                        street: "Example Lane",
+                        city: "Exampleton",
+                        postalCode: "ZZ99 3ZZ",
+                      },
+                    },
+                    customer: {
+                      name: {
+                        title: "Mr.",
+                        first: "Jamie",
+                        middle: "Test",
+                        last: "Sample",
+                      },
+                    },
+                  },
+                  totalAnnualPaymentPence: 28062,
+                  application: {
+                    parcel: [
+                      {
+                        sheetId: "AA0007",
+                        parcelId: "0010",
+                        area: {
+                          unit: "ha",
+                          quantity: 0.1447,
+                        },
+                        actions: [
+                          {
+                            code: "CMOR1",
+                            version: 1,
+                            durationYears: 3,
+                            appliedFor: {
+                              unit: "ha",
+                              quantity: 0.1447,
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                    agreement: [],
+                  },
+                  payments: {
+                    parcel: [
+                      {
+                        sheetId: "AA0007",
+                        parcelId: "0010",
+                        area: {
+                          unit: "ha",
+                          quantity: 0.1447,
+                        },
+                        actions: [
+                          {
+                            code: "CMOR1",
+                            description:
+                              "Assess moorland and produce a written record",
+                            durationYears: 3,
+                            paymentRates: 1060,
+                            annualPaymentPence: 153,
+                            eligible: {
+                              unit: "ha",
+                              quantity: 0.1447,
+                            },
+                            appliedFor: {
+                              unit: "ha",
+                              quantity: 0.1447,
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                  },
                 };
               },
             };
