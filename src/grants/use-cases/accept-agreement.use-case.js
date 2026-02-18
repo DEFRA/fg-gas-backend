@@ -10,12 +10,7 @@ import { insertMany } from "../repositories/outbox.repository.js";
 
 export const acceptAgreementUseCase = async (command, session) => {
   const { clientRef, code, eventData } = command;
-  const {
-    agreementNumber,
-    agreementAcceptedDate,
-    agreementStartDate,
-    agreementEndDate,
-  } = eventData;
+  const { agreementNumber, date: acceptedDate, startDate, endDate } = eventData;
 
   logger.info(
     `Accepting agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
@@ -29,9 +24,9 @@ export const acceptAgreementUseCase = async (command, session) => {
   const previousStatus = application.getFullyQualifiedStatus();
 
   const agreementDates = {
-    acceptedDate: agreementAcceptedDate,
-    startDate: agreementStartDate,
-    endDate: agreementEndDate,
+    acceptedDate,
+    startDate,
+    endDate,
   };
 
   application.acceptAgreement(agreementNumber, agreementDates);

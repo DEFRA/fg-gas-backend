@@ -26,18 +26,16 @@ const message = {
   datacontenttype: "application/json",
   data: {
     agreementNumber: "AGREEMENT-REF-123",
-    correlationId: "d6898dc9-124b-4ba8-b38e-b0d759a95652",
-    clientRef: "APPLICATION-PMF-001",
+    correlationId: "ebfd8259-1c16-4b34-af9b-6ca5ba7a02e9",
+    clientRef: "clientcoc0u82x",
     version: 1,
-    agreementUrl:
-      "https://farming-grants-agreements-ui.dev.cdp-int.defra.cloud/AGREEMENT-REF-123",
+    agreementUrl: "http://localhost:3555/FPTT168352520",
     status: "accepted",
-    code: "pigs-might-fly",
-    agreementCreateDate: "2026-02-16T10:15:28.542Z",
-    agreementAcceptedDate: "2026-02-16T10:22:58.438Z",
-    agreementStartDate: "2026-03-01",
-    agreementEndDate: "2027-02-28",
-    claimId: "R00000017",
+    date: "2026-02-11T23:23:48.655Z",
+    code: "frps-private-beta",
+    startDate: "2026-03-01",
+    endDate: "2027-03-01",
+    claimId: "R00000003",
   },
 };
 
