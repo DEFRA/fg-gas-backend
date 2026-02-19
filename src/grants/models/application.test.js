@@ -149,11 +149,18 @@ describe("Application", () => {
     });
 
     application.addAgreement(agreement);
-    application.acceptAgreement("agreement-1", "2021-02-02T14:00:00.000Z");
+    application.acceptAgreement("agreement-1", {
+      acceptedDate: "2021-02-02T14:00:00.000Z",
+      startDate: "2021-03-02T14:00:00.000Z",
+      endDate: "2022-02-02T14:00:00.000Z",
+    });
 
-    expect(application.getAgreement("agreement-1").latestStatus).toBe(
-      AgreementStatus.Accepted,
-    );
+    const ag = application.getAgreement("agreement-1");
+    expect(ag.latestStatus).toBe(AgreementStatus.Accepted);
+
+    expect(ag.acceptedDate).toBe("2021-02-02T14:00:00.000Z");
+    expect(ag.startDate).toBe("2021-03-02T14:00:00.000Z");
+    expect(ag.endDate).toBe("2022-02-02T14:00:00.000Z");
   });
 
   it("throws an error when accepting a non-existent agreement", () => {

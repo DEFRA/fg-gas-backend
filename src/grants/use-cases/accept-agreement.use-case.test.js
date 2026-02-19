@@ -81,6 +81,8 @@ describe("acceptAgreementUseCase", () => {
         eventData: {
           date: "2024-01-01T12:00:00Z",
           agreementNumber: "agreement-123",
+          startDate: "2026-01-01",
+          endDate: "2027-01-01",
         },
         requestedStatus: AgreementServiceStatus.Accepted,
       },
@@ -99,5 +101,10 @@ describe("acceptAgreementUseCase", () => {
     const appl = update.mock.calls[0][0];
     expect(appl).toBeInstanceOf(Application);
     expect(appl.agreements["agreement-123"].latestStatus).toBe("ACCEPTED");
+    expect(appl.agreements["agreement-123"].startDate).toBe("2026-01-01");
+    expect(appl.agreements["agreement-123"].endDate).toBe("2027-01-01");
+    expect(appl.agreements["agreement-123"].acceptedDate).toBe(
+      "2024-01-01T12:00:00Z",
+    );
   });
 });

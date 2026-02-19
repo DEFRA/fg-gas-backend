@@ -1,7 +1,6 @@
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
-import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { Outbox } from "../models/outbox.js";
 import {
   findByClientRefAndCode,
@@ -11,7 +10,7 @@ import { insertMany } from "../repositories/outbox.repository.js";
 
 export const acceptAgreementUseCase = async (command, session) => {
   const { clientRef, code, eventData } = command;
-  const { agreementNumber, date } = eventData;
+  const { agreementNumber, date: acceptedDate, startDate, endDate } = eventData;
 
   logger.info(
     `Accepting agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
@@ -24,7 +23,13 @@ export const acceptAgreementUseCase = async (command, session) => {
 
   const previousStatus = application.getFullyQualifiedStatus();
 
-  application.acceptAgreement(agreementNumber, date);
+  const agreementDates = {
+    acceptedDate,
+    startDate,
+    endDate,
+  };
+
+  application.acceptAgreement(agreementNumber, agreementDates);
 
   const { currentPhase, currentStage } = application;
 
@@ -33,13 +38,6 @@ export const acceptAgreementUseCase = async (command, session) => {
   logger.debug(
     `Application ${clientRef} status updated from ${previousStatus} to ${application.getFullyQualifiedStatus()}`,
   );
-
-  const statusEvent = new ApplicationStatusUpdatedEvent({
-    clientRef,
-    code,
-    previousStatus,
-    currentStatus: application.getFullyQualifiedStatus(),
-  });
 
   const agreementData = application
     .getAgreementsData()
@@ -59,11 +57,6 @@ export const acceptAgreementUseCase = async (command, session) => {
 
   await insertMany(
     [
-      new Outbox({
-        event: statusEvent,
-        target: config.sns.grantApplicationStatusUpdatedTopicArn,
-        segregationRef: Outbox.getSegregationRef(statusEvent),
-      }),
       new Outbox({
         event: statusCommand,
         target: config.sns.updateCaseStatusTopicArn,
