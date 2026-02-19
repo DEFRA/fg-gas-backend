@@ -20,11 +20,22 @@ export class AgreementHistoryEntry {
 }
 
 export class Agreement {
-  constructor({ agreementRef, latestStatus, updatedAt, history }) {
+  constructor({
+    agreementRef,
+    latestStatus,
+    updatedAt,
+    history,
+    startDate,
+    endDate,
+    acceptedDate,
+  }) {
     this.agreementRef = agreementRef;
     this.latestStatus = latestStatus;
     this.updatedAt = updatedAt;
     this.history = history;
+    this.startDate = startDate;
+    this.endDate = endDate;
+    this.acceptedDate = acceptedDate;
   }
 
   static new({ agreementRef, date }) {
@@ -43,14 +54,17 @@ export class Agreement {
     });
   }
 
-  accept(date) {
+  accept({ startDate, endDate, acceptedDate }) {
     this.latestStatus = AgreementStatus.Accepted;
     this.updatedAt = new Date().toISOString();
+    this.startDate = startDate;
+    this.endDate = endDate;
+    this.acceptedDate = acceptedDate;
 
     this.history.push(
       new AgreementHistoryEntry({
         agreementStatus: this.latestStatus,
-        createdAt: date,
+        createdAt: new Date().toISOString(),
       }),
     );
   }

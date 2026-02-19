@@ -31,12 +31,16 @@ describe("Agreement", () => {
       date: "2024-01-01T00:00:00Z",
     });
 
-    agreement.accept("2024-02-01T00:00:00Z");
+    agreement.accept({
+      startDate: "2024-02-01T00:00:00Z",
+      endDate: "2024-02-01T00:00:00Z",
+      acceptedDate: "2024-02-01T00:00:00Z",
+    });
 
     expect(agreement.latestStatus).toBe(AgreementStatus.Accepted);
     expect(agreement.history).toHaveLength(2);
     expect(agreement.history[1].agreementStatus).toBe(AgreementStatus.Accepted);
-    expect(agreement.history[1].createdAt).toBe("2024-02-01T00:00:00Z");
+    expect(agreement.history[1].createdAt).toEqual("2021-02-01T13:00:00.000Z");
     expect(agreement.updatedAt).toEqual("2021-02-01T13:00:00.000Z");
   });
 
