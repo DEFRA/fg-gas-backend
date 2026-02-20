@@ -86,6 +86,7 @@ describe("POST /grants/{code}/applications", () => {
         currentPhase: "PHASE_1",
         currentStage: "STAGE_1",
         currentStatus: "NEW",
+        replacementAllowed: false,
         clientRef,
         submittedAt,
         code: "test-code-1",
@@ -208,6 +209,7 @@ describe("POST /grants/{code}/applications", () => {
         "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
       },
       payload: {
+        replacementAllowed: false,
         metadata: {
           clientRef,
           submittedAt,
@@ -233,6 +235,7 @@ describe("POST /grants/{code}/applications", () => {
         currentPhase: "PHASE_1",
         currentStage: "STAGE_1",
         currentStatus: "NEW",
+        replacementAllowed: false,
         clientRef,
         submittedAt,
         code: "test-code-1",
@@ -437,6 +440,7 @@ describe("POST /grants/{code}/applications", () => {
         phases: [{ code: "PHASE_1", answers: { question1: "test answer" } }],
         clientRef: "12345",
         code: "test-code-1",
+        replacementAllowed: false,
         identifiers: {
           crn: "1234567890",
           frn: "1234567890",

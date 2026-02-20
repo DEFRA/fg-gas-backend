@@ -94,6 +94,7 @@ describe("Application", () => {
         frn: "frn-1",
         crn: "crn-1",
       },
+      replacementAllowed: false,
       metadata: {
         defraId: "defraId-1",
       },

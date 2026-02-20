@@ -17,6 +17,7 @@ describe("create agreement use case", () => {
       currentStatus: "REVIEW",
       clientRef: "1234",
       code: "frps-beta",
+      phases: [],
     });
     findByClientRefAndCode.mockResolvedValue(application);
     await createAgreementCommandUseCase(
