@@ -229,6 +229,11 @@ export const up = async (db) => {
               source: "CW",
               mappedTo: "PRE_AWARD:REVIEW_OFFER:WITHDRAWAL_REQUESTED",
             },
+            {
+              code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
+              source: "CW",
+              mappedTo: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
+            },
           ],
         },
         {
@@ -239,11 +244,6 @@ export const up = async (db) => {
               source: "AS",
               mappedTo:
                 "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
-            },
-            {
-              code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
-              source: "CW",
-              mappedTo: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
             },
             {
               code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:WITHDRAWAL_REQUESTED",
