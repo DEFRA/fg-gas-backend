@@ -70,16 +70,22 @@ export const createGrant = async () => {
           {
             code: "REVIEW_APPLICATION",
             statuses: [
-              { code: "APPLICATION_RECEIVED", validFrom: [] },
+              {
+                code: "APPLICATION_RECEIVED",
+                validFrom: [],
+                replacementAllowed: false,
+              },
               {
                 code: "IN_REVIEW",
                 validFrom: [{ code: "APPLICATION_RECEIVED", processes: [] }],
+                replacementAllowed: false,
               },
               {
                 code: "AGREEMENT_GENERATING",
                 validFrom: [
                   { code: "IN_REVIEW", processes: ["GENERATE_OFFER"] },
                 ],
+                replacementAllowed: false,
               },
             ],
           },

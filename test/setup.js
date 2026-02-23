@@ -20,6 +20,7 @@ export const setup = async ({ globalConfig }) => {
       MONGO_PORT: env.MONGO_PORT,
       LOCALSTACK_PORT: env.LOCALSTACK_PORT,
       OUTBOX_POLL_MS: env.OUTBOX_POLL_MS,
+      INBOX_POLL_MS: env.INBOX_POLL_MS,
     })
     .withWaitStrategy("gas", Wait.forHttp("/health"))
     .withNoRecreate()
