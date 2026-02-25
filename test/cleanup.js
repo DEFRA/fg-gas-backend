@@ -13,6 +13,7 @@ beforeEach(async () => {
     db.collection("outbox").deleteMany({}),
     db.collection("inbox").deleteMany({}),
     db.collection("applications").deleteMany({}),
+    db.collection("application_xref").deleteMany({}),
     db.collection("grants").deleteMany({}),
     db.collection("users").deleteMany({}),
     db.collection("fifo_locks").deleteMany({}),

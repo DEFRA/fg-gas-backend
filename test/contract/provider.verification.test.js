@@ -38,6 +38,8 @@ vi.mock("../../src/common/mongo-client.js", () => {
                 crn: "9000000009",
               },
               agreements: [],
+              phases: [],
+              replacementAllowed: false,
             };
           }
           return null;

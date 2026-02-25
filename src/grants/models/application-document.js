@@ -12,5 +12,6 @@ export class ApplicationDocument {
     this.metadata = application.metadata;
     this.phases = application.phases;
     this.agreements = application.agreements;
+    this.replacementAllowed = application.replacementAllowed;
   }
 }

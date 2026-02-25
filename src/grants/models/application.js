@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import Joi from "joi";
 import { AgreementStatus } from "./agreement.js";
 
 export const ApplicationPhase = {
@@ -21,20 +22,41 @@ export const ApplicationStatus = {
 };
 
 export class Application {
-  constructor({
-    currentPhase,
-    currentStage,
-    currentStatus,
-    clientRef,
-    code,
-    createdAt,
-    updatedAt,
-    submittedAt,
-    identifiers,
-    metadata,
-    phases,
-    agreements,
-  }) {
+  static validationSchema = Joi.object({
+    clientRef: Joi.string().required(),
+    code: Joi.string().required(),
+    phases: Joi.array().required(),
+    replacementAllowed: Joi.boolean().required(),
+  });
+
+  constructor(props) {
+    const { error } = Application.validationSchema.validate(props, {
+      stripUnknown: true,
+      abortEarly: false,
+    });
+
+    if (error) {
+      throw Boom.badRequest(
+        `Invalid Application: ${error.details.map((d) => d.message).join(", ")}`,
+      );
+    }
+
+    const {
+      currentPhase,
+      currentStage,
+      currentStatus,
+      clientRef,
+      code,
+      createdAt,
+      updatedAt,
+      submittedAt,
+      identifiers,
+      metadata,
+      phases,
+      agreements,
+      replacementAllowed,
+    } = props;
+
     this.currentPhase = currentPhase;
     this.currentStage = currentStage;
     this.currentStatus = currentStatus;
@@ -47,6 +69,7 @@ export class Application {
     this.metadata = metadata ?? {};
     this.phases = phases;
     this.agreements = agreements;
+    this.replacementAllowed = replacementAllowed;
   }
 
   static new({
@@ -75,6 +98,7 @@ export class Application {
       metadata,
       phases,
       agreements: {},
+      replacementAllowed: false,
     });
   }
 

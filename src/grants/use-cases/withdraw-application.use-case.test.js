@@ -65,6 +65,8 @@ describe("withdrawApplicationUseCase", () => {
       agreements: {
         "agreement-123": agreement,
       },
+      phases: [],
+      replacementAllowed: false,
     });
 
     const oldApplication = new Application({
@@ -76,6 +78,8 @@ describe("withdrawApplicationUseCase", () => {
       agreements: {
         "agreement-123": agreement,
       },
+      phases: [],
+      replacementAllowed: false,
     });
     const session = {};
     const command = {
@@ -106,6 +110,8 @@ describe("withdrawApplicationUseCase", () => {
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {},
+      phases: [],
+      replacementAllowed: false,
     });
 
     const oldApplication = new Application({
@@ -115,6 +121,8 @@ describe("withdrawApplicationUseCase", () => {
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {},
+      phases: [],
+      replacementAllowed: false,
     });
     const session = {};
     const command = {

@@ -18,6 +18,7 @@ const toApplication = (doc) =>
     identifiers: doc.identifiers ?? {},
     metadata: doc.metadata ?? {},
     phases: doc.phases,
+    replacementAllowed: doc.replacementAllowed,
     agreements: Object.entries(doc.agreements ?? {}).reduce(
       (acc, [key, value]) => {
         const history = value.history.map(
@@ -41,7 +42,10 @@ export const save = async (application, session) => {
   const document = new ApplicationDocument(application);
 
   try {
-    await db.collection(collection).insertOne(document, { session });
+    const result = await db
+      .collection(collection)
+      .insertOne(document, { session });
+    return result;
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
       throw Boom.conflict(

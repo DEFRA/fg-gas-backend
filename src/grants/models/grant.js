@@ -148,7 +148,7 @@ export class Grant {
 
   // eslint-disable-next-line complexity
   isValidTransition(targetPhase, targetStage, targetStatus, currentStatus) {
-    const statusDef = this.#findStatusDefinition(
+    const statusDef = this.findStatusDefinition(
       targetPhase,
       targetStage,
       targetStatus,
@@ -173,7 +173,7 @@ export class Grant {
     };
   }
 
-  #findStatusDefinition(targetPhase, targetStage, targetStatus) {
+  findStatusDefinition(targetPhase, targetStage, targetStatus) {
     const { status } = this.#findPhaseStageStatus(
       this.phases,
       targetPhase,
