@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { Agreement, AgreementStatus } from "./agreement.js";
 import {
+  Application,
   ApplicationPhase,
   ApplicationStage,
   ApplicationStatus,
@@ -94,6 +95,7 @@ describe("Application", () => {
         frn: "frn-1",
         crn: "crn-1",
       },
+      replacementAllowed: false,
       metadata: {
         defraId: "defraId-1",
       },
@@ -436,5 +438,31 @@ describe("Application", () => {
     const answers = application.getAnswers();
 
     expect(answers).toEqual({});
+  });
+
+  describe("validation", () => {
+    it("throws Boom.badRequest when required fields are missing", () => {
+      expect(() => {
+        // eslint-disable-next-line no-new
+        new Application({
+          currentPhase: ApplicationPhase.PreAward,
+          currentStage: ApplicationStage.Assessment,
+          currentStatus: ApplicationStatus.Received,
+          // clientRef missing
+          // code missing
+          // phases missing
+          // replacementAllowed missing
+        });
+      }).toThrowError(/Invalid Application:/);
+    });
+
+    it("throws Boom.badRequest listing all missing required fields", () => {
+      expect(() => {
+        // eslint-disable-next-line no-new
+        new Application({
+          currentPhase: ApplicationPhase.PreAward,
+        });
+      }).toThrowError(/Invalid Application:/);
+    });
   });
 });

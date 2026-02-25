@@ -9,6 +9,7 @@ describe("findApplicationByClientRefAndCodeUseCase", () => {
   it("finds an application by clientRef", async () => {
     const application = new Application({
       clientRef: "test-client-ref",
+      code: "any-code",
       sbi: "123456789",
       frn: "987654321",
       crn: "CRN123456",
@@ -18,6 +19,8 @@ describe("findApplicationByClientRefAndCodeUseCase", () => {
         question1: "answer1",
         extraField: "extra",
       },
+      phases: [],
+      replacementAllowed: false,
     });
 
     findByClientRefAndCode.mockResolvedValue(application);

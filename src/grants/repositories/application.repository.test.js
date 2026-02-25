@@ -122,6 +122,8 @@ describe("save", () => {
         answers: {
           anything: "test",
         },
+        phases: [],
+        replacementAllowed: false,
       }),
       session,
     );
@@ -149,6 +151,8 @@ describe("save", () => {
         answers: {
           anything: "test",
         },
+        phases: [],
+        replacementAllowed: false,
       }),
 
       { session },
@@ -179,6 +183,8 @@ describe("save", () => {
           answers: {
             anything: "test",
           },
+          phases: [],
+          replacementAllowed: false,
         }),
       ),
     ).rejects.toThrow(
@@ -212,6 +218,8 @@ describe("save", () => {
           answers: {
             anything: "test",
           },
+          phases: [],
+          replacementAllowed: false,
         }),
       ),
     ).rejects.toThrow(error);
@@ -238,6 +246,8 @@ describe("findByClientRef", () => {
           anything: "test",
         },
         agreements: {},
+        phases: [],
+        replacementAllowed: false,
       }),
     );
 
@@ -265,6 +275,8 @@ describe("findByClientRef", () => {
           anything: "test",
         },
         agreements: {},
+        phases: [],
+        replacementAllowed: false,
       }),
     );
 
@@ -321,6 +333,8 @@ describe("findByClientRefAndCode", () => {
             ],
           },
         },
+        phases: [],
+        replacementAllowed: false,
       }),
     );
 
@@ -366,6 +380,8 @@ describe("findByClientRefAndCode", () => {
             ],
           }),
         },
+        phases: [],
+        replacementAllowed: false,
       }),
     );
 
@@ -391,6 +407,7 @@ describe("findByClientRefAndCode", () => {
       updatedAt: "2021-01-02T00:00:00.000Z",
       submittedAt: "2021-01-01T00:00:00.000Z",
       phases: [],
+      replacementAllowed: false,
       // identifiers/metadata/agreements intentionally missing
     });
 

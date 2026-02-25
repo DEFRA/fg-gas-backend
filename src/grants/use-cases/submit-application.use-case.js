@@ -7,8 +7,10 @@ import { logger } from "../../common/logger.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { CreateNewCaseCommand } from "../commands/create-new-case.command.js";
 import { ApplicationCreatedEvent } from "../events/application-created.event.js";
+import { ApplicationXRef } from "../models/application-x-ref.js";
 import { Application } from "../models/application.js";
 import { Outbox } from "../models/outbox.js";
+import { save as saveXref } from "../repositories/application-x-ref.repository.js";
 import { save } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
@@ -83,6 +85,7 @@ export const submitApplicationUseCase = async (code, { metadata, answers }) => {
       code,
       clientRef,
       submittedAt,
+      replacementAllowed: false,
       identifiers: {
         sbi,
         frn,
@@ -97,7 +100,14 @@ export const submitApplicationUseCase = async (code, { metadata, answers }) => {
       ],
     });
 
-    await save(application, session);
+    const { insertedId: applicationID } = await save(application, session);
+
+    const xref = ApplicationXRef.new({
+      clientRefs: [clientRef],
+      currentClientId: applicationID,
+    });
+
+    await saveXref(xref, session);
 
     logger.info(
       `Received application "${application.clientRef}" for grant "${application.code}"`,
