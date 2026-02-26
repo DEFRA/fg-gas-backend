@@ -2,9 +2,45 @@ import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { ApplicationXRef } from "../models/application-x-ref.js";
-import { save, update } from "./application-x-ref.repository.js";
+import {
+  findByClientRef,
+  save,
+  update,
+} from "./application-x-ref.repository.js";
 
 vi.mock("../../common/mongo-client.js");
+
+describe("findByClientRef", () => {
+  it("queries by clientRefs array membership and returns an ApplicationXRef", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce({
+      _id: "doc-id",
+      clientRefs: ["ref-1"],
+      currentClientRef: "ref-1",
+      currentClientId: "client-id-1",
+      createdAt: "2024-01-01T00:00:00.000Z",
+      updatedAt: "2024-01-01T00:00:00.000Z",
+    });
+    db.collection.mockReturnValue({ findOne });
+    const session = {};
+
+    const result = await findByClientRef("ref-1", session);
+
+    expect(db.collection).toHaveBeenCalledWith("application_xref");
+    expect(findOne).toHaveBeenCalledWith({ clientRefs: "ref-1" }, { session });
+    expect(result).toBeInstanceOf(ApplicationXRef);
+    expect(result.currentClientRef).toBe("ref-1");
+    expect(result.currentClientId).toBe("client-id-1");
+  });
+
+  it("returns null when no document is found", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce(null);
+    db.collection.mockReturnValue({ findOne });
+
+    const result = await findByClientRef("unknown-ref", {});
+
+    expect(result).toBeNull();
+  });
+});
 
 describe("save", () => {
   it("inserts the xref document and returns the result", async () => {
@@ -12,7 +48,7 @@ describe("save", () => {
     db.collection.mockReturnValue({ insertOne });
 
     const xref = ApplicationXRef.new({
-      clientRefs: ["ref-1"],
+      currentClientRef: "ref-1",
       currentClientId: "client-id-1",
     });
     const session = {};
@@ -26,13 +62,14 @@ describe("save", () => {
 });
 
 describe("update", () => {
-  it("updates the xref document and returns the result", async () => {
-    const updateOne = vi.fn().mockResolvedValueOnce({ modifiedCount: 1 });
-    db.collection.mockReturnValue({ updateOne });
+  it("replaces the xref document and returns the result", async () => {
+    const replaceOne = vi.fn().mockResolvedValueOnce({ modifiedCount: 1 });
+    db.collection.mockReturnValue({ replaceOne });
 
     const xref = new ApplicationXRef({
       _id: "existing-id",
       clientRefs: ["ref-1", "ref-2"],
+      currentClientRef: "ref-2",
       currentClientId: "client-id-2",
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T12:00:00.000Z",
@@ -42,7 +79,7 @@ describe("update", () => {
     const result = await update(xref, session);
 
     expect(db.collection).toHaveBeenCalledWith("application_xref");
-    expect(updateOne).toHaveBeenCalledWith(
+    expect(replaceOne).toHaveBeenCalledWith(
       { _id: "existing-id" },
       xref.toDocument(),
       { session },
@@ -51,12 +88,13 @@ describe("update", () => {
   });
 
   it("throws Boom.notFound when no document was modified", async () => {
-    const updateOne = vi.fn().mockResolvedValueOnce({ modifiedCount: 0 });
-    db.collection.mockReturnValue({ updateOne });
+    const replaceOne = vi.fn().mockResolvedValueOnce({ modifiedCount: 0 });
+    db.collection.mockReturnValue({ replaceOne });
 
     const xref = new ApplicationXRef({
       _id: "missing-id",
       clientRefs: ["ref-1"],
+      currentClientRef: "ref-1",
       currentClientId: "client-id-1",
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T00:00:00.000Z",
