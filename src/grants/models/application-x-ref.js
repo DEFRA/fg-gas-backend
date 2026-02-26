@@ -6,6 +6,8 @@ export class ApplicationXRef {
     clientRefs: Joi.array().items(Joi.string()).required(),
     currentClientId: Joi.string().required(),
     currentClientRef: Joi.string().required(),
+    updatedAt: Joi.string().required(),
+    createdAt: Joi.string().required(),
   });
 
   constructor(props) {

@@ -12,6 +12,10 @@ describe("ApplicationXRef", () => {
   });
 
   describe("constructor", () => {
+    it("throws a bad request error when props are invalid", () => {
+      expect(() => new ApplicationXRef({})).toThrow("Invalid ApplicationXRef:");
+    });
+
     it("sets all properties from props", () => {
       const xref = new ApplicationXRef({
         _id: "abc123",
@@ -87,6 +91,34 @@ describe("ApplicationXRef", () => {
       xref.addClientRef("ref-2", "client-id-2");
 
       expect(xref.currentClientId).toBe("client-id-2");
+    });
+
+    it("throws when clientRef is missing", () => {
+      const xref = new ApplicationXRef({
+        clientRefs: ["ref-1"],
+        currentClientRef: "ref-1",
+        currentClientId: "client-id-1",
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      expect(() => xref.addClientRef(null, "client-id-2")).toThrow(
+        "Application X Ref can not be updated, clientRef is missing.",
+      );
+    });
+
+    it("throws when clientId is missing", () => {
+      const xref = new ApplicationXRef({
+        clientRefs: ["ref-1"],
+        currentClientRef: "ref-1",
+        currentClientId: "client-id-1",
+        createdAt: "2024-01-01T00:00:00.000Z",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      });
+
+      expect(() => xref.addClientRef("ref-2", null)).toThrow(
+        "Application X Ref can not be updated, clientId is missing.",
+      );
     });
 
     it("updates updatedAt to current time", () => {
