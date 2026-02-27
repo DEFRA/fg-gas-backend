@@ -15,10 +15,12 @@ export const save = async (xref, session) => {
 export const findByClientRef = async (clientRef, session) => {
   const doc = await db
     .collection(collection)
-    .findOne({ clientRefs: clientRef }, { session });
+    .findOne({ currentClientRef: clientRef }, { session });
 
   if (doc === null) {
-    return null;
+    throw Boom.notFound(
+      `Application_xref with currentClientRef "${clientRef}" not found.`,
+    );
   }
 
   return ApplicationXRef.fromDocument(doc);
