@@ -6,12 +6,14 @@ import { grant3 } from "../fixtures/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 let applications;
+let applicationXref;
 let client;
 let outbox;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   applications = client.db().collection("applications");
+  applicationXref = client.db().collection("application_xref");
   outbox = client.db().collection("outbox");
 });
 
@@ -609,6 +611,301 @@ describe("POST /grants/{code}/applications", () => {
       error: "Bad Request",
       message:
         'Application with clientRef "12345" has invalid answers: actionApplications/0/sheetId must match pattern "[A-Z]{2}[0-9]{4}"',
+    });
+  });
+
+  it("replaces an existing application when replacement is allowed", async () => {
+    await wreck.post("/grants", {
+      json: true,
+      payload: {
+        code: "test-code-1",
+        metadata: {
+          description: "test description 1",
+          startDate: "2100-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                question1: {
+                  type: "string",
+                  description: "This is a test question",
+                },
+              },
+            },
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
+          },
+        ],
+      },
+    });
+
+    const previousClientRef = `cr-prev-${randomUUID()}`;
+    const newClientRef = `cr-new-${randomUUID()}`;
+    const submittedAt = new Date();
+
+    await applications.insertOne({
+      currentPhase: "PHASE_1",
+      currentStage: "STAGE_1",
+      currentStatus: "NEW",
+      clientRef: previousClientRef,
+      code: "test-code-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      submittedAt: new Date("2024-01-01T00:00:00.000Z"),
+      identifiers: { sbi: "1234567890", frn: "1234567890", crn: "1234567890" },
+      metadata: { defraId: "1234567890" },
+      phases: [{ code: "PHASE_1", answers: { question1: "original answer" } }],
+      agreements: {},
+      replacementAllowed: true,
+    });
+
+    await applicationXref.insertOne({
+      clientRefs: [previousClientRef],
+      currentClientRef: previousClientRef,
+      currentClientId: "previous-application-id",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const response = await wreck.post("/grants/test-code-1/applications", {
+      headers: {
+        "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
+      },
+      payload: {
+        metadata: {
+          clientRef: newClientRef,
+          previousClientRef,
+          submittedAt,
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
+        },
+        answers: {
+          question1: "replacement answer",
+        },
+      },
+    });
+
+    expect(response.res.statusCode).toEqual(204);
+
+    const newApplicationDocs = await applications
+      .find({ clientRef: newClientRef }, { projection: { _id: 0 } })
+      .toArray();
+
+    expect(newApplicationDocs).toEqual([
+      {
+        currentPhase: "PHASE_1",
+        currentStage: "STAGE_1",
+        currentStatus: "NEW",
+        replacementAllowed: false,
+        clientRef: newClientRef,
+        submittedAt,
+        code: "test-code-1",
+        agreements: {},
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+        identifiers: {
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+        },
+        metadata: {
+          defraId: "1234567890",
+          previousClientRef,
+        },
+        phases: [
+          {
+            code: "PHASE_1",
+            answers: {
+              question1: "replacement answer",
+            },
+          },
+        ],
+      },
+    ]);
+
+    const xrefDocs = await applicationXref
+      .find({}, { projection: { _id: 0 } })
+      .toArray();
+
+    expect(xrefDocs).toEqual([
+      {
+        clientRefs: expect.arrayContaining([previousClientRef, newClientRef]),
+        currentClientRef: newClientRef,
+        currentClientId: expect.any(String),
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+      },
+    ]);
+    expect(xrefDocs[0].clientRefs).toHaveLength(2);
+
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
+    });
+
+    await expect(
+      env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL,
+    ).toHaveReceived({
+      id: expect.any(String),
+      time: expect.any(String),
+      source: "fg-gas-backend",
+      specversion: "1.0",
+      type: `cloud.defra.local.fg-gas-backend.application.created`,
+      datacontenttype: "application/json",
+      traceparent: "xxxx-xxxx-xxxx-xxxx",
+      data: {
+        clientRef: newClientRef,
+        code: "test-code-1",
+        status: "PHASE_1:STAGE_1:NEW",
+      },
+      messageGroupId: `${newClientRef}-test-code-1`,
+    });
+  });
+
+  it("returns 409 when replacing an application that does not allow replacement", async () => {
+    await wreck.post("/grants", {
+      json: true,
+      payload: {
+        code: "test-code-1",
+        metadata: {
+          description: "test description 1",
+          startDate: "2100-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                question1: {
+                  type: "string",
+                  description: "This is a test question",
+                },
+              },
+            },
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
+          },
+        ],
+      },
+    });
+
+    const previousClientRef = `cr-prev-${randomUUID()}`;
+
+    await wreck.post("/grants/test-code-1/applications", {
+      payload: {
+        metadata: {
+          clientRef: previousClientRef,
+          submittedAt: new Date(),
+          sbi: "1234567890",
+          frn: "1234567890",
+          crn: "1234567890",
+          defraId: "1234567890",
+        },
+        answers: {
+          question1: "original answer",
+        },
+      },
+    });
+
+    let response;
+    try {
+      await wreck.post("/grants/test-code-1/applications", {
+        json: true,
+        payload: {
+          metadata: {
+            clientRef: `cr-new-${randomUUID()}`,
+            previousClientRef,
+            submittedAt: new Date(),
+            sbi: "1234567890",
+            frn: "1234567890",
+            crn: "1234567890",
+            defraId: "1234567890",
+          },
+          answers: {
+            question1: "replacement answer",
+          },
+        },
+      });
+    } catch (err) {
+      response = err.data.payload;
+    }
+
+    expect(response).toEqual({
+      statusCode: 409,
+      error: "Conflict",
+      message: expect.stringContaining(previousClientRef),
+    });
+  });
+
+  it("returns 404 when the previous application does not exist", async () => {
+    await wreck.post("/grants", {
+      json: true,
+      payload: {
+        code: "test-code-1",
+        metadata: {
+          description: "test description 1",
+          startDate: "2100-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases: [
+          {
+            code: "PHASE_1",
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+              properties: {
+                question1: {
+                  type: "string",
+                  description: "This is a test question",
+                },
+              },
+            },
+            stages: [
+              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+            ],
+          },
+        ],
+      },
+    });
+
+    let response;
+    try {
+      await wreck.post("/grants/test-code-1/applications", {
+        json: true,
+        payload: {
+          metadata: {
+            clientRef: `cr-new-${randomUUID()}`,
+            previousClientRef: "non-existent-ref",
+            submittedAt: new Date(),
+            sbi: "1234567890",
+            frn: "1234567890",
+            crn: "1234567890",
+            defraId: "1234567890",
+          },
+          answers: {
+            question1: "answer",
+          },
+        },
+      });
+    } catch (err) {
+      response = err.data.payload;
+    }
+
+    expect(response).toEqual({
+      statusCode: 404,
+      error: "Not Found",
+      message: 'Application with clientRef "non-existent-ref" not found',
     });
   });
 

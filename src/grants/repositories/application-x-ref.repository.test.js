@@ -11,7 +11,7 @@ import {
 vi.mock("../../common/mongo-client.js");
 
 describe("findByClientRef", () => {
-  it("queries by clientRefs array membership and returns an ApplicationXRef", async () => {
+  it("queries by currentClientRef array and returns an ApplicationXRef", async () => {
     const findOne = vi.fn().mockResolvedValueOnce({
       _id: "doc-id",
       clientRefs: ["ref-1"],
@@ -26,19 +26,24 @@ describe("findByClientRef", () => {
     const result = await findByClientRef("ref-1", session);
 
     expect(db.collection).toHaveBeenCalledWith("application_xref");
-    expect(findOne).toHaveBeenCalledWith({ clientRefs: "ref-1" }, { session });
+    expect(findOne).toHaveBeenCalledWith(
+      { currentClientRef: "ref-1" },
+      { session },
+    );
     expect(result).toBeInstanceOf(ApplicationXRef);
     expect(result.currentClientRef).toBe("ref-1");
     expect(result.currentClientId).toBe("client-id-1");
   });
 
-  it("returns null when no document is found", async () => {
+  it("throws an error when no document is found", async () => {
     const findOne = vi.fn().mockResolvedValueOnce(null);
     db.collection.mockReturnValue({ findOne });
 
-    const result = await findByClientRef("unknown-ref", {});
-
-    expect(result).toBeNull();
+    await expect(findByClientRef("unknown-ref", {})).rejects.toThrow(
+      Boom.notFound(
+        'Application_xref with currentClientRef "unknown-ref" not found.',
+      ),
+    );
   });
 });
 
