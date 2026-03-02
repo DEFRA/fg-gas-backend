@@ -4,8 +4,9 @@ import Joi from "joi";
 export class ApplicationXRef {
   static validationSchema = Joi.object({
     clientRefs: Joi.array().items(Joi.string()).required(),
-    currentClientId: Joi.string().required(),
-    currentClientRef: Joi.string().required(),
+    code: Joi.string().required(),
+    latestClientId: Joi.string().required(),
+    latestClientRef: Joi.string().required(),
     updatedAt: Joi.string().required(),
     createdAt: Joi.string().required(),
   });
@@ -24,8 +25,9 @@ export class ApplicationXRef {
 
     this._id = props._id;
     this.clientRefs = new Set(props.clientRefs);
-    this.currentClientRef = props.currentClientRef;
-    this.currentClientId = props.currentClientId;
+    this.code = props.code;
+    this.latestClientRef = props.latestClientRef;
+    this.latestClientId = props.latestClientId;
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
@@ -44,17 +46,18 @@ export class ApplicationXRef {
     }
 
     this.clientRefs.add(clientRef);
-    this.currentClientId = clientId;
-    this.currentClientRef = clientRef;
+    this.latestClientId = clientId;
+    this.latestClientRef = clientRef;
     this.updatedAt = new Date(Date.now()).toISOString();
   }
 
-  static new({ currentClientId, currentClientRef }) {
+  static new({ code, latestClientId, latestClientRef }) {
     const date = new Date(Date.now()).toISOString();
     return new ApplicationXRef({
-      clientRefs: [currentClientRef],
-      currentClientRef,
-      currentClientId,
+      clientRefs: [latestClientRef],
+      code,
+      latestClientRef,
+      latestClientId,
       createdAt: date,
       updatedAt: date,
     });
@@ -63,16 +66,18 @@ export class ApplicationXRef {
   static fromDocument({
     clientRefs,
     _id,
-    currentClientId,
-    currentClientRef,
+    code,
+    latestClientId,
+    latestClientRef,
     createdAt,
     updatedAt,
   }) {
     return new ApplicationXRef({
       _id,
       clientRefs,
-      currentClientId,
-      currentClientRef,
+      code,
+      latestClientId,
+      latestClientRef,
       createdAt,
       updatedAt,
     });
@@ -82,8 +87,9 @@ export class ApplicationXRef {
     return {
       _id: this._id,
       clientRefs: Array.from(this.clientRefs),
-      currentClientRef: this.currentClientRef,
-      currentClientId: this.currentClientId,
+      code: this.code,
+      latestClientRef: this.latestClientRef,
+      latestClientId: this.latestClientId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

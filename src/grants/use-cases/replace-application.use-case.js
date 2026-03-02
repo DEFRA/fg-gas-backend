@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import {
-  findByClientRef,
+  findByClientRefAndCode,
   update,
 } from "../repositories/application-x-ref.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
@@ -18,6 +18,7 @@ export const replaceApplicationUseCase = async (code, application) => {
     const previousAppl = await findApplicationByClientRefAndCodeUseCase(
       previousClientRef,
       code,
+      session,
     );
 
     if (previousAppl.replacementAllowed) {
@@ -26,7 +27,11 @@ export const replaceApplicationUseCase = async (code, application) => {
         application,
         session,
       );
-      const xref = await findByClientRef(previousClientRef, session);
+      const xref = await findByClientRefAndCode(
+        previousClientRef,
+        code,
+        session,
+      );
       xref.addClientRef(clientRef, applicationID);
       await update(xref, session);
       logger.info("Updated XRef table.");

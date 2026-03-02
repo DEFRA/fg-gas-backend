@@ -14,7 +14,7 @@ export const findApplicationByClientRefAndCodeUseCase = async (
       clientRef,
       code,
     },
-    { session },
+    session,
   );
 
   if (application === null) {

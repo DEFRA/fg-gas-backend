@@ -3,45 +3,48 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { ApplicationXRef } from "../models/application-x-ref.js";
 import {
-  findByClientRef,
+  findByClientRefAndCode,
   save,
   update,
 } from "./application-x-ref.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
-describe("findByClientRef", () => {
-  it("queries by currentClientRef and returns an ApplicationXRef", async () => {
+describe("findByClientRefAndCode", () => {
+  it("queries by latestClientRef and code and returns an ApplicationXRef", async () => {
     const findOne = vi.fn().mockResolvedValueOnce({
       _id: "doc-id",
       clientRefs: ["ref-1"],
-      currentClientRef: "ref-1",
-      currentClientId: "client-id-1",
+      latestClientRef: "ref-1",
+      latestClientId: "client-id-1",
+      code: "grant-1",
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T00:00:00.000Z",
     });
     db.collection.mockReturnValue({ findOne });
     const session = {};
 
-    const result = await findByClientRef("ref-1", session);
+    const result = await findByClientRefAndCode("ref-1", "grant-1", session);
 
     expect(db.collection).toHaveBeenCalledWith("application_xref");
     expect(findOne).toHaveBeenCalledWith(
-      { currentClientRef: "ref-1" },
+      { latestClientRef: "ref-1", code: "grant-1" },
       { session },
     );
     expect(result).toBeInstanceOf(ApplicationXRef);
-    expect(result.currentClientRef).toBe("ref-1");
-    expect(result.currentClientId).toBe("client-id-1");
+    expect(result.latestClientRef).toBe("ref-1");
+    expect(result.latestClientId).toBe("client-id-1");
   });
 
   it("throws an error when no document is found", async () => {
     const findOne = vi.fn().mockResolvedValueOnce(null);
     db.collection.mockReturnValue({ findOne });
 
-    await expect(findByClientRef("unknown-ref", {})).rejects.toThrow(
+    await expect(
+      findByClientRefAndCode("unknown-ref", "grant-1", {}),
+    ).rejects.toThrow(
       Boom.notFound(
-        'Application_xref with currentClientRef "unknown-ref" not found.',
+        'Application_xref with currentClientRef "unknown-ref" and code "grant-1" not found.',
       ),
     );
   });
@@ -53,8 +56,9 @@ describe("save", () => {
     db.collection.mockReturnValue({ insertOne });
 
     const xref = ApplicationXRef.new({
-      currentClientRef: "ref-1",
-      currentClientId: "client-id-1",
+      latestClientRef: "ref-1",
+      latestClientId: "client-id-1",
+      code: "grant-1",
     });
     const session = {};
 
@@ -74,8 +78,9 @@ describe("update", () => {
     const xref = new ApplicationXRef({
       _id: "existing-id",
       clientRefs: ["ref-1", "ref-2"],
-      currentClientRef: "ref-2",
-      currentClientId: "client-id-2",
+      latestClientRef: "ref-2",
+      latestClientId: "client-id-2",
+      code: "grant-1",
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T12:00:00.000Z",
     });
@@ -99,8 +104,9 @@ describe("update", () => {
     const xref = new ApplicationXRef({
       _id: "missing-id",
       clientRefs: ["ref-1"],
-      currentClientRef: "ref-1",
-      currentClientId: "client-id-1",
+      latestClientRef: "ref-1",
+      latestClientId: "client-id-1",
+      code: "grant-1",
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T00:00:00.000Z",
     });

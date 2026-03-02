@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
 import { withTransaction } from "../../common/with-transaction.js";
 import {
-  findByClientRef,
+  findByClientRefAndCode,
   update,
 } from "../repositories/application-x-ref.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
@@ -39,7 +39,7 @@ describe("replaceApplicationUseCase", () => {
     createApplicationUseCase.mockResolvedValue("new-application-id");
 
     const mockXref = { addClientRef: vi.fn() };
-    findByClientRef.mockResolvedValue(mockXref);
+    findByClientRefAndCode.mockResolvedValue(mockXref);
     update.mockResolvedValue({});
 
     await replaceApplicationUseCase("test-grant", testApplication);
@@ -49,8 +49,9 @@ describe("replaceApplicationUseCase", () => {
       testApplication,
       mockSession,
     );
-    expect(findByClientRef).toHaveBeenCalledWith(
+    expect(findByClientRefAndCode).toHaveBeenCalledWith(
       "previous-client-ref",
+      "test-grant",
       mockSession,
     );
     expect(mockXref.addClientRef).toHaveBeenCalledWith(

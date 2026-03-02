@@ -37,7 +37,7 @@ describe("findApplicationByClientRefAndCodeUseCase", () => {
         clientRef: "test-client-ref",
         code: "any-code",
       },
-      { session: mockSession },
+      mockSession,
     );
 
     expect(result).toStrictEqual(application);

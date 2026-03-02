@@ -14,8 +14,9 @@ export const submitApplicationUseCase = async (code, submission) => {
       session,
     );
     const xref = ApplicationXRef.new({
-      currentClientRef: submission.metadata.clientRef,
-      currentClientId: applicationID,
+      latestClientRef: submission.metadata.clientRef,
+      code,
+      latestClientId: applicationID,
     });
     await saveXref(xref, session);
   });

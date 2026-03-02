@@ -667,8 +667,9 @@ describe("POST /grants/{code}/applications", () => {
 
     await applicationXref.insertOne({
       clientRefs: [previousClientRef],
-      currentClientRef: previousClientRef,
-      currentClientId: "previous-application-id",
+      latestClientRef: previousClientRef,
+      latestClientId: "previous-application-id",
+      code: "test-code-1",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -718,7 +719,6 @@ describe("POST /grants/{code}/applications", () => {
         },
         metadata: {
           defraId: "1234567890",
-          previousClientRef,
         },
         phases: [
           {
@@ -738,8 +738,9 @@ describe("POST /grants/{code}/applications", () => {
     expect(xrefDocs).toEqual([
       {
         clientRefs: expect.arrayContaining([previousClientRef, newClientRef]),
-        currentClientRef: newClientRef,
-        currentClientId: expect.any(String),
+        latestClientRef: newClientRef,
+        latestClientId: expect.any(String),
+        code: "test-code-1",
         createdAt: expect.any(String),
         updatedAt: expect.any(String),
       },
@@ -905,7 +906,8 @@ describe("POST /grants/{code}/applications", () => {
     expect(response).toEqual({
       statusCode: 404,
       error: "Not Found",
-      message: 'Application with clientRef "non-existent-ref" not found',
+      message:
+        'Application with clientRef "non-existent-ref" and code "test-code-1" not found',
     });
   });
 

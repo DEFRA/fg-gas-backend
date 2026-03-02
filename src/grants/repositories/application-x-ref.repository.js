@@ -12,14 +12,14 @@ export const save = async (xref, session) => {
   return result;
 };
 
-export const findByClientRef = async (clientRef, session) => {
+export const findByClientRefAndCode = async (clientRef, code, session) => {
   const doc = await db
     .collection(collection)
-    .findOne({ currentClientRef: clientRef }, { session });
+    .findOne({ latestClientRef: clientRef, code }, { session });
 
   if (doc === null) {
     throw Boom.notFound(
-      `Application_xref with currentClientRef "${clientRef}" not found.`,
+      `Application_xref with currentClientRef "${clientRef}" and code "${code}" not found.`,
     );
   }
 
