@@ -6,12 +6,12 @@ import {
   update,
 } from "../repositories/application-x-ref.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
-import { findApplicationByClientRefUseCase } from "./find-application-by-client-ref.use-case.js";
+import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import { replaceApplicationUseCase } from "./replace-application.use-case.js";
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("./create-application.use-case.js");
-vi.mock("./find-application-by-client-ref.use-case.js");
+vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../repositories/application-x-ref.repository.js");
 
 const testApplication = {
@@ -33,7 +33,7 @@ describe("replaceApplicationUseCase", () => {
   it("creates a new application and updates the xref when replacement is allowed", async () => {
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
-    findApplicationByClientRefUseCase.mockResolvedValue({
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue({
       replacementAllowed: true,
     });
     createApplicationUseCase.mockResolvedValue("new-application-id");
@@ -63,7 +63,7 @@ describe("replaceApplicationUseCase", () => {
   it("throws a conflict error when replacement is not allowed", async () => {
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
-    findApplicationByClientRefUseCase.mockResolvedValue({
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue({
       replacementAllowed: false,
     });
 
@@ -82,7 +82,7 @@ describe("replaceApplicationUseCase", () => {
   it("throws when the previous application is not found", async () => {
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
-    findApplicationByClientRefUseCase.mockRejectedValue(
+    findApplicationByClientRefAndCodeUseCase.mockRejectedValue(
       Boom.notFound(
         'Application with clientRef "previous-client-ref" not found',
       ),
@@ -101,7 +101,7 @@ describe("replaceApplicationUseCase", () => {
   it("throws when createApplicationUseCase fails", async () => {
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
-    findApplicationByClientRefUseCase.mockResolvedValue({
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue({
       replacementAllowed: true,
     });
     createApplicationUseCase.mockRejectedValue(
