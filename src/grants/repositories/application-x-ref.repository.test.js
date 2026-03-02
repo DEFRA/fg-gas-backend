@@ -11,7 +11,7 @@ import {
 vi.mock("../../common/mongo-client.js");
 
 describe("findByClientRef", () => {
-  it("queries by currentClientRef array and returns an ApplicationXRef", async () => {
+  it("queries by currentClientRef and returns an ApplicationXRef", async () => {
     const findOne = vi.fn().mockResolvedValueOnce({
       _id: "doc-id",
       clientRefs: ["ref-1"],
