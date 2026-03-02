@@ -25,16 +25,14 @@ export const submitApplicationRoute = {
 
     if (request.payload.metadata.previousClientRef) {
       await replaceApplicationUseCase(request.params.code, request.payload);
-      logger.info(
-        `Finished: Submitting application for grant with code ${request.params.code}`,
-      );
-      return h.response().code(204);
     } else {
       await submitApplicationUseCase(request.params.code, request.payload);
-      logger.info(
-        `Finished: Submitting application for grant with code ${request.params.code}`,
-      );
-      return h.response().code(204);
     }
+
+    logger.info(
+      `Finished: Submitting application for grant with code ${request.params.code}`,
+    );
+
+    return h.response().code(204);
   },
 };

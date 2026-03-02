@@ -5,13 +5,17 @@ import { findByClientRefAndCode } from "../repositories/application.repository.j
 export const findApplicationByClientRefAndCodeUseCase = async (
   clientRef,
   code,
+  session,
 ) => {
   logger.info(`Finding application by clientRef ${clientRef} and code ${code}`);
 
-  const application = await findByClientRefAndCode({
-    clientRef,
-    code,
-  });
+  const application = await findByClientRefAndCode(
+    {
+      clientRef,
+      code,
+    },
+    { session },
+  );
 
   if (application === null) {
     throw Boom.notFound(

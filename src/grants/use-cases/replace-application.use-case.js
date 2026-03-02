@@ -6,7 +6,7 @@ import {
   update,
 } from "../repositories/application-x-ref.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
-import { findApplicationByClientRefUseCase } from "./find-application-by-client-ref.use-case.js";
+import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
 export const replaceApplicationUseCase = async (code, application) => {
   logger.info(`Replacing application`);
@@ -15,7 +15,7 @@ export const replaceApplicationUseCase = async (code, application) => {
     const { clientRef, previousClientRef } = application.metadata;
     logger.info(`Got previousClientRef: ${previousClientRef}.`);
 
-    const previousAppl = await findApplicationByClientRefUseCase(
+    const previousAppl = await findApplicationByClientRefAndCodeUseCase(
       previousClientRef,
       code,
     );
