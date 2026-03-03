@@ -4,7 +4,7 @@ import { withTransaction } from "../../common/with-transaction.js";
 import {
   findByClientRefAndCode,
   update,
-} from "../repositories/application-x-ref.repository.js";
+} from "../repositories/application-series.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
@@ -27,13 +27,13 @@ export const replaceApplicationUseCase = async (code, application) => {
         application,
         session,
       );
-      const xref = await findByClientRefAndCode(
+      const series = await findByClientRefAndCode(
         previousClientRef,
         code,
         session,
       );
-      xref.addClientRef(clientRef, applicationID);
-      await update(xref, session);
+      series.addClientRef(clientRef, applicationID);
+      await update(series, session);
       logger.info("Updated XRef table.");
     } else {
       throw Boom.conflict(

@@ -1,11 +1,11 @@
 import Boom from "@hapi/boom";
 import { db } from "../../common/mongo-client.js";
-import { ApplicationXRef } from "../models/application-x-ref.js";
+import { ApplicationSeries } from "../models/application-series.js";
 
-const collection = "application_xref";
+const collection = "application_series";
 
-export const save = async (xref, session) => {
-  const document = xref.toDocument();
+export const save = async (series, session) => {
+  const document = series.toDocument();
   const result = await db
     .collection(collection)
     .insertOne(document, { session });
@@ -19,21 +19,21 @@ export const findByClientRefAndCode = async (clientRef, code, session) => {
 
   if (doc === null) {
     throw Boom.notFound(
-      `Application_xref with currentClientRef "${clientRef}" and code "${code}" not found.`,
+      `Application_series with currentClientRef "${clientRef}" and code "${code}" not found.`,
     );
   }
 
-  return ApplicationXRef.fromDocument(doc);
+  return ApplicationSeries.fromDocument(doc);
 };
 
-export const update = async (xref, session) => {
-  const document = xref.toDocument();
+export const update = async (series, session) => {
+  const document = series.toDocument();
   const result = await db
     .collection(collection)
-    .replaceOne({ _id: xref._id }, document, { session });
+    .replaceOne({ _id: series._id }, document, { session });
   if (result.modifiedCount === 0) {
     throw Boom.notFound(
-      `Failed to update application_xref with _id "${xref._id}"`,
+      `Failed to update application_series with _id "${series._id}"`,
     );
   }
   return result;

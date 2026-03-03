@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApplicationXRef } from "./application-x-ref.js";
+import { ApplicationSeries } from "./application-series.js";
 
-describe("ApplicationXRef", () => {
+describe("ApplicationSeries", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-01T12:00:00.000Z"));
@@ -13,11 +13,13 @@ describe("ApplicationXRef", () => {
 
   describe("constructor", () => {
     it("throws a bad request error when props are invalid", () => {
-      expect(() => new ApplicationXRef({})).toThrow("Invalid ApplicationXRef:");
+      expect(() => new ApplicationSeries({})).toThrow(
+        "Invalid ApplicationSeries:",
+      );
     });
 
     it("sets all properties from props", () => {
-      const xref = new ApplicationXRef({
+      const series = new ApplicationSeries({
         _id: "abc123",
         clientRefs: ["ref-1", "ref-2"],
         code: "test-code",
@@ -27,15 +29,15 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T06:00:00.000Z",
       });
 
-      expect(xref._id).toBe("abc123");
-      expect(xref.latestClientId).toBe("client-id-1");
-      expect(xref.latestClientRef).toBe("ref-2");
-      expect(xref.createdAt).toBe("2024-01-01T00:00:00.000Z");
-      expect(xref.updatedAt).toBe("2024-01-01T06:00:00.000Z");
+      expect(series._id).toBe("abc123");
+      expect(series.latestClientId).toBe("client-id-1");
+      expect(series.latestClientRef).toBe("ref-2");
+      expect(series.createdAt).toBe("2024-01-01T00:00:00.000Z");
+      expect(series.updatedAt).toBe("2024-01-01T06:00:00.000Z");
     });
 
     it("converts clientRefs array to a Set", () => {
-      const xref = new ApplicationXRef({
+      const series = new ApplicationSeries({
         clientRefs: ["ref-1", "ref-2", "ref-1"],
         latestClientRef: "ref-1",
         code: "test-code",
@@ -44,14 +46,14 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       });
 
-      expect(xref.clientRefs).toBeInstanceOf(Set);
-      expect(xref.clientRefs.size).toBe(2);
-      expect(xref.clientRefs.has("ref-1")).toBe(true);
-      expect(xref.clientRefs.has("ref-2")).toBe(true);
+      expect(series.clientRefs).toBeInstanceOf(Set);
+      expect(series.clientRefs.size).toBe(2);
+      expect(series.clientRefs.has("ref-1")).toBe(true);
+      expect(series.clientRefs.has("ref-2")).toBe(true);
     });
 
     it("handles empty clientRefs array", () => {
-      const xref = new ApplicationXRef({
+      const series = new ApplicationSeries({
         clientRefs: [],
         code: "test-code",
         latestClientRef: "ref-3",
@@ -60,14 +62,14 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       });
 
-      expect(xref.clientRefs).toBeInstanceOf(Set);
-      expect(xref.clientRefs.size).toBe(0);
+      expect(series.clientRefs).toBeInstanceOf(Set);
+      expect(series.clientRefs.size).toBe(0);
     });
   });
 
   describe("addClientRef", () => {
     it("adds a new clientRef to the set", () => {
-      const xref = new ApplicationXRef({
+      const series = new ApplicationSeries({
         clientRefs: ["ref-1"],
         code: "test-code",
         latestClientRef: "ref-1",
@@ -76,15 +78,15 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       });
 
-      xref.addClientRef("ref-2", "client-id-2");
+      series.addClientRef("ref-2", "client-id-2");
 
-      expect(xref.clientRefs.has("ref-2")).toBe(true);
-      expect(xref.latestClientRef).toBe("ref-2");
-      expect(xref.clientRefs.size).toBe(2);
+      expect(series.clientRefs.has("ref-2")).toBe(true);
+      expect(series.latestClientRef).toBe("ref-2");
+      expect(series.clientRefs.size).toBe(2);
     });
 
     it("updates latestClientId", () => {
-      const xref = new ApplicationXRef({
+      const series = new ApplicationSeries({
         clientRefs: ["ref-1"],
         code: "test-code",
         latestClientRef: "ref-1",
@@ -93,13 +95,13 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       });
 
-      xref.addClientRef("ref-2", "client-id-2");
+      series.addClientRef("ref-2", "client-id-2");
 
-      expect(xref.latestClientId).toBe("client-id-2");
+      expect(series.latestClientId).toBe("client-id-2");
     });
 
     it("throws when clientRef is missing", () => {
-      const xref = new ApplicationXRef({
+      const series = new ApplicationSeries({
         clientRefs: ["ref-1"],
         code: "test-code",
         latestClientRef: "ref-1",
@@ -108,13 +110,13 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       });
 
-      expect(() => xref.addClientRef(null, "client-id-2")).toThrow(
-        "Application X Ref can not be updated, clientRef is missing.",
+      expect(() => series.addClientRef(null, "client-id-2")).toThrow(
+        "ApplicationSeries can not be updated, clientRef is missing.",
       );
     });
 
     it("throws when clientId is missing", () => {
-      const xref = new ApplicationXRef({
+      const series = new ApplicationSeries({
         clientRefs: ["ref-1"],
         code: "test-code",
         latestClientRef: "ref-1",
@@ -123,13 +125,13 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       });
 
-      expect(() => xref.addClientRef("ref-2", null)).toThrow(
-        "Application X Ref can not be updated, clientId is missing.",
+      expect(() => series.addClientRef("ref-2", null)).toThrow(
+        "ApplicationSeries can not be updated, clientId is missing.",
       );
     });
 
     it("updates updatedAt to current time", () => {
-      const xref = new ApplicationXRef({
+      const series = new ApplicationSeries({
         clientRefs: ["ref-1"],
         code: "test-code",
         latestClientId: "client-id-1",
@@ -138,60 +140,60 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       });
 
-      xref.addClientRef("ref-2", "client-id-2");
+      series.addClientRef("ref-2", "client-id-2");
 
-      expect(xref.updatedAt).toBe("2024-01-01T12:00:00.000Z");
+      expect(series.updatedAt).toBe("2024-01-01T12:00:00.000Z");
     });
   });
 
   describe("static new", () => {
-    it("creates a new ApplicationXRef with timestamps set to now", () => {
-      const xref = ApplicationXRef.new({
+    it("creates a new ApplicationSeries with timestamps set to now", () => {
+      const series = ApplicationSeries.new({
         code: "test-code",
         latestClientRef: "ref-1",
         latestClientId: "client-id-1",
       });
 
-      expect(xref).toBeInstanceOf(ApplicationXRef);
-      expect(xref.createdAt).toBe("2024-01-01T12:00:00.000Z");
-      expect(xref.updatedAt).toBe("2024-01-01T12:00:00.000Z");
+      expect(series).toBeInstanceOf(ApplicationSeries);
+      expect(series.createdAt).toBe("2024-01-01T12:00:00.000Z");
+      expect(series.updatedAt).toBe("2024-01-01T12:00:00.000Z");
     });
 
     it("sets clientRefs as a Set", () => {
-      const xref = ApplicationXRef.new({
+      const series = ApplicationSeries.new({
         code: "test-code",
         latestClientRef: "ref-2",
         latestClientId: "client-id-1",
       });
 
-      expect(xref.clientRefs).toBeInstanceOf(Set);
-      expect(xref.clientRefs.has("ref-2")).toBe(true);
+      expect(series.clientRefs).toBeInstanceOf(Set);
+      expect(series.clientRefs.has("ref-2")).toBe(true);
     });
 
     it("sets latestClientId", () => {
-      const xref = ApplicationXRef.new({
+      const series = ApplicationSeries.new({
         code: "test-code",
         latestClientRef: "ref-1",
         latestClientId: "client-id-42",
       });
 
-      expect(xref.latestClientId).toBe("client-id-42");
+      expect(series.latestClientId).toBe("client-id-42");
     });
 
     it("does not set _id", () => {
-      const xref = ApplicationXRef.new({
+      const series = ApplicationSeries.new({
         code: "test-code",
         latestClientRef: "ref-1",
         latestClientId: "client-id-1",
       });
 
-      expect(xref._id).toBeUndefined();
+      expect(series._id).toBeUndefined();
     });
   });
 
   describe("static fromDocument", () => {
-    it("returns an ApplicationXRef instance", () => {
-      const xref = ApplicationXRef.fromDocument({
+    it("returns an ApplicationSeries instance", () => {
+      const series = ApplicationSeries.fromDocument({
         _id: "doc-id",
         clientRefs: ["ref-1"],
         latestClientRef: "ref-1",
@@ -201,11 +203,11 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       });
 
-      expect(xref).toBeInstanceOf(ApplicationXRef);
+      expect(series).toBeInstanceOf(ApplicationSeries);
     });
 
     it("maps all document properties correctly", () => {
-      const xref = ApplicationXRef.fromDocument({
+      const series = ApplicationSeries.fromDocument({
         _id: "doc-id",
         clientRefs: ["ref-1", "ref-2"],
         code: "test-code",
@@ -215,15 +217,15 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T06:00:00.000Z",
       });
 
-      expect(xref._id).toBe("doc-id");
-      expect(xref.latestClientRef).toBe("ref-2");
-      expect(xref.latestClientId).toBe("client-id-1");
-      expect(xref.createdAt).toBe("2024-01-01T00:00:00.000Z");
-      expect(xref.updatedAt).toBe("2024-01-01T06:00:00.000Z");
+      expect(series._id).toBe("doc-id");
+      expect(series.latestClientRef).toBe("ref-2");
+      expect(series.latestClientId).toBe("client-id-1");
+      expect(series.createdAt).toBe("2024-01-01T00:00:00.000Z");
+      expect(series.updatedAt).toBe("2024-01-01T06:00:00.000Z");
     });
 
     it("converts clientRefs array to a Set", () => {
-      const xref = ApplicationXRef.fromDocument({
+      const series = ApplicationSeries.fromDocument({
         _id: "doc-id",
         clientRefs: ["ref-1", "ref-2"],
         code: "test-code",
@@ -233,15 +235,15 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       });
 
-      expect(xref.clientRefs).toBeInstanceOf(Set);
-      expect(xref.clientRefs.has("ref-1")).toBe(true);
-      expect(xref.clientRefs.has("ref-2")).toBe(true);
+      expect(series.clientRefs).toBeInstanceOf(Set);
+      expect(series.clientRefs.has("ref-1")).toBe(true);
+      expect(series.clientRefs.has("ref-2")).toBe(true);
     });
   });
 
   describe("toDocument", () => {
     it("converts clientRefs Set to an Array", () => {
-      const xref = new ApplicationXRef({
+      const series = new ApplicationSeries({
         _id: "doc-id",
         clientRefs: ["ref-1", "ref-2"],
         code: "test-code",
@@ -251,7 +253,7 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T00:00:00.000Z",
       });
 
-      const doc = xref.toDocument();
+      const doc = series.toDocument();
 
       expect(Array.isArray(doc.clientRefs)).toBe(true);
       expect(doc.clientRefs).toEqual(
@@ -260,7 +262,7 @@ describe("ApplicationXRef", () => {
     });
 
     it("returns all properties as a plain object", () => {
-      const xref = new ApplicationXRef({
+      const series = new ApplicationSeries({
         _id: "doc-id",
         clientRefs: ["ref-1"],
         code: "test-code",
@@ -270,7 +272,7 @@ describe("ApplicationXRef", () => {
         updatedAt: "2024-01-01T06:00:00.000Z",
       });
 
-      const doc = xref.toDocument();
+      const doc = series.toDocument();
 
       expect(doc).toEqual({
         _id: "doc-id",
@@ -284,13 +286,13 @@ describe("ApplicationXRef", () => {
     });
 
     it("includes _id even when undefined", () => {
-      const xref = ApplicationXRef.new({
+      const series = ApplicationSeries.new({
         code: "test-code",
         latestClientRef: "ref-1",
         latestClientId: "client-id-1",
       });
 
-      const doc = xref.toDocument();
+      const doc = series.toDocument();
 
       expect(Object.prototype.hasOwnProperty.call(doc, "_id")).toBe(true);
       expect(doc._id).toBeUndefined();

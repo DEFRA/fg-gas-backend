@@ -6,15 +6,16 @@ import { grant3 } from "../fixtures/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 let applications;
-let applicationXref;
+let applicationSeries;
 let client;
 let outbox;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   applications = client.db().collection("applications");
-  applicationXref = client.db().collection("application_xref");
+  applicationSeries = client.db().collection("application_series");
   outbox = client.db().collection("outbox");
+  applicationSeries.deleteMany({});
 });
 
 afterAll(async () => {
@@ -665,7 +666,7 @@ describe("POST /grants/{code}/applications", () => {
       replacementAllowed: true,
     });
 
-    await applicationXref.insertOne({
+    await applicationSeries.insertOne({
       clientRefs: [previousClientRef],
       latestClientRef: previousClientRef,
       latestClientId: "previous-application-id",
@@ -731,11 +732,11 @@ describe("POST /grants/{code}/applications", () => {
       },
     ]);
 
-    const xrefDocs = await applicationXref
-      .find({}, { projection: { _id: 0 } })
+    const seriesDocs = await applicationSeries
+      .find({ latestClientRef: newClientRef }, { projection: { _id: 0 } })
       .toArray();
 
-    expect(xrefDocs).toEqual([
+    expect(seriesDocs).toEqual([
       {
         clientRefs: expect.arrayContaining([previousClientRef, newClientRef]),
         latestClientRef: newClientRef,
@@ -745,7 +746,7 @@ describe("POST /grants/{code}/applications", () => {
         updatedAt: expect.any(String),
       },
     ]);
-    expect(xrefDocs[0].clientRefs).toHaveLength(2);
+    expect(seriesDocs[0].clientRefs).toHaveLength(2);
 
     await expect(outbox).toHaveRecord({
       target: env.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,

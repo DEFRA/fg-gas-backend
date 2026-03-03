@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
 
-export class ApplicationXRef {
+export class ApplicationSeries {
   static validationSchema = Joi.object({
     clientRefs: Joi.array().items(Joi.string()).required(),
     code: Joi.string().required(),
@@ -12,14 +12,14 @@ export class ApplicationXRef {
   });
 
   constructor(props) {
-    const { error } = ApplicationXRef.validationSchema.validate(props, {
+    const { error } = ApplicationSeries.validationSchema.validate(props, {
       stripUnknown: true,
       abortEarly: false,
     });
 
     if (error) {
       throw Boom.badRequest(
-        `Invalid ApplicationXRef: ${error.details.map((d) => d.message).join(", ")}`,
+        `Invalid ApplicationSeries: ${error.details.map((d) => d.message).join(", ")}`,
       );
     }
 
@@ -35,13 +35,13 @@ export class ApplicationXRef {
   addClientRef(clientRef, clientId) {
     if (!clientRef) {
       throw Boom.badData(
-        "Application X Ref can not be updated, clientRef is missing.",
+        "ApplicationSeries can not be updated, clientRef is missing.",
       );
     }
 
     if (!clientId) {
       throw Boom.badData(
-        "Application X Ref can not be updated, clientId is missing.",
+        "ApplicationSeries can not be updated, clientId is missing.",
       );
     }
 
@@ -53,7 +53,7 @@ export class ApplicationXRef {
 
   static new({ code, latestClientId, latestClientRef }) {
     const date = new Date(Date.now()).toISOString();
-    return new ApplicationXRef({
+    return new ApplicationSeries({
       clientRefs: [latestClientRef],
       code,
       latestClientRef,
@@ -72,7 +72,7 @@ export class ApplicationXRef {
     createdAt,
     updatedAt,
   }) {
-    return new ApplicationXRef({
+    return new ApplicationSeries({
       _id,
       clientRefs,
       code,

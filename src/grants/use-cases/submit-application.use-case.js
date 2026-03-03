@@ -1,7 +1,7 @@
 import { logger } from "../../common/logger.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { ApplicationXRef } from "../models/application-x-ref.js";
-import { save as saveXref } from "../repositories/application-x-ref.repository.js";
+import { ApplicationSeries } from "../models/application-series.js";
+import { save as saveSeries } from "../repositories/application-series.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
 
 export const submitApplicationUseCase = async (code, submission) => {
@@ -13,12 +13,12 @@ export const submitApplicationUseCase = async (code, submission) => {
       submission,
       session,
     );
-    const xref = ApplicationXRef.new({
+    const series = ApplicationSeries.new({
       latestClientRef: submission.metadata.clientRef,
       code,
       latestClientId: applicationID,
     });
-    await saveXref(xref, session);
+    await saveSeries(series, session);
   });
 
   logger.info(`Finished: Application submitted for code ${code}`);

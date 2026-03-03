@@ -4,7 +4,7 @@ import { withTransaction } from "../../common/with-transaction.js";
 import {
   findByClientRefAndCode,
   update,
-} from "../repositories/application-x-ref.repository.js";
+} from "../repositories/application-series.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import { replaceApplicationUseCase } from "./replace-application.use-case.js";
@@ -12,7 +12,7 @@ import { replaceApplicationUseCase } from "./replace-application.use-case.js";
 vi.mock("../../common/with-transaction.js");
 vi.mock("./create-application.use-case.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
-vi.mock("../repositories/application-x-ref.repository.js");
+vi.mock("../repositories/application-series.repository.js");
 
 const testApplication = {
   metadata: {
@@ -30,7 +30,7 @@ const testApplication = {
 };
 
 describe("replaceApplicationUseCase", () => {
-  it("creates a new application and updates the xref when replacement is allowed", async () => {
+  it("creates a new application and updates the series when replacement is allowed", async () => {
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue({
