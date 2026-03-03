@@ -22,6 +22,7 @@ export const replaceApplicationUseCase = async (code, application) => {
     );
 
     if (previousAppl.replacementAllowed) {
+      logger.info("About to update ApplciationSeries");
       const applicationID = await createApplicationUseCase(
         code,
         application,
@@ -34,7 +35,7 @@ export const replaceApplicationUseCase = async (code, application) => {
       );
       series.addClientRef(clientRef, applicationID);
       await update(series, session);
-      logger.info("Updated XRef table.");
+      logger.info("Updated ApplicationSeries.");
     } else {
       throw Boom.conflict(
         `Can not replace existing Application with clientRef: ${previousClientRef} with new clientRef: ${clientRef} - replacement is not allowed`,
