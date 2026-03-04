@@ -7,6 +7,7 @@ import { submittedAt } from "../application/metadata/submitted-at.js";
 
 export const submitApplicationRequestSchema = Joi.object({
   metadata: Joi.object({
+    previousClientRef: clientRef.optional(),
     clientRef,
     sbi,
     frn,
