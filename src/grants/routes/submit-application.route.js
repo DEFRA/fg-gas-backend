@@ -2,6 +2,7 @@ import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { code } from "../schemas/grant/code.js";
 import { submitApplicationRequestSchema } from "../schemas/requests/submit-application-request.schema.js";
+import { replaceApplicationUseCase } from "../use-cases/replace-application.use-case.js";
 import { submitApplicationUseCase } from "../use-cases/submit-application.use-case.js";
 
 export const submitApplicationRoute = {
@@ -21,10 +22,17 @@ export const submitApplicationRoute = {
     logger.info(
       `Submitting application for grant with code ${request.params.code}`,
     );
-    await submitApplicationUseCase(request.params.code, request.payload);
+
+    if (request.payload.metadata.previousClientRef) {
+      await replaceApplicationUseCase(request.params.code, request.payload);
+    } else {
+      await submitApplicationUseCase(request.params.code, request.payload);
+    }
+
     logger.info(
       `Finished: Submitting application for grant with code ${request.params.code}`,
     );
+
     return h.response().code(204);
   },
 };

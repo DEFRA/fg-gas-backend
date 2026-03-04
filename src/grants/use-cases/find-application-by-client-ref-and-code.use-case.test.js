@@ -6,6 +6,7 @@ import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-
 vi.mock("../repositories/application.repository.js");
 
 describe("findApplicationByClientRefAndCodeUseCase", () => {
+  const mockSession = {};
   it("finds an application by clientRef", async () => {
     const application = new Application({
       clientRef: "test-client-ref",
@@ -28,12 +29,16 @@ describe("findApplicationByClientRefAndCodeUseCase", () => {
     const result = await findApplicationByClientRefAndCodeUseCase(
       "test-client-ref",
       "any-code",
+      mockSession,
     );
 
-    expect(findByClientRefAndCode).toHaveBeenCalledWith({
-      clientRef: "test-client-ref",
-      code: "any-code",
-    });
+    expect(findByClientRefAndCode).toHaveBeenCalledWith(
+      {
+        clientRef: "test-client-ref",
+        code: "any-code",
+      },
+      mockSession,
+    );
 
     expect(result).toStrictEqual(application);
   });
@@ -45,6 +50,7 @@ describe("findApplicationByClientRefAndCodeUseCase", () => {
       findApplicationByClientRefAndCodeUseCase(
         "non-existent-client-ref",
         "any-code",
+        mockSession,
       ),
     ).rejects.toThrow(
       'Application with clientRef "non-existent-client-ref" and code "any-code" not found',

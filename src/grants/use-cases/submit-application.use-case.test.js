@@ -10,7 +10,7 @@ import { submitApplicationUseCase } from "./submit-application.use-case.js";
 vi.mock("../repositories/outbox.repository.js");
 vi.mock("./find-grant-by-code.use-case.js");
 vi.mock("../repositories/application.repository.js");
-vi.mock("../repositories/application-x-ref.repository.js");
+vi.mock("../repositories/application-series.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
 vi.mock("../../common/with-transaction.js");
