@@ -75,15 +75,7 @@ export const createApplicationUseCase = async (
 
   const { phase, stage, status } = grant.getInitialState();
 
-  const {
-    clientRef,
-    previousClientRef,
-    submittedAt,
-    sbi,
-    frn,
-    crn,
-    ...extraMetadata
-  } = metadata;
+  const { clientRef, submittedAt, sbi, frn, crn, ...extraMetadata } = metadata;
 
   const application = Application.new({
     currentPhase: phase.code,

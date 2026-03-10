@@ -152,6 +152,7 @@ describe("POST /grants/{code}/applications", () => {
       messageGroupId: `${clientRef}-test-code-1`,
       data: {
         caseRef: clientRef,
+        previousCaseRef: null,
         workflowCode: "test-code-1",
         payload: {
           createdAt: expect.any(String),
@@ -275,6 +276,7 @@ describe("POST /grants/{code}/applications", () => {
       messageGroupId: clientRef + "-test-code-1",
       data: {
         caseRef: clientRef,
+        previousCaseRef: null,
         workflowCode: "test-code-1",
         payload: {
           createdAt: expect.any(String),
@@ -720,6 +722,7 @@ describe("POST /grants/{code}/applications", () => {
         },
         metadata: {
           defraId: "1234567890",
+          previousClientRef,
         },
         phases: [
           {
