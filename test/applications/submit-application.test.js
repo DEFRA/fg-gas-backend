@@ -33,6 +33,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
@@ -182,6 +183,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
@@ -304,6 +306,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
 
         phases: [
           {
@@ -372,6 +375,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
 
         phases: [
           {
@@ -623,6 +627,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: ["PHASE_1:STAGE_1:NEW"],
         phases: [
           {
             code: "PHASE_1",
@@ -858,6 +863,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
