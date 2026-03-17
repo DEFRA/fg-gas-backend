@@ -25,6 +25,7 @@ vi.mock("../../src/common/mongo-client.js", () => {
       return {
         findOne: vi.fn(async (query = {}) => {
           const { code, clientRef } = query;
+          // Return mock application for known clientRefs
           if (code === "frps-private-beta" && clientRef === "710-877-8fd") {
             return {
               code: "frps-private-beta",
@@ -41,6 +42,28 @@ vi.mock("../../src/common/mongo-client.js", () => {
               phases: [],
             };
           }
+          // Support amendments - return a mock application for any other clientRef (previousClientRef lookup)
+          if (
+            code === "frps-private-beta" &&
+            clientRef &&
+            clientRef !== "non-existent-ref"
+          ) {
+            return {
+              code: "frps-private-beta",
+              clientRef: clientRef,
+              currentPhase: "PRE_AWARD",
+              currentStage: "REVIEW_APPLICATION",
+              currentStatus: "APPLICATION_RECEIVED",
+              identifiers: {
+                sbi: "107365747",
+                frn: "1101313269",
+                crn: "1103623923",
+              },
+              agreements: [],
+              phases: [],
+              replacementAllowed: true, // Allow amendments
+            };
+          }
           return null;
         }),
         findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
@@ -55,6 +78,38 @@ vi.mock("../../src/common/mongo-client.js", () => {
         updateMany: vi
           .fn()
           .mockResolvedValue({ acknowledged: true, matchedCount: 0 }),
+        createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
+      };
+    }
+
+    if (name === "application_series") {
+      return {
+        findOne: vi.fn(async (query = {}) => {
+          const { code, latestClientRef } = query;
+          // Return mock ApplicationSeries for amendment lookups
+          if (
+            code === "frps-private-beta" &&
+            latestClientRef &&
+            latestClientRef !== "non-existent-ref"
+          ) {
+            return {
+              _id: "series-id-123",
+              code: "frps-private-beta",
+              clientRefs: [latestClientRef], // Array of strings, not objects
+              latestClientId: "app-id-123",
+              latestClientRef: latestClientRef,
+              updatedAt: new Date().toISOString(), // ISO string, not Date object
+              createdAt: new Date().toISOString(), // ISO string, not Date object
+            };
+          }
+          return null;
+        }),
+        findOneAndUpdate: vi.fn().mockResolvedValue(null),
+        insertOne: vi.fn().mockResolvedValue({ insertedId: "series-id" }),
+        replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
+        updateOne: vi
+          .fn()
+          .mockResolvedValue({ acknowledged: true, matchedCount: 1 }),
         createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
       };
     }
@@ -174,6 +229,21 @@ describe("fg-gas-backend Provider Verification", () => {
         console.error("Stack:", event.error?.stack);
       },
     );
+
+    // Log all responses for debugging
+    server.events.on("response", (request) => {
+      if (request.response?.statusCode >= 400) {
+        console.error(
+          `[${request.method.toUpperCase()}] ${request.path} → ${request.response.statusCode}`,
+        );
+        if (request.response.source) {
+          console.error(
+            "Response body:",
+            JSON.stringify(request.response.source, null, 2),
+          );
+        }
+      }
+    });
 
     await server.register([health, grants]);
     await server.start();
