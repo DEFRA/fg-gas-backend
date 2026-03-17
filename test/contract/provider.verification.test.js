@@ -50,10 +50,10 @@ vi.mock("../../src/common/mongo-client.js", () => {
           ) {
             return {
               code: "frps-private-beta",
-              clientRef: clientRef,
+              clientRef,
               currentPhase: "PRE_AWARD",
               currentStage: "REVIEW_APPLICATION",
-              currentStatus: "APPLICATION_RECEIVED",
+              currentStatus: "APPLICATION_AMEND",
               identifiers: {
                 sbi: "107365747",
                 frn: "1101313269",
@@ -61,7 +61,6 @@ vi.mock("../../src/common/mongo-client.js", () => {
               },
               agreements: [],
               phases: [],
-              replacementAllowed: true, // Allow amendments
             };
           }
           return null;
@@ -97,7 +96,7 @@ vi.mock("../../src/common/mongo-client.js", () => {
               code: "frps-private-beta",
               clientRefs: [latestClientRef], // Array of strings, not objects
               latestClientId: "app-id-123",
-              latestClientRef: latestClientRef,
+              latestClientRef,
               updatedAt: new Date().toISOString(), // ISO string, not Date object
               createdAt: new Date().toISOString(), // ISO string, not Date object
             };
