@@ -15,6 +15,7 @@ export const createGrantRequestSchema = Joi.object({
   }).label("Metadata"),
   actions: Joi.array().items(action).unique("name").max(20).label("Actions"),
   externalStatusMap: externalStatusMap.optional(),
+  amendablePositions: Joi.array().items(Joi.string()),
 })
   .options({
     presence: "required",

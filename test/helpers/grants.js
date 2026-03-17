@@ -9,6 +9,7 @@ export const createTestGrant = (overrides = {}) => {
       startDate: "2023-01-01T00:00:00Z",
     },
     actions: [],
+    amendablePositions: [],
     phases: [
       {
         code: "PRE_AWARD",
@@ -63,6 +64,7 @@ export const createGrant = async () => {
       startDate: "2100-01-01T00:00:00.000Z",
     },
     actions: [],
+    amendablePositions: [],
     phases: [
       {
         code: "PRE_AWARD",
