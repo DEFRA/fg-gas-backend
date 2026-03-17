@@ -39,7 +39,6 @@ vi.mock("../../src/common/mongo-client.js", () => {
               },
               agreements: [],
               phases: [],
-              replacementAllowed: false,
             };
           }
           return null;

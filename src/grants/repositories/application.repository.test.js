@@ -123,7 +123,6 @@ describe("save", () => {
           anything: "test",
         },
         phases: [],
-        replacementAllowed: false,
       }),
       session,
     );
@@ -152,7 +151,6 @@ describe("save", () => {
           anything: "test",
         },
         phases: [],
-        replacementAllowed: false,
       }),
 
       { session },
@@ -184,7 +182,6 @@ describe("save", () => {
             anything: "test",
           },
           phases: [],
-          replacementAllowed: false,
         }),
       ),
     ).rejects.toThrow(
@@ -219,7 +216,6 @@ describe("save", () => {
             anything: "test",
           },
           phases: [],
-          replacementAllowed: false,
         }),
       ),
     ).rejects.toThrow(error);
@@ -247,7 +243,6 @@ describe("findByClientRef", () => {
         },
         agreements: {},
         phases: [],
-        replacementAllowed: false,
       }),
     );
 
@@ -276,7 +271,6 @@ describe("findByClientRef", () => {
         },
         agreements: {},
         phases: [],
-        replacementAllowed: false,
       }),
     );
 
@@ -334,7 +328,6 @@ describe("findByClientRefAndCode", () => {
           },
         },
         phases: [],
-        replacementAllowed: false,
       }),
     );
 
@@ -381,7 +374,6 @@ describe("findByClientRefAndCode", () => {
           }),
         },
         phases: [],
-        replacementAllowed: false,
       }),
     );
 
@@ -407,7 +399,6 @@ describe("findByClientRefAndCode", () => {
       updatedAt: "2021-01-02T00:00:00.000Z",
       submittedAt: "2021-01-01T00:00:00.000Z",
       phases: [],
-      replacementAllowed: false,
       // identifiers/metadata/agreements intentionally missing
     });
 
