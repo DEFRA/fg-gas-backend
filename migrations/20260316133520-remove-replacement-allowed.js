@@ -41,7 +41,7 @@ export const up = async (db) => {
         .collection("grants")
         .updateOne(
           { _id: grant._id },
-          { $set: { phases: grant.phases } },
+          { $set: { phases: grant.phases, amendablePositions: [] } },
           { session },
         );
     }
