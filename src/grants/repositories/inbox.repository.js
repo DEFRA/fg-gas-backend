@@ -73,7 +73,7 @@ export const processExpiredEvents = async () => {
   await db.collection(collection).updateMany(
     {
       claimExpiresAt: { $lt: new Date() },
-      status: { $ne: InboxStatus.DEAD_LETTER },
+      status: { $nin: [InboxStatus.DEAD_LETTER, InboxStatus.COMPLETED] },
     },
     {
       $set: {

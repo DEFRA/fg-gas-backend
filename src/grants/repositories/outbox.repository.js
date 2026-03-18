@@ -100,7 +100,7 @@ export const updateExpiredEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {
       claimExpiresAt: { $lt: new Date() },
-      status: { $ne: OutboxStatus.DEAD_LETTER },
+      status: { $nin: [OutboxStatus.DEAD_LETTER, OutboxStatus.COMPLETED] },
     },
     {
       $set: {
