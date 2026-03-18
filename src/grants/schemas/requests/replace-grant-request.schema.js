@@ -12,6 +12,7 @@ export const replaceGrantRequestSchema = Joi.object({
   }).label("Metadata"),
   actions: Joi.array().items(action).unique("name").max(20).label("Actions"),
   phases,
+  amendablePositions: Joi.array().items(Joi.string()),
   externalStatusMap: externalStatusMap.optional(),
 })
   .options({
