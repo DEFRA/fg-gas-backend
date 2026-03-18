@@ -1,12 +1,15 @@
 export const AgreementStatus = {
   Offered: "OFFERED",
   Accepted: "ACCEPTED",
+  Cancelled: "CANCELLED",
   Rejected: "REJECTED",
   Withdrawn: "WITHDRAWN",
 };
 
 export const AgreementServiceStatus = {
   Accepted: "accepted",
+  Cancel: "cancel",
+  Cancelled: "cancelled",
   Withdrawn: "withdrawn",
   Offered: "offered",
   Rejected: "rejected",
@@ -65,6 +68,18 @@ export class Agreement {
       new AgreementHistoryEntry({
         agreementStatus: this.latestStatus,
         createdAt: new Date().toISOString(),
+      }),
+    );
+  }
+
+  cancel(date) {
+    this.latestStatus = AgreementStatus.Cancelled;
+    this.updatedAt = new Date().toISOString();
+
+    this.history.push(
+      new AgreementHistoryEntry({
+        agreementStatus: this.latestStatus,
+        createdAt: date,
       }),
     );
   }

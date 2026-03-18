@@ -22,11 +22,14 @@ import {
   update,
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
+import { acceptAgreementUseCase } from "../use-cases/accept-agreement.use-case.js";
 import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
+import { cancelAgreementUseCase } from "../use-cases/cancel-agreement.use-case.js";
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
-import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
+import { requestAgreementCancellationUseCase } from "../use-cases/request-agreement-cancellation.use-case.js";
 import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
+import { withdrawApplicationUseCase } from "../use-cases/withdraw-application.use-case.js";
 
 const getValidatedMapping = (grant, application, command) => {
   const mapping = grant.mapExternalStateToInternalState(
@@ -59,8 +62,11 @@ const getHandlerForProcess = (processName) => {
   const processHandlers = {
     GENERATE_OFFER: createAgreementCommandUseCase,
     STORE_AGREEMENT_CASE: addAgreementUseCase,
-    UPDATE_AGREEMENT_CASE: handleAgreementStatusChangeUseCase,
-    WITHDRAW_OFFER: withdrawAgreementUseCase,
+    ACCEPT_AGREEMENT: acceptAgreementUseCase,
+    CANCEL_AGREEMENT: cancelAgreementUseCase,
+    REQUEST_APPLICATION_WITHDRAWAL: withdrawApplicationUseCase,
+    REQUEST_AGREEMENT_CANCELLATION: requestAgreementCancellationUseCase,
+    WITHDRAW_AGREEMENT: withdrawAgreementUseCase,
   };
 
   return processHandlers[processName];
