@@ -1,22 +1,13 @@
 import Joi from "joi";
-import { action } from "../grant/action/action.js";
 import { code } from "../grant/code.js";
-import { externalStatusMap } from "../grant/external-status-map.js";
-import { description } from "../grant/metadata/description.js";
-import { startDate } from "../grant/metadata/start-date.js";
-import { phases } from "../grant/phases.js";
+import { grantRequestSchema } from "./grant-request.schema.js";
 
-export const createGrantRequestSchema = Joi.object({
-  code,
-  phases,
-  metadata: Joi.object({
-    description,
-    startDate,
-  }).label("Metadata"),
-  actions: Joi.array().items(action).unique("name").max(20).label("Actions"),
-  externalStatusMap: externalStatusMap.optional(),
-  amendablePositions: Joi.array().items(Joi.string()),
-})
+export const createGrantRequestSchema = grantRequestSchema
+  .concat(
+    Joi.object({
+      code,
+    }),
+  )
   .options({
     presence: "required",
     stripUnknown: true,
