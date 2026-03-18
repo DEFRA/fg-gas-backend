@@ -37,13 +37,20 @@ export const up = async (db) => {
         }
       }
 
-      await db
-        .collection("grants")
-        .updateOne(
-          { _id: grant._id },
-          { $set: { phases: grant.phases, amendablePositions: [] } },
-          { session },
-        );
+      await db.collection("grants").updateOne(
+        { _id: grant._id },
+        {
+          $set: {
+            phases: grant.phases,
+            amendablePositions: [
+              "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
+              "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND",
+              "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND",
+            ],
+          },
+        },
+        { session },
+      );
     }
   });
 };
