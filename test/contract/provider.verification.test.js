@@ -118,7 +118,15 @@ vi.mock("../../src/common/mongo-client.js", () => {
       findOne: vi.fn(async (query = {}) => {
         const { code } = query;
         if (code === "frps-private-beta") {
-          return getGrant("frps-private-beta");
+          const grant = getGrant("frps-private-beta");
+          // Ensure amendablePositions exists and includes amendable statuses
+          // (migration may not run due to withTransaction mock)
+          if (!grant.amendablePositions) {
+            grant.amendablePositions = [
+              "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
+            ];
+          }
+          return grant;
         }
         return null;
       }),
