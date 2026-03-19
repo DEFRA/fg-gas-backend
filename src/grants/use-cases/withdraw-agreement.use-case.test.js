@@ -50,7 +50,6 @@ describe("withdraw agreement use case", () => {
         "agreement-123": agreement,
       },
       phases: [],
-      replacementAllowed: false,
     });
 
     const oldApplication = new Application({
@@ -63,7 +62,6 @@ describe("withdraw agreement use case", () => {
         "agreement-123": agreement,
       },
       phases: [],
-      replacementAllowed: false,
     });
 
     const session = {};

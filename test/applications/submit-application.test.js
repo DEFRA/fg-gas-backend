@@ -33,6 +33,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
@@ -89,7 +90,6 @@ describe("POST /grants/{code}/applications", () => {
         currentPhase: "PHASE_1",
         currentStage: "STAGE_1",
         currentStatus: "NEW",
-        replacementAllowed: false,
         clientRef,
         submittedAt,
         code: "test-code-1",
@@ -183,6 +183,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
@@ -213,7 +214,6 @@ describe("POST /grants/{code}/applications", () => {
         "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
       },
       payload: {
-        replacementAllowed: false,
         metadata: {
           clientRef,
           submittedAt,
@@ -239,7 +239,6 @@ describe("POST /grants/{code}/applications", () => {
         currentPhase: "PHASE_1",
         currentStage: "STAGE_1",
         currentStatus: "NEW",
-        replacementAllowed: false,
         clientRef,
         submittedAt,
         code: "test-code-1",
@@ -307,6 +306,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
 
         phases: [
           {
@@ -375,6 +375,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
 
         phases: [
           {
@@ -445,7 +446,6 @@ describe("POST /grants/{code}/applications", () => {
         phases: [{ code: "PHASE_1", answers: { question1: "test answer" } }],
         clientRef: "12345",
         code: "test-code-1",
-        replacementAllowed: false,
         identifiers: {
           crn: "1234567890",
           frn: "1234567890",
@@ -627,6 +627,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: ["PHASE_1:STAGE_1:NEW"],
         phases: [
           {
             code: "PHASE_1",
@@ -665,7 +666,6 @@ describe("POST /grants/{code}/applications", () => {
       metadata: { defraId: "1234567890" },
       phases: [{ code: "PHASE_1", answers: { question1: "original answer" } }],
       agreements: {},
-      replacementAllowed: true,
     });
 
     await applicationSeries.insertOne({
@@ -708,7 +708,6 @@ describe("POST /grants/{code}/applications", () => {
         currentPhase: "PHASE_1",
         currentStage: "STAGE_1",
         currentStatus: "NEW",
-        replacementAllowed: false,
         clientRef: newClientRef,
         submittedAt,
         code: "test-code-1",
@@ -778,12 +777,13 @@ describe("POST /grants/{code}/applications", () => {
     await wreck.post("/grants", {
       json: true,
       payload: {
-        code: "test-code-1",
+        code: "test-code-2",
         metadata: {
           description: "test description 1",
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
@@ -807,7 +807,7 @@ describe("POST /grants/{code}/applications", () => {
 
     const previousClientRef = `cr-prev-${randomUUID()}`;
 
-    await wreck.post("/grants/test-code-1/applications", {
+    await wreck.post("/grants/test-code-2/applications", {
       payload: {
         metadata: {
           clientRef: previousClientRef,
@@ -825,7 +825,7 @@ describe("POST /grants/{code}/applications", () => {
 
     let response;
     try {
-      await wreck.post("/grants/test-code-1/applications", {
+      await wreck.post("/grants/test-code-2/applications", {
         json: true,
         payload: {
           metadata: {
@@ -863,6 +863,7 @@ describe("POST /grants/{code}/applications", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",

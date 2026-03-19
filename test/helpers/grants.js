@@ -9,6 +9,7 @@ export const createTestGrant = (overrides = {}) => {
       startDate: "2023-01-01T00:00:00Z",
     },
     actions: [],
+    amendablePositions: [],
     phases: [
       {
         code: "PRE_AWARD",
@@ -63,6 +64,7 @@ export const createGrant = async () => {
       startDate: "2100-01-01T00:00:00.000Z",
     },
     actions: [],
+    amendablePositions: [],
     phases: [
       {
         code: "PRE_AWARD",
@@ -73,19 +75,16 @@ export const createGrant = async () => {
               {
                 code: "APPLICATION_RECEIVED",
                 validFrom: [],
-                replacementAllowed: false,
               },
               {
                 code: "IN_REVIEW",
                 validFrom: [{ code: "APPLICATION_RECEIVED", processes: [] }],
-                replacementAllowed: false,
               },
               {
                 code: "AGREEMENT_GENERATING",
                 validFrom: [
                   { code: "IN_REVIEW", processes: ["GENERATE_OFFER"] },
                 ],
-                replacementAllowed: false,
               },
             ],
           },

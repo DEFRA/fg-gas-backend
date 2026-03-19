@@ -30,6 +30,7 @@ describe("replaceGrantRoute", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: ["Position:number:one"],
         phases: [
           {
             code: "PRE_AWARD",
@@ -57,6 +58,7 @@ describe("replaceGrantRoute", () => {
         startDate: new Date("2100-01-01T00:00:00.000Z"),
       },
       actions: [],
+      amendablePositions: ["Position:number:one"],
       phases: [
         {
           code: "PRE_AWARD",

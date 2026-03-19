@@ -30,6 +30,7 @@ describe("createGrantRoute", () => {
           startDate: "2100-01-01T00:00:00.000Z",
         },
         actions: [],
+        amendablePositions: [],
         phases: [
           {
             code: "PRE_AWARD",
@@ -73,6 +74,7 @@ describe("createGrantRoute", () => {
         startDate: new Date("2100-01-01T00:00:00.000Z"),
       },
       actions: [],
+      amendablePositions: [],
       phases: [
         {
           code: "PRE_AWARD",

@@ -28,6 +28,7 @@ describe("Simple Integration Tests", () => {
         description: "Simple integration test grant",
         startDate: "2025-01-01T00:00:00.000Z",
       },
+      amendablePositions: [],
       phases: [
         {
           code: "PHASE_1",

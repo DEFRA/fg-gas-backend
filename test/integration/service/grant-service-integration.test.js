@@ -22,6 +22,7 @@ describe("Grant Service Integration Tests", () => {
       const testId = Date.now();
       const grantData = {
         code: `test-grant-${testId}`,
+        amendablePositions: [],
         metadata: {
           description:
             "Complex integration test grant with multiple validation rules",
@@ -119,7 +120,7 @@ describe("Grant Service Integration Tests", () => {
           description: "Grant with deeply nested validation rules",
           startDate: "2025-06-01T00:00:00.000Z",
         },
-
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
@@ -188,7 +189,7 @@ describe("Grant Service Integration Tests", () => {
           description: "Duplicate test grant",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
@@ -247,7 +248,7 @@ describe("Grant Service Integration Tests", () => {
           description: "Grant for testing referential integrity",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
@@ -328,7 +329,7 @@ describe("Grant Service Integration Tests", () => {
               description: `Concurrent test grant ${i}`,
               startDate: "2025-01-01T00:00:00.000Z",
             },
-
+            amendablePositions: [],
             phases: [
               {
                 code: "PHASE_1",
@@ -422,7 +423,7 @@ describe("Grant Service Integration Tests", () => {
           description: "Grant with complex business validation rules",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",

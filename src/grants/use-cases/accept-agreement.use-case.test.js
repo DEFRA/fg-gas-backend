@@ -69,7 +69,6 @@ describe("acceptAgreementUseCase", () => {
           "agreement-123": agreement,
         },
         phases: [],
-        replacementAllowed: false,
       }),
     );
 

@@ -30,6 +30,7 @@ it("requires a code", () => {
       startDate: "2100-01-01T00:00:00.000Z",
     },
     actions: [],
+    amendablePositions: [],
   });
 
   expect(error.message).toEqual('"code" is required');
@@ -40,6 +41,7 @@ it("requires a metadata property", () => {
     code: "test",
     phases: validPhases,
     actions: [],
+    amendablePositions: [],
   });
 
   expect(error.message).toEqual('"Metadata" is required');
@@ -53,6 +55,7 @@ it("requires a phases property", () => {
       startDate: "2100-01-01T00:00:00.000Z",
     },
     actions: [],
+    amendablePositions: [],
   });
 
   expect(error.message).toEqual('"Phases" is required');
@@ -66,6 +69,7 @@ it("requires a metadata.description property", () => {
     },
     phases: validPhases,
     actions: [],
+    amendablePositions: [],
   });
 
   expect(error.message).toEqual('"metadata.description" is required');
@@ -79,6 +83,7 @@ it("requires a metadata.startDate property", () => {
     },
     phases: validPhases,
     actions: [],
+    amendablePositions: [],
   });
 
   expect(error.message).toEqual('"metadata.startDate" is required');
@@ -92,6 +97,7 @@ it("requires actions property", () => {
       startDate: "2100-01-01T00:00:00.000Z",
     },
     phases: validPhases,
+    amendablePositions: [],
   });
 
   expect(error.message).toEqual('"Actions" is required');
@@ -117,6 +123,7 @@ it("requires actions to be unique by name", () => {
         url: "http://example.com",
       },
     ],
+    amendablePositions: [],
   });
 
   expect(error.message).toEqual('"Actions" contains a duplicate value');
@@ -131,6 +138,7 @@ it("accepts externalStatusMap as optional", () => {
     },
     phases: validPhases,
     actions: [],
+    amendablePositions: [],
     externalStatusMap: {
       phases: [
         {
@@ -164,6 +172,7 @@ it("validates externalStatusMap structure - requires phases", () => {
     },
     phases: validPhases,
     actions: [],
+    amendablePositions: [],
     externalStatusMap: {},
   });
 
@@ -179,6 +188,7 @@ it("validates externalStatusMap structure - requires at least one phase", () => 
     },
     phases: validPhases,
     actions: [],
+    amendablePositions: [],
     externalStatusMap: {
       phases: [],
     },
@@ -198,6 +208,7 @@ it("validates externalStatusMap structure - requires status code, source, and ma
     },
     phases: validPhases,
     actions: [],
+    amendablePositions: [],
     externalStatusMap: {
       phases: [
         {

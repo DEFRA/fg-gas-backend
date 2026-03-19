@@ -2,7 +2,14 @@
 const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
 
 export class Grant {
-  constructor({ code, metadata, actions, phases, externalStatusMap }) {
+  constructor({
+    code,
+    metadata,
+    actions,
+    phases,
+    externalStatusMap,
+    amendablePositions,
+  }) {
     this.code = code;
     this.metadata = {
       description: metadata.description,
@@ -11,6 +18,7 @@ export class Grant {
     this.actions = actions;
     this.phases = phases;
     this.externalStatusMap = externalStatusMap;
+    this.amendablePositions = amendablePositions;
   }
 
   get hasPhases() {
