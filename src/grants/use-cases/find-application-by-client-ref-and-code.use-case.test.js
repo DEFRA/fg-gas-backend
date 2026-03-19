@@ -21,7 +21,6 @@ describe("findApplicationByClientRefAndCodeUseCase", () => {
         extraField: "extra",
       },
       phases: [],
-      replacementAllowed: false,
     });
 
     findByClientRefAndCode.mockResolvedValue(application);

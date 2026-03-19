@@ -39,7 +39,6 @@ describe("applyExternalStateChange", () => {
     submittedAt: "2024-01-01T00:00:00.000Z",
     identifiers: { userId: "user-123" },
     phases: [],
-    replacementAllowed: false,
   });
 
   const mockGrant = new Grant({
@@ -58,11 +57,9 @@ describe("applyExternalStateChange", () => {
             statuses: [
               {
                 code: "RECEIVED",
-                replacementAllowed: false,
               },
               {
                 code: "IN_PROGRESS",
-                replacementAllowed: false,
                 validFrom: [
                   {
                     code: "RECEIVED",
@@ -72,7 +69,6 @@ describe("applyExternalStateChange", () => {
               },
               {
                 code: "APPROVED",
-                replacementAllowed: false,
                 validFrom: [
                   {
                     code: "IN_PROGRESS",
@@ -214,37 +210,6 @@ describe("applyExternalStateChange", () => {
           currentStage: "REVIEW_APPLICATION",
           currentStatus: "IN_PROGRESS",
           updatedAt: expect.any(String),
-          replacementAllowed: false,
-        }),
-        {}, // session
-      );
-    });
-
-    it("should set replacementAllowed from the stage status", async () => {
-      const application = new Application({
-        ...mockApplication,
-        currentStatus: "RECEIVED",
-      });
-      findByClientRefAndCode.mockResolvedValue(application);
-      mockGrant.phases[0].stages[0].statuses[1].replacementAllowed = true;
-      findByCode.mockResolvedValue(mockGrant);
-
-      await applyExternalStateChange({
-        clientRef: "APP-123",
-        code: "foo",
-        externalRequestedState: "IN_PROGRESS",
-        sourceSystem: "CW",
-        eventData: { caseRef: "CASE-123" },
-      });
-
-      expect(update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          clientRef: "APP-123",
-          currentPhase: "PRE_AWARD",
-          currentStage: "REVIEW_APPLICATION",
-          currentStatus: "IN_PROGRESS",
-          updatedAt: expect.any(String),
-          replacementAllowed: true,
         }),
         {}, // session
       );

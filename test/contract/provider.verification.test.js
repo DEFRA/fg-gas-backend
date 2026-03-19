@@ -40,7 +40,6 @@ vi.mock("../../src/common/mongo-client.js", () => {
               },
               agreements: [],
               phases: [],
-              replacementAllowed: false,
             };
           }
           // Support amendments - return a mock application for any other clientRef (previousClientRef lookup)
@@ -51,10 +50,10 @@ vi.mock("../../src/common/mongo-client.js", () => {
           ) {
             return {
               code: "frps-private-beta",
-              clientRef: clientRef,
+              clientRef,
               currentPhase: "PRE_AWARD",
               currentStage: "REVIEW_APPLICATION",
-              currentStatus: "APPLICATION_RECEIVED",
+              currentStatus: "APPLICATION_AMEND",
               identifiers: {
                 sbi: "107365747",
                 frn: "1101313269",
@@ -62,7 +61,6 @@ vi.mock("../../src/common/mongo-client.js", () => {
               },
               agreements: [],
               phases: [],
-              replacementAllowed: true, // Allow amendments
             };
           }
           return null;
@@ -98,7 +96,7 @@ vi.mock("../../src/common/mongo-client.js", () => {
               code: "frps-private-beta",
               clientRefs: [latestClientRef], // Array of strings, not objects
               latestClientId: "app-id-123",
-              latestClientRef: latestClientRef,
+              latestClientRef,
               updatedAt: new Date().toISOString(), // ISO string, not Date object
               createdAt: new Date().toISOString(), // ISO string, not Date object
             };
@@ -120,7 +118,15 @@ vi.mock("../../src/common/mongo-client.js", () => {
       findOne: vi.fn(async (query = {}) => {
         const { code } = query;
         if (code === "frps-private-beta") {
-          return getGrant("frps-private-beta");
+          const grant = getGrant("frps-private-beta");
+          // Ensure amendablePositions exists and includes amendable statuses
+          // (migration may not run due to withTransaction mock)
+          if (!grant.amendablePositions) {
+            grant.amendablePositions = [
+              "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
+            ];
+          }
+          return grant;
         }
         return null;
       }),

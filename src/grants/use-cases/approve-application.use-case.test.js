@@ -28,7 +28,6 @@ describe("approveApplicationUseCase", () => {
         clientRef: "test-client-ref",
         code: "test-grant",
         phases: [],
-        replacementAllowed: false,
       }),
     );
 
@@ -51,7 +50,6 @@ describe("approveApplicationUseCase", () => {
       clientRef: "0000000",
       identifiers: [],
       phases: [],
-      replacementAllowed: false,
     });
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(app);
 
@@ -79,7 +77,6 @@ describe("approveApplicationUseCase", () => {
         currentStatus: ApplicationStatus.Approved,
         updatedAt: "2024-01-01T00:00:00.000Z",
         phases: [],
-        replacementAllowed: false,
       }),
     );
 

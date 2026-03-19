@@ -84,7 +84,6 @@ export const createApplicationUseCase = async (
     code,
     clientRef,
     submittedAt,
-    replacementAllowed: false,
     identifiers: {
       sbi,
       frn,
