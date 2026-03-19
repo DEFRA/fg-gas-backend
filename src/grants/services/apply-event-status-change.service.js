@@ -46,15 +46,10 @@ const getValidatedMapping = (grant, application, command) => {
   return mapping;
 };
 
-const updateApplicationState = (
-  application,
-  validMapping,
-  statusDefinition,
-) => {
+const updateApplicationState = (application, validMapping) => {
   application.currentPhase = validMapping.targetPhase;
   application.currentStage = validMapping.targetStage;
   application.currentStatus = validMapping.targetStatus;
-  application.replacementAllowed = statusDefinition.replacementAllowed;
   application.updatedAt = new Date().toISOString();
 };
 
@@ -135,15 +130,7 @@ const processStateTransition = (application, grant, command) => {
     return null;
   }
 
-  updateApplicationState(
-    application,
-    validMapping,
-    grant.findStatusDefinition(
-      validMapping.targetPhase,
-      validMapping.targetStage,
-      validMapping.targetStatus,
-    ),
-  );
+  updateApplicationState(application, validMapping);
 
   const newFullyQualifiedStatus = application.getFullyQualifiedStatus();
   const { clientRef, code } = application;

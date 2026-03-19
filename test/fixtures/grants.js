@@ -4,6 +4,7 @@ export const grant1 = {
     description: "test description 1",
     startDate: "2100-01-01T00:00:00.000Z",
   },
+  amendablePositions: [],
   actions: [
     {
       name: "action1",
@@ -43,6 +44,7 @@ export const grant2 = {
     description: "test description 2",
     startDate: "2010-01-01T00:00:00.000Z",
   },
+  amendablePositions: [],
   actions: [
     {
       name: "action2",
@@ -82,6 +84,7 @@ export const grant3 = {
     description: "test description 3",
     startDate: "2100-01-01T00:00:00.000Z",
   },
+  amendablePositions: [],
   actions: [
     {
       name: "action3",

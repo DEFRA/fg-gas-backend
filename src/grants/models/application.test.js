@@ -18,6 +18,35 @@ describe("Application", () => {
     vi.useRealTimers();
   });
 
+  describe("isReplacementAllowed", () => {
+    it("returns true when application fully qualified status is in amendablePositions", () => {
+      const application = createTestApplication({
+        currentStatus: "APPLICATION_AMEND",
+        currentStage: "REVIEW_OFFER",
+      });
+
+      const amendablePositions = [
+        "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
+        "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND",
+        "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND",
+      ];
+
+      expect(application.isReplacementAllowed(amendablePositions)).toBeTruthy();
+    });
+
+    it("returns false when application fully qualified status is not in amendablePositions", () => {
+      const application = createTestApplication();
+
+      const amendablePositions = [
+        "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
+        "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND",
+        "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND",
+      ];
+
+      expect(application.isReplacementAllowed(amendablePositions)).toBeFalsy();
+    });
+  });
+
   describe("getActiveAgreement", () => {
     it("should return undefined if application has no agreements", () => {
       const application = createTestApplication();
@@ -95,7 +124,6 @@ describe("Application", () => {
         frn: "frn-1",
         crn: "crn-1",
       },
-      replacementAllowed: false,
       metadata: {
         defraId: "defraId-1",
       },
@@ -472,7 +500,6 @@ describe("Application", () => {
           // clientRef missing
           // code missing
           // phases missing
-          // replacementAllowed missing
         });
       }).toThrowError(/Invalid Application:/);
     });

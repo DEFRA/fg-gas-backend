@@ -26,7 +26,6 @@ export class Application {
     clientRef: Joi.string().required(),
     code: Joi.string().required(),
     phases: Joi.array().required(),
-    replacementAllowed: Joi.boolean().required(),
   });
 
   constructor(props) {
@@ -54,7 +53,6 @@ export class Application {
       metadata,
       phases,
       agreements,
-      replacementAllowed,
     } = props;
 
     this.currentPhase = currentPhase;
@@ -69,7 +67,6 @@ export class Application {
     this.metadata = metadata ?? {};
     this.phases = phases;
     this.agreements = agreements;
-    this.replacementAllowed = replacementAllowed;
   }
 
   static new({
@@ -98,8 +95,11 @@ export class Application {
       metadata,
       phases,
       agreements: {},
-      replacementAllowed: false,
     });
+  }
+
+  isReplacementAllowed(positions) {
+    return positions.includes(this.getFullyQualifiedStatus());
   }
 
   approve() {

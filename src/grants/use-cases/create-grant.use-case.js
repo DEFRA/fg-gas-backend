@@ -10,6 +10,7 @@ export const createGrantUseCase = async (createGrantCommand) => {
       description: createGrantCommand.metadata.description,
       startDate: createGrantCommand.metadata.startDate,
     },
+    amendablePositions: createGrantCommand.amendablePositions,
     actions: createGrantCommand.actions.map((e) => ({
       name: e.name,
       method: e.method,

@@ -28,6 +28,7 @@ describe("Application Service Integration Tests", () => {
           description: "Complex application processing grant",
           startDate: "2025-01-01T00:00:00.000Z",
         },
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
@@ -221,7 +222,7 @@ describe("Application Service Integration Tests", () => {
           description: "Grant testing array validation",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",
@@ -363,7 +364,7 @@ describe("Application Service Integration Tests", () => {
           description: "Grant for validation testing",
           startDate: "2025-01-01T00:00:00.000Z",
         },
-
+        amendablePositions: [],
         phases: [
           {
             code: "PHASE_1",

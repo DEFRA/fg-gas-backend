@@ -66,7 +66,6 @@ describe("withdrawApplicationUseCase", () => {
         "agreement-123": agreement,
       },
       phases: [],
-      replacementAllowed: false,
     });
 
     const oldApplication = new Application({
@@ -79,7 +78,6 @@ describe("withdrawApplicationUseCase", () => {
         "agreement-123": agreement,
       },
       phases: [],
-      replacementAllowed: false,
     });
     const session = {};
     const command = {
@@ -111,7 +109,6 @@ describe("withdrawApplicationUseCase", () => {
       code: "test-code",
       agreements: {},
       phases: [],
-      replacementAllowed: false,
     });
 
     const oldApplication = new Application({
@@ -122,7 +119,6 @@ describe("withdrawApplicationUseCase", () => {
       code: "test-code",
       agreements: {},
       phases: [],
-      replacementAllowed: false,
     });
     const session = {};
     const command = {
