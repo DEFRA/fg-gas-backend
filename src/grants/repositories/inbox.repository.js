@@ -73,6 +73,7 @@ export const processExpiredEvents = async () => {
   await db.collection(collection).updateMany(
     {
       claimExpiresAt: { $lt: new Date() },
+      status: { $nin: [InboxStatus.DEAD_LETTER, InboxStatus.COMPLETED] },
     },
     {
       $set: {
@@ -87,7 +88,10 @@ export const processExpiredEvents = async () => {
 
 export const updateDeadEvents = async () => {
   const results = await db.collection(collection).updateMany(
-    { completionAttempts: { $gte: MAX_RETRIES } },
+    {
+      completionAttempts: { $gte: MAX_RETRIES },
+      status: { $ne: InboxStatus.DEAD_LETTER },
+    },
     {
       $set: {
         status: InboxStatus.DEAD_LETTER,
