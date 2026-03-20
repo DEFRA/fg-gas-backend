@@ -26,6 +26,8 @@ import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
 import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
+import { requestAgreementTerminationUseCase } from "../use-cases/request-agreement-termination.use-case.js";
+import { terminateAgreementUseCase } from "../use-cases/terminate-agreement.use-case.js";
 import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
 
 const getValidatedMapping = (grant, application, command) => {
@@ -56,6 +58,8 @@ const getHandlerForProcess = (processName) => {
     STORE_AGREEMENT_CASE: addAgreementUseCase,
     UPDATE_AGREEMENT_CASE: handleAgreementStatusChangeUseCase,
     WITHDRAW_OFFER: withdrawAgreementUseCase,
+    REQUEST_AGREEMENT_TERMINATION: requestAgreementTerminationUseCase,
+    APPLY_AGREEMENT_TERMINATION: terminateAgreementUseCase,
   };
 
   return processHandlers[processName];

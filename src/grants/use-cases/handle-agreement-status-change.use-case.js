@@ -3,6 +3,8 @@ import { logger } from "../../common/logger.js";
 import { AgreementServiceStatus } from "../models/agreement.js";
 import { ApplicationStatus } from "../models/application.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
+import { requestAgreementTerminationUseCase } from "./request-agreement-termination.use-case.js";
+import { terminateAgreementUseCase } from "./terminate-agreement.use-case.js";
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
 
@@ -37,6 +39,17 @@ export const handleAgreementStatusChangeUseCase = async (command, session) => {
     return;
   }
 
+  if (status === AgreementServiceStatus.Terminated) {
+    logger.info(
+      `Handling terminated agreement status change for agreement ${eventData.agreementNumber}`,
+    );
+    await terminateAgreementUseCase(command, session);
+    logger.info(
+      `Finished: Handling terminated agreement status change for agreement ${eventData.agreementNumber}`,
+    );
+    return;
+  }
+
   // incoming status changes from CW
   if (sourceSystem === sourceSystems.CaseWorking) {
     // case working commands use currentStatus which is fully qualified...
@@ -46,6 +59,20 @@ export const handleAgreementStatusChangeUseCase = async (command, session) => {
       ApplicationStatus.WithdrawRequested
     ) {
       await withdrawApplicationUseCase(command, session);
+      return;
+    }
+
+    if (
+      statusParts[statusParts.length - 1] ===
+      ApplicationStatus.TerminationRequested
+    ) {
+      logger.info(
+        `Handling termination requested status change for agreement ${eventData.agreementNumber}`,
+      );
+      await requestAgreementTerminationUseCase(command, session);
+      logger.info(
+        `Finished: Handling termination requested status change for agreement ${eventData.agreementNumber}`,
+      );
       return;
     }
   }
