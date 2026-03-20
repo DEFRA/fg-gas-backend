@@ -6,6 +6,10 @@ import { insertMany } from "../repositories/outbox.repository.js";
 import { createAgreementCaseUpdateOutbox } from "./agreement-case-update.helpers.js";
 
 export const cancelAgreementUseCase = async (command, session) => {
+  if ((command.sourceSystem ?? command.source) !== "AS") {
+    return;
+  }
+
   const { clientRef, code, eventData } = command;
   const { agreementNumber, date } = eventData;
   const application = await findByClientRefAndCode(

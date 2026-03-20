@@ -73,4 +73,22 @@ describe("cancel agreement use case", () => {
     expect(insertMany).toBeCalledTimes(1);
     expect(insertMany.mock.calls[0][0]).toHaveLength(1);
   });
+
+  it("should ignore non-agreement-service events", async () => {
+    await cancelAgreementUseCase(
+      {
+        clientRef: "test-client-ref",
+        code: "test-code",
+        sourceSystem: "CW",
+        eventData: {
+          caseRef: "case-123",
+        },
+      },
+      {},
+    );
+
+    expect(findByClientRefAndCode).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    expect(insertMany).not.toHaveBeenCalled();
+  });
 });
