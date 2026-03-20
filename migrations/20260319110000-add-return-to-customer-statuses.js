@@ -268,11 +268,6 @@ const externalMapping = [
             mappedTo: "PRE_AWARD:REVIEW_OFFER:AMENDMENT_REQUESTED",
           },
           {
-            code: "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND",
-            source: "CW",
-            mappedTo: "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND",
-          },
-          {
             code: "PRE_AWARD:REVIEW_OFFER:APPLICATION_REJECTED",
             source: "CW",
             mappedTo: "PRE_AWARD:REVIEW_OFFER:APPLICATION_REJECTED",
@@ -311,11 +306,6 @@ const externalMapping = [
             code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AMENDMENT_REQUESTED",
             source: "CW",
             mappedTo: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AMENDMENT_REQUESTED",
-          },
-          {
-            code: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND",
-            source: "CW",
-            mappedTo: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND",
           },
           {
             code: "cancelled",
