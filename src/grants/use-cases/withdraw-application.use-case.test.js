@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { withTransaction } from "../../common/with-transaction.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -12,16 +11,16 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
-import { findByClientRefAndCode } from "../repositories/application.repository.js";
+import {
+  findByClientRefAndCode,
+  update,
+} from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
 import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
 
-vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
-vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/outbox.repository.js");
 
 describe("withdrawApplicationUseCase", () => {
@@ -36,10 +35,7 @@ describe("withdrawApplicationUseCase", () => {
     vi.useRealTimers();
   });
 
-  beforeEach(async () => {
-    const mockSession = {};
-    withTransaction.mockImplementation((cb) => cb(mockSession));
-
+  beforeEach(() => {
     agreement = new Agreement({
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
@@ -51,27 +47,13 @@ describe("withdrawApplicationUseCase", () => {
         }),
       ],
     });
-
-    applyExternalStateChange.mockResolvedValue(true);
   });
 
   it("requests agreement withdrawal if an agreement is found", async () => {
     const application = new Application({
       currentPhase: ApplicationPhase.PreAward,
       currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Offered,
-      clientRef: "test-client-ref",
-      code: "test-code",
-      agreements: {
-        "agreement-123": agreement,
-      },
-      phases: [],
-    });
-
-    const oldApplication = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Review,
+      currentStatus: ApplicationStatus.WithdrawRequested,
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {
@@ -92,29 +74,19 @@ describe("withdrawApplicationUseCase", () => {
       },
     };
 
-    findByClientRefAndCode.mockResolvedValueOnce(oldApplication);
     findByClientRefAndCode.mockResolvedValueOnce(application);
     await withdrawApplicationUseCase(command, session);
 
     expect(insertMany).toHaveBeenCalledTimes(1);
+    expect(insertMany.mock.calls[0][0]).toHaveLength(1);
     expect(agreement.latestStatus).toBe(Status.Offered);
   });
 
-  it("withdraws an application if an agreement is not found", async () => {
+  it("withdraws an application and publishes the final status transition", async () => {
     const application = new Application({
       currentPhase: ApplicationPhase.PreAward,
       currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Offered,
-      clientRef: "test-client-ref",
-      code: "test-code",
-      agreements: {},
-      phases: [],
-    });
-
-    const oldApplication = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Review,
+      currentStatus: ApplicationStatus.WithdrawRequested,
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {},
@@ -131,11 +103,22 @@ describe("withdrawApplicationUseCase", () => {
       eventData: {},
     };
 
-    findByClientRefAndCode.mockResolvedValueOnce(oldApplication);
     findByClientRefAndCode.mockResolvedValueOnce(application);
     await withdrawApplicationUseCase(command, session);
 
+    expect(update).toHaveBeenCalledTimes(1);
     expect(insertMany).toHaveBeenCalledTimes(1);
+    expect(insertMany.mock.calls[0][0]).toHaveLength(2);
+    expect(insertMany.mock.calls[0][0][1]).toEqual(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          data: expect.objectContaining({
+            previousStatus: "PRE_AWARD:ASSESSMENT:WITHDRAWAL_REQUESTED",
+            currentStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_WITHDRAWN",
+          }),
+        }),
+      }),
+    );
     expect(application.getFullyQualifiedStatus().toString()).toBe(
       "PRE_AWARD:ASSESSMENT:APPLICATION_WITHDRAWN",
     );
