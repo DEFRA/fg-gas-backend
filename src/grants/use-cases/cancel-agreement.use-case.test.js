@@ -53,19 +53,6 @@ describe("cancel agreement use case", () => {
       replacementAllowed: false,
     });
 
-    const oldApplication = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Review,
-      clientRef: "test-client-ref",
-      code: "test-code",
-      agreements: {
-        "agreement-123": agreement,
-      },
-      phases: [],
-      replacementAllowed: false,
-    });
-
     const session = {};
     const command = {
       clientRef: "test-client-ref",
@@ -78,12 +65,12 @@ describe("cancel agreement use case", () => {
     };
 
     findByClientRefAndCode.mockResolvedValueOnce(application);
-    findByClientRefAndCode.mockResolvedValueOnce(oldApplication);
 
     await cancelAgreementUseCase(command, session);
 
     expect(update).toHaveBeenCalledTimes(1);
     expect(agreement.latestStatus).toBe(Status.Cancelled);
     expect(insertMany).toBeCalledTimes(1);
+    expect(insertMany.mock.calls[0][0]).toHaveLength(1);
   });
 });
