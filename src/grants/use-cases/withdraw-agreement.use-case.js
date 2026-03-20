@@ -3,10 +3,7 @@ import {
   update,
 } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import {
-  createAgreementCaseUpdateOutbox,
-  createApplicationStatusUpdatedOutbox,
-} from "./agreement-case-update.helpers.js";
+import { createAgreementCaseUpdateOutbox } from "./agreement-case-update.helpers.js";
 
 export const withdrawAgreementUseCase = async (command, session) => {
   const { clientRef, code, eventData } = command;
@@ -15,8 +12,6 @@ export const withdrawAgreementUseCase = async (command, session) => {
     { clientRef, code },
     session,
   );
-  const prevApplication = await findByClientRefAndCode({ clientRef, code });
-  const previousStatus = prevApplication.getFullyQualifiedStatus();
   const agreement = application.getAgreement(agreementNumber);
 
   agreement.withdraw(new Date().toISOString());
@@ -25,12 +20,6 @@ export const withdrawAgreementUseCase = async (command, session) => {
 
   await insertMany(
     [
-      createApplicationStatusUpdatedOutbox({
-        clientRef,
-        code,
-        previousStatus,
-        application,
-      }),
       createAgreementCaseUpdateOutbox({
         clientRef,
         code,
