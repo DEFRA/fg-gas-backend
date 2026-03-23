@@ -22,6 +22,7 @@
     "setup:env": "cp --update=none .env.example .env || true",
     "setup:husky": "node -e \"try { (await import('husky')).default() } catch (e) { if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e }\" --input-type module",
     "migration:create": "migrate-mongo create",
+    "migrate:perf-test": "PERF_TEST_SEED=true migrate-mongo up",
     "token:local": "node --env-file=.env scripts/write-http-client-token.js local http-client 2099-01-01T00:00:00Z"
   },
   "lint-staged": {
