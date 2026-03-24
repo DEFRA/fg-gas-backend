@@ -41,12 +41,9 @@ const generateMinimalAnswers = () => {
     applicant: {
       business: {
         name: "Perf Test Farm Ltd",
-        email: {
-          address: "perftest@example.com",
-        },
-        phone: {
-          mobile: "+447123456789",
-        },
+        reference: "1100000001",
+        email: "perftest@example.com",
+        phone: "07123456789",
         address: {
           line1: "123 Test Street",
           line2: "Test Area",
@@ -62,6 +59,7 @@ const generateMinimalAnswers = () => {
         },
       },
     },
+    totalAnnualPaymentPence: 0,
     application: {
       parcel: [],
       agreement: [],
