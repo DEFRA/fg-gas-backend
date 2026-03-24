@@ -111,30 +111,44 @@ const createApplications = async (count) => {
   );
 };
 
-export const seedPerfTestData = async (db) => {
-  if (process.env.PERF_TEST_SEED !== "true") {
-    return;
-  }
-
-  // Check if data already seeded (prevents race conditions with multiple pods)
-  const existing = await db
-    .collection("applications")
-    .countDocuments({ clientRef: /^perf-test-/ });
-
-  if (existing > 0) {
+const shouldSkipSeeding = (existing, targetCount) => {
+  if (existing === targetCount) {
     logger.info(
-      "⏭️  Perf test data already seeded, skipping (found existing data)",
+      `⏭️  Perf test data already seeded with ${targetCount} applications, skipping`,
     );
-    return;
+    return true;
   }
+  return false;
+};
 
-  logger.info("🧹 Starting performance test data seeding...");
+const logSeedingStart = (existing, targetCount) => {
+  const action = existing > 0 ? "re-seed" : "seed";
+  logger.info(`🧹 Starting performance test data ${action}...`);
+  if (existing > 0) {
+    logger.info(`   Found ${existing} applications, target is ${targetCount}`);
+  }
   logger.info("⚠️  This will CLEAR ALL DATA in the following collections:");
   logger.info("   - applications");
   logger.info("   - application_series");
   logger.info("   - outbox");
   logger.info("   - inbox");
+};
 
+export const seedPerfTestData = async (db) => {
+  if (process.env.PERF_TEST_SEED !== "true") {
+    return;
+  }
+
+  const targetCount = 15000;
+  const existing = await db
+    .collection("applications")
+    .countDocuments({ clientRef: /^perf-test-/ });
+
+  if (shouldSkipSeeding(existing, targetCount)) {
+    return;
+  }
+
+  logSeedingStart(existing, targetCount);
   await clearCollections(db);
-  await createApplications(15000);
+  await createApplications(targetCount);
 };
