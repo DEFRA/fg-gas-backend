@@ -97,6 +97,18 @@ export const seedPerfTestData = async (db) => {
     return;
   }
 
+  // Check if data already seeded (prevents race conditions with multiple pods)
+  const existing = await db
+    .collection("applications")
+    .countDocuments({ clientRef: /^perf-test-/ });
+
+  if (existing > 0) {
+    logger.info(
+      "⏭️  Perf test data already seeded, skipping (found existing data)",
+    );
+    return;
+  }
+
   logger.info("🧹 Starting performance test data seeding...");
   logger.info("⚠️  This will CLEAR ALL DATA in the following collections:");
   logger.info("   - applications");
