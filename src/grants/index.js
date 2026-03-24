@@ -37,9 +37,6 @@ export const grants = {
     migrated.forEach((fileName) => logger.info(`Migrated: ${fileName}`));
     logger.info("Finished running migrations");
 
-    // Seed performance test data (only when PERF_TEST_SEED=true)
-    await seedPerfTestData(db);
-
     const outboxSubscriber = new OutboxSubscriber();
     const inboxSubscriber = new InboxSubscriber();
 
@@ -49,6 +46,12 @@ export const grants = {
       configVersionUpdatedSubscriber.start();
       outboxSubscriber.start();
       inboxSubscriber.start();
+
+      // Seed performance test data in background (only when PERF_TEST_SEED=true)
+      // Run after server starts to avoid blocking health checks
+      seedPerfTestData(db).catch((error) => {
+        logger.error(`Failed to seed performance test data: ${error.message}`);
+      });
     });
 
     server.events.on("stop", async () => {
