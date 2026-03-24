@@ -3,6 +3,7 @@ import { registerInternalCommandHandler } from "../common/internal-command-bus.j
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
+import { seedPerfTestData } from "./perf-test-seed.js";
 import { applicationStatusRoute } from "./routes/application-status.route.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";
@@ -35,6 +36,9 @@ export const grants = {
     const migrated = await up(db, mongoClient);
     migrated.forEach((fileName) => logger.info(`Migrated: ${fileName}`));
     logger.info("Finished running migrations");
+
+    // Seed performance test data (only when PERF_TEST_SEED=true)
+    await seedPerfTestData(db);
 
     const outboxSubscriber = new OutboxSubscriber();
     const inboxSubscriber = new InboxSubscriber();
