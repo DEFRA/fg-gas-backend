@@ -22,15 +22,6 @@ export const up = async (db) => {
     return;
   }
 
-  // Delete own changelog entry to make this migration re-runnable
-  // This allows the migration to run on every deployment for recurring data resets
-  await db
-    .collection("changelog")
-    .deleteOne({ fileName: "99999999999999-perf-test-seed.js" });
-  console.log(
-    "♻️  Removed previous run from changelog (making migration re-runnable)",
-  );
-
   console.log("🧹 Starting performance test data seeding...");
   console.log("⚠️  This will CLEAR ALL DATA in the following collections:");
   console.log("   - applications");
