@@ -78,7 +78,7 @@ const createApplications = async (count) => {
   const submittedAt = new Date();
 
   for (let i = 0; i < count; i++) {
-    const clientRef = `perf-test-${String(i).padStart(3, "0")}`;
+    const clientRef = `perf-test-${String(i).padStart(5, "0")}`;
 
     try {
       await submitApplicationUseCase("frps-private-beta", {
@@ -92,7 +92,7 @@ const createApplications = async (count) => {
         answers,
       });
 
-      if ((i + 1) % 10 === 0) {
+      if ((i + 1) % 100 === 0) {
         logger.info(`   ✓ Created ${i + 1}/${count} applications`);
       }
     } catch (error) {
@@ -107,7 +107,7 @@ const createApplications = async (count) => {
   logger.info("✅ Performance test data seeding complete!");
   logger.info(`   Total applications: ${count}`);
   logger.info(
-    `   Client refs: perf-test-000 to perf-test-${String(count - 1).padStart(3, "0")}`,
+    `   Client refs: perf-test-00000 to perf-test-${String(count - 1).padStart(5, "0")}`,
   );
 };
 
@@ -136,5 +136,5 @@ export const seedPerfTestData = async (db) => {
   logger.info("   - inbox");
 
   await clearCollections(db);
-  await createApplications(100);
+  await createApplications(15000);
 };
