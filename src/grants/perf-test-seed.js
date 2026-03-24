@@ -4,10 +4,14 @@
  * This function clears and seeds test data for performance testing.
  * Only runs when PERF_TEST_SEED=true environment variable is set.
  *
+ * Creates applications using submitApplicationUseCase to trigger the full
+ * message flow to CW backend via SQS.
+ *
  * Branch: hotfix/perf-test-seed (DO NOT MERGE TO MAIN)
  */
 
 import { logger } from "../common/logger.js";
+import { submitApplicationUseCase } from "./use-cases/submit-application.use-case.js";
 
 const clearCollections = async (db) => {
   logger.info("🗑️  Clearing collections...");
@@ -25,70 +29,87 @@ const clearCollections = async (db) => {
   logger.info("   ✓ Cleared inbox");
 };
 
-const generateTestData = () => {
-  const testApplications = [];
-  const testSeries = [];
-
-  for (let i = 0; i < 100; i++) {
-    const clientRef = `perf-test-${String(i).padStart(3, "0")}`;
-    const applicationId = `app-id-${clientRef}`;
-
-    testApplications.push({
-      _id: applicationId,
-      code: "frps-private-beta",
-      clientRef,
-      currentPhase: "PRE_AWARD",
-      currentStage: "REVIEW_APPLICATION",
-      currentStatus: "APPLICATION_RECEIVED",
-      identifiers: {
-        sbi: `${107000000 + i}`,
-        frn: `${1100000000 + i}`,
-        crn: `${1100000000 + i}`,
+const generateMinimalAnswers = () => {
+  return {
+    rulesCalculations: {
+      id: 1,
+      message: "Perf test validation",
+      valid: true,
+      date: new Date().toISOString(),
+    },
+    scheme: "frps-private-beta",
+    applicant: {
+      business: {
+        name: "Perf Test Farm Ltd",
+        email: {
+          address: "perftest@example.com",
+        },
+        phone: {
+          mobile: "+447123456789",
+        },
+        address: {
+          line1: "123 Test Street",
+          line2: "Test Area",
+          city: "Testville",
+          postalCode: "TE1 1ST",
+        },
       },
-      metadata: {
-        clientRef,
-        sbi: `${107000000 + i}`,
-        frn: `${1100000000 + i}`,
-        crn: `${1100000000 + i}`,
-        submittedAt: new Date().toISOString(),
+      customer: {
+        name: {
+          title: "Mr",
+          first: "Test",
+          last: "Farmer",
+        },
       },
-      answers: {
-        eligibility: "yes",
-        landArea: 100 + i,
-      },
-      agreements: {},
-      phases: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    testSeries.push({
-      _id: `series-${clientRef}`,
-      code: "frps-private-beta",
-      clientRefs: [clientRef],
-      latestClientId: applicationId,
-      latestClientRef: clientRef,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
-  return { testApplications, testSeries };
+    },
+    application: {
+      parcel: [],
+      agreement: [],
+    },
+    payments: {
+      parcel: [],
+      agreement: [],
+    },
+  };
 };
 
-const insertTestData = async (db, testApplications, testSeries) => {
-  logger.info("📝 Seeding test data...");
+const createApplications = async (count) => {
+  logger.info(`📝 Creating ${count} test applications...`);
 
-  await db.collection("applications").insertMany(testApplications);
-  logger.info(`   ✓ Inserted ${testApplications.length} test applications`);
+  const answers = generateMinimalAnswers();
+  const submittedAt = new Date();
 
-  await db.collection("application_series").insertMany(testSeries);
-  logger.info(`   ✓ Inserted ${testSeries.length} test application series`);
+  for (let i = 0; i < count; i++) {
+    const clientRef = `perf-test-${String(i).padStart(3, "0")}`;
 
+    try {
+      await submitApplicationUseCase("frps-private-beta", {
+        metadata: {
+          clientRef,
+          sbi: `${107000000 + i}`,
+          frn: `${1100000000 + i}`,
+          crn: `${1100000000 + i}`,
+          submittedAt,
+        },
+        answers,
+      });
+
+      if ((i + 1) % 10 === 0) {
+        logger.info(`   ✓ Created ${i + 1}/${count} applications`);
+      }
+    } catch (error) {
+      logger.error(
+        `   ✗ Failed to create application ${clientRef}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  logger.info(`   ✓ Created all ${count} applications`);
   logger.info("✅ Performance test data seeding complete!");
-  logger.info(`   Total applications: ${testApplications.length}`);
+  logger.info(`   Total applications: ${count}`);
   logger.info(
-    `   Client refs: perf-test-000 to perf-test-${String(testApplications.length - 1).padStart(3, "0")}`,
+    `   Client refs: perf-test-000 to perf-test-${String(count - 1).padStart(3, "0")}`,
   );
 };
 
@@ -117,6 +138,5 @@ export const seedPerfTestData = async (db) => {
   logger.info("   - inbox");
 
   await clearCollections(db);
-  const { testApplications, testSeries } = generateTestData();
-  await insertTestData(db, testApplications, testSeries);
+  await createApplications(100);
 };
