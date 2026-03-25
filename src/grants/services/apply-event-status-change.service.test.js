@@ -9,9 +9,14 @@ import {
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { acceptAgreementUseCase } from "../use-cases/accept-agreement.use-case.js";
 import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
+import { cancelAgreementUseCase } from "../use-cases/cancel-agreement.use-case.js";
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
+import { requestAgreementCancellationUseCase } from "../use-cases/request-agreement-cancellation.use-case.js";
+import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
+import { withdrawApplicationUseCase } from "../use-cases/withdraw-application.use-case.js";
 import {
   applyExternalStateChange,
   getHandlersForAllProcesses,
@@ -19,7 +24,12 @@ import {
 
 vi.mock("../use-cases/create-status-transition-update.use-case.js");
 vi.mock("../use-cases/add-agreement.use-case.js");
+vi.mock("../use-cases/accept-agreement.use-case.js");
+vi.mock("../use-cases/cancel-agreement.use-case.js");
 vi.mock("../use-cases/create-agreement-command.use-case.js");
+vi.mock("../use-cases/request-agreement-cancellation.use-case.js");
+vi.mock("../use-cases/withdraw-application.use-case.js");
+vi.mock("../use-cases/withdraw-agreement.use-case.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/grant.repository.js");
 vi.mock("../repositories/outbox.repository.js");
@@ -129,6 +139,41 @@ describe("applyExternalStateChange", () => {
       const handlers = getHandlersForAllProcesses(processes);
       expect(handlers).toHaveLength(1);
       expect(handlers[0]).toBe(createAgreementCommandUseCase);
+    });
+
+    it("should resolve accept agreement process", () => {
+      const processes = ["ACCEPT_AGREEMENT"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(acceptAgreementUseCase);
+    });
+
+    it("should resolve request agreement cancellation process", () => {
+      const processes = ["REQUEST_AGREEMENT_CANCELLATION"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(requestAgreementCancellationUseCase);
+    });
+
+    it("should resolve cancel agreement process", () => {
+      const processes = ["CANCEL_AGREEMENT"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(cancelAgreementUseCase);
+    });
+
+    it("should resolve request application withdrawal process", () => {
+      const processes = ["REQUEST_APPLICATION_WITHDRAWAL"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(withdrawApplicationUseCase);
+    });
+
+    it("should resolve withdraw agreement process", () => {
+      const processes = ["WITHDRAW_AGREEMENT"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(withdrawAgreementUseCase);
     });
 
     it("should ignore unknown processes", () => {

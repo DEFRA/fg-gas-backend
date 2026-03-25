@@ -20,11 +20,6 @@ import {
   updateResubmittedEvents,
 } from "../repositories/inbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
-import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
-
-export const useCaseMap = {
-  "io.onsite.agreement.status.foo": handleAgreementStatusChangeUseCase,
-};
 
 export class InboxSubscriber {
   static ACTOR = "INBOX";
@@ -133,15 +128,11 @@ export class InboxSubscriber {
     );
     try {
       const { data } = event;
-
-      const handler = useCaseMap[type];
       const status = data.currentStatus || data.status || null;
       const clientRef = data.clientRef || data.caseRef || null;
       const code = data.workflowCode || data.code || null;
 
-      if (handler) {
-        await withTraceParent(traceparent, async () => handler(msg));
-      } else if (status && source) {
+      if (status && source) {
         // status transition/update
         await withTraceParent(traceparent, async () =>
           applyExternalStateChange({

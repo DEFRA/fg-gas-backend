@@ -1,4 +1,3 @@
-// eslint-disable-next-line import-x/no-extraneous-dependencies
 import { globSync } from "glob";
 import { execSync } from "node:child_process";
 import path from "node:path";
