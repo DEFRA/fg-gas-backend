@@ -56,7 +56,7 @@ describe("requestAgreementCancellationUseCase", () => {
             data: expect.objectContaining({
               clientRef: "test-client-ref",
               code: "test-code",
-              status: AgreementServiceStatus.Cancel,
+              status: AgreementServiceStatus.Cancelled,
               agreementNumber: "agreement-123",
             }),
           }),

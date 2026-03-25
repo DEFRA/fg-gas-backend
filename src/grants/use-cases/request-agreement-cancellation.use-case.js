@@ -20,7 +20,7 @@ export const requestAgreementCancellationUseCase = async (command, session) => {
   const updateAgreementStatusCommand = new UpdateAgreementStatusCommand({
     clientRef,
     code,
-    status: AgreementServiceStatus.Cancel,
+    status: AgreementServiceStatus.Cancelled,
     agreementNumber: agreement.agreementRef,
   });
 

@@ -8,7 +8,6 @@ export const AgreementStatus = {
 
 export const AgreementServiceStatus = {
   Accepted: "accepted",
-  Cancel: "cancel",
   Cancelled: "cancelled",
   Withdrawn: "withdrawn",
   Offered: "offered",
