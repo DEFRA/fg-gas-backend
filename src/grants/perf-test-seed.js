@@ -139,7 +139,9 @@ export const seedPerfTestData = async (db) => {
     return;
   }
 
-  const targetCount = 15000;
+  const targetCount = parseInt(process.env.PERF_TEST_COUNT || "1000", 10);
+  logger.info(`Target application count: ${targetCount}`);
+
   const existing = await db
     .collection("applications")
     .countDocuments({ clientRef: /^perf-test-/ });
