@@ -15,7 +15,7 @@ import {
   update,
 } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
+import { cancelAgreementUseCase } from "./cancel-agreement.use-case.js";
 
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("../repositories/application.repository.js");
@@ -26,8 +26,8 @@ vi.mock("../repositories/outbox.repository.js");
 
 vitest.mock("../repositories/outbox.repository.js");
 
-describe("withdraw agreement use case", () => {
-  it("should withdraw an agreement", async () => {
+describe("cancel agreement use case", () => {
+  it("should cancel an agreement", async () => {
     const agreement = new Agreement({
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
@@ -43,33 +43,33 @@ describe("withdraw agreement use case", () => {
     const application = new Application({
       currentPhase: ApplicationPhase.PreAward,
       currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Withdrawn,
+      currentStatus: ApplicationStatus.Review,
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {
         "agreement-123": agreement,
       },
       phases: [],
+      replacementAllowed: false,
     });
 
     const session = {};
     const command = {
       clientRef: "test-client-ref",
       code: "test-code",
-      agreementRef: "agreement-123",
-      date: "2024-01-01T12:00:00Z",
-      requestedStatus: Status.Withdrawn,
       source: "AS",
       eventData: {
         agreementNumber: "agreement-123",
+        date: "2024-03-01T00:00:00Z",
       },
     };
 
     findByClientRefAndCode.mockResolvedValueOnce(application);
-    await withdrawAgreementUseCase(command, session);
+
+    await cancelAgreementUseCase(command, session);
 
     expect(update).toHaveBeenCalledTimes(1);
-    expect(agreement.latestStatus).toBe(Status.Withdrawn);
+    expect(agreement.latestStatus).toBe(Status.Cancelled);
     expect(insertMany).toBeCalledTimes(1);
     expect(insertMany.mock.calls[0][0]).toHaveLength(1);
   });
