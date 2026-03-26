@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "clientRef": "woodland-app-001",
+    "submittedAt": "2026-01-01T12:00:00.000Z",
+    "sbi": "1234567890",
+    "frn": "1234567890",
+    "crn": "1234567890",
+    "defraId": "1234567890"
+  },
+  "answers": {
+    "businessDetailsUpToDate": true,
+    "guidanceRead": true,
+    "landRegisteredWithRpa": true,
+    "landManagementControl": true,
+    "publicBodyTenant": false,
+    "landHasGrazingRights": false,
+    "appLandHasExistingWmp": true,
+    "existingWmps": ["WMP-2024-001", "WMP-2024-002"],
+    "intendToApplyHigherTier": false,
+    "includedAllEligibleWoodland": true,
+    "totalHectaresAppliedFor": 15.0,
+    "hectaresTenOrOverYearsOld": 8.5,
+    "hectaresUnderTenYearsOld": 4.2,
+    "centreGridReference": "SK512347",
+    "fcTeamCode": "YORKSHIRE_AND_NORTH_EAST",
+    "applicationConfirmation": true
+  }
+}
