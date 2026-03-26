@@ -20,7 +20,7 @@ export const validateAnswersAgainstSchema = (clientRef, schema, answers) => {
       const fields = keywordSchema.fields;
       const targetField = keywordSchema.targetField;
       const sum = fields.reduce((acc, field) => acc + (data[field] || 0), 0);
-      return sum === data[targetField];
+      return Math.abs(sum - data[targetField]) < Number.EPSILON;
     },
     error: {
       message: (cxt) => {
