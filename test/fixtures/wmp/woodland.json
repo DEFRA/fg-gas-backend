@@ -1,0 +1,371 @@
+{
+  "code": "woodland",
+  "metadata": {
+    "description": "Woodland Management Plan",
+    "startDate": "2100-01-01T00:00:00.000Z"
+  },
+  "actions": [],
+  "amendablePositions": [],
+  "phases": [
+    {
+      "code": "PHASE_PRE_AWARD",
+      "name": "Pre-award",
+      "description": "Pre-award phase",
+      "questions": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "businessDetailsUpToDate": {
+            "type": "boolean",
+            "const": true
+          },
+          "guidanceRead": {
+            "type": "boolean",
+            "const": true
+          },
+          "landRegisteredWithRpa": {
+            "type": "boolean"
+          },
+          "landManagementControl": {
+            "type": "boolean"
+          },
+          "publicBodyTenant": {
+            "type": "boolean"
+          },
+          "landHasGrazingRights": {
+            "type": "boolean"
+          },
+          "appLandHasExistingWmp": {
+            "type": "boolean"
+          },
+          "existingWmps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "intendToApplyHigherTier": {
+            "type": "boolean"
+          },
+          "includedAllEligibleWoodland": {
+            "type": "boolean"
+          },
+          "totalHectaresAppliedFor": {
+            "type": "number",
+            "minimum": 0.5
+          },
+          "hectaresTenOrOverYearsOld": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "hectaresUnderTenYearsOld": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "centreGridReference": {
+            "type": "string"
+          },
+          "fcTeamCode": {
+            "type": "string",
+            "enum": [
+              "EAST_AND_EAST_MIDLANDS",
+              "NORTH_WEST_AND_WEST_MIDLANDS",
+              "SOUTH_EAST_AND_LONDON",
+              "SOUTH_WEST",
+              "YORKSHIRE_AND_NORTH_EAST"
+            ]
+          },
+          "applicationConfirmation": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "businessDetailsUpToDate",
+          "guidanceRead",
+          "landRegisteredWithRpa",
+          "landManagementControl",
+          "publicBodyTenant",
+          "landHasGrazingRights",
+          "appLandHasExistingWmp",
+          "intendToApplyHigherTier",
+          "includedAllEligibleWoodland",
+          "totalHectaresAppliedFor",
+          "hectaresTenOrOverYearsOld",
+          "hectaresUnderTenYearsOld",
+          "centreGridReference",
+          "fcTeamCode",
+          "applicationConfirmation"
+        ],
+        "if": {
+          "properties": {
+            "appLandHasExistingWmp": {
+              "const": true
+            }
+          }
+        },
+        "then": {
+          "required": ["existingWmps"],
+          "properties": {
+            "existingWmps": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "existingWmps": false
+          }
+        },
+        "fgSumMax": {
+          "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
+          "targetField": "totalHectaresAppliedFor"
+        }
+      },
+      "stages": [
+        {
+          "code": "STAGE_REVIEWING_APPLICATION",
+          "name": "Reviewing Application",
+          "description": "Internal review of woodland management plan application",
+          "statuses": [
+            {
+              "code": "STATUS_APPLICATION_RECEIVED",
+              "validFrom": []
+            },
+            {
+              "code": "STATUS_IN_REVIEW",
+              "validFrom": [
+                { "code": "STATUS_APPLICATION_RECEIVED", "processes": [] }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "STAGE_AWAITING_FC",
+          "name": "Awaiting FC",
+          "description": "Awaiting Forestry Commission review",
+          "statuses": [
+            {
+              "code": "STATUS_AWAITING_FC_REVIEW",
+              "validFrom": [
+                {
+                  "code": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_IN_REVIEW",
+                  "processes": []
+                }
+              ]
+            },
+            {
+              "code": "STATUS_AGREEMENT_GENERATING",
+              "validFrom": [
+                {
+                  "code": "STATUS_AWAITING_FC_REVIEW",
+                  "processes": ["GENERATE_OFFER"]
+                }
+              ]
+            },
+            {
+              "code": "STATUS_REJECTED_BY_FC",
+              "validFrom": [
+                { "code": "STATUS_AWAITING_FC_REVIEW", "processes": [] }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "STAGE_AGREEMENT_GENERATED",
+          "name": "Agreement Generated",
+          "description": "Agreement has been generated by the Agreements Service",
+          "statuses": [
+            {
+              "code": "STATUS_AGREEMENT_GENERATED",
+              "validFrom": [
+                {
+                  "code": "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_AGREEMENT_GENERATING",
+                  "processes": ["STORE_AGREEMENT_CASE"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "STAGE_SENDING_AGREEMENT",
+          "name": "Sending Agreement",
+          "description": "Agreement ready to send to customer",
+          "statuses": [
+            {
+              "code": "STATUS_AWAITING_SEND_AGREEMENT",
+              "validFrom": [
+                {
+                  "code": "PHASE_PRE_AWARD:STAGE_AGREEMENT_GENERATED:STATUS_AGREEMENT_GENERATED",
+                  "processes": []
+                }
+              ]
+            },
+            {
+              "code": "STATUS_AGREEMENT_WITH_CUSTOMER",
+              "validFrom": [
+                { "code": "STATUS_AWAITING_SEND_AGREEMENT", "processes": [] }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "STAGE_REJECTED_BY_APPLICANT",
+          "name": "Rejected by Applicant",
+          "description": "Application rejected by the applicant",
+          "statuses": [
+            {
+              "code": "STATUS_REJECTED_BY_APPLICANT",
+              "validFrom": [
+                {
+                  "code": "PHASE_PRE_AWARD:STAGE_SENDING_AGREEMENT:STATUS_AGREEMENT_WITH_CUSTOMER",
+                  "processes": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PHASE_MONITORING",
+      "name": "Monitoring",
+      "description": "Monitoring phase",
+      "stages": [
+        {
+          "code": "STAGE_MONITORING",
+          "name": "Monitoring",
+          "description": "Agreement monitoring",
+          "statuses": [
+            {
+              "code": "STATUS_AGREEMENT_ACCEPTED",
+              "validFrom": [
+                {
+                  "code": "PHASE_PRE_AWARD:STAGE_SENDING_AGREEMENT:STATUS_AGREEMENT_WITH_CUSTOMER",
+                  "processes": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "externalStatusMap": {
+    "phases": [
+      {
+        "code": "PHASE_PRE_AWARD",
+        "stages": [
+          {
+            "code": "STAGE_REVIEWING_APPLICATION",
+            "statuses": [
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_IN_REVIEW",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_IN_REVIEW"
+              },
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_AWAITING_FC_REVIEW",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_AWAITING_FC_REVIEW"
+              }
+            ]
+          },
+          {
+            "code": "STAGE_AWAITING_FC",
+            "statuses": [
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_AWAITING_FC_REVIEW",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_AWAITING_FC_REVIEW"
+              },
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_AGREEMENT_GENERATING",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_AGREEMENT_GENERATING"
+              },
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_REJECTED_BY_FC",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_REJECTED_BY_FC"
+              },
+              {
+                "code": "offered",
+                "source": "AS",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_AGREEMENT_GENERATED:STATUS_AGREEMENT_GENERATED"
+              }
+            ]
+          },
+          {
+            "code": "STAGE_AGREEMENT_GENERATED",
+            "statuses": [
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_AGREEMENT_GENERATED:STATUS_AGREEMENT_GENERATED",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_AGREEMENT_GENERATED:STATUS_AGREEMENT_GENERATED"
+              },
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_SENDING_AGREEMENT:STATUS_AWAITING_SEND_AGREEMENT",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_SENDING_AGREEMENT:STATUS_AWAITING_SEND_AGREEMENT"
+              }
+            ]
+          },
+          {
+            "code": "STAGE_SENDING_AGREEMENT",
+            "statuses": [
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_SENDING_AGREEMENT:STATUS_AWAITING_SEND_AGREEMENT",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_SENDING_AGREEMENT:STATUS_AWAITING_SEND_AGREEMENT"
+              },
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_SENDING_AGREEMENT:STATUS_AGREEMENT_WITH_CUSTOMER",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_SENDING_AGREEMENT:STATUS_AGREEMENT_WITH_CUSTOMER"
+              },
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_REJECTED_BY_APPLICANT:STATUS_REJECTED_BY_APPLICANT",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_REJECTED_BY_APPLICANT:STATUS_REJECTED_BY_APPLICANT"
+              },
+              {
+                "code": "PHASE_MONITORING:STAGE_MONITORING:STATUS_AGREEMENT_ACCEPTED",
+                "source": "CW",
+                "mappedTo": "PHASE_MONITORING:STAGE_MONITORING:STATUS_AGREEMENT_ACCEPTED"
+              }
+            ]
+          },
+          {
+            "code": "STAGE_REJECTED_BY_APPLICANT",
+            "statuses": [
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_REJECTED_BY_APPLICANT:STATUS_REJECTED_BY_APPLICANT",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_REJECTED_BY_APPLICANT:STATUS_REJECTED_BY_APPLICANT"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "code": "PHASE_MONITORING",
+        "stages": [
+          {
+            "code": "STAGE_MONITORING",
+            "statuses": [
+              {
+                "code": "PHASE_MONITORING:STAGE_MONITORING:STATUS_AGREEMENT_ACCEPTED",
+                "source": "CW",
+                "mappedTo": "PHASE_MONITORING:STAGE_MONITORING:STATUS_AGREEMENT_ACCEPTED"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

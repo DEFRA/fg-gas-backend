@@ -40,6 +40,25 @@ const getAnswersInSchema = (clientRef, schema, answers) => {
     },
   });
 
+  // Custom keyword to check sum of fields is less than or equal to a target field
+  ajv.addKeyword({
+    keyword: "fgSumMax",
+    type: "object",
+    schemaType: "object",
+    validate: function (schema, data) {
+      const fields = schema.fields;
+      const targetField = schema.targetField;
+      const sum = fields.reduce((acc, field) => acc + (data[field] || 0), 0);
+      return sum <= data[targetField];
+    },
+    error: {
+      message: (cxt) => {
+        const { schema } = cxt;
+        return `fgSumMax validation failed: sum of fields ${schema.fields.join(", ")} must be less than or equal to ${schema.targetField}`;
+      },
+    },
+  });
+
   // Ajv strips unknown fields and mutates the original
   const clonedAnswers = structuredClone(answers);
 
