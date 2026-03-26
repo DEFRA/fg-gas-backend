@@ -16,16 +16,16 @@ export const validateAnswersAgainstSchema = (clientRef, schema, answers) => {
     keyword: "fgSumEquals",
     type: "object",
     schemaType: "object",
-    validate: function (schema, data) {
-      const fields = schema.fields;
-      const targetField = schema.targetField;
+    validate: function (keywordSchema, data) {
+      const fields = keywordSchema.fields;
+      const targetField = keywordSchema.targetField;
       const sum = fields.reduce((acc, field) => acc + (data[field] || 0), 0);
       return sum === data[targetField];
     },
     error: {
       message: (cxt) => {
-        const { schema } = cxt;
-        return `fgSumEquals validation failed: sum of fields ${schema.fields.join(", ")} must equal ${schema.targetField}`;
+        const { schema: keywordSchema } = cxt;
+        return `fgSumEquals validation failed: sum of fields ${keywordSchema.fields.join(", ")} must equal ${keywordSchema.targetField}`;
       },
     },
   });
@@ -35,16 +35,16 @@ export const validateAnswersAgainstSchema = (clientRef, schema, answers) => {
     keyword: "fgSumMax",
     type: "object",
     schemaType: "object",
-    validate: function (schema, data) {
-      const fields = schema.fields;
-      const targetField = schema.targetField;
+    validate: function (keywordSchema, data) {
+      const fields = keywordSchema.fields;
+      const targetField = keywordSchema.targetField;
       const sum = fields.reduce((acc, field) => acc + (data[field] || 0), 0);
       return sum <= data[targetField];
     },
     error: {
       message: (cxt) => {
-        const { schema } = cxt;
-        return `fgSumMax validation failed: sum of fields ${schema.fields.join(", ")} must be less than or equal to ${schema.targetField}`;
+        const { schema: keywordSchema } = cxt;
+        return `fgSumMax validation failed: sum of fields ${keywordSchema.fields.join(", ")} must be less than or equal to ${keywordSchema.targetField}`;
       },
     },
   });
