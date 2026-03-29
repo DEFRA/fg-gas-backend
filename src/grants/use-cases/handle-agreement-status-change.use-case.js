@@ -3,6 +3,7 @@ import { logger } from "../../common/logger.js";
 import { AgreementServiceStatus } from "../models/agreement.js";
 import { ApplicationStatus } from "../models/application.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
+import { applyAgreementTerminationUseCase } from "./apply-agreement-termination.use-case.js";
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
 
@@ -34,6 +35,17 @@ export const handleAgreementStatusChangeUseCase = async (command, session) => {
 
   if (status === AgreementServiceStatus.Withdrawn) {
     await withdrawAgreementUseCase(command, session);
+    return;
+  }
+
+  if (status === AgreementServiceStatus.Terminated) {
+    logger.info(
+      `Handling terminated agreement status change for agreement ${eventData.agreementNumber}`,
+    );
+    await applyAgreementTerminationUseCase(command, session);
+    logger.info(
+      `Finished: Handling terminated agreement status change for agreement ${eventData.agreementNumber}`,
+    );
     return;
   }
 

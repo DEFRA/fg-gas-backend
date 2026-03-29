@@ -85,6 +85,38 @@ describe("Application", () => {
     });
   });
 
+  describe("getAcceptedAgreement", () => {
+    it("should return undefined if application has no agreements", () => {
+      const application = createTestApplication();
+      const agreement = application.getAcceptedAgreement();
+      expect(agreement).toBeUndefined();
+    });
+
+    it("should get the accepted agreement", () => {
+      const ag1 = new Agreement({
+        agreementRef: "agreement-123",
+        latestStatus: AgreementStatus.Accepted,
+        history: [],
+      });
+      const application = createTestApplication();
+      application.addAgreement(ag1);
+      const agreement = application.getAcceptedAgreement();
+      expect(agreement).toEqual(ag1);
+    });
+
+    it("should return undefined when no accepted agreements exist", () => {
+      const ag1 = new Agreement({
+        agreementRef: "agreement-123",
+        latestStatus: AgreementStatus.Offered,
+        history: [],
+      });
+      const application = createTestApplication();
+      application.addAgreement(ag1);
+      const agreement = application.getAcceptedAgreement();
+      expect(agreement).toBeUndefined();
+    });
+  });
+
   it("approves application", () => {
     const application = createTestApplication();
 

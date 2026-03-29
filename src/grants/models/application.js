@@ -134,6 +134,12 @@ export class Application {
     );
   }
 
+  getAcceptedAgreement() {
+    return Object.values(this.agreements).find(
+      (agg) => agg.latestStatus === AgreementStatus.Accepted,
+    );
+  }
+
   getAgreement(agreementRef) {
     return this.agreements[agreementRef] || null;
   }

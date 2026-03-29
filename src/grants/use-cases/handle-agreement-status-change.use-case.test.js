@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { AgreementServiceStatus } from "../models/agreement.js";
 import { ApplicationStatus } from "../models/application.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
+import { applyAgreementTerminationUseCase } from "./apply-agreement-termination.use-case.js";
 import { handleAgreementStatusChangeUseCase } from "./handle-agreement-status-change.use-case.js";
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
 
 vi.mock("./accept-agreement.use-case.js");
+vi.mock("./apply-agreement-termination.use-case.js");
 vi.mock("./withdraw-agreement.use-case.js");
 vi.mock("./withdraw-application.use-case.js");
 
@@ -43,6 +45,26 @@ describe("handle agreement status chane use case", () => {
     await handleAgreementStatusChangeUseCase(mockMessage, {});
 
     expect(withdrawAgreementUseCase).toHaveBeenCalledWith(mockMessage, {});
+  });
+
+  it("terminates agreement from Agreement Service", async () => {
+    const mockMessage = {
+      sourceSystem: "AS",
+      eventData: {
+        clientRef: "test-client-ref",
+        code: "test-code",
+        agreementNumber: "AG123",
+        date: "2024-01-01T00:00:00Z",
+        status: AgreementServiceStatus.Terminated,
+      },
+    };
+
+    await handleAgreementStatusChangeUseCase(mockMessage, {});
+
+    expect(applyAgreementTerminationUseCase).toHaveBeenCalledWith(
+      mockMessage,
+      {},
+    );
   });
 
   it("withdraws Application from Case Working", async () => {
