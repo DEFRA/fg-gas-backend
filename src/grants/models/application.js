@@ -157,6 +157,19 @@ export class Application {
     this.updatedAt = this.#getTimestamp();
   }
 
+  cancelAgreement(agreementRef, date) {
+    const agreement = this.agreements[agreementRef];
+
+    if (!agreement) {
+      throw Boom.badData(
+        `Agreement "${agreementRef}" does not exist on application "${this.clientRef}"`,
+      );
+    }
+
+    agreement.cancel(date);
+    this.updatedAt = this.#getTimestamp();
+  }
+
   withdraw() {
     this.currentStatus = ApplicationStatus.Withdrawn;
     this.updatedAt = this.#getTimestamp();
@@ -173,6 +186,19 @@ export class Application {
 
     agreement.withdraw(date);
 
+    this.updatedAt = this.#getTimestamp();
+  }
+
+  terminateAgreement(agreementRef, date) {
+    const agreement = this.agreements[agreementRef];
+
+    if (!agreement) {
+      throw Boom.badData(
+        `Agreement "${agreementRef}" does not exist on application "${this.clientRef}"`,
+      );
+    }
+
+    agreement.terminate(date);
     this.updatedAt = this.#getTimestamp();
   }
 

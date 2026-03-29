@@ -2,7 +2,7 @@ import { describe, expect, it, vi, vitest } from "vitest";
 import {
   Agreement,
   AgreementHistoryEntry,
-  AgreementStatus,
+  AgreementStatus as Status,
 } from "../models/agreement.js";
 import {
   Application,
@@ -15,7 +15,7 @@ import {
   update,
 } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { applyAgreementTerminationUseCase } from "./apply-agreement-termination.use-case.js";
+import { cancelAgreementUseCase } from "./cancel-agreement.use-case.js";
 
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("../repositories/application.repository.js");
@@ -26,34 +26,31 @@ vi.mock("../repositories/outbox.repository.js");
 
 vitest.mock("../repositories/outbox.repository.js");
 
-describe("applyAgreementTerminationUseCase", () => {
-  it("should terminate an agreement and notify CW", async () => {
+describe("cancel agreement use case", () => {
+  it("should cancel an agreement", async () => {
     const agreement = new Agreement({
       agreementRef: "agreement-123",
       date: "2024-01-01T12:00:00Z",
-      latestStatus: AgreementStatus.Accepted,
+      latestStatus: Status.Offered,
       history: [
         new AgreementHistoryEntry({
-          agreementStatus: AgreementStatus.Offered,
+          agreementStatus: Status.Offered,
           createdAt: "2024-01-01T12:00:00Z",
-        }),
-        new AgreementHistoryEntry({
-          agreementStatus: AgreementStatus.Accepted,
-          createdAt: "2024-01-02T12:00:00Z",
         }),
       ],
     });
 
     const application = new Application({
-      currentPhase: ApplicationPhase.PostAgreementMonitoring,
-      currentStage: ApplicationStage.Monitoring,
-      currentStatus: ApplicationStatus.AgreementAccepted,
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.Review,
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {
         "agreement-123": agreement,
       },
       phases: [],
+      replacementAllowed: false,
     });
 
     const session = {};
@@ -69,10 +66,10 @@ describe("applyAgreementTerminationUseCase", () => {
 
     findByClientRefAndCode.mockResolvedValueOnce(application);
 
-    await applyAgreementTerminationUseCase(command, session);
+    await cancelAgreementUseCase(command, session);
 
     expect(update).toHaveBeenCalledTimes(1);
-    expect(agreement.latestStatus).toBe(AgreementStatus.Terminated);
+    expect(agreement.latestStatus).toBe(Status.Cancelled);
     expect(insertMany).toBeCalledTimes(1);
     expect(insertMany.mock.calls[0][0]).toHaveLength(1);
   });

@@ -61,6 +61,23 @@ describe("Agreement", () => {
     expect(agreement.updatedAt).toEqual("2021-02-01T13:00:00.000Z");
   });
 
+  it("cancels an offered Agreement", () => {
+    const agreement = Agreement.new({
+      agreementRef: "AG123",
+      date: "2024-01-01T00:00:00Z",
+    });
+
+    agreement.cancel("2024-03-01T00:00:00Z");
+
+    expect(agreement.latestStatus).toBe(AgreementStatus.Cancelled);
+    expect(agreement.history).toHaveLength(2);
+    expect(agreement.history[1].agreementStatus).toBe(
+      AgreementStatus.Cancelled,
+    );
+    expect(agreement.history[1].createdAt).toBe("2024-03-01T00:00:00Z");
+    expect(agreement.updatedAt).toEqual("2021-02-01T13:00:00.000Z");
+  });
+
   it("terminates an accepted Agreement", () => {
     const agreement = Agreement.new({
       agreementRef: "AG123",

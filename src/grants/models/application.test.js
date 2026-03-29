@@ -260,6 +260,49 @@ describe("Application", () => {
     );
   });
 
+  it("cancels an agreement on an application", () => {
+    const application = createTestApplication();
+
+    const agreement = Agreement.new({
+      agreementRef: "agreement-1",
+      date: "2021-02-01T13:00:00.000Z",
+    });
+
+    application.addAgreement(agreement);
+
+    expect(application.getAgreement("agreement-1").latestStatus).toBe(
+      AgreementStatus.Offered,
+    );
+
+    application.cancelAgreement("agreement-1", "2021-02-03T15:00:00.000Z");
+
+    expect(application.getAgreement("agreement-1").latestStatus).toBe(
+      AgreementStatus.Cancelled,
+    );
+  });
+
+  it("throws an error when cancelling a non-existent agreement", () => {
+    const application = createTestApplication();
+
+    expect(() => {
+      application.cancelAgreement(
+        "non-existent-agreement",
+        "2021-02-03T15:00:00.000Z",
+      );
+    }).toThrowError(
+      'Agreement "non-existent-agreement" does not exist on application "application-1"',
+    );
+  });
+
+  it("withdraws an application", () => {
+    const application = createTestApplication();
+
+    application.withdraw();
+
+    expect(application.currentStatus).toBe(ApplicationStatus.Withdrawn);
+    expect(application.updatedAt).toBe("2021-02-01T13:00:00.000Z");
+  });
+
   it("throws an error when withdrawing a non-existent agreement", () => {
     const application = createTestApplication();
 

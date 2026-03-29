@@ -1,12 +1,10 @@
-import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
-import { Outbox } from "../models/outbox.js";
 import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { createAgreementCaseUpdateOutbox } from "./agreement-case-update.helpers.js";
 
 export const acceptAgreementUseCase = async (command, session) => {
   const { clientRef, code, eventData } = command;
@@ -31,36 +29,19 @@ export const acceptAgreementUseCase = async (command, session) => {
 
   application.acceptAgreement(agreementNumber, agreementDates);
 
-  const { currentPhase, currentStage } = application;
-
   await update(application, session);
 
   logger.debug(
     `Application ${clientRef} status updated from ${previousStatus} to ${application.getFullyQualifiedStatus()}`,
   );
 
-  const agreementData = application
-    .getAgreementsData()
-    .find((a) => a.agreementRef === agreementNumber);
-
-  const statusCommand = new UpdateCaseStatusCommand({
-    caseRef: clientRef,
-    workflowCode: code,
-    newStatus: application.getFullyQualifiedStatus(),
-    phase: currentPhase,
-    stage: currentStage,
-    dataType: "ARRAY",
-    key: "agreementRef",
-    targetNode: "agreements",
-    data: agreementData,
-  });
-
   await insertMany(
     [
-      new Outbox({
-        event: statusCommand,
-        target: config.sns.updateCaseStatusTopicArn,
-        segregationRef: Outbox.getSegregationRef(statusCommand),
+      createAgreementCaseUpdateOutbox({
+        clientRef,
+        code,
+        application,
+        agreementNumber,
       }),
     ],
     session,
