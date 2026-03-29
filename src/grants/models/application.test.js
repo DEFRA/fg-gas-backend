@@ -316,6 +316,41 @@ describe("Application", () => {
     );
   });
 
+  it("terminates an agreement", () => {
+    const application = createTestApplication();
+
+    const agreement = Agreement.new({
+      agreementRef: "agreement-1",
+      date: "2021-02-01T13:00:00.000Z",
+    });
+
+    application.addAgreement(agreement);
+    application.acceptAgreement("agreement-1", {
+      acceptedDate: "2021-02-02T14:00:00.000Z",
+      startDate: "2021-03-02T14:00:00.000Z",
+      endDate: "2022-02-02T14:00:00.000Z",
+    });
+
+    application.terminateAgreement("agreement-1", "2021-06-01T00:00:00.000Z");
+
+    expect(application.getAgreement("agreement-1").latestStatus).toBe(
+      AgreementStatus.Terminated,
+    );
+  });
+
+  it("throws an error when terminating a non-existent agreement", () => {
+    const application = createTestApplication();
+
+    expect(() => {
+      application.terminateAgreement(
+        "non-existent-agreement",
+        "2021-06-01T00:00:00.000Z",
+      );
+    }).toThrowError(
+      'Agreement "non-existent-agreement" does not exist on application "application-1"',
+    );
+  });
+
   it("gets the fully qualified status", () => {
     const application = createTestApplication();
 
