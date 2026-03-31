@@ -85,6 +85,38 @@ describe("Application", () => {
     });
   });
 
+  describe("getAcceptedAgreement", () => {
+    it("should return undefined if application has no agreements", () => {
+      const application = createTestApplication();
+      const agreement = application.getAcceptedAgreement();
+      expect(agreement).toBeUndefined();
+    });
+
+    it("should get the accepted agreement", () => {
+      const ag1 = new Agreement({
+        agreementRef: "agreement-123",
+        latestStatus: AgreementStatus.Accepted,
+        history: [],
+      });
+      const application = createTestApplication();
+      application.addAgreement(ag1);
+      const agreement = application.getAcceptedAgreement();
+      expect(agreement).toEqual(ag1);
+    });
+
+    it("should return undefined when no accepted agreements exist", () => {
+      const ag1 = new Agreement({
+        agreementRef: "agreement-123",
+        latestStatus: AgreementStatus.Offered,
+        history: [],
+      });
+      const application = createTestApplication();
+      application.addAgreement(ag1);
+      const agreement = application.getAcceptedAgreement();
+      expect(agreement).toBeUndefined();
+    });
+  });
+
   it("approves application", () => {
     const application = createTestApplication();
 
@@ -278,6 +310,41 @@ describe("Application", () => {
       application.withdrawAgreement(
         "non-existent-agreement",
         "2021-02-03T15:00:00.000Z",
+      );
+    }).toThrowError(
+      'Agreement "non-existent-agreement" does not exist on application "application-1"',
+    );
+  });
+
+  it("terminates an agreement", () => {
+    const application = createTestApplication();
+
+    const agreement = Agreement.new({
+      agreementRef: "agreement-1",
+      date: "2021-02-01T13:00:00.000Z",
+    });
+
+    application.addAgreement(agreement);
+    application.acceptAgreement("agreement-1", {
+      acceptedDate: "2021-02-02T14:00:00.000Z",
+      startDate: "2021-03-02T14:00:00.000Z",
+      endDate: "2022-02-02T14:00:00.000Z",
+    });
+
+    application.terminateAgreement("agreement-1", "2021-06-01T00:00:00.000Z");
+
+    expect(application.getAgreement("agreement-1").latestStatus).toBe(
+      AgreementStatus.Terminated,
+    );
+  });
+
+  it("throws an error when terminating a non-existent agreement", () => {
+    const application = createTestApplication();
+
+    expect(() => {
+      application.terminateAgreement(
+        "non-existent-agreement",
+        "2021-06-01T00:00:00.000Z",
       );
     }).toThrowError(
       'Agreement "non-existent-agreement" does not exist on application "application-1"',
