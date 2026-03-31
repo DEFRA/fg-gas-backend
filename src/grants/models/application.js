@@ -134,6 +134,12 @@ export class Application {
     );
   }
 
+  getAcceptedAgreement() {
+    return Object.values(this.agreements).find(
+      (agg) => agg.latestStatus === AgreementStatus.Accepted,
+    );
+  }
+
   getAgreement(agreementRef) {
     return this.agreements[agreementRef] || null;
   }
@@ -180,6 +186,19 @@ export class Application {
 
     agreement.withdraw(date);
 
+    this.updatedAt = this.#getTimestamp();
+  }
+
+  terminateAgreement(agreementRef, date) {
+    const agreement = this.agreements[agreementRef];
+
+    if (!agreement) {
+      throw Boom.badData(
+        `Agreement "${agreementRef}" does not exist on application "${this.clientRef}"`,
+      );
+    }
+
+    agreement.terminate(date);
     this.updatedAt = this.#getTimestamp();
   }
 
