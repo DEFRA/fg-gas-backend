@@ -270,4 +270,179 @@ describe("GAS Provider (sends messages to CW)", () => {
       return messagePact.verify(verifyOpts);
     });
   });
+
+  describe("WMG CreateNewCaseCommand Provider Verification", () => {
+    it("should verify GAS sends CreateNewCaseCommand for WMG matching CW expectations", async () => {
+      const messagePact = new MessageProviderPact({
+        messageProviders: {
+          "a create new case command from GAS for WMG": () => {
+            // WMG answers are direct form fields (no scheme/applicant/application/payments wrapper)
+            const mockApplication = {
+              clientRef: "WMP-CASE-001",
+              code: "woodland",
+              createdAt: "2025-02-09T11:00:00.000Z",
+              submittedAt: "2025-02-09T12:00:00.000Z",
+              identifiers: {
+                sbi: "SBI001",
+                frn: "FIRM0001",
+                crn: "CUST0001",
+                defraId: "DEFRA0001",
+              },
+              metadata: {},
+              getAnswers() {
+                return {
+                  businessDetailsUpToDate: true,
+                  guidanceRead: true,
+                  landRegisteredWithRpa: true,
+                  landManagementControl: true,
+                  publicBodyTenant: false,
+                  landHasGrazingRights: false,
+                  appLandHasExistingWmp: true,
+                  existingWmps: ["WMP-2024-001"],
+                  intendToApplyHigherTier: false,
+                  includedAllEligibleWoodland: true,
+                  totalHectaresAppliedFor: 15.0,
+                  hectaresTenOrOverYearsOld: 8.5,
+                  hectaresUnderTenYearsOld: 4.2,
+                  centreGridReference: "SK512347",
+                  fcTeamCode: "YORKSHIRE_AND_NORTH_EAST",
+                  applicationConfirmation: true,
+                };
+              },
+            };
+
+            const command = new CreateNewCaseCommand(mockApplication);
+
+            return providerWithMetadata(command, {
+              contentType: "application/json",
+            });
+          },
+        },
+      });
+
+      const verifyOpts = buildMessageVerifierOptions({
+        providerName: "fg-gas-backend",
+        consumerName: "fg-cw-backend",
+      });
+
+      return messagePact.verify(verifyOpts);
+    });
+  });
+
+  describe("WMG CreateNewCaseCommand Provider Verification (without optional fields)", () => {
+    it("should verify GAS sends CreateNewCaseCommand for WMG without optional fields matching CW expectations", async () => {
+      const messagePact = new MessageProviderPact({
+        messageProviders: {
+          "a create new case command from GAS for WMG without optional fields":
+            () => {
+              const mockApplication = {
+                clientRef: "WMP-CASE-002",
+                code: "woodland",
+                createdAt: "2025-02-09T11:00:00.000Z",
+                submittedAt: "2025-02-09T12:00:00.000Z",
+                identifiers: {
+                  sbi: "SBI003",
+                  frn: "FIRM0003",
+                  crn: "CUST0003",
+                },
+                getAnswers() {
+                  return {
+                    businessDetailsUpToDate: true,
+                    guidanceRead: true,
+                    landRegisteredWithRpa: true,
+                    landManagementControl: true,
+                    publicBodyTenant: false,
+                    landHasGrazingRights: false,
+                    appLandHasExistingWmp: false,
+                    intendToApplyHigherTier: false,
+                    includedAllEligibleWoodland: true,
+                    totalHectaresAppliedFor: 10.0,
+                    hectaresTenOrOverYearsOld: 6.0,
+                    hectaresUnderTenYearsOld: 4.0,
+                    centreGridReference: "SK512347",
+                    fcTeamCode: "SOUTH_WEST",
+                    applicationConfirmation: true,
+                  };
+                },
+              };
+
+              const command = new CreateNewCaseCommand(mockApplication);
+
+              return providerWithMetadata(command, {
+                contentType: "application/json",
+              });
+            },
+        },
+      });
+
+      const verifyOpts = buildMessageVerifierOptions({
+        providerName: "fg-gas-backend",
+        consumerName: "fg-cw-backend",
+      });
+
+      return messagePact.verify(verifyOpts);
+    });
+  });
+
+  describe("WMG UpdateCaseStatusCommand Provider Verification", () => {
+    it("should verify GAS sends UpdateCaseStatusCommand for WMG matching CW expectations", async () => {
+      const messagePact = new MessageProviderPact({
+        messageProviders: {
+          "a case status update command from GAS for WMG": () => {
+            // WMG does not use agreements supplementaryData (not yet implemented)
+            const command = new UpdateCaseStatusCommand({
+              caseRef: "WMP-CASE-001",
+              workflowCode: "woodland",
+              newStatus:
+                "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_IN_REVIEW",
+              phase: "PHASE_PRE_AWARD",
+              stage: "STAGE_REVIEWING_APPLICATION",
+            });
+
+            return providerWithMetadata(command, {
+              contentType: "application/json",
+            });
+          },
+        },
+      });
+
+      const verifyOpts = buildMessageVerifierOptions({
+        providerName: "fg-gas-backend",
+        consumerName: "fg-cw-backend",
+      });
+
+      return messagePact.verify(verifyOpts);
+    });
+  });
+
+  describe("WMG UpdateCaseStatusCommand Provider Verification (without supplementary data array fields)", () => {
+    it("should verify GAS sends UpdateCaseStatusCommand for WMG with minimal supplementary data matching CW expectations", async () => {
+      const messagePact = new MessageProviderPact({
+        messageProviders: {
+          "a case status update command from GAS for WMG without supplementary data array fields":
+            () => {
+              const command = new UpdateCaseStatusCommand({
+                caseRef: "WMP-CASE-002",
+                workflowCode: "woodland",
+                newStatus:
+                  "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_AWAITING_FC_REVIEW",
+                phase: "PHASE_PRE_AWARD",
+                stage: "STAGE_AWAITING_FC",
+              });
+
+              return providerWithMetadata(command, {
+                contentType: "application/json",
+              });
+            },
+        },
+      });
+
+      const verifyOpts = buildMessageVerifierOptions({
+        providerName: "fg-gas-backend",
+        consumerName: "fg-cw-backend",
+      });
+
+      return messagePact.verify(verifyOpts);
+    });
+  });
 });
