@@ -1,5 +1,6 @@
 include:
   - path: ./compose/compose.gas.yml
+    project_directory: .
 
 services:
   localstack:
