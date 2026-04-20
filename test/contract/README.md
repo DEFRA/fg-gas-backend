@@ -177,7 +177,7 @@ Corrected to reflect actual architecture:
    - Provider: fg-cw-backend
    - Type: Message contract
    - Test: `consumer.cw-backend.test.js`
-   - Messages: CaseStatusUpdatedEvent
+   - Messages: CaseStatusUpdatedEvent (FRPS + WMG)
 
 3. **grants-ui → fg-gas-backend** (HTTP API)
    - Consumer: grants-ui
@@ -219,13 +219,75 @@ Corrected to reflect actual architecture:
   - `data.caseRef`: Maps to application.clientRef in GAS
   - `data.workflowCode`: For validation
 
+**Status Format by Grant**:
+
+| Grant                      | Example Status                                                 | Format                               |
+| -------------------------- | -------------------------------------------------------------- | ------------------------------------ |
+| FRPS (`frps-private-beta`) | `PRE_AWARD:ASSESSMENT:IN_REVIEW`                               | No prefix                            |
+| WMG (`woodland`)           | `PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_IN_REVIEW` | `PHASE_`/`STAGE_`/`STATUS_` prefixed |
+
+Both formats match the regex `^[A-Z_]+:[A-Z_]+:[A-Z_]+$` used in contract assertions.
+
 ## Related Documentation
 
 - Pact Documentation: https://docs.pact.io/
 - Message Pacts: https://docs.pact.io/getting_started/how_pact_works#messages
 - Pact Broker: https://github.com/pact-foundation/pact_broker
 
+## WMG (Woodland Management Grant) Contract Notes
+
+**Ticket**: FGP-1011
+
+WMG (`workflowCode: "woodland"`) was added to the consumer test in `consumer.cw-backend.test.js`. Key differences from FRPS:
+
+### WMG Status Format
+
+WMG statuses use `PHASE_`/`STAGE_`/`STATUS_` prefixes unlike FRPS which has bare names:
+
+| Phase             | Stage                         | Status                           |
+| ----------------- | ----------------------------- | -------------------------------- |
+| `PHASE_PRE_AWARD` | `STAGE_REVIEWING_APPLICATION` | `STATUS_APPLICATION_RECEIVED`    |
+| `PHASE_PRE_AWARD` | `STAGE_REVIEWING_APPLICATION` | `STATUS_IN_REVIEW`               |
+| `PHASE_PRE_AWARD` | `STAGE_AWAITING_FC`           | `STATUS_AWAITING_FC_REVIEW`      |
+| `PHASE_PRE_AWARD` | `STAGE_AWAITING_FC`           | `STATUS_AGREEMENT_GENERATING`    |
+| `PHASE_PRE_AWARD` | `STAGE_AWAITING_FC`           | `STATUS_REJECTED_BY_FC`          |
+| `PHASE_PRE_AWARD` | `STAGE_AGREEMENT_GENERATED`   | `STATUS_AGREEMENT_GENERATED`     |
+| `PHASE_PRE_AWARD` | `STAGE_SENDING_AGREEMENT`     | `STATUS_AWAITING_SEND_AGREEMENT` |
+| `PHASE_PRE_AWARD` | `STAGE_SENDING_AGREEMENT`     | `STATUS_AGREEMENT_WITH_CUSTOMER` |
+| `PHASE_PRE_AWARD` | `STAGE_REJECTED_BY_APPLICANT` | `STATUS_REJECTED_BY_APPLICANT`   |
+
+### WMG Answers Shape
+
+WMG answers are **flat form fields** (no scheme/applicant/application/payments wrapper like FRPS):
+
+```json
+{
+  "businessDetailsUpToDate": true,
+  "guidanceRead": true,
+  "landRegisteredWithRpa": true,
+  "landManagementControl": true,
+  "publicBodyTenant": false,
+  "landHasGrazingRights": false,
+  "appLandHasExistingWmp": true,
+  "existingWmps": ["WMP-2024-001"],
+  "intendToApplyHigherTier": false,
+  "includedAllEligibleWoodland": true,
+  "totalHectaresAppliedFor": 15.0,
+  "hectaresTenOrOverYearsOld": 8.5,
+  "hectaresUnderTenYearsOld": 4.2,
+  "centreGridReference": "SK512347",
+  "fcTeamCode": "YORKSHIRE_AND_NORTH_EAST",
+  "applicationConfirmation": true
+}
+```
+
+`existingWmps` is only present when `appLandHasExistingWmp: true`. Field names are authoritative from `woodland.json` schema in `fg-gas-backend`.
+
+### WMG Agreements Supplementary Data
+
+WMG does **not** yet use agreements supplementary data (agreement journey not implemented). The `UpdateCaseStatusCommand` for WMG only carries minimal `supplementaryData` (phase and stage only, no `targetNode`/`dataType`/`data`).
+
 ---
 
-**Last Updated**: 2026-01-26
-**Ticket**: FGP-789
+**Last Updated**: 2026-04-14
+**Ticket**: FGP-789, FGP-1011
