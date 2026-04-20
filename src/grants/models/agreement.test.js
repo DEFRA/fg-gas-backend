@@ -77,4 +77,27 @@ describe("Agreement", () => {
     expect(agreement.history[1].createdAt).toBe("2024-03-01T00:00:00Z");
     expect(agreement.updatedAt).toEqual("2021-02-01T13:00:00.000Z");
   });
+
+  it("terminates an accepted Agreement", () => {
+    const agreement = Agreement.new({
+      agreementRef: "AG123",
+      date: "2024-01-01T00:00:00Z",
+    });
+
+    agreement.accept({
+      startDate: "2024-02-01T00:00:00Z",
+      endDate: "2025-02-01T00:00:00Z",
+      acceptedDate: "2024-02-01T00:00:00Z",
+    });
+
+    agreement.terminate("2024-06-01T00:00:00Z");
+
+    expect(agreement.latestStatus).toBe(AgreementStatus.Terminated);
+    expect(agreement.history).toHaveLength(3);
+    expect(agreement.history[2].agreementStatus).toBe(
+      AgreementStatus.Terminated,
+    );
+    expect(agreement.history[2].createdAt).toBe("2024-06-01T00:00:00Z");
+    expect(agreement.updatedAt).toEqual("2021-02-01T13:00:00.000Z");
+  });
 });
