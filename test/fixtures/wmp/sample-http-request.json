@@ -15,7 +15,7 @@
     "publicBodyTenant": false,
     "landHasGrazingRights": false,
     "appLandHasExistingWmp": true,
-    "existingWmps": ["WMP-2024-001", "WMP-2024-002"],
+    "existingWmps": "WMP-2024-001",
     "intendToApplyHigherTier": false,
     "includedAllEligibleWoodland": true,
     "totalHectaresAppliedFor": 15.0,

@@ -179,7 +179,8 @@
           "hectaresUnderTenYearsOld",
           "centreGridReference",
           "fcTeamCode",
-          "applicationConfirmation"
+          "applicationConfirmation",
+          "landParcels"
         ],
         "if": {
           "properties": {
@@ -203,6 +204,10 @@
         },
         "fgSumMax": {
           "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
+          "targetField": "totalHectaresAppliedFor"
+        },
+        "fgSumEquals": {
+          "fields": ["landParcels[].areaHa"],
           "targetField": "totalHectaresAppliedFor"
         }
       },

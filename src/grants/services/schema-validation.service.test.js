@@ -42,6 +42,69 @@ describe("validateAnswersAgainstSchema", () => {
         'Application with clientRef "ref-1" has invalid answers: data fgSumEquals validation failed: sum of fields field1, field2 must equal total',
       );
     });
+
+    it("tolerates floating-point rounding at magnitude ~200", () => {
+      // 25.3874 + 169.8586 stores as 195.24599999999998 in IEEE 754
+      const result = validateAnswersAgainstSchema("ref-1", schema, {
+        field1: 25.3874,
+        field2: 169.8586,
+        total: 195.246,
+      });
+
+      expect(result).toMatchObject({ total: 195.246 });
+    });
+  });
+
+  describe("fgSumEquals with array path syntax", () => {
+    const schema = {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { area: { type: "number" } },
+          },
+        },
+        total: { type: "number" },
+      },
+      fgSumEquals: {
+        fields: ["items[].area"],
+        targetField: "total",
+      },
+    };
+
+    it("passes when sum of array item field equals the target", () => {
+      const result = validateAnswersAgainstSchema("ref-1", schema, {
+        items: [{ area: 10 }, { area: 20.5 }],
+        total: 30.5,
+      });
+
+      expect(result).toEqual({
+        items: [{ area: 10 }, { area: 20.5 }],
+        total: 30.5,
+      });
+    });
+
+    it("throws when sum of array item field does not equal the target", () => {
+      expect(() =>
+        validateAnswersAgainstSchema("ref-1", schema, {
+          items: [{ area: 10 }, { area: 20 }],
+          total: 50,
+        }),
+      ).toThrow(
+        'Application with clientRef "ref-1" has invalid answers: data fgSumEquals validation failed: sum of fields items[].area must equal total',
+      );
+    });
+
+    it("treats a missing array as empty (sum 0)", () => {
+      expect(() =>
+        validateAnswersAgainstSchema("ref-1", schema, { total: 10 }),
+      ).toThrow(
+        'Application with clientRef "ref-1" has invalid answers: data fgSumEquals validation failed',
+      );
+    });
   });
 
   describe("fgSumMax", () => {
@@ -83,6 +146,17 @@ describe("validateAnswersAgainstSchema", () => {
       ).toThrow(
         'Application with clientRef "ref-1" has invalid answers: data fgSumMax validation failed: sum of fields field1, field2 must be less than or equal to total',
       );
+    });
+
+    it("tolerates floating-point rounding at the boundary", () => {
+      // 8.5 + 4.2 stores as 12.700000000000001 in IEEE 754; must still pass when total = 12.7
+      const result = validateAnswersAgainstSchema("ref-1", schema, {
+        field1: 8.5,
+        field2: 4.2,
+        total: 12.7,
+      });
+
+      expect(result).toMatchObject({ total: 12.7 });
     });
   });
 
