@@ -19,12 +19,9 @@
             "type": "boolean",
             "const": true
           },
-          "guidanceRead": {
+          "landRegisteredWithRpa": {
             "type": "boolean",
             "const": true
-          },
-          "landRegisteredWithRpa": {
-            "type": "boolean"
           },
           "landManagementControl": {
             "type": "boolean"
@@ -38,22 +35,8 @@
           "appLandHasExistingWmp": {
             "type": "boolean"
           },
-          "existingWmps": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "minItems": 1
-          },
           "intendToApplyHigherTier": {
             "type": "boolean"
-          },
-          "includedAllEligibleWoodland": {
-            "type": "boolean"
-          },
-          "totalHectaresAppliedFor": {
-            "type": "number",
-            "minimum": 0.5
           },
           "hectaresTenOrOverYearsOld": {
             "type": "number",
@@ -76,9 +59,109 @@
               "YORKSHIRE_AND_NORTH_EAST"
             ]
           },
+          "applicant": {
+            "type": "object",
+            "properties": {
+              "business": {
+                "type": "object"
+              },
+              "customer": {
+                "type": "object"
+              }
+            },
+            "required": ["business", "customer"]
+          },
+          "detailsConfirmedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalHectaresAppliedFor": {
+            "type": "number",
+            "minimum": 0.5
+          },
+          "guidanceRead": {
+            "type": "boolean",
+            "const": true
+          },
+          "includedAllEligibleWoodland": {
+            "type": "boolean"
+          },
           "applicationConfirmation": {
             "type": "boolean",
             "const": true
+          },
+          "landParcels": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "parcelId": {
+                  "type": "string"
+                },
+                "areaHa": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": ["parcelId", "areaHa"]
+            },
+            "minItems": 1
+          },
+          "totalAgreementPaymentPence": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+
+          "payments": {
+            "type": "object",
+            "properties": {
+              "agreement": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string" },
+                    "description": { "type": "string" },
+                    "activePaymentTier": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "quantityInActiveTier": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "activeTierRatePence": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "activeTierFlatRatePence": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "quantity": { "type": "number", "exclusiveMinimum": 0 },
+                    "agreementTotalPence": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": ["ha", "%"]
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "description",
+                    "activePaymentTier",
+                    "quantityInActiveTier",
+                    "activeTierRatePence",
+                    "activeTierFlatRatePence",
+                    "quantity",
+                    "agreementTotalPence",
+                    "unit"
+                  ]
+                }
+              }
+            }
           }
         },
         "required": [
@@ -109,9 +192,7 @@
           "required": ["existingWmps"],
           "properties": {
             "existingWmps": {
-              "type": "array",
-              "items": { "type": "string" },
-              "minItems": 1
+              "type": "string"
             }
           }
         },
