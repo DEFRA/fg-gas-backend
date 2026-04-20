@@ -34,6 +34,22 @@
  *
  * `node scripts/mint-access-token.js grants-ui`
  *
+ * Run with manual vars:
+ * `MONGO_URI="mongodb://localhost:27017" MONGO_DATABASE=fg-gas-backend node scripts/mint-access-token.js`
+ *
+ * fg-grants-core
+ * ---------------
+ * When using grants core with just the case working and gas dev mode
+ * the mongo db is available on localhost and does not use a direct connection.
+ * To omit the directConnection query string set the GRANTS_CORE env var to 1
+ *`GRANTS_CORE=1 node --env-file=.env scripts/mint-access-token.js`
+ *
+ * If you're using grants core with external apps (grants-ui for example)
+ * then the db connection is through the docker network and direct connection is
+ * required. The env-file option won't work here. You have to manually add
+ * MONGO_URI and MONGO_DATABASE to the command - see "run with manual vars"
+ *
+ *
  * Output
  * ------
  * - Confirmation and context (client, expiry).
@@ -52,7 +68,9 @@
 import { MongoClient } from "mongodb";
 import crypto from "node:crypto";
 
-const mongoUri = `${process.env.MONGO_URI}?directConnection=true`;
+const isGrantsCore = process.env.GRANTS_CORE === "1";
+const mongoUri = `${process.env.MONGO_URI}${isGrantsCore ? "" : "?directConnection=true"}`;
+console.log(process.env.MONGO_URI);
 const dbName = process.env.MONGO_DATABASE;
 const clientName = process.argv[2] || "grants-ui";
 const expires = process.argv[3] || null; // ISO date string or null
