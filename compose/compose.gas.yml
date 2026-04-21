@@ -4,7 +4,7 @@ services:
     networks:
       - cdp-tenant
     ports:
-      - "${GAS_PORT:-3200}:3200"
+      - "${GAS_PORT:-3102}:3102"
     links:
       - "localstack:localstack"
       - "mongodb:mongodb"
@@ -12,7 +12,7 @@ services:
     env_file:
       - .env
     environment:
-      PORT: 3200
+      PORT: 3102
       MONGO_URI: mongodb://mongodb:27017/?replicaSet=mongoRepl
       AWS_ENDPOINT_URL: "http://localstack:4566"
       OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
