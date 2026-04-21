@@ -1,0 +1,1881 @@
+{
+  "consumer": {
+    "name": "fg-cw-backend"
+  },
+  "messages": [
+    {
+      "contents": {
+        "data": {
+          "caseRef": "CASE-REF-001",
+          "payload": {
+            "answers": {
+              "applicant": {
+                "business": {
+                  "address": {
+                    "city": "Clitheroe",
+                    "line1": "Mason House Farm Clitheroe Rd",
+                    "line2": "Bashall Eaves",
+                    "postalCode": "BB7 3DD",
+                    "street": "Bartindale Road"
+                  },
+                  "email": {
+                    "address": "test@example.com"
+                  },
+                  "name": "VAUGHAN FARMS LIMITED",
+                  "phone": "01234031670",
+                  "reference": "3989509178"
+                },
+                "customer": {
+                  "name": {
+                    "first": "Edward",
+                    "last": "Jones",
+                    "middle": "Paul",
+                    "title": "Mr."
+                  }
+                }
+              },
+              "application": {
+                "agreement": [],
+                "parcel": [
+                  {
+                    "actions": [
+                      {
+                        "appliedFor": {
+                          "quantity": 0.1447,
+                          "unit": "ha"
+                        },
+                        "code": "CMOR1",
+                        "durationYears": 3,
+                        "version": 1
+                      }
+                    ],
+                    "area": {
+                      "quantity": 0.1447,
+                      "unit": "ha"
+                    },
+                    "parcelId": "9485",
+                    "sheetId": "SD6843"
+                  }
+                ]
+              },
+              "hasCheckedLandIsUpToDate": true,
+              "payments": {
+                "parcel": [
+                  {
+                    "actions": [
+                      {
+                        "annualPaymentPence": 153,
+                        "appliedFor": {
+                          "quantity": 0.1447,
+                          "unit": "ha"
+                        },
+                        "code": "CMOR1",
+                        "description": "Assess moorland and produce a written record",
+                        "durationYears": 3,
+                        "eligible": {
+                          "quantity": 0.1447,
+                          "unit": "ha"
+                        },
+                        "paymentRates": 1060
+                      }
+                    ],
+                    "area": {
+                      "quantity": 0.1447,
+                      "unit": "ha"
+                    },
+                    "parcelId": "9485",
+                    "sheetId": "SD6843"
+                  }
+                ]
+              },
+              "rulesCalculations": {
+                "date": "2025-11-18T13:51:50.549Z",
+                "id": 421,
+                "message": "Application validated successfully",
+                "valid": true
+              },
+              "scheme": "SFI",
+              "totalAnnualPaymentPence": 28062,
+              "year": 2025
+            },
+            "createdAt": "2025-02-09T11:00:00.000Z",
+            "identifiers": {
+              "crn": "CUST0001",
+              "defraId": "DEFRA0001",
+              "frn": "FIRM0001",
+              "sbi": "SBI001"
+            },
+            "metadata": {},
+            "submittedAt": "2025-02-09T12:00:00.000Z"
+          },
+          "workflowCode": "frps-private-beta"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789001",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.create"
+      },
+      "description": "a create new case command from GAS",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.answers": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.createdAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.crn": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.defraId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.frn": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.sbi": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.metadata": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.submittedAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.create$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "CASE-REF-001",
+          "newStatus": "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+          "supplementaryData": {
+            "data": [
+              {
+                "agreementRef": "AGR-001",
+                "agreementStatus": "OFFER",
+                "createdAt": "2023-10-01T12:00:00Z",
+                "updatedAt": "2023-10-01T12:00:00Z"
+              }
+            ],
+            "dataType": "ARRAY",
+            "phase": "PRE_AWARD",
+            "stage": "ASSESSMENT",
+            "targetNode": "agreements"
+          },
+          "workflowCode": "frps-private-beta"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789002",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.update.status"
+      },
+      "description": "a case status update command from GAS",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.newStatus": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[A-Z_]+:[A-Z_]+:[A-Z_]+$"
+              }
+            ]
+          },
+          "$.data.supplementaryData": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.update\\.status$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "CASE-REF-002",
+          "payload": {
+            "answers": {
+              "hasCheckedLandIsUpToDate": true,
+              "scheme": "SFI",
+              "year": 2025
+            },
+            "createdAt": "2025-02-09T11:00:00.000Z",
+            "identifiers": {
+              "crn": "CUST0002",
+              "frn": "FIRM0002",
+              "sbi": "SBI002"
+            },
+            "submittedAt": "2025-02-09T12:00:00.000Z"
+          },
+          "workflowCode": "frps-private-beta"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789003",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.create"
+      },
+      "description": "a create new case command from GAS without optional fields",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.answers": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.createdAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.crn": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.frn": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.sbi": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.submittedAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.create$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "CASE-REF-001",
+          "newStatus": "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+          "supplementaryData": {
+            "data": [
+              {
+                "agreementRef": "AGR-001",
+                "agreementStatus": "OFFER",
+                "createdAt": "2023-10-01T12:00:00Z",
+                "updatedAt": "2023-10-01T12:00:00Z"
+              }
+            ],
+            "dataType": "ARRAY",
+            "phase": "PRE_AWARD",
+            "stage": "ASSESSMENT",
+            "targetNode": "agreements"
+          },
+          "workflowCode": "frps-private-beta"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789002",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.update.status"
+      },
+      "description": "a case status update command from GAS",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.newStatus": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[A-Z_]+:[A-Z_]+:[A-Z_]+$"
+              }
+            ]
+          },
+          "$.data.supplementaryData": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.update\\.status$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "CASE-REF-002",
+          "newStatus": "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+          "supplementaryData": {
+            "phase": "PRE_AWARD",
+            "stage": "ASSESSMENT"
+          },
+          "workflowCode": "frps-private-beta"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789004",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.update.status"
+      },
+      "description": "a case status update command from GAS without optional supplementary data fields",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.newStatus": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[A-Z_]+:[A-Z_]+:[A-Z_]+$"
+              }
+            ]
+          },
+          "$.data.supplementaryData": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.update\\.status$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "CASE-REF-002",
+          "newStatus": "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+          "supplementaryData": {
+            "phase": "PRE_AWARD",
+            "stage": "ASSESSMENT"
+          },
+          "workflowCode": "frps-private-beta"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789004",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.update.status"
+      },
+      "description": "a case status update command from GAS without supplementary data array fields",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.newStatus": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[A-Z_]+:[A-Z_]+:[A-Z_]+$"
+              }
+            ]
+          },
+          "$.data.supplementaryData": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.update\\.status$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "WMP-CASE-001",
+          "payload": {
+            "answers": {
+              "appLandHasExistingWmp": true,
+              "applicationConfirmation": true,
+              "businessDetailsUpToDate": true,
+              "centreGridReference": "SK512347",
+              "existingWmps": [
+                "WMP-2024-001"
+              ],
+              "fcTeamCode": "YORKSHIRE_AND_NORTH_EAST",
+              "guidanceRead": true,
+              "hectaresTenOrOverYearsOld": 8.5,
+              "hectaresUnderTenYearsOld": 4.2,
+              "includedAllEligibleWoodland": true,
+              "intendToApplyHigherTier": false,
+              "landHasGrazingRights": false,
+              "landManagementControl": true,
+              "landRegisteredWithRpa": true,
+              "publicBodyTenant": false,
+              "totalHectaresAppliedFor": 15
+            },
+            "createdAt": "2025-02-09T11:00:00.000Z",
+            "identifiers": {
+              "crn": "CUST0001",
+              "defraId": "DEFRA0001",
+              "frn": "FIRM0001",
+              "sbi": "SBI001"
+            },
+            "metadata": {},
+            "submittedAt": "2025-02-09T12:00:00.000Z"
+          },
+          "workflowCode": "woodland"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789005",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.create"
+      },
+      "description": "a create new case command from GAS for WMG",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.answers": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.createdAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.crn": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.defraId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.frn": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.sbi": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.metadata": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.submittedAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.create$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "WMP-CASE-002",
+          "payload": {
+            "answers": {
+              "appLandHasExistingWmp": false,
+              "applicationConfirmation": true,
+              "businessDetailsUpToDate": true,
+              "centreGridReference": "SK512347",
+              "fcTeamCode": "SOUTH_WEST",
+              "guidanceRead": true,
+              "hectaresTenOrOverYearsOld": 6,
+              "hectaresUnderTenYearsOld": 4,
+              "includedAllEligibleWoodland": true,
+              "intendToApplyHigherTier": false,
+              "landHasGrazingRights": false,
+              "landManagementControl": true,
+              "landRegisteredWithRpa": true,
+              "publicBodyTenant": false,
+              "totalHectaresAppliedFor": 10
+            },
+            "createdAt": "2025-02-09T11:00:00.000Z",
+            "identifiers": {
+              "crn": "CUST0003",
+              "frn": "FIRM0003",
+              "sbi": "SBI003"
+            },
+            "submittedAt": "2025-02-09T12:00:00.000Z"
+          },
+          "workflowCode": "woodland"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789007",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.create"
+      },
+      "description": "a create new case command from GAS for WMG without optional fields",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.answers": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.createdAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.crn": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.frn": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.sbi": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.submittedAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.create$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "WMP-CASE-001",
+          "newStatus": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_IN_REVIEW",
+          "supplementaryData": {
+            "phase": "PHASE_PRE_AWARD",
+            "stage": "STAGE_REVIEWING_APPLICATION"
+          },
+          "workflowCode": "woodland"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789006",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.update.status"
+      },
+      "description": "a case status update command from GAS for WMG",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.newStatus": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[A-Z_]+:[A-Z_]+:[A-Z_]+$"
+              }
+            ]
+          },
+          "$.data.supplementaryData": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.update\\.status$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "WMP-CASE-002",
+          "newStatus": "PHASE_PRE_AWARD:STAGE_AWAITING_FC:STATUS_AWAITING_FC_REVIEW",
+          "supplementaryData": {
+            "phase": "PHASE_PRE_AWARD",
+            "stage": "STAGE_AWAITING_FC"
+          },
+          "workflowCode": "woodland"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789008",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.update.status"
+      },
+      "description": "a case status update command from GAS for WMG without supplementary data array fields",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.newStatus": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[A-Z_]+:[A-Z_]+:[A-Z_]+$"
+              }
+            ]
+          },
+          "$.data.supplementaryData": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.update\\.status$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "CASE-REF-001",
+          "newStatus": "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+          "supplementaryData": {
+            "data": [
+              {
+                "agreementRef": "AGR-001",
+                "agreementStatus": "OFFER",
+                "createdAt": "2023-10-01T12:00:00Z",
+                "updatedAt": "2023-10-01T12:00:00Z"
+              }
+            ],
+            "dataType": "ARRAY",
+            "phase": "PRE_AWARD",
+            "stage": "ASSESSMENT",
+            "targetNode": "agreements"
+          },
+          "workflowCode": "frps-private-beta"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789002",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.update.status"
+      },
+      "description": "a case status update command from GAS",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.newStatus": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[A-Z_]+:[A-Z_]+:[A-Z_]+$"
+              }
+            ]
+          },
+          "$.data.supplementaryData": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.update\\.status$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "CASE-REF-002",
+          "newStatus": "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+          "supplementaryData": {
+            "phase": "PRE_AWARD",
+            "stage": "ASSESSMENT"
+          },
+          "workflowCode": "frps-private-beta"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789004",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.update.status"
+      },
+      "description": "a case status update command from GAS without supplementary data array fields",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.newStatus": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[A-Z_]+:[A-Z_]+:[A-Z_]+$"
+              }
+            ]
+          },
+          "$.data.supplementaryData": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.update\\.status$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "PMF-REF-001",
+          "payload": {
+            "answers": {
+              "berkshirePigsCount": 3,
+              "britishLandracePigsCount": 2,
+              "isPigFarmer": true,
+              "otherPigsCount": 3,
+              "totalPigs": 10,
+              "whitePigsCount": 2
+            },
+            "createdAt": "2025-02-09T11:00:00.000Z",
+            "identifiers": {
+              "crn": "CUST0001",
+              "defraId": "DEFRA0001",
+              "frn": "FIRM0001",
+              "sbi": "SBI001"
+            },
+            "metadata": {},
+            "submittedAt": "2025-02-09T12:00:00.000Z"
+          },
+          "workflowCode": "pigs-might-fly"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789005",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.create"
+      },
+      "description": "a create new case command from GAS for pigs-might-fly workflow",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.answers": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.createdAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.crn": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.defraId": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.frn": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.identifiers.sbi": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.metadata": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.payload.submittedAt": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.create$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "CASE-REF-001",
+          "newStatus": "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+          "supplementaryData": {
+            "data": [
+              {
+                "agreementRef": "AGR-001",
+                "agreementStatus": "OFFER",
+                "createdAt": "2023-10-01T12:00:00Z",
+                "updatedAt": "2023-10-01T12:00:00Z"
+              }
+            ],
+            "dataType": "ARRAY",
+            "phase": "PRE_AWARD",
+            "stage": "ASSESSMENT",
+            "targetNode": "agreements"
+          },
+          "workflowCode": "frps-private-beta"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789002",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.update.status"
+      },
+      "description": "a case status update command from GAS",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.newStatus": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[A-Z_]+:[A-Z_]+:[A-Z_]+$"
+              }
+            ]
+          },
+          "$.data.supplementaryData": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.update\\.status$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    },
+    {
+      "contents": {
+        "data": {
+          "caseRef": "CASE-REF-002",
+          "newStatus": "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+          "supplementaryData": {
+            "phase": "PRE_AWARD",
+            "stage": "ASSESSMENT"
+          },
+          "workflowCode": "frps-private-beta"
+        },
+        "datacontenttype": "application/json",
+        "id": "12345678-1234-1234-1234-123456789004",
+        "source": "fg-gas-backend",
+        "specVersion": "1.0",
+        "time": "2025-02-09T12:00:00.000Z",
+        "traceparent": "00-trace-id",
+        "type": "cloud.defra.test.fg-gas-backend.case.update.status"
+      },
+      "description": "a case status update command from GAS without supplementary data array fields",
+      "matchingRules": {
+        "body": {
+          "$.data.caseRef": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.newStatus": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[A-Z_]+:[A-Z_]+:[A-Z_]+$"
+              }
+            ]
+          },
+          "$.data.supplementaryData": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.data.workflowCode": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.id": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "$.time": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^\\d{4}-[01]\\d-[0-3]\\dT[0-2]\\d:[0-5]\\d:[0-5]\\d\\.\\d+([+-][0-2]\\d(:?[0-5]\\d)?|Z)$"
+              }
+            ]
+          },
+          "$.traceparent": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          },
+          "$.type": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "regex",
+                "regex": "^cloud\\.defra\\.(test|local|prod)\\.fg-gas-backend\\.case\\.update\\.status$"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "contentType": "application/json"
+      }
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "16.1.0"
+    },
+    "pactRust": {
+      "ffi": "0.4.28",
+      "models": "1.3.5"
+    },
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  },
+  "provider": {
+    "name": "fg-gas-backend"
+  }
+}
