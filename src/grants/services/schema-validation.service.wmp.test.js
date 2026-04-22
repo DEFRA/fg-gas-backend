@@ -181,17 +181,29 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     });
   });
 
-  describe("hectares* exclusiveMinimum: 0", () => {
-    it("rejects zero hectaresTenOrOverYearsOld", () => {
-      expect(() =>
+  describe("hectares* minimum: 0", () => {
+    it("accepts zero hectaresTenOrOverYearsOld", () => {
+      expect(
         validate(withAnswers({ hectaresTenOrOverYearsOld: 0 })),
-      ).toThrow("hectaresTenOrOverYearsOld must be > 0");
+      ).toMatchObject({ hectaresTenOrOverYearsOld: 0 });
+    });
+
+    it("accepts zero hectaresUnderTenYearsOld", () => {
+      expect(
+        validate(withAnswers({ hectaresUnderTenYearsOld: 0 })),
+      ).toMatchObject({ hectaresUnderTenYearsOld: 0 });
+    });
+
+    it("rejects negative hectaresTenOrOverYearsOld", () => {
+      expect(() =>
+        validate(withAnswers({ hectaresTenOrOverYearsOld: -1 })),
+      ).toThrow("hectaresTenOrOverYearsOld must be >= 0");
     });
 
     it("rejects negative hectaresUnderTenYearsOld", () => {
       expect(() =>
         validate(withAnswers({ hectaresUnderTenYearsOld: -1 })),
-      ).toThrow("hectaresUnderTenYearsOld must be > 0");
+      ).toThrow("hectaresUnderTenYearsOld must be >= 0");
     });
   });
 
