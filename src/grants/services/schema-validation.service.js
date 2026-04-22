@@ -2,29 +2,6 @@ import Boom from "@hapi/boom";
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 
-// Resolves a field reference against the data object.
-// Supports "plainField" (scalar) and "arrayField[].itemField" (sum across array of objects).
-const resolveFieldSum = (data, field) => {
-  const arraySep = field.indexOf("[].");
-  if (arraySep === -1) {
-    return Number(data[field]) || 0;
-  }
-  const arrayField = field.slice(0, arraySep);
-  const itemField = field.slice(arraySep + "[].".length);
-  const arr = data[arrayField];
-  if (!Array.isArray(arr)) return 0;
-  return arr.reduce((acc, item) => acc + (Number(item?.[itemField]) || 0), 0);
-};
-
-const sumFields = (data, fields) =>
-  fields.reduce((acc, field) => acc + resolveFieldSum(data, field), 0);
-
-// Scaled relative tolerance for comparing floating-point sums.
-// Number.EPSILON is the spacing around 1; at larger magnitudes we need to scale it,
-// otherwise e.g. 8.5 + 4.2 fails equality with 12.7 even though they're "the same".
-const floatTolerance = (...values) =>
-  Number.EPSILON * 16 * Math.max(1, ...values.map(Math.abs));
-
 export const validateAnswersAgainstSchema = (clientRef, schema, answers) => {
   const ajv = new Ajv2020({
     strict: true,
@@ -93,3 +70,26 @@ export const validateAnswersAgainstSchema = (clientRef, schema, answers) => {
 
   return clonedAnswers;
 };
+
+const resolveFieldSum = (data, field) => {
+  const arraySep = field.indexOf("[].");
+  if (arraySep === -1) {
+    return Number(data[field]) || 0;
+  }
+  const arrayField = field.slice(0, arraySep);
+  const itemField = field.slice(arraySep + "[].".length);
+  const arr = data[arrayField];
+  if (!Array.isArray(arr)) {
+    return 0;
+  }
+  return arr.reduce((acc, item) => acc + (Number(item?.[itemField]) || 0), 0);
+};
+
+const sumFields = (data, fields) =>
+  fields.reduce((acc, field) => acc + resolveFieldSum(data, field), 0);
+
+// Scaled relative tolerance for comparing floating-point sums.
+// Number.EPSILON is the spacing around 1; at larger magnitudes we need to scale it,
+// otherwise e.g. 8.5 + 4.2 fails equality with 12.7 even though they're "the same".
+const floatTolerance = (...values) =>
+  Number.EPSILON * 16 * Math.max(1, ...values.map(Math.abs));
