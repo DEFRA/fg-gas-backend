@@ -40,11 +40,11 @@
           },
           "hectaresTenOrOverYearsOld": {
             "type": "number",
-            "inclusiveMinimum": 0
+            "minimum": 0
           },
           "hectaresUnderTenYearsOld": {
             "type": "number",
-            "inclusiveMinimum": 0
+            "minimum": 0
           },
           "centreGridReference": {
             "type": "string"
