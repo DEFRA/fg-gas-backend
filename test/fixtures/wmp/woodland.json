@@ -132,7 +132,7 @@
                     },
                     "activeTierRatePence": {
                       "type": "number",
-                      "exclusiveMinimum": 0
+                      "minimum": 0
                     },
                     "activeTierFlatRatePence": {
                       "type": "number",

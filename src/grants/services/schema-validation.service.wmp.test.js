@@ -305,6 +305,31 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     });
   });
 
+  describe("payments.agreement[].activeTierRatePence minimum: 0", () => {
+    const withPaymentOverride = (override) =>
+      withAnswers({
+        payments: {
+          agreement: [{ ...sampleAnswers.payments.agreement[0], ...override }],
+        },
+      });
+
+    it("accepts zero", () => {
+      expect(
+        validate(withPaymentOverride({ activeTierRatePence: 0 })),
+      ).toMatchObject({
+        payments: {
+          agreement: [{ activeTierRatePence: 0 }],
+        },
+      });
+    });
+
+    it("rejects a negative value", () => {
+      expect(() =>
+        validate(withPaymentOverride({ activeTierRatePence: -1 })),
+      ).toThrow("activeTierRatePence must be >= 0");
+    });
+  });
+
   describe("if/then/else on appLandHasExistingWmp", () => {
     it("requires existingWmps (as string) when appLandHasExistingWmp is true", () => {
       expect(() => validate(omitField("existingWmps"))).toThrow(
