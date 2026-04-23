@@ -1,5 +1,5 @@
 export const up = async (db) => {
-  // await db.collection("grants").deleteOne({ code: "woodland" });
+  await db.collection("grants").deleteOne({ code: "woodland" });
 
   await db.collection("grants").insertOne({
     code: "woodland",
