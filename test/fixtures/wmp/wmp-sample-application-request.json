@@ -1,0 +1,82 @@
+{
+  "metadata": {
+    "clientRef": "wmp-example-001",
+    "sbi": "900000010",
+    "crn": "9000000010",
+    "frn": "9100000004",
+    "submittedAt": "2026-04-16T10:08:40.969Z"
+  },
+  "answers": {
+    "businessDetailsUpToDate": true,
+    "landRegisteredWithRpa": true,
+    "landManagementControl": true,
+    "publicBodyTenant": false,
+    "landHasGrazingRights": false,
+    "appLandHasExistingWmp": true,
+    "existingWmps": "www",
+    "intendToApplyHigherTier": true,
+    "hectaresTenOrOverYearsOld": 42,
+    "hectaresUnderTenYearsOld": 25,
+    "centreGridReference": "AA00000000",
+    "fcTeamCode": "SOUTH_WEST",
+    "applicant": {
+      "business": {
+        "name": "Example Hill Farm",
+        "reference": "9100000004",
+        "email": { "address": "contact+900000401@example.test" },
+        "phone": { "landline": "02079460902" },
+        "address": {
+          "line1": "4 Example Lane",
+          "line2": "Example Village",
+          "line3": "Example District",
+          "line4": "Example County",
+          "line5": "",
+          "street": "4 Example Lane",
+          "city": "Exampleton",
+          "postalCode": "ZZ99 4ZZ",
+          "uprn": "990000000001",
+          "buildingName": "Holloway",
+          "buildingNumberRange": null,
+          "county": null,
+          "dependentLocality": null,
+          "doubleDependentLocality": null,
+          "flatName": "04",
+          "pafOrganisationName": null
+        }
+      },
+      "customer": {
+        "name": {
+          "title": "Mr",
+          "first": "Casey",
+          "middle": null,
+          "last": "Example"
+        }
+      }
+    },
+    "detailsConfirmedAt": "2026-04-16T10:08:04.579Z",
+    "totalHectaresAppliedFor": 195.246,
+    "guidanceRead": true,
+    "includedAllEligibleWoodland": true,
+    "applicationConfirmation": true,
+    "landParcels": [
+      { "parcelId": "AA0008-0008", "areaHa": 25.3874 },
+      { "parcelId": "AA0002-0009", "areaHa": 169.8586 }
+    ],
+    "totalAgreementPaymentPence": 166200,
+    "payments": {
+      "agreement": [
+        {
+          "code": "PA3",
+          "description": "Woodland management plan",
+          "activePaymentTier": 2,
+          "quantityInActiveTier": 5.4,
+          "activeTierRatePence": 3000,
+          "activeTierFlatRatePence": 150000,
+          "quantity": 55.4,
+          "agreementTotalPence": 166200,
+          "unit": "ha"
+        }
+      ]
+    }
+  }
+}
