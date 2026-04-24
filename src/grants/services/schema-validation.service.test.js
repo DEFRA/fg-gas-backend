@@ -107,6 +107,45 @@ describe("validateAnswersAgainstSchema", () => {
     });
   });
 
+  describe("fgSumMin", () => {
+    const schema = {
+      ...baseSchema,
+      fgSumMin: {
+        fields: ["field1", "field2"],
+        minimum: 0.5,
+      },
+    };
+
+    it("passes when sum of fields equals the minimum", () => {
+      const result = validateAnswersAgainstSchema("ref-1", schema, {
+        field1: 0.3,
+        field2: 0.2,
+      });
+
+      expect(result).toMatchObject({ field1: 0.3, field2: 0.2 });
+    });
+
+    it("passes when sum of fields exceeds the minimum", () => {
+      const result = validateAnswersAgainstSchema("ref-1", schema, {
+        field1: 1,
+        field2: 2,
+      });
+
+      expect(result).toMatchObject({ field1: 1, field2: 2 });
+    });
+
+    it("throws when sum of fields is below the minimum", () => {
+      expect(() =>
+        validateAnswersAgainstSchema("ref-1", schema, {
+          field1: 0.1,
+          field2: 0.1,
+        }),
+      ).toThrow(
+        'Application with clientRef "ref-1" has invalid answers: data fgSumMin validation failed: sum of fields field1, field2 must be greater than or equal to 0.5',
+      );
+    });
+  });
+
   describe("fgSumMax", () => {
     const schema = {
       ...baseSchema,

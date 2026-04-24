@@ -25,6 +25,7 @@ const sampleAnswers = {
   appLandHasExistingWmp: true,
   existingWmps: "www",
   intendToApplyHigherTier: true,
+  woodlandName: "High Fell Wood",
   hectaresTenOrOverYearsOld: 42,
   hectaresUnderTenYearsOld: 25,
   centreGridReference: "scheSP 4178 2432",
@@ -167,8 +168,8 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     it("accepts at the minimum", () => {
       const answers = withAnswers({
         totalHectaresAppliedFor: 0.5,
-        hectaresTenOrOverYearsOld: 0.3,
-        hectaresUnderTenYearsOld: 0.2,
+        hectaresTenOrOverYearsOld: 0.4,
+        hectaresUnderTenYearsOld: 0.1,
         landParcels: [{ parcelId: "P1", areaHa: 0.5 }],
       });
       expect(validate(answers)).toMatchObject({ totalHectaresAppliedFor: 0.5 });
@@ -181,26 +182,28 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     });
   });
 
-  describe("hectares* minimum: 0", () => {
-    it("accepts zero hectaresTenOrOverYearsOld", () => {
+  describe("hectaresTenOrOverYearsOld minimum: 0.4", () => {
+    it("accepts at the minimum", () => {
       expect(
-        validate(withAnswers({ hectaresTenOrOverYearsOld: 0 })),
-      ).toMatchObject({ hectaresTenOrOverYearsOld: 0 });
+        validate(withAnswers({ hectaresTenOrOverYearsOld: 0.4 })),
+      ).toMatchObject({ hectaresTenOrOverYearsOld: 0.4 });
     });
 
-    it("accepts zero hectaresUnderTenYearsOld", () => {
+    it("rejects below the minimum", () => {
+      expect(() =>
+        validate(withAnswers({ hectaresTenOrOverYearsOld: 0.3 })),
+      ).toThrow("hectaresTenOrOverYearsOld must be >= 0.4");
+    });
+  });
+
+  describe("hectaresUnderTenYearsOld minimum: 0", () => {
+    it("accepts zero", () => {
       expect(
         validate(withAnswers({ hectaresUnderTenYearsOld: 0 })),
       ).toMatchObject({ hectaresUnderTenYearsOld: 0 });
     });
 
-    it("rejects negative hectaresTenOrOverYearsOld", () => {
-      expect(() =>
-        validate(withAnswers({ hectaresTenOrOverYearsOld: -1 })),
-      ).toThrow("hectaresTenOrOverYearsOld must be >= 0");
-    });
-
-    it("rejects negative hectaresUnderTenYearsOld", () => {
+    it("rejects a negative value", () => {
       expect(() =>
         validate(withAnswers({ hectaresUnderTenYearsOld: -1 })),
       ).toThrow("hectaresUnderTenYearsOld must be >= 0");
@@ -285,6 +288,33 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     });
   });
 
+  describe("fgSumMin (hectaresTenOrOverYearsOld + hectaresUnderTenYearsOld >= 0.5)", () => {
+    it("accepts when the sum is exactly 0.5 (boundary)", () => {
+      const answers = withAnswers({
+        totalHectaresAppliedFor: 0.5,
+        hectaresTenOrOverYearsOld: 0.4,
+        hectaresUnderTenYearsOld: 0.1,
+        landParcels: [{ parcelId: "P1", areaHa: 0.5 }],
+      });
+      expect(validate(answers)).toMatchObject({
+        hectaresTenOrOverYearsOld: 0.4,
+        hectaresUnderTenYearsOld: 0.1,
+      });
+    });
+
+    it("rejects when the sum is below 0.5", () => {
+      const answers = withAnswers({
+        totalHectaresAppliedFor: 0.5,
+        hectaresTenOrOverYearsOld: 0.4,
+        hectaresUnderTenYearsOld: 0, // sum 0.4 < 0.5
+        landParcels: [{ parcelId: "P1", areaHa: 0.5 }],
+      });
+      expect(() => validate(answers)).toThrow(
+        "fgSumMin validation failed: sum of fields hectaresTenOrOverYearsOld, hectaresUnderTenYearsOld must be greater than or equal to 0.5",
+      );
+    });
+  });
+
   describe("fgSumEquals (sum of landParcels[].areaHa === totalHectaresAppliedFor)", () => {
     it("accepts the sample's parcel areas (25.3874 + 169.8586 ≈ 195.246, FP-tolerant)", () => {
       expect(validate(sampleAnswers)).toMatchObject({
@@ -302,6 +332,31 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
       expect(() => validate(answers)).toThrow(
         "fgSumEquals validation failed: sum of fields landParcels[].areaHa must equal totalHectaresAppliedFor",
       );
+    });
+  });
+
+  describe("payments.agreement[].activeTierRatePence minimum: 0", () => {
+    const withPaymentOverride = (override) =>
+      withAnswers({
+        payments: {
+          agreement: [{ ...sampleAnswers.payments.agreement[0], ...override }],
+        },
+      });
+
+    it("accepts zero", () => {
+      expect(
+        validate(withPaymentOverride({ activeTierRatePence: 0 })),
+      ).toMatchObject({
+        payments: {
+          agreement: [{ activeTierRatePence: 0 }],
+        },
+      });
+    });
+
+    it("rejects a negative value", () => {
+      expect(() =>
+        validate(withPaymentOverride({ activeTierRatePence: -1 })),
+      ).toThrow("activeTierRatePence must be >= 0");
     });
   });
 
