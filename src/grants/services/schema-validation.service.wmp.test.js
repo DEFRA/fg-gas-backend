@@ -167,8 +167,8 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     it("accepts at the minimum", () => {
       const answers = withAnswers({
         totalHectaresAppliedFor: 0.5,
-        hectaresTenOrOverYearsOld: 0.3,
-        hectaresUnderTenYearsOld: 0.2,
+        hectaresTenOrOverYearsOld: 0.4,
+        hectaresUnderTenYearsOld: 0.1,
         landParcels: [{ parcelId: "P1", areaHa: 0.5 }],
       });
       expect(validate(answers)).toMatchObject({ totalHectaresAppliedFor: 0.5 });
@@ -181,26 +181,28 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     });
   });
 
-  describe("hectares* minimum: 0", () => {
-    it("accepts zero hectaresTenOrOverYearsOld", () => {
+  describe("hectaresTenOrOverYearsOld minimum: 0.4", () => {
+    it("accepts at the minimum", () => {
       expect(
-        validate(withAnswers({ hectaresTenOrOverYearsOld: 0 })),
-      ).toMatchObject({ hectaresTenOrOverYearsOld: 0 });
+        validate(withAnswers({ hectaresTenOrOverYearsOld: 0.4 })),
+      ).toMatchObject({ hectaresTenOrOverYearsOld: 0.4 });
     });
 
-    it("accepts zero hectaresUnderTenYearsOld", () => {
+    it("rejects below the minimum", () => {
+      expect(() =>
+        validate(withAnswers({ hectaresTenOrOverYearsOld: 0.3 })),
+      ).toThrow("hectaresTenOrOverYearsOld must be >= 0.4");
+    });
+  });
+
+  describe("hectaresUnderTenYearsOld minimum: 0", () => {
+    it("accepts zero", () => {
       expect(
         validate(withAnswers({ hectaresUnderTenYearsOld: 0 })),
       ).toMatchObject({ hectaresUnderTenYearsOld: 0 });
     });
 
-    it("rejects negative hectaresTenOrOverYearsOld", () => {
-      expect(() =>
-        validate(withAnswers({ hectaresTenOrOverYearsOld: -1 })),
-      ).toThrow("hectaresTenOrOverYearsOld must be >= 0");
-    });
-
-    it("rejects negative hectaresUnderTenYearsOld", () => {
+    it("rejects a negative value", () => {
       expect(() =>
         validate(withAnswers({ hectaresUnderTenYearsOld: -1 })),
       ).toThrow("hectaresUnderTenYearsOld must be >= 0");

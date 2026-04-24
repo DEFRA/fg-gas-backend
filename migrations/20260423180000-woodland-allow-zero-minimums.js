@@ -1,9 +1,9 @@
 /**
- * Relax minimums on the woodland grant to allow 0.
+ * Relax minimums on the woodland grant.
  *
  * Changes:
- * - hectaresTenOrOverYearsOld:            exclusiveMinimum: 0 -> minimum: 0
- * - hectaresUnderTenYearsOld:             exclusiveMinimum: 0 -> minimum: 0
+ * - hectaresTenOrOverYearsOld:                exclusiveMinimum: 0 -> minimum: 0.4
+ * - hectaresUnderTenYearsOld:                 exclusiveMinimum: 0 -> minimum: 0
  * - payments.agreement[].activeTierRatePence: exclusiveMinimum: 0 -> minimum: 0
  */
 
@@ -17,7 +17,7 @@ export const up = async (db) => {
       $set: {
         [`${base}.hectaresTenOrOverYearsOld`]: {
           type: "number",
-          minimum: 0,
+          minimum: 0.4,
         },
         [`${base}.hectaresUnderTenYearsOld`]: {
           type: "number",
