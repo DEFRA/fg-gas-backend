@@ -38,9 +38,12 @@
           "intendToApplyHigherTier": {
             "type": "boolean"
           },
+          "woodlandName": {
+            "type": "string"
+          },
           "hectaresTenOrOverYearsOld": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0.4
           },
           "hectaresUnderTenYearsOld": {
             "type": "number",
@@ -132,7 +135,7 @@
                     },
                     "activeTierRatePence": {
                       "type": "number",
-                      "exclusiveMinimum": 0
+                      "minimum": 0
                     },
                     "activeTierFlatRatePence": {
                       "type": "number",
@@ -174,6 +177,7 @@
           "appLandHasExistingWmp",
           "intendToApplyHigherTier",
           "includedAllEligibleWoodland",
+          "woodlandName",
           "totalHectaresAppliedFor",
           "hectaresTenOrOverYearsOld",
           "hectaresUnderTenYearsOld",
@@ -205,6 +209,10 @@
         "fgSumMax": {
           "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
           "targetField": "totalHectaresAppliedFor"
+        },
+        "fgSumMin": {
+          "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
+          "minimum": 0.5
         },
         "fgSumEquals": {
           "fields": ["landParcels[].areaHa"],
