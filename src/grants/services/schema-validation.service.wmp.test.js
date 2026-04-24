@@ -25,6 +25,7 @@ const sampleAnswers = {
   appLandHasExistingWmp: true,
   existingWmps: "www",
   intendToApplyHigherTier: true,
+  woodlandName: "High Fell Wood",
   hectaresTenOrOverYearsOld: 42,
   hectaresUnderTenYearsOld: 25,
   centreGridReference: "scheSP 4178 2432",
@@ -283,6 +284,33 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
       });
       expect(() => validate(answers)).toThrow(
         "fgSumMax validation failed: sum of fields hectaresTenOrOverYearsOld, hectaresUnderTenYearsOld must be less than or equal to totalHectaresAppliedFor",
+      );
+    });
+  });
+
+  describe("fgSumMin (hectaresTenOrOverYearsOld + hectaresUnderTenYearsOld >= 0.5)", () => {
+    it("accepts when the sum is exactly 0.5 (boundary)", () => {
+      const answers = withAnswers({
+        totalHectaresAppliedFor: 0.5,
+        hectaresTenOrOverYearsOld: 0.4,
+        hectaresUnderTenYearsOld: 0.1,
+        landParcels: [{ parcelId: "P1", areaHa: 0.5 }],
+      });
+      expect(validate(answers)).toMatchObject({
+        hectaresTenOrOverYearsOld: 0.4,
+        hectaresUnderTenYearsOld: 0.1,
+      });
+    });
+
+    it("rejects when the sum is below 0.5", () => {
+      const answers = withAnswers({
+        totalHectaresAppliedFor: 0.5,
+        hectaresTenOrOverYearsOld: 0.4,
+        hectaresUnderTenYearsOld: 0, // sum 0.4 < 0.5
+        landParcels: [{ parcelId: "P1", areaHa: 0.5 }],
+      });
+      expect(() => validate(answers)).toThrow(
+        "fgSumMin validation failed: sum of fields hectaresTenOrOverYearsOld, hectaresUnderTenYearsOld must be greater than or equal to 0.5",
       );
     });
   });

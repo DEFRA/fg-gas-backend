@@ -29,6 +29,24 @@ export const validateAnswersAgainstSchema = (clientRef, schema, answers) => {
     },
   });
 
+  // Custom keyword to check sum of fields is greater than or equal to a literal minimum
+  ajv.addKeyword({
+    keyword: "fgSumMin",
+    type: "object",
+    schemaType: "object",
+    validate: (keywordSchema, data) => {
+      const sum = sumFields(data, keywordSchema.fields);
+      const { minimum } = keywordSchema;
+      return sum + floatTolerance(sum, minimum) >= minimum;
+    },
+    error: {
+      message: (cxt) => {
+        const { schema: keywordSchema } = cxt;
+        return `fgSumMin validation failed: sum of fields ${keywordSchema.fields.join(", ")} must be greater than or equal to ${keywordSchema.minimum}`;
+      },
+    },
+  });
+
   // Custom keyword to check sum of fields is less than or equal to a target field
   ajv.addKeyword({
     keyword: "fgSumMax",
