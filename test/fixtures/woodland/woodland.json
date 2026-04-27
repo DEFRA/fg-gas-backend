@@ -38,16 +38,13 @@
           "intendToApplyHigherTier": {
             "type": "boolean"
           },
-          "woodlandName": {
-            "type": "string"
-          },
           "hectaresTenOrOverYearsOld": {
             "type": "number",
-            "minimum": 0.4
+            "exclusiveMinimum": 0
           },
           "hectaresUnderTenYearsOld": {
             "type": "number",
-            "minimum": 0
+            "exclusiveMinimum": 0
           },
           "centreGridReference": {
             "type": "string"
@@ -78,7 +75,7 @@
             "type": "string",
             "format": "date-time"
           },
-          "totalHectaresForSelectedParcels": {
+          "totalHectaresAppliedFor": {
             "type": "number",
             "minimum": 0.5
           },
@@ -135,7 +132,7 @@
                     },
                     "activeTierRatePence": {
                       "type": "number",
-                      "minimum": 0
+                      "exclusiveMinimum": 0
                     },
                     "activeTierFlatRatePence": {
                       "type": "number",
@@ -177,8 +174,7 @@
           "appLandHasExistingWmp",
           "intendToApplyHigherTier",
           "includedAllEligibleWoodland",
-          "woodlandName",
-          "totalHectaresForSelectedParcels",
+          "totalHectaresAppliedFor",
           "hectaresTenOrOverYearsOld",
           "hectaresUnderTenYearsOld",
           "centreGridReference",
@@ -208,19 +204,11 @@
         },
         "fgSumMax": {
           "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
-          "targetField": "totalHectaresForSelectedParcels"
-        },
-        "fgSumMin": {
-          "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
-          "minimum": 0.5
-        },
-        "fgSumMin": {
-          "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
-          "minimum": 0.5
+          "targetField": "totalHectaresAppliedFor"
         },
         "fgSumEquals": {
           "fields": ["landParcels[].areaHa"],
-          "targetField": "totalHectaresForSelectedParcels"
+          "targetField": "totalHectaresAppliedFor"
         }
       },
       "stages": [
