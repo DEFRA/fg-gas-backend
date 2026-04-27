@@ -1,0 +1,11 @@
+include:
+  - path: ../fg-gas-backend/compose/compose.gas.yml
+
+services:
+  grants-ui:
+    environment:
+      GAS_API_URL: "http://gas:3000"
+
+  localstack:
+    volumes:
+      - ../fg-gas-backend/compose/start-localstack.sh:/etc/localstack/init/ready.d/start-gas-localstack.sh
