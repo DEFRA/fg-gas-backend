@@ -337,7 +337,7 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     });
   });
 
-  describe("payments.agreement[].activeTierRatePence minimum: 0", () => {
+  describe("payments.agreement[] numeric fields minimum: 0", () => {
     const withPaymentOverride = (override) =>
       withAnswers({
         payments: {
@@ -345,20 +345,27 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
         },
       });
 
-    it("accepts zero", () => {
-      expect(
-        validate(withPaymentOverride({ activeTierRatePence: 0 })),
-      ).toMatchObject({
+    const minimumZeroFields = [
+      "activePaymentTier",
+      "quantityInActiveTier",
+      "activeTierRatePence",
+      "activeTierFlatRatePence",
+      "quantity",
+      "agreementTotalPence",
+    ];
+
+    it.each(minimumZeroFields)("accepts zero %s", (field) => {
+      expect(validate(withPaymentOverride({ [field]: 0 }))).toMatchObject({
         payments: {
-          agreement: [{ activeTierRatePence: 0 }],
+          agreement: [{ [field]: 0 }],
         },
       });
     });
 
-    it("rejects a negative value", () => {
-      expect(() =>
-        validate(withPaymentOverride({ activeTierRatePence: -1 })),
-      ).toThrow("activeTierRatePence must be >= 0");
+    it.each(minimumZeroFields)("rejects negative %s", (field) => {
+      expect(() => validate(withPaymentOverride({ [field]: -1 }))).toThrow(
+        `${field} must be >= 0`,
+      );
     });
   });
 

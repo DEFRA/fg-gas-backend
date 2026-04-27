@@ -127,11 +127,11 @@
                     "description": { "type": "string" },
                     "activePaymentTier": {
                       "type": "number",
-                      "exclusiveMinimum": 0
+                      "minimum": 0
                     },
                     "quantityInActiveTier": {
                       "type": "number",
-                      "exclusiveMinimum": 0
+                      "minimum": 0
                     },
                     "activeTierRatePence": {
                       "type": "number",
@@ -139,12 +139,15 @@
                     },
                     "activeTierFlatRatePence": {
                       "type": "number",
-                      "exclusiveMinimum": 0
+                      "minimum": 0
                     },
-                    "quantity": { "type": "number", "exclusiveMinimum": 0 },
+                    "quantity": {
+                      "type": "number",
+                      "minimum": 0
+                    },
                     "agreementTotalPence": {
                       "type": "number",
-                      "exclusiveMinimum": 0
+                      "minimum": 0
                     },
                     "unit": {
                       "type": "string",
@@ -209,10 +212,6 @@
         "fgSumMax": {
           "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
           "targetField": "totalHectaresForSelectedParcels"
-        },
-        "fgSumMin": {
-          "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
-          "minimum": 0.5
         },
         "fgSumMin": {
           "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
