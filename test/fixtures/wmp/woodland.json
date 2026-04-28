@@ -78,7 +78,7 @@
             "type": "string",
             "format": "date-time"
           },
-          "totalHectaresAppliedFor": {
+          "totalHectaresForSelectedParcels": {
             "type": "number",
             "minimum": 0.5
           },
@@ -127,11 +127,11 @@
                     "description": { "type": "string" },
                     "activePaymentTier": {
                       "type": "number",
-                      "exclusiveMinimum": 0
+                      "minimum": 0
                     },
                     "quantityInActiveTier": {
                       "type": "number",
-                      "exclusiveMinimum": 0
+                      "minimum": 0
                     },
                     "activeTierRatePence": {
                       "type": "number",
@@ -139,12 +139,15 @@
                     },
                     "activeTierFlatRatePence": {
                       "type": "number",
-                      "exclusiveMinimum": 0
+                      "minimum": 0
                     },
-                    "quantity": { "type": "number", "exclusiveMinimum": 0 },
+                    "quantity": {
+                      "type": "number",
+                      "minimum": 0
+                    },
                     "agreementTotalPence": {
                       "type": "number",
-                      "exclusiveMinimum": 0
+                      "minimum": 0
                     },
                     "unit": {
                       "type": "string",
@@ -178,7 +181,7 @@
           "intendToApplyHigherTier",
           "includedAllEligibleWoodland",
           "woodlandName",
-          "totalHectaresAppliedFor",
+          "totalHectaresForSelectedParcels",
           "hectaresTenOrOverYearsOld",
           "hectaresUnderTenYearsOld",
           "centreGridReference",
@@ -208,7 +211,7 @@
         },
         "fgSumMax": {
           "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
-          "targetField": "totalHectaresAppliedFor"
+          "targetField": "totalHectaresForSelectedParcels"
         },
         "fgSumMin": {
           "fields": ["hectaresTenOrOverYearsOld", "hectaresUnderTenYearsOld"],
@@ -216,7 +219,7 @@
         },
         "fgSumEquals": {
           "fields": ["landParcels[].areaHa"],
-          "targetField": "totalHectaresAppliedFor"
+          "targetField": "totalHectaresForSelectedParcels"
         }
       },
       "stages": [

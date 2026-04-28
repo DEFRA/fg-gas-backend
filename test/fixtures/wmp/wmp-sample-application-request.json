@@ -54,7 +54,7 @@
       }
     },
     "detailsConfirmedAt": "2026-04-16T10:08:04.579Z",
-    "totalHectaresAppliedFor": 195.246,
+    "totalHectaresForSelectedParcels": 195.246,
     "guidanceRead": true,
     "includedAllEligibleWoodland": true,
     "applicationConfirmation": true,
