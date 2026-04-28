@@ -272,7 +272,7 @@ WMG answers are **flat form fields** (no scheme/applicant/application/payments w
   "existingWmps": ["WMP-2024-001"],
   "intendToApplyHigherTier": false,
   "includedAllEligibleWoodland": true,
-  "totalHectaresAppliedFor": 15.0,
+  "totalHectaresForSelectedParcels": 15.0,
   "hectaresTenOrOverYearsOld": 8.5,
   "hectaresUnderTenYearsOld": 4.2,
   "centreGridReference": "SK512347",

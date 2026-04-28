@@ -60,7 +60,7 @@ const sampleAnswers = {
     },
   },
   detailsConfirmedAt: "2026-04-16T10:08:04.579Z",
-  totalHectaresAppliedFor: 195.246,
+  totalHectaresForSelectedParcels: 195.246,
   guidanceRead: true,
   includedAllEligibleWoodland: true,
   applicationConfirmation: true,
@@ -100,7 +100,7 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
   describe("happy path", () => {
     it("validates the inlined sample application request", () => {
       expect(validate(sampleAnswers)).toMatchObject({
-        totalHectaresAppliedFor: 195.246,
+        totalHectaresForSelectedParcels: 195.246,
         existingWmps: "www",
         fcTeamCode: "SOUTH_WEST",
         landParcels: [
@@ -138,7 +138,7 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
   describe("required fields", () => {
     it.each([
       "businessDetailsUpToDate",
-      "totalHectaresAppliedFor",
+      "totalHectaresForSelectedParcels",
       "hectaresTenOrOverYearsOld",
       "hectaresUnderTenYearsOld",
       "centreGridReference",
@@ -164,21 +164,23 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     });
   });
 
-  describe("totalHectaresAppliedFor minimum: 0.5", () => {
+  describe("totalHectaresForSelectedParcels minimum: 0.5", () => {
     it("accepts at the minimum", () => {
       const answers = withAnswers({
-        totalHectaresAppliedFor: 0.5,
+        totalHectaresForSelectedParcels: 0.5,
         hectaresTenOrOverYearsOld: 0.4,
         hectaresUnderTenYearsOld: 0.1,
         landParcels: [{ parcelId: "P1", areaHa: 0.5 }],
       });
-      expect(validate(answers)).toMatchObject({ totalHectaresAppliedFor: 0.5 });
+      expect(validate(answers)).toMatchObject({
+        totalHectaresForSelectedParcels: 0.5,
+      });
     });
 
     it("rejects below the minimum", () => {
       expect(() =>
-        validate(withAnswers({ totalHectaresAppliedFor: 0.4 })),
-      ).toThrow("totalHectaresAppliedFor must be >= 0.5");
+        validate(withAnswers({ totalHectaresForSelectedParcels: 0.4 })),
+      ).toThrow("totalHectaresForSelectedParcels must be >= 0.5");
     });
   });
 
@@ -267,7 +269,7 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     });
   });
 
-  describe("fgSumMax (hectaresTenOrOverYearsOld + hectaresUnderTenYearsOld ≤ totalHectaresAppliedFor)", () => {
+  describe("fgSumMax (hectaresTenOrOverYearsOld + hectaresUnderTenYearsOld ≤ totalHectaresForSelectedParcels)", () => {
     it("accepts when the sum is within the target", () => {
       // sample has 42 + 25 = 67, target 195.246 — already within
       expect(validate(sampleAnswers)).toMatchObject({
@@ -283,7 +285,7 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
         // 250 > 195.246
       });
       expect(() => validate(answers)).toThrow(
-        "fgSumMax validation failed: sum of fields hectaresTenOrOverYearsOld, hectaresUnderTenYearsOld must be less than or equal to totalHectaresAppliedFor",
+        "fgSumMax validation failed: sum of fields hectaresTenOrOverYearsOld, hectaresUnderTenYearsOld must be less than or equal to totalHectaresForSelectedParcels",
       );
     });
   });
@@ -291,7 +293,7 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
   describe("fgSumMin (hectaresTenOrOverYearsOld + hectaresUnderTenYearsOld >= 0.5)", () => {
     it("accepts when the sum is exactly 0.5 (boundary)", () => {
       const answers = withAnswers({
-        totalHectaresAppliedFor: 0.5,
+        totalHectaresForSelectedParcels: 0.5,
         hectaresTenOrOverYearsOld: 0.4,
         hectaresUnderTenYearsOld: 0.1,
         landParcels: [{ parcelId: "P1", areaHa: 0.5 }],
@@ -304,7 +306,7 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
 
     it("rejects when the sum is below 0.5", () => {
       const answers = withAnswers({
-        totalHectaresAppliedFor: 0.5,
+        totalHectaresForSelectedParcels: 0.5,
         hectaresTenOrOverYearsOld: 0.4,
         hectaresUnderTenYearsOld: 0, // sum 0.4 < 0.5
         landParcels: [{ parcelId: "P1", areaHa: 0.5 }],
@@ -315,10 +317,10 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
     });
   });
 
-  describe("fgSumEquals (sum of landParcels[].areaHa === totalHectaresAppliedFor)", () => {
+  describe("fgSumEquals (sum of landParcels[].areaHa === totalHectaresForSelectedParcels)", () => {
     it("accepts the sample's parcel areas (25.3874 + 169.8586 ≈ 195.246, FP-tolerant)", () => {
       expect(validate(sampleAnswers)).toMatchObject({
-        totalHectaresAppliedFor: 195.246,
+        totalHectaresForSelectedParcels: 195.246,
       });
     });
 
@@ -330,12 +332,12 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
         ],
       });
       expect(() => validate(answers)).toThrow(
-        "fgSumEquals validation failed: sum of fields landParcels[].areaHa must equal totalHectaresAppliedFor",
+        "fgSumEquals validation failed: sum of fields landParcels[].areaHa must equal totalHectaresForSelectedParcels",
       );
     });
   });
 
-  describe("payments.agreement[].activeTierRatePence minimum: 0", () => {
+  describe("payments.agreement[] numeric fields minimum: 0", () => {
     const withPaymentOverride = (override) =>
       withAnswers({
         payments: {
@@ -343,20 +345,27 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
         },
       });
 
-    it("accepts zero", () => {
-      expect(
-        validate(withPaymentOverride({ activeTierRatePence: 0 })),
-      ).toMatchObject({
+    const minimumZeroFields = [
+      "activePaymentTier",
+      "quantityInActiveTier",
+      "activeTierRatePence",
+      "activeTierFlatRatePence",
+      "quantity",
+      "agreementTotalPence",
+    ];
+
+    it.each(minimumZeroFields)("accepts zero %s", (field) => {
+      expect(validate(withPaymentOverride({ [field]: 0 }))).toMatchObject({
         payments: {
-          agreement: [{ activeTierRatePence: 0 }],
+          agreement: [{ [field]: 0 }],
         },
       });
     });
 
-    it("rejects a negative value", () => {
-      expect(() =>
-        validate(withPaymentOverride({ activeTierRatePence: -1 })),
-      ).toThrow("activeTierRatePence must be >= 0");
+    it.each(minimumZeroFields)("rejects negative %s", (field) => {
+      expect(() => validate(withPaymentOverride({ [field]: -1 }))).toThrow(
+        `${field} must be >= 0`,
+      );
     });
   });
 
