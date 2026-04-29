@@ -235,11 +235,6 @@ Which uses `scripts/write-http-client-token.js` to mint a token, store in the lo
 ### Minting access tokens for fg-grants-core
 
 When using grants core with just the case working and gas dev mode the mongo db is available on localhost and does not use a direct connection.
-To omit the directConnection query string set the GRANTS_CORE env var to 1
-
-```bash
-GRANTS_CORE=1 node --env-file=.env scripts/mint-access-token.js
-```
 
 If you're using grants core with external apps (grants-ui for example) then the db connection is through the docker network and direct connection is
 required. The env-file option won't work here. You have to manually add MONGO_URI and MONGO_DATABASE to the command - see "run with manual vars"
