@@ -1,3 +1,7 @@
+include:
+  - path: ./compose/compose.gas.yml
+    project_directory: .
+
 services:
   localstack:
     image: localstack/localstack:4.3.0
@@ -56,41 +60,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 60
-
-  gas:
-    build: .
-    ports:
-      - "${GAS_PORT:-3000}:3000"
-    links:
-      - "localstack:localstack"
-      - "mongodb:mongodb"
-      - "mongo-ready:mongo-ready"
-    depends_on:
-      localstack:
-        condition: service_healthy
-      mongo-ready:
-        condition: service_healthy
-      mongodb:
-        condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
-      INBOX_POLL_MS: "${INBOX_POLL_MS}"
-      MONGO_URI: mongodb://mongodb:27017/?replicaSet=mongoRepl
-    networks:
-      - cdp-tenant
-    develop:
-      watch:
-        - path: ./src
-          target: /home/node/src
-          action: sync+restart
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - ./migrate-mongo-config.js:/home/node/migrate-mongo-config.js
-      - ./migrations:/home/node/migrations
-      - ./package.json:/home/node/package.json
 
 volumes:
   mongodb-data:
