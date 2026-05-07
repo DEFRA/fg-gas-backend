@@ -128,6 +128,9 @@ vi.mock("../../src/common/mongo-client.js", () => {
           }
           return grant;
         }
+        if (code === "woodland") {
+          return getGrant("woodland");
+        }
         return null;
       }),
       findOneAndUpdate: vi.fn().mockResolvedValue(null), // Return null for outbox/inbox polling
@@ -287,6 +290,14 @@ describe("fg-gas-backend Provider Verification", () => {
             );
             return Promise.resolve();
           },
+
+        "woodland is configured in fg-gas-backend": async () => {
+          console.log("State: woodland configured");
+        },
+
+        "woodland validation fails due to invalid hectares": async () => {
+          console.log("State: woodland invalid hectares");
+        },
       };
 
       const opts = buildVerifierOptions({
