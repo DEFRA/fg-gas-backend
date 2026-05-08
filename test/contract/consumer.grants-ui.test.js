@@ -11,6 +11,11 @@
 //
 // Authorization header: exact token sent in executeTest; regex matching is provider-side only
 //
+// IMPORTANT:
+// This file mirrors the grants-ui consumer Pact tests.
+// The grants-ui repository remains the source of truth.
+// Keep interactions in sync to avoid local/broker drift.
+
 import { PactV3, MatchersV3 } from "@pact-foundation/pact";
 import path from "path";
 import { describe, it } from "vitest";
