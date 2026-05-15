@@ -275,7 +275,7 @@ export const up = async (db) => {
                 validFrom: [
                   {
                     code: "PHASE_PRE_AWARD:STAGE_SEND_AGREEMENT_TO_APPLICANT:STATUS_AGREEMENT_READY_FOR_APPLICANT",
-                    processes: ["UPDATE_AGREEMENT_CASE"],
+                    processes: ["ACCEPT_AGREEMENT"],
                   },
                 ],
               },
