@@ -237,6 +237,76 @@
               "validFrom": [
                 { "code": "STATUS_APPLICATION_RECEIVED", "processes": [] }
               ]
+            },
+            {
+              "code": "STATUS_AGREEMENT_GENERATING",
+              "validFrom": [
+                { "code": "STATUS_IN_REVIEW", "processes": ["GENERATE_OFFER"] }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "STAGE_SEND_AGREEMENT_TO_APPLICANT",
+          "name": "Send Agreement to applicant",
+          "description": "Send the Agreement to applicant",
+          "statuses": [
+            {
+              "code": "STATUS_AGREEMENT_READY_FOR_APPLICANT",
+              "validFrom": [
+                {
+                  "code": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_AGREEMENT_GENERATING",
+                  "processes": ["STORE_AGREEMENT_CASE"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "STAGE_FORWARD_TO_FC",
+          "name": "Forward to Forestry Commission",
+          "description": "Forward to Forestry Commission",
+          "statuses": [
+            {
+              "code": "STATUS_READY_TO_FORWARD",
+              "validFrom": [
+                {
+                  "code": "PHASE_PRE_AWARD:STAGE_SEND_AGREEMENT_TO_APPLICANT:STATUS_AGREEMENT_READY_FOR_APPLICANT",
+                  "processes": ["UPDATE_AGREEMENT_CASE"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "STAGE_FC_REVIEW",
+          "name": "Forestry Commission Review",
+          "description": "Forestry Commission review of the application",
+          "statuses": [
+            {
+              "code": "STATUS_AWAITING_FC",
+              "validFrom": [
+                {
+                  "code": "PHASE_PRE_AWARD:STAGE_FORWARD_TO_FC:STATUS_READY_TO_FORWARD",
+                  "processes": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "STAGE_APPLICATION_COMPLETE",
+          "name": "Application complete",
+          "description": "The application is complete",
+          "statuses": [
+            {
+              "code": "STATUS_COMPLETED",
+              "validFrom": [
+                {
+                  "code": "PHASE_PRE_AWARD:STAGE_FC_REVIEW:STATUS_AWAITING_FC",
+                  "processes": []
+                }
+              ]
             }
           ]
         }
@@ -255,6 +325,51 @@
                 "code": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_IN_REVIEW",
                 "source": "CW",
                 "mappedTo": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_IN_REVIEW"
+              },
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_AGREEMENT_GENERATING",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_AGREEMENT_GENERATING"
+              },
+              {
+                "code": "offered",
+                "source": "AS",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_SEND_AGREEMENT_TO_APPLICANT:STATUS_AGREEMENT_READY_FOR_APPLICANT"
+              }
+            ]
+          },
+          {
+            "code": "STAGE_SEND_AGREEMENT_TO_APPLICANT",
+            "statuses": [
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_FORWARD_TO_FC:STATUS_READY_TO_FORWARD",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_FORWARD_TO_FC:STATUS_READY_TO_FORWARD"
+              },
+              {
+                "code": "accepted",
+                "source": "AS",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_FORWARD_TO_FC:STATUS_READY_TO_FORWARD"
+              }
+            ]
+          },
+          {
+            "code": "STAGE_FORWARD_TO_FC",
+            "statuses": [
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_FC_REVIEW:STATUS_AWAITING_FC",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_FC_REVIEW:STATUS_AWAITING_FC"
+              }
+            ]
+          },
+          {
+            "code": "STAGE_FC_REVIEW",
+            "statuses": [
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_APPLICATION_COMPLETE:STATUS_COMPLETED",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_APPLICATION_COMPLETE:STATUS_COMPLETED"
               }
             ]
           }
