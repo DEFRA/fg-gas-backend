@@ -31,45 +31,35 @@ export const buildS3Key = (grantCode, version) => {
   return `${grantCode}/${version}/grant-definition.json`;
 };
 
-export const fetchConfigFile = async (bucket, key) => {
-  logger.info(`Fetching config from S3: ${bucket}/${key}`);
+// eslint-disable-next-line complexity
+const classifyS3Error = (err, key, bucket) => {
+  const statusCode = err.$metadata?.httpStatusCode;
 
-  let response;
-  try {
-    response = await s3Client.send(
-      new GetObjectCommand({ Bucket: bucket, Key: key }),
-    );
-  } catch (err) {
-    const statusCode = err.$metadata?.httpStatusCode;
-
-    if (statusCode === 404 || err.name === "NoSuchKey") {
-      throw new S3FetchError(`S3 object not found: ${key}`, {
-        statusCode: 404,
-        code: "NoSuchKey",
-        key,
-        bucket,
-      });
-    }
-
-    if (statusCode === 403 || err.name === "AccessDenied") {
-      throw new S3FetchError(`S3 access denied: ${key}`, {
-        statusCode: 403,
-        code: "AccessDenied",
-        key,
-        bucket,
-      });
-    }
-
-    throw new S3FetchError(`S3 service error fetching ${key}: ${err.message}`, {
-      statusCode: statusCode || 500,
-      code: "SERVICE_ERROR",
+  if (statusCode === 404 || err.name === "NoSuchKey") {
+    return new S3FetchError(`S3 object not found: ${key}`, {
+      statusCode: 404,
+      code: "NoSuchKey",
       key,
       bucket,
     });
   }
 
-  const bodyString = await response.Body.transformToString();
+  if (statusCode === 403 || err.name === "AccessDenied") {
+    return new S3FetchError(`S3 access denied: ${key}`, {
+      statusCode: 403,
+      code: "AccessDenied",
+      key,
+      bucket,
+    });
+  }
 
+  return new S3FetchError(
+    `S3 service error fetching ${key}: ${err.message}`,
+    { statusCode: statusCode || 500, code: "SERVICE_ERROR", key, bucket },
+  );
+};
+
+const parseResponseBody = (bodyString, key, bucket) => {
   try {
     return JSON.parse(bodyString);
   } catch {
@@ -80,4 +70,20 @@ export const fetchConfigFile = async (bucket, key) => {
       bucket,
     });
   }
+};
+
+export const fetchConfigFile = async (bucket, key) => {
+  logger.info(`Fetching config from S3: ${bucket}/${key}`);
+
+  let response;
+  try {
+    response = await s3Client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
+  } catch (err) {
+    throw classifyS3Error(err, key, bucket);
+  }
+
+  const bodyString = await response.Body.transformToString();
+  return parseResponseBody(bodyString, key, bucket);
 };

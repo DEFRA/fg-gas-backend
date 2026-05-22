@@ -6,9 +6,8 @@ import { upsert } from "../repositories/config-version.repository.js";
 
 const VALID_STATUSES = ["active", "draft"];
 
-export const processConfigVersionUseCase = async (eventData) => {
-  const { grantCode, version, status } = eventData;
-
+// eslint-disable-next-line complexity
+const validateEventData = ({ grantCode, version, status }) => {
   if (!grantCode || !version) {
     throw new Error(
       `Config version event missing required fields: grantCode=${grantCode}, version=${version}`,
@@ -25,6 +24,12 @@ export const processConfigVersionUseCase = async (eventData) => {
   if (!parsed) {
     throw new Error(`Invalid semver version in config event: ${version}`);
   }
+};
+
+export const processConfigVersionUseCase = async (eventData) => {
+  const { grantCode, version, status } = eventData;
+
+  validateEventData(eventData);
 
   logger.info(
     `Processing config version: ${grantCode}@${version} (${status})`,
