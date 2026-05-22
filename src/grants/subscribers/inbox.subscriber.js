@@ -20,6 +20,8 @@ import {
   updateResubmittedEvents,
 } from "../repositories/inbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
+import { processConfigVersionUseCase } from "../use-cases/process-config-version.use-case.js";
+import { messageSource } from "../use-cases/save-inbox-message.use-case.js";
 
 export class InboxSubscriber {
   static ACTOR = "INBOX";
@@ -127,24 +129,29 @@ export class InboxSubscriber {
       `Handle event for inbox message ${type}:${source}:${messageId}`,
     );
     try {
-      const { data } = event;
-      const status = data.currentStatus || data.status || null;
-      const clientRef = data.clientRef || data.caseRef || null;
-      const code = data.workflowCode || data.code || null;
-
-      if (status && source) {
-        // status transition/update
-        await withTraceParent(traceparent, async () =>
-          applyExternalStateChange({
-            sourceSystem: source,
-            clientRef,
-            code,
-            externalRequestedState: status,
-            eventData: data,
-          }),
+      if (source === messageSource.ConfigBroker) {
+        await withTraceParent(traceparent, () =>
+          processConfigVersionUseCase(event.data),
         );
       } else {
-        throw new Error(`Unable to handle inbox message ${msg.messageId}`);
+        const { data } = event;
+        const status = data.currentStatus || data.status || null;
+        const clientRef = data.clientRef || data.caseRef || null;
+        const code = data.workflowCode || data.code || null;
+
+        if (status && source) {
+          await withTraceParent(traceparent, async () =>
+            applyExternalStateChange({
+              sourceSystem: source,
+              clientRef,
+              code,
+              externalRequestedState: status,
+              eventData: data,
+            }),
+          );
+        } else {
+          throw new Error(`Unable to handle inbox message ${msg.messageId}`);
+        }
       }
 
       await this.markEventComplete(msg);

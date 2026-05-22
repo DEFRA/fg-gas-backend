@@ -12,11 +12,12 @@ services:
     environment:
       DEBUG: 1
       LS_LOG: DEBUG
-      SERVICES: sqs,sns
+      SERVICES: sqs,sns,s3
       LOCALSTACK_HOST: 127.0.0.1
     volumes:
       - ./tmp/localstack:/var/lib/localstack
       - ./compose/start-localstack.sh:/etc/localstack/init/ready.d/start-localstack.sh
+      - ./compose/seed:/etc/localstack/init/ready.d/seed
     networks:
       - cdp-tenant
 

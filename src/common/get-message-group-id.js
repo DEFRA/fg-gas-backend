@@ -10,6 +10,9 @@ export const getMessageGroupId = (id, data) => {
     if (data.caseRef) {
       return `${data.caseRef}-${data.workflowCode}`;
     }
+    if (data.grantCode) {
+      return data.grantCode;
+    }
   }
 
   return id;
