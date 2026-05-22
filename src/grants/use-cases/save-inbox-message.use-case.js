@@ -9,6 +9,7 @@ import {
 export const messageSource = {
   AgreementService: "AS",
   CaseWorking: "CW",
+  ConfigBroker: "CONFIG_BROKER",
 };
 
 export const getSegregationRef = (event) => {
