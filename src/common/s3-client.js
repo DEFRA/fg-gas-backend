@@ -8,6 +8,11 @@ const s3Client = new S3Client({
   forcePathStyle: Boolean(config.awsEndpointUrl),
 });
 
+const HTTP_NOT_FOUND = 404;
+const HTTP_FORBIDDEN = 403;
+const HTTP_OK = 200;
+const HTTP_INTERNAL_ERROR = 500;
+
 export class S3FetchError extends Error {
   constructor(message, { statusCode, code, key, bucket } = {}) {
     super(message);
@@ -19,7 +24,9 @@ export class S3FetchError extends Error {
   }
 
   get isPermanent() {
-    return this.statusCode === 404 || this.statusCode === 403;
+    return (
+      this.statusCode === HTTP_NOT_FOUND || this.statusCode === HTTP_FORBIDDEN
+    );
   }
 
   get isParseError() {
@@ -35,28 +42,30 @@ export const buildS3Key = (grantCode, version) => {
 const classifyS3Error = (err, key, bucket) => {
   const statusCode = err.$metadata?.httpStatusCode;
 
-  if (statusCode === 404 || err.name === "NoSuchKey") {
+  if (statusCode === HTTP_NOT_FOUND || err.name === "NoSuchKey") {
     return new S3FetchError(`S3 object not found: ${key}`, {
-      statusCode: 404,
+      statusCode: HTTP_NOT_FOUND,
       code: "NoSuchKey",
       key,
       bucket,
     });
   }
 
-  if (statusCode === 403 || err.name === "AccessDenied") {
+  if (statusCode === HTTP_FORBIDDEN || err.name === "AccessDenied") {
     return new S3FetchError(`S3 access denied: ${key}`, {
-      statusCode: 403,
+      statusCode: HTTP_FORBIDDEN,
       code: "AccessDenied",
       key,
       bucket,
     });
   }
 
-  return new S3FetchError(
-    `S3 service error fetching ${key}: ${err.message}`,
-    { statusCode: statusCode || 500, code: "SERVICE_ERROR", key, bucket },
-  );
+  return new S3FetchError(`S3 service error fetching ${key}: ${err.message}`, {
+    statusCode: statusCode || HTTP_INTERNAL_ERROR,
+    code: "SERVICE_ERROR",
+    key,
+    bucket,
+  });
 };
 
 const parseResponseBody = (bodyString, key, bucket) => {
@@ -64,7 +73,7 @@ const parseResponseBody = (bodyString, key, bucket) => {
     return JSON.parse(bodyString);
   } catch {
     throw new S3FetchError(`Invalid JSON in S3 object: ${key}`, {
-      statusCode: 200,
+      statusCode: HTTP_OK,
       code: "PARSE_ERROR",
       key,
       bucket,

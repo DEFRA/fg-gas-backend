@@ -9,6 +9,7 @@ export const FetchStatus = {
 };
 
 const SEMVER_REGEX = /^(\d+)\.(\d+)\.(\d+)$/;
+const RADIX = 10;
 
 export const parseSemver = (version) => {
   const match = version.match(SEMVER_REGEX);
@@ -16,9 +17,9 @@ export const parseSemver = (version) => {
     return null;
   }
   return {
-    major: parseInt(match[1], 10),
-    minor: parseInt(match[2], 10),
-    patch: parseInt(match[3], 10),
+    major: Number.parseInt(match[1], RADIX),
+    minor: Number.parseInt(match[2], RADIX),
+    patch: Number.parseInt(match[3], RADIX),
   };
 };
 
@@ -79,7 +80,9 @@ export class ConfigVersion {
   }
 
   static fromDocument(doc) {
-    if (!doc) return null;
+    if (!doc) {
+      return null;
+    }
     return new ConfigVersion(doc);
   }
 
