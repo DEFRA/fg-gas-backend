@@ -11,10 +11,7 @@ import {
   it,
   vi,
 } from "vitest";
-import {
-  ConfigVersion,
-  FetchStatus,
-} from "../../../src/grants/models/config-version.js";
+import { FetchStatus } from "../../../src/grants/models/config-version.js";
 import { Inbox, InboxStatus } from "../../../src/grants/models/inbox.js";
 import { claimEvents } from "../../../src/grants/repositories/inbox.repository.js";
 import { InboxSubscriber } from "../../../src/grants/subscribers/inbox.subscriber.js";
