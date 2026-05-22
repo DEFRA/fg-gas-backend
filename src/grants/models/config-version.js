@@ -16,10 +16,11 @@ export const parseSemver = (version) => {
   if (!match) {
     return null;
   }
+  const [, major, minor, patch] = match;
   return {
-    major: Number.parseInt(match[1], RADIX),
-    minor: Number.parseInt(match[2], RADIX),
-    patch: Number.parseInt(match[3], RADIX),
+    major: Number.parseInt(major, RADIX),
+    minor: Number.parseInt(minor, RADIX),
+    patch: Number.parseInt(patch, RADIX),
   };
 };
 
