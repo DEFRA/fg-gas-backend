@@ -263,6 +263,22 @@
           ]
         },
         {
+          "code": "STAGE_AGREEMENT_WITH_APPLICANT",
+          "name": "Agreement with applicant",
+          "description": "Awaiting signed agreement back from applicant",
+          "statuses": [
+            {
+              "code": "STATUS_AGREEMENT_OFFERED",
+              "validFrom": [
+                {
+                  "code": "PHASE_PRE_AWARD:STAGE_SEND_AGREEMENT_TO_APPLICANT:STATUS_AGREEMENT_READY_FOR_APPLICANT",
+                  "processes": []
+                }
+              ]
+            }
+          ]
+        },
+        {
           "code": "STAGE_FORWARD_TO_FC",
           "name": "Forward to Forestry Commission",
           "description": "Forward to Forestry Commission",
@@ -271,7 +287,7 @@
               "code": "STATUS_READY_TO_FORWARD",
               "validFrom": [
                 {
-                  "code": "PHASE_PRE_AWARD:STAGE_SEND_AGREEMENT_TO_APPLICANT:STATUS_AGREEMENT_READY_FOR_APPLICANT",
+                  "code": "PHASE_PRE_AWARD:STAGE_AGREEMENT_WITH_APPLICANT:STATUS_AGREEMENT_OFFERED",
                   "processes": ["ACCEPT_AGREEMENT"]
                 }
               ]
@@ -339,8 +355,28 @@
             ]
           },
           {
+            "code": "STAGE_AGREEMENT_WITH_APPLICANT",
+            "statuses": [
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_AGREEMENT_WITH_APPLICANT:STATUS_AGREEMENT_OFFERED",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_AGREEMENT_WITH_APPLICANT:STATUS_AGREEMENT_OFFERED"
+              },
+              {
+                "code": "accepted",
+                "source": "AS",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_FORWARD_TO_FC:STATUS_READY_TO_FORWARD"
+              }
+            ]
+          },
+          {
             "code": "STAGE_SEND_AGREEMENT_TO_APPLICANT",
             "statuses": [
+              {
+                "code": "PHASE_PRE_AWARD:STAGE_AGREEMENT_WITH_APPLICANT:STATUS_AGREEMENT_OFFERED",
+                "source": "CW",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_AGREEMENT_WITH_APPLICANT:STATUS_AGREEMENT_OFFERED"
+              },
               {
                 "code": "PHASE_PRE_AWARD:STAGE_FORWARD_TO_FC:STATUS_READY_TO_FORWARD",
                 "source": "CW",
