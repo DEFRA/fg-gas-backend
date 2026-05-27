@@ -12,17 +12,11 @@ import { insertMany } from "../repositories/outbox.repository.js";
 
 export const withdrawApplicationUseCase = async (command, session) => {
   const { clientRef, code } = command;
-
-  const prevApplication = await findByClientRefAndCode({ clientRef, code });
-  const previousStatus = prevApplication.getFullyQualifiedStatus();
-
   const application = await findByClientRefAndCode(
     { clientRef, code },
     session,
   );
-
   const { currentStage, currentPhase } = application;
-
   const agreement = application.getActiveAgreement();
 
   const outboxObjects = [];
@@ -45,6 +39,8 @@ export const withdrawApplicationUseCase = async (command, session) => {
     );
   } else {
     // if we have no agreement we withdraw the application and notify Case Working...
+    const statusBeforeUpdate = application.getFullyQualifiedStatus();
+
     application.withdraw();
     await update(application, session);
 
@@ -63,21 +59,22 @@ export const withdrawApplicationUseCase = async (command, session) => {
         segregationRef: Outbox.getSegregationRef(statusCommand),
       }),
     );
+
+    const statusEvent = new ApplicationStatusUpdatedEvent({
+      clientRef,
+      code,
+      previousStatus: statusBeforeUpdate,
+      currentStatus: application.getFullyQualifiedStatus(),
+    });
+
+    outboxObjects.push(
+      new Outbox({
+        event: statusEvent,
+        target: config.sns.grantApplicationStatusUpdatedTopicArn,
+        segregationRef: Outbox.getSegregationRef(statusEvent),
+      }),
+    );
   }
 
-  const statusEvent = new ApplicationStatusUpdatedEvent({
-    clientRef,
-    code,
-    previousStatus,
-    currentStatus: application.getFullyQualifiedStatus(),
-  });
-
-  outboxObjects.push(
-    new Outbox({
-      event: statusEvent,
-      target: config.sns.grantApplicationStatusUpdatedTopicArn,
-      segregationRef: Outbox.getSegregationRef(statusEvent),
-    }),
-  );
   await insertMany(outboxObjects, session);
 };

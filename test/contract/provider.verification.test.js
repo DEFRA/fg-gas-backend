@@ -25,6 +25,7 @@ vi.mock("../../src/common/mongo-client.js", () => {
       return {
         findOne: vi.fn(async (query = {}) => {
           const { code, clientRef } = query;
+          // Return mock application for known clientRefs
           if (code === "frps-private-beta" && clientRef === "710-877-8fd") {
             return {
               code: "frps-private-beta",
@@ -39,7 +40,27 @@ vi.mock("../../src/common/mongo-client.js", () => {
               },
               agreements: [],
               phases: [],
-              replacementAllowed: false,
+            };
+          }
+          // Support amendments - return a mock application for any other clientRef (previousClientRef lookup)
+          if (
+            code === "frps-private-beta" &&
+            clientRef &&
+            clientRef !== "non-existent-ref"
+          ) {
+            return {
+              code: "frps-private-beta",
+              clientRef,
+              currentPhase: "PRE_AWARD",
+              currentStage: "REVIEW_APPLICATION",
+              currentStatus: "APPLICATION_AMEND",
+              identifiers: {
+                sbi: "107365747",
+                frn: "1101313269",
+                crn: "1103623923",
+              },
+              agreements: [],
+              phases: [],
             };
           }
           return null;
@@ -60,12 +81,55 @@ vi.mock("../../src/common/mongo-client.js", () => {
       };
     }
 
+    if (name === "application_series") {
+      return {
+        findOne: vi.fn(async (query = {}) => {
+          const { code, latestClientRef } = query;
+          // Return mock ApplicationSeries for amendment lookups
+          if (
+            code === "frps-private-beta" &&
+            latestClientRef &&
+            latestClientRef !== "non-existent-ref"
+          ) {
+            return {
+              _id: "series-id-123",
+              code: "frps-private-beta",
+              clientRefs: [latestClientRef], // Array of strings, not objects
+              latestClientId: "app-id-123",
+              latestClientRef,
+              updatedAt: new Date().toISOString(), // ISO string, not Date object
+              createdAt: new Date().toISOString(), // ISO string, not Date object
+            };
+          }
+          return null;
+        }),
+        findOneAndUpdate: vi.fn().mockResolvedValue(null),
+        insertOne: vi.fn().mockResolvedValue({ insertedId: "series-id" }),
+        replaceOne: vi.fn().mockResolvedValue({ acknowledged: true }),
+        updateOne: vi
+          .fn()
+          .mockResolvedValue({ acknowledged: true, matchedCount: 1 }),
+        createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
+      };
+    }
+
     // Grants collection - return grant based on query
     return {
       findOne: vi.fn(async (query = {}) => {
         const { code } = query;
         if (code === "frps-private-beta") {
-          return getGrant("frps-private-beta");
+          const grant = getGrant("frps-private-beta");
+          // Ensure amendablePositions exists and includes amendable statuses
+          // (migration may not run due to withTransaction mock)
+          if (!grant.amendablePositions) {
+            grant.amendablePositions = [
+              "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
+            ];
+          }
+          return grant;
+        }
+        if (code === "woodland") {
+          return getGrant("woodland");
         }
         return null;
       }),
@@ -176,6 +240,21 @@ describe("fg-gas-backend Provider Verification", () => {
       },
     );
 
+    // Log all responses for debugging
+    server.events.on("response", (request) => {
+      if (request.response?.statusCode >= 400) {
+        console.error(
+          `[${request.method.toUpperCase()}] ${request.path} → ${request.response.statusCode}`,
+        );
+        if (request.response.source) {
+          console.error(
+            "Response body:",
+            JSON.stringify(request.response.source, null, 2),
+          );
+        }
+      }
+    });
+
     await server.register([health, grants]);
     await server.start();
     mockPort = server.info.port;
@@ -211,6 +290,14 @@ describe("fg-gas-backend Provider Verification", () => {
             );
             return Promise.resolve();
           },
+
+        "woodland is configured in fg-gas-backend": async () => {
+          console.log("State: woodland configured");
+        },
+
+        "woodland validation fails due to invalid hectares": async () => {
+          console.log("State: woodland invalid hectares");
+        },
       };
 
       const opts = buildVerifierOptions({

@@ -18,6 +18,35 @@ describe("Application", () => {
     vi.useRealTimers();
   });
 
+  describe("isReplacementAllowed", () => {
+    it("returns true when application fully qualified status is in amendablePositions", () => {
+      const application = createTestApplication({
+        currentStatus: "APPLICATION_AMEND",
+        currentStage: "REVIEW_OFFER",
+      });
+
+      const amendablePositions = [
+        "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
+        "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND",
+        "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND",
+      ];
+
+      expect(application.isReplacementAllowed(amendablePositions)).toBeTruthy();
+    });
+
+    it("returns false when application fully qualified status is not in amendablePositions", () => {
+      const application = createTestApplication();
+
+      const amendablePositions = [
+        "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
+        "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND",
+        "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND",
+      ];
+
+      expect(application.isReplacementAllowed(amendablePositions)).toBeFalsy();
+    });
+  });
+
   describe("getActiveAgreement", () => {
     it("should return undefined if application has no agreements", () => {
       const application = createTestApplication();
@@ -53,6 +82,38 @@ describe("Application", () => {
       application.addAgreement(ag2);
       const agreement = application.getActiveAgreement();
       expect(agreement).toEqual(ag2);
+    });
+  });
+
+  describe("getAcceptedAgreement", () => {
+    it("should return undefined if application has no agreements", () => {
+      const application = createTestApplication();
+      const agreement = application.getAcceptedAgreement();
+      expect(agreement).toBeUndefined();
+    });
+
+    it("should get the accepted agreement", () => {
+      const ag1 = new Agreement({
+        agreementRef: "agreement-123",
+        latestStatus: AgreementStatus.Accepted,
+        history: [],
+      });
+      const application = createTestApplication();
+      application.addAgreement(ag1);
+      const agreement = application.getAcceptedAgreement();
+      expect(agreement).toEqual(ag1);
+    });
+
+    it("should return undefined when no accepted agreements exist", () => {
+      const ag1 = new Agreement({
+        agreementRef: "agreement-123",
+        latestStatus: AgreementStatus.Offered,
+        history: [],
+      });
+      const application = createTestApplication();
+      application.addAgreement(ag1);
+      const agreement = application.getAcceptedAgreement();
+      expect(agreement).toBeUndefined();
     });
   });
 
@@ -95,7 +156,6 @@ describe("Application", () => {
         frn: "frn-1",
         crn: "crn-1",
       },
-      replacementAllowed: false,
       metadata: {
         defraId: "defraId-1",
       },
@@ -200,6 +260,49 @@ describe("Application", () => {
     );
   });
 
+  it("cancels an agreement on an application", () => {
+    const application = createTestApplication();
+
+    const agreement = Agreement.new({
+      agreementRef: "agreement-1",
+      date: "2021-02-01T13:00:00.000Z",
+    });
+
+    application.addAgreement(agreement);
+
+    expect(application.getAgreement("agreement-1").latestStatus).toBe(
+      AgreementStatus.Offered,
+    );
+
+    application.cancelAgreement("agreement-1", "2021-02-03T15:00:00.000Z");
+
+    expect(application.getAgreement("agreement-1").latestStatus).toBe(
+      AgreementStatus.Cancelled,
+    );
+  });
+
+  it("throws an error when cancelling a non-existent agreement", () => {
+    const application = createTestApplication();
+
+    expect(() => {
+      application.cancelAgreement(
+        "non-existent-agreement",
+        "2021-02-03T15:00:00.000Z",
+      );
+    }).toThrowError(
+      'Agreement "non-existent-agreement" does not exist on application "application-1"',
+    );
+  });
+
+  it("withdraws an application", () => {
+    const application = createTestApplication();
+
+    application.withdraw();
+
+    expect(application.currentStatus).toBe(ApplicationStatus.Withdrawn);
+    expect(application.updatedAt).toBe("2021-02-01T13:00:00.000Z");
+  });
+
   it("throws an error when withdrawing a non-existent agreement", () => {
     const application = createTestApplication();
 
@@ -207,6 +310,41 @@ describe("Application", () => {
       application.withdrawAgreement(
         "non-existent-agreement",
         "2021-02-03T15:00:00.000Z",
+      );
+    }).toThrowError(
+      'Agreement "non-existent-agreement" does not exist on application "application-1"',
+    );
+  });
+
+  it("terminates an agreement", () => {
+    const application = createTestApplication();
+
+    const agreement = Agreement.new({
+      agreementRef: "agreement-1",
+      date: "2021-02-01T13:00:00.000Z",
+    });
+
+    application.addAgreement(agreement);
+    application.acceptAgreement("agreement-1", {
+      acceptedDate: "2021-02-02T14:00:00.000Z",
+      startDate: "2021-03-02T14:00:00.000Z",
+      endDate: "2022-02-02T14:00:00.000Z",
+    });
+
+    application.terminateAgreement("agreement-1", "2021-06-01T00:00:00.000Z");
+
+    expect(application.getAgreement("agreement-1").latestStatus).toBe(
+      AgreementStatus.Terminated,
+    );
+  });
+
+  it("throws an error when terminating a non-existent agreement", () => {
+    const application = createTestApplication();
+
+    expect(() => {
+      application.terminateAgreement(
+        "non-existent-agreement",
+        "2021-06-01T00:00:00.000Z",
       );
     }).toThrowError(
       'Agreement "non-existent-agreement" does not exist on application "application-1"',
@@ -451,7 +589,6 @@ describe("Application", () => {
           // clientRef missing
           // code missing
           // phases missing
-          // replacementAllowed missing
         });
       }).toThrowError(/Invalid Application:/);
     });

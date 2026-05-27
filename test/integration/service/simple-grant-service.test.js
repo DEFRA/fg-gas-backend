@@ -28,6 +28,7 @@ describe("Simple Grant Service Integration Tests", () => {
         description: "Test grant with validation rules",
         startDate: "2025-01-01T00:00:00.000Z",
       },
+      amendablePositions: [],
       phases: [
         {
           code: "PHASE_1",
@@ -131,6 +132,7 @@ describe("Simple Grant Service Integration Tests", () => {
         description: "Test grant for validation",
         startDate: "2025-01-01T00:00:00.000Z",
       },
+      amendablePositions: [],
       phases: [
         {
           code: "PHASE_1",
@@ -202,6 +204,7 @@ describe("Simple Grant Service Integration Tests", () => {
         description: "Test duplicate prevention",
         startDate: "2025-01-01T00:00:00.000Z",
       },
+      amendablePositions: [],
       phases: [
         {
           code: "PHASE_1",

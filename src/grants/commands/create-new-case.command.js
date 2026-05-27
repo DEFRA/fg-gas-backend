@@ -7,6 +7,7 @@ export class CreateNewCaseCommand extends CloudEvent {
       {
         caseRef: application.clientRef,
         workflowCode: application.code,
+        previousCaseRef: application?.metadata?.previousClientRef,
         payload: {
           createdAt: application.createdAt,
           submittedAt: application.submittedAt,

@@ -2,6 +2,7 @@
 
 Grant Application Service defines and manages farming grants and applications. It is the source of truth for all grant applications and their status.
 
+- [Running with other services](#running-with-other-services)
 - [User guide](#user-guide)
   - [Configure grant actions](#configure-grant-actions)
 - [Developer guide](#developer-guide)
@@ -19,6 +20,10 @@ Grant Application Service defines and manages farming grants and applications. I
 - [Docker](#docker)
 - [Licence](#licence)
   - [About the licence](#about-the-licence)
+
+## Running with other services
+
+If you want to run this service with other farming grants applications see [fg-grants-core](https://github.com/DEFRA/fg-grants-core)
 
 ## User guide
 
@@ -222,6 +227,17 @@ npm run token:local
 This runs: `node --env-file=.env scripts/write-http-client-token.js local http-client 2099-01-01T00:00:00Z`.
 
 Which uses `scripts/write-http-client-token.js` to mint a token, store in the local MongoDB and write the raw value into `http-client.private.env.json` under the chosen environment key, so `api.http` can use it immediately.
+
+### Run with manual vars:
+
+`MONGO_URI="mongodb://localhost:27017" MONGO_DATABASE=fg-gas-backend node scripts/mint-access-token.js`
+
+### Minting access tokens for fg-grants-core
+
+When using grants core with just the case working and gas dev mode the mongo db is available on localhost and does not use a direct connection.
+
+If you're using grants core with external apps (grants-ui for example) then the db connection is through the docker network and direct connection is
+required. The env-file option won't work here. You have to manually add MONGO_URI and MONGO_DATABASE to the command - see "run with manual vars"
 
 General script usage for any environment if needed:
 

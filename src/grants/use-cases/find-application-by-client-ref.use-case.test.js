@@ -20,7 +20,6 @@ describe("findApplicationByClientRefUseCase", () => {
         extraField: "extra",
       },
       phases: [],
-      replacementAllowed: false,
     });
 
     findByClientRef.mockResolvedValue(application);

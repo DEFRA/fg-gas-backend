@@ -29,6 +29,61 @@ describe("fg-gas-backend Consumer (receives messages from fg-cw-backend)", () =>
   });
 
   describe("CaseStatusUpdatedEvent Message", () => {
+    it("should accept a case status updated event for WMG", async () => {
+      await messagePact
+        .expectsToReceive("a case status updated event from CW for WMG")
+        .withContent({
+          // CloudEvent fields
+          id: uuid("12345678-1234-1234-1234-123456789013"),
+
+          type: like("cloud.defra.test.fg-cw-backend.case.status.updated"),
+
+          // Source must be one of the accepted values
+          source: term({
+            generate: "fg-cw-backend",
+            matcher: "^(fg-cw-backend|CaseWorking|CW)$",
+          }),
+
+          specVersion: "1.0",
+          datacontenttype: "application/json",
+          time: iso8601DateTimeWithMillis("2025-02-09T12:00:00.000Z"),
+          traceparent: like("00-trace-id"),
+
+          data: {
+            caseRef: like("WMP-CASE-001"),
+
+            // CRITICAL: workflowCode must be "woodland" for WMG
+            workflowCode: like("woodland"),
+
+            // CRITICAL: WMG uses PHASE_/STAGE_/STATUS_ prefixed status format
+            // e.g. "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_IN_REVIEW"
+            currentStatus: term({
+              generate:
+                "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_IN_REVIEW",
+              matcher: "^[A-Z_]+:[A-Z_]+:[A-Z_]+$",
+            }),
+
+            previousStatus: term({
+              generate:
+                "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_APPLICATION_RECEIVED",
+              matcher: "^[A-Z_]+:[A-Z_]+:[A-Z_]+$",
+            }),
+          },
+        })
+        .withMetadata({
+          contentType: "application/json",
+        })
+        .verify(async (message) => {
+          const cloudEvent = message.contents;
+
+          expect(cloudEvent.data.caseRef).toBeDefined();
+          expect(cloudEvent.data.workflowCode).toBeDefined();
+          expect(cloudEvent.data.currentStatus).toMatch(
+            /^[A-Z_]+:[A-Z_]+:[A-Z_]+$/,
+          );
+        });
+    });
+
     it("should accept a case status updated event", async () => {
       await messagePact
         .expectsToReceive("a case status updated event from CW")

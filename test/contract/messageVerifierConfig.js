@@ -1,4 +1,3 @@
-// eslint-disable-next-line import-x/no-extraneous-dependencies
 import { globSync } from "glob";
 import { execSync } from "node:child_process";
 import path from "node:path";
@@ -9,6 +8,8 @@ const getLatestGitTagOrFallback = () => {
     encoding: "utf8",
   }).trim();
 };
+
+const getProviderVersionBranch = () => env.GITHUB_REF_NAME ?? "main";
 
 /**
  * Build verification options for MessageProviderPact
@@ -27,6 +28,7 @@ export const buildMessageVerifierOptions = ({ providerName, consumerName }) => {
   const baseOpts = {
     provider: providerName,
     providerVersion: getLatestGitTagOrFallback(),
+    providerVersionBranch: getProviderVersionBranch(),
   };
 
   if (useLocal) {

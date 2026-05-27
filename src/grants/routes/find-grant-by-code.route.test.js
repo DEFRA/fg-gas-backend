@@ -44,6 +44,8 @@ describe("findGrantByCodeRoute", () => {
         startDate: "2100-01-01T00:00:00.000Z",
       },
       actions: [],
+      amendablePositions: [],
+      externalStatusMap: undefined,
       phases: [
         {
           code: "PRE_AWARD",
