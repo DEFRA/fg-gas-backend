@@ -24,7 +24,6 @@ import {
   findNextMessage,
 } from "../repositories/inbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
-import { handleAgreementStatusChangeUseCase } from "../use-cases/handle-agreement-status-change.use-case.js";
 import { InboxSubscriber } from "./inbox.subscriber.js";
 
 vi.mock("../../common/trace-parent.js");
@@ -32,7 +31,6 @@ vi.mock("../use-cases/approve-application.use-case.js");
 vi.mock("../repositories/inbox.repository.js");
 vi.mock("../repositories/fifo-lock.repository.js");
 vi.mock("../services/apply-event-status-change.service.js");
-vi.mock("../use-cases/handle-agreement-status-change.use-case.js");
 
 const createInbox = (doc) =>
   new Inbox({
@@ -91,7 +89,13 @@ describe("inbox.subscriber", () => {
     const mockEvent = new Inbox({
       type: "io.onsite.agreement.status.foo",
       traceparent: "test-trace",
-      event: { data: { foo: "bar" } },
+      event: {
+        data: {
+          clientRef: "client-ref",
+          code: "test-code",
+          status: "accepted",
+        },
+      },
       source: "CW",
       segregationRef: "ref-1",
     });
@@ -107,7 +111,7 @@ describe("inbox.subscriber", () => {
       .mockResolvedValueOnce([mockEvent])
       .mockResolvedValue([]);
 
-    handleAgreementStatusChangeUseCase.mockResolvedValue(true);
+    applyExternalStateChange.mockResolvedValue(true);
     withTraceParent.mockImplementation((_, fn) => fn());
 
     const subscriber = new InboxSubscriber();
@@ -120,7 +124,7 @@ describe("inbox.subscriber", () => {
     await vi.advanceTimersByTimeAsync(subscriber.interval);
 
     await vi.waitFor(() => {
-      expect(handleAgreementStatusChangeUseCase).toHaveBeenCalled();
+      expect(applyExternalStateChange).toHaveBeenCalled();
     });
 
     await vi.advanceTimersByTimeAsync(subscriber.interval);
@@ -353,15 +357,17 @@ describe("inbox.subscriber", () => {
       expect(subscriber.handleEvent.mock.calls[1][0]).toEqual(events[1]);
     });
 
-    it("should use use-cases if not updating status", async () => {
+    it("should route agreement status events through applyExternalStateChange", async () => {
       const mockEventData = {
-        foo: "barr",
+        clientRef: "client-ref-123",
+        code: "test-code",
+        status: "accepted",
       };
-      handleAgreementStatusChangeUseCase.mockResolvedValue(true);
-
+      applyExternalStateChange.mockResolvedValue(true);
       withTraceParent.mockImplementation((_, fn) => fn());
       const mockEvent = {
         type: "io.onsite.agreement.status.foo",
+        source: "AS",
         traceparent: "1234-abcd",
         event: {
           data: mockEventData,
@@ -372,6 +378,50 @@ describe("inbox.subscriber", () => {
       await inbox.processEvents([mockEvent]);
       expect(withTraceParent).toHaveBeenCalled();
       expect(withTraceParent.mock.calls[0][0]).toBe("1234-abcd");
+      expect(applyExternalStateChange).toHaveBeenCalledWith({
+        sourceSystem: "AS",
+        clientRef: "client-ref-123",
+        code: "test-code",
+        externalRequestedState: "accepted",
+        eventData: mockEventData,
+      });
+      expect(mockEvent.markAsComplete).toHaveBeenCalled();
+    });
+
+    it("routes AS cancelled agreement events through applyExternalStateChange", async () => {
+      applyExternalStateChange.mockResolvedValue(true);
+      withTraceParent.mockImplementation((_, fn) => fn());
+
+      const mockEvent = {
+        type: "io.onsite.agreement.status.foo",
+        source: "AS",
+        traceparent: "1234-abcd",
+        event: {
+          data: {
+            clientRef: "client-ref-123",
+            code: "test-code",
+            agreementNumber: "AG123",
+            status: "cancelled",
+          },
+        },
+        markAsComplete: vi.fn(),
+      };
+
+      const inbox = new InboxSubscriber();
+      await inbox.processEvents([mockEvent]);
+
+      expect(applyExternalStateChange).toHaveBeenCalledWith({
+        sourceSystem: "AS",
+        clientRef: "client-ref-123",
+        code: "test-code",
+        externalRequestedState: "cancelled",
+        eventData: {
+          clientRef: "client-ref-123",
+          code: "test-code",
+          agreementNumber: "AG123",
+          status: "cancelled",
+        },
+      });
       expect(mockEvent.markAsComplete).toHaveBeenCalled();
     });
 
@@ -421,13 +471,15 @@ describe("inbox.subscriber", () => {
 
     it("should mark events as complete", async () => {
       const mockEventData = {
-        foo: "barr",
+        clientRef: "client-ref-123",
+        code: "test-code",
+        status: "accepted",
       };
-      handleAgreementStatusChangeUseCase.mockResolvedValue("complete");
-
+      applyExternalStateChange.mockResolvedValue("complete");
       withTraceParent.mockImplementationOnce((_, fn) => fn());
       const mockEvent = {
         type: "io.onsite.agreement.status.foo",
+        source: "AS",
         traceparent: "1234-abcd",
         event: {
           data: mockEventData,

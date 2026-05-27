@@ -18,7 +18,6 @@ const toApplication = (doc) =>
     identifiers: doc.identifiers ?? {},
     metadata: doc.metadata ?? {},
     phases: doc.phases,
-    replacementAllowed: doc.replacementAllowed,
     agreements: Object.entries(doc.agreements ?? {}).reduce(
       (acc, [key, value]) => {
         const history = value.history.map(

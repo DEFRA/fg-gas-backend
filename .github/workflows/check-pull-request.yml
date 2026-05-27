@@ -37,7 +37,7 @@ jobs:
 
       - name: SonarCloud Scan
         if: github.actor != 'dependabot[bot]'
-        uses: SonarSource/sonarqube-scan-action@v7.0.0
+        uses: SonarSource/sonarqube-scan-action@v7.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -51,32 +51,9 @@ jobs:
           docker build --no-cache --tag fg-gas-backend .
           exit $?
 
-  contract-tests:
-    name: Run Contract Tests
-    runs-on: self-hosted
+  pact:
+    name: Pact
     if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
-    steps:
-      - name: Mask secrets
-        run: |
-          echo "::add-mask::$PACT_USER"
-          echo "::add-mask::$PACT_PASS"
-
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Fetch latest tags
-        run: git fetch --tags --force
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: ".nvmrc"
-          cache: npm
-
-      - name: Run contract tests
-        env:
-          PACT_BROKER_BASE_URL: https://ffc-pact-broker.azure.defra.cloud
-          PACT_PUBLISH_VERIFICATION: false
-        run: |
-          npm ci --ignore-scripts
-          npm run test:contract
+    uses: ./.github/workflows/pact-verify.yml
+    with:
+      publish-verification: false

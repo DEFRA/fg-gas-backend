@@ -62,6 +62,8 @@ describe("Grant", () => {
         { name: "action1", method: "POST", url: "http://example.com/action1" },
         { name: "action2", method: "GET", url: "http://example.com/action2" },
       ],
+      amendablePositions: [],
+      externalStatusMap: undefined,
       phases: [
         {
           code: "PRE_AWARD",

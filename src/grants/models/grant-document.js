@@ -5,5 +5,6 @@ export class GrantDocument {
     this.actions = grant.actions;
     this.phases = grant.phases;
     this.externalStatusMap = grant.externalStatusMap;
+    this.amendablePositions = grant.amendablePositions;
   }
 }

@@ -1,0 +1,37 @@
+services:
+  gas:
+    build: .
+    networks:
+      - cdp-tenant
+    ports:
+      - "${GAS_PORT:-3102}:3102"
+    links:
+      - "localstack:localstack"
+      - "mongodb:mongodb"
+      - "mongo-ready:mongo-ready"
+    env_file:
+      - .env
+    environment:
+      PORT: 3102
+      MONGO_URI: mongodb://mongodb:27017/?replicaSet=mongoRepl
+      AWS_ENDPOINT_URL: "http://localstack:4566"
+      OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
+      INBOX_POLL_MS: "${INBOX_POLL_MS}"
+    depends_on:
+      mongo-ready:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    develop:
+      watch:
+        - path: ./src
+          target: /home/node/src
+          action: sync+restart
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./migrate-mongo-config.js:/home/node/migrate-mongo-config.js
+      - ./migrations:/home/node/migrations
+      - ./package.json:/home/node/package.json

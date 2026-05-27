@@ -9,9 +9,14 @@ import {
 } from "../repositories/application.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { acceptAgreementUseCase } from "../use-cases/accept-agreement.use-case.js";
 import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
+import { cancelAgreementUseCase } from "../use-cases/cancel-agreement.use-case.js";
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
+import { requestAgreementCancellationUseCase } from "../use-cases/request-agreement-cancellation.use-case.js";
+import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
+import { withdrawApplicationUseCase } from "../use-cases/withdraw-application.use-case.js";
 import {
   applyExternalStateChange,
   getHandlersForAllProcesses,
@@ -19,7 +24,12 @@ import {
 
 vi.mock("../use-cases/create-status-transition-update.use-case.js");
 vi.mock("../use-cases/add-agreement.use-case.js");
+vi.mock("../use-cases/accept-agreement.use-case.js");
+vi.mock("../use-cases/cancel-agreement.use-case.js");
 vi.mock("../use-cases/create-agreement-command.use-case.js");
+vi.mock("../use-cases/request-agreement-cancellation.use-case.js");
+vi.mock("../use-cases/withdraw-application.use-case.js");
+vi.mock("../use-cases/withdraw-agreement.use-case.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/grant.repository.js");
 vi.mock("../repositories/outbox.repository.js");
@@ -39,7 +49,6 @@ describe("applyExternalStateChange", () => {
     submittedAt: "2024-01-01T00:00:00.000Z",
     identifiers: { userId: "user-123" },
     phases: [],
-    replacementAllowed: false,
   });
 
   const mockGrant = new Grant({
@@ -58,11 +67,9 @@ describe("applyExternalStateChange", () => {
             statuses: [
               {
                 code: "RECEIVED",
-                replacementAllowed: false,
               },
               {
                 code: "IN_PROGRESS",
-                replacementAllowed: false,
                 validFrom: [
                   {
                     code: "RECEIVED",
@@ -72,7 +79,6 @@ describe("applyExternalStateChange", () => {
               },
               {
                 code: "APPROVED",
-                replacementAllowed: false,
                 validFrom: [
                   {
                     code: "IN_PROGRESS",
@@ -133,6 +139,41 @@ describe("applyExternalStateChange", () => {
       const handlers = getHandlersForAllProcesses(processes);
       expect(handlers).toHaveLength(1);
       expect(handlers[0]).toBe(createAgreementCommandUseCase);
+    });
+
+    it("should resolve accept agreement process", () => {
+      const processes = ["ACCEPT_AGREEMENT"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(acceptAgreementUseCase);
+    });
+
+    it("should resolve request agreement cancellation process", () => {
+      const processes = ["REQUEST_AGREEMENT_CANCELLATION"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(requestAgreementCancellationUseCase);
+    });
+
+    it("should resolve cancel agreement process", () => {
+      const processes = ["CANCEL_AGREEMENT"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(cancelAgreementUseCase);
+    });
+
+    it("should resolve request application withdrawal process", () => {
+      const processes = ["REQUEST_APPLICATION_WITHDRAWAL"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(withdrawApplicationUseCase);
+    });
+
+    it("should resolve withdraw agreement process", () => {
+      const processes = ["WITHDRAW_AGREEMENT"];
+      const handlers = getHandlersForAllProcesses(processes);
+      expect(handlers).toHaveLength(1);
+      expect(handlers[0]).toBe(withdrawAgreementUseCase);
     });
 
     it("should ignore unknown processes", () => {
@@ -214,37 +255,6 @@ describe("applyExternalStateChange", () => {
           currentStage: "REVIEW_APPLICATION",
           currentStatus: "IN_PROGRESS",
           updatedAt: expect.any(String),
-          replacementAllowed: false,
-        }),
-        {}, // session
-      );
-    });
-
-    it("should set replacementAllowed from the stage status", async () => {
-      const application = new Application({
-        ...mockApplication,
-        currentStatus: "RECEIVED",
-      });
-      findByClientRefAndCode.mockResolvedValue(application);
-      mockGrant.phases[0].stages[0].statuses[1].replacementAllowed = true;
-      findByCode.mockResolvedValue(mockGrant);
-
-      await applyExternalStateChange({
-        clientRef: "APP-123",
-        code: "foo",
-        externalRequestedState: "IN_PROGRESS",
-        sourceSystem: "CW",
-        eventData: { caseRef: "CASE-123" },
-      });
-
-      expect(update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          clientRef: "APP-123",
-          currentPhase: "PRE_AWARD",
-          currentStage: "REVIEW_APPLICATION",
-          currentStatus: "IN_PROGRESS",
-          updatedAt: expect.any(String),
-          replacementAllowed: true,
         }),
         {}, // session
       );

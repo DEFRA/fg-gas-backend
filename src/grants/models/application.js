@@ -26,7 +26,6 @@ export class Application {
     clientRef: Joi.string().required(),
     code: Joi.string().required(),
     phases: Joi.array().required(),
-    replacementAllowed: Joi.boolean().required(),
   });
 
   constructor(props) {
@@ -54,7 +53,6 @@ export class Application {
       metadata,
       phases,
       agreements,
-      replacementAllowed,
     } = props;
 
     this.currentPhase = currentPhase;
@@ -69,7 +67,6 @@ export class Application {
     this.metadata = metadata ?? {};
     this.phases = phases;
     this.agreements = agreements;
-    this.replacementAllowed = replacementAllowed;
   }
 
   static new({
@@ -98,8 +95,11 @@ export class Application {
       metadata,
       phases,
       agreements: {},
-      replacementAllowed: false,
     });
+  }
+
+  isReplacementAllowed(positions) {
+    return positions.includes(this.getFullyQualifiedStatus());
   }
 
   approve() {
@@ -134,6 +134,12 @@ export class Application {
     );
   }
 
+  getAcceptedAgreement() {
+    return Object.values(this.agreements).find(
+      (agg) => agg.latestStatus === AgreementStatus.Accepted,
+    );
+  }
+
   getAgreement(agreementRef) {
     return this.agreements[agreementRef] || null;
   }
@@ -148,6 +154,19 @@ export class Application {
     }
 
     agreement.accept(agreementDates);
+    this.updatedAt = this.#getTimestamp();
+  }
+
+  cancelAgreement(agreementRef, date) {
+    const agreement = this.agreements[agreementRef];
+
+    if (!agreement) {
+      throw Boom.badData(
+        `Agreement "${agreementRef}" does not exist on application "${this.clientRef}"`,
+      );
+    }
+
+    agreement.cancel(date);
     this.updatedAt = this.#getTimestamp();
   }
 
@@ -167,6 +186,19 @@ export class Application {
 
     agreement.withdraw(date);
 
+    this.updatedAt = this.#getTimestamp();
+  }
+
+  terminateAgreement(agreementRef, date) {
+    const agreement = this.agreements[agreementRef];
+
+    if (!agreement) {
+      throw Boom.badData(
+        `Agreement "${agreementRef}" does not exist on application "${this.clientRef}"`,
+      );
+    }
+
+    agreement.terminate(date);
     this.updatedAt = this.#getTimestamp();
   }
 

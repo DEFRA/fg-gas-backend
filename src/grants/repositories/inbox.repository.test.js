@@ -129,6 +129,7 @@ describe("inbox.repository", () => {
         claimExpiresAt: {
           $lt: expect.any(Date),
         },
+        status: { $nin: [InboxStatus.DEAD_LETTER, InboxStatus.COMPLETED] },
       },
       {
         $set: {
@@ -148,7 +149,10 @@ describe("inbox.repository", () => {
     await updateDeadEvents();
 
     expect(updateMany).toHaveBeenCalledWith(
-      { completionAttempts: { $gte: config.inbox.inboxMaxRetries } },
+      {
+        completionAttempts: { $gte: config.inbox.inboxMaxRetries },
+        status: { $ne: InboxStatus.DEAD_LETTER },
+      },
       {
         $set: {
           status: InboxStatus.DEAD_LETTER,

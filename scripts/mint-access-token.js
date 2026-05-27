@@ -34,6 +34,23 @@
  *
  * `node scripts/mint-access-token.js grants-ui`
  *
+ * Case Working
+ * =============
+ * Run with manual vars:
+ * `MONGO_URI="mongodb://localhost:27017" MONGO_DATABASE=fg-gas-backend node scripts/mint-access-token.js`
+ *
+ * fg-grants-core
+ * ---------------
+ * Running other apps with npm run...
+ * - MONGO_URI="mongodb://localhost:27017" MONGO_DATABASE=fg-gas-backend node scripts/mint-access-token.js
+ *
+ * Running other apps with docker compose:
+ * - node --env-file=.env  scripts/mint-access-token.js
+ *
+ * Running with docker compose and grants-ui
+ *- node --env-file=.env  scripts/mint-access-token.js
+ *
+ *
  * Output
  * ------
  * - Confirmation and context (client, expiry).
