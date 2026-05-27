@@ -1,0 +1,78 @@
+name: Create Pact Webhooks
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-webhooks:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mask secrets
+        run: |
+          echo "::add-mask::$PACT_USER"
+          echo "::add-mask::$PACT_PASS"
+          echo "::add-mask::$FFCPLATFORM_PAT"
+
+      - name: Create Pact webhooks
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          # ── Configuration ──────────────────────────────────────────────
+          CONSUMERS=(
+            "fg-cw-backend"
+            "farming-grants-agreements-api"
+          )
+          PROVIDER="fg-gas-backend"
+          TARGET_REPO="DEFRA/fg-gas-backend"
+          # ───────────────────────────────────────────────────────────────
+
+          PACT_BROKER_URL="https://ffc-pact-broker.azure.defra.cloud"
+          AUTH_HEADER=$(printf '%s' "${PACT_USER}:${PACT_PASS}" | base64 | tr -d '\n')
+
+          for CONSUMER in "${CONSUMERS[@]}"; do
+            echo "Creating webhook for ${CONSUMER} -> ${PROVIDER}"
+
+            curl -i -sS -X POST "${PACT_BROKER_URL}/webhooks" \
+              -H "Authorization: Basic ${AUTH_HEADER}" \
+              -H "Content-Type: application/json" \
+              --data-binary @- <<JSON
+          {
+            "description": "Trigger ${TARGET_REPO} workflow for ${CONSUMER} -> ${PROVIDER}",
+            "consumer": {
+              "name": "${CONSUMER}"
+            },
+            "provider": {
+              "name": "${PROVIDER}"
+            },
+            "request": {
+              "method": "POST",
+              "url": "https://api.github.com/repos/${TARGET_REPO}/dispatches",
+              "headers": {
+                "accept": "application/vnd.github+json",
+                "authorization": "Bearer ${FFCPLATFORM_PAT}",
+                "content-type": "application/json",
+                "x-github-api-version": "2022-11-28"
+              },
+              "body": {
+                "event_type": "pact_published",
+                "client_payload": {
+                  "pact_url": "\${pactbroker.pactUrl}",
+                  "consumer": "\${pactbroker.consumerName}",
+                  "provider": "\${pactbroker.providerName}",
+                  "sha": "\${pactbroker.providerVersionNumber}",
+                  "branch": "\${pactbroker.providerVersionBranch}",
+                  "message": "Verify changed pact for \${pactbroker.consumerName} version \${pactbroker.consumerVersionNumber} branch \${pactbroker.consumerVersionBranch} by \${pactbroker.providerVersionNumber} (\${pactbroker.providerVersionDescriptions})"
+                }
+              }
+            },
+            "events": [
+              {
+                "name": "contract_requiring_verification_published"
+              }
+            ]
+          }
+          JSON
+          done
