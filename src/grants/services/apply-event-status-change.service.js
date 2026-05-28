@@ -160,6 +160,21 @@ const saveApplication = async (updatedApplication, session) => {
   return { application: updatedApplication };
 };
 
+const checkForExternalStatusMapping = (
+  grant,
+  requestedStatus,
+  sourceSystem,
+  currentPhase,
+  currentStage,
+) => {
+  return grant.hasExternalStatusMapping(
+    requestedStatus,
+    sourceSystem,
+    currentPhase,
+    currentStage,
+  );
+};
+
 /**
  * Main entry point for applying external status changes to grant applications.
  *
@@ -191,6 +206,21 @@ export const applyExternalStateChange = async (command) => {
 
     if (!grant) {
       throw Boom.notFound(`Grant with code "${application.code}" not found`);
+    }
+
+    if (
+      !checkForExternalStatusMapping(
+        grant,
+        command.externalRequestedState,
+        command.sourceSystem,
+        application.currentPhase,
+        application.currentStage,
+      )
+    ) {
+      logger.info(
+        `Acknowledged unknown transition for grantCode ${code} from current position ${application.getFullyQualifiedStatus()} to target position ${command.externalRequestedState} for clientRef ${application.clientRef}`,
+      );
+      return;
     }
 
     const result = processStateTransition(application, grant, command);

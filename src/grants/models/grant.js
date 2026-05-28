@@ -96,6 +96,20 @@ export class Grant {
     );
   }
 
+  hasExternalStatusMapping(
+    externalRequestedState,
+    source,
+    currentPhase,
+    currentStage,
+  ) {
+    return this.#findExternalStatusMapping(
+      currentPhase,
+      currentStage,
+      externalRequestedState,
+      source,
+    );
+  }
+
   // eslint-disable-next-line complexity
   #findExternalStatusMapping(
     currentPhase,
