@@ -10,6 +10,7 @@ export const createStatusTransitionUpdateUseCase =
     newFullyQualifiedStatus,
     clientRef,
     code,
+    configVersion,
   }) =>
   async (session) => {
     logger.info(
@@ -19,6 +20,7 @@ export const createStatusTransitionUpdateUseCase =
       const statusEvent = new ApplicationStatusUpdatedEvent({
         clientRef,
         code,
+        configVersion,
         previousStatus: originalFullyQualifiedStatus,
         currentStatus: newFullyQualifiedStatus,
       });

@@ -136,6 +136,7 @@ describe("save", () => {
         currentStatus: ApplicationStatus.Received,
         clientRef: "application-1",
         code: "grant-1",
+        configVersion: null,
         createdAt: "2021-01-01T00:00:00.000Z",
         updatedAt: "2021-01-01T01:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",

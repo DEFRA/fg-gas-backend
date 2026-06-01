@@ -1,5 +1,6 @@
 import { db } from "../../common/mongo-client.js";
 import { ConfigVersion, FetchStatus } from "../models/config-version.js";
+export { FetchStatus, parseSemver } from "../models/config-version.js";
 
 const collection = "config_versions";
 
@@ -71,9 +72,7 @@ export const updateFetchStatus = async (
 };
 
 export const findByGrantCodeAndVersion = async (grantCode, version) => {
-  const doc = await db
-    .collection(collection)
-    .findOne({ grantCode, version });
+  const doc = await db.collection(collection).findOne({ grantCode, version });
 
   return ConfigVersion.fromDocument(doc);
 };

@@ -46,6 +46,7 @@ export class Application {
       currentStatus,
       clientRef,
       code,
+      configVersion,
       createdAt,
       updatedAt,
       submittedAt,
@@ -60,6 +61,7 @@ export class Application {
     this.currentStatus = currentStatus;
     this.clientRef = clientRef;
     this.code = code;
+    this.configVersion = configVersion ?? null;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.submittedAt = submittedAt;
@@ -75,6 +77,7 @@ export class Application {
     currentStatus,
     clientRef,
     code,
+    configVersion,
     submittedAt,
     identifiers,
     metadata,
@@ -88,6 +91,7 @@ export class Application {
       currentStatus,
       clientRef,
       code,
+      configVersion,
       submittedAt,
       createdAt,
       updatedAt: createdAt,

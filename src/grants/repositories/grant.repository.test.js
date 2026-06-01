@@ -4,7 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
-import { findAll, findByCode, replace, save } from "./grant.repository.js";
+import {
+  findAll,
+  findByCode,
+  findByCodeAndVersion,
+  replace,
+  save,
+} from "./grant.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -44,11 +50,11 @@ describe("save", () => {
     expect(insertOne).toHaveBeenCalledWith(
       new GrantDocument({
         code: "1",
+        version: "1.0.0",
         metadata: {
           description: "test",
           startDate: "2021-01-01T00:00:00.000Z",
         },
-
         actions: [
           {
             method: "GET",
@@ -56,10 +62,6 @@ describe("save", () => {
             url: "http://localhost",
           },
         ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
       }),
     );
   });
@@ -93,7 +95,9 @@ describe("save", () => {
           },
         }),
       ),
-    ).rejects.toThrow(Boom.conflict('Grant with code "1" already exists'));
+    ).rejects.toThrow(
+      Boom.conflict('Grant with code "1" version "1.0.0" already exists'),
+    );
   });
 
   it("throws when an error occurs", async () => {
@@ -162,9 +166,10 @@ describe("replace", () => {
     expect(db.collection).toHaveBeenCalledWith("grants");
 
     expect(replaceOne).toHaveBeenCalledWith(
-      { code: "code-1" },
+      { code: "code-1", version: "1.0.0" },
       new GrantDocument({
         code: "code-1",
+        version: "1.0.0",
         metadata: {
           description: "test",
           startDate: "2021-01-01T00:00:00.000Z",
@@ -176,10 +181,6 @@ describe("replace", () => {
             url: "http://localhost",
           },
         ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
       }),
     );
   });
@@ -290,10 +291,6 @@ describe("findByCode", () => {
           url: "http://localhost",
         },
       ],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
     });
 
     db.collection.mockReturnValue({
@@ -322,11 +319,55 @@ describe("findByCode", () => {
             url: "http://localhost",
           },
         ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
       }),
     );
+  });
+});
+
+describe("findByCodeAndVersion", () => {
+  it("returns a Grant matching code and version", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce({
+      code: "woodland",
+      version: "1.2.3",
+      metadata: {
+        description: "test",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      phases: [],
+    });
+
+    db.collection.mockReturnValue({ findOne });
+
+    const result = await findByCodeAndVersion("woodland", "1.2.3");
+
+    expect(db.collection).toHaveBeenCalledWith("grants");
+
+    expect(findOne).toHaveBeenCalledWith({
+      code: "woodland",
+      version: "1.2.3",
+    });
+
+    expect(result).toStrictEqual(
+      new Grant({
+        code: "woodland",
+        version: "1.2.3",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases: [],
+      }),
+    );
+  });
+
+  it("returns null when no match found", async () => {
+    db.collection.mockReturnValue({
+      findOne: vi.fn().mockResolvedValueOnce(null),
+    });
+
+    const result = await findByCodeAndVersion("woodland", "9.9.9");
+    expect(result).toBeNull();
   });
 });

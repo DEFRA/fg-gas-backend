@@ -6,17 +6,20 @@ import { Application } from "../models/application.js";
 import { Outbox } from "../models/outbox.js";
 import { save } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 import { validateAnswersAgainstSchema } from "../services/schema-validation.service.js";
-import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 
 export const createApplicationUseCase = async (
   code,
-  { metadata, answers },
+  { configVersion, metadata, answers },
   session,
 ) => {
   logger.info(`Create application with clientRef ${metadata.clientRef}`);
 
-  const grant = await findGrantByCodeUseCase(code);
+  const { grant, resolvedVersion } = await resolveAndFetchGrant(
+    code,
+    configVersion,
+  );
 
   const { phase, stage, status } = grant.getInitialState();
 
@@ -27,6 +30,7 @@ export const createApplicationUseCase = async (
     currentStage: stage.code,
     currentStatus: status.code,
     code,
+    configVersion: resolvedVersion,
     clientRef,
     submittedAt,
     identifiers: {
@@ -56,6 +60,7 @@ export const createApplicationUseCase = async (
   const applicationCreatedEvent = new ApplicationCreatedEvent({
     clientRef: application.clientRef,
     code: application.code,
+    configVersion: application.configVersion,
     status: application.getFullyQualifiedStatus(),
   });
 

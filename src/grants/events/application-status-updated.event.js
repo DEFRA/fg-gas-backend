@@ -7,6 +7,7 @@ export class ApplicationStatusUpdatedEvent extends CloudEvent {
       {
         clientRef: props.clientRef,
         grantCode: props.code,
+        configVersion: props.configVersion ?? null,
         previousStatus: props.previousStatus,
         currentStatus: props.currentStatus,
       },
