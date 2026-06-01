@@ -43,6 +43,7 @@ export const addAgreementUseCase = async (command, session) => {
   const statusCommand = new UpdateCaseStatusCommand({
     caseRef: clientRef,
     workflowCode: code,
+    configVersion: application.configVersion,
     newStatus: application.getFullyQualifiedStatus(),
     phase: currentPhase,
     stage: currentStage,

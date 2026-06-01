@@ -3,10 +3,12 @@ import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
+export { Grant } from "../models/grant.js";
 
 export const toGrant = (doc) =>
   new Grant({
     code: doc.code,
+    version: doc.version,
     metadata: doc.metadata,
     actions: doc.actions,
     phases: doc.phases,
@@ -23,7 +25,9 @@ export const save = async (grant) => {
     await db.collection(collection).insertOne(document);
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
-      throw Boom.conflict(`Grant with code "${grant.code}" already exists`);
+      throw Boom.conflict(
+        `Grant with code "${grant.code}" version "${grant.version}" already exists`,
+      );
     }
 
     throw error;
@@ -33,7 +37,9 @@ export const save = async (grant) => {
 export const replace = async (grant) => {
   const document = new GrantDocument(grant);
 
-  await db.collection(collection).replaceOne({ code: grant.code }, document);
+  await db
+    .collection(collection)
+    .replaceOne({ code: grant.code, version: grant.version }, document);
 };
 
 export const findAll = async () => {
@@ -45,6 +51,15 @@ export const findAll = async () => {
 export const findByCode = async (code) => {
   const result = await db.collection(collection).findOne({
     code,
+  });
+
+  return result && toGrant(result);
+};
+
+export const findByCodeAndVersion = async (code, version) => {
+  const result = await db.collection(collection).findOne({
+    code,
+    version,
   });
 
   return result && toGrant(result);

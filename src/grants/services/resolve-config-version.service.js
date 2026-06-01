@@ -1,0 +1,139 @@
+import Boom from "@hapi/boom";
+import { logger } from "../../common/logger.js";
+import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
+import {
+  FetchStatus,
+  findLatestPatch,
+  parseSemver,
+  updateFetchStatus,
+} from "../repositories/config-version.repository.js";
+import {
+  findByCodeAndVersion,
+  Grant,
+  save,
+} from "../repositories/grant.repository.js";
+
+const MAX_FETCH_ATTEMPTS = 5;
+
+const handleS3Error = async (err, grantCode, version) => {
+  if (err.isPermanent || err.isParseError) {
+    logger.error(
+      `Permanent S3 fetch failure for ${grantCode}@${version} key=${err.key}: ${err.message}`,
+    );
+    await updateFetchStatus(
+      grantCode,
+      version,
+      FetchStatus.PermanentError,
+      err.message,
+    );
+    throw Boom.badGateway(
+      `Permanent S3 error for ${grantCode}@${version}: ${err.message}`,
+    );
+  }
+
+  logger.error(
+    `Transient S3 fetch failure for ${grantCode}@${version} key=${err.key}: ${err.message}`,
+  );
+  await updateFetchStatus(
+    grantCode,
+    version,
+    FetchStatus.TransientError,
+    err.message,
+  );
+  throw Boom.serverUnavailable(
+    `Transient S3 error for ${grantCode}@${version}: ${err.message}`,
+  );
+};
+
+// eslint-disable-next-line complexity
+export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
+  logger.info(`Resolving config version for ${grantCode}@${requestedVersion}`);
+
+  const parsed = parseSemver(requestedVersion);
+  if (!parsed) {
+    throw Boom.badRequest(`Invalid semver version: ${requestedVersion}`);
+  }
+
+  const configVersion = await findLatestPatch(
+    grantCode,
+    parsed.major,
+    parsed.minor,
+  );
+
+  if (!configVersion) {
+    throw Boom.notFound(
+      `No active config version found for ${grantCode}@${parsed.major}.${parsed.minor}`,
+    );
+  }
+
+  const resolvedVersion = configVersion.version;
+
+  if (
+    configVersion.fetchAttempts >= MAX_FETCH_ATTEMPTS &&
+    configVersion.fetchStatus !== FetchStatus.PermanentError
+  ) {
+    logger.warn(
+      `Max fetch attempts (${MAX_FETCH_ATTEMPTS}) exceeded for ${grantCode}@${resolvedVersion}`,
+    );
+    await updateFetchStatus(
+      grantCode,
+      resolvedVersion,
+      FetchStatus.PermanentError,
+      `Exceeded ${MAX_FETCH_ATTEMPTS} fetch attempts`,
+    );
+    throw Boom.badGateway(
+      `Max fetch attempts exceeded for ${grantCode}@${resolvedVersion}`,
+    );
+  }
+
+  if (configVersion.fetchStatus === FetchStatus.PermanentError) {
+    logger.warn(
+      `Permanent error recorded for ${grantCode}@${resolvedVersion}: ${configVersion.fetchError}`,
+    );
+    throw Boom.badGateway(
+      `Permanent error for ${grantCode}@${resolvedVersion}: ${configVersion.fetchError}`,
+    );
+  }
+
+  if (configVersion.fetchStatus === FetchStatus.Fetched) {
+    const existingGrant = await findByCodeAndVersion(
+      grantCode,
+      resolvedVersion,
+    );
+    if (existingGrant) {
+      logger.info(`Resolved ${grantCode}@${resolvedVersion} from cache`);
+      return { grant: existingGrant, resolvedVersion };
+    }
+  }
+
+  logger.info(
+    `Fetching grant definition from S3 for ${grantCode}@${resolvedVersion}`,
+  );
+
+  let grantDefinition;
+  try {
+    grantDefinition = await fetchConfigFile(
+      configVersion.s3Bucket,
+      configVersion.s3Key,
+    );
+  } catch (err) {
+    if (err instanceof S3FetchError) {
+      await handleS3Error(err, grantCode, resolvedVersion);
+    }
+    throw err;
+  }
+
+  const grant = new Grant({
+    ...grantDefinition,
+    version: resolvedVersion,
+  });
+
+  await save(grant);
+  await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
+
+  logger.info(
+    `Finished: Resolved and stored ${grantCode}@${resolvedVersion} from S3`,
+  );
+
+  return { grant, resolvedVersion };
+};

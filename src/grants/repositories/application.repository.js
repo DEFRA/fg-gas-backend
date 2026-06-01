@@ -12,6 +12,7 @@ const toApplication = (doc) =>
     currentStatus: doc.currentStatus,
     clientRef: doc.clientRef,
     code: doc.code,
+    configVersion: doc.configVersion,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     submittedAt: doc.submittedAt,

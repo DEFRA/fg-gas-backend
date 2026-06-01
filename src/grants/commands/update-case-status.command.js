@@ -6,6 +6,7 @@ export class UpdateCaseStatusCommand extends CloudEvent {
     newStatus,
     caseRef,
     workflowCode,
+    configVersion,
     phase,
     stage,
     targetNode,
@@ -14,6 +15,7 @@ export class UpdateCaseStatusCommand extends CloudEvent {
     data,
   }) {
     const supplementaryData = {
+      configVersion: configVersion ?? null,
       phase,
       stage,
     };

@@ -21,6 +21,7 @@ export const createAgreementCaseUpdateCommand = ({
   return new UpdateCaseStatusCommand({
     caseRef: clientRef,
     workflowCode: code,
+    configVersion: application.configVersion,
     newStatus: currentStatus,
     phase: currentPhase,
     stage: currentStage,
@@ -40,6 +41,7 @@ export const createApplicationStatusUpdatedEventData = ({
   new ApplicationStatusUpdatedEvent({
     clientRef,
     code,
+    configVersion: application.configVersion,
     previousStatus,
     currentStatus: application.getFullyQualifiedStatus(),
   });

@@ -6,6 +6,9 @@ import { sbi } from "../application/metadata/sbi.js";
 import { submittedAt } from "../application/metadata/submitted-at.js";
 
 export const submitApplicationRequestSchema = Joi.object({
+  configVersion: Joi.string()
+    .pattern(/^\d+\.\d+\.\d+$/)
+    .required(),
   metadata: Joi.object({
     previousClientRef: clientRef.optional(),
     clientRef,

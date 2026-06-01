@@ -6,6 +6,9 @@ export const createGrantRequestSchema = grantRequestSchema
   .concat(
     Joi.object({
       code,
+      version: Joi.string()
+        .pattern(/^\d+\.\d+\.\d+$/)
+        .optional(),
     }),
   )
   .options({

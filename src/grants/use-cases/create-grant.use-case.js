@@ -6,6 +6,7 @@ export const createGrantUseCase = async (createGrantCommand) => {
   logger.info(`Creating grant with code ${createGrantCommand.code}`);
   const grant = new Grant({
     code: createGrantCommand.code,
+    version: createGrantCommand.version,
     metadata: {
       description: createGrantCommand.metadata.description,
       startDate: createGrantCommand.metadata.startDate,

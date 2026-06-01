@@ -10,6 +10,7 @@ export const replaceGrantUseCase = async (code, replaceGrantCommand) => {
 
   const grant = new Grant({
     code,
+    version: replaceGrantCommand.version,
     metadata: {
       description: replaceGrantCommand.metadata.description,
       startDate: replaceGrantCommand.metadata.startDate,

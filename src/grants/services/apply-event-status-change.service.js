@@ -137,12 +137,12 @@ const processStateTransition = (application, grant, command) => {
   updateApplicationState(application, validMapping);
 
   const newFullyQualifiedStatus = application.getFullyQualifiedStatus();
-  const { clientRef, code } = application;
+  const { clientRef, code, configVersion } = application;
 
-  // Create a status update event for the transition
   const statusTransitionHandler = createStatusTransitionUpdateUseCase({
     clientRef,
     code,
+    configVersion,
     originalFullyQualifiedStatus,
     newFullyQualifiedStatus,
   });
