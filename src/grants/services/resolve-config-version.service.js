@@ -45,29 +45,7 @@ const handleS3Error = async (err, grantCode, version) => {
   );
 };
 
-// eslint-disable-next-line complexity
-export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
-  logger.info(`Resolving config version for ${grantCode}@${requestedVersion}`);
-
-  const parsed = parseSemver(requestedVersion);
-  if (!parsed) {
-    throw Boom.badRequest(`Invalid semver version: ${requestedVersion}`);
-  }
-
-  const configVersion = await findLatestPatch(
-    grantCode,
-    parsed.major,
-    parsed.minor,
-  );
-
-  if (!configVersion) {
-    throw Boom.notFound(
-      `No active config version found for ${grantCode}@${parsed.major}.${parsed.minor}`,
-    );
-  }
-
-  const resolvedVersion = configVersion.version;
-
+const guardFetchStatus = async (configVersion, grantCode, resolvedVersion) => {
   if (
     configVersion.fetchAttempts >= MAX_FETCH_ATTEMPTS &&
     configVersion.fetchStatus !== FetchStatus.PermanentError
@@ -94,18 +72,13 @@ export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
       `Permanent error for ${grantCode}@${resolvedVersion}: ${configVersion.fetchError}`,
     );
   }
+};
 
-  if (configVersion.fetchStatus === FetchStatus.Fetched) {
-    const existingGrant = await findByCodeAndVersion(
-      grantCode,
-      resolvedVersion,
-    );
-    if (existingGrant) {
-      logger.info(`Resolved ${grantCode}@${resolvedVersion} from cache`);
-      return { grant: existingGrant, resolvedVersion };
-    }
-  }
-
+const fetchAndStoreGrant = async (
+  configVersion,
+  grantCode,
+  resolvedVersion,
+) => {
   logger.info(
     `Fetching grant definition from S3 for ${grantCode}@${resolvedVersion}`,
   );
@@ -133,6 +106,65 @@ export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
 
   logger.info(
     `Finished: Resolved and stored ${grantCode}@${resolvedVersion} from S3`,
+  );
+
+  return grant;
+};
+
+const findCachedGrant = async (configVersion, grantCode, resolvedVersion) => {
+  if (configVersion.fetchStatus !== FetchStatus.Fetched) {
+    return null;
+  }
+
+  const existingGrant = await findByCodeAndVersion(grantCode, resolvedVersion);
+  if (existingGrant) {
+    logger.info(`Resolved ${grantCode}@${resolvedVersion} from cache`);
+  }
+  return existingGrant;
+};
+
+const resolveConfigVersion = async (grantCode, requestedVersion) => {
+  const parsed = parseSemver(requestedVersion);
+  if (!parsed) {
+    throw Boom.badRequest(`Invalid semver version: ${requestedVersion}`);
+  }
+
+  const configVersion = await findLatestPatch(
+    grantCode,
+    parsed.major,
+    parsed.minor,
+  );
+
+  if (!configVersion) {
+    throw Boom.notFound(
+      `No active config version found for ${grantCode}@${parsed.major}.${parsed.minor}`,
+    );
+  }
+
+  return configVersion;
+};
+
+export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
+  logger.info(`Resolving config version for ${grantCode}@${requestedVersion}`);
+
+  const configVersion = await resolveConfigVersion(grantCode, requestedVersion);
+  const resolvedVersion = configVersion.version;
+
+  await guardFetchStatus(configVersion, grantCode, resolvedVersion);
+
+  const cached = await findCachedGrant(
+    configVersion,
+    grantCode,
+    resolvedVersion,
+  );
+  if (cached) {
+    return { grant: cached, resolvedVersion };
+  }
+
+  const grant = await fetchAndStoreGrant(
+    configVersion,
+    grantCode,
+    resolvedVersion,
   );
 
   return { grant, resolvedVersion };
