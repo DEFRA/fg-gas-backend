@@ -40,7 +40,7 @@ const schema = Joi.object({
   GAS__SQS__UPDATE_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional(),
-  GAS__SNS__AUDIT_TOPIC_ARN: Joi.string().optional(),
+  GAS__SNS__AUDIT_TOPIC_ARN: Joi.string(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,

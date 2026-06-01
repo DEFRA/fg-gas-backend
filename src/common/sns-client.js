@@ -2,7 +2,7 @@ import { PublishCommand, SNSClient } from "@aws-sdk/client-sns";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 
-const snsClient = new SNSClient({
+export const snsClient = new SNSClient({
   region: config.region,
   endpoint: config.awsEndpointUrl,
 });

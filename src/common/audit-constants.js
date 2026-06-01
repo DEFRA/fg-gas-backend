@@ -1,0 +1,2 @@
+export const ENTITY_APPLICATION = "Application";
+export const ACTION_CREATE_APPLICATION = "CREATE_APPLICATION";

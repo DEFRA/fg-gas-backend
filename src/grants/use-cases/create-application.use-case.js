@@ -9,6 +9,8 @@ import { save } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import { validateAnswersAgainstSchema } from "../services/schema-validation.service.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
+import { ENTITY_APPLICATION, ACTION_CREATE_APPLICATION } from "../../common/audit-constants.js";
+
 
 const createApplication = async (code, { metadata, answers }, session) => {
   logger.info(`Create application with clientRef ${metadata.clientRef}`);
@@ -82,10 +84,13 @@ export const createApplicationUseCase = withAuditEvents(
   createApplication,
   ({ args }) => ({
     audit: {
-      eventtype: "ApplicationCreation",
-      action: "CREATE_APPLICATION",
-      entity: "Application",
-      entityid: args[1].metadata.clientRef,
+      entities: [
+        {
+          entity: ENTITY_APPLICATION,
+          action: ACTION_CREATE_APPLICATION,
+          entityid: args[1].metadata.clientRef,
+        },
+      ],
       details: { code: args[0] },
     },
   }),

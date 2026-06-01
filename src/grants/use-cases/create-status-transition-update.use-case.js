@@ -35,10 +35,13 @@ const auditWriteStatusTransition = withAuditEvents(
   writeStatusTransition,
   ({ args: [{ clientRef, code, previousStatus, currentStatus }] }) => ({
     audit: {
-      eventtype: "ApplicationStatusTransition",
-      action: "STATUS_TRANSITION",
-      entity: "Application",
-      entityid: clientRef,
+      entities: [
+        {
+          entity: "Application",
+          action: "STATUS_TRANSITION",
+          entityid: clientRef,
+        },
+      ],
       details: { code, fromStatus: previousStatus, toStatus: currentStatus },
     },
   }),
