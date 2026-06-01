@@ -317,20 +317,20 @@ describe("applyExternalStateChange", () => {
 
   describe("when external status is not mapped", () => {
     it("should not update application", async () => {
+      const spy = vi.spyOn(logger, "info");
       findByClientRefAndCode.mockResolvedValue(mockApplication);
       findByCode.mockResolvedValue(mockGrant);
 
-      await expect(() =>
-        applyExternalStateChange({
-          clientRef: "APP-123",
-          externalRequestedState: "UNMAPPED_STATUS",
-          sourceSystem: "CW",
-          eventData: {},
-        }),
-      ).rejects.toThrow(
-        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to UNMAPPED_STATUS",
-      );
+      await applyExternalStateChange({
+        clientRef: "APP-123",
+        externalRequestedState: "UNMAPPED_STATUS",
+        sourceSystem: "CW",
+        eventData: {},
+      });
 
+      expect(spy.mock.lastCall[0]).toBe(
+        "Acknowledged unknown transition for grantCode undefined from current position PRE_AWARD:REVIEW_APPLICATION:RECEIVED to target position UNMAPPED_STATUS for clientRef APP-123",
+      );
       expect(update).not.toHaveBeenCalled();
       expect(insertMany).not.toHaveBeenCalled();
     });
@@ -365,21 +365,21 @@ describe("applyExternalStateChange", () => {
 
   describe("when source system is different", () => {
     it("should not find mapping and not update application", async () => {
+      const spy = vi.spyOn(logger, "info");
       findByClientRefAndCode.mockResolvedValue(mockApplication);
       findByCode.mockResolvedValue(mockGrant);
 
-      await expect(() =>
-        applyExternalStateChange({
-          clientRef: "APP-123",
-          code: "foo",
-          externalRequestedState: "IN_PROGRESS",
-          sourceSystem: "DIFFERENT_SYSTEM",
-          eventData: {},
-        }),
-      ).rejects.toThrow(
-        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
-      );
+      await applyExternalStateChange({
+        clientRef: "APP-123",
+        code: "foo",
+        externalRequestedState: "IN_PROGRESS",
+        sourceSystem: "DIFFERENT_SYSTEM",
+        eventData: {},
+      });
 
+      expect(spy.mock.lastCall[0]).toBe(
+        "Acknowledged unknown transition for grantCode foo from current position PRE_AWARD:REVIEW_APPLICATION:RECEIVED to target position IN_PROGRESS for clientRef APP-123",
+      );
       expect(update).not.toHaveBeenCalled();
       expect(insertMany).not.toHaveBeenCalled();
     });
@@ -888,6 +888,8 @@ describe("applyExternalStateChange", () => {
         currentStatus: "RECEIVED",
       });
 
+      const spy = vi.spyOn(logger, "info");
+
       const grantWithNoMapping = new Grant({
         ...mockGrant,
         externalStatusMap: undefined,
@@ -896,24 +898,24 @@ describe("applyExternalStateChange", () => {
       findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithNoMapping);
 
-      await expect(() =>
-        applyExternalStateChange({
-          clientRef: "APP-123",
-          code: "foo",
-          externalRequestedState: "IN_PROGRESS",
-          sourceSystem: "CW",
-          eventData: {},
-        }),
-      ).rejects.toThrow(
-        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
-      );
+      await applyExternalStateChange({
+        clientRef: "APP-123",
+        code: "foo",
+        externalRequestedState: "IN_PROGRESS",
+        sourceSystem: "CW",
+        eventData: {},
+      });
 
+      expect(spy.mock.lastCall[0]).toBe(
+        "Acknowledged unknown transition for grantCode foo from current position PRE_AWARD:REVIEW_APPLICATION:RECEIVED to target position IN_PROGRESS for clientRef APP-123",
+      );
       expect(update).not.toHaveBeenCalled();
     });
   });
 
   describe("when externalStatusMap phases is missing", () => {
     it("should not update application", async () => {
+      const spy = vi.spyOn(logger, "info");
       const application = new Application({
         ...mockApplication,
         currentStatus: "RECEIVED",
@@ -927,18 +929,17 @@ describe("applyExternalStateChange", () => {
       findByClientRefAndCode.mockResolvedValue(application);
       findByCode.mockResolvedValue(grantWithNoPhases);
 
-      await expect(() =>
-        applyExternalStateChange({
-          clientRef: "APP-123",
-          code: "foo",
-          externalRequestedState: "IN_PROGRESS",
-          sourceSystem: "CW",
-          eventData: {},
-        }),
-      ).rejects.toThrow(
-        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
-      );
+      await applyExternalStateChange({
+        clientRef: "APP-123",
+        code: "foo",
+        externalRequestedState: "IN_PROGRESS",
+        sourceSystem: "CW",
+        eventData: {},
+      });
 
+      expect(spy.mock.lastCall[0]).toBe(
+        "Acknowledged unknown transition for grantCode foo from current position PRE_AWARD:REVIEW_APPLICATION:RECEIVED to target position IN_PROGRESS for clientRef APP-123",
+      );
       expect(update).not.toHaveBeenCalled();
     });
   });

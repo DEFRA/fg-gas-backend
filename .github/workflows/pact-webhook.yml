@@ -1,0 +1,12 @@
+name: Pact Provider Verification (Broker Webhook)
+
+on:
+  repository_dispatch:
+    types: [pact_published]
+
+jobs:
+  pact:
+    name: Pact
+    uses: ./.github/workflows/pact-verify.yml
+    with:
+      publish-verification: true
