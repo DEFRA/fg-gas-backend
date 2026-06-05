@@ -1,6 +1,5 @@
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { withAuditEvents } from "../../common/with-audit-events.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { Outbox } from "../models/outbox.js";
 import { insertMany } from "../repositories/outbox.repository.js";
@@ -31,22 +30,6 @@ const writeStatusTransition = async ({
   );
 };
 
-const auditWriteStatusTransition = withAuditEvents(
-  writeStatusTransition,
-  ({ args: [{ clientRef, code, previousStatus, currentStatus }] }) => ({
-    audit: {
-      entities: [
-        {
-          entity: "Application",
-          action: "STATUS_TRANSITION",
-          entityid: clientRef,
-        },
-      ],
-      details: { code, fromStatus: previousStatus, toStatus: currentStatus },
-    },
-  }),
-);
-
 export const createStatusTransitionUpdateUseCase =
   ({
     originalFullyQualifiedStatus,
@@ -59,7 +42,7 @@ export const createStatusTransitionUpdateUseCase =
       `Creating status transition update for application ${clientRef} with code ${code}`,
     );
     if (originalFullyQualifiedStatus !== newFullyQualifiedStatus) {
-      await auditWriteStatusTransition({
+      await writeStatusTransition({
         clientRef,
         code,
         previousStatus: originalFullyQualifiedStatus,

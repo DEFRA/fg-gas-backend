@@ -1,6 +1,5 @@
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { withAuditEvents } from "../../common/with-audit-events.js";
 import { CreateNewCaseCommand } from "../commands/create-new-case.command.js";
 import { ApplicationCreatedEvent } from "../events/application-created.event.js";
 import { Application } from "../models/application.js";
@@ -9,8 +8,6 @@ import { save } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import { validateAnswersAgainstSchema } from "../services/schema-validation.service.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
-import { ENTITY_APPLICATION, ACTION_CREATE_APPLICATION } from "../../common/audit-constants.js";
-
 
 const createApplication = async (code, { metadata, answers }, session) => {
   logger.info(`Create application with clientRef ${metadata.clientRef}`);
@@ -80,18 +77,4 @@ const createApplication = async (code, { metadata, answers }, session) => {
   return applicationID.toString();
 };
 
-export const createApplicationUseCase = withAuditEvents(
-  createApplication,
-  ({ args }) => ({
-    audit: {
-      entities: [
-        {
-          entity: ENTITY_APPLICATION,
-          action: ACTION_CREATE_APPLICATION,
-          entityid: args[1].metadata.clientRef,
-        },
-      ],
-      details: { code: args[0] },
-    },
-  }),
-);
+export const createApplicationUseCase = createApplication;

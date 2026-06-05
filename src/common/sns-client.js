@@ -8,7 +8,7 @@ export const snsClient = new SNSClient({
 });
 
 export const publish = async (topic, data, messageGroupId) => {
-  logger.info(`Publish command ${topic}`);
+  logger.info(`Publish command ${topic} ${messageGroupId}`);
   await snsClient.send(
     new PublishCommand({
       TopicArn: topic,
