@@ -14,6 +14,7 @@ export const up = async (db) => {
         claimedAt: null,
         claimExpiresAt: null,
         completionDate: null,
+        completionAttempts: 0,
         lastResubmissionDate: new Date().toISOString(),
       },
     },
