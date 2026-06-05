@@ -61,6 +61,8 @@ export class Application {
     this.currentStatus = currentStatus;
     this.clientRef = clientRef;
     this.code = code;
+    // Backward compat: pre-existing applications (before Config Broker) have no
+    // configVersion. The migration sets null; new submissions always provide a value.
     this.configVersion = configVersion ?? null;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;

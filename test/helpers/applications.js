@@ -18,6 +18,7 @@ export const createTestApplication = (overrides = {}) => {
     currentStatus: ApplicationStatus.Received,
     clientRef: "application-1",
     code: "grant-1",
+    configVersion: "1.0.0",
     submittedAt: "2021-01-01T00:00:00.000Z",
     identifiers: {
       sbi: "sbi-1",

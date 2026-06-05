@@ -3,7 +3,6 @@ import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
-export { Grant } from "../models/grant.js";
 
 export const toGrant = (doc) =>
   new Grant({
@@ -48,12 +47,20 @@ export const findAll = async () => {
   return results.map(toGrant);
 };
 
+// TODO: Update to return the latest version once all callers are version-aware.
+// Currently used by apply-event-status-change.service.js for legacy flows.
 export const findByCode = async (code) => {
   const result = await db.collection(collection).findOne({
     code,
   });
 
   return result && toGrant(result);
+};
+
+export const saveFromDefinition = async (grantDefinition, version) => {
+  const grant = new Grant({ ...grantDefinition, version });
+  await save(grant);
+  return grant;
 };
 
 export const findByCodeAndVersion = async (code, version) => {

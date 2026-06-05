@@ -1,28 +1,9 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
+import { FetchStatus } from "../../common/fetch-status.js";
+import { parseSemver } from "../../common/semver.js";
 
-export const FetchStatus = {
-  Pending: "pending",
-  Fetched: "fetched",
-  TransientError: "transient_error",
-  PermanentError: "permanent_error",
-};
-
-const SEMVER_REGEX = /^(\d+)\.(\d+)\.(\d+)$/;
-const RADIX = 10;
-
-export const parseSemver = (version) => {
-  const match = version.match(SEMVER_REGEX);
-  if (!match) {
-    return null;
-  }
-  const [, major, minor, patch] = match;
-  return {
-    major: Number.parseInt(major, RADIX),
-    minor: Number.parseInt(minor, RADIX),
-    patch: Number.parseInt(patch, RADIX),
-  };
-};
+export { FetchStatus };
 
 export class ConfigVersion {
   static validationSchema = Joi.object({

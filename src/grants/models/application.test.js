@@ -150,7 +150,7 @@ describe("Application", () => {
       createdAt: "2021-02-01T13:00:00.000Z",
       submittedAt: "2021-01-01T00:00:00.000Z",
       updatedAt: "2021-02-01T13:00:00.000Z",
-      configVersion: null,
+      configVersion: "1.0.0",
       agreements: {},
       identifiers: {
         sbi: "sbi-1",

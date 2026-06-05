@@ -9,7 +9,7 @@ import {
 } from "../repositories/config-version.repository.js";
 import {
   findByCodeAndVersion,
-  save,
+  saveFromDefinition,
 } from "../repositories/grant.repository.js";
 import { resolveAndFetchGrant } from "./resolve-config-version.service.js";
 
@@ -36,7 +36,7 @@ vi.mock("../repositories/grant.repository.js", async (importOriginal) => {
   return {
     ...original,
     findByCodeAndVersion: vi.fn(),
-    save: vi.fn(),
+    saveFromDefinition: vi.fn(),
   };
 });
 
@@ -103,13 +103,17 @@ describe("resolveAndFetchGrant", () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
     findLatestPatch.mockResolvedValue(cv);
     fetchConfigFile.mockResolvedValue(mockGrantDefinition);
-    save.mockResolvedValue();
+    const savedGrant = new Grant({ ...mockGrantDefinition, version: VERSION });
+    saveFromDefinition.mockResolvedValue(savedGrant);
     updateFetchStatus.mockResolvedValue();
 
     const result = await resolveAndFetchGrant(GRANT_CODE, VERSION);
 
     expect(fetchConfigFile).toHaveBeenCalledWith(cv.s3Bucket, cv.s3Key);
-    expect(save).toHaveBeenCalled();
+    expect(saveFromDefinition).toHaveBeenCalledWith(
+      mockGrantDefinition,
+      VERSION,
+    );
     expect(updateFetchStatus).toHaveBeenCalledWith(
       GRANT_CODE,
       VERSION,
@@ -124,13 +128,34 @@ describe("resolveAndFetchGrant", () => {
     findLatestPatch.mockResolvedValue(cv);
     findByCodeAndVersion.mockResolvedValue(null);
     fetchConfigFile.mockResolvedValue(mockGrantDefinition);
-    save.mockResolvedValue();
+    const savedGrant = new Grant({ ...mockGrantDefinition, version: VERSION });
+    saveFromDefinition.mockResolvedValue(savedGrant);
     updateFetchStatus.mockResolvedValue();
 
     const result = await resolveAndFetchGrant(GRANT_CODE, VERSION);
 
     expect(fetchConfigFile).toHaveBeenCalled();
     expect(result.grant).toBeInstanceOf(Grant);
+  });
+
+  it("handles concurrent duplicate insert by falling back to findByCodeAndVersion", async () => {
+    const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
+    findLatestPatch.mockResolvedValue(cv);
+    fetchConfigFile.mockResolvedValue(mockGrantDefinition);
+
+    const conflictError = Boom.conflict("already exists");
+    saveFromDefinition.mockRejectedValue(conflictError);
+
+    const existingGrant = new Grant({
+      ...mockGrantDefinition,
+      version: VERSION,
+    });
+    findByCodeAndVersion.mockResolvedValue(existingGrant);
+
+    const result = await resolveAndFetchGrant(GRANT_CODE, VERSION);
+
+    expect(result.grant).toBe(existingGrant);
+    expect(result.resolvedVersion).toBe(VERSION);
   });
 
   it("throws badGateway on permanent S3 error (NoSuchKey)", async () => {

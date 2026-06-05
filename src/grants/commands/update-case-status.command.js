@@ -15,7 +15,7 @@ export class UpdateCaseStatusCommand extends CloudEvent {
     data,
   }) {
     const supplementaryData = {
-      configVersion: configVersion ?? null,
+      configVersion: configVersion ?? null, // null for pre-Config-Broker apps
       phase,
       stage,
     };
