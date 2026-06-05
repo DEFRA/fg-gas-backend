@@ -4,11 +4,10 @@ import { crn } from "../application/metadata/crn.js";
 import { frn } from "../application/metadata/frn.js";
 import { sbi } from "../application/metadata/sbi.js";
 import { submittedAt } from "../application/metadata/submitted-at.js";
+import { version } from "../grant/version.js";
 
 export const submitApplicationRequestSchema = Joi.object({
-  configVersion: Joi.string()
-    .pattern(/^\d+\.\d+\.\d+$/)
-    .required(),
+  configVersion: version.required(),
   metadata: Joi.object({
     previousClientRef: clientRef.optional(),
     clientRef,

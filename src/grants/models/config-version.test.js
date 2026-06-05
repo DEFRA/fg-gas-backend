@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ConfigVersion, FetchStatus, parseSemver } from "./config-version.js";
+import { parseSemver } from "../../common/semver.js";
+import { ConfigVersion, FetchStatus } from "./config-version.js";
 
 describe("parseSemver", () => {
   it("should parse a valid semver string", () => {

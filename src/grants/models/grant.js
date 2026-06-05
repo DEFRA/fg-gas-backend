@@ -12,6 +12,8 @@ export class Grant {
     amendablePositions,
   }) {
     this.code = code;
+    // Backward compat: the migration defaults pre-existing grants to "1.0.0".
+    // New grants created via Config Broker always provide an explicit version.
     this.version = version ?? "1.0.0";
     this.metadata = {
       description: metadata.description,

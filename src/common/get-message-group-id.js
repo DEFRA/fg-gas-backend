@@ -10,6 +10,8 @@ export const getMessageGroupId = (id, data) => {
     if (data.caseRef) {
       return `${data.caseRef}-${data.workflowCode}`;
     }
+    // Config broker messages are grant-level (no clientRef), so grantCode alone
+    // is the correct grouping key to preserve per-grant ordering in FIFO queues.
     if (data.grantCode) {
       return data.grantCode;
     }

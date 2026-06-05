@@ -1,7 +1,8 @@
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { buildS3Key } from "../../common/s3-client.js";
-import { ConfigVersion, parseSemver } from "../models/config-version.js";
+import { parseSemver } from "../../common/semver.js";
+import { ConfigVersion } from "../models/config-version.js";
 import { upsert } from "../repositories/config-version.repository.js";
 
 const VALID_STATUSES = ["active", "draft"];
@@ -31,9 +32,7 @@ export const processConfigVersionUseCase = async (eventData) => {
 
   validateEventData(eventData);
 
-  logger.info(
-    `Processing config version: ${grantCode}@${version} (${status})`,
-  );
+  logger.info(`Processing config version: ${grantCode}@${version} (${status})`);
 
   const s3Bucket = config.configBroker.s3Bucket;
   const s3Key = buildS3Key(grantCode, version);

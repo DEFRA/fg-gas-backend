@@ -1,6 +1,6 @@
+import { FetchStatus } from "../../common/fetch-status.js";
 import { db } from "../../common/mongo-client.js";
-import { ConfigVersion, FetchStatus } from "../models/config-version.js";
-export { FetchStatus, parseSemver } from "../models/config-version.js";
+import { ConfigVersion } from "../models/config-version.js";
 
 const collection = "config_versions";
 

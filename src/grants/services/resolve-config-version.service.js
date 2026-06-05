@@ -1,16 +1,15 @@
 import Boom from "@hapi/boom";
+import { FetchStatus } from "../../common/fetch-status.js";
 import { logger } from "../../common/logger.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
+import { parseSemver } from "../../common/semver.js";
 import {
-  FetchStatus,
   findLatestPatch,
-  parseSemver,
   updateFetchStatus,
 } from "../repositories/config-version.repository.js";
 import {
   findByCodeAndVersion,
-  Grant,
-  save,
+  saveFromDefinition,
 } from "../repositories/grant.repository.js";
 
 const MAX_FETCH_ATTEMPTS = 5;
@@ -74,6 +73,33 @@ const guardFetchStatus = async (configVersion, grantCode, resolvedVersion) => {
   }
 };
 
+const fetchFromS3 = async (configVersion, grantCode, resolvedVersion) => {
+  try {
+    return await fetchConfigFile(configVersion.s3Bucket, configVersion.s3Key);
+  } catch (err) {
+    if (err instanceof S3FetchError) {
+      await handleS3Error(err, grantCode, resolvedVersion);
+    }
+    throw err;
+  }
+};
+
+const saveOrFallback = async (grantDefinition, grantCode, resolvedVersion) => {
+  try {
+    const grant = await saveFromDefinition(grantDefinition, resolvedVersion);
+    await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
+    return grant;
+  } catch (err) {
+    if (err.isBoom && err.output.statusCode === 409) {
+      logger.info(
+        `Concurrent insert for ${grantCode}@${resolvedVersion}, loading existing`,
+      );
+      return await findByCodeAndVersion(grantCode, resolvedVersion);
+    }
+    throw err;
+  }
+};
+
 const fetchAndStoreGrant = async (
   configVersion,
   grantCode,
@@ -83,26 +109,16 @@ const fetchAndStoreGrant = async (
     `Fetching grant definition from S3 for ${grantCode}@${resolvedVersion}`,
   );
 
-  let grantDefinition;
-  try {
-    grantDefinition = await fetchConfigFile(
-      configVersion.s3Bucket,
-      configVersion.s3Key,
-    );
-  } catch (err) {
-    if (err instanceof S3FetchError) {
-      await handleS3Error(err, grantCode, resolvedVersion);
-    }
-    throw err;
-  }
-
-  const grant = new Grant({
-    ...grantDefinition,
-    version: resolvedVersion,
-  });
-
-  await save(grant);
-  await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
+  const grantDefinition = await fetchFromS3(
+    configVersion,
+    grantCode,
+    resolvedVersion,
+  );
+  const grant = await saveOrFallback(
+    grantDefinition,
+    grantCode,
+    resolvedVersion,
+  );
 
   logger.info(
     `Finished: Resolved and stored ${grantCode}@${resolvedVersion} from S3`,
