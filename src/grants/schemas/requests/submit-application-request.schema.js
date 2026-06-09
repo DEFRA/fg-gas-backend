@@ -7,7 +7,7 @@ import { submittedAt } from "../application/metadata/submitted-at.js";
 import { version } from "../grant/version.js";
 
 export const submitApplicationRequestSchema = Joi.object({
-  configVersion: version.required(),
+  configVersion: version.required().label("configVersion"),
   metadata: Joi.object({
     previousClientRef: clientRef.optional(),
     clientRef,
