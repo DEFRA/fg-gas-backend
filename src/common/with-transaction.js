@@ -26,7 +26,7 @@ export const withTransaction = async (
   } catch (e) {
     logger.error("ERROR: Transaction failed.");
     if (onAudit) {
-      onAudit().catch((err) =>
+      await onAudit().catch((err) =>
         logger.error({ err }, "Failed to write audit event"),
       );
     }
