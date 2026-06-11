@@ -128,6 +128,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           wubble: "wobble",
           submittedAt: "2000-01-01T12:00:00Z",
+          configVersion: "0.0.2",
         },
         answers: {
           q1: "John Doe",
@@ -145,6 +146,7 @@ describe("submitApplicationRoute", () => {
         crn: "CRN123456",
         wubble: "wobble",
         submittedAt: new Date("2000-01-01T12:00:00Z"),
+        configVersion: "0.0.2",
       },
       answers: {
         q1: "John Doe",
