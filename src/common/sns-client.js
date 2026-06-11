@@ -13,7 +13,7 @@ export const publish = async (topic, data, messageGroupId) => {
     new PublishCommand({
       TopicArn: topic,
       Message: JSON.stringify(data),
-      MessageGroupId: messageGroupId,
+      ...(topic.endsWith(".fifo") && { MessageGroupId: messageGroupId }),
     }),
   );
 };
