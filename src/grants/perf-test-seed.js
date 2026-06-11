@@ -5,7 +5,7 @@
  * Only runs when PERF_TEST_SEED=true environment variable is set.
  *
  * Creates applications using submitApplicationUseCase to trigger the full
- * message flow to CW backend via SQS.
+ * message flow to CW backend via SQS .
  *
  * Branch: hotfix/perf-test-seed (DO NOT MERGE TO MAIN)
  */
