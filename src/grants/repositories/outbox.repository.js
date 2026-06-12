@@ -96,6 +96,20 @@ export const insertMany = async (events, session) => {
   );
 };
 
+export const existsByEventId = async (eventId, session) => {
+  const doc = await db.collection(collection).findOne(
+    {
+      "event.data.eventId": eventId,
+    },
+    {
+      projection: { _id: 1 },
+      session,
+    },
+  );
+
+  return Boolean(doc);
+};
+
 export const updateExpiredEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {

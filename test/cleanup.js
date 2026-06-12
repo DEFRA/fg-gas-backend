@@ -13,6 +13,8 @@ beforeEach(async () => {
     db.collection("outbox").deleteMany({}),
     db.collection("inbox").deleteMany({}),
     db.collection("applications").deleteMany({}),
+    db.collection("agreements").deleteMany({}),
+    db.collection("agreement_versions").deleteMany({}),
     db.collection("application_series").deleteMany({}),
     db.collection("grants").deleteMany({}),
     db.collection("users").deleteMany({}),
@@ -22,6 +24,7 @@ beforeEach(async () => {
   await purgeQueues([
     env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL,
     env.GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL,
+    env.GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL,
     env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL,
     env.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
     env.CREATE_AGREEMENT_QUEUE_URL,

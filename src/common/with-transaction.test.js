@@ -12,14 +12,15 @@ describe("withTransaction", () => {
       endSession: vi.fn(),
     };
     vi.spyOn(mongoClient, "startSession").mockReturnValue(mockSession);
-    const transactionSpy = vi.fn().mockImplementation();
+    const transactionSpy = vi.fn().mockReturnValue("transaction-result");
 
-    await withTransaction(transactionSpy);
+    const result = await withTransaction(transactionSpy);
 
     expect(mockSession.withTransaction).toHaveBeenCalledWith(
       transactionSpy,
       transactionOptions,
     );
+    expect(result).toBe("transaction-result");
     expect(transactionSpy).toHaveBeenCalled();
     expect(mockSession.endSession).toHaveBeenCalled();
   });

@@ -10,7 +10,6 @@ import {
   vi,
 } from "vitest";
 import { logger } from "../../common/logger.js";
-import { publish } from "../../common/sns-client.js";
 import { Outbox } from "../models/outbox.js";
 import {
   cleanupStaleLocks,
@@ -28,8 +27,6 @@ import {
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
 import { OutboxSubscriber } from "./outbox.subscriber.js";
-
-vi.mock("../../common/sns-client.js");
 
 vi.mock("../repositories/fifo-lock.repository.js");
 vi.mock("../repositories/outbox.repository.js");
@@ -49,7 +46,6 @@ describe("outbox.subscriber", () => {
     updateDeadEvents.mockResolvedValue({ modifiedCount: 1 });
     updateResubmittedEvents.mockResolvedValue({ modifiedCount: 1 });
     updateFailedEvents.mockResolvedValue({ modifiedCount: 1 });
-    publish.mockResolvedValue(1);
     claimEvents.mockResolvedValue([]);
   });
 
@@ -87,6 +83,7 @@ describe("outbox.subscriber", () => {
     expect(setFifoLock).toHaveBeenCalledWith(OutboxSubscriber.ACTOR, "ref_1");
     expect(freeFifoLock).toHaveBeenCalledWith(OutboxSubscriber.ACTOR, "ref_1");
     expect(subscriber.running).toBeTruthy();
+    subscriber.stop();
   });
 
   it("should continue polling and process events after an error", async () => {
@@ -114,9 +111,9 @@ describe("outbox.subscriber", () => {
       .mockResolvedValueOnce([mockEvent])
       .mockResolvedValue([]);
 
-    publish.mockResolvedValue(1);
+    const dispatchOutboxEvent = vi.fn().mockResolvedValue();
 
-    const subscriber = new OutboxSubscriber();
+    const subscriber = new OutboxSubscriber({ dispatchOutboxEvent });
     subscriber.start();
 
     await vi.waitFor(() => {
@@ -126,7 +123,7 @@ describe("outbox.subscriber", () => {
     await vi.advanceTimersByTimeAsync(subscriber.interval);
 
     await vi.waitFor(() => {
-      expect(publish).toHaveBeenCalled();
+      expect(dispatchOutboxEvent).toHaveBeenCalledWith(mockEvent);
     });
 
     await vi.advanceTimersByTimeAsync(subscriber.interval);
@@ -160,74 +157,27 @@ describe("outbox.subscriber", () => {
   });
 
   it("should mark events as unsent", async () => {
-    publish.mockRejectedValue(1);
+    const dispatchOutboxEvent = vi.fn().mockRejectedValue(1);
     const mockEvent = {
       target: "arn:some:value",
       event: {},
       markAsFailed: vi.fn(),
     };
-    const outbox = new OutboxSubscriber();
+    const outbox = new OutboxSubscriber({ dispatchOutboxEvent });
     await outbox.sendEvent(mockEvent);
     expect(mockEvent.markAsFailed).toHaveBeenCalled();
   });
 
-  it("should handle messageIds for legacy event types (agreements)", async () => {
-    publish.mockResolvedValue(1);
-    const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
-      event: {
-        clientRef: "client-ref",
-        grantCode: "grant-code",
-      },
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-    expect(publish.mock.calls[0][2]).toBe("client-ref-grant-code");
-  });
-
-  it("should handle messageIds for legacy event types (case working)", async () => {
-    publish.mockResolvedValue(1);
-    const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
-      event: {
-        caseRef: "case-ref",
-        workflowCode: "workflow-code",
-      },
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-    expect(publish.mock.calls[0][2]).toBe("case-ref-workflow-code");
-  });
-
-  it("should handle legacy event types", async () => {
-    publish.mockResolvedValue(1);
-    const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
-      event: {},
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-    expect(publish.mock.calls[0][0]).toBe(
-      "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo",
-    );
-  });
-
   it("should mark events as sent", async () => {
-    publish.mockResolvedValue(1);
-
+    const dispatchOutboxEvent = vi.fn().mockResolvedValue();
     const mockEvent = {
       target: "arn:some:value",
       event: {},
       markAsComplete: vi.fn(),
     };
-    const outbox = new OutboxSubscriber();
+    const outbox = new OutboxSubscriber({ dispatchOutboxEvent });
     await outbox.sendEvent(mockEvent);
+    expect(dispatchOutboxEvent).toHaveBeenCalledWith(mockEvent);
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
@@ -413,22 +363,6 @@ describe("outbox.subscriber", () => {
     expect(claimEvents).not.toHaveBeenCalled();
 
     subscriber.stop();
-  });
-
-  it("should not append _fifo.fifo when topic already ends with _fifo.fifo", async () => {
-    publish.mockResolvedValue(1);
-    const mockEvent = {
-      target:
-        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement_fifo.fifo",
-      event: {},
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-    expect(publish.mock.calls[0][0]).toBe(
-      "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement_fifo.fifo",
-    );
   });
 
   it("should processExpiredEvents", async () => {

@@ -7,6 +7,7 @@ import { Outbox, OutboxStatus } from "../models/outbox.js";
 import {
   claimEvents,
   deadLetterEvent,
+  existsByEventId,
   findNextMessage,
   insertMany,
   update,
@@ -118,6 +119,26 @@ describe("outbox.repository", () => {
       expect(mockInsertMany).toHaveBeenCalledWith(events, {
         session: mockSession,
       });
+    });
+  });
+
+  describe("existsByEventId", () => {
+    it("checks for an existing outbox event by event id", async () => {
+      const findOne = vi.fn().mockResolvedValue({ _id: "outbox-id" });
+      db.collection.mockReturnValue({ findOne });
+
+      const exists = await existsByEventId("event-id", "session");
+
+      expect(exists).toBe(true);
+      expect(findOne).toHaveBeenCalledWith(
+        {
+          "event.data.eventId": "event-id",
+        },
+        {
+          projection: { _id: 1 },
+          session: "session",
+        },
+      );
     });
   });
 

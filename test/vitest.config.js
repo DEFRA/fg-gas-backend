@@ -47,6 +47,8 @@ export default defineConfig({
       GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL: `${SQS_URL}/gas__sqs__application_status_updated_fifo.fifo`,
       CW__SQS__CREATE_NEW_CASE_QUEUE_URL: `${SQS_URL}/cw__sqs__create_new_case_fifo.fifo`,
       GAS__SQS__UPDATE_STATUS_QUEUE_URL: `${SQS_URL}/gas__sqs__update_status_fifo.fifo`,
+      GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
       GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement_fifo.fifo",
       GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN:

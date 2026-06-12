@@ -2,9 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { config } from "../../common/config.js";
-import { getMessageGroupId } from "../../common/get-message-group-id.js";
 import { logger } from "../../common/logger.js";
-import { publish } from "../../common/sns-client.js";
 import {
   cleanupStaleLocks,
   freeFifoLock,
@@ -21,13 +19,18 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
+import { dispatchOutboxEvent as defaultDispatchOutboxEvent } from "../use-cases/dispatch-outbox-event.use-case.js";
 
 export class OutboxSubscriber {
   static ACTOR = "OUTBOX";
   asyncLocalStorage = new AsyncLocalStorage();
 
-  constructor() {
-    this.interval = config.outbox.outboxPollMs;
+  constructor({
+    dispatchOutboxEvent = defaultDispatchOutboxEvent,
+    interval = config.outbox.outboxPollMs,
+  } = {}) {
+    this.interval = interval;
+    this.dispatchOutboxEvent = dispatchOutboxEvent;
     this.running = false;
   }
 
@@ -142,18 +145,9 @@ export class OutboxSubscriber {
   }
 
   async sendEvent(event) {
-    const {
-      target: topic,
-      event: data,
-      event: { messageGroupId },
-    } = event;
-    logger.info(`Send outbox event to ${topic}`);
+    logger.info(`Send outbox event to ${event.target}`);
     try {
-      await publish(
-        this.topicStringToFifo(topic),
-        data,
-        this.getMessageGroupId(messageGroupId, data),
-      );
+      await this.dispatchOutboxEvent(event);
       await this.markEventComplete(event);
     } catch (ex) {
       logger.error(ex);
@@ -166,20 +160,6 @@ export class OutboxSubscriber {
       await this.sendEvent(event);
     }
     logger.info("All outbox events processed.");
-  }
-
-  getMessageGroupId(id, data) {
-    return getMessageGroupId(id, data);
-  }
-
-  // TODO: remove once there are no more standard events
-  // temp while we transition to fifo
-  topicStringToFifo(topic) {
-    if (topic.search(/_fifo.fifo$/) === -1) {
-      return `${topic}_fifo.fifo`;
-    }
-
-    return topic;
   }
 
   async start() {

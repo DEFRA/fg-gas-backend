@@ -1,5 +1,10 @@
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
+import { Grant } from "./grant.js";
+
+const require = createRequire(import.meta.url);
+const pmfGrantDefinition = require("../../../test/fixtures/pmf-grant-definition.json");
 
 describe("Grant", () => {
   it("can create a Grant model", () => {
@@ -688,6 +693,108 @@ describe("Grant", () => {
       });
 
       expect(result).toEqual({});
+    });
+  });
+
+  describe("PMF agreement workflow", () => {
+    const pmfGrant = new Grant(pmfGrantDefinition);
+
+    it("maps CW approval to agreement generation", () => {
+      const mapping = pmfGrant.mapExternalStateToInternalState(
+        "PRE_AWARD",
+        "REVIEW_APPLICATION",
+        "PRE_AWARD:FINAL_REVIEW:APPLICATION_APPROVED",
+        "CW",
+      );
+
+      expect(mapping).toEqual({
+        valid: true,
+        targetPhase: "PRE_AWARD",
+        targetStage: "REVIEW_APPLICATION",
+        targetStatus: "AGREEMENT_GENERATING",
+      });
+    });
+
+    it("maps CW agreement generation to agreement generation", () => {
+      const mapping = pmfGrant.mapExternalStateToInternalState(
+        "PRE_AWARD",
+        "REVIEW_APPLICATION",
+        "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+        "CW",
+      );
+
+      expect(mapping).toEqual({
+        valid: true,
+        targetPhase: "PRE_AWARD",
+        targetStage: "REVIEW_APPLICATION",
+        targetStatus: "AGREEMENT_GENERATING",
+      });
+    });
+
+    it("triggers agreement generation on the approval transition", () => {
+      const transition = pmfGrant.isValidTransition(
+        "PRE_AWARD",
+        "REVIEW_APPLICATION",
+        "AGREEMENT_GENERATING",
+        "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
+      );
+
+      expect(transition).toEqual({
+        valid: true,
+        processes: ["GENERATE_OFFER"],
+      });
+    });
+
+    it("stores the agreement when Agreement Service reports offered", () => {
+      const mapping = pmfGrant.mapExternalStateToInternalState(
+        "PRE_AWARD",
+        "REVIEW_APPLICATION",
+        "offered",
+        "AS",
+      );
+      const transition = pmfGrant.isValidTransition(
+        mapping.targetPhase,
+        mapping.targetStage,
+        mapping.targetStatus,
+        "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+      );
+
+      expect(mapping).toEqual({
+        valid: true,
+        targetPhase: "PRE_AWARD",
+        targetStage: "REVIEW_OFFER",
+        targetStatus: "AGREEMENT_DRAFTED",
+      });
+      expect(transition).toEqual({
+        valid: true,
+        processes: ["STORE_AGREEMENT_CASE"],
+      });
+    });
+
+    it("accepts the agreement from the applicant review stage", () => {
+      const mapping = pmfGrant.mapExternalStateToInternalState(
+        "PRE_AWARD",
+        "CUSTOMER_AGREEMENT_REVIEW",
+        "accepted",
+        "AS",
+      );
+      const transition = pmfGrant.isValidTransition(
+        mapping.targetPhase,
+        mapping.targetStage,
+        mapping.targetStatus,
+        "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
+      );
+
+      expect(mapping).toEqual({
+        valid: true,
+        targetPhase: "POST_AGREEMENT_MONITORING",
+        targetStage: "MONITORING",
+        targetStatus: "AGREEMENT_ACCEPTED",
+      });
+      expect(transition).toEqual({
+        valid: true,
+        processes: ["ACCEPT_AGREEMENT"],
+      });
     });
   });
 });

@@ -2,10 +2,10 @@ import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { CreateAgreementCommand } from "../events/create-agreement.command.js";
 import { Outbox } from "../models/outbox.js";
 import { update } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { createAgreementCommandPublication } from "./create-agreement-command-publication.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
 export const approveApplicationUseCase = async ({ clientRef, code }) => {
@@ -40,14 +40,8 @@ export const approveApplicationUseCase = async ({ clientRef, code }) => {
       segregationRef: Outbox.getSegregationRef(statusEvent),
     });
 
-    // CREATE AGREEMENT COMMAND
-    const createAgreementCommand = new CreateAgreementCommand(application);
-
-    const createAgreementPublication = new Outbox({
-      event: createAgreementCommand,
-      target: config.sns.createAgreementTopicArn,
-      segregationRef: Outbox.getSegregationRef(createAgreementCommand),
-    });
+    const createAgreementPublication =
+      createAgreementCommandPublication(application);
 
     await insertMany(
       [statusEventPublication, createAgreementPublication],

@@ -5,11 +5,11 @@ import { findByClientRefAndCode } from "../repositories/application.repository.j
 import { insertMany } from "../repositories/outbox.repository.js";
 import { createAgreementCommandUseCase } from "./create-agreement-command.use-case.js";
 
-vi.mock("../repositories/outbox.repository.js");
 vi.mock("../repositories/application.repository.js");
+vi.mock("../repositories/outbox.repository.js");
 
 describe("create agreement use case", () => {
-  it("should create outbox publication", async () => {
+  it("creates an agreement create command outbox record", async () => {
     const session = {};
     const application = Application.new({
       currentPhase: "PRE_AWARD",
@@ -25,5 +25,17 @@ describe("create agreement use case", () => {
       session,
     );
     expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], session);
+
+    const [outbox] = insertMany.mock.calls[0][0];
+    expect(outbox.event.data).toEqual({
+      clientRef: "1234",
+      code: "frps-beta",
+      identifiers: undefined,
+      metadata: {},
+      answers: {},
+    });
+    expect(outbox.event.type).toBe(
+      "cloud.defra.local.fg-gas-backend.agreement.create",
+    );
   });
 });
