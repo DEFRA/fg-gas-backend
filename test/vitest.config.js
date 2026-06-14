@@ -49,6 +49,9 @@ export default defineConfig({
       GAS__SQS__UPDATE_STATUS_QUEUE_URL: `${SQS_URL}/gas__sqs__update_status_fifo.fifo`,
       GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
+      GAS__SNS__CREATE_PAYMENT_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo",
+      GAS__SNS__CREATE_PAYMENT_TYPE: "io.onsite.agreement.create-payment",
       GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement_fifo.fifo",
       GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN:

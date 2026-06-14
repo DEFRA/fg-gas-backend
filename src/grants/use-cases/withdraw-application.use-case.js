@@ -1,7 +1,6 @@
 import { config } from "../../common/config.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { UpdateAgreementStatusCommand } from "../events/update-agreement-status.command.js";
 import { AgreementServiceStatus } from "../models/agreement.js";
 import { Outbox } from "../models/outbox.js";
 import {
@@ -9,6 +8,7 @@ import {
   update,
 } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { updateAgreementStatusCommandPublication } from "./agreement-command-publication.js";
 
 export const withdrawApplicationUseCase = async (command, session) => {
   const { clientRef, code } = command;
@@ -22,19 +22,12 @@ export const withdrawApplicationUseCase = async (command, session) => {
   const outboxObjects = [];
 
   if (agreement) {
-    // create a withdraw agreement command for Agreement Service
-    const updateAgreementStatusCommand = new UpdateAgreementStatusCommand({
-      clientRef,
-      code,
-      status: AgreementServiceStatus.Withdrawn,
-      agreementNumber: agreement.agreementRef,
-    });
-
     outboxObjects.push(
-      new Outbox({
-        event: updateAgreementStatusCommand,
-        target: config.sns.updateAgreementStatusTopicArn,
-        segregationRef: Outbox.getSegregationRef(updateAgreementStatusCommand),
+      updateAgreementStatusCommandPublication({
+        clientRef,
+        code,
+        status: AgreementServiceStatus.Withdrawn,
+        agreementNumber: agreement.agreementRef,
       }),
     );
   } else {

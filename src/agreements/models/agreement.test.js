@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getAgreementDefinition } from "./agreement-definition.js";
+import {
+  getAgreementCreation,
+  getAgreementInitialVersion,
+} from "./agreement-definition-resolver.js";
 import { Agreement } from "./agreement.js";
 
 describe("Agreement", () => {
@@ -24,7 +27,7 @@ describe("Agreement", () => {
         },
         answers,
       },
-      definition: getAgreementDefinition("pigs-might-fly"),
+      definition: getAgreementCreation("pigs-might-fly"),
       now: "2026-06-01T10:00:00.000Z",
       agreementId: "agreement-id",
       agreementNumber: "PMF123456789",
@@ -34,7 +37,7 @@ describe("Agreement", () => {
       command: {
         clientRef: "PMF-APP-001",
       },
-      definition: getAgreementDefinition("pigs-might-fly"),
+      definition: getAgreementCreation("pigs-might-fly"),
     });
 
     expect(agreement.toDocument()).toEqual({
@@ -66,7 +69,7 @@ describe("Agreement", () => {
 
     const version = agreement.createInitialVersion({
       versionId: "version-id",
-      definition: getAgreementDefinition("pigs-might-fly"),
+      initialVersion: getAgreementInitialVersion("pigs-might-fly"),
       createdAt: "2026-06-01T10:00:00.000Z",
     });
 

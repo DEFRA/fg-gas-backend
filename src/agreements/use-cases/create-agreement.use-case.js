@@ -5,9 +5,9 @@ import {
   createdAgreementResult,
 } from "../models/agreement-creation-result.js";
 import {
-  agreementImplementations,
-  getAgreementDefinition,
-} from "../models/agreement-definition.js";
+  getAgreementCreation as getConfiguredAgreementCreation,
+  isConfigBackedAgreement,
+} from "../models/agreement-definition-resolver.js";
 import { generateAgreementNumber as generateConfiguredAgreementNumber } from "../models/agreement-number.js";
 import { Agreement } from "../models/agreement.js";
 import {
@@ -23,10 +23,11 @@ const maxCreateAttempts = 5;
 
 const defaultDependencies = {
   createId: randomUUID,
-  generateAgreementNumber: (definition) =>
+  generateAgreementNumber: (creation) =>
     generateConfiguredAgreementNumber({
-      config: definition.agreementNumber,
+      config: creation.agreementNumber,
     }),
+  getAgreementCreation: getConfiguredAgreementCreation,
   now: () => new Date().toISOString(),
 };
 
@@ -35,25 +36,28 @@ const resolveDependencies = (dependencies) => ({
   ...dependencies,
 });
 
-const assertConfigBacked = ({ command, definition }) => {
-  if (definition.implementation === agreementImplementations.CONFIG) {
+const assertConfigBacked = ({ command, creation }) => {
+  if (isConfigBackedAgreement(creation)) {
     return;
   }
 
   throw new Error(`Agreement definition ${command.code} is not config-backed`);
 };
 
-const getSourceIdentity = ({ command, definition }) => ({
-  agreementCode: definition.agreementCode,
+const getSourceIdentity = ({ command, creation }) => ({
+  agreementCode: creation.agreementCode,
   clientRef: command.clientRef,
 });
 
-const findExistingAgreement = async ({ command, definition, session }) => {
+const findExistingAgreement = async ({ command, creation, session }) => {
   const agreement = await findAgreementBySourceIdentity(
-    getSourceIdentity({ command, definition }),
+    getSourceIdentity({ command, creation }),
     session,
   );
-  const item = agreement?.findItemForCommand({ command, definition });
+  const item = agreement?.findItemForCommand({
+    command,
+    definition: creation,
+  });
 
   return item ? alreadyCreatedAgreementResult({ agreement, item }) : null;
 };
@@ -66,28 +70,28 @@ const createAgreementValues = ({ createId, generateAgreementNumber }) => ({
 
 const buildNewAgreement = ({
   command,
-  definition,
+  creation,
   createId,
   generateAgreementNumber,
   createdAt,
 }) =>
   Agreement.createFromCommand({
     command,
-    definition,
+    definition: creation,
     now: createdAt,
     ...createAgreementValues({ createId, generateAgreementNumber }),
   });
 
-const buildInitialVersion = ({ agreement, definition, createId, createdAt }) =>
+const buildInitialVersion = ({ agreement, creation, createId, createdAt }) =>
   agreement.createInitialVersion({
     versionId: createId(),
-    definition,
+    initialVersion: creation.initialVersion,
     createdAt,
   });
 
 const createNewAgreementAttempt = async ({
   command,
-  definition,
+  creation,
   createId,
   generateAgreementNumber,
   now,
@@ -96,15 +100,18 @@ const createNewAgreementAttempt = async ({
   const createdAt = now();
   const agreement = buildNewAgreement({
     command,
-    definition,
+    creation,
     createId,
     generateAgreementNumber,
     createdAt,
   });
-  const item = agreement.findItemForCommand({ command, definition });
+  const item = agreement.findItemForCommand({
+    command,
+    definition: creation,
+  });
   const version = buildInitialVersion({
     agreement,
-    definition,
+    creation,
     createId,
     createdAt,
   });
@@ -147,7 +154,7 @@ const retryCreate = async ({ create, onCollision }) => {
 
 const createNewOrExistingAgreement = async ({
   command,
-  definition,
+  creation,
   createId,
   generateAgreementNumber,
   now,
@@ -157,24 +164,24 @@ const createNewOrExistingAgreement = async ({
     create: () =>
       createNewAgreementAttempt({
         command,
-        definition,
+        creation,
         createId,
         generateAgreementNumber,
         now,
         session,
       }),
-    onCollision: () => findExistingAgreement({ command, definition, session }),
+    onCollision: () => findExistingAgreement({ command, creation, session }),
   });
 
 export const createAgreement = async (command, session, dependencies = {}) => {
-  const { createId, generateAgreementNumber, now } =
+  const { createId, generateAgreementNumber, getAgreementCreation, now } =
     resolveDependencies(dependencies);
-  const definition = getAgreementDefinition(command.code);
-  assertConfigBacked({ command, definition });
+  const creation = getAgreementCreation(command.code);
+  assertConfigBacked({ command, creation });
 
   const existingAgreement = await findExistingAgreement({
     command,
-    definition,
+    creation,
     session,
   });
 
@@ -182,11 +189,11 @@ export const createAgreement = async (command, session, dependencies = {}) => {
     return existingAgreement;
   }
 
-  const generateNumber = () => generateAgreementNumber(definition);
+  const generateNumber = () => generateAgreementNumber(creation);
 
   return createNewOrExistingAgreement({
     command,
-    definition,
+    creation,
     createId,
     generateAgreementNumber: generateNumber,
     now,

@@ -11,7 +11,7 @@ export class AgreementVersion {
     this.snapshot = document.snapshot;
   }
 
-  static initial({ id, agreement, definition, createdAt }) {
+  static initial({ id, agreement, initialVersion, createdAt }) {
     return new AgreementVersion({
       _id: id,
       agreementId: agreement.id,
@@ -20,14 +20,44 @@ export class AgreementVersion {
       version: 1,
       createdAt,
       change: {
-        type: definition.lifecycle.initialChangeType,
-        changedBy: definition.lifecycle.changedBy,
-        fromStatus: definition.lifecycle.fromStatus,
+        type: initialVersion.changeType,
+        changedBy: initialVersion.changedBy,
+        fromStatus: initialVersion.fromStatus,
       },
       snapshot: createAgreementSnapshot({
         agreement,
-        initialStatus: definition.lifecycle.initialStatus,
+        initialStatus: initialVersion.initialStatus,
       }),
+    });
+  }
+
+  static transition({
+    id,
+    previousVersion,
+    agreementItemId,
+    status,
+    change,
+    createdAt,
+    itemPatch = {},
+  }) {
+    const snapshot = structuredClone(previousVersion.snapshot);
+    const itemState = snapshot.items.find(
+      (item) => item.agreementItemId === agreementItemId,
+    );
+
+    itemState.status = status;
+    Object.assign(itemState, itemPatch);
+    snapshot.updatedAt = createdAt;
+
+    return new AgreementVersion({
+      _id: id,
+      agreementId: previousVersion.agreementId,
+      agreementNumber: previousVersion.agreementNumber,
+      sbi: previousVersion.sbi,
+      version: previousVersion.version + 1,
+      createdAt,
+      change,
+      snapshot,
     });
   }
 

@@ -5,7 +5,7 @@ import { ApplicationStatusUpdatedEvent } from "../events/application-status-upda
 import { Outbox } from "../models/outbox.js";
 import { update } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { createAgreementCommandPublication } from "./create-agreement-command-publication.js";
+import { createAgreementCommandPublication } from "./agreement-command-publication.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
 export const approveApplicationUseCase = async ({ clientRef, code }) => {

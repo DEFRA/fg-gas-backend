@@ -79,6 +79,7 @@ create_topic_and_queue "gas__sns__create_new_case_fifo.fifo" "cw__sqs__create_ne
 create_topic_and_queue "gas__sns__update_case_status_fifo.fifo" "cw__sqs__update_status_fifo.fifo" &
 create_topic_and_queue "gas__sns__create_agreement_fifo.fifo" "create_agreement_fifo.fifo" &
 
+create_topic "create_payment.fifo" &
 create_topic "gas__sns__update_agreement_status_fifo.fifo" &
 
 wait

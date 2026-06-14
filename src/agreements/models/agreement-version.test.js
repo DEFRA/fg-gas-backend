@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAgreementDefinition } from "./agreement-definition.js";
+import { getAgreementInitialVersion } from "./agreement-definition-resolver.js";
 import { AgreementVersion } from "./agreement-version.js";
 import { Agreement } from "./agreement.js";
 
@@ -28,7 +28,7 @@ describe("AgreementVersion", () => {
     const version = AgreementVersion.initial({
       id: "version-id",
       agreement,
-      definition: getAgreementDefinition("pigs-might-fly"),
+      initialVersion: getAgreementInitialVersion("pigs-might-fly"),
       createdAt: "2026-06-01T10:00:00.000Z",
     });
 

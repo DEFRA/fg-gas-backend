@@ -48,11 +48,11 @@ export class Agreement {
     );
   }
 
-  createInitialVersion({ versionId, definition, createdAt }) {
+  createInitialVersion({ versionId, initialVersion, createdAt }) {
     return AgreementVersion.initial({
       id: versionId,
       agreement: this,
-      definition,
+      initialVersion,
       createdAt,
     });
   }

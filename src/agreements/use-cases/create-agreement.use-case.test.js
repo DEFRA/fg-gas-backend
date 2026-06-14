@@ -218,6 +218,58 @@ describe("create agreement use case", () => {
     );
   });
 
+  it("does not store payment claim fields during Agreement creation", async () => {
+    const agreements = {
+      findOne: vi.fn().mockResolvedValue(null),
+      insertOne: vi.fn().mockResolvedValue({ insertedId: "agreement-id" }),
+    };
+    const agreementVersions = {
+      insertOne: vi.fn().mockResolvedValue({ insertedId: "version-id" }),
+    };
+    useCollections({ agreements, agreementVersions });
+
+    const result = await createAgreement(
+      {
+        ...command,
+        code: "woodland",
+      },
+      "session",
+      {
+        createId: vi
+          .fn()
+          .mockReturnValueOnce("agreement-id")
+          .mockReturnValueOnce("agreement-item-id")
+          .mockReturnValueOnce("version-id"),
+        generateAgreementNumber: () => "WMP000000001",
+        getAgreementCreation: () => ({
+          agreementCode: "woodland",
+          agreementNumber: {
+            prefix: "WMP",
+            randomDigits: 9,
+            uniquenessScope: "agreementNumber",
+          },
+          configVersion: "0.0.1",
+          implementation: "config",
+          initialVersion: {
+            changedBy: "system",
+            changeType: "created",
+            fromStatus: null,
+            initialStatus: "offered",
+          },
+        }),
+        now: () => "2026-06-01T10:00:00.000Z",
+      },
+    );
+
+    expect(result.outcome).toBe(agreementCreationOutcomes.CREATED);
+    expect(result.item.toDocument()).not.toHaveProperty("claimId");
+    expect(result.item.toDocument()).not.toHaveProperty(
+      "originalInvoiceNumber",
+    );
+    expect(result.item.payload).not.toHaveProperty("claimId");
+    expect(result.item.payload).not.toHaveProperty("originalInvoiceNumber");
+  });
+
   it("retries with a new Agreement number when wrapper insert hits a duplicate key", async () => {
     const duplicateKey = new Error("duplicate key");
     duplicateKey.code = 11000;

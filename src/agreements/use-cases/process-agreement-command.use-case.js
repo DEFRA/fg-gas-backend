@@ -1,54 +1,19 @@
-import { withTransaction } from "../../common/with-transaction.js";
 import {
-  agreementCommandNames,
-  agreementCommandRoutes,
-  getAgreementCommandRoute,
-} from "../models/agreement-definition.js";
-import { processCreateAgreementCommandUseCase } from "./process-create-agreement-command.use-case.js";
+  agreementCommandDelivery,
+  deliverAgreementCommand,
+} from "./deliver-agreement-command.use-case.js";
 
-const isAgreementCommand = (command) => command.type?.includes(".agreement.");
-
-const getAgreementCommandName = (command) => {
-  if (command.type?.endsWith(".agreement.create")) {
-    return agreementCommandNames.CREATE;
-  }
-
-  return null;
+export const agreementCommandRoutes = {
+  INTERNAL: "internal",
+  LEGACY: "legacy",
 };
 
-const getCommandRoute = ({ command, commandName }) =>
-  getAgreementCommandRoute({
-    agreementCode: command.data.code,
-    commandName,
-  });
-
-const processCreateCommand = async (command) => {
-  const route = getCommandRoute({
-    command,
-    commandName: agreementCommandNames.CREATE,
-  });
-
-  if (route !== agreementCommandRoutes.INTERNAL) {
-    return agreementCommandRoutes.LEGACY;
-  }
-
-  return withTransaction(async (session) => {
-    await processCreateAgreementCommandUseCase(command, session);
-    return agreementCommandRoutes.INTERNAL;
-  });
-};
-
-const processCommand = async (command) => {
-  const commandName = getAgreementCommandName(command);
-
-  if (commandName === agreementCommandNames.CREATE) {
-    return processCreateCommand(command);
-  }
-
-  return agreementCommandRoutes.LEGACY;
-};
+const toAgreementCommandRoute = (delivered) =>
+  delivered ? agreementCommandRoutes.INTERNAL : agreementCommandRoutes.LEGACY;
 
 export const processAgreementCommandUseCase = {
-  canProcess: isAgreementCommand,
-  process: processCommand,
+  canProcess: (command) =>
+    agreementCommandDelivery.canDeliver({ event: command }),
+  process: async (command) =>
+    toAgreementCommandRoute(await deliverAgreementCommand(command)),
 };

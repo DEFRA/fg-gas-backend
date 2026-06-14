@@ -1,10 +1,8 @@
-import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { UpdateAgreementStatusCommand } from "../events/update-agreement-status.command.js";
 import { AgreementServiceStatus } from "../models/agreement.js";
-import { Outbox } from "../models/outbox.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { updateAgreementStatusCommandPublication } from "./agreement-command-publication.js";
 
 export const requestAgreementTerminationUseCase = async (
   { clientRef, code },
@@ -28,19 +26,13 @@ export const requestAgreementTerminationUseCase = async (
     return;
   }
 
-  const updateAgreementStatusCommand = new UpdateAgreementStatusCommand({
-    clientRef,
-    code,
-    status: AgreementServiceStatus.Terminated,
-    agreementNumber: agreement.agreementRef,
-  });
-
   await insertMany(
     [
-      new Outbox({
-        event: updateAgreementStatusCommand,
-        target: config.sns.updateAgreementStatusTopicArn,
-        segregationRef: Outbox.getSegregationRef(updateAgreementStatusCommand),
+      updateAgreementStatusCommandPublication({
+        clientRef,
+        code,
+        status: AgreementServiceStatus.Terminated,
+        agreementNumber: agreement.agreementRef,
       }),
     ],
     session,

@@ -1,7 +1,7 @@
 import { logger } from "../../common/logger.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { createAgreementCommandPublication } from "./create-agreement-command-publication.js";
+import { createAgreementCommandPublication } from "./agreement-command-publication.js";
 
 export const createAgreementCommandUseCase = async (
   { clientRef, code },

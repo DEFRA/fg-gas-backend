@@ -10,7 +10,6 @@ import {
 } from "vitest";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { withTraceParent } from "../../common/trace-parent.js";
 import { Inbox } from "../models/inbox.js";
 import {
   cleanupStaleLocks,
@@ -23,14 +22,13 @@ import {
   deadLetterEvent,
   findNextMessage,
 } from "../repositories/inbox.repository.js";
-import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
+import { processInboxEvent } from "../use-cases/process-inbox-event.use-case.js";
 import { InboxSubscriber } from "./inbox.subscriber.js";
 
-vi.mock("../../common/trace-parent.js");
 vi.mock("../use-cases/approve-application.use-case.js");
+vi.mock("../use-cases/process-inbox-event.use-case.js");
 vi.mock("../repositories/inbox.repository.js");
 vi.mock("../repositories/fifo-lock.repository.js");
-vi.mock("../services/apply-event-status-change.service.js");
 
 const createInbox = (doc) =>
   new Inbox({
@@ -111,8 +109,7 @@ describe("inbox.subscriber", () => {
       .mockResolvedValueOnce([mockEvent])
       .mockResolvedValue([]);
 
-    applyExternalStateChange.mockResolvedValue(true);
-    withTraceParent.mockImplementation((_, fn) => fn());
+    processInboxEvent.mockResolvedValue(true);
 
     const subscriber = new InboxSubscriber();
     subscriber.start();
@@ -124,7 +121,7 @@ describe("inbox.subscriber", () => {
     await vi.advanceTimersByTimeAsync(subscriber.interval);
 
     await vi.waitFor(() => {
-      expect(applyExternalStateChange).toHaveBeenCalled();
+      expect(processInboxEvent).toHaveBeenCalled();
     });
 
     await vi.advanceTimersByTimeAsync(subscriber.interval);
@@ -357,14 +354,13 @@ describe("inbox.subscriber", () => {
       expect(subscriber.handleEvent.mock.calls[1][0]).toEqual(events[1]);
     });
 
-    it("should route agreement status events through applyExternalStateChange", async () => {
+    it("delegates inbox event handling to the ingestion use case", async () => {
       const mockEventData = {
         clientRef: "client-ref-123",
         code: "test-code",
         status: "accepted",
       };
-      applyExternalStateChange.mockResolvedValue(true);
-      withTraceParent.mockImplementation((_, fn) => fn());
+      processInboxEvent.mockResolvedValue(true);
       const mockEvent = {
         type: "io.onsite.agreement.status.foo",
         source: "AS",
@@ -376,21 +372,12 @@ describe("inbox.subscriber", () => {
       };
       const inbox = new InboxSubscriber();
       await inbox.processEvents([mockEvent]);
-      expect(withTraceParent).toHaveBeenCalled();
-      expect(withTraceParent.mock.calls[0][0]).toBe("1234-abcd");
-      expect(applyExternalStateChange).toHaveBeenCalledWith({
-        sourceSystem: "AS",
-        clientRef: "client-ref-123",
-        code: "test-code",
-        externalRequestedState: "accepted",
-        eventData: mockEventData,
-      });
+      expect(processInboxEvent).toHaveBeenCalledWith(mockEvent);
       expect(mockEvent.markAsComplete).toHaveBeenCalled();
     });
 
-    it("routes AS cancelled agreement events through applyExternalStateChange", async () => {
-      applyExternalStateChange.mockResolvedValue(true);
-      withTraceParent.mockImplementation((_, fn) => fn());
+    it("marks AS cancelled agreement events complete after ingestion", async () => {
+      processInboxEvent.mockResolvedValue(true);
 
       const mockEvent = {
         type: "io.onsite.agreement.status.foo",
@@ -410,18 +397,7 @@ describe("inbox.subscriber", () => {
       const inbox = new InboxSubscriber();
       await inbox.processEvents([mockEvent]);
 
-      expect(applyExternalStateChange).toHaveBeenCalledWith({
-        sourceSystem: "AS",
-        clientRef: "client-ref-123",
-        code: "test-code",
-        externalRequestedState: "cancelled",
-        eventData: {
-          clientRef: "client-ref-123",
-          code: "test-code",
-          agreementNumber: "AG123",
-          status: "cancelled",
-        },
-      });
+      expect(processInboxEvent).toHaveBeenCalledWith(expect.any(Object));
       expect(mockEvent.markAsComplete).toHaveBeenCalled();
     });
 
@@ -440,13 +416,15 @@ describe("inbox.subscriber", () => {
         markAsFailed: vi.fn(),
       };
       const inbox = new InboxSubscriber();
-      inbox.handleEvent(mockMessage);
+      processInboxEvent.mockRejectedValueOnce(
+        new Error("Unable to handle inbox message message-1234"),
+      );
+      await inbox.handleEvent(mockMessage);
       expect(mockMessage.markAsFailed).toHaveBeenCalled();
     });
 
     it("should mark events as failed", async () => {
-      applyExternalStateChange.mockRejectedValueOnce(false);
-      withTraceParent.mockImplementation((_, fn) => fn());
+      processInboxEvent.mockRejectedValueOnce(false);
 
       const mockEventData = {
         currentStatus: "APPROVE",
@@ -464,8 +442,7 @@ describe("inbox.subscriber", () => {
       };
       const inbox = new InboxSubscriber();
       await inbox.processEvents([mockEvent]);
-      expect(applyExternalStateChange).toHaveBeenCalled();
-      expect(withTraceParent).toHaveBeenCalled();
+      expect(processInboxEvent).toHaveBeenCalled();
       expect(mockEvent.markAsFailed).toHaveBeenCalled();
     });
 
@@ -475,8 +452,7 @@ describe("inbox.subscriber", () => {
         code: "test-code",
         status: "accepted",
       };
-      applyExternalStateChange.mockResolvedValue("complete");
-      withTraceParent.mockImplementationOnce((_, fn) => fn());
+      processInboxEvent.mockResolvedValue("complete");
       const mockEvent = {
         type: "io.onsite.agreement.status.foo",
         source: "AS",
@@ -488,7 +464,7 @@ describe("inbox.subscriber", () => {
       };
       const inbox = new InboxSubscriber();
       await inbox.processEvents([mockEvent]);
-      expect(withTraceParent).toHaveBeenCalled();
+      expect(processInboxEvent).toHaveBeenCalled();
       expect(mockEvent.markAsComplete).toHaveBeenCalled();
     });
   });

@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  createDispatchOutboxEventUseCase,
-  outboxDispatchRoutes,
-} from "./dispatch-outbox-event.use-case.js";
+import { createDispatchOutboxEventUseCase } from "./dispatch-outbox-event.use-case.js";
 
 const createOutboxEvent = (overrides = {}) => ({
   target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement",
@@ -18,32 +15,32 @@ const createOutboxEvent = (overrides = {}) => ({
 
 describe("dispatchOutboxEvent", () => {
   it("handles internal commands without publishing", async () => {
-    const commandProcessor = {
-      canProcess: vi.fn().mockReturnValue(true),
-      process: vi.fn().mockResolvedValue(outboxDispatchRoutes.INTERNAL),
+    const deliveryAdapter = {
+      canDeliver: vi.fn().mockReturnValue(true),
+      deliver: vi.fn().mockResolvedValue(true),
     };
     const publishEvent = vi.fn();
     const dispatchOutboxEvent = createDispatchOutboxEventUseCase({
-      commandProcessors: [commandProcessor],
+      deliveryAdapters: [deliveryAdapter],
       publishEvent,
     });
     const outboxEvent = createOutboxEvent();
 
     await dispatchOutboxEvent(outboxEvent);
 
-    expect(commandProcessor.canProcess).toHaveBeenCalledWith(outboxEvent.event);
-    expect(commandProcessor.process).toHaveBeenCalledWith(outboxEvent.event);
+    expect(deliveryAdapter.canDeliver).toHaveBeenCalledWith(outboxEvent);
+    expect(deliveryAdapter.deliver).toHaveBeenCalledWith(outboxEvent);
     expect(publishEvent).not.toHaveBeenCalled();
   });
 
   it("publishes commands that route externally", async () => {
-    const commandProcessor = {
-      canProcess: vi.fn().mockReturnValue(true),
-      process: vi.fn().mockResolvedValue(outboxDispatchRoutes.EXTERNAL),
+    const deliveryAdapter = {
+      canDeliver: vi.fn().mockReturnValue(true),
+      deliver: vi.fn().mockResolvedValue(false),
     };
     const publishEvent = vi.fn();
     const dispatchOutboxEvent = createDispatchOutboxEventUseCase({
-      commandProcessors: [commandProcessor],
+      deliveryAdapters: [deliveryAdapter],
       publishEvent,
     });
 
@@ -72,14 +69,14 @@ describe("dispatchOutboxEvent", () => {
     );
   });
 
-  it("publishes events when no command processor can handle them", async () => {
-    const commandProcessor = {
-      canProcess: vi.fn().mockReturnValue(false),
-      process: vi.fn(),
+  it("publishes events when no delivery adapter can handle them", async () => {
+    const deliveryAdapter = {
+      canDeliver: vi.fn().mockReturnValue(false),
+      deliver: vi.fn(),
     };
     const publishEvent = vi.fn();
     const dispatchOutboxEvent = createDispatchOutboxEventUseCase({
-      commandProcessors: [commandProcessor],
+      deliveryAdapters: [deliveryAdapter],
       publishEvent,
     });
 
@@ -92,7 +89,7 @@ describe("dispatchOutboxEvent", () => {
       }),
     );
 
-    expect(commandProcessor.process).not.toHaveBeenCalled();
+    expect(deliveryAdapter.deliver).not.toHaveBeenCalled();
     expect(publishEvent).toHaveBeenCalledWith(
       "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement_fifo.fifo",
       {
@@ -106,7 +103,7 @@ describe("dispatchOutboxEvent", () => {
   it("uses case working identifiers for legacy message group ids", async () => {
     const publishEvent = vi.fn();
     const dispatchOutboxEvent = createDispatchOutboxEventUseCase({
-      commandProcessors: [],
+      deliveryAdapters: [],
       publishEvent,
     });
 
@@ -129,7 +126,7 @@ describe("dispatchOutboxEvent", () => {
   it("does not append _fifo.fifo when topic already ends with _fifo.fifo", async () => {
     const publishEvent = vi.fn();
     const dispatchOutboxEvent = createDispatchOutboxEventUseCase({
-      commandProcessors: [],
+      deliveryAdapters: [],
       publishEvent,
     });
 
@@ -142,6 +139,24 @@ describe("dispatchOutboxEvent", () => {
 
     expect(publishEvent.mock.calls[0][0]).toBe(
       "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement_fifo.fifo",
+    );
+  });
+
+  it("does not append _fifo.fifo when topic already ends with .fifo", async () => {
+    const publishEvent = vi.fn();
+    const dispatchOutboxEvent = createDispatchOutboxEventUseCase({
+      deliveryAdapters: [],
+      publishEvent,
+    });
+
+    await dispatchOutboxEvent(
+      createOutboxEvent({
+        target: "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo",
+      }),
+    );
+
+    expect(publishEvent.mock.calls[0][0]).toBe(
+      "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo",
     );
   });
 });

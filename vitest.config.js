@@ -42,6 +42,8 @@ export default defineConfig({
       GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN: "some:arn",
       GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: "some:arn",
       GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: "some:arn",
+      GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: "some:create-payment:arn",
+      GAS__SNS__CREATE_PAYMENT_TYPE: "io.onsite.agreement.create-payment",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: "some:arn",
       GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: "some:arn",
       GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: "some:arn",

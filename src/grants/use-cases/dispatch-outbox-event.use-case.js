@@ -1,33 +1,28 @@
-import { processAgreementCommandUseCase } from "../../agreements/use-cases/process-agreement-command.use-case.js";
+import { agreementCommandDelivery } from "../../agreements/use-cases/deliver-agreement-command.use-case.js";
 import { getMessageGroupId } from "../../common/get-message-group-id.js";
 import { publish } from "../../common/sns-client.js";
 
-export const outboxDispatchRoutes = {
-  INTERNAL: "internal",
-  EXTERNAL: "external",
-};
-
-const defaultCommandProcessors = [processAgreementCommandUseCase];
+const defaultDeliveryAdapters = [agreementCommandDelivery];
 
 const topicStringToFifo = (topic) => {
-  if (topic.search(/_fifo.fifo$/) === -1) {
-    return `${topic}_fifo.fifo`;
+  if (topic.endsWith(".fifo")) {
+    return topic;
   }
 
-  return topic;
+  return `${topic}_fifo.fifo`;
 };
 
-const findCommandProcessor = (command, commandProcessors) =>
-  commandProcessors.find((candidate) => candidate.canProcess(command));
+const findDeliveryAdapter = (event, deliveryAdapters) =>
+  deliveryAdapters.find((candidate) => candidate.canDeliver(event));
 
-const routeCommand = async (command, commandProcessors) => {
-  const processor = findCommandProcessor(command, commandProcessors);
+const deliverInternally = async (event, deliveryAdapters) => {
+  const adapter = findDeliveryAdapter(event, deliveryAdapters);
 
-  if (!processor) {
-    return outboxDispatchRoutes.EXTERNAL;
+  if (!adapter) {
+    return false;
   }
 
-  return processor.process(command);
+  return adapter.deliver(event);
 };
 
 const publishOutboxEvent = async ({ event, publishEvent }) => {
@@ -46,13 +41,11 @@ const publishOutboxEvent = async ({ event, publishEvent }) => {
 
 export const createDispatchOutboxEventUseCase =
   ({
-    commandProcessors = defaultCommandProcessors,
+    deliveryAdapters = defaultDeliveryAdapters,
     publishEvent = publish,
   } = {}) =>
   async (event) => {
-    const route = await routeCommand(event.event, commandProcessors);
-
-    if (route === outboxDispatchRoutes.INTERNAL) {
+    if (await deliverInternally(event, deliveryAdapters)) {
       return;
     }
 

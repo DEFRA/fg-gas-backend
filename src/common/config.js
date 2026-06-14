@@ -33,7 +33,9 @@ const schema = Joi.object({
   INBOX_POLL_MS: Joi.number(),
   FIFO_LOCK_TTL_MS: Joi.number(),
   GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
-  GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
+  GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: Joi.string(),
+  GAS__SNS__CREATE_PAYMENT_TYPE: Joi.string(),
+  GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN: Joi.string(),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: Joi.string().optional(),
@@ -41,6 +43,8 @@ const schema = Joi.object({
   GAS__SQS__UPDATE_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional(),
+  LAND_GRANTS_TOKEN: Joi.string().optional(),
+  LAND_GRANTS_URI: Joi.string().uri().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -93,6 +97,8 @@ export const config = {
     updateAgreementStatusTopicArn:
       vars.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
     createAgreementTopicArn: vars.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
+    createPaymentTopicArn: vars.GAS__SNS__CREATE_PAYMENT_TOPIC_ARN,
+    createPaymentType: vars.GAS__SNS__CREATE_PAYMENT_TYPE,
     grantApplicationCreatedTopicArn:
       vars.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
     grantApplicationStatusUpdatedTopicArn:
@@ -104,5 +110,9 @@ export const config = {
     updateStatusQueueUrl: vars.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
     updateAgreementStatusQueueUrl:
       vars.GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL,
+  },
+  landGrants: {
+    token: vars.LAND_GRANTS_TOKEN,
+    uri: vars.LAND_GRANTS_URI,
   },
 };

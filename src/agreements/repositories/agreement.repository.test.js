@@ -4,6 +4,7 @@ import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
 import {
   findAgreementBySourceIdentity,
+  findAgreementWithLatestVersionByExternalItemIdentity,
   insertAgreementWithVersion,
 } from "./agreement.repository.js";
 
@@ -46,6 +47,66 @@ describe("agreement repository", () => {
         },
       },
       { session: "session" },
+    );
+  });
+
+  it("finds an Agreement wrapper with its latest immutable Agreement version", async () => {
+    const agreementDocument = {
+      _id: "agreement-id",
+      agreementNumber: "PMF000000001",
+      sbi: "123456789",
+      items: [
+        {
+          agreementItemId: "agreement-item-id",
+          agreementCode: "pigs-might-fly",
+          clientRef: "PMF-APP-001",
+        },
+      ],
+    };
+    const versionDocument = {
+      _id: "version-id",
+      agreementId: "agreement-id",
+      agreementNumber: "PMF000000001",
+      sbi: "123456789",
+      version: 2,
+      snapshot: {
+        ...agreementDocument,
+        items: [
+          {
+            ...agreementDocument.items[0],
+            status: "accepted",
+          },
+        ],
+      },
+    };
+    const agreements = {
+      findOne: vi.fn().mockResolvedValue(agreementDocument),
+    };
+    const agreementVersions = {
+      findOne: vi.fn().mockResolvedValue(versionDocument),
+    };
+    db.collection.mockImplementation((name) =>
+      name === "agreement_versions" ? agreementVersions : agreements,
+    );
+
+    const result = await findAgreementWithLatestVersionByExternalItemIdentity(
+      {
+        agreementNumber: "PMF000000001",
+        agreementCode: "pigs-might-fly",
+        clientRef: "PMF-APP-001",
+      },
+      "session",
+    );
+
+    expect(result.agreement).toBeInstanceOf(Agreement);
+    expect(result.version).toBeInstanceOf(AgreementVersion);
+    expect(result.version.id).toBe("version-id");
+    expect(agreementVersions.findOne).toHaveBeenCalledWith(
+      { agreementId: "agreement-id" },
+      {
+        sort: { version: -1 },
+        session: "session",
+      },
     );
   });
 

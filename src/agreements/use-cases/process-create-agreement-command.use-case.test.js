@@ -4,10 +4,10 @@ import {
   createAgreement,
 } from "./create-agreement.use-case.js";
 import { processCreateAgreementCommandUseCase } from "./process-create-agreement-command.use-case.js";
-import { publishAgreementCreation } from "./publish-agreement-creation.use-case.js";
+import { publishAgreementResult } from "./publish-agreement-result.use-case.js";
 
 vi.mock("./create-agreement.use-case.js");
-vi.mock("./publish-agreement-creation.use-case.js");
+vi.mock("./publish-agreement-result.use-case.js");
 
 describe("process create agreement command", () => {
   beforeEach(() => {
@@ -57,10 +57,7 @@ describe("process create agreement command", () => {
       },
       session,
     );
-    expect(publishAgreementCreation).toHaveBeenCalledWith(
-      createResult,
-      session,
-    );
+    expect(publishAgreementResult).toHaveBeenCalledWith(createResult, session);
   });
 
   it("delegates idempotent Creation results to publication concern", async () => {
@@ -85,7 +82,7 @@ describe("process create agreement command", () => {
     );
 
     expect(result).toBe(createResult);
-    expect(publishAgreementCreation).toHaveBeenCalledWith(
+    expect(publishAgreementResult).toHaveBeenCalledWith(
       createResult,
       "session",
     );

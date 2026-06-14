@@ -8,7 +8,7 @@ import { AgreementVersion } from "./agreement-version.js";
 import { Agreement } from "./agreement.js";
 
 describe("Agreement creation result", () => {
-  it("describes a newly created Agreement without publication data", () => {
+  it("describes a newly created Agreement with lifecycle publication intent", () => {
     const agreement = Agreement.fromDocument({
       _id: "agreement-id",
       agreementNumber: "PMF123456789",
@@ -65,6 +65,9 @@ describe("Agreement creation result", () => {
       agreementNumber: "PMF123456789",
       sbi: "123456789",
       item,
+      publication: {
+        lifecycleEvent: true,
+      },
       version,
     });
   });
@@ -95,10 +98,12 @@ describe("Agreement creation result", () => {
 
     expect(result).toEqual({
       outcome: agreementCreationOutcomes.ALREADY_CREATED,
+      agreement,
       agreementId: "agreement-id",
       agreementNumber: "PMF123456789",
       sbi: "123456789",
       item,
+      publication: {},
     });
   });
 });

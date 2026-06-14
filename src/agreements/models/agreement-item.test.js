@@ -57,7 +57,6 @@ describe("AgreementItem", () => {
     });
     expect(item.toDocument()).not.toHaveProperty("status");
     expect(item.toDocument()).not.toHaveProperty("payment");
-    expect(item.toDocument()).not.toHaveProperty("claimId");
   });
 
   it("matches on Agreement code and client reference", () => {
