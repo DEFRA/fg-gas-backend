@@ -9,7 +9,7 @@ vi.mock("../../common/config.js", () => ({
     awsEndpointUrl: "http://localhost:4566",
     sqs: {
       configVersionQueueUrl:
-        "http://sqs.eu-west-2.localhost:4566/000000000000/gas__sqs__config_version_updated_fifo.fifo",
+        "http://sqs.eu-west-2.localhost:4566/000000000000/gas__sqs__config_version_updated",
     },
   },
 }));
