@@ -97,7 +97,9 @@ export const up = async (db) => {
     }
 
     if (Object.keys(updateOps).length > 0) {
-      await db.collection("applications").updateOne({ _id: doc._id }, updateOps);
+      await db
+        .collection("applications")
+        .updateOne({ _id: doc._id }, updateOps);
     }
   }
 };

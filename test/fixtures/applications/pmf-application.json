@@ -10,9 +10,7 @@
   "answers": {
     "isPigFarmer": true,
     "totalPigs": 100,
-    "pigBreeds": [
-      "largeWhite", "britishLandrace", "berkshire", "other"
-    ],
+    "pigBreeds": ["largeWhite", "britishLandrace", "berkshire", "other"],
     "whitePigsCount": 10,
     "britishLandacePigsCount": 11,
     "berkshirePigsCount": 12,
