@@ -69,6 +69,63 @@ function create_topic_and_queue() {
   subscribe_queue_to_topic $topic_arn $queue_arn
 }
 
+function create_standard_topic() {
+  local topic_name=$1
+  local topic_arn=$(awslocal sns create-topic \
+	  --name $topic_name \
+	  --query "TopicArn" \
+	  --output text)
+  echo $topic_arn
+}
+
+function create_standard_queue() {
+  local queue_name=$1
+
+  local dlq_url=$(
+    awslocal sqs create-queue \
+      --queue-name "$queue_name-dead-letter-queue" \
+      --query "QueueUrl" --output text
+  )
+
+  local dlq_arn=$(
+    awslocal sqs get-queue-attributes \
+      --queue-url $dlq_url \
+      --attribute-name "QueueArn" \
+      --query "Attributes.QueueArn" \
+      --output text
+  )
+
+  local queue_url=$(
+    awslocal sqs create-queue \
+      --queue-name $queue_name \
+      --attributes '{ "RedrivePolicy": "{\"deadLetterTargetArn\":\"'$dlq_arn'\",\"maxReceiveCount\":\"3\"}" }' \
+      --query "QueueUrl" \
+      --output text
+  )
+
+  local queue_arn=$(
+    awslocal sqs get-queue-attributes \
+      --queue-url $queue_url \
+      --attribute-name "QueueArn" \
+      --query "Attributes.QueueArn" \
+      --output text
+  )
+
+  echo $queue_arn
+}
+
+function create_standard_topic_and_queue() {
+  local topic_name=$1
+  local queue_name=$2
+
+  echo "$topic_name $queue_name"
+
+  local topic_arn=$(create_standard_topic $topic_name)
+  local queue_arn=$(create_standard_queue $queue_name)
+
+  subscribe_queue_to_topic $topic_arn $queue_arn
+}
+
 
 create_topic_and_queue "cw__sns__case_status_updated_fifo.fifo" "gas__sqs__update_status_fifo.fifo" &
 create_topic_and_queue "gas__sns__update_agreement_status_fifo.fifo" "update_agreement_status_fifo.fifo" &
@@ -81,7 +138,7 @@ create_topic_and_queue "gas__sns__create_agreement_fifo.fifo" "create_agreement_
 
 create_topic "gas__sns__update_agreement_status_fifo.fifo" &
 
-create_topic_and_queue "config_broker__sns__config_version_updated_fifo.fifo" "gas__sqs__config_version_updated_fifo.fifo" &
+create_standard_topic_and_queue "gfr__sns___config_update" "gas__sqs__config_version_updated" &
 
 wait
 
