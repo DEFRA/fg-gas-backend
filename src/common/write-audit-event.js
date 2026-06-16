@@ -19,7 +19,7 @@ const getServiceIp = () => {
   return null;
 };
 
-const buildAuditEvent = (entities, details, status, context) => ({
+const createAuditPayload = (entities, details, status, context) => ({
   entities,
   status,
   details: {
@@ -44,23 +44,9 @@ const buildPayload = (context, { entities, details, status, security }) => ({
   user: getUser(context),
   sessionid: getSession(context),
   ip: getIP(context),
-  audit: buildAuditEvent(entities, details, status, context),
+  audit: createAuditPayload(entities, details, status, context),
   security: buildSecurity(security),
 });
-
-export const createAuditCallback =
-  ({ entities, details, messageGroupId, security }) =>
-  (session) =>
-    writeAuditEvent(
-      {
-        entities,
-        details: typeof details === "function" ? details() : details,
-        messageGroupId,
-        status: session ? SUCCESS : FAILURE,
-        security,
-      },
-      session,
-    );
 
 export const writeAuditEvent = async (
   { entities, details, messageGroupId, status, security },
@@ -75,8 +61,8 @@ export const writeAuditEvent = async (
     security,
   });
 
-  logger.debug(context, "audit context");
-  logger.debug(payload, "audit payload");
+  logger.info(context, "audit context");
+  logger.info(payload, "audit payload");
   const { valid, errors } = validateAuditEvent(payload);
   if (!valid) {
     logger.warn({ errors }, "Audit event failed validation - not writing");

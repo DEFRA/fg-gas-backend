@@ -1,14 +1,28 @@
+export const buildAuditEvent = ({
+  entity,
+  action,
+  entityid,
+  details = {},
+  messageGroupId,
+  security,
+}) => ({
+  entities: [{ entity, action, entityid }],
+  details,
+  messageGroupId: messageGroupId ?? entityid,
+  ...(security && { security }),
+});
+
 export const auditEntities = {
-  ENTITY_APPLICATION: "Application",
-  ENTITY_AGREEMENT: "Agreement",
-  ENTITY_GRANT: "Grant",
+  APPLICATION: "Application",
+  AGREEMENT: "Agreement",
+  GRANT: "Grant",
 };
 
 export const auditActions = {
-  ACTION_CREATE_APPLICATION: "CREATE_APPLICATION",
-  ACTION_SUBMIT_APPLICATION: "SUBMIT_APPLICATION",
-  ACTION_REPLACE_APPLICATION: "REPLACE_APPLICATION",
-  ACTION_APPROVE_APPLICATION: "APPROVE_APPLICATION",
-  ACTION_CANCEL_AGREEMENT: "CANCEL_AGREEMENT",
-  ACTION_REPLACE_GRANT: "REPLACE_GRANT",
+  CREATE_APPLICATION: "CREATE_APPLICATION",
+  SUBMIT_APPLICATION: "SUBMIT_APPLICATION",
+  REPLACE_APPLICATION: "REPLACE_APPLICATION",
+  APPROVE_APPLICATION: "APPROVE_APPLICATION",
+  CANCEL_AGREEMENT: "CANCEL_AGREEMENT",
+  REPLACE_GRANT: "REPLACE_GRANT",
 };
