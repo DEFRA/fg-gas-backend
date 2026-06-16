@@ -45,7 +45,7 @@ const runUnmanaged = async ({ run, audit, getSession, args }) => {
       args,
       result,
       status,
-      session: getSession?.({ args }),
+      session: status === SUCCESS && getSession?.({ args }),
     });
   }
 };
