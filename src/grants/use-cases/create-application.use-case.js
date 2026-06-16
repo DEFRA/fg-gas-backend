@@ -9,7 +9,11 @@ import { insertMany } from "../repositories/outbox.repository.js";
 import { validateAnswersAgainstSchema } from "../services/schema-validation.service.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
 
-const createApplication = async (code, { metadata, answers }, session) => {
+export const createApplicationUseCase = async (
+  code,
+  { metadata, answers },
+  session,
+) => {
   logger.info(`Create application with clientRef ${metadata.clientRef}`);
 
   const grant = await findGrantByCodeUseCase(code);
@@ -76,5 +80,3 @@ const createApplication = async (code, { metadata, answers }, session) => {
   logger.info("End create application.");
   return applicationID.toString();
 };
-
-export const createApplicationUseCase = createApplication;
