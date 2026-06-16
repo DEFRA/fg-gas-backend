@@ -118,16 +118,17 @@ describe("cancel agreement use case", () => {
   });
 
   it("re-throws and writes an audit event with FAILURE status when the use case fails", async () => {
+    const session = {};
     findByClientRefAndCode.mockRejectedValueOnce(new Error("db error"));
 
-    await expect(cancelAgreementUseCase(command, {})).rejects.toThrow(
+    await expect(cancelAgreementUseCase(command, session)).rejects.toThrow(
       "db error",
     );
 
     await vi.waitFor(() => expect(writeAuditEvent).toHaveBeenCalledOnce());
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({ status: "FAILURE" }),
-      undefined,
+      session,
     );
   });
 });

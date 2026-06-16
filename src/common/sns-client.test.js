@@ -7,13 +7,7 @@ vi.mock("@aws-sdk/client-sns", () => ({
 }));
 
 describe("publish", () => {
-  it("publishes a message to a topic", async () => {
-    const topicArn = "arn:aws:sns:us-east-1:123456789012:MyTopic";
-
-    const message = {
-      key: "value",
-    };
-
+  it("publishes a message to a topic, including MessageGroupId only for FIFO topics", async () => {
     const send = vi.fn();
 
     SNSClient.mockImplementation(function () {
@@ -26,18 +20,19 @@ describe("publish", () => {
 
     const { publish } = await import("./sns-client.js");
 
-    await publish(topicArn, message, "mock-message-id");
-
+    const fifoArn = "arn:aws:sns:us-east-1:123456789012:MyTopic.fifo";
+    await publish(fifoArn, { key: "value" }, "mock-message-id");
     expect(PublishCommand).toHaveBeenCalledWith({
-      TopicArn: topicArn,
+      TopicArn: fifoArn,
       Message: '{"key":"value"}',
       MessageGroupId: "mock-message-id",
     });
 
-    expect(send).toHaveBeenCalledWith({
-      TopicArn: topicArn,
+    const standardArn = "arn:aws:sns:us-east-1:123456789012:MyTopic";
+    await publish(standardArn, { key: "value" }, "mock-message-id");
+    expect(PublishCommand).toHaveBeenCalledWith({
+      TopicArn: standardArn,
       Message: '{"key":"value"}',
-      MessageGroupId: "mock-message-id",
     });
   });
 });
