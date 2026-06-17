@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="560" viewBox="0 0 1080 560" role="img" aria-labelledby="title desc">
+  <title id="title">API-first Agreements migration system diagram</title>
+  <desc id="desc">During migration the Agreements UI calls GAS Agreements for PMF and migrated agreements, and the Agreements API for live FPTT and WMP agreements. Config Broker provides agreement definitions to GAS. GAS publishes side effects to downstream services through inbox and outbox.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#0b0c0c" />
+    </marker>
+    <style>
+      .box-title { font: 700 16px Arial, sans-serif; fill: #ffffff; }
+      .ext-title { font: 700 16px Arial, sans-serif; fill: #0b0c0c; }
+      .label { font: 13px Arial, sans-serif; fill: #0b0c0c; }
+      .system { fill: #1d70b8; stroke: #144e80; stroke-width: 2; }
+      .external { fill: #f3f2f1; stroke: #b1b4b6; stroke-width: 2; }
+      .boundary { fill: #eef7ff; stroke: #1d70b8; stroke-width: 2; stroke-dasharray: 8 6; }
+      .arrow { stroke: #0b0c0c; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1080" height="560" fill="#ffffff" />
+
+  <rect x="70" y="65" width="230" height="70" rx="8" class="external" />
+  <text x="185" y="106" text-anchor="middle" class="ext-title">Config Broker</text>
+
+  <rect x="70" y="230" width="230" height="70" rx="8" class="external" />
+  <text x="185" y="271" text-anchor="middle" class="ext-title">Agreements UI</text>
+
+  <rect x="70" y="395" width="230" height="70" rx="8" class="external" />
+  <text x="185" y="436" text-anchor="middle" class="ext-title">Agreements API</text>
+
+  <rect x="420" y="80" width="320" height="315" rx="10" class="boundary" />
+  <text x="445" y="113" class="ext-title">Grant Application Service (GAS)</text>
+
+  <rect x="470" y="145" width="220" height="70" rx="8" class="system" />
+  <text x="580" y="186" text-anchor="middle" class="box-title">Agreements module</text>
+
+  <rect x="470" y="285" width="220" height="54" rx="8" class="system" />
+  <text x="580" y="318" text-anchor="middle" class="box-title">Inbox / Outbox</text>
+
+  <rect x="800" y="277" width="230" height="70" rx="8" class="external" />
+  <text x="915" y="318" text-anchor="middle" class="ext-title">Downstream services</text>
+
+  <path class="arrow" d="M300 100 H370 V170 H470" />
+  <rect x="344" y="81" width="84" height="18" fill="#ffffff" />
+  <text x="386" y="95" text-anchor="middle" class="label">Agreements</text>
+
+  <path class="arrow" d="M300 250 H370 V180 H470" />
+  <rect x="347" y="231" width="36" height="18" fill="#ffffff" />
+  <text x="365" y="245" text-anchor="middle" class="label">PMF</text>
+
+  <path class="arrow" d="M185 300 V395" />
+  <rect x="211" y="339" width="78" height="18" fill="#ffffff" />
+  <text x="250" y="353" text-anchor="middle" class="label">FPTT/WMP</text>
+
+  <path class="arrow" d="M580 215 V285" />
+  <rect x="595" y="243" width="75" height="18" fill="#ffffff" />
+  <text x="632.5" y="257" text-anchor="middle" class="label">Side effects</text>
+
+  <path class="arrow" d="M690 312 H800" />
+  <rect x="717" y="293" width="56" height="18" fill="#ffffff" />
+  <text x="745" y="307" text-anchor="middle" class="label">Publishes</text>
+</svg>
