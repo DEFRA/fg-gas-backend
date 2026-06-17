@@ -4,29 +4,22 @@ export class AgreementVersion {
     this.id = document._id;
     this.agreementId = document.agreementId;
     this.agreementNumber = document.agreementNumber;
-    this.sbi = document.sbi;
     this.version = document.version;
     this.createdAt = document.createdAt;
-    this.change = document.change;
     this.snapshot = document.snapshot;
   }
 
-  static initial({ id, agreement, initialVersion, createdAt }) {
+  static initial({ id, agreement, initialStatus, createdAt, itemPatch = {} }) {
     return new AgreementVersion({
       _id: id,
       agreementId: agreement.id,
       agreementNumber: agreement.agreementNumber,
-      sbi: agreement.sbi,
       version: 1,
       createdAt,
-      change: {
-        type: initialVersion.changeType,
-        changedBy: initialVersion.changedBy,
-        fromStatus: initialVersion.fromStatus,
-      },
       snapshot: createAgreementSnapshot({
         agreement,
-        initialStatus: initialVersion.initialStatus,
+        initialStatus,
+        itemPatch,
       }),
     });
   }
@@ -36,7 +29,6 @@ export class AgreementVersion {
     previousVersion,
     agreementItemId,
     status,
-    change,
     createdAt,
     itemPatch = {},
   }) {
@@ -45,6 +37,7 @@ export class AgreementVersion {
       (item) => item.agreementItemId === agreementItemId,
     );
 
+    delete snapshot.sbi;
     itemState.status = status;
     Object.assign(itemState, itemPatch);
     snapshot.updatedAt = createdAt;
@@ -53,10 +46,8 @@ export class AgreementVersion {
       _id: id,
       agreementId: previousVersion.agreementId,
       agreementNumber: previousVersion.agreementNumber,
-      sbi: previousVersion.sbi,
       version: previousVersion.version + 1,
       createdAt,
-      change,
       snapshot,
     });
   }
@@ -72,21 +63,21 @@ export class AgreementVersion {
   }
 }
 
-const createItemSnapshot = ({ item, initialStatus }) => ({
-  ...item.toDocument(),
+const createItemSnapshot = ({ item, initialStatus, itemPatch }) => ({
+  ...item.toSnapshotDocument(),
   status: initialStatus,
   payment: null,
+  ...itemPatch,
 });
 
-const createAgreementSnapshot = ({ agreement, initialStatus }) => {
-  const { items, ...agreementSnapshot } = structuredClone(
-    agreement.toDocument(),
-  );
+const createAgreementSnapshot = ({ agreement, initialStatus, itemPatch }) => {
+  const { items, ...agreementSnapshot } = structuredClone(agreement.toDocument());
+  delete agreementSnapshot.sbi;
 
   return {
     ...agreementSnapshot,
     items: agreement.items.map((item) =>
-      createItemSnapshot({ item, initialStatus }),
+      createItemSnapshot({ item, initialStatus, itemPatch }),
     ),
   };
 };

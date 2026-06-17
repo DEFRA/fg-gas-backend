@@ -1,6 +1,6 @@
 import Boom from "@hapi/boom";
+import { resolveJSONPath } from "../../common/resolve-json.js";
 import {
-  resolveActionMap,
   resolveActionPath,
   setActionOutput,
 } from "./agreement-action-paths.js";
@@ -9,64 +9,75 @@ const defaultCallEndpoint = () => {
   throw Boom.badRequest("Agreement endpoint caller is not configured");
 };
 
-const getResolutionRoot = ({ actionState, context }) => ({
-  ...context,
-  action: actionState,
-});
+const getEndpoint = (effect) => effect.params?.endpoint;
 
 const resolveEndpointParams = ({ endpointParams = {}, root }) =>
-  Object.fromEntries(
-    Object.entries(endpointParams).map(([paramType, paramMap]) => [
-      paramType,
-      resolveActionMap({ map: paramMap, root }),
-    ]),
-  );
+  resolveJSONPath({ root, path: endpointParams });
 
-const selectEndpointOutput = ({ response, root, step }) =>
+const selectEndpointOutput = ({ response, root, effect }) =>
   resolveActionPath(
     {
       ...root,
       response,
     },
-    step.output?.select ?? "$.response",
+    effect.params?.output?.select ?? "$.response",
   );
 
-const applyEndpointOutput = ({ actionState, response, root, step }) => {
-  if (!step.output) {
-    return actionState;
+const hasOutputMutation = (outputConfig) =>
+  Boolean(outputConfig?.path || outputConfig?.target);
+
+const applyEndpointOutput = ({ context, outputConfig, value }) => {
+  if (!hasOutputMutation(outputConfig)) {
+    return {};
   }
 
-  const nextActionState = structuredClone(actionState);
+  const outputs = structuredClone(context.outputs);
   setActionOutput({
-    object: nextActionState,
-    output: step.output,
-    value: selectEndpointOutput({ response, root, step }),
+    object: outputs,
+    output: outputConfig,
+    value,
   });
 
-  return nextActionState;
+  return { outputs };
 };
 
-export const invokeAgreementEndpointStep = async ({
-  actionState = {},
-  callEndpoint,
-  context,
-  step,
-}) => {
-  const callConfiguredEndpoint = callEndpoint ?? defaultCallEndpoint;
-  const root = getResolutionRoot({ actionState, context });
-  const response = await callConfiguredEndpoint({
+const callConfiguredEndpoint = async ({ callEndpoint, endpoint, root }) => {
+  const callEndpointHandler = callEndpoint ?? defaultCallEndpoint;
+
+  return callEndpointHandler({
     context: root,
-    endpoint: step.endpoint,
-    params: resolveEndpointParams({
-      endpointParams: step.endpoint?.endpointParams,
+    endpoint,
+    params: await resolveEndpointParams({
+      endpointParams: endpoint?.endpointParams,
       root,
     }),
   });
+};
 
-  return applyEndpointOutput({
-    actionState,
-    response,
-    root,
-    step,
+export const invokeAgreementEndpointStep = async ({
+  callEndpoint,
+  context,
+  effect,
+}) => {
+  const endpoint = getEndpoint(effect);
+  const response = await callConfiguredEndpoint({
+    callEndpoint,
+    endpoint,
+    root: context,
   });
+  const output = selectEndpointOutput({
+    response,
+    root: context,
+    effect,
+  });
+  const contextPatch = applyEndpointOutput({
+    context,
+    outputConfig: effect.params?.output,
+    value: output,
+  });
+
+  return {
+    output,
+    ...contextPatch,
+  };
 };

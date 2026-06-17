@@ -11,7 +11,7 @@ describe("create agreement use case", () => {
   const command = {
     clientRef: "PMF-APP-001",
     code: "pigs-might-fly",
-    identifiers: { sbi: "123456789", frn: "frn-1" },
+    identifiers: { sbi: "123456789", frn: "frn-1", crn: "crn-1" },
     metadata: { defraId: "defra-id-1" },
     answers: { canPigsFly: true },
   };
@@ -36,6 +36,7 @@ describe("create agreement use case", () => {
     useCollections({ agreements, agreementVersions });
 
     const result = await createAgreement(command, "session", {
+      callEndpoint: vi.fn().mockResolvedValue(undefined),
       createId: vi
         .fn()
         .mockReturnValueOnce("agreement-id")
@@ -55,26 +56,24 @@ describe("create agreement use case", () => {
       {
         _id: "agreement-id",
         agreementNumber: "PMF000000001",
-        sbi: "123456789",
+        code: "pigs-might-fly",
+        identifiers: {
+          sbi: "123456789",
+          frn: "frn-1",
+          crn: "crn-1",
+        },
         createdAt: "2026-06-01T10:00:00.000Z",
         updatedAt: "2026-06-01T10:00:00.000Z",
         items: [
           {
             agreementItemId: "agreement-item-id",
-            agreementCode: "pigs-might-fly",
             clientRef: "PMF-APP-001",
             configVersion: "0.0.1",
             identifiers: {
+              sbi: "123456789",
               frn: "frn-1",
-              crn: undefined,
+              crn: "crn-1",
               defraId: "defra-id-1",
-            },
-            payload: {
-              clientRef: "PMF-APP-001",
-              code: "pigs-might-fly",
-              identifiers: { sbi: "123456789", frn: "frn-1" },
-              metadata: { defraId: "defra-id-1" },
-              answers: { canPigsFly: true },
             },
             createdAt: "2026-06-01T10:00:00.000Z",
           },
@@ -87,35 +86,34 @@ describe("create agreement use case", () => {
         _id: "version-id",
         agreementId: "agreement-id",
         agreementNumber: "PMF000000001",
-        sbi: "123456789",
         version: 1,
         createdAt: "2026-06-01T10:00:00.000Z",
-        change: {
-          type: "created",
-          changedBy: "system",
-          fromStatus: null,
-        },
         snapshot: {
           _id: "agreement-id",
           agreementNumber: "PMF000000001",
-          sbi: "123456789",
+          code: "pigs-might-fly",
+          identifiers: {
+            sbi: "123456789",
+            frn: "frn-1",
+            crn: "crn-1",
+          },
           createdAt: "2026-06-01T10:00:00.000Z",
           updatedAt: "2026-06-01T10:00:00.000Z",
           items: [
             {
               agreementItemId: "agreement-item-id",
-              agreementCode: "pigs-might-fly",
               clientRef: "PMF-APP-001",
               configVersion: "0.0.1",
               identifiers: {
+                sbi: "123456789",
                 frn: "frn-1",
-                crn: undefined,
+                crn: "crn-1",
                 defraId: "defra-id-1",
               },
               payload: {
                 clientRef: "PMF-APP-001",
                 code: "pigs-might-fly",
-                identifiers: { sbi: "123456789", frn: "frn-1" },
+                identifiers: { sbi: "123456789", frn: "frn-1", crn: "crn-1" },
                 metadata: { defraId: "defra-id-1" },
                 answers: { canPigsFly: true },
               },
@@ -130,15 +128,291 @@ describe("create agreement use case", () => {
     );
   });
 
+  it("calls the configured endpoint and stores the raw response during Agreement creation", async () => {
+    const agreements = {
+      findOne: vi.fn().mockResolvedValue(null),
+      insertOne: vi.fn().mockResolvedValue({ insertedId: "agreement-id" }),
+    };
+    const agreementVersions = {
+      insertOne: vi.fn().mockResolvedValue({ insertedId: "version-id" }),
+    };
+    const callEndpoint = vi.fn().mockResolvedValue({
+      grandTotal: 1325,
+      items: [
+        {
+          description: "Large White Pig",
+          quantity: 25,
+          total: 250,
+          type: "largeWhite",
+          value: 10,
+        },
+        {
+          description: "British Landrace",
+          quantity: 25,
+          total: 375,
+          type: "britishLandrace",
+          value: 15,
+        },
+        {
+          description: "Berkshire",
+          quantity: 25,
+          total: 450,
+          type: "berkshire",
+          value: 18,
+        },
+        {
+          description: "Other",
+          quantity: 25,
+          total: 250,
+          type: "other",
+          value: 10,
+        },
+      ],
+    });
+    useCollections({ agreements, agreementVersions });
+
+    await createAgreement(
+      {
+        ...command,
+        answers: {
+          isPigFarmer: true,
+          totalPigs: 100,
+          whitePigsCount: 25,
+          britishLandracePigsCount: 25,
+          berkshirePigsCount: 25,
+          otherPigsCount: 25,
+        },
+      },
+      "session",
+      {
+        callEndpoint,
+        createId: vi
+          .fn()
+          .mockReturnValueOnce("agreement-id")
+          .mockReturnValueOnce("agreement-item-id")
+          .mockReturnValueOnce("version-id"),
+        generateAgreementNumber: () => "PMF000000001",
+        now: () => "2026-06-01T10:00:00.000Z",
+      },
+    );
+
+    expect(callEndpoint).toHaveBeenCalledWith({
+      endpoint: expect.objectContaining({
+        code: "calculate-funding",
+        method: "POST",
+        path: "/grantFundingCalculator",
+        service: "GRANT_FUNDING_CALCULATOR",
+      }),
+      params: {
+        BODY: {
+          pigTypes: [
+            { pigType: "largeWhite", quantity: 25 },
+            { pigType: "britishLandrace", quantity: 25 },
+            { pigType: "berkshire", quantity: 25 },
+            { pigType: "other", quantity: 25 },
+          ],
+        },
+      },
+    });
+    expect(agreements.insertOne.mock.calls[0][0].items[0]).not.toHaveProperty(
+      "payload",
+    );
+    expect(
+      agreementVersions.insertOne.mock.calls[0][0].snapshot.items[0].payload
+        .answers.fundingCalculation,
+    ).toBeUndefined();
+    expect(
+      agreementVersions.insertOne.mock.calls[0][0].snapshot.items[0]
+        .fundingCalculation,
+    ).toMatchObject({
+      grandTotal: 1325,
+      items: expect.arrayContaining([
+        {
+          description: "Large White Pig",
+          quantity: 25,
+          total: 250,
+          type: "largeWhite",
+          value: 10,
+        },
+      ]),
+    });
+  });
+
+  it("defaults omitted PMF pig counts to zero for funding calculation", async () => {
+    const agreements = {
+      findOne: vi.fn().mockResolvedValue(null),
+      insertOne: vi.fn().mockResolvedValue({ insertedId: "agreement-id" }),
+    };
+    const agreementVersions = {
+      insertOne: vi.fn().mockResolvedValue({ insertedId: "version-id" }),
+    };
+    const callEndpoint = vi.fn().mockResolvedValue({
+      grandTotal: 100,
+      items: [
+        {
+          description: "Large White Pig",
+          quantity: 10,
+          total: 100,
+          type: "largeWhite",
+          value: 10,
+        },
+      ],
+    });
+    useCollections({ agreements, agreementVersions });
+
+    await createAgreement(
+      {
+        ...command,
+        answers: {
+          isPigFarmer: true,
+          totalPigs: 10,
+          whitePigsCount: 10,
+        },
+      },
+      "session",
+      {
+        callEndpoint,
+        createId: vi
+          .fn()
+          .mockReturnValueOnce("agreement-id")
+          .mockReturnValueOnce("agreement-item-id")
+          .mockReturnValueOnce("version-id"),
+        generateAgreementNumber: () => "PMF000000001",
+        now: () => "2026-06-01T10:00:00.000Z",
+      },
+    );
+
+    expect(callEndpoint).toHaveBeenCalledWith({
+      endpoint: expect.objectContaining({
+        code: "calculate-funding",
+      }),
+      params: {
+        BODY: {
+          pigTypes: [
+            { pigType: "largeWhite", quantity: 10 },
+            { pigType: "britishLandrace", quantity: 0 },
+            { pigType: "berkshire", quantity: 0 },
+            { pigType: "other", quantity: 0 },
+          ],
+        },
+      },
+    });
+  });
+
+  it("stores configured endpoint responses without transforming them during Agreement creation", async () => {
+    const agreements = {
+      findOne: vi.fn().mockResolvedValue(null),
+      insertOne: vi.fn().mockResolvedValue({ insertedId: "agreement-id" }),
+    };
+    const agreementVersions = {
+      insertOne: vi.fn().mockResolvedValue({ insertedId: "version-id" }),
+    };
+    useCollections({ agreements, agreementVersions });
+
+    await createAgreement(
+      {
+        ...command,
+        answers: {
+          largeAnimalsCount: 2,
+          smallAnimalsCount: 3,
+        },
+      },
+      "session",
+      {
+        callEndpoint: vi.fn().mockResolvedValue({
+          calculated: {
+            grantTotal: 42,
+            lines: [
+              {
+                amount: 10,
+                label: "Large animal",
+                schemeCode: "LARGE",
+              },
+              {
+                amount: 32,
+                label: "Small animal",
+                schemeCode: "SMALL",
+              },
+            ],
+          },
+        }),
+        createId: vi
+          .fn()
+          .mockReturnValueOnce("agreement-id")
+          .mockReturnValueOnce("agreement-item-id")
+          .mockReturnValueOnce("version-id"),
+        generateAgreementNumber: () => "CFG000000001",
+        getAgreementCreation: () => ({
+          agreementCode: "configurable-grant",
+          agreementNumberPrefix: "CFG",
+          configVersion: "0.0.1",
+          initialStatus: "offered",
+          create: {
+            target: "offered",
+            effects: [
+              {
+                name: "callEndpoint",
+                output: "fundingCalculation",
+                params: {
+                  endpoint: {
+                    code: "calculate-configurable-payment",
+                    endpointParams: {
+                      BODY: 'jsonata:{"animalCounts": [$.answers.largeAnimalsCount, $.answers.smallAnimalsCount]}',
+                    },
+                  },
+                },
+              },
+              {
+                name: "snapshot",
+                params: {
+                  fundingCalculation: "$.outputs.fundingCalculation",
+                },
+              },
+            ],
+          },
+        }),
+        now: () => "2026-06-01T10:00:00.000Z",
+      },
+    );
+
+    expect(agreements.insertOne.mock.calls[0][0].items[0]).not.toHaveProperty(
+      "payload",
+    );
+    expect(
+      agreementVersions.insertOne.mock.calls[0][0].snapshot.items[0].payload
+        .answers.fundingCalculation,
+    ).toBeUndefined();
+    expect(
+      agreementVersions.insertOne.mock.calls[0][0].snapshot.items[0]
+        .fundingCalculation,
+    ).toEqual({
+      calculated: {
+        grantTotal: 42,
+        lines: [
+          {
+            amount: 10,
+            label: "Large animal",
+            schemeCode: "LARGE",
+          },
+          {
+            amount: 32,
+            label: "Small animal",
+            schemeCode: "SMALL",
+          },
+        ],
+      },
+    });
+  });
+
   it("returns the existing Agreement item for an idempotent source command", async () => {
     const existing = {
       _id: "existing-agreement-id",
       agreementNumber: "PMF000000001",
+      code: "pigs-might-fly",
       sbi: "987654321",
       items: [
         {
           agreementItemId: "agreement-item-id",
-          agreementCode: "pigs-might-fly",
           clientRef: "PMF-APP-001",
         },
       ],
@@ -163,12 +437,11 @@ describe("create agreement use case", () => {
     expect(result.version).toBeUndefined();
     expect(agreements.findOne).toHaveBeenCalledWith(
       {
-        items: {
-          $elemMatch: {
-            agreementCode: "pigs-might-fly",
-            clientRef: "PMF-APP-001",
-          },
-        },
+        "items.clientRef": "PMF-APP-001",
+        $or: [
+          { code: "pigs-might-fly" },
+          { "items.agreementCode": "pigs-might-fly" },
+        ],
       },
       { session: "session" },
     );
@@ -188,6 +461,7 @@ describe("create agreement use case", () => {
     useCollections({ agreements, agreementVersions });
 
     const result = await createAgreement(command, "session", {
+      callEndpoint: vi.fn().mockResolvedValue(undefined),
       createId: vi
         .fn()
         .mockReturnValueOnce("new-agreement-id")
@@ -209,7 +483,12 @@ describe("create agreement use case", () => {
       {
         _id: "new-agreement-id",
         agreementNumber: "PMF000000002",
-        sbi: "123456789",
+        code: "pigs-might-fly",
+        identifiers: {
+          sbi: "123456789",
+          frn: "frn-1",
+          crn: "crn-1",
+        },
         createdAt: "2026-06-01T10:00:00.000Z",
         updatedAt: "2026-06-01T10:00:00.000Z",
         items: [result.item.toDocument()],
@@ -243,19 +522,9 @@ describe("create agreement use case", () => {
         generateAgreementNumber: () => "WMP000000001",
         getAgreementCreation: () => ({
           agreementCode: "woodland",
-          agreementNumber: {
-            prefix: "WMP",
-            randomDigits: 9,
-            uniquenessScope: "agreementNumber",
-          },
+          agreementNumberPrefix: "WMP",
           configVersion: "0.0.1",
-          implementation: "config",
-          initialVersion: {
-            changedBy: "system",
-            changeType: "created",
-            fromStatus: null,
-            initialStatus: "offered",
-          },
+          initialStatus: "offered",
         }),
         now: () => "2026-06-01T10:00:00.000Z",
       },
@@ -288,6 +557,7 @@ describe("create agreement use case", () => {
     useCollections({ agreements, agreementVersions });
 
     const result = await createAgreement(command, "session", {
+      callEndpoint: vi.fn().mockResolvedValue(undefined),
       createId: vi
         .fn()
         .mockReturnValueOnce("agreement-id")
@@ -321,17 +591,17 @@ describe("create agreement use case", () => {
     const duplicateKey = new Error("duplicate key");
     duplicateKey.code = 11000;
     duplicateKey.keyPattern = {
+      code: 1,
       "items.clientRef": 1,
-      "items.agreementCode": 1,
     };
     const existing = {
       _id: "existing-agreement-id",
       agreementNumber: "PMF000000001",
+      code: "pigs-might-fly",
       sbi: "123456789",
       items: [
         {
           agreementItemId: "existing-agreement-item-id",
-          agreementCode: "pigs-might-fly",
           clientRef: "PMF-APP-001",
         },
       ],
@@ -350,6 +620,7 @@ describe("create agreement use case", () => {
     useCollections({ agreements, agreementVersions });
 
     const result = await createAgreement(command, "session", {
+      callEndpoint: vi.fn().mockResolvedValue(undefined),
       createId: vi
         .fn()
         .mockReturnValueOnce("agreement-id")
@@ -384,6 +655,7 @@ describe("create agreement use case", () => {
 
     await expect(
       createAgreement(command, "session", {
+        callEndpoint: vi.fn().mockResolvedValue(undefined),
         createId: vi
           .fn()
           .mockReturnValueOnce("agreement-id")

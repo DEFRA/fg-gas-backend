@@ -4,12 +4,12 @@ import { prepareAgreementPaymentClaim } from "./prepare-agreement-payment-claim.
 
 vi.mock("./prepare-agreement-payment-claim.use-case.js");
 
-describe("create Agreement payment claim step", () => {
+describe("create Agreement payment claim effect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("creates payment claim action state from configured payment path", async () => {
+  it("creates payment claim output from configured payment path", async () => {
     const preparedPaymentClaim = {
       claimId: "R00000001",
       correlationId: "agreement-correlation-id",
@@ -24,15 +24,15 @@ describe("create Agreement payment claim step", () => {
     await expect(
       createAgreementPaymentClaimStep({
         context: {
-          actionState: {
+          createCorrelationId,
+          generateClaimId,
+          outputs: {
             paymentPreparation: {
               payment: {
                 agreementTotalPence: 10000,
               },
             },
           },
-          createCorrelationId,
-          generateClaimId,
           previousItemState: {
             status: "offered",
           },
@@ -41,23 +41,18 @@ describe("create Agreement payment claim step", () => {
           },
           session: "session",
         },
-        step: {
-          payment: "$.action.paymentPreparation.payment",
-          paymentClaim: {
-            deliveryBody: "RP00",
-            scheme: "SFI",
+        effect: {
+          params: {
+            payment: "$.outputs.paymentPreparation.payment",
+            paymentClaim: {
+              deliveryBody: "RP00",
+              scheme: "SFI",
+            },
           },
         },
       }),
     ).resolves.toEqual({
-      actionState: {
-        paymentPreparation: {
-          payment: {
-            agreementTotalPence: 10000,
-          },
-        },
-        paymentClaim: preparedPaymentClaim,
-      },
+      output: preparedPaymentClaim,
       publication: {
         lifecycleEvent: true,
         paymentClaim: {
@@ -87,7 +82,6 @@ describe("create Agreement payment claim step", () => {
 
     await createAgreementPaymentClaimStep({
       context: {
-        actionState: {},
         item: {
           payload: {
             answers: {
@@ -97,10 +91,13 @@ describe("create Agreement payment claim step", () => {
             },
           },
         },
+        outputs: {},
         publication: {},
       },
-      step: {
-        payment: "$.item.payload.answers.payment",
+      effect: {
+        params: {
+          payment: "$.item.payload.answers.payment",
+        },
       },
     });
 
@@ -108,6 +105,79 @@ describe("create Agreement payment claim step", () => {
       expect.objectContaining({
         payment: {
           agreementTotalPence: 10000,
+        },
+      }),
+    );
+  });
+
+  it("creates payment claims from raw funding calculation data", async () => {
+    prepareAgreementPaymentClaim.mockResolvedValue({
+      claimId: "R00000001",
+    });
+
+    await createAgreementPaymentClaimStep({
+      context: {
+        executedAt: "2026-06-15T10:00:00.000Z",
+        outputs: {},
+        previousItemState: {
+          fundingCalculation: {
+            grandTotal: 1325,
+            items: [
+              {
+                description: "Large White Pig",
+                total: 250,
+                type: "largeWhite",
+              },
+            ],
+          },
+        },
+        publication: {},
+      },
+      effect: {
+        params: {
+          fundingCalculation: "$.previousItemState.fundingCalculation",
+          mapping: {
+            itemAmount: "$.total",
+            itemDescription: "$.description",
+            itemKey: "$.type",
+            items: "$.items",
+            total: "$.grandTotal",
+          },
+          schedule: {
+            durationMonths: 12,
+            paymentOffsetMonths: 1,
+            start: "firstDayOfNextMonth",
+          },
+        },
+      },
+    });
+
+    expect(prepareAgreementPaymentClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payment: {
+          agreementEndDate: "2027-06-30",
+          agreementLevelItems: {
+            largeWhite: {
+              annualPaymentPence: 25000,
+              code: "largeWhite",
+              description: "Large White Pig",
+            },
+          },
+          agreementStartDate: "2026-07-01",
+          agreementTotalPence: 132500,
+          currency: "GBP",
+          payments: [
+            {
+              lineItems: [
+                {
+                  agreementLevelItemId: "largeWhite",
+                  paymentPence: 25000,
+                },
+              ],
+              paymentDate: "2026-08-01",
+              totalPaymentPence: 132500,
+            },
+          ],
         },
       }),
     );

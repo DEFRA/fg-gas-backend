@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getAgreementCreation,
-  getAgreementInitialVersion,
+  getAgreementInitialStatus,
 } from "./agreement-definition-resolver.js";
 import { Agreement } from "./agreement.js";
 
@@ -43,7 +43,12 @@ describe("Agreement", () => {
     expect(agreement.toDocument()).toEqual({
       _id: "agreement-id",
       agreementNumber: "PMF123456789",
-      sbi: "123456789",
+      code: "pigs-might-fly",
+      identifiers: {
+        sbi: "123456789",
+        frn: "frn-1",
+        crn: "crn-1",
+      },
       createdAt: "2026-06-01T10:00:00.000Z",
       updatedAt: "2026-06-01T10:00:00.000Z",
       items: [item.toDocument()],
@@ -57,11 +62,13 @@ describe("Agreement", () => {
     const agreement = Agreement.fromDocument({
       _id: "agreement-id",
       agreementNumber: "PMF123456789",
-      sbi: "123456789",
+      code: "pigs-might-fly",
+      identifiers: {
+        sbi: "123456789",
+      },
       items: [
         {
           agreementItemId: "agreement-item-id",
-          agreementCode: "pigs-might-fly",
           clientRef: "PMF-APP-001",
         },
       ],
@@ -69,7 +76,7 @@ describe("Agreement", () => {
 
     const version = agreement.createInitialVersion({
       versionId: "version-id",
-      initialVersion: getAgreementInitialVersion("pigs-might-fly"),
+      initialStatus: getAgreementInitialStatus("pigs-might-fly"),
       createdAt: "2026-06-01T10:00:00.000Z",
     });
 
@@ -77,21 +84,17 @@ describe("Agreement", () => {
       _id: "version-id",
       agreementId: "agreement-id",
       agreementNumber: "PMF123456789",
-      sbi: "123456789",
       version: 1,
-      change: {
-        type: "created",
-        changedBy: "system",
-        fromStatus: null,
-      },
       snapshot: {
         _id: "agreement-id",
         agreementNumber: "PMF123456789",
-        sbi: "123456789",
+        code: "pigs-might-fly",
+        identifiers: {
+          sbi: "123456789",
+        },
         items: [
           {
             agreementItemId: "agreement-item-id",
-            agreementCode: "pigs-might-fly",
             clientRef: "PMF-APP-001",
             status: "offered",
             payment: null,

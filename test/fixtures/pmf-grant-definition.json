@@ -66,31 +66,53 @@
             {
               "code": "IN_REVIEW",
               "validFrom": [
-                { "code": "APPLICATION_RECEIVED", "processes": [] },
-                { "code": "APPLICATION_REJECTED", "processes": [] },
-                { "code": "ON_HOLD", "processes": [] }
+                {
+                  "code": "APPLICATION_RECEIVED",
+                  "processes": []
+                },
+                {
+                  "code": "APPLICATION_REJECTED",
+                  "processes": []
+                },
+                {
+                  "code": "ON_HOLD",
+                  "processes": []
+                }
               ]
             },
             {
               "code": "AGREEMENT_GENERATING",
               "validFrom": [
-                { "code": "IN_REVIEW", "processes": ["GENERATE_OFFER"] }
+                {
+                  "code": "IN_REVIEW",
+                  "processes": ["GENERATE_OFFER"]
+                }
               ]
             },
             {
               "code": "ON_HOLD",
-              "validFrom": [{ "code": "IN_REVIEW", "processes": [] }]
+              "validFrom": [
+                {
+                  "code": "IN_REVIEW",
+                  "processes": []
+                }
+              ]
             },
             {
               "code": "APPLICATION_REJECTED",
-              "validFrom": [{ "code": "IN_REVIEW", "processes": [] }]
+              "validFrom": [
+                {
+                  "code": "IN_REVIEW",
+                  "processes": []
+                }
+              ]
             }
           ]
         },
         {
           "code": "REVIEW_OFFER",
-          "name": "Review Offer",
-          "description": "Review the offer made to the applicant",
+          "name": "Preparing Agreement",
+          "description": "Agreement document being drafted and made ready for the applicant",
           "statuses": [
             {
               "code": "AGREEMENT_DRAFTED",
@@ -105,8 +127,8 @@
         },
         {
           "code": "CUSTOMER_AGREEMENT_REVIEW",
-          "name": "Customer Agreement Review",
-          "description": "Customer reviews the agreement offer",
+          "name": "Agreement with Applicant",
+          "description": "Agreement is with the applicant, awaiting their response",
           "statuses": [
             {
               "code": "AGREEMENT_OFFERED",

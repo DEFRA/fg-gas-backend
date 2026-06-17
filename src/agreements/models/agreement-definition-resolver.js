@@ -1,85 +1,96 @@
 import Boom from "@hapi/boom";
-import {
-  agreementCommandRoutes,
-  agreementImplementations,
-  getAgreementDefinition,
-} from "./agreement-definition.js";
+import { getAgreementDefinition } from "./agreement-definition.js";
 
 export const isConfigBackedAgreement = (creation) =>
-  creation.implementation === agreementImplementations.CONFIG;
+  creation.source !== "legacy";
 
-export const getAgreementCommandRoute = ({ agreementCode, commandName }) =>
-  getAgreementDefinition(agreementCode).commands?.[commandName]?.route ??
-  agreementCommandRoutes.LEGACY;
+const getAgreementSource = (definition) => definition.source ?? "config";
 
-export const getAgreementInitialVersion = (agreementCode) => {
+export const getAgreementCommandRoute = ({ agreementCode }) =>
+  getAgreementSource(getAgreementDefinition(agreementCode)) === "config"
+    ? "internal"
+    : "legacy";
+
+export const getAgreementInitialStatus = (agreementCode) => {
   const definition = getAgreementDefinition(agreementCode);
 
-  return toInitialVersion(definition);
+  return getInitialStatus(definition);
 };
 
 export const getAgreementCreation = (agreementCode) => {
   const definition = getAgreementDefinition(agreementCode);
 
   return {
-    agreementCode: definition.agreementCode,
-    agreementNumber: definition.agreementNumber,
+    agreementCode: definition.code,
+    agreementNumberPrefix: definition.agreementNumberPrefix,
     configVersion: definition.configVersion,
-    implementation: definition.implementation,
-    initialVersion: toInitialVersion(definition),
+    create: isConfigBackedDefinition(definition)
+      ? resolveCreate(definition)
+      : undefined,
+    initialStatus: getInitialStatus(definition),
+    source: getAgreementSource(definition),
   };
 };
 
-export const getAgreementAction = ({ agreementCode, actionName }) => {
+export const getAgreementAction = ({ agreementCode, actionName, status }) => {
   const definition = getAgreementDefinition(agreementCode);
-  const action = definition.lifecycle?.actions?.[actionName];
+  const transitionMatch = findTransition({
+    actionName,
+    definition,
+    status,
+  });
 
-  if (action) {
-    const steps = action.steps.map((step) =>
-      resolveStep({
-        action,
-        endpoints: definition.endpoints ?? [],
-        payment: definition.payment,
-        step,
-      }),
-    );
-
-    return {
+  if (transitionMatch) {
+    return toAgreementAction({
       actionName,
-      agreementCode: definition.agreementCode,
-      fromStatus: action.fromStatus,
-      processingSteps: steps,
-      target: action.target,
-      toStatus: action.toStatus,
-    };
+      definition,
+      ...transitionMatch,
+    });
   }
 
   throw Boom.badRequest(
-    `Agreement definition ${definition.agreementCode} has no action named "${actionName}"`,
+    `Agreement definition ${definition.code} has no event named "${actionName}" for state "${status}"`,
   );
 };
 
-const toInitialVersion = (definition) => {
-  if (!definition.lifecycle) {
+const isConfigBackedDefinition = (definition) =>
+  getAgreementSource(definition) === "config";
+
+const getInitialStatus = (definition) => definition.create?.target;
+
+const getState = ({ definition, status }) => definition.states?.[status];
+
+const getStateTransition = ({ actionName, state }) => state?.on?.[actionName];
+
+const toTransitionMatch = ({ status, transition }) => ({ status, transition });
+
+const findTransitionForState = ({ actionName, definition, status }) => {
+  const transition = getStateTransition({
+    actionName,
+    state: getState({ definition, status }),
+  });
+
+  if (!transition) {
     return undefined;
   }
 
-  return {
-    changedBy: definition.lifecycle.changedBy,
-    changeType: definition.lifecycle.initialChangeType,
-    fromStatus: definition.lifecycle.fromStatus,
-    initialStatus: definition.lifecycle.initialStatus,
-  };
+  return toTransitionMatch({ status, transition });
 };
 
-const toStepObject = (step) =>
-  typeof step === "string" ? { type: step } : step;
+const findTransitionInAnyState = ({ actionName, definition }) =>
+  Object.keys(definition.states ?? {})
+    .map((candidateStatus) =>
+      findTransitionForState({
+        actionName,
+        definition,
+        status: candidateStatus,
+      }),
+    )
+    .find(Boolean);
 
-const getStepValue = ({ action, property, step }) =>
-  step[property] ?? action[property];
-
-const getStepPaymentClaim = ({ action, payment, step }) =>
-  getStepValue({ action, property: "paymentClaim", step }) ?? payment.claim;
+const findTransition = ({ actionName, definition, status }) =>
+  findTransitionForState({ actionName, definition, status }) ??
+  findTransitionInAnyState({ actionName, definition });
 
 const getEndpointCode = (endpoint) =>
   typeof endpoint === "string" ? endpoint : endpoint?.code;
@@ -87,52 +98,77 @@ const getEndpointCode = (endpoint) =>
 const getEndpointParams = (endpoint) =>
   typeof endpoint === "string" ? undefined : endpoint?.endpointParams;
 
-const resolveEndpoint = ({ endpoints, step }) => {
-  const endpointCode = getEndpointCode(step.endpoint);
-  const endpoint = endpoints.find(
+const resolveEndpoint = ({ endpoints, endpoint }) => {
+  const endpointCode = getEndpointCode(endpoint);
+  const configuredEndpoint = endpoints.find(
     (candidate) => candidate.code === endpointCode,
   );
 
-  if (!endpoint) {
-    return step.endpoint;
+  if (!configuredEndpoint) {
+    return endpoint;
   }
 
   return {
-    ...endpoint,
-    endpointParams: getEndpointParams(step.endpoint),
+    ...configuredEndpoint,
+    endpointParams: getEndpointParams(endpoint),
   };
 };
 
-const resolveStep = ({ action, endpoints, payment = {}, step }) => {
-  const stepObject = toStepObject(step);
+const resolveCreateEffect = ({ definition, effect }) => {
+  if (effect.name !== "callEndpoint") {
+    return effect;
+  }
 
-  return {
-    ...stepObject,
-    changeType: getStepValue({
-      action,
-      property: "changeType",
-      step: stepObject,
-    }),
-    changedBy: getStepValue({
-      action,
-      property: "changedBy",
-      step: stepObject,
-    }),
-    endpoint: resolveEndpoint({ endpoints, step: stepObject }),
-    fromStatus: getStepValue({
-      action,
-      property: "fromStatus",
-      step: stepObject,
-    }),
-    paymentClaim: getStepPaymentClaim({
-      action,
-      payment,
-      step: stepObject,
-    }),
-    toStatus: getStepValue({
-      action,
-      property: "toStatus",
-      step: stepObject,
-    }),
-  };
+  return resolveCallEndpointEffect({ definition, effect });
 };
+
+const resolveCreate = (definition) => ({
+  effects: (definition.create?.effects ?? []).map((effect) =>
+    resolveCreateEffect({ definition, effect }),
+  ),
+  target: definition.create?.target,
+});
+
+const resolveCallEndpointEffect = ({ definition, effect }) => ({
+  ...effect,
+  params: {
+    ...effect.params,
+    endpoint: resolveEndpoint({
+      endpoints: definition.endpoints ?? [],
+      endpoint: effect.params?.endpoint,
+    }),
+  },
+});
+
+const resolveEffect = ({ definition, effect, status, transition }) => {
+  if (effect.name === "callEndpoint") {
+    return resolveCallEndpointEffect({ definition, effect });
+  }
+
+  if (effect.name === "snapshot") {
+    return {
+      ...effect,
+      fromStatus: status,
+      target: transition.target,
+    };
+  }
+
+  return effect;
+};
+
+const toAgreementAction = ({ actionName, definition, status, transition }) => ({
+  actionName,
+  agreementCode: definition.code,
+  fromStatus: status,
+  effects: transition.effects.map((effect) =>
+    resolveEffect({
+      definition,
+      effect,
+      status,
+      transition,
+    }),
+  ),
+  target: "agreementItem",
+  toStatus: transition.target,
+  validation: transition.validation,
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAgreementInitialVersion } from "./agreement-definition-resolver.js";
+import { getAgreementInitialStatus } from "./agreement-definition-resolver.js";
 import { AgreementVersion } from "./agreement-version.js";
 import { Agreement } from "./agreement.js";
 
@@ -8,7 +8,11 @@ describe("AgreementVersion", () => {
     const agreement = Agreement.fromDocument({
       _id: "agreement-id",
       agreementNumber: "PMF123456789",
-      sbi: "123456789",
+      identifiers: {
+        sbi: "123456789",
+        frn: "frn-1",
+        crn: "crn-1",
+      },
       createdAt: "2026-06-01T09:00:00.000Z",
       updatedAt: "2026-06-01T09:30:00.000Z",
       items: [
@@ -28,7 +32,7 @@ describe("AgreementVersion", () => {
     const version = AgreementVersion.initial({
       id: "version-id",
       agreement,
-      initialVersion: getAgreementInitialVersion("pigs-might-fly"),
+      initialStatus: getAgreementInitialStatus("pigs-might-fly"),
       createdAt: "2026-06-01T10:00:00.000Z",
     });
 
@@ -36,18 +40,16 @@ describe("AgreementVersion", () => {
       _id: "version-id",
       agreementId: "agreement-id",
       agreementNumber: "PMF123456789",
-      sbi: "123456789",
       version: 1,
       createdAt: "2026-06-01T10:00:00.000Z",
-      change: {
-        type: "created",
-        changedBy: "system",
-        fromStatus: null,
-      },
       snapshot: {
         _id: "agreement-id",
         agreementNumber: "PMF123456789",
-        sbi: "123456789",
+        identifiers: {
+          sbi: "123456789",
+          frn: "frn-1",
+          crn: "crn-1",
+        },
         createdAt: "2026-06-01T09:00:00.000Z",
         updatedAt: "2026-06-01T09:30:00.000Z",
         items: [

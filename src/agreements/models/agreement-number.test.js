@@ -2,12 +2,9 @@ import { describe, expect, it } from "vitest";
 import { generateAgreementNumber } from "./agreement-number.js";
 
 describe("generate agreement number", () => {
-  it("uses the configured prefix and random digit count", () => {
+  it("uses the configured prefix and 9 random digits", () => {
     const agreementNumber = generateAgreementNumber({
-      config: {
-        prefix: "PMF",
-        randomDigits: 9,
-      },
+      prefix: "PMF",
       randomInt: () => 12345,
     });
 

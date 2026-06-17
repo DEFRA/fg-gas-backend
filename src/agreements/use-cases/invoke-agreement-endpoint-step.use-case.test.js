@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { invokeAgreementEndpointStep } from "./invoke-agreement-endpoint-step.use-case.js";
 
-describe("invoke Agreement endpoint step", () => {
-  it("calls a configured endpoint with resolved parameters and stores selected output", async () => {
+describe("invoke Agreement endpoint effect", () => {
+  it("calls a configured endpoint with resolved parameters and returns selected output", async () => {
     const callEndpoint = vi.fn().mockResolvedValue({
       payment: {
         agreementTotalPence: 20000,
@@ -11,7 +11,6 @@ describe("invoke Agreement endpoint step", () => {
 
     await expect(
       invokeAgreementEndpointStep({
-        actionState: {},
         callEndpoint,
         context: {
           item: {
@@ -23,35 +22,36 @@ describe("invoke Agreement endpoint step", () => {
               },
             },
           },
+          outputs: {},
         },
-        step: {
-          endpoint: {
-            code: "calculate-payment-schedule",
-            endpointParams: {
-              BODY: {
-                payment: "$.item.payload.answers.payment",
+        effect: {
+          params: {
+            endpoint: {
+              code: "calculate-payment-schedule",
+              endpointParams: {
+                BODY: {
+                  payment: "$.item.payload.answers.payment",
+                },
               },
+              method: "POST",
+              path: "/api/v2/payments/calculate",
+              service: "LAND_GRANTS",
             },
-            method: "POST",
-            path: "/api/v2/payments/calculate",
-            service: "LAND_GRANTS",
-          },
-          output: {
-            path: "payment",
-            place: "replace",
-            select: "$.response.payment",
+            output: {
+              select: "$.response.payment",
+            },
           },
         },
       }),
     ).resolves.toEqual({
-      payment: {
+      output: {
         agreementTotalPence: 20000,
       },
     });
     expect(callEndpoint).toHaveBeenCalledWith({
       context: expect.objectContaining({
-        action: {},
         item: expect.any(Object),
+        outputs: {},
       }),
       endpoint: expect.objectContaining({
         code: "calculate-payment-schedule",
@@ -69,60 +69,113 @@ describe("invoke Agreement endpoint step", () => {
   it("stores endpoint output on configured targets", async () => {
     await expect(
       invokeAgreementEndpointStep({
-        actionState: {
-          paymentPreparations: {
-            dates: {
-              code: "dates",
-              result: "kept",
-            },
-          },
-        },
         callEndpoint: vi.fn().mockResolvedValue({
           code: "payment",
           payment: {
             agreementTotalPence: 30000,
           },
         }),
-        context: {},
-        step: {
-          endpoint: {
-            code: "calculate-payment-schedule",
+        context: {
+          outputs: {
+            paymentPreparations: {
+              dates: {
+                code: "dates",
+                result: "kept",
+              },
+            },
           },
-          output: {
-            select: "$.response",
-            target: {
-              dataType: "OBJECT",
-              key: "code",
-              place: "append",
-              targetNode: "paymentPreparations",
+        },
+        effect: {
+          params: {
+            endpoint: {
+              code: "calculate-payment-schedule",
+            },
+            output: {
+              select: "$.response",
+              target: {
+                dataType: "OBJECT",
+                key: "code",
+                place: "append",
+                targetNode: "paymentPreparations",
+              },
             },
           },
         },
       }),
     ).resolves.toEqual({
-      paymentPreparations: {
-        dates: {
-          code: "dates",
-          result: "kept",
-        },
+      output: {
+        code: "payment",
         payment: {
-          code: "payment",
+          agreementTotalPence: 30000,
+        },
+      },
+      outputs: {
+        paymentPreparations: {
+          dates: {
+            code: "dates",
+            result: "kept",
+          },
           payment: {
-            agreementTotalPence: 30000,
+            code: "payment",
+            payment: {
+              agreementTotalPence: 30000,
+            },
           },
         },
       },
     });
   });
 
-  it("rejects endpoint steps when no caller is configured", async () => {
+  it("resolves JSONata endpoint parameters", async () => {
+    const callEndpoint = vi.fn().mockResolvedValue({});
+
+    await invokeAgreementEndpointStep({
+      callEndpoint,
+      context: {
+        item: {
+          payload: {
+            answers: {
+              firstCount: 2,
+              secondCount: 3,
+            },
+          },
+        },
+        outputs: {},
+      },
+      effect: {
+        params: {
+          endpoint: {
+            code: "calculate-payment",
+            endpointParams: {
+              BODY: 'jsonata:{"counts": [$.item.payload.answers.firstCount, $.item.payload.answers.secondCount]}',
+            },
+          },
+        },
+      },
+    });
+
+    expect(callEndpoint).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: {
+          BODY: {
+            counts: [2, 3],
+          },
+        },
+      }),
+    );
+  });
+
+  it("rejects endpoint effects when no caller is configured", async () => {
     await expect(
       invokeAgreementEndpointStep({
-        actionState: {},
-        context: {},
-        step: {
-          endpoint: {
-            code: "calculate-payment-schedule",
+        context: {
+          outputs: {},
+        },
+        effect: {
+          params: {
+            endpoint: {
+              code: "calculate-payment-schedule",
+            },
           },
         },
       }),

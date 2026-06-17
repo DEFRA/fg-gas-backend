@@ -31,14 +31,18 @@ describe("AgreementItem", () => {
 
     expect(item.toDocument()).toEqual({
       agreementItemId: "agreement-item-id",
-      agreementCode: "pigs-might-fly",
       clientRef: "PMF-APP-001",
       configVersion: "0.0.1",
       identifiers: {
+        sbi: "123456789",
         frn: "frn-1",
         crn: "crn-1",
         defraId: "defra-id-1",
       },
+      createdAt: "2026-06-01T10:00:00.000Z",
+    });
+    expect(item.toSnapshotDocument()).toEqual({
+      ...item.toDocument(),
       payload: {
         clientRef: "PMF-APP-001",
         code: "pigs-might-fly",
@@ -53,27 +57,24 @@ describe("AgreementItem", () => {
         },
         answers,
       },
-      createdAt: "2026-06-01T10:00:00.000Z",
     });
+    expect(item.toDocument()).not.toHaveProperty("payload");
     expect(item.toDocument()).not.toHaveProperty("status");
     expect(item.toDocument()).not.toHaveProperty("payment");
   });
 
-  it("matches on Agreement code and client reference", () => {
+  it("matches on client reference", () => {
     const item = AgreementItem.fromDocument({
-      agreementCode: "pigs-might-fly",
       clientRef: "PMF-APP-001",
     });
 
     expect(
       item.matches({
-        agreementCode: "pigs-might-fly",
         clientRef: "PMF-APP-001",
       }),
     ).toBe(true);
     expect(
       item.matches({
-        agreementCode: "pigs-might-fly",
         clientRef: "other-client-ref",
       }),
     ).toBe(false);

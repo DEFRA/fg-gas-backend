@@ -10,18 +10,14 @@ describe("record Agreement item transition", () => {
     _id: "version-1",
     agreementId: "agreement-id",
     agreementNumber: "PMF000000001",
-    sbi: "123456789",
     version: 1,
     createdAt: "2026-06-01T09:00:00.000Z",
-    change: {
-      type: "created",
-      changedBy: "system",
-      fromStatus: null,
-    },
     snapshot: {
       _id: "agreement-id",
       agreementNumber: "PMF000000001",
-      sbi: "123456789",
+      identifiers: {
+        sbi: "123456789",
+      },
       items: [
         {
           agreementItemId: "agreement-item-id",
@@ -40,7 +36,6 @@ describe("record Agreement item transition", () => {
       {
         agreementItemId: "agreement-item-id",
         changedAt: "2026-06-01T10:00:00.000Z",
-        changedBy: "applicant",
         createId: () => "version-2",
         fromStatus: "offered",
         itemPatch: {
@@ -56,18 +51,14 @@ describe("record Agreement item transition", () => {
       _id: "version-2",
       agreementId: "agreement-id",
       agreementNumber: "PMF000000001",
-      sbi: "123456789",
       version: 2,
       createdAt: "2026-06-01T10:00:00.000Z",
-      change: {
-        type: "accepted",
-        changedBy: "applicant",
-        fromStatus: "offered",
-      },
       snapshot: {
         _id: "agreement-id",
         agreementNumber: "PMF000000001",
-        sbi: "123456789",
+        identifiers: {
+          sbi: "123456789",
+        },
         updatedAt: "2026-06-01T10:00:00.000Z",
         items: [
           {
@@ -87,7 +78,6 @@ describe("record Agreement item transition", () => {
         {
           agreementItemId: "agreement-item-id",
           changedAt: "2026-06-01T10:00:00.000Z",
-          changedBy: "applicant",
           createId: () => "version-2",
           fromStatus: "accepted",
           previousVersion,

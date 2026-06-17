@@ -1,19 +1,15 @@
 import Joi from "joi";
 
-const agreementImplementations = {
+const agreementSources = {
   CONFIG: "config",
   LEGACY: "legacy",
 };
 
-const agreementCommandNames = ["create"];
-
-const agreementCommandRoutes = ["internal", "legacy"];
-
-const actionStepTypes = [
+const effectNames = [
   "callEndpoint",
   "createPaymentClaim",
-  "emitLifecycleEvent",
-  "recordTransition",
+  "publish",
+  "snapshot",
 ];
 
 const nonEmptyString = Joi.string().trim().min(1);
@@ -55,10 +51,32 @@ const targetOutputSchema = Joi.object({
   target: actionTargetSchema.required(),
 }).unknown(false);
 
+const selectOutputSchema = Joi.object({
+  select: nonEmptyString.optional(),
+}).unknown(false);
+
 const stepOutputSchema = Joi.alternatives().try(
+  selectOutputSchema,
   pathOutputSchema,
   targetOutputSchema,
 );
+
+const actionValidationRequiredFieldSchema = Joi.object({
+  href: nonEmptyString.optional(),
+  message: nonEmptyString.optional(),
+  name: nonEmptyString.required(),
+  value: Joi.alternatives()
+    .try(Joi.string(), Joi.number(), Joi.boolean())
+    .optional(),
+}).unknown(false);
+
+const transitionValidationSchema = Joi.object({
+  page: nonEmptyString.optional(),
+  required: Joi.array()
+    .items(actionValidationRequiredFieldSchema)
+    .min(1)
+    .optional(),
+}).unknown(false);
 
 const paymentClaimLineItemTypeSchema = Joi.object({
   descriptionTemplate: nonEmptyString.required(),
@@ -89,122 +107,146 @@ const paymentClaimSchema = Joi.object({
   sourceSystem: nonEmptyString.required(),
 }).unknown(false);
 
-const paymentSchema = Joi.object({
-  claim: paymentClaimSchema.optional(),
+const renderPageSchema = Joi.object({
+  actions: Joi.array().items(Joi.object().unknown(true)).optional(),
+  components: Joi.array().items(Joi.object().unknown(true)).required(),
+  layout: nonEmptyString.optional(),
+  title: nonEmptyString.required(),
 }).unknown(false);
 
-const stepObjectSchema = (stepTypes) =>
-  Joi.object({
-    changedBy: nonEmptyString.optional(),
-    changeType: nonEmptyString.optional(),
-    endpoint: endpointReferenceSchema.optional(),
-    fromStatus: nonEmptyString.optional(),
-    itemPatch: Joi.object().unknown(true).optional(),
-    output: stepOutputSchema.optional(),
-    payment: nonEmptyString.optional(),
-    paymentClaim: paymentClaimSchema.optional(),
-    toStatus: nonEmptyString.optional(),
-    type: Joi.string()
-      .valid(...stepTypes)
-      .required(),
-  }).unknown(false);
+const pagesSchema = Joi.object()
+  .pattern(nonEmptyString, renderPageSchema)
+  .min(1)
+  .required();
 
-const stepSchema = (stepTypes) =>
-  Joi.alternatives().try(
-    Joi.string().valid(...stepTypes),
-    stepObjectSchema(stepTypes),
-  );
-
-const actionSchema = Joi.object({
-  changedBy: nonEmptyString.optional(),
-  changeType: nonEmptyString.optional(),
-  fromStatus: nonEmptyString.required(),
+const effectParamsSchema = Joi.object({
+  endpoint: endpointReferenceSchema.optional(),
+  event: Joi.string().valid("lifecycle").optional(),
+  output: stepOutputSchema.optional(),
+  fundingCalculation: Joi.any().optional(),
+  mapping: Joi.object().unknown(true).optional(),
+  payment: Joi.any().optional(),
   paymentClaim: paymentClaimSchema.optional(),
-  steps: Joi.array().items(stepSchema(actionStepTypes)).min(1).required(),
-  target: nonEmptyString.optional(),
-  toStatus: nonEmptyString.required(),
-}).unknown(false);
+  schedule: Joi.object().unknown(true).optional(),
+}).unknown(true);
 
-const commandSchema = Joi.object({
-  route: Joi.string()
-    .valid(...agreementCommandRoutes)
+const effectSchema = Joi.object({
+  name: Joi.string()
+    .valid(...effectNames)
     .required(),
+  output: nonEmptyString.optional(),
+  params: effectParamsSchema.optional(),
 }).unknown(false);
 
-const commandsSchema = Joi.object(
-  Object.fromEntries(
-    agreementCommandNames.map((commandName) => [
-      commandName,
-      commandSchema.optional(),
-    ]),
-  ),
-).unknown(false);
-
-const lifecycleSchema = Joi.object({
-  actions: Joi.object().pattern(nonEmptyString, actionSchema).min(1).required(),
-  changedBy: nonEmptyString.required(),
-  fromStatus: nonEmptyString.allow(null).required(),
-  initialChangeType: nonEmptyString.required(),
-  initialStatus: nonEmptyString.required(),
+const transitionSchema = Joi.object({
+  effects: Joi.array().items(effectSchema).min(1).required(),
+  target: nonEmptyString.required(),
+  validation: transitionValidationSchema.optional(),
 }).unknown(false);
 
-const agreementNumberSchema = Joi.object({
-  prefix: nonEmptyString.required(),
-  randomDigits: Joi.number().integer().min(1).required(),
-  uniquenessScope: nonEmptyString.required(),
+const stateSchema = Joi.object({
+  on: Joi.object().pattern(nonEmptyString, transitionSchema).optional(),
 }).unknown(false);
 
-const getStepType = (step) => (typeof step === "string" ? step : step.type);
+const createSchema = Joi.object({
+  effects: Joi.array().items(effectSchema).optional(),
+  target: nonEmptyString.required(),
+}).unknown(false);
 
-const hasPaymentClaim = ({ action, definition, step }) =>
-  Boolean(
-    step.paymentClaim ?? action.paymentClaim ?? definition.payment?.claim,
+const statesSchema = Joi.object()
+  .pattern(nonEmptyString, stateSchema)
+  .min(1)
+  .required();
+
+const getStateEntries = (definition) => Object.entries(definition.states ?? {});
+
+const getTransitions = (definition) =>
+  getStateEntries(definition).flatMap(([fromStatus, state]) =>
+    Object.entries(state.on ?? {}).map(([eventName, transition]) => ({
+      eventName,
+      fromStatus,
+      transition,
+    })),
   );
 
-const hasMissingStepConfig = ({ action, definition, stepType, hasConfig }) =>
-  action.steps.some(
-    (step) =>
-      getStepType(step) === stepType &&
-      !hasConfig({ action, definition, step }),
+const getTransitionEffects = (definition) =>
+  getTransitions(definition).flatMap(({ transition }) => transition.effects);
+
+const getCreateEffects = (definition) => definition.create.effects ?? [];
+
+const getEffects = (definition) => [
+  ...getCreateEffects(definition),
+  ...getTransitionEffects(definition),
+];
+
+const hasPaymentClaim = ({ effect }) => Boolean(effect.params?.paymentClaim);
+
+const hasMissingEffectConfig = ({ definition, effectNames, hasConfig }) =>
+  getEffects(definition).some(
+    (effect) =>
+      effectNames.includes(effect.name) && !hasConfig({ definition, effect }),
   );
 
 const hasMissingPaymentClaim = (definition) =>
-  Object.values(definition.lifecycle.actions).some((action) =>
-    hasMissingStepConfig({
-      action,
-      definition,
-      hasConfig: hasPaymentClaim,
-      stepType: "createPaymentClaim",
-    }),
-  );
+  hasMissingEffectConfig({
+    definition,
+    effectNames: ["createPaymentClaim"],
+    hasConfig: hasPaymentClaim,
+  });
 
-const getEndpointCode = (step) =>
-  typeof step.endpoint === "string" ? step.endpoint : step.endpoint?.code;
+const getEffectEndpoint = (effect) => effect.params?.endpoint;
 
-const hasEndpoint = ({ definition, step }) =>
+const getEndpointCode = (effect) => {
+  const endpoint = getEffectEndpoint(effect);
+
+  if (typeof endpoint === "string") {
+    return endpoint;
+  }
+
+  return endpoint?.code;
+};
+
+const hasEndpoint = ({ definition, effect }) =>
   definition.endpoints?.some(
-    (endpoint) => endpoint.code === getEndpointCode(step),
+    (endpoint) => endpoint.code === getEndpointCode(effect),
   );
 
 const hasMissingEndpoint = (definition) =>
-  Object.values(definition.lifecycle.actions).some((action) =>
-    hasMissingStepConfig({
-      action,
-      definition,
-      hasConfig: hasEndpoint,
-      stepType: "callEndpoint",
-    }),
+  hasMissingEffectConfig({
+    definition,
+    effectNames: ["callEndpoint"],
+    hasConfig: hasEndpoint,
+  });
+
+const hasMissingCreateTargetState = (definition) =>
+  !definition.states[definition.create.target];
+
+const hasMissingStatePage = (definition) =>
+  Object.keys(definition.states).some((status) => !definition.pages[status]);
+
+const hasMissingTargetState = (definition) =>
+  getTransitions(definition).some(
+    ({ transition }) => !definition.states[transition.target],
   );
 
-const getCrossCheckError = (definition) => {
-  if (hasMissingEndpoint(definition)) {
-    return "agreementDefinition.missingEndpoint";
-  }
+const hasMissingSnapshotEffect = (definition) =>
+  getTransitions(definition).some(
+    ({ transition }) =>
+      transition.effects.filter((effect) => effect.name === "snapshot")
+        .length !== 1,
+  );
 
-  if (hasMissingPaymentClaim(definition)) {
-    return "agreementDefinition.missingPaymentClaim";
-  }
-};
+const crossChecks = [
+  [hasMissingCreateTargetState, "agreementDefinition.missingCreateTargetState"],
+  [hasMissingTargetState, "agreementDefinition.missingTargetState"],
+  [hasMissingSnapshotEffect, "agreementDefinition.missingSnapshotEffect"],
+  [hasMissingEndpoint, "agreementDefinition.missingEndpoint"],
+  [hasMissingPaymentClaim, "agreementDefinition.missingPaymentClaim"],
+  [hasMissingStatePage, "agreementDefinition.missingStatePage"],
+];
+
+const getCrossCheckError = (definition) =>
+  crossChecks.find(([check]) => check(definition))?.[1];
 
 const validateAgreementDefinitionReferences = (definition, helpers) => {
   const error = getCrossCheckError(definition);
@@ -217,31 +259,34 @@ const validateAgreementDefinitionReferences = (definition, helpers) => {
 };
 
 const configAgreementDefinitionSchema = Joi.object({
-  agreementCode: nonEmptyString.required(),
-  agreementNumber: agreementNumberSchema.required(),
-  commands: commandsSchema.optional(),
+  code: nonEmptyString.required(),
+  agreementNumberPrefix: nonEmptyString.required(),
   configVersion: nonEmptyString.required(),
+  create: createSchema.required(),
   endpoints: Joi.array().items(endpointSchema).unique("code").optional(),
-  implementation: Joi.string()
-    .valid(agreementImplementations.CONFIG)
-    .required(),
-  lifecycle: lifecycleSchema.required(),
-  payment: paymentSchema.optional(),
+  pages: pagesSchema,
+  states: statesSchema,
 })
   .custom(validateAgreementDefinitionReferences)
   .messages({
     "agreementDefinition.missingEndpoint":
-      "callEndpoint steps require an endpoint matching step.endpoint.code",
+      "callEndpoint effects require an endpoint matching params.endpoint.code",
+    "agreementDefinition.missingCreateTargetState":
+      "create target must match a configured state",
     "agreementDefinition.missingPaymentClaim":
-      "createPaymentClaim steps require payment.claim, action.paymentClaim, or step.paymentClaim",
+      "createPaymentClaim effects require params.paymentClaim",
+    "agreementDefinition.missingSnapshotEffect":
+      "state transitions require exactly one snapshot effect",
+    "agreementDefinition.missingStatePage":
+      "states require a matching page with the same key",
+    "agreementDefinition.missingTargetState":
+      "transition targets must match a configured state",
   })
   .unknown(false);
 
 const legacyAgreementDefinitionSchema = Joi.object({
-  agreementCode: nonEmptyString.required(),
-  implementation: Joi.string()
-    .valid(agreementImplementations.LEGACY)
-    .required(),
+  code: nonEmptyString.required(),
+  source: Joi.string().valid(agreementSources.LEGACY).required(),
 }).unknown(false);
 
 export const agreementDefinitionSchema = Joi.alternatives().try(
@@ -249,15 +294,14 @@ export const agreementDefinitionSchema = Joi.alternatives().try(
   legacyAgreementDefinitionSchema,
 );
 
-const schemasByImplementation = {
-  [agreementImplementations.CONFIG]: configAgreementDefinitionSchema,
-  [agreementImplementations.LEGACY]: legacyAgreementDefinitionSchema,
+const schemasBySource = {
+  [agreementSources.CONFIG]: configAgreementDefinitionSchema,
+  [agreementSources.LEGACY]: legacyAgreementDefinitionSchema,
 };
 
 export const validateAgreementDefinition = (definition) =>
   (
-    schemasByImplementation[definition?.implementation] ??
-    agreementDefinitionSchema
+    schemasBySource[definition?.source] ?? configAgreementDefinitionSchema
   ).validate(definition, {
     abortEarly: false,
     allowUnknown: false,

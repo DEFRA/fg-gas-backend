@@ -10,11 +10,11 @@ describe("find Agreement action target", () => {
   const agreement = Agreement.fromDocument({
     _id: "agreement-id",
     agreementNumber: "PMF000000001",
+    code: "pigs-might-fly",
     sbi: "123456789",
     items: [
       {
         agreementItemId: "agreement-item-id",
-        agreementCode: "pigs-might-fly",
         clientRef: "PMF-APP-001",
         status: "stale-wrapper-status",
       },
@@ -27,14 +27,10 @@ describe("find Agreement action target", () => {
     sbi: "123456789",
     version: 2,
     createdAt: "2026-06-01T10:00:00.000Z",
-    change: {
-      type: "accepted",
-      changedBy: "applicant",
-      fromStatus: "offered",
-    },
     snapshot: {
       _id: "agreement-id",
       agreementNumber: "PMF000000001",
+      code: "pigs-might-fly",
       sbi: "123456789",
       items: [
         {

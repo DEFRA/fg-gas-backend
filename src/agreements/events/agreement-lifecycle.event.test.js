@@ -10,11 +10,7 @@ const createLifecycleEventData = (overrides = {}) => ({
   agreementCode: "agreement-code",
   code: "pigs-might-fly",
   clientRef: "PMF-APP-001",
-  changeType: "created",
   changedAt: "2026-06-01T10:00:00.000Z",
-  changedBy: "system",
-  fromStatus: null,
-  toStatus: "offered",
   status: "offered",
   date: "2026-06-01T10:00:00.000Z",
   startDate: undefined,
@@ -39,10 +35,7 @@ describe("AgreementLifecycleEvent", () => {
   it("uses the accepted event type for accepted Agreement lifecycle data", () => {
     const event = new AgreementLifecycleEvent(
       createLifecycleEventData({
-        changeType: "accepted",
-        fromStatus: "offered",
         status: "accepted",
-        toStatus: "accepted",
       }),
     );
 

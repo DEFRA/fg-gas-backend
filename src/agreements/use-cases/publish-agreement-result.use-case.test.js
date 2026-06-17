@@ -17,11 +17,11 @@ const createLifecycleChange = () => {
   const agreement = Agreement.fromDocument({
     _id: "agreement-id",
     agreementNumber: "PMF123456789",
+    code: "pigs-might-fly",
     sbi: "123456789",
     items: [
       {
         agreementItemId: "agreement-item-id",
-        agreementCode: "pigs-might-fly",
         clientRef: "PMF-APP-001",
         identifiers: {
           frn: "1100000012",
@@ -33,11 +33,6 @@ const createLifecycleChange = () => {
   const version = {
     id: "version-id",
     createdAt: "2026-06-01T10:00:00.000Z",
-    change: {
-      type: "created",
-      changedBy: "system",
-      fromStatus: null,
-    },
     findItemState: vi.fn().mockReturnValue({
       status: "offered",
       payment: null,
@@ -86,11 +81,7 @@ describe("publish Agreement publication", () => {
       agreementCode: "pigs-might-fly",
       code: "pigs-might-fly",
       clientRef: "PMF-APP-001",
-      changeType: "created",
       changedAt: "2026-06-01T10:00:00.000Z",
-      changedBy: "system",
-      fromStatus: null,
-      toStatus: "offered",
       status: "offered",
       date: "2026-06-01T10:00:00.000Z",
       startDate: undefined,

@@ -1,13 +1,9 @@
 import { withTransaction } from "../../common/with-transaction.js";
 import { getAgreementCommandRoute } from "../models/agreement-definition-resolver.js";
-import {
-  agreementCommandNames,
-  agreementCommandRoutes,
-} from "../models/agreement-definition.js";
 import { processCreateAgreementCommandUseCase } from "./process-create-agreement-command.use-case.js";
 
 const commandNameByTypeSuffix = [
-  [".agreement.create", agreementCommandNames.CREATE],
+  [".agreement.create", "create"],
 ];
 
 export const agreementCommandDeliveryOutcomes = {
@@ -32,7 +28,7 @@ const getCommandRoute = ({ command, commandName }) =>
   });
 
 const getDeliveryOutcome = (route) =>
-  route === agreementCommandRoutes.INTERNAL
+  route === "internal"
     ? agreementCommandDeliveryOutcomes.DELIVER_INTERNALLY
     : agreementCommandDeliveryOutcomes.DELIVER_EXTERNALLY;
 
@@ -44,7 +40,7 @@ export const resolveAgreementCommandDelivery = (command) => {
       commandName,
       delivered: false,
       outcome: agreementCommandDeliveryOutcomes.NOT_AGREEMENT_COMMAND,
-      route: agreementCommandRoutes.LEGACY,
+      route: "legacy",
     };
   }
 
@@ -72,7 +68,7 @@ const toDeliveredInternallyResult = (delivery) => ({
 });
 
 const deliverCreateCommand = async ({ command, delivery }) => {
-  if (delivery.route !== agreementCommandRoutes.INTERNAL) {
+  if (delivery.route !== "internal") {
     return delivery;
   }
 
@@ -82,7 +78,7 @@ const deliverCreateCommand = async ({ command, delivery }) => {
 };
 
 const agreementCommandHandlers = {
-  [agreementCommandNames.CREATE]: deliverCreateCommand,
+  create: deliverCreateCommand,
 };
 
 export const deliverAgreementCommandResult = async (command) => {

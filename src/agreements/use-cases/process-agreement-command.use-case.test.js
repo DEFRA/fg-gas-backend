@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { withTransaction } from "../../common/with-transaction.js";
-import { agreementCommandRoutes } from "../models/agreement-definition.js";
-import { processAgreementCommandUseCase } from "./process-agreement-command.use-case.js";
+import {
+  agreementCommandRoutes,
+  processAgreementCommandUseCase,
+} from "./process-agreement-command.use-case.js";
 import { processCreateAgreementCommandUseCase } from "./process-create-agreement-command.use-case.js";
 
 vi.mock("../../common/with-transaction.js", () => ({

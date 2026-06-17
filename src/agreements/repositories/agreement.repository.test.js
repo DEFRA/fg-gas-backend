@@ -16,11 +16,11 @@ describe("agreement repository", () => {
       findOne: vi.fn().mockResolvedValue({
         _id: "agreement-id",
         agreementNumber: "PMF000000001",
+        code: "pigs-might-fly",
         sbi: "123456789",
         items: [
           {
             agreementItemId: "agreement-item-id",
-            agreementCode: "pigs-might-fly",
             clientRef: "PMF-APP-001",
           },
         ],
@@ -39,12 +39,11 @@ describe("agreement repository", () => {
     expect(result.agreementNumber).toBe("PMF000000001");
     expect(agreements.findOne).toHaveBeenCalledWith(
       {
-        items: {
-          $elemMatch: {
-            agreementCode: "pigs-might-fly",
-            clientRef: "PMF-APP-001",
-          },
-        },
+        "items.clientRef": "PMF-APP-001",
+        $or: [
+          { code: "pigs-might-fly" },
+          { "items.agreementCode": "pigs-might-fly" },
+        ],
       },
       { session: "session" },
     );
@@ -54,11 +53,11 @@ describe("agreement repository", () => {
     const agreementDocument = {
       _id: "agreement-id",
       agreementNumber: "PMF000000001",
+      code: "pigs-might-fly",
       sbi: "123456789",
       items: [
         {
           agreementItemId: "agreement-item-id",
-          agreementCode: "pigs-might-fly",
           clientRef: "PMF-APP-001",
         },
       ],
@@ -120,6 +119,7 @@ describe("agreement repository", () => {
     const agreement = Agreement.fromDocument({
       _id: "agreement-id",
       agreementNumber: "PMF000000001",
+      code: "pigs-might-fly",
       sbi: "123456789",
       items: [],
     });

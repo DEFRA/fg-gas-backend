@@ -8,11 +8,11 @@ const createPublicationChange = () => {
   const agreement = Agreement.fromDocument({
     _id: "agreement-id",
     agreementNumber: "PMF123456789",
+    code: "pigs-might-fly",
     sbi: "123456789",
     items: [
       {
         agreementItemId: "agreement-item-id",
-        agreementCode: "pigs-might-fly",
         clientRef: "PMF-APP-001",
         identifiers: {
           frn: "1100000012",
@@ -24,11 +24,6 @@ const createPublicationChange = () => {
   const version = {
     id: "version-id",
     createdAt: "2026-06-01T10:00:00.000Z",
-    change: {
-      type: "accepted",
-      changedBy: "applicant",
-      fromStatus: "offered",
-    },
     findItemState: vi.fn().mockReturnValue({
       claimId: "R00000001",
       correlationId: "agreement-correlation-id",

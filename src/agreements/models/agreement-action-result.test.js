@@ -7,10 +7,10 @@ describe("Agreement action result", () => {
     const agreement = Agreement.fromDocument({
       _id: "agreement-id",
       agreementNumber: "PMF000000001",
+      code: "pigs-might-fly",
       items: [
         {
           agreementItemId: "agreement-item-id",
-          agreementCode: "pigs-might-fly",
           clientRef: "PMF-APP-001",
         },
       ],

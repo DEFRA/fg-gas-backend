@@ -52,10 +52,10 @@ describe("CreatePaymentClaimCommand", () => {
     const command = new CreatePaymentClaimCommand({
       agreement: {
         agreementNumber: "ALT000000001",
+        code: "alternative-grant",
         sbi: "123456789",
       },
       item: {
-        agreementCode: "alternative-grant",
         agreementItemId: "agreement-item-id",
         clientRef: "ALT-APP-001",
         identifiers: {

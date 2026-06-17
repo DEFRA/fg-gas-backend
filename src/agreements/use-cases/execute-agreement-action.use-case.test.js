@@ -45,13 +45,15 @@ describe("execute Agreement action use case", () => {
   const agreementDocument = {
     _id: "agreement-id",
     agreementNumber: "PMF000000001",
-    sbi: "123456789",
+    code: "pigs-might-fly",
+    identifiers: {
+      sbi: "123456789",
+    },
     createdAt: "2026-06-01T09:00:00.000Z",
     updatedAt: "2026-06-01T09:00:00.000Z",
     items: [
       {
         agreementItemId: "agreement-item-id",
-        agreementCode: "pigs-might-fly",
         clientRef: "PMF-APP-001",
         identifiers: {
           frn: "1100000012",
@@ -69,14 +71,8 @@ describe("execute Agreement action use case", () => {
     _id: "version-1",
     agreementId: "agreement-id",
     agreementNumber: "PMF000000001",
-    sbi: "123456789",
     version: 1,
     createdAt: "2026-06-01T09:00:00.000Z",
-    change: {
-      type: "created",
-      changedBy: "system",
-      fromStatus: null,
-    },
     snapshot: {
       ...agreementDocument,
       items: [
@@ -127,6 +123,7 @@ describe("execute Agreement action use case", () => {
         payload: {
           code: "pigs-might-fly",
           clientRef: "PMF-APP-001",
+          confirm: "confirmed",
           acceptedBy: "applicant",
         },
       },
@@ -143,12 +140,11 @@ describe("execute Agreement action use case", () => {
     expect(agreements.findOne).toHaveBeenCalledWith(
       {
         agreementNumber: "PMF000000001",
-        items: {
-          $elemMatch: {
-            agreementCode: "pigs-might-fly",
-            clientRef: "PMF-APP-001",
-          },
-        },
+        "items.clientRef": "PMF-APP-001",
+        $or: [
+          { code: "pigs-might-fly" },
+          { "items.agreementCode": "pigs-might-fly" },
+        ],
       },
       { session: "session" },
     );
@@ -158,11 +154,6 @@ describe("execute Agreement action use case", () => {
         _id: "version-2",
         version: 2,
         createdAt: "2026-06-01T10:00:00.000Z",
-        change: {
-          type: "accepted",
-          changedBy: "applicant",
-          fromStatus: "offered",
-        },
         snapshot: {
           ...versionDocument.snapshot,
           updatedAt: "2026-06-01T10:00:00.000Z",
@@ -251,13 +242,62 @@ describe("execute Agreement action use case", () => {
       agreementNumber: "PMF000000001",
       code: "pigs-might-fly",
       clientRef: "PMF-APP-001",
-      fromStatus: "offered",
-      toStatus: "accepted",
       status: "accepted",
       claimId: "R00000001",
       startDate: "2026-07-01",
       endDate: "2027-06-30",
     });
+  });
+
+  it("rejects a configured action when required payload confirmation is missing", async () => {
+    const agreements = {
+      findOne: vi.fn().mockResolvedValue(agreementDocument),
+    };
+    const agreementVersions = {
+      findOne: vi.fn().mockResolvedValue(versionDocument),
+      insertOne: vi.fn(),
+    };
+    const outbox = {
+      findOne: vi.fn().mockResolvedValue(null),
+      insertMany: vi.fn(),
+    };
+    useCollections({ agreements, agreementVersions, outbox });
+
+    await expect(
+      executeAgreementAction(
+        {
+          agreementNumber: "PMF000000001",
+          actionName: "accept",
+          payload: {
+            code: "pigs-might-fly",
+            clientRef: "PMF-APP-001",
+            acceptedBy: "applicant",
+          },
+        },
+        "session",
+        {
+          createId: () => "version-2",
+          generateClaimId: () => "R00000001",
+          now: () => "2026-06-01T10:00:00.000Z",
+        },
+      ),
+    ).rejects.toMatchObject({
+      data: {
+        validation: {
+          page: "accept",
+          fields: [
+            {
+              href: "#confirm",
+              message: "Confirm this agreement offer before accepting it",
+              name: "confirm",
+            },
+          ],
+        },
+      },
+      message: "Confirm this agreement offer before accepting it",
+    });
+    expect(agreementVersions.insertOne).not.toHaveBeenCalled();
+    expect(outbox.insertMany).not.toHaveBeenCalled();
   });
 
   it("uses the latest Agreement version as current state", async () => {
@@ -266,11 +306,6 @@ describe("execute Agreement action use case", () => {
       _id: "version-2",
       version: 2,
       createdAt: "2026-06-01T10:00:00.000Z",
-      change: {
-        type: "accepted",
-        changedBy: "applicant",
-        fromStatus: "offered",
-      },
       snapshot: {
         ...versionDocument.snapshot,
         updatedAt: "2026-06-01T10:00:00.000Z",
@@ -399,21 +434,20 @@ describe("execute Agreement action use case", () => {
           actionName: "accept",
           agreementCode: "pigs-might-fly",
           fromStatus: "offered",
-          processingSteps: [
+          effects: [
             {
               fromStatus: "offered",
-              itemPatch: {
+              name: "snapshot",
+              params: {
                 acceptedAt: "$.executedAt",
                 acceptedBy: "$.command.acceptedBy",
                 claimId: "$.item.claimId",
                 originalInvoiceNumber: "$.item.originalInvoiceNumber",
                 payment: "$.item.payload.answers.payment",
               },
-              toStatus: "accepted",
-              type: "recordTransition",
+              target: "accepted",
             },
           ],
-          toStatus: "accepted",
         }),
         now: () => "2026-06-01T10:00:00.000Z",
       },
@@ -475,40 +509,40 @@ describe("execute Agreement action use case", () => {
           actionName: "accept",
           agreementCode: "pigs-might-fly",
           fromStatus: "offered",
-          processingSteps: [
+          effects: [
             {
-              endpoint: {
-                code: "calculate-payment-schedule",
-                endpointParams: {
-                  BODY: {
-                    payment: "$.item.payload.answers.payment",
+              name: "callEndpoint",
+              output: "payment",
+              params: {
+                endpoint: {
+                  code: "calculate-payment-schedule",
+                  endpointParams: {
+                    BODY: {
+                      payment: "$.item.payload.answers.payment",
+                    },
                   },
+                  method: "POST",
+                  path: "/api/v2/payments/calculate",
+                  service: "LAND_GRANTS",
                 },
-                method: "POST",
-                path: "/api/v2/payments/calculate",
-                service: "LAND_GRANTS",
+                output: {
+                  select: "$.response.payment",
+                },
               },
-              output: {
-                path: "payment",
-                place: "replace",
-                select: "$.response.payment",
-              },
-              type: "callEndpoint",
             },
             {
               fromStatus: "offered",
-              itemPatch: {
+              name: "snapshot",
+              params: {
                 acceptedAt: "$.executedAt",
                 acceptedBy: "$.command.acceptedBy",
                 claimId: "$.item.claimId",
                 originalInvoiceNumber: "$.item.originalInvoiceNumber",
-                payment: "$.action.payment",
+                payment: "$.outputs.payment",
               },
-              toStatus: "accepted",
-              type: "recordTransition",
+              target: "accepted",
             },
           ],
-          toStatus: "accepted",
         }),
         now: () => "2026-06-01T10:00:00.000Z",
       },
@@ -588,37 +622,38 @@ describe("execute Agreement action use case", () => {
           actionName: "accept",
           agreementCode: "pigs-might-fly",
           fromStatus: "offered",
-          processingSteps: [
+          effects: [
             {
-              endpoint: {
-                code: "calculate-payment-schedule",
-                method: "POST",
-                path: "/api/v2/payments/calculate",
-                service: "LAND_GRANTS",
-              },
-              output: {
-                select: "$.response",
-                target: {
-                  dataType: "OBJECT",
-                  key: "code",
-                  place: "append",
-                  targetNode: "paymentPreparations",
+              name: "callEndpoint",
+              params: {
+                endpoint: {
+                  code: "calculate-payment-schedule",
+                  method: "POST",
+                  path: "/api/v2/payments/calculate",
+                  service: "LAND_GRANTS",
+                },
+                output: {
+                  select: "$.response",
+                  target: {
+                    dataType: "OBJECT",
+                    key: "code",
+                    place: "append",
+                    targetNode: "paymentPreparations",
+                  },
                 },
               },
-              type: "callEndpoint",
             },
             {
               fromStatus: "offered",
-              itemPatch: {
+              name: "snapshot",
+              params: {
                 acceptedAt: "$.executedAt",
                 acceptedBy: "$.command.acceptedBy",
-                payment: "$.action.paymentPreparations.payment.payment",
+                payment: "$.outputs.paymentPreparations.payment.payment",
               },
-              toStatus: "accepted",
-              type: "recordTransition",
+              target: "accepted",
             },
           ],
-          toStatus: "accepted",
         }),
         now: () => "2026-06-01T10:00:00.000Z",
       },
@@ -673,31 +708,28 @@ describe("execute Agreement action use case", () => {
             actionName: "accept",
             agreementCode: "pigs-might-fly",
             fromStatus: "offered",
-            processingSteps: [
+            effects: [
               {
                 fromStatus: "offered",
-                itemPatch: {
+                name: "snapshot",
+                params: {
                   acceptedAt: "$.executedAt",
                   acceptedBy: "$.command.acceptedBy",
                   claimId: "$.item.claimId",
                   originalInvoiceNumber: "$.item.originalInvoiceNumber",
                   payment: "$.item.payload.answers.payment",
                 },
-                toStatus: "accepted",
-                type: "recordTransition",
+                target: "accepted",
               },
               {
-                fromStatus: "offered",
-                toStatus: "accepted",
-                type: "unsupportedStep",
+                name: "unsupportedStep",
               },
             ],
-            toStatus: "accepted",
           }),
           now: () => "2026-06-01T10:00:00.000Z",
         },
       ),
-    ).rejects.toThrow('Unknown Agreement processing step "unsupportedStep"');
+    ).rejects.toThrow('Unknown Agreement effect "unsupportedStep"');
     expect(outbox.insertMany).not.toHaveBeenCalled();
   });
 });

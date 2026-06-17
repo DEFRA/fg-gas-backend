@@ -1,12 +1,17 @@
 import { randomInt as cryptoRandomInt } from "node:crypto";
 
+const agreementNumberRandomDigits = 9;
+
 export const generateAgreementNumber = ({
-  config,
+  prefix,
   randomInt = cryptoRandomInt,
 }) => {
-  const max = 10 ** config.randomDigits;
+  const max = 10 ** agreementNumberRandomDigits;
   const randomNumber = randomInt(0, max);
-  const randomDigits = String(randomNumber).padStart(config.randomDigits, "0");
+  const randomDigits = String(randomNumber).padStart(
+    agreementNumberRandomDigits,
+    "0",
+  );
 
-  return `${config.prefix}${randomDigits}`;
+  return `${prefix}${randomDigits}`;
 };

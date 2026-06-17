@@ -4,44 +4,51 @@ import { emitAgreementLifecycleEventStep } from "./emit-agreement-lifecycle-even
 import { invokeAgreementEndpointStep } from "./invoke-agreement-endpoint-step.use-case.js";
 import { recordAgreementItemTransitionStep } from "./record-agreement-item-transition-step.use-case.js";
 
-const stepTypes = {
+const effectNames = {
   CALL_ENDPOINT: "callEndpoint",
   CREATE_PAYMENT_CLAIM: "createPaymentClaim",
-  EMIT_LIFECYCLE_EVENT: "emitLifecycleEvent",
-  RECORD_TRANSITION: "recordTransition",
+  PUBLISH: "publish",
+  SNAPSHOT: "snapshot",
 };
 
-const getStepType = (step) => (typeof step === "string" ? step : step.type);
+const getEffectName = (effect) => effect.name;
 
-const callEndpoint = async (context, step) => ({
-  actionState: await invokeAgreementEndpointStep({
-    actionState: context.actionState,
+const callEndpoint = async (context, effect) =>
+  invokeAgreementEndpointStep({
     callEndpoint: context.callEndpoint,
     context,
-    step,
-  }),
-});
+    effect,
+  });
 
-const recordTransition = async (context, step) =>
+const snapshot = async (context, effect) =>
   recordAgreementItemTransitionStep({
     context,
-    step,
+    effect,
   });
 
-const createPaymentClaim = async (context, step) =>
+const createPaymentClaim = async (context, effect) =>
   createAgreementPaymentClaimStep({
     context,
-    step,
+    effect,
   });
 
-const emitLifecycleEvent = (context) =>
-  emitAgreementLifecycleEventStep({ context });
+const getPublishEvent = (effect) => effect.params?.event;
 
-const stepHandlers = {
-  [stepTypes.CALL_ENDPOINT]: callEndpoint,
-  [stepTypes.CREATE_PAYMENT_CLAIM]: createPaymentClaim,
-  [stepTypes.EMIT_LIFECYCLE_EVENT]: emitLifecycleEvent,
-  [stepTypes.RECORD_TRANSITION]: recordTransition,
+const publish = (context, effect) => {
+  const event = getPublishEvent(effect);
+
+  if (event === "lifecycle") {
+    return emitAgreementLifecycleEventStep({ context });
+  }
+
+  throw Boom.badRequest(`Unknown Agreement publish event "${event}"`);
+};
+
+const effectHandlers = {
+  [effectNames.CALL_ENDPOINT]: callEndpoint,
+  [effectNames.CREATE_PAYMENT_CLAIM]: createPaymentClaim,
+  [effectNames.PUBLISH]: publish,
+  [effectNames.SNAPSHOT]: snapshot,
 };
 
 const createProcessingContext = ({
@@ -59,7 +66,6 @@ const createProcessingContext = ({
   session,
 }) => ({
   action,
-  actionState: {},
   callEndpoint,
   executedAt,
   agreement,
@@ -68,24 +74,52 @@ const createProcessingContext = ({
   createId,
   generateClaimId,
   item,
+  outputs: {},
   previousItemState,
   previousVersion,
   publication: {},
   session,
 });
 
-const runStep = async (context, step) => {
-  const stepType = getStepType(step);
-  const handler = stepHandlers[stepType];
-
-  if (!handler) {
-    throw Boom.badRequest(`Unknown Agreement processing step "${stepType}"`);
+const withOutput = ({ context, effect, effectResult }) => {
+  if (!effect.output) {
+    return context;
   }
 
   return {
     ...context,
-    ...(await handler(context, step)),
+    outputs: {
+      ...context.outputs,
+      [effect.output]: effectResult.output,
+    },
   };
+};
+
+const withoutOutput = (effectResult) => {
+  const { output: _output, ...contextPatch } = effectResult;
+
+  return contextPatch;
+};
+
+const runEffect = async (context, effect) => {
+  const effectName = getEffectName(effect);
+  const handler = effectHandlers[effectName];
+
+  if (!handler) {
+    throw Boom.badRequest(`Unknown Agreement effect "${effectName}"`);
+  }
+
+  const effectResult = await handler(context, effect);
+  const nextContext = {
+    ...context,
+    ...withoutOutput(effectResult),
+  };
+
+  return withOutput({
+    context: nextContext,
+    effect,
+    effectResult,
+  });
 };
 
 export const runAgreementProcessingSteps = async ({
@@ -117,8 +151,8 @@ export const runAgreementProcessingSteps = async ({
     session,
   });
 
-  for (const step of action.processingSteps ?? []) {
-    currentContext = await runStep(currentContext, step);
+  for (const effect of action.effects ?? []) {
+    currentContext = await runEffect(currentContext, effect);
   }
 
   return currentContext;

@@ -20,6 +20,18 @@ describe("agreements", () => {
 
     expect(routePaths).toEqual([
       {
+        method: "get",
+        path: "/agreements/current",
+      },
+      {
+        method: "get",
+        path: "/agreements/{agreementNumber}",
+      },
+      {
+        method: "post",
+        path: "/agreements/current",
+      },
+      {
         method: "post",
         path: "/agreements/{agreementNumber}/actions/{name}",
       },

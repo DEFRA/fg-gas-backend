@@ -17,6 +17,11 @@ describe("create agreement use case", () => {
       currentStatus: "REVIEW",
       clientRef: "1234",
       code: "frps-beta",
+      identifiers: {
+        sbi: "sbi-1",
+        frn: "frn-1",
+        crn: "crn-1",
+      },
       phases: [],
     });
     findByClientRefAndCode.mockResolvedValue(application);
@@ -30,7 +35,11 @@ describe("create agreement use case", () => {
     expect(outbox.event.data).toEqual({
       clientRef: "1234",
       code: "frps-beta",
-      identifiers: undefined,
+      identifiers: {
+        sbi: "sbi-1",
+        frn: "frn-1",
+        crn: "crn-1",
+      },
       metadata: {},
       answers: {},
     });

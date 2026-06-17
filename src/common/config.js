@@ -43,8 +43,6 @@ const schema = Joi.object({
   GAS__SQS__UPDATE_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional(),
-  LAND_GRANTS_TOKEN: Joi.string().optional(),
-  LAND_GRANTS_URI: Joi.string().uri().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -110,9 +108,5 @@ export const config = {
     updateStatusQueueUrl: vars.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
     updateAgreementStatusQueueUrl:
       vars.GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL,
-  },
-  landGrants: {
-    token: vars.LAND_GRANTS_TOKEN,
-    uri: vars.LAND_GRANTS_URI,
   },
 };

@@ -11,12 +11,8 @@ export const findAgreementBySourceIdentity = async (
 ) => {
   const doc = await db.collection(collection).findOne(
     {
-      items: {
-        $elemMatch: {
-          agreementCode,
-          clientRef,
-        },
-      },
+      "items.clientRef": clientRef,
+      $or: [{ code: agreementCode }, { "items.agreementCode": agreementCode }],
     },
     { session },
   );
@@ -31,12 +27,8 @@ export const findAgreementByExternalItemIdentity = async (
   const doc = await db.collection(collection).findOne(
     {
       agreementNumber,
-      items: {
-        $elemMatch: {
-          agreementCode,
-          clientRef,
-        },
-      },
+      "items.clientRef": clientRef,
+      $or: [{ code: agreementCode }, { "items.agreementCode": agreementCode }],
     },
     { session },
   );
@@ -48,6 +40,20 @@ export const findAgreementById = async (agreementId, session) => {
   const doc = await db.collection(collection).findOne(
     {
       _id: agreementId,
+    },
+    { session },
+  );
+
+  return doc ? Agreement.fromDocument(doc) : null;
+};
+
+export const findAgreementByAgreementNumber = async (
+  agreementNumber,
+  session,
+) => {
+  const doc = await db.collection(collection).findOne(
+    {
+      agreementNumber,
     },
     { session },
   );
@@ -99,6 +105,41 @@ export const findAgreementWithLatestVersionByExternalItemIdentity = async (
   };
 };
 
+export const findAgreementWithLatestVersionBySourceIdentity = async (
+  identity,
+  session,
+) => {
+  const agreement = await findAgreementBySourceIdentity(identity, session);
+
+  if (!agreement) {
+    return null;
+  }
+
+  return {
+    agreement,
+    version: await findLatestAgreementVersion(agreement.id, session),
+  };
+};
+
+export const findAgreementWithLatestVersionByAgreementNumber = async (
+  agreementNumber,
+  session,
+) => {
+  const agreement = await findAgreementByAgreementNumber(
+    agreementNumber,
+    session,
+  );
+
+  if (!agreement) {
+    return null;
+  }
+
+  return {
+    agreement,
+    version: await findLatestAgreementVersion(agreement.id, session),
+  };
+};
+
 export const insertAgreementWithVersion = async (
   { agreement, version },
   session,
@@ -131,5 +172,4 @@ const isAgreementNumberIndex = ({ keyPattern = {} } = {}) =>
   keyPattern.agreementNumber === 1;
 
 const isSourceIdentityIndex = ({ keyPattern = {} } = {}) =>
-  keyPattern["items.clientRef"] === 1 &&
-  keyPattern["items.agreementCode"] === 1;
+  keyPattern.code === 1 && keyPattern["items.clientRef"] === 1;

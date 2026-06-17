@@ -1,26 +1,71 @@
 import Boom from "@hapi/boom";
-import { config } from "../../common/config.js";
 import { wreck } from "../../common/wreck.js";
 
-const serviceConfigs = {
-  LAND_GRANTS: () => ({
-    headers: config.landGrants.token
-      ? { Authorization: `Bearer ${config.landGrants.token}` }
-      : {},
-    url: config.landGrants.uri,
-  }),
+const resolveEnvVarReferences = (value) => {
+  if (!value || typeof value !== "string") {
+    return value;
+  }
+
+  return value.replace(/\$\{([^}]+)\}/g, (_match, envVarName) => {
+    const envValue = process.env[envVarName];
+
+    if (envValue === undefined) {
+      throw Boom.badRequest(
+        `Environment variable ${envVarName} referenced in Agreement endpoint headers but not defined`,
+      );
+    }
+
+    return envValue;
+  });
+};
+
+const stripOuterQuotes = (value) => {
+  if (!value || typeof value !== "string") {
+    return value;
+  }
+
+  return value.startsWith('"') && value.endsWith('"')
+    ? value.slice(1, -1)
+    : value;
+};
+
+const parseHeaders = (headersString) => {
+  if (!headersString) {
+    return {};
+  }
+
+  return stripOuterQuotes(headersString)
+    .split(",")
+    .reduce((headers, headerPair) => {
+      const pair = stripOuterQuotes(headerPair.trim());
+      const colonIndex = pair.indexOf(":");
+
+      if (colonIndex === -1) {
+        throw Boom.badRequest("Invalid Agreement endpoint header format");
+      }
+
+      return {
+        ...headers,
+        [pair.substring(0, colonIndex).trim()]: resolveEnvVarReferences(
+          pair.substring(colonIndex + 1).trim(),
+        ),
+      };
+    }, {});
 };
 
 const getServiceConfig = (service) => {
-  const serviceConfig = serviceConfigs[service]?.();
+  const url = process.env[`${service}_URL`];
 
-  if (serviceConfig?.url) {
-    return serviceConfig;
+  if (!url) {
+    throw Boom.badRequest(
+      `No URL configured for Agreement endpoint service: ${service}`,
+    );
   }
 
-  throw Boom.badRequest(
-    `Agreement endpoint service "${service}" is not configured`,
-  );
+  return {
+    headers: parseHeaders(process.env[`${service}_HEADERS`]),
+    url,
+  };
 };
 
 const replacePathParameters = ({ path, pathParams }) =>

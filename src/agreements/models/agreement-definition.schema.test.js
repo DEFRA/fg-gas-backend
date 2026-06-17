@@ -8,6 +8,13 @@ import {
 const createValidDefinition = () =>
   structuredClone(getAgreementDefinition("pigs-might-fly"));
 
+const getAcceptTransition = (definition) => definition.states.offered.on.accept;
+
+const getPaymentClaim = (definition) =>
+  getAcceptTransition(definition).effects.find(
+    (effect) => effect.name === "createPaymentClaim",
+  ).params.paymentClaim;
+
 const assertDefinitionInvalid = ({ definition, message }) => {
   expect(() =>
     assertValidAgreementDefinition({
@@ -24,27 +31,52 @@ describe("Agreement definition schema", () => {
     expect(error).toBeUndefined();
   });
 
-  it("allows payment config to be supplied by step overrides", () => {
+  it("rejects action payload validation config", () => {
     const definition = createValidDefinition();
-    const paymentClaim = structuredClone(definition.payment.claim);
-    const action = definition.lifecycle.actions.accept;
+    const transition = getAcceptTransition(definition);
 
-    delete definition.payment;
-    action.steps = [
+    transition.payload = {
+      required: [
+        {
+          name: "confirm",
+          value: "confirmed",
+        },
+      ],
+    };
+    delete transition.validation;
+
+    assertDefinitionInvalid({
+      definition,
+      message: /states\.offered\.on\.accept\.payload/,
+    });
+  });
+
+  it("accepts payment claim config supplied by effect params", () => {
+    const definition = createValidDefinition();
+    const paymentClaim = structuredClone(getPaymentClaim(definition));
+    const transition = getAcceptTransition(definition);
+
+    transition.effects = [
       {
-        type: "recordTransition",
-        itemPatch: {
-          acceptedAt: "$.executedAt",
-          acceptedBy: "$.command.acceptedBy",
+        name: "createPaymentClaim",
+        output: "paymentClaim",
+        params: {
           payment: "$.item.payload.answers.payment",
+          paymentClaim,
         },
       },
       {
-        type: "createPaymentClaim",
-        payment: "$.item.payload.answers.payment",
-        paymentClaim,
+        name: "snapshot",
+        params: {
+          acceptedAt: "$.executedAt",
+          acceptedBy: "$.command.acceptedBy",
+          payment: "$.outputs.paymentClaim.payment",
+        },
       },
-      "emitLifecycleEvent",
+      {
+        name: "publish",
+        params: { event: "lifecycle" },
+      },
     ];
 
     const { error } = validateAgreementDefinition(definition);
@@ -52,11 +84,12 @@ describe("Agreement definition schema", () => {
     expect(error).toBeUndefined();
   });
 
-  it("accepts an FPTT-shaped action definition without making it live", () => {
+  it("accepts an FPTT-shaped transition definition without making it live", () => {
     const definition = createValidDefinition();
 
-    definition.agreementCode = "frps-private-beta";
-    definition.agreementNumber.prefix = "FPTT";
+    definition.code = "frps-private-beta";
+    definition.agreementNumberPrefix = "FPTT";
+    definition.create.effects = [];
     definition.endpoints = [
       {
         code: "calculate-fptt-payments",
@@ -65,39 +98,47 @@ describe("Agreement definition schema", () => {
         service: "LAND_GRANTS",
       },
     ];
-    definition.lifecycle.actions.accept.steps = [
+    getAcceptTransition(definition).effects = [
       {
-        endpoint: {
-          code: "calculate-fptt-payments",
-          endpointParams: {
-            BODY: {
-              parcel: "$.item.payload.application.parcel",
+        name: "callEndpoint",
+        output: "payment",
+        params: {
+          endpoint: {
+            code: "calculate-fptt-payments",
+            endpointParams: {
+              BODY: {
+                parcel: "$.item.payload.application.parcel",
+              },
             },
           },
+          output: {
+            select: "$.response.payment",
+          },
         },
-        output: {
-          path: "payment",
-          place: "replace",
-          select: "$.response.payment",
-        },
-        type: "callEndpoint",
       },
       {
-        payment: "$.action.payment",
-        type: "createPaymentClaim",
+        name: "createPaymentClaim",
+        output: "paymentClaim",
+        params: {
+          payment: "$.outputs.payment",
+          paymentClaim: getPaymentClaim(definition),
+        },
       },
       {
-        itemPatch: {
+        name: "snapshot",
+        params: {
           acceptedAt: "$.executedAt",
           acceptedBy: "$.command.acceptedBy",
-          claimId: "$.action.paymentClaim.claimId",
-          correlationId: "$.action.paymentClaim.correlationId",
-          originalInvoiceNumber: "$.action.paymentClaim.originalInvoiceNumber",
-          payment: "$.action.paymentClaim.payment",
+          claimId: "$.outputs.paymentClaim.claimId",
+          correlationId: "$.outputs.paymentClaim.correlationId",
+          originalInvoiceNumber: "$.outputs.paymentClaim.originalInvoiceNumber",
+          payment: "$.outputs.paymentClaim.payment",
         },
-        type: "recordTransition",
       },
-      "emitLifecycleEvent",
+      {
+        name: "publish",
+        params: { event: "lifecycle" },
+      },
     ];
 
     const { error } = validateAgreementDefinition(definition);
@@ -105,12 +146,12 @@ describe("Agreement definition schema", () => {
     expect(error).toBeUndefined();
   });
 
-  it("accepts a WMP-shaped action definition without making it live", () => {
+  it("accepts a WMP-shaped transition definition without making it live", () => {
     const definition = createValidDefinition();
 
-    definition.agreementCode = "woodland";
-    definition.agreementNumber.prefix = "WMP";
-    delete definition.payment;
+    definition.code = "woodland";
+    definition.agreementNumberPrefix = "WMP";
+    definition.create.effects = [];
     definition.endpoints = [
       {
         code: "calculate-wmp-dates",
@@ -119,37 +160,38 @@ describe("Agreement definition schema", () => {
         service: "LAND_GRANTS",
       },
     ];
-    definition.lifecycle.actions.accept.steps = [
+    getAcceptTransition(definition).effects = [
       {
-        endpoint: {
-          code: "calculate-wmp-dates",
-          endpointParams: {
-            BODY: {
-              parcelIds: "$.item.payload.application.parcelIds",
-              schemeData: "$.item.payload.schemeData",
+        name: "callEndpoint",
+        output: "agreementDates",
+        params: {
+          endpoint: {
+            code: "calculate-wmp-dates",
+            endpointParams: {
+              BODY: {
+                parcelIds: "$.item.payload.application.parcelIds",
+                schemeData: "$.item.payload.schemeData",
+              },
             },
           },
         },
-        output: {
-          path: "agreementDates",
-          place: "replace",
-          select: "$.response",
-        },
-        type: "callEndpoint",
       },
       {
-        itemPatch: {
+        name: "snapshot",
+        params: {
           acceptedAt: "$.executedAt",
           acceptedBy: "$.command.acceptedBy",
           payment: {
-            agreementEndDate: "$.action.agreementDates.agreementEndDate",
-            agreementStartDate: "$.action.agreementDates.agreementStartDate",
+            agreementEndDate: "$.outputs.agreementDates.agreementEndDate",
+            agreementStartDate: "$.outputs.agreementDates.agreementStartDate",
             schedule: "$.item.payload.answers.payments.agreement",
           },
         },
-        type: "recordTransition",
       },
-      "emitLifecycleEvent",
+      {
+        name: "publish",
+        params: { event: "lifecycle" },
+      },
     ];
 
     const { error } = validateAgreementDefinition(definition);
@@ -160,24 +202,27 @@ describe("Agreement definition schema", () => {
   it("accepts callEndpoint output targets", () => {
     const definition = createValidDefinition();
 
-    definition.lifecycle.actions.accept.steps = [
+    getAcceptTransition(definition).effects = [
       {
-        endpoint: {
-          code: "calculate-payment-schedule",
-        },
-        output: {
-          select: "$.response.payment",
-          target: {
-            dataType: "OBJECT",
-            key: "code",
-            place: "append",
-            targetNode: "paymentPreparations",
+        name: "callEndpoint",
+        params: {
+          endpoint: {
+            code: "calculate-funding",
+          },
+          output: {
+            select: "$.response.payment",
+            target: {
+              dataType: "OBJECT",
+              key: "code",
+              place: "append",
+              targetNode: "paymentPreparations",
+            },
           },
         },
-        type: "callEndpoint",
       },
       {
-        type: "recordTransition",
+        name: "snapshot",
+        params: {},
       },
     ];
 
@@ -186,125 +231,144 @@ describe("Agreement definition schema", () => {
     expect(error).toBeUndefined();
   });
 
-  it("rejects createPaymentClaim steps without payment claim config", () => {
+  it("rejects createPaymentClaim effects without payment claim config", () => {
     const definition = createValidDefinition();
 
-    delete definition.payment.claim;
+    const createPaymentClaimEffect = getAcceptTransition(
+      definition,
+    ).effects.find((effect) => effect.name === "createPaymentClaim");
+
+    delete createPaymentClaimEffect.params.paymentClaim;
 
     assertDefinitionInvalid({
       definition,
-      message: /createPaymentClaim steps require payment\.claim/,
+      message: /createPaymentClaim effects require params\.paymentClaim/,
     });
   });
 
-  it("rejects unknown lifecycle action steps", () => {
+  it("rejects unknown transition effects", () => {
     const definition = createValidDefinition();
 
-    definition.lifecycle.actions.accept.steps = [
-      { type: "recordTransition" },
-      { type: "postPayment" },
+    getAcceptTransition(definition).effects = [
+      { name: "snapshot", params: {} },
+      { name: "postPayment" },
     ];
 
     assertDefinitionInvalid({
       definition,
-      message: /lifecycle\.actions\.accept\.steps/,
+      message: /states\.offered\.on\.accept\.effects/,
     });
   });
 
-  it("rejects callEndpoint steps without a matching endpoint", () => {
+  it("rejects callEndpoint effects without a matching endpoint", () => {
     const definition = createValidDefinition();
 
-    definition.lifecycle.actions.accept.steps = [
+    getAcceptTransition(definition).effects = [
       {
-        endpoint: {
-          code: "missing-endpoint",
-          endpointParams: {
-            BODY: {
-              payment: "$.item.payload.answers.payment",
+        name: "callEndpoint",
+        params: {
+          endpoint: {
+            code: "missing-endpoint",
+            endpointParams: {
+              BODY: {
+                payment: "$.item.payload.answers.payment",
+              },
             },
           },
+          output: {
+            select: "$.response.payment",
+          },
         },
-        output: {
-          path: "payment",
-          place: "replace",
-          select: "$.response.payment",
-        },
-        type: "callEndpoint",
       },
+      { name: "snapshot", params: {} },
     ];
 
     assertDefinitionInvalid({
       definition,
       message:
-        /callEndpoint steps require an endpoint matching step\.endpoint\.code/,
+        /callEndpoint effects require an endpoint matching params\.endpoint\.code/,
     });
   });
 
   it("rejects unsupported callEndpoint output target places", () => {
     const definition = createValidDefinition();
 
-    definition.lifecycle.actions.accept.steps = [
+    getAcceptTransition(definition).effects = [
       {
-        endpoint: {
-          code: "calculate-payment-schedule",
-        },
-        output: {
-          target: {
-            dataType: "ARRAY",
-            place: "replace",
-            targetNode: "paymentPreparations",
+        name: "callEndpoint",
+        params: {
+          endpoint: {
+            code: "calculate-funding",
+          },
+          output: {
+            target: {
+              dataType: "ARRAY",
+              place: "replace",
+              targetNode: "paymentPreparations",
+            },
           },
         },
-        type: "callEndpoint",
       },
+      { name: "snapshot", params: {} },
     ];
 
     assertDefinitionInvalid({
       definition,
-      message: /lifecycle\.actions\.accept\.steps/,
+      message: /states\.offered\.on\.accept\.effects/,
+    });
+  });
+
+  it("rejects config-backed definitions without pages", () => {
+    const definition = createValidDefinition();
+
+    delete definition.pages;
+
+    assertDefinitionInvalid({
+      definition,
+      message: /"pages" is required/,
     });
   });
 
   it("rejects object output targets without a key", () => {
     const definition = createValidDefinition();
 
-    definition.lifecycle.actions.accept.steps = [
+    getAcceptTransition(definition).effects = [
       {
-        endpoint: {
-          code: "calculate-payment-schedule",
-        },
-        output: {
-          target: {
-            dataType: "OBJECT",
-            place: "append",
-            targetNode: "paymentPreparations",
+        name: "callEndpoint",
+        params: {
+          endpoint: {
+            code: "calculate-funding",
+          },
+          output: {
+            target: {
+              dataType: "OBJECT",
+              place: "append",
+              targetNode: "paymentPreparations",
+            },
           },
         },
-        type: "callEndpoint",
       },
+      { name: "snapshot", params: {} },
     ];
 
     assertDefinitionInvalid({
       definition,
-      message: /lifecycle\.actions\.accept\.steps/,
+      message: /states\.offered\.on\.accept\.effects/,
     });
   });
 
-  it("rejects payment result command processing config", () => {
+  it("rejects command routing config", () => {
     const definition = createValidDefinition();
 
-    definition.commands.paymentSucceeded = {
-      processing: {
-        changedBy: "payment",
-        fromStatus: "acceptancePending",
-        steps: [{ type: "createPaymentClaim" }],
-        toStatus: "accepted",
+    definition.commands = {
+      create: {
+        route: "internal",
       },
     };
 
     assertDefinitionInvalid({
       definition,
-      message: /commands\.paymentSucceeded/,
+      message: /commands/,
     });
   });
 });

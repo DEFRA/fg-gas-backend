@@ -7,10 +7,10 @@ describe("Agreement lifecycle event data", () => {
     const agreement = Agreement.fromDocument({
       _id: "agreement-id",
       agreementNumber: "PMF123456789",
+      code: "pigs-might-fly",
       items: [
         {
           agreementItemId: "agreement-item-id",
-          agreementCode: "pigs-might-fly",
           clientRef: "PMF-APP-001",
         },
       ],
@@ -19,11 +19,6 @@ describe("Agreement lifecycle event data", () => {
     const version = {
       id: "version-id",
       createdAt: "2026-06-01T10:00:00.000Z",
-      change: {
-        type: "accepted",
-        changedBy: "applicant",
-        fromStatus: "offered",
-      },
       findItemState: vi.fn().mockReturnValue({
         claimId: "R00000001",
         payment: {
@@ -49,11 +44,7 @@ describe("Agreement lifecycle event data", () => {
       agreementCode: "pigs-might-fly",
       code: "pigs-might-fly",
       clientRef: "PMF-APP-001",
-      changeType: "accepted",
       changedAt: "2026-06-01T10:00:00.000Z",
-      changedBy: "applicant",
-      fromStatus: "offered",
-      toStatus: "accepted",
       status: "accepted",
       date: "2026-06-01T10:00:00.000Z",
       startDate: "2026-07-01",

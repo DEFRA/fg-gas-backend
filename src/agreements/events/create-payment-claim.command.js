@@ -20,6 +20,6 @@ export class CreatePaymentClaimCommand {
       paymentClaim,
       referenceDate,
     });
-    this.messageGroupId = `${item.clientRef}-${item.agreementCode}`;
+    this.messageGroupId = `${item.clientRef}-${agreement.code}`;
   }
 }

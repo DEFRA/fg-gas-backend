@@ -14,8 +14,6 @@ export const recordAgreementItemTransition = async (
   {
     agreementItemId,
     changedAt,
-    changedBy,
-    changeType,
     createId,
     fromStatus,
     itemPatch,
@@ -35,11 +33,6 @@ export const recordAgreementItemTransition = async (
     agreementItemId,
     status: toStatus,
     createdAt: changedAt,
-    change: {
-      type: changeType ?? toStatus,
-      changedBy,
-      fromStatus,
-    },
     itemPatch,
   });
 

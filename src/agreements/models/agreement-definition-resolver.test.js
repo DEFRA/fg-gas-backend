@@ -3,10 +3,9 @@ import {
   getAgreementAction,
   getAgreementCommandRoute,
   getAgreementCreation,
-  getAgreementInitialVersion,
+  getAgreementInitialStatus,
   isConfigBackedAgreement,
 } from "./agreement-definition-resolver.js";
-import { agreementCommandNames } from "./agreement-definition.js";
 
 describe("Agreement definition resolver", () => {
   it("resolves PMF Agreement creation", () => {
@@ -15,19 +14,10 @@ describe("Agreement definition resolver", () => {
     expect(isConfigBackedAgreement(creation)).toBe(true);
     expect(creation).toMatchObject({
       agreementCode: "pigs-might-fly",
-      agreementNumber: {
-        prefix: "PMF",
-        randomDigits: 9,
-        uniquenessScope: "agreementNumber",
-      },
+      agreementNumberPrefix: "PMF",
       configVersion: "0.0.1",
-      implementation: "config",
-      initialVersion: {
-        changedBy: "system",
-        changeType: "created",
-        fromStatus: null,
-        initialStatus: "offered",
-      },
+      source: "config",
+      initialStatus: "offered",
     });
   });
 
@@ -37,50 +27,35 @@ describe("Agreement definition resolver", () => {
     expect(isConfigBackedAgreement(creation)).toBe(false);
     expect(creation).toEqual({
       agreementCode: "frps-beta",
-      agreementNumber: undefined,
+      agreementNumberPrefix: undefined,
       configVersion: undefined,
-      implementation: "legacy",
-      initialVersion: undefined,
+      source: "legacy",
+      initialStatus: undefined,
     });
   });
 
-  it("resolves initial Agreement version values", () => {
-    expect(getAgreementInitialVersion("pigs-might-fly")).toEqual({
-      changedBy: "system",
-      changeType: "created",
-      fromStatus: null,
-      initialStatus: "offered",
-    });
+  it("resolves the initial Agreement status", () => {
+    expect(getAgreementInitialStatus("pigs-might-fly")).toBe("offered");
   });
 
-  it("routes PMF create commands internally", () => {
+  it("routes config-backed Agreement commands internally", () => {
     expect(
       getAgreementCommandRoute({
         agreementCode: "pigs-might-fly",
-        commandName: agreementCommandNames.CREATE,
       }),
     ).toBe("internal");
-  });
-
-  it("routes unknown Agreement commands to legacy", () => {
-    expect(
-      getAgreementCommandRoute({
-        agreementCode: "pigs-might-fly",
-        commandName: "cancel",
-      }),
-    ).toBe("legacy");
   });
 
   it("routes unknown Agreement definitions to legacy", () => {
     expect(
       getAgreementCommandRoute({
         agreementCode: "frps-beta",
-        commandName: agreementCommandNames.CREATE,
+        commandName: "create",
       }),
     ).toBe("legacy");
   });
 
-  it("resolves Agreement actions with publication expressed as configured steps", () => {
+  it("resolves Agreement actions with publication expressed as configured effects", () => {
     expect(
       getAgreementAction({
         agreementCode: "pigs-might-fly",
@@ -90,39 +65,57 @@ describe("Agreement definition resolver", () => {
       actionName: "accept",
       agreementCode: "pigs-might-fly",
       fromStatus: "offered",
-      processingSteps: [
+      effects: [
         {
-          payment: "$.item.payload.answers.payment",
-          paymentClaim: expect.objectContaining({
-            deliveryBody: "RP00",
-            sourceSystem: "FPTT",
-          }),
-          type: "createPaymentClaim",
+          name: "createPaymentClaim",
+          output: "paymentClaim",
+          params: {
+            fundingCalculation: "$.previousItemState.fundingCalculation",
+            mapping: expect.objectContaining({
+              items: "$.items",
+              total: "$.grandTotal",
+            }),
+            paymentClaim: expect.objectContaining({
+              deliveryBody: "RP00",
+              sourceSystem: "FPTT",
+            }),
+            schedule: expect.objectContaining({
+              durationMonths: 12,
+            }),
+          },
         },
         {
           fromStatus: "offered",
-          itemPatch: {
+          name: "snapshot",
+          params: {
             acceptedAt: "$.executedAt",
             acceptedBy: "$.command.acceptedBy",
-            claimId: "$.action.paymentClaim.claimId",
-            correlationId: "$.action.paymentClaim.correlationId",
+            claimId: "$.outputs.paymentClaim.claimId",
+            correlationId: "$.outputs.paymentClaim.correlationId",
             originalInvoiceNumber:
-              "$.action.paymentClaim.originalInvoiceNumber",
-            payment: "$.action.paymentClaim.payment",
+              "$.outputs.paymentClaim.originalInvoiceNumber",
+            payment: "$.outputs.paymentClaim.payment",
           },
-          toStatus: "accepted",
-          type: "recordTransition",
+          target: "accepted",
         },
         {
-          paymentClaim: expect.objectContaining({
-            deliveryBody: "RP00",
-            sourceSystem: "FPTT",
-          }),
-          type: "emitLifecycleEvent",
+          name: "publish",
+          params: {
+            event: "lifecycle",
+          },
         },
       ],
       target: "agreementItem",
       toStatus: "accepted",
+      validation: {
+        page: "accept",
+        required: [
+          expect.objectContaining({
+            name: "confirm",
+            value: "confirmed",
+          }),
+        ],
+      },
     });
   });
 
@@ -133,7 +126,7 @@ describe("Agreement definition resolver", () => {
         actionName: "cancelAgreementItem",
       }),
     ).toThrow(
-      'Agreement definition pigs-might-fly has no action named "cancelAgreementItem"',
+      'Agreement definition pigs-might-fly has no event named "cancelAgreementItem"',
     );
   });
 });

@@ -10,7 +10,7 @@ export const agreementActionResult = ({
   agreementItemId: item.agreementItemId,
   agreementNumber: agreement.agreementNumber,
   clientRef: item.clientRef,
-  code: item.agreementCode,
+  code: agreement.code,
   item,
   publication,
   status,

@@ -4,7 +4,7 @@ import { recordAgreementItemTransition } from "./record-agreement-item-transitio
 
 vi.mock("./record-agreement-item-transition.use-case.js");
 
-describe("record Agreement item transition step", () => {
+describe("snapshot Agreement item transition effect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -18,7 +18,15 @@ describe("record Agreement item transition step", () => {
     await expect(
       recordAgreementItemTransitionStep({
         context: {
-          actionState: {
+          command: {
+            acceptedBy: "applicant",
+          },
+          createId: () => "version-2",
+          executedAt: "2026-06-01T10:00:00.000Z",
+          item: {
+            agreementItemId: "agreement-item-id",
+          },
+          outputs: {
             paymentClaim: {
               claimId: "R00000001",
               correlationId: "agreement-correlation-id",
@@ -28,31 +36,23 @@ describe("record Agreement item transition step", () => {
               },
             },
           },
-          command: {
-            acceptedBy: "applicant",
-          },
-          createId: () => "version-2",
-          executedAt: "2026-06-01T10:00:00.000Z",
-          item: {
-            agreementItemId: "agreement-item-id",
-          },
           previousVersion: {
             id: "version-1",
           },
           session: "session",
         },
-        step: {
+        effect: {
           fromStatus: "offered",
-          itemPatch: {
+          params: {
             acceptedAt: "$.executedAt",
             acceptedBy: "$.command.acceptedBy",
-            claimId: "$.action.paymentClaim.claimId",
-            correlationId: "$.action.paymentClaim.correlationId",
+            claimId: "$.outputs.paymentClaim.claimId",
+            correlationId: "$.outputs.paymentClaim.correlationId",
             originalInvoiceNumber:
-              "$.action.paymentClaim.originalInvoiceNumber",
-            payment: "$.action.paymentClaim.payment",
+              "$.outputs.paymentClaim.originalInvoiceNumber",
+            payment: "$.outputs.paymentClaim.payment",
           },
-          toStatus: "accepted",
+          target: "accepted",
         },
       }),
     ).resolves.toEqual({
@@ -64,8 +64,6 @@ describe("record Agreement item transition step", () => {
       {
         agreementItemId: "agreement-item-id",
         changedAt: "2026-06-01T10:00:00.000Z",
-        changedBy: "applicant",
-        changeType: undefined,
         createId: expect.any(Function),
         fromStatus: "offered",
         itemPatch: {
@@ -83,39 +81,6 @@ describe("record Agreement item transition step", () => {
         },
         toStatus: "accepted",
       },
-      "session",
-    );
-  });
-
-  it("allows configured transition metadata to override defaults", async () => {
-    recordAgreementItemTransition.mockResolvedValue({
-      id: "version-2",
-    });
-
-    await recordAgreementItemTransitionStep({
-      context: {
-        actionState: {},
-        command: {
-          acceptedBy: "applicant",
-        },
-        item: {
-          agreementItemId: "agreement-item-id",
-        },
-        session: "session",
-      },
-      step: {
-        changedBy: "admin",
-        changeType: "manually-accepted",
-        fromStatus: "offered",
-        toStatus: "accepted",
-      },
-    });
-
-    expect(recordAgreementItemTransition).toHaveBeenCalledWith(
-      expect.objectContaining({
-        changedBy: "admin",
-        changeType: "manually-accepted",
-      }),
       "session",
     );
   });

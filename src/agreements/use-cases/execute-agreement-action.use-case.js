@@ -1,3 +1,4 @@
+import Boom from "@hapi/boom";
 import { randomUUID } from "node:crypto";
 import { agreementActionCommandFromRequest } from "../models/agreement-action-command.js";
 import { agreementActionResult } from "../models/agreement-action-result.js";
@@ -25,6 +26,60 @@ const resolveDependencies = (dependencies) => ({
 const isAlreadyInTargetStatus = ({ action, itemState }) =>
   itemState?.status === action.toStatus;
 
+const isPresentPayloadValue = (value) =>
+  value !== undefined && value !== null && value !== "";
+
+const hasRequiredPayloadValue = ({ actual, expected }) => {
+  if (expected === undefined) {
+    return isPresentPayloadValue(actual);
+  }
+
+  if (Array.isArray(actual)) {
+    return actual.includes(expected);
+  }
+
+  return actual === expected;
+};
+
+const toActionPayloadValidationError = ({ action, required }) => {
+  const message =
+    required.message ?? `Missing required payload field "${required.name}"`;
+  const error = Boom.badRequest(message);
+  error.data = {
+    validation: {
+      page: action.validation?.page,
+      fields: [
+        {
+          href: required.href ?? `#${required.name}`,
+          message,
+          name: required.name,
+        },
+      ],
+    },
+  };
+
+  return error;
+};
+
+const isMissingRequiredPayloadValue = ({ payload, required }) =>
+  !hasRequiredPayloadValue({
+    actual: payload?.[required.name],
+    expected: required.value,
+  });
+
+const validateActionPayload = ({ action, payload }) => {
+  const missingRequired = (action.validation?.required ?? []).find((required) =>
+    isMissingRequiredPayloadValue({ payload, required }),
+  );
+
+  if (missingRequired) {
+    throw toActionPayloadValidationError({
+      action,
+      required: missingRequired,
+    });
+  }
+};
+
 export const executeAgreementAction = async (
   actionRequest,
   session,
@@ -43,8 +98,9 @@ export const executeAgreementAction = async (
   const { agreement, item, previousItemState, previousVersion } =
     await findAgreementActionTarget(command, session);
   const action = getAgreementAction({
-    agreementCode: item.agreementCode,
+    agreementCode: agreement.code,
     actionName: command.actionName,
+    status: previousItemState.status,
   });
 
   if (isAlreadyInTargetStatus({ action, itemState: previousItemState })) {
@@ -56,6 +112,8 @@ export const executeAgreementAction = async (
       version: previousVersion,
     });
   }
+
+  validateActionPayload({ action, payload: actionRequest.payload });
 
   const result = await runAgreementProcessingSteps({
     action,

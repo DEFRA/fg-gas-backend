@@ -2,7 +2,6 @@ export class AgreementItem {
   constructor(document) {
     this.document = document;
     this.agreementItemId = document.agreementItemId;
-    this.agreementCode = document.agreementCode;
     this.clientRef = document.clientRef;
     this.configVersion = document.configVersion;
     this.identifiers = document.identifiers;
@@ -13,7 +12,6 @@ export class AgreementItem {
   static create({ command, definition, now, agreementItemId }) {
     return new AgreementItem({
       agreementItemId,
-      agreementCode: definition.agreementCode,
       clientRef: command.clientRef,
       configVersion: definition.configVersion,
       identifiers: getItemIdentifiers(command),
@@ -26,16 +24,22 @@ export class AgreementItem {
     return new AgreementItem(document);
   }
 
-  matches({ agreementCode, clientRef }) {
-    return this.agreementCode === agreementCode && this.clientRef === clientRef;
+  matches({ clientRef }) {
+    return this.clientRef === clientRef;
   }
 
   toDocument() {
+    const { payload, ...document } = this.document;
+    return document;
+  }
+
+  toSnapshotDocument() {
     return this.document;
   }
 }
 
 const getItemIdentifiers = ({ identifiers = {}, metadata = {} }) => ({
+  sbi: identifiers.sbi,
   frn: identifiers.frn,
   crn: identifiers.crn,
   defraId: metadata.defraId,

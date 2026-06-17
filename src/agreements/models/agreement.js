@@ -2,12 +2,14 @@ import { AgreementItem } from "./agreement-item.js";
 import { AgreementVersion } from "./agreement-version.js";
 
 export class Agreement {
-  constructor(document) {
+  constructor(document, options = {}) {
     this.document = document;
     this.id = document._id;
     this.agreementNumber = document.agreementNumber;
-    this.sbi = document.sbi;
-    this.items = (document.items ?? []).map(AgreementItem.fromDocument);
+    this.code = getAgreementCode(document);
+    this.identifiers = getAgreementIdentifiers(document);
+    this.sbi = this.identifiers.sbi;
+    this.items = getAgreementItems({ document, items: options.items });
   }
 
   static fromDocument(document) {
@@ -31,29 +33,34 @@ export class Agreement {
     const document = {
       _id: agreementId,
       agreementNumber,
-      sbi: command.identifiers?.sbi,
+      code: definition.agreementCode ?? definition.code,
+      identifiers: createAgreementIdentifiers(command),
       createdAt: now,
       updatedAt: now,
       items: [item.toDocument()],
     };
-    return new Agreement(document);
+    return new Agreement(document, { items: [item] });
   }
 
   findItemForCommand({ command, definition }) {
+    if (this.code !== (definition.agreementCode ?? definition.code)) {
+      return undefined;
+    }
+
     return this.items.find((item) =>
       item.matches({
-        agreementCode: definition.agreementCode,
         clientRef: command.clientRef,
       }),
     );
   }
 
-  createInitialVersion({ versionId, initialVersion, createdAt }) {
+  createInitialVersion({ versionId, initialStatus, createdAt, itemPatch }) {
     return AgreementVersion.initial({
       id: versionId,
       agreement: this,
-      initialVersion,
+      initialStatus,
       createdAt,
+      itemPatch,
     });
   }
 
@@ -61,3 +68,22 @@ export class Agreement {
     return this.document;
   }
 }
+
+const getAgreementCode = (document) => {
+  const [item = {}] = document.items || [];
+  return document.code || item.agreementCode;
+};
+
+const getAgreementIdentifiers = (document) => ({
+  ...(document.identifiers || {}),
+  ...(document.sbi ? { sbi: document.sbi } : {}),
+});
+
+const createAgreementIdentifiers = ({ identifiers = {} }) => ({
+  sbi: identifiers.sbi,
+  frn: identifiers.frn,
+  crn: identifiers.crn,
+});
+
+const getAgreementItems = ({ document, items }) =>
+  items || (document.items || []).map(AgreementItem.fromDocument);

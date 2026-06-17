@@ -2,12 +2,14 @@ import Boom from "@hapi/boom";
 import { findAgreementWithLatestVersionByExternalItemIdentity } from "../repositories/agreement.repository.js";
 
 const findAgreementItem = ({ agreement, agreementCode, clientRef }) =>
-  agreement.items.find((item) =>
-    item.matches({
-      agreementCode,
-      clientRef,
-    }),
-  );
+  (agreement.code ?? agreement.items[0]?.document?.agreementCode) ===
+  agreementCode
+    ? agreement.items.find((item) =>
+        item.matches({
+          clientRef,
+        }),
+      )
+    : undefined;
 
 const assertRecordFound = (record) => {
   if (record) {
