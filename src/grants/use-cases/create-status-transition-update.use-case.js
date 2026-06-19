@@ -21,8 +21,6 @@ const writeStatusTransition = async (
     currentStatus,
   });
 
-  throw new Error("Julian Error");
-
   await insertMany(
     [
       new Outbox({
