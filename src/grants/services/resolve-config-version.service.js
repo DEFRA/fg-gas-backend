@@ -13,6 +13,7 @@ import {
 } from "../repositories/grant.repository.js";
 
 const MAX_FETCH_ATTEMPTS = 5;
+const HTTP_CONFLICT = 409;
 
 const handleS3Error = async (err, grantCode, version) => {
   if (err.isPermanent || err.isParseError) {
@@ -86,7 +87,7 @@ const saveOrFallback = async (grantDefinition, grantCode, resolvedVersion) => {
     await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
     return grant;
   } catch (err) {
-    if (err.isBoom && err.output.statusCode === 409) {
+    if (err.isBoom && err.output.statusCode === HTTP_CONFLICT) {
       logger.info(
         `Concurrent insert for ${grantCode}@${resolvedVersion}, loading existing`,
       );
