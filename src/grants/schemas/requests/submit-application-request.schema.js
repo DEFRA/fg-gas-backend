@@ -1,5 +1,6 @@
 import Joi from "joi";
 import { clientRef } from "../application/metadata/client-ref.js";
+import { configVersion } from "../application/metadata/config-version.js";
 import { crn } from "../application/metadata/crn.js";
 import { frn } from "../application/metadata/frn.js";
 import { sbi } from "../application/metadata/sbi.js";
@@ -15,6 +16,9 @@ export const submitApplicationRequestSchema = Joi.object({
     frn,
     crn,
     submittedAt: submittedAt.optional(),
+    configVersion: configVersion
+      .message("Config version must be a valid config string (e.g. 1.0.3)")
+      .optional(),
   }).unknown(true),
   answers: Joi.object({}).unknown(),
 })
