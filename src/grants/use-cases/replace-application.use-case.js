@@ -5,9 +5,12 @@ import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application-series.repository.js";
-import { findByCode } from "../repositories/grant.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
+import {
+  persistResolvedVersion,
+  resolveCurrentGrantUseCase,
+} from "./resolve-current-grant.use-case.js";
 
 export const replaceApplicationUseCase = async (code, application) => {
   logger.info(`Replacing application`);
@@ -16,13 +19,17 @@ export const replaceApplicationUseCase = async (code, application) => {
     const { clientRef, previousClientRef } = application.metadata;
     logger.info(`Got previousClientRef: ${previousClientRef}.`);
 
-    const grant = await findByCode(code);
-
     const previousAppl = await findApplicationByClientRefAndCodeUseCase(
       previousClientRef,
       code,
       session,
     );
+
+    const { grant, resolvedVersion } = await resolveCurrentGrantUseCase(
+      code,
+      previousAppl.originalConfigVersion,
+    );
+    await persistResolvedVersion(previousAppl, resolvedVersion);
 
     if (previousAppl.isReplacementAllowed(grant.amendablePositions)) {
       logger.info("About to update ApplicationSeries");

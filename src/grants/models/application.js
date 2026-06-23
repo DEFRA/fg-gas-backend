@@ -28,6 +28,7 @@ export class Application {
     phases: Joi.array().required(),
   });
 
+  // eslint-disable-next-line complexity
   constructor(props) {
     const { error } = Application.validationSchema.validate(props, {
       stripUnknown: true,
@@ -47,6 +48,8 @@ export class Application {
       clientRef,
       code,
       configVersion,
+      originalConfigVersion,
+      currentConfigVersion,
       createdAt,
       updatedAt,
       submittedAt,
@@ -61,9 +64,8 @@ export class Application {
     this.currentStatus = currentStatus;
     this.clientRef = clientRef;
     this.code = code;
-    // Backward compat: pre-existing applications (before Config Broker) have no
-    // configVersion. The migration sets null; new submissions always provide a value.
-    this.configVersion = configVersion ?? null;
+    this.originalConfigVersion = originalConfigVersion ?? configVersion ?? null;
+    this.currentConfigVersion = currentConfigVersion ?? configVersion ?? null;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.submittedAt = submittedAt;
@@ -93,7 +95,8 @@ export class Application {
       currentStatus,
       clientRef,
       code,
-      configVersion,
+      originalConfigVersion: configVersion,
+      currentConfigVersion: configVersion,
       submittedAt,
       createdAt,
       updatedAt: createdAt,

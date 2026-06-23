@@ -18,10 +18,9 @@ vi.mock("../../common/logger.js", () => ({
   logger: { warn: vi.fn(), info: vi.fn() },
 }));
 
-const mockSaveInboxMessageUseCase = vi.fn();
-vi.mock("../use-cases/save-inbox-message.use-case.js", () => ({
-  messageSource: { ConfigBroker: "CONFIG_BROKER" },
-  saveInboxMessageUseCase: (...args) => mockSaveInboxMessageUseCase(...args),
+const mockProcessConfigVersion = vi.fn();
+vi.mock("../use-cases/process-config-version.use-case.js", () => ({
+  processConfigVersionUseCase: (...args) => mockProcessConfigVersion(...args),
 }));
 
 let capturedOnMessage;
@@ -53,22 +52,23 @@ describe("configVersionUpdatedSubscriber", () => {
     expect(mockStop).toHaveBeenCalled();
   });
 
-  it("should call saveInboxMessageUseCase with CONFIG_BROKER source", async () => {
+  it("should extract message attributes and call processConfigVersionUseCase", async () => {
     await import("./config-version-updated.subscriber.js");
 
-    const message = {
-      id: "msg-123",
-      type: "config.version.published",
-      time: new Date().toISOString(),
-      data: { grantCode: "woodland", version: "1.2.3", status: "active" },
+    const body = ["example-grant/1.0.0/metadata.json"];
+    const messageAttributes = {
+      grant: { DataType: "String", StringValue: "woodland" },
+      version: { DataType: "String", StringValue: "1.2.3" },
+      status: { DataType: "String", StringValue: "active" },
     };
 
-    await capturedOnMessage(message);
+    await capturedOnMessage(body, messageAttributes);
 
-    expect(mockSaveInboxMessageUseCase).toHaveBeenCalledWith(
-      message,
-      "CONFIG_BROKER",
-    );
+    expect(mockProcessConfigVersion).toHaveBeenCalledWith({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+    });
   });
 });
 

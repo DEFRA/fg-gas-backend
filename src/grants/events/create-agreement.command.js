@@ -7,7 +7,7 @@ export class CreateAgreementCommand extends CloudEvent {
       {
         clientRef: application.clientRef,
         code: application.code,
-        configVersion: application.configVersion ?? null, // null for pre-Config-Broker apps
+        currentConfigVersion: application.currentConfigVersion ?? null,
         identifiers: application.identifiers,
         metadata: application.metadata,
         answers: application.getAnswers(),

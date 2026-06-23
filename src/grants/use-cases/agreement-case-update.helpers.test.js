@@ -33,7 +33,7 @@ describe("agreement-case-update.helpers", () => {
     expect(event.data).toEqual({
       clientRef: "application-1",
       grantCode: "grant-1",
-      configVersion: "1.0.0",
+      currentConfigVersion: "1.0.0",
       previousStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
       currentStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_APPROVED",
     });
@@ -65,7 +65,7 @@ describe("agreement-case-update.helpers", () => {
     expect(outbox.event.data).toEqual({
       clientRef: "application-1",
       grantCode: "grant-1",
-      configVersion: "1.0.0",
+      currentConfigVersion: "1.0.0",
       previousStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
       currentStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_APPROVED",
     });

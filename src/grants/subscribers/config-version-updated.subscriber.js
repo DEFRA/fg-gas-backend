@@ -1,18 +1,26 @@
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { SqsSubscriber } from "../../common/sqs-subscriber.js";
-import {
-  messageSource,
-  saveInboxMessageUseCase,
-} from "../use-cases/save-inbox-message.use-case.js";
+import { processConfigVersionUseCase } from "../use-cases/process-config-version.use-case.js";
 
 const queueUrl = config.sqs.configVersionQueueUrl;
+
+const extractStringAttribute = (attributes, key) =>
+  attributes?.[key]?.StringValue;
 
 const subscriber = queueUrl
   ? new SqsSubscriber({
       queueUrl,
-      async onMessage(message) {
-        await saveInboxMessageUseCase(message, messageSource.ConfigBroker);
+      async onMessage(_body, messageAttributes) {
+        const grantCode = extractStringAttribute(messageAttributes, "grant");
+        const version = extractStringAttribute(messageAttributes, "version");
+        const status = extractStringAttribute(messageAttributes, "status");
+
+        logger.info(
+          `Received config version update: ${grantCode}@${version} (${status})`,
+        );
+
+        await processConfigVersionUseCase({ grantCode, version, status });
       },
     })
   : null;

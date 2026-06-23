@@ -29,7 +29,7 @@ export const approveApplicationUseCase = async ({ clientRef, code }) => {
     const statusEvent = new ApplicationStatusUpdatedEvent({
       clientRef,
       code,
-      configVersion: application.configVersion,
+      currentConfigVersion: application.currentConfigVersion,
       previousStatus,
       currentStatus: application.getFullyQualifiedStatus(),
     });

@@ -42,7 +42,7 @@ describe("CreateAgreementCommand", () => {
       data: {
         clientRef: "123",
         code: "grant-code",
-        configVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         identifiers: {
           name: "Test App",
         },

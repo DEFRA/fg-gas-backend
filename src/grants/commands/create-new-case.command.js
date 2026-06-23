@@ -9,7 +9,7 @@ export class CreateNewCaseCommand extends CloudEvent {
         workflowCode: application.code,
         previousCaseRef: application?.metadata?.previousClientRef,
         payload: {
-          configVersion: application.configVersion ?? null, // null for pre-Config-Broker apps
+          originalConfigVersion: application.originalConfigVersion ?? null,
           createdAt: application.createdAt,
           submittedAt: application.submittedAt,
           identifiers: application.identifiers,
