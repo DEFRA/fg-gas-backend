@@ -232,3 +232,48 @@ it("accepts valid semver configVersion", () => {
 
   expect(error).toBeUndefined();
 });
+
+it("allows optional configVersion", () => {
+  const { value, error } = submitApplicationRequestSchema.validate({
+    ...validPayload,
+    metadata: {
+      ...validPayload.metadata,
+      configVersion: "0.0.1",
+    },
+  });
+  expect(error).toBeUndefined();
+  expect(value).toEqual({
+    ...validPayload,
+    metadata: {
+      ...validPayload.metadata,
+      configVersion: "0.0.1",
+    },
+  });
+});
+
+it("metadata.configVersion must not be null", () => {
+  const { error } = submitApplicationRequestSchema.validate({
+    ...validPayload,
+    metadata: {
+      ...validPayload.metadata,
+      configVersion: null,
+    },
+  });
+
+  expect(error.message).toContain('"metadata.configVersion"');
+});
+
+it.each([
+  ["some-bad-value", "arbitrary string"],
+  ["1.0", "missing patch segment"],
+  ["v1.0.0", "v-prefixed"],
+  ["1.0.0-alpha", "pre-release suffix"],
+])("rejects invalid metadata.configVersion: %s (%s)", (configVersion) => {
+  const { error } = submitApplicationRequestSchema.validate({
+    ...validPayload,
+    metadata: { ...validPayload.metadata, configVersion },
+  });
+  expect(error.message).toContain(
+    "Config version must be a valid config string (e.g. 1.0.3)",
+  );
+});
