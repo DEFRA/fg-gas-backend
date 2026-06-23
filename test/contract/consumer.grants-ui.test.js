@@ -16,7 +16,7 @@
 // The grants-ui repository remains the source of truth.
 // Keep interactions in sync to avoid local/broker drift.
 
-import { PactV3, MatchersV3 } from "@pact-foundation/pact";
+import { MatchersV3, PactV3 } from "@pact-foundation/pact";
 import path from "path";
 import { describe, it } from "vitest";
 
@@ -315,14 +315,17 @@ describe("grants-ui Consumer (sends HTTP requests to fg-gas-backend)", () => {
         })
         .willRespondWith({ status: 204 })
         .executeTest(async (mockServer) => {
-          await fetch(`${mockServer.url}/grants/frps-private-beta/applications`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${BEARER_TOKEN}`,
-              "Content-Type": "application/json",
+          await fetch(
+            `${mockServer.url}/grants/frps-private-beta/applications`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${BEARER_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(frpsApplicationBody),
             },
-            body: JSON.stringify(frpsApplicationBody),
-          });
+          );
         });
     });
 
@@ -347,7 +350,9 @@ describe("grants-ui Consumer (sends HTTP requests to fg-gas-backend)", () => {
             agreement: [],
             parcel: [
               {
-                actions: [{ code: "CMOR1", durationYears: 1, version: "1.0.0" }],
+                actions: [
+                  { code: "CMOR1", durationYears: 1, version: "1.0.0" },
+                ],
                 parcelId: "6060",
                 sheetId: "SD5949",
               },
@@ -392,7 +397,9 @@ describe("grants-ui Consumer (sends HTTP requests to fg-gas-backend)", () => {
 
       await pact
         .given("frps-private-beta is configured in fg-gas-backend")
-        .uponReceiving("an frps-private-beta application with only required properties")
+        .uponReceiving(
+          "an frps-private-beta application with only required properties",
+        )
         .withRequest({
           method: "POST",
           path: "/grants/frps-private-beta/applications",
@@ -401,14 +408,17 @@ describe("grants-ui Consumer (sends HTTP requests to fg-gas-backend)", () => {
         })
         .willRespondWith({ status: 204 })
         .executeTest(async (mockServer) => {
-          await fetch(`${mockServer.url}/grants/frps-private-beta/applications`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${BEARER_TOKEN}`,
-              "Content-Type": "application/json",
+          await fetch(
+            `${mockServer.url}/grants/frps-private-beta/applications`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${BEARER_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(minimalBody),
             },
-            body: JSON.stringify(minimalBody),
-          });
+          );
         });
     });
 
@@ -433,14 +443,17 @@ describe("grants-ui Consumer (sends HTTP requests to fg-gas-backend)", () => {
         })
         .willRespondWith({ status: 204 })
         .executeTest(async (mockServer) => {
-          await fetch(`${mockServer.url}/grants/frps-private-beta/applications`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${BEARER_TOKEN}`,
-              "Content-Type": "application/json",
+          await fetch(
+            `${mockServer.url}/grants/frps-private-beta/applications`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${BEARER_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(amendmentBody),
             },
-            body: JSON.stringify(amendmentBody),
-          });
+          );
         });
     });
 

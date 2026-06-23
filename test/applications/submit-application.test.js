@@ -77,6 +77,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
+          configVersion: "0.0.1",
         },
         answers: {
           question1: "test answer",
@@ -110,6 +111,7 @@ describe("POST /grants/{code}/applications", () => {
         },
         metadata: {
           defraId: "1234567890",
+          configVersion: "0.0.1",
         },
         phases: [
           {
@@ -173,6 +175,7 @@ describe("POST /grants/{code}/applications", () => {
           },
           metadata: {
             defraId: "1234567890",
+            configVersion: "0.0.1",
           },
           answers: {
             question1: "test answer",
