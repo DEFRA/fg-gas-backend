@@ -97,7 +97,8 @@ describe("POST /grants/{code}/applications", () => {
         currentStage: "STAGE_1",
         currentStatus: "NEW",
         clientRef,
-        configVersion: "1.0.0",
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         submittedAt,
         code: "test-code-1",
         agreements: {},
@@ -143,7 +144,7 @@ describe("POST /grants/{code}/applications", () => {
       data: {
         clientRef,
         code: "test-code-1",
-        configVersion: "1.0.0",
+        originalConfigVersion: "1.0.0",
         status: "PHASE_1:STAGE_1:NEW",
       },
       messageGroupId: `${clientRef}-test-code-1`,
@@ -163,7 +164,7 @@ describe("POST /grants/{code}/applications", () => {
         previousCaseRef: null,
         workflowCode: "test-code-1",
         payload: {
-          configVersion: "1.0.0",
+          originalConfigVersion: "1.0.0",
           createdAt: expect.any(String),
           submittedAt: expect.any(String),
           identifiers: {
@@ -252,7 +253,8 @@ describe("POST /grants/{code}/applications", () => {
         currentStage: "STAGE_1",
         currentStatus: "NEW",
         clientRef,
-        configVersion: "1.0.0",
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         submittedAt,
         code: "test-code-1",
         agreements: {},
@@ -291,7 +293,7 @@ describe("POST /grants/{code}/applications", () => {
         previousCaseRef: null,
         workflowCode: "test-code-1",
         payload: {
-          configVersion: "1.0.0",
+          originalConfigVersion: "1.0.0",
           createdAt: expect.any(String),
           submittedAt: expect.any(String),
           identifiers: {
@@ -466,7 +468,8 @@ describe("POST /grants/{code}/applications", () => {
       {
         phases: [{ code: "PHASE_1", answers: { question1: "test answer" } }],
         clientRef: "12345",
-        configVersion: "1.0.0",
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         code: "test-code-1",
         identifiers: {
           crn: "1234567890",
@@ -743,7 +746,8 @@ describe("POST /grants/{code}/applications", () => {
         currentStage: "STAGE_1",
         currentStatus: "NEW",
         clientRef: newClientRef,
-        configVersion: "1.0.0",
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         submittedAt,
         code: "test-code-1",
         agreements: {},
@@ -802,7 +806,7 @@ describe("POST /grants/{code}/applications", () => {
       data: {
         clientRef: newClientRef,
         code: "test-code-1",
-        configVersion: "1.0.0",
+        originalConfigVersion: "1.0.0",
         status: "PHASE_1:STAGE_1:NEW",
       },
       messageGroupId: `${newClientRef}-test-code-1`,

@@ -68,6 +68,8 @@ describe("GET /grants/{code}/applications/{clientRef}/status", () => {
       status: ApplicationStage.Assessment,
       grantCode: code,
       clientRef,
+      originalConfigVersion: null,
+      currentConfigVersion: null,
     });
   });
 });

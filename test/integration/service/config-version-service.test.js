@@ -15,7 +15,6 @@ import {
 } from "../../../src/grants/models/config-version.js";
 import {
   findByGrantCodeAndVersion,
-  findLatestPatch,
   updateFetchStatus,
   upsert,
 } from "../../../src/grants/repositories/config-version.repository.js";
@@ -96,83 +95,6 @@ describe("config-version repository integration", () => {
     });
   });
 
-  describe("findLatestPatch", () => {
-    it("should return the record with the highest patch for active status", async () => {
-      await configVersions.insertMany([
-        ConfigVersion.createMock({
-          grantCode: "woodland",
-          version: "1.2.0",
-          major: 1,
-          minor: 2,
-          patch: 0,
-          status: "active",
-        }).toDocument(),
-        ConfigVersion.createMock({
-          grantCode: "woodland",
-          version: "1.2.3",
-          major: 1,
-          minor: 2,
-          patch: 3,
-          status: "active",
-        }).toDocument(),
-        ConfigVersion.createMock({
-          grantCode: "woodland",
-          version: "1.2.1",
-          major: 1,
-          minor: 2,
-          patch: 1,
-          status: "active",
-        }).toDocument(),
-      ]);
-
-      const result = await findLatestPatch("woodland", 1, 2);
-      expect(result).toBeInstanceOf(ConfigVersion);
-      expect(result.version).toBe("1.2.3");
-      expect(result.patch).toBe(3);
-    });
-
-    it("should skip records with fetchStatus permanent_error", async () => {
-      await configVersions.insertMany([
-        ConfigVersion.createMock({
-          grantCode: "woodland",
-          version: "1.2.3",
-          major: 1,
-          minor: 2,
-          patch: 3,
-          status: "active",
-          fetchStatus: FetchStatus.PermanentError,
-        }).toDocument(),
-        ConfigVersion.createMock({
-          grantCode: "woodland",
-          version: "1.2.2",
-          major: 1,
-          minor: 2,
-          patch: 2,
-          status: "active",
-        }).toDocument(),
-      ]);
-
-      const result = await findLatestPatch("woodland", 1, 2);
-      expect(result.version).toBe("1.2.2");
-    });
-
-    it("should return null when no matching major.minor exists", async () => {
-      await configVersions.insertOne(
-        ConfigVersion.createMock({
-          grantCode: "woodland",
-          version: "1.0.0",
-          major: 1,
-          minor: 0,
-          patch: 0,
-          status: "active",
-        }).toDocument(),
-      );
-
-      const result = await findLatestPatch("woodland", 9, 9);
-      expect(result).toBeNull();
-    });
-  });
-
   describe("updateFetchStatus", () => {
     it("should update fetch fields and increment fetchAttempts", async () => {
       await configVersions.insertOne(
@@ -221,6 +143,7 @@ describe("config-version repository integration", () => {
       });
       expect(doc.fetchStatus).toBe(FetchStatus.Fetched);
       expect(doc.fetchedAt).toBeTruthy();
+      expect(doc.fetchAttempts).toBe(0);
     });
   });
 
