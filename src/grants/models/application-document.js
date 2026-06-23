@@ -5,7 +5,8 @@ export class ApplicationDocument {
     this.currentStatus = application.currentStatus;
     this.clientRef = application.clientRef;
     this.code = application.code;
-    this.configVersion = application.configVersion;
+    this.originalConfigVersion = application.originalConfigVersion;
+    this.currentConfigVersion = application.currentConfigVersion;
     this.createdAt = application.createdAt;
     this.updatedAt = application.updatedAt;
     this.submittedAt = application.submittedAt;

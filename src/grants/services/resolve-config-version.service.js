@@ -4,7 +4,7 @@ import { logger } from "../../common/logger.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
 import { parseSemver } from "../../common/semver.js";
 import {
-  findLatestPatch,
+  findLatestForMajor,
   updateFetchStatus,
 } from "../repositories/config-version.repository.js";
 import {
@@ -13,13 +13,10 @@ import {
 } from "../repositories/grant.repository.js";
 
 const MAX_FETCH_ATTEMPTS = 5;
-const HTTP_CONFLICT = 409;
 
 const handleS3Error = async (err, grantCode, version) => {
   if (err.isPermanent || err.isParseError) {
-    logger.error(
-      `Permanent S3 fetch failure for ${grantCode}@${version} key=${err.key}: ${err.message}`,
-    );
+    logger.error(err, `Permanent S3 fetch failure for ${grantCode}@${version}`);
     await updateFetchStatus(
       grantCode,
       version,
@@ -31,9 +28,7 @@ const handleS3Error = async (err, grantCode, version) => {
     );
   }
 
-  logger.error(
-    `Transient S3 fetch failure for ${grantCode}@${version} key=${err.key}: ${err.message}`,
-  );
+  logger.error(err, `Transient S3 fetch failure for ${grantCode}@${version}`);
   await updateFetchStatus(
     grantCode,
     version,
@@ -91,7 +86,7 @@ const saveOrFallback = async (grantDefinition, grantCode, resolvedVersion) => {
     await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
     return grant;
   } catch (err) {
-    if (err.isBoom && err.output.statusCode === HTTP_CONFLICT) {
+    if (err.isBoom && err.output.statusCode === 409) {
       logger.info(
         `Concurrent insert for ${grantCode}@${resolvedVersion}, loading existing`,
       );
@@ -128,7 +123,7 @@ const fetchAndStoreGrant = async (
   return grant;
 };
 
-const findCachedGrant = async (configVersion, grantCode, resolvedVersion) => {
+const findStoredGrant = async (configVersion, grantCode, resolvedVersion) => {
   if (configVersion.fetchStatus !== FetchStatus.Fetched) {
     return null;
   }
@@ -146,15 +141,12 @@ const resolveConfigVersion = async (grantCode, requestedVersion) => {
     throw Boom.badRequest(`Invalid semver version: ${requestedVersion}`);
   }
 
-  const configVersion = await findLatestPatch(
-    grantCode,
-    parsed.major,
-    parsed.minor,
-  );
+  // Roll forward to the latest active version within the same major.
+  const configVersion = await findLatestForMajor(grantCode, parsed.major);
 
   if (!configVersion) {
     throw Boom.notFound(
-      `No active config version found for ${grantCode}@${parsed.major}.${parsed.minor}`,
+      `No active config version found for ${grantCode}@${parsed.major}.x`,
     );
   }
 
@@ -169,7 +161,7 @@ export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
 
   await guardFetchStatus(configVersion, grantCode, resolvedVersion);
 
-  const cached = await findCachedGrant(
+  const cached = await findStoredGrant(
     configVersion,
     grantCode,
     resolvedVersion,

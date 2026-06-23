@@ -30,7 +30,7 @@ export const createApplicationUseCase = async (
     currentStage: stage.code,
     currentStatus: status.code,
     code,
-    configVersion: resolvedVersion,
+    configVersion: resolvedVersion, // Application.new maps this to originalConfigVersion + currentConfigVersion
     clientRef,
     submittedAt,
     identifiers: {
@@ -60,7 +60,7 @@ export const createApplicationUseCase = async (
   const applicationCreatedEvent = new ApplicationCreatedEvent({
     clientRef: application.clientRef,
     code: application.code,
-    configVersion: application.configVersion,
+    originalConfigVersion: application.originalConfigVersion,
     status: application.getFullyQualifiedStatus(),
   });
 

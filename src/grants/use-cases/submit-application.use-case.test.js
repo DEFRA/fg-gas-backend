@@ -56,7 +56,7 @@ describe("submitApplicationUseCase", () => {
     expect(application).toBeInstanceOf(Application);
     expect(application.currentPhase).toBe(ApplicationPhase.PreAward);
     expect(application.clientRef).toBe("test-client-ref");
-    expect(application.configVersion).toBe("1.0.0");
+    expect(application.originalConfigVersion).toBe("1.0.0");
   });
 
   it("throws when answers do not match the schema", async () => {

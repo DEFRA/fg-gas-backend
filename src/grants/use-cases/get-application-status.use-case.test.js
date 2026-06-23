@@ -7,8 +7,10 @@ import {
 } from "../models/application.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import { getApplicationStatusUseCase } from "./get-application-status.use-case.js";
+import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
 
 vi.mock("./find-application-by-client-ref-and-code.use-case");
+vi.mock("./resolve-current-grant.use-case.js");
 describe("get application status use case", () => {
   it("should get the status of an application", async () => {
     const code = "grant-1";
@@ -18,6 +20,10 @@ describe("get application status use case", () => {
       code,
     });
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
+    resolveCurrentGrantUseCase.mockResolvedValue({
+      grant: {},
+      resolvedVersion: application.originalConfigVersion,
+    });
 
     await expect(
       getApplicationStatusUseCase({ code, clientRef }),
@@ -27,11 +33,17 @@ describe("get application status use case", () => {
       status: ApplicationStatus.Received,
       clientRef,
       grantCode: code,
+      originalConfigVersion: application.originalConfigVersion,
+      currentConfigVersion: application.currentConfigVersion,
     });
 
     expect(findApplicationByClientRefAndCodeUseCase).toHaveBeenLastCalledWith(
       clientRef,
       code,
+    );
+    expect(resolveCurrentGrantUseCase).toHaveBeenCalledWith(
+      code,
+      application.originalConfigVersion,
     );
   });
 });

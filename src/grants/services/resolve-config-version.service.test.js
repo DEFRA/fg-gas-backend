@@ -4,7 +4,7 @@ import { S3FetchError } from "../../common/s3-client.js";
 import { ConfigVersion, FetchStatus } from "../models/config-version.js";
 import { Grant } from "../models/grant.js";
 import {
-  findLatestPatch,
+  findLatestForMajor,
   updateFetchStatus,
 } from "../repositories/config-version.repository.js";
 import {
@@ -26,7 +26,7 @@ vi.mock(
     const original = await importOriginal();
     return {
       ...original,
-      findLatestPatch: vi.fn(),
+      findLatestForMajor: vi.fn(),
       updateFetchStatus: vi.fn(),
     };
   },
@@ -73,7 +73,7 @@ describe("resolveAndFetchGrant", () => {
   });
 
   it("throws notFound when no active config version exists", async () => {
-    findLatestPatch.mockResolvedValue(null);
+    findLatestForMajor.mockResolvedValue(null);
 
     await expect(resolveAndFetchGrant(GRANT_CODE, VERSION)).rejects.toThrow(
       expect.objectContaining({
@@ -84,7 +84,7 @@ describe("resolveAndFetchGrant", () => {
 
   it("returns cached grant when fetchStatus is fetched and grant exists", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Fetched });
-    findLatestPatch.mockResolvedValue(cv);
+    findLatestForMajor.mockResolvedValue(cv);
 
     const existingGrant = new Grant({
       ...mockGrantDefinition,
@@ -101,7 +101,7 @@ describe("resolveAndFetchGrant", () => {
 
   it("fetches from S3 when fetchStatus is pending", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
-    findLatestPatch.mockResolvedValue(cv);
+    findLatestForMajor.mockResolvedValue(cv);
     fetchConfigFile.mockResolvedValue(mockGrantDefinition);
     const savedGrant = new Grant({ ...mockGrantDefinition, version: VERSION });
     saveFromDefinition.mockResolvedValue(savedGrant);
@@ -125,7 +125,7 @@ describe("resolveAndFetchGrant", () => {
 
   it("fetches from S3 when fetched but grant not found in grants collection", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Fetched });
-    findLatestPatch.mockResolvedValue(cv);
+    findLatestForMajor.mockResolvedValue(cv);
     findByCodeAndVersion.mockResolvedValue(null);
     fetchConfigFile.mockResolvedValue(mockGrantDefinition);
     const savedGrant = new Grant({ ...mockGrantDefinition, version: VERSION });
@@ -140,7 +140,7 @@ describe("resolveAndFetchGrant", () => {
 
   it("handles concurrent duplicate insert by falling back to findByCodeAndVersion", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
-    findLatestPatch.mockResolvedValue(cv);
+    findLatestForMajor.mockResolvedValue(cv);
     fetchConfigFile.mockResolvedValue(mockGrantDefinition);
 
     const conflictError = Boom.conflict("already exists");
@@ -160,7 +160,7 @@ describe("resolveAndFetchGrant", () => {
 
   it("throws badGateway on permanent S3 error (NoSuchKey)", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
-    findLatestPatch.mockResolvedValue(cv);
+    findLatestForMajor.mockResolvedValue(cv);
 
     const s3Err = new S3FetchError("not found", {
       statusCode: 404,
@@ -186,7 +186,7 @@ describe("resolveAndFetchGrant", () => {
 
   it("throws badGateway on parse error", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
-    findLatestPatch.mockResolvedValue(cv);
+    findLatestForMajor.mockResolvedValue(cv);
 
     const s3Err = new S3FetchError("bad json", {
       statusCode: 200,
@@ -212,7 +212,7 @@ describe("resolveAndFetchGrant", () => {
 
   it("throws serverUnavailable on transient S3 error", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
-    findLatestPatch.mockResolvedValue(cv);
+    findLatestForMajor.mockResolvedValue(cv);
 
     const s3Err = new S3FetchError("timeout", {
       statusCode: 500,
@@ -241,7 +241,7 @@ describe("resolveAndFetchGrant", () => {
       fetchStatus: FetchStatus.TransientError,
       fetchAttempts: 5,
     });
-    findLatestPatch.mockResolvedValue(cv);
+    findLatestForMajor.mockResolvedValue(cv);
     updateFetchStatus.mockResolvedValue();
 
     await expect(resolveAndFetchGrant(GRANT_CODE, VERSION)).rejects.toThrow(
@@ -262,7 +262,7 @@ describe("resolveAndFetchGrant", () => {
       fetchStatus: FetchStatus.PermanentError,
       fetchError: "previously failed",
     });
-    findLatestPatch.mockResolvedValue(cv);
+    findLatestForMajor.mockResolvedValue(cv);
 
     await expect(resolveAndFetchGrant(GRANT_CODE, VERSION)).rejects.toThrow(
       expect.objectContaining({

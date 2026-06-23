@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigVersion, FetchStatus } from "../models/config-version.js";
 import {
   findByGrantCodeAndVersion,
-  findLatestPatch,
+  findLatestForMajor,
   updateFetchStatus,
   upsert,
 } from "./config-version.repository.js";
@@ -47,6 +47,7 @@ describe("config-version.repository", () => {
             status: "active",
           }),
           $setOnInsert: expect.objectContaining({
+            receivedAt: expect.any(String),
             fetchStatus: FetchStatus.Pending,
             fetchAttempts: 0,
           }),
@@ -56,18 +57,18 @@ describe("config-version.repository", () => {
     });
   });
 
-  describe("findLatestPatch", () => {
-    it("should query for the latest active patch", async () => {
+  describe("findLatestForMajor", () => {
+    it("should query for the latest active version within the major", async () => {
       const doc = {
         grantCode: "woodland",
-        version: "1.2.5",
+        version: "1.4.2",
         major: 1,
-        minor: 2,
-        patch: 5,
+        minor: 4,
+        patch: 2,
         status: "active",
-        s3Key: "woodland/1.2.5/grant-definition.json",
+        s3Key: "woodland/1.4.2/grant-definition.json",
         s3Bucket: "bucket",
-        fetchStatus: FetchStatus.Pending,
+        fetchStatus: FetchStatus.Fetched,
         fetchAttempts: 0,
         receivedAt: "2026-01-01T00:00:00Z",
         fetchedAt: null,
@@ -76,26 +77,25 @@ describe("config-version.repository", () => {
       };
       mockCollection.findOne.mockResolvedValue(doc);
 
-      const result = await findLatestPatch("woodland", 1, 2);
+      const result = await findLatestForMajor("woodland", 1);
 
       expect(mockCollection.findOne).toHaveBeenCalledWith(
         {
           grantCode: "woodland",
           major: 1,
-          minor: 2,
           status: "active",
           fetchStatus: { $ne: FetchStatus.PermanentError },
         },
-        { sort: { patch: -1 } },
+        { sort: { minor: -1, patch: -1 } },
       );
       expect(result).toBeInstanceOf(ConfigVersion);
-      expect(result.version).toBe("1.2.5");
+      expect(result.version).toBe("1.4.2");
     });
 
     it("should return null when no match exists", async () => {
       mockCollection.findOne.mockResolvedValue(null);
 
-      const result = await findLatestPatch("woodland", 9, 9);
+      const result = await findLatestForMajor("woodland", 9);
       expect(result).toBeNull();
     });
   });
@@ -123,7 +123,7 @@ describe("config-version.repository", () => {
       );
     });
 
-    it("should set fetchedAt when status is fetched", async () => {
+    it("should set fetchedAt when status is fetched without incrementing attempts", async () => {
       mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 });
 
       await updateFetchStatus("woodland", "1.2.3", FetchStatus.Fetched);
@@ -135,9 +135,9 @@ describe("config-version.repository", () => {
             fetchStatus: FetchStatus.Fetched,
             fetchedAt: expect.any(String),
           }),
-          $inc: { fetchAttempts: 1 },
         },
       );
+      expect(mockCollection.updateOne.mock.calls[0][1].$inc).toBeUndefined();
     });
   });
 

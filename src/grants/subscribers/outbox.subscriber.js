@@ -156,7 +156,7 @@ export class OutboxSubscriber {
       );
       await this.markEventComplete(event);
     } catch (ex) {
-      logger.error(ex);
+      logger.error(ex, "Error sending outbox event");
       await this.markEventUnsent(event);
     }
   }

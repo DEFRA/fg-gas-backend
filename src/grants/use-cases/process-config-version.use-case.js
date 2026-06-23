@@ -1,3 +1,4 @@
+import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { buildS3Key } from "../../common/s3-client.js";
@@ -10,20 +11,20 @@ const VALID_STATUSES = ["active", "draft"];
 // eslint-disable-next-line complexity
 const validateEventData = ({ grantCode, version, status }) => {
   if (!grantCode || !version) {
-    throw new Error(
+    throw Boom.badRequest(
       `Config version event missing required fields: grantCode=${grantCode}, version=${version}`,
     );
   }
 
   if (!status || !VALID_STATUSES.includes(status)) {
-    throw new Error(
+    throw Boom.badRequest(
       `Config version event has invalid status: "${status}" (expected one of: ${VALID_STATUSES.join(", ")})`,
     );
   }
 
   const parsed = parseSemver(version);
   if (!parsed) {
-    throw new Error(`Invalid semver version in config event: ${version}`);
+    throw Boom.badRequest(`Invalid semver version in config event: ${version}`);
   }
 };
 
