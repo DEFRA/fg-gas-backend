@@ -148,7 +148,8 @@ it("accepts externalStatusMap as optional", () => {
               code: "REVIEW",
               statuses: [
                 {
-                  code: "IN_PROGRESS",
+                  externalCode: "PRE_AWARD:REVIEW:IN_PROGRESS",
+                  code: "RECEIVED",
                   source: "CW",
                   mappedTo: "IN_PROGRESS",
                 },
@@ -218,7 +219,8 @@ it("validates externalStatusMap structure - requires status code, source, and ma
               code: "REVIEW",
               statuses: [
                 {
-                  code: "IN_PROGRESS",
+                  externalCode: "PRE_AWARD:REVIEW:IN_PROGRESS",
+                  code: "RECEIVED",
                   source: "CW",
                   // missing mappedTo
                 },
@@ -232,5 +234,79 @@ it("validates externalStatusMap structure - requires status code, source, and ma
 
   expect(error.message).toEqual(
     '"externalStatusMap.phases[0].stages[0].statuses[0].mappedTo" is required',
+  );
+});
+
+it("validates externalStatusMap structure - requires status code qualifier", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    externalStatusMap: {
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "REVIEW",
+              statuses: [
+                {
+                  externalCode: "PRE_AWARD:REVIEW:IN_PROGRESS",
+                  // missing code qualifier
+                  source: "CW",
+                  mappedTo: "IN_PROGRESS",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  expect(error.message).toEqual(
+    '"externalStatusMap.phases[0].stages[0].statuses[0].code" is required',
+  );
+});
+
+it("validates externalStatusMap structure - requires externalCode", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    externalStatusMap: {
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "REVIEW",
+              statuses: [
+                {
+                  // missing externalCode
+                  code: "RECEIVED",
+                  source: "CW",
+                  mappedTo: "IN_PROGRESS",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  expect(error.message).toEqual(
+    '"externalStatusMap.phases[0].stages[0].statuses[0].externalCode" is required',
   );
 });

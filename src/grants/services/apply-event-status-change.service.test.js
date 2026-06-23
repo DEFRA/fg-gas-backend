@@ -100,12 +100,14 @@ describe("applyExternalStateChange", () => {
               code: "REVIEW_APPLICATION",
               statuses: [
                 {
-                  code: "IN_PROGRESS",
+                  externalCode: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+                  code: "RECEIVED",
                   source: "CW",
                   mappedTo: "::IN_PROGRESS",
                 },
                 {
-                  code: "APPROVED",
+                  externalCode: "PRE_AWARD:REVIEW_APPLICATION:APPROVED",
+                  code: "RECEIVED",
                   source: "CW",
                   mappedTo: "::APPROVED",
                 },
@@ -191,7 +193,7 @@ describe("applyExternalStateChange", () => {
         applyExternalStateChange({
           clientRef: "NON-EXISTENT",
           code: "foo",
-          externalRequestedState: "IN_PROGRESS",
+          externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
           sourceSystem: "CW",
         }),
       ).rejects.toThrow(
@@ -215,7 +217,7 @@ describe("applyExternalStateChange", () => {
         applyExternalStateChange({
           clientRef: "APP-123",
           code: "foo",
-          externalRequestedState: "IN_PROGRESS",
+          externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
           sourceSystem: "CW",
         }),
       ).rejects.toThrow(
@@ -243,7 +245,7 @@ describe("applyExternalStateChange", () => {
       await applyExternalStateChange({
         clientRef: "APP-123",
         code: "foo",
-        externalRequestedState: "IN_PROGRESS",
+        externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
         sourceSystem: "CW",
         eventData: { caseRef: "CASE-123" },
       });
@@ -271,7 +273,7 @@ describe("applyExternalStateChange", () => {
 
       await applyExternalStateChange({
         clientRef: "APP-123",
-        externalRequestedState: "IN_PROGRESS",
+        externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
       });
@@ -299,6 +301,27 @@ describe("applyExternalStateChange", () => {
             ],
           },
         ],
+        // Application is already at IN_PROGRESS, so the qualifier must match it.
+        externalStatusMap: {
+          phases: [
+            {
+              code: "PRE_AWARD",
+              stages: [
+                {
+                  code: "REVIEW_APPLICATION",
+                  statuses: [
+                    {
+                      externalCode: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+                      code: "IN_PROGRESS",
+                      source: "CW",
+                      mappedTo: "::IN_PROGRESS",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
@@ -306,7 +329,7 @@ describe("applyExternalStateChange", () => {
 
       await applyExternalStateChange({
         clientRef: "APP-123",
-        externalRequestedState: "IN_PROGRESS",
+        externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
       });
@@ -350,12 +373,12 @@ describe("applyExternalStateChange", () => {
         applyExternalStateChange({
           clientRef: "APP-123",
           code: "foo",
-          externalRequestedState: "APPROVED",
+          externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:APPROVED",
           sourceSystem: "CW",
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to APPROVED",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to PRE_AWARD:REVIEW_APPLICATION:APPROVED",
       );
 
       expect(update).not.toHaveBeenCalled();
@@ -419,7 +442,7 @@ describe("applyExternalStateChange", () => {
       await applyExternalStateChange({
         clientRef: "APP-123",
         code: "foo",
-        externalRequestedState: "IN_PROGRESS",
+        externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
       });
@@ -461,7 +484,7 @@ describe("applyExternalStateChange", () => {
       await applyExternalStateChange({
         clientRef: "APP-123",
         code: "foo",
-        externalRequestedState: "IN_PROGRESS",
+        externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
       });
@@ -523,7 +546,8 @@ describe("applyExternalStateChange", () => {
                   code: "REVIEW_APPLICATION",
                   statuses: [
                     {
-                      code: "OFFERED",
+                      externalCode: "OFFERED",
+                      code: "RECEIVED",
                       source: "AS",
                       mappedTo: "PRE_AWARD:REVIEW_OFFER:OFFERED",
                     },
@@ -575,7 +599,8 @@ describe("applyExternalStateChange", () => {
                   code: "REVIEW_APPLICATION",
                   statuses: [
                     {
-                      code: "IN_PROGRESS",
+                      externalCode: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+                      code: "RECEIVED",
                       source: "CW",
                       mappedTo: "IN_PROGRESS", // Simple status code without ::
                     },
@@ -593,7 +618,7 @@ describe("applyExternalStateChange", () => {
       await applyExternalStateChange({
         clientRef: "APP-123",
         code: "foo",
-        externalRequestedState: "IN_PROGRESS",
+        externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
       });
@@ -648,7 +673,7 @@ describe("applyExternalStateChange", () => {
       await applyExternalStateChange({
         clientRef: "APP-123",
         code: "foo",
-        externalRequestedState: "IN_PROGRESS",
+        externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
         sourceSystem: "CW",
         eventData: { data: "test" },
       });
@@ -695,7 +720,7 @@ describe("applyExternalStateChange", () => {
       await applyExternalStateChange({
         clientRef: "APP-123",
         code: "foo",
-        externalRequestedState: "IN_PROGRESS",
+        externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
       });
@@ -738,7 +763,7 @@ describe("applyExternalStateChange", () => {
       await applyExternalStateChange({
         clientRef: "APP-123",
         code: "foo",
-        externalRequestedState: "IN_PROGRESS",
+        externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
       });
@@ -799,7 +824,8 @@ describe("applyExternalStateChange", () => {
                   code: "REVIEW_APPLICATION",
                   statuses: [
                     {
-                      code: "OFFERED",
+                      externalCode: "OFFERED",
+                      code: "APPROVED",
                       source: "AS",
                       mappedTo: "PRE_AWARD:REVIEW_OFFER:OFFERED",
                     },
@@ -867,7 +893,7 @@ describe("applyExternalStateChange", () => {
       await applyExternalStateChange({
         clientRef: "APP-123",
         code: "foo",
-        externalRequestedState: "IN_PROGRESS",
+        externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
         sourceSystem: "CW",
         eventData: {},
       });
@@ -981,7 +1007,8 @@ describe("applyExternalStateChange", () => {
                   code: "REVIEW_APPLICATION",
                   statuses: [
                     {
-                      code: "IN_PROGRESS",
+                      externalCode: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+                      code: "RECEIVED",
                       source: "CW",
                       mappedTo: "::IN_PROGRESS", // Maps to non-existent status
                     },
@@ -1000,12 +1027,12 @@ describe("applyExternalStateChange", () => {
         applyExternalStateChange({
           clientRef: "APP-123",
           code: "foo",
-          externalRequestedState: "IN_PROGRESS",
+          externalRequestedState: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
           sourceSystem: "CW",
           eventData: {},
         }),
       ).rejects.toThrow(
-        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to IN_PROGRESS",
+        "Unable to process state change from PRE_AWARD:REVIEW_APPLICATION:RECEIVED to PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
       );
 
       expect(update).not.toHaveBeenCalled();

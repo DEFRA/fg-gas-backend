@@ -112,7 +112,9 @@ export const createGrant = async () => {
               code: "REVIEW_APPLICATION",
               statuses: [
                 {
-                  code: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+                  externalCode:
+                    "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+                  code: "IN_REVIEW",
                   source: "CW",
                   mappedTo: "AGREEMENT_GENERATING",
                 },

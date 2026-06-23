@@ -96,7 +96,7 @@ describe("inbox.subscriber", () => {
           status: "accepted",
         },
       },
-      source: "CW",
+      source: "AS",
       segregationRef: "ref-1",
     });
 
@@ -449,7 +449,7 @@ describe("inbox.subscriber", () => {
       withTraceParent.mockImplementation((_, fn) => fn());
 
       const mockEventData = {
-        currentStatus: "APPROVE",
+        currentStatus: "PRE_AWARD:REVIEW_APPLICATION:APPROVED",
         foo: "barr",
       };
 

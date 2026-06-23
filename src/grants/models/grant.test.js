@@ -188,32 +188,39 @@ describe("Grant", () => {
                 code: "REVIEW_APPLICATION",
                 statuses: [
                   {
+                    externalCode: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+                    code: "RECEIVED",
+                    source: "CW",
+                    mappedTo: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+                  },
+                  {
+                    externalCode: "PRE_AWARD:REVIEW_APPLICATION:APPROVED",
                     code: "IN_PROGRESS",
                     source: "CW",
-                    mappedTo: "::IN_PROGRESS",
+                    mappedTo: "PRE_AWARD:REVIEW_APPLICATION:APPROVED",
                   },
                   {
+                    externalCode: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWN",
+                    code: "IN_PROGRESS",
+                    source: "CW",
+                    mappedTo:
+                      "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_WITHDRAWN",
+                  },
+                  {
+                    externalCode: "offered",
                     code: "APPROVED",
-                    source: "CW",
-                    mappedTo: "::APPROVED",
-                  },
-                  {
-                    code: "WITHDRAWN",
-                    source: "CW",
-                    mappedTo: "::APPLICATION_WITHDRAWN",
-                  },
-                  {
-                    code: "offered",
                     source: "AS",
                     mappedTo: "PRE_AWARD:REVIEW_OFFER:OFFERED",
                   },
                   {
-                    code: "accepted",
+                    externalCode: "accepted",
+                    code: "OFFERED",
                     source: "AS",
                     mappedTo: "PRE_AWARD:REVIEW_OFFER:OFFER_ACCEPTED",
                   },
                   {
-                    code: "SIMPLE_STATUS",
+                    externalCode: "PRE_AWARD:REVIEW_APPLICATION:SIMPLE_STATUS",
+                    code: "DRAFT",
                     source: "CW",
                     mappedTo: "RECEIVED",
                   },
@@ -228,7 +235,8 @@ describe("Grant", () => {
                 code: "MONITORING",
                 statuses: [
                   {
-                    code: "ACTIVE",
+                    externalCode: "AWARD_AND_MONITORING:MONITORING:ACTIVE",
+                    code: "PENDING",
                     source: "CW",
                     mappedTo: "::ACTIVE",
                   },
@@ -245,8 +253,9 @@ describe("Grant", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
           "PRE_AWARD",
           "REVIEW_APPLICATION",
-          "IN_PROGRESS",
+          "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
           "CW",
+          "RECEIVED",
         );
 
         expect(result).toEqual({
@@ -261,8 +270,9 @@ describe("Grant", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
           "PRE_AWARD",
           "REVIEW_APPLICATION",
-          "APPROVED",
+          "PRE_AWARD:REVIEW_APPLICATION:APPROVED",
           "CW",
+          "IN_PROGRESS",
         );
 
         expect(result).toEqual({
@@ -277,8 +287,9 @@ describe("Grant", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
           "PRE_AWARD",
           "REVIEW_APPLICATION",
-          "WITHDRAWN",
+          "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWN",
           "CW",
+          "IN_PROGRESS",
         );
 
         expect(result).toEqual({
@@ -297,6 +308,7 @@ describe("Grant", () => {
           "REVIEW_APPLICATION",
           "offered",
           "AS",
+          "APPROVED",
         );
 
         expect(result).toEqual({
@@ -313,6 +325,7 @@ describe("Grant", () => {
           "REVIEW_APPLICATION",
           "accepted",
           "AS",
+          "OFFERED",
         );
 
         expect(result).toEqual({
@@ -329,8 +342,9 @@ describe("Grant", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
           "PRE_AWARD",
           "REVIEW_APPLICATION",
-          "SIMPLE_STATUS",
+          "PRE_AWARD:REVIEW_APPLICATION:SIMPLE_STATUS",
           "CW",
+          "DRAFT",
         );
 
         expect(result).toEqual({
@@ -410,8 +424,9 @@ describe("Grant", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
           "AWARD_AND_MONITORING",
           "MONITORING",
-          "ACTIVE",
+          "AWARD_AND_MONITORING:MONITORING:ACTIVE",
           "CW",
+          "PENDING",
         );
 
         expect(result).toEqual({
@@ -689,6 +704,85 @@ describe("Grant", () => {
       });
 
       expect(result).toEqual({});
+    });
+  });
+
+  describe("mapExternalStateToInternalState — same external code qualified by current status", () => {
+    // The ticket scenario: one finite external code ("cancelled" from AS) reused
+    // in the SAME stage, routed to different GAS statuses by the current position.
+    const grant = createTestGrant({
+      externalStatusMap: {
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "REVIEW_APPLICATION",
+                statuses: [
+                  {
+                    externalCode: "cancelled",
+                    code: "REJECTION_REQUESTED",
+                    source: "AS",
+                    mappedTo: "::APPLICATION_REJECTED",
+                  },
+                  {
+                    externalCode: "cancelled",
+                    code: "AMENDMENT_REQUESTED",
+                    source: "AS",
+                    mappedTo: "::APPLICATION_AMEND",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    it("routes 'cancelled' to APPLICATION_REJECTED from REJECTION_REQUESTED", () => {
+      const result = grant.mapExternalStateToInternalState(
+        "PRE_AWARD",
+        "REVIEW_APPLICATION",
+        "cancelled",
+        "AS",
+        "REJECTION_REQUESTED",
+      );
+
+      expect(result).toEqual({
+        valid: true,
+        targetPhase: "PRE_AWARD",
+        targetStage: "REVIEW_APPLICATION",
+        targetStatus: "APPLICATION_REJECTED",
+      });
+    });
+
+    it("routes the SAME 'cancelled' to APPLICATION_AMEND from AMENDMENT_REQUESTED", () => {
+      const result = grant.mapExternalStateToInternalState(
+        "PRE_AWARD",
+        "REVIEW_APPLICATION",
+        "cancelled",
+        "AS",
+        "AMENDMENT_REQUESTED",
+      );
+
+      expect(result).toEqual({
+        valid: true,
+        targetPhase: "PRE_AWARD",
+        targetStage: "REVIEW_APPLICATION",
+        targetStatus: "APPLICATION_AMEND",
+      });
+    });
+
+    it("is invalid when the current status matches no qualifier for that code", () => {
+      const result = grant.mapExternalStateToInternalState(
+        "PRE_AWARD",
+        "REVIEW_APPLICATION",
+        "cancelled",
+        "AS",
+        "IN_REVIEW",
+      );
+
+      expect(result).toEqual({ valid: false });
     });
   });
 });

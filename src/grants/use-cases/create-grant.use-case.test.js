@@ -71,12 +71,14 @@ describe("createGrantUseCase", () => {
                 code: "REVIEW",
                 statuses: [
                   {
-                    code: "IN_PROGRESS",
+                    externalCode: "PRE_AWARD:REVIEW:IN_PROGRESS",
+                    code: "RECEIVED",
                     source: "CW",
                     mappedTo: "IN_PROGRESS",
                   },
                   {
-                    code: "APPROVED",
+                    externalCode: "PRE_AWARD:REVIEW:APPROVED",
+                    code: "RECEIVED",
                     source: "CW",
                     mappedTo: "APPROVED",
                   },
@@ -117,12 +119,14 @@ describe("createGrantUseCase", () => {
                   code: "REVIEW",
                   statuses: [
                     {
-                      code: "IN_PROGRESS",
+                      externalCode: "PRE_AWARD:REVIEW:IN_PROGRESS",
+                      code: "RECEIVED",
                       source: "CW",
                       mappedTo: "IN_PROGRESS",
                     },
                     {
-                      code: "APPROVED",
+                      externalCode: "PRE_AWARD:REVIEW:APPROVED",
+                      code: "RECEIVED",
                       source: "CW",
                       mappedTo: "APPROVED",
                     },

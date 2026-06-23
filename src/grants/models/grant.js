@@ -73,12 +73,14 @@ export class Grant {
     currentStage,
     externalRequestedState,
     sourceSystem,
+    currentStatus,
   ) {
     const statusMapping = this.#findExternalStatusMapping(
       currentPhase,
       currentStage,
       externalRequestedState,
       sourceSystem,
+      currentStatus,
     );
 
     if (!statusMapping) {
@@ -92,9 +94,16 @@ export class Grant {
     );
   }
 
-  #matchesExternalStatus(status, externalRequestedState, sourceSystem) {
+  #matchesExternalStatus(
+    status,
+    externalRequestedState,
+    sourceSystem,
+    currentStatus,
+  ) {
     return (
-      status.code === externalRequestedState && status.source === sourceSystem
+      status.externalCode === externalRequestedState &&
+      status.source === sourceSystem &&
+      this.#matchesStatusCode(status.code, currentStatus)
     );
   }
 
@@ -103,13 +112,21 @@ export class Grant {
     source,
     currentPhase,
     currentStage,
+    currentStatus,
   ) {
     return this.#findExternalStatusMapping(
       currentPhase,
       currentStage,
       externalRequestedState,
       source,
+      currentStatus,
     );
+  }
+
+  // `code` is the externalStatusMap current-status qualifier (always a bare status
+  // code in the new shape); `currentStatus` is application.currentStatus (also bare).
+  #matchesStatusCode(code, currentStatus) {
+    return code === currentStatus;
   }
 
   // eslint-disable-next-line complexity
@@ -118,6 +135,7 @@ export class Grant {
     currentStage,
     externalRequestedState,
     sourceSystem,
+    currentStatus,
   ) {
     const { stage: stageMap } = this.#findPhaseStage(
       this.externalStatusMap?.phases,
@@ -126,7 +144,12 @@ export class Grant {
     );
 
     const statusMapping = stageMap?.statuses?.find((status) =>
-      this.#matchesExternalStatus(status, externalRequestedState, sourceSystem),
+      this.#matchesExternalStatus(
+        status,
+        externalRequestedState,
+        sourceSystem,
+        currentStatus,
+      ),
     );
 
     if (!statusMapping?.mappedTo) {

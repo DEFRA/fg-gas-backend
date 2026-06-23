@@ -105,7 +105,8 @@ describe("replaceGrantUseCase", () => {
                 code: "REVIEW",
                 statuses: [
                   {
-                    code: "IN_PROGRESS",
+                    externalCode: "PRE_AWARD:REVIEW:IN_PROGRESS",
+                    code: "RECEIVED",
                     source: "CW",
                     mappedTo: "IN_PROGRESS",
                   },
@@ -144,7 +145,8 @@ describe("replaceGrantUseCase", () => {
                   code: "REVIEW",
                   statuses: [
                     {
-                      code: "IN_PROGRESS",
+                      externalCode: "PRE_AWARD:REVIEW:IN_PROGRESS",
+                      code: "RECEIVED",
                       source: "CW",
                       mappedTo: "IN_PROGRESS",
                     },

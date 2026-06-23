@@ -319,12 +319,14 @@
             "code": "STAGE_REVIEWING_APPLICATION",
             "statuses": [
               {
-                "code": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_AGREEMENT_GENERATING",
+                "externalCode": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_AGREEMENT_GENERATING",
+                "code": "STATUS_APPLICATION_RECEIVED",
                 "source": "CW",
                 "mappedTo": "PHASE_PRE_AWARD:STAGE_REVIEWING_APPLICATION:STATUS_AGREEMENT_GENERATING"
               },
               {
-                "code": "offered",
+                "externalCode": "offered",
+                "code": "STATUS_AGREEMENT_GENERATING",
                 "source": "AS",
                 "mappedTo": "PHASE_PRE_AWARD:STAGE_PREPARING_AGREEMENT:STATUS_AGREEMENT_READY_FOR_APPLICANT"
               }
@@ -334,7 +336,8 @@
             "code": "STAGE_PREPARING_AGREEMENT",
             "statuses": [
               {
-                "code": "PHASE_PRE_AWARD:STAGE_AGREEMENT_WITH_APPLICANT:STATUS_AGREEMENT_OFFERED",
+                "externalCode": "PHASE_PRE_AWARD:STAGE_AGREEMENT_WITH_APPLICANT:STATUS_AGREEMENT_OFFERED",
+                "code": "STATUS_AGREEMENT_READY_FOR_APPLICANT",
                 "source": "CW",
                 "mappedTo": "PHASE_PRE_AWARD:STAGE_AGREEMENT_WITH_APPLICANT:STATUS_AGREEMENT_OFFERED"
               }
@@ -344,7 +347,8 @@
             "code": "STAGE_AGREEMENT_WITH_APPLICANT",
             "statuses": [
               {
-                "code": "accepted",
+                "externalCode": "accepted",
+                "code": "STATUS_AGREEMENT_OFFERED",
                 "source": "AS",
                 "mappedTo": "PHASE_PRE_AWARD:STAGE_AGREEMENT_ACCEPTED:STATUS_AGREEMENT_ACCEPTED"
               }
@@ -354,7 +358,8 @@
             "code": "STAGE_AGREEMENT_ACCEPTED",
             "statuses": [
               {
-                "code": "PHASE_PRE_AWARD:STAGE_APPLICATION_COMPLETED:STATUS_APPLICATION_COMPLETED",
+                "externalCode": "PHASE_PRE_AWARD:STAGE_APPLICATION_COMPLETED:STATUS_APPLICATION_COMPLETED",
+                "code": "STATUS_AGREEMENT_ACCEPTED",
                 "source": "CW",
                 "mappedTo": "PHASE_PRE_AWARD:STAGE_APPLICATION_COMPLETED:STATUS_APPLICATION_COMPLETED"
               }
