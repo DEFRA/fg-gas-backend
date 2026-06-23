@@ -83,7 +83,7 @@ describe("On CaseStatusUpdated", () => {
       data: {
         clientRef,
         grantCode: "test-code-1",
-        configVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
         previousStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
       },
@@ -101,7 +101,7 @@ describe("On CaseStatusUpdated", () => {
       data: {
         clientRef,
         code,
-        configVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         identifiers: {
           sbi: "1234567890",
           frn: "1234567890",
