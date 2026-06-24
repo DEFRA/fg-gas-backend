@@ -4,7 +4,7 @@ import path from "node:path";
 import { env } from "node:process";
 
 function getLatestGitTagOrFallback() {
-  return execSync("git describe --tags --always", {
+  return execSync("git describe --tags --always --long", {
     encoding: "utf8",
   }).trim();
 }
