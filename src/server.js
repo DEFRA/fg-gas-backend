@@ -9,6 +9,7 @@ import { auth } from "./auth/auth.js";
 import { config } from "./common/config.js";
 import { logger } from "./common/logger.js";
 import { mongoClient } from "./common/mongo-client.js";
+import { withRequestContext } from "./common/request-context.js";
 
 const handlePreResponse = (request, h) => {
   const response = request.response;
@@ -108,6 +109,21 @@ export const createServer = async () => {
     },
     auth,
   ]);
+
+  // eslint-disable-next-line complexity
+  server.ext("onRequest", (request, h) => {
+    const context = {
+      user: request.headers["x-user-id"] ?? null,
+      subject: request.headers["x-subject-id"] ?? null,
+      sessionId: request.headers["x-session-id"] ?? null,
+      ip: request.info.remoteAddress,
+    };
+    for (const cycle of ["_lifecycle", "_postCycle"]) {
+      const fn = request[cycle].bind(request);
+      request[cycle] = () => withRequestContext(context, fn);
+    }
+    return h.continue;
+  });
 
   server.ext("onPreResponse", handlePreResponse);
 
