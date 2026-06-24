@@ -39,7 +39,9 @@ const schema = Joi.object({
   GAS__SNS__UPDATE_CASE_STATUS_TOPIC_ARN: Joi.string().optional(),
   GAS__SQS__UPDATE_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: Joi.string().uri().optional(),
+  GAS__SQS__CONFIG_VERSION_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional(),
+  CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -101,5 +103,9 @@ export const config = {
     updateStatusQueueUrl: vars.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
     updateAgreementStatusQueueUrl:
       vars.GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL,
+    configVersionQueueUrl: vars.GAS__SQS__CONFIG_VERSION_QUEUE_URL,
+  },
+  configBroker: {
+    s3Bucket: vars.CONFIG_BROKER_S3_BUCKET,
   },
 };

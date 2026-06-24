@@ -73,6 +73,7 @@ describe("addAgreementUseCase", () => {
     expect(UpdateCaseStatusCommand).toHaveBeenCalledWith({
       caseRef: "test-client-ref",
       workflowCode: "test-code",
+      configVersion: "1.0.0",
       newStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
       phase: "PRE_AWARD",
       stage: "ASSESSMENT",

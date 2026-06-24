@@ -16,6 +16,7 @@ describe("CreateAgreementCommand", () => {
       currentStatus: ApplicationStatus.Received,
       clientRef: "123",
       code: "grant-code",
+      configVersion: "1.0.0",
       createdAt: new Date().toISOString(),
       submittedAt: new Date().toISOString(),
       identifiers: { name: "Test App" },
@@ -41,6 +42,7 @@ describe("CreateAgreementCommand", () => {
       data: {
         clientRef: "123",
         code: "grant-code",
+        configVersion: "1.0.0",
         identifiers: {
           name: "Test App",
         },
@@ -61,6 +63,7 @@ describe("CreateAgreementCommand", () => {
       currentStatus: ApplicationStatus.Received,
       clientRef: "123",
       code: "grant-code",
+      configVersion: "1.0.0",
       createdAt: new Date().toISOString(),
       submittedAt: new Date().toISOString(),
       identifiers: { name: "Test App" },

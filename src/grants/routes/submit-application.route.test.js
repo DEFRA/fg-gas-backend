@@ -39,6 +39,7 @@ describe("submitApplicationRoute", () => {
       method: "POST",
       url: "/grants/test-grant/applications",
       payload: {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           sbi: "123456789",
@@ -59,6 +60,7 @@ describe("submitApplicationRoute", () => {
     expect(result).toEqual(null);
 
     expect(submitApplicationUseCase).toHaveBeenCalledWith("test-grant", {
+      configVersion: "1.0.0",
       metadata: {
         clientRef: "test-client-ref",
         sbi: "123456789",
@@ -79,6 +81,7 @@ describe("submitApplicationRoute", () => {
       method: "POST",
       url: "/grants/test-grant/applications",
       payload: {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           previousClientRef: "prev-test-client-ref",
@@ -100,6 +103,7 @@ describe("submitApplicationRoute", () => {
     expect(result).toEqual(null);
 
     expect(replaceApplicationUseCase).toHaveBeenCalledWith("test-grant", {
+      configVersion: "1.0.0",
       metadata: {
         clientRef: "test-client-ref",
         previousClientRef: "prev-test-client-ref",
@@ -121,6 +125,7 @@ describe("submitApplicationRoute", () => {
       method: "POST",
       url: "/grants/test-grant/applications",
       payload: {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           sbi: "123456789",
@@ -139,6 +144,7 @@ describe("submitApplicationRoute", () => {
     expect(statusCode).toBe(204);
 
     expect(submitApplicationUseCase).toHaveBeenCalledWith("test-grant", {
+      configVersion: "1.0.0",
       metadata: {
         clientRef: "test-client-ref",
         sbi: "123456789",
@@ -171,6 +177,7 @@ describe("submitApplicationRoute", () => {
       method: "POST",
       url: "/grants/test-grant/applications",
       payload: {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           previousClientRef: "prev-test-client-ref",
@@ -196,6 +203,7 @@ describe("submitApplicationRoute", () => {
       method: "POST",
       url: "/grants/test-grant/applications",
       payload: {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           sbi: "123456789",

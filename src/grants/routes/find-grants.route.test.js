@@ -83,6 +83,7 @@ describe("findGrantsRoute", () => {
           startDate: "2023-01-01T00:00:00Z",
         },
         actions: [],
+        version: "1.0.0",
         phases: [
           {
             code: "PRE_AWARD",
@@ -106,6 +107,7 @@ describe("findGrantsRoute", () => {
           startDate: "2023-01-01T00:00:00Z",
         },
         actions: [],
+        version: "1.0.0",
         phases: [
           {
             code: "PRE_AWARD",
