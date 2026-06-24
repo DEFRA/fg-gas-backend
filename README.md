@@ -31,7 +31,7 @@ If you want to run this service with other farming grants applications see [fg-g
 
 As part of the Grant Application Service, you can configure and call actions on grants.
 
-Given a grant definition is stored in GAS as per the following example:
+Given a grant definition is stored in GAS as per following example:
 
 - Note the $areaId and $segmentId in the URL, these are placeholders that will be replaced with actual values when the action is invoked.
 
