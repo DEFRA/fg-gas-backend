@@ -69,7 +69,7 @@ export const receiveMessages = async (queueUrl) => {
     new ReceiveMessageCommand({
       QueueUrl: queueUrl,
       MaxNumberOfMessages: 10,
-      WaitTimeSeconds: 5,
+      WaitTimeSeconds: 1,
     }),
   );
 
