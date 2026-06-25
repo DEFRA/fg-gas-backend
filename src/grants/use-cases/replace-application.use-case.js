@@ -1,6 +1,11 @@
 import Boom from "@hapi/boom";
+import {
+  auditActions,
+  auditEntities,
+  buildAuditEvent,
+} from "../../common/audit-constants.js";
 import { logger } from "../../common/logger.js";
-import { withTransaction } from "../../common/with-transaction.js";
+import { withAudit } from "../../common/with-audit.js";
 import {
   findByClientRefAndCode,
   update,
@@ -9,41 +14,55 @@ import { findByCode } from "../repositories/grant.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 
-export const replaceApplicationUseCase = async (code, application) => {
+const replaceApplication = async (session, code, application) => {
+  const { clientRef, previousClientRef } = application.metadata;
   logger.info(`Replacing application`);
 
-  return withTransaction(async (session) => {
-    const { clientRef, previousClientRef } = application.metadata;
-    logger.info(`Got previousClientRef: ${previousClientRef}.`);
+  const grant = await findByCode(code);
+  logger.info(`Got previousClientRef: ${previousClientRef}.`);
 
-    const grant = await findByCode(code);
+  const previousAppl = await findApplicationByClientRefAndCodeUseCase(
+    previousClientRef,
+    code,
+    session,
+  );
 
-    const previousAppl = await findApplicationByClientRefAndCodeUseCase(
+  if (previousAppl.isReplacementAllowed(grant.amendablePositions)) {
+    logger.info("About to update ApplicationSeries");
+    const applicationID = await createApplicationUseCase(
+      code,
+      application,
+      session,
+    );
+    const series = await findByClientRefAndCode(
       previousClientRef,
       code,
       session,
     );
+    series.addClientRef(clientRef, applicationID);
+    await update(series, session);
+    logger.info("Updated ApplicationSeries.");
+  } else {
+    throw Boom.conflict(
+      `Can not replace existing Application with clientRef: ${previousClientRef} with new clientRef: ${clientRef} - replacement is not allowed`,
+    );
+  }
 
-    if (previousAppl.isReplacementAllowed(grant.amendablePositions)) {
-      logger.info("About to update ApplicationSeries");
-      const applicationID = await createApplicationUseCase(
-        code,
-        application,
-        session,
-      );
-      const series = await findByClientRefAndCode(
-        previousClientRef,
-        code,
-        session,
-      );
-      series.addClientRef(clientRef, applicationID);
-      await update(series, session);
-      logger.info("Updated ApplicationSeries.");
-    } else {
-      throw Boom.conflict(
-        `Can not replace existing Application with clientRef: ${previousClientRef} with new clientRef: ${clientRef} - replacement is not allowed`,
-      );
-    }
-    logger.info("End replacing application.");
-  });
+  logger.info("End replacing application.");
 };
+
+export const replaceApplicationUseCase = withAudit({
+  transactional: true,
+  run: replaceApplication,
+  audit: ({ args }) => {
+    const [code, application] = args;
+    const { clientRef, previousClientRef } = application.metadata;
+    return buildAuditEvent({
+      entity: auditEntities.APPLICATION,
+      action: auditActions.REPLACE_APPLICATION,
+      entityid: clientRef,
+      details: { code, previousClientRef },
+      messageGroupId: `${clientRef}-${code}`,
+    });
+  },
+});

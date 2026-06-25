@@ -205,17 +205,17 @@ describe("outbox.subscriber", () => {
 
   it("should handle legacy event types", async () => {
     publish.mockResolvedValue(1);
+    const topicArn =
+      "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status";
     const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
+      target: topicArn,
       event: {},
       markAsComplete: vi.fn(),
     };
 
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
-    expect(publish.mock.calls[0][0]).toBe(
-      "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo",
-    );
+    expect(publish.mock.calls[0][0]).toBe(topicArn);
   });
 
   it("should mark events as sent", async () => {

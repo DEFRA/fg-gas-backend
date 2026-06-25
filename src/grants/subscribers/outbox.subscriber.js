@@ -175,9 +175,9 @@ export class OutboxSubscriber {
   // TODO: remove once there are no more standard events
   // temp while we transition to fifo
   topicStringToFifo(topic) {
-    if (topic.search(/_fifo.fifo$/) === -1) {
-      return `${topic}_fifo.fifo`;
-    }
+    //    if (topic.search(/_fifo.fifo$/) === -1) {
+    //      return `${topic}_fifo.fifo`;
+    //    }
 
     return topic;
   }

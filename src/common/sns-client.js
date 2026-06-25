@@ -2,18 +2,21 @@ import { PublishCommand, SNSClient } from "@aws-sdk/client-sns";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 
-const snsClient = new SNSClient({
+export const snsClient = new SNSClient({
   region: config.region,
   endpoint: config.awsEndpointUrl,
 });
 
 export const publish = async (topic, data, messageGroupId) => {
-  logger.info(`Publish command ${topic}`);
+  logger.info(`Publish command ${topic} ${messageGroupId}`);
+  const messageGroup = topic.endsWith(".fifo") && {
+    MessageGroupId: messageGroupId,
+  };
   await snsClient.send(
     new PublishCommand({
       TopicArn: topic,
       Message: JSON.stringify(data),
-      MessageGroupId: messageGroupId,
+      ...messageGroup,
     }),
   );
 };
