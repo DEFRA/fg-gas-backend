@@ -53,7 +53,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getTraceId.mockReturnValue("trace-id-123");
   getRequestContext.mockReturnValue(null);
-  validateAuditEvent.mockReturnValue({ valid: true, errors: [] });
+  validateAuditEvent.mockReturnValue({ valid: true });
   Outbox.mockImplementation(function (data) {
     Object.assign(this, data);
   });

@@ -17,7 +17,9 @@ const getIP = (context) => context?.ip ?? getServiceIp();
 const getServiceIp = () => {
   for (const iface of Object.values(networkInterfaces())) {
     const addr = iface.find((n) => n.family === "IPv4" && !n.internal);
-    if (addr) return addr.address;
+    if (addr) {
+      return addr.address;
+    }
   }
   return null;
 };
@@ -61,7 +63,7 @@ export const writeAuditEvent = async (
   });
   logger.debug(payload, "audit event payload");
   const { valid, errors } = validateAuditEvent(payload);
-  if (!valid) {
+  if (valid === false) {
     logger.warn(errors, "Audit event failed validation - skipping write.");
   } else {
     const msgGroupId = messageGroupId ?? randomUUID();
