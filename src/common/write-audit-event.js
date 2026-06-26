@@ -14,6 +14,8 @@ const getCorrelationId = () => getTraceId() ?? randomUUID();
 const getUser = (context) => context?.user ?? undefined;
 const getSession = (context) => context?.sessionId ?? undefined;
 const getIP = (context) => context?.ip ?? getServiceIp();
+const stripNulls = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => v != null));
 const getServiceIp = () => {
   for (const iface of Object.values(networkInterfaces())) {
     const addr = iface.find((n) => n.family === "IPv4" && !n.internal);
@@ -54,13 +56,10 @@ export const writeAuditEvent = async (
   logger.info("Begin write audit event.");
 
   const context = getRequestContext();
-  const payload = buildPayload(context, {
-    entities,
-    accounts,
-    details,
-    security,
-    status,
-  });
+  // mongodb was replacing "undefined" with null which the audit service doesn't like.
+  const payload = stripNulls(
+    buildPayload(context, { entities, accounts, details, security, status }),
+  );
   logger.debug(payload, "audit event payload");
   const { valid, errors } = validateAuditEvent(payload);
   if (valid === false) {
