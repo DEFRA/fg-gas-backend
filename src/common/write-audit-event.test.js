@@ -295,6 +295,27 @@ describe("writeAuditEvent", () => {
     expect(storedEvent).not.toHaveProperty("sessionid");
   });
 
+  it("strips undefined user and sessionid from the payload when context is null", async () => {
+    await writeAuditEvent(eventData, {});
+
+    const storedEvent = Outbox.mock.calls[0][0].event;
+    expect(storedEvent).not.toHaveProperty("user");
+    expect(storedEvent).not.toHaveProperty("sessionid");
+  });
+
+  it("strips undefined user and sessionid from the payload when context values are undefined", async () => {
+    getRequestContext.mockReturnValue({
+      user: undefined,
+      sessionId: undefined,
+    });
+
+    await writeAuditEvent(eventData, {});
+
+    const storedEvent = Outbox.mock.calls[0][0].event;
+    expect(storedEvent).not.toHaveProperty("user");
+    expect(storedEvent).not.toHaveProperty("sessionid");
+  });
+
   it("skips insertMany when payload fails validation", async () => {
     validateAuditEvent.mockReturnValue({
       valid: false,
