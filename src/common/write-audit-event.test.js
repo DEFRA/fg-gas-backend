@@ -181,7 +181,7 @@ describe("buildPayload", () => {
       security: { userId: "u-1" },
     });
 
-    expect(result.security).toEqual({ security: { userId: "u-1" } });
+    expect(result.security).toEqual({ userId: "u-1" });
   });
 
   it("sets security to undefined when not provided", () => {

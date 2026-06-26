@@ -44,7 +44,7 @@ export const buildPayload = (
   sessionid: getSession(context),
   ip: getIP(context),
   audit: createAuditPayload(accounts, entities, details, status),
-  security: buildSecurity(security),
+  ...buildSecurity(security),
 });
 
 export const writeAuditEvent = async (
