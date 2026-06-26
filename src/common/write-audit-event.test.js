@@ -173,6 +173,16 @@ describe("buildPayload", () => {
     expect(result.sessionid).toBeUndefined();
   });
 
+  it("sets user, sessionid to undefined when context values are null", () => {
+    const result = buildPayload(
+      { user: null, sessionId: null },
+      { entities: [], details: {}, status: auditStatus.SUCCESS },
+    );
+
+    expect(result.user).toBeUndefined();
+    expect(result.sessionid).toBeUndefined();
+  });
+
   it("wraps security when provided", () => {
     const result = buildPayload(null, {
       entities: [],
@@ -273,6 +283,16 @@ describe("writeAuditEvent", () => {
         }),
       }),
     );
+  });
+
+  it("strips null user and sessionid from the payload before validation", async () => {
+    getRequestContext.mockReturnValue({ user: null, sessionId: null });
+
+    await writeAuditEvent(eventData, {});
+
+    const storedEvent = Outbox.mock.calls[0][0].event;
+    expect(storedEvent).not.toHaveProperty("user");
+    expect(storedEvent).not.toHaveProperty("sessionid");
   });
 
   it("skips insertMany when payload fails validation", async () => {
