@@ -7,6 +7,7 @@ import hapiPulse from "hapi-pulse";
 import HapiSwagger from "hapi-swagger";
 import { auth } from "./auth/auth.js";
 import { config } from "./common/config.js";
+import { withRequestContext } from "./common/get-request-context.js";
 import { logger } from "./common/logger.js";
 import { mongoClient } from "./common/mongo-client.js";
 
@@ -108,6 +109,17 @@ export const createServer = async () => {
     },
     auth,
   ]);
+
+  server.ext("onRequest", (request, h) => {
+    const context = {
+      ip: request.info.remoteAddress,
+    };
+    for (const cycle of ["_lifecycle", "_postCycle"]) {
+      const fn = request[cycle].bind(request);
+      request[cycle] = () => withRequestContext(context, fn);
+    }
+    return h.continue;
+  });
 
   server.ext("onPreResponse", handlePreResponse);
 
