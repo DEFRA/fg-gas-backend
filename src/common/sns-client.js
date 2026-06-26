@@ -9,11 +9,14 @@ const snsClient = new SNSClient({
 
 export const publish = async (topic, data, messageGroupId) => {
   logger.info(`Publish command ${topic}`);
+  const messageGroup = topic.endsWith(".fifo") && {
+    MessageGroupId: messageGroupId,
+  };
   await snsClient.send(
     new PublishCommand({
       TopicArn: topic,
       Message: JSON.stringify(data),
-      MessageGroupId: messageGroupId,
+      ...messageGroup,
     }),
   );
 };
