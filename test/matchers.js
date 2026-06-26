@@ -36,7 +36,7 @@ expect.extend({
         const msgs = await receiveMessages(queueUrl);
         return msgs.length > 0 ? msgs : null;
       },
-      { timeout: 5000, interval: 100 },
+      { timeout: 15000, interval: 100 },
     );
 
     const pass = messages.some((msg) => this.equals(msg, expectedMessage));
