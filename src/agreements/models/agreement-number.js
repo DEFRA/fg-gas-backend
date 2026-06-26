@@ -6,13 +6,17 @@ const validatePrefix = (prefix) => {
   }
 };
 
+const MAX_SUFFIX_LENGTH = 14;
+
 const validateSuffixLength = (suffixLength) => {
   if (
     !Number.isInteger(suffixLength) ||
     suffixLength < 1 ||
-    suffixLength > 14
+    suffixLength > MAX_SUFFIX_LENGTH
   ) {
-    throw new Error("suffixLength must be an integer between 1 and 14");
+    throw new Error(
+      `suffixLength must be an integer between 1 and ${MAX_SUFFIX_LENGTH}`,
+    );
   }
 };
 

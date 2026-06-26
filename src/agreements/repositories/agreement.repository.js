@@ -37,7 +37,11 @@ export const saveAgreement = async (agreement, session) => {
       .collection(agreementsCollection)
       .insertOne(new AgreementDocument(agreement), { session });
   } catch (error) {
-    if (error instanceof MongoServerError && error.code === 11000) {
+    const MONGO_DUPLICATE_KEY_ERROR = 11000;
+    if (
+      error instanceof MongoServerError &&
+      error.code === MONGO_DUPLICATE_KEY_ERROR
+    ) {
       throwOnDuplicateKey(error, agreement.agreementNumber);
     }
     throw error;
