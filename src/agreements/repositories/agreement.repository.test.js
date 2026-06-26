@@ -2,9 +2,7 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
-import { AgreementDocument } from "../models/agreement-document.js";
 import { AgreementItem } from "../models/agreement-item.js";
-import { AgreementVersionDocument } from "../models/agreement-version-document.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
 import {
@@ -14,6 +12,8 @@ import {
   saveVersion,
   versionsCollection,
 } from "./agreement.repository.js";
+import { AgreementDocument } from "./agreement/agreement-document.js";
+import { AgreementVersionDocument } from "./agreement/agreement-version-document.js";
 
 vi.mock("../../common/mongo-client.js");
 

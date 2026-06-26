@@ -1,10 +1,10 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
-import { AgreementDocument } from "../models/agreement-document.js";
 import { AgreementItem } from "../models/agreement-item.js";
-import { AgreementVersionDocument } from "../models/agreement-version-document.js";
 import { Agreement } from "../models/agreement.js";
+import { AgreementDocument } from "./agreement/agreement-document.js";
+import { AgreementVersionDocument } from "./agreement/agreement-version-document.js";
 
 export const toAgreement = (doc) =>
   new Agreement({
