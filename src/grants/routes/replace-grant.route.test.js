@@ -53,6 +53,7 @@ describe("replaceGrantRoute", () => {
     expect(result).toEqual(null);
 
     expect(replaceGrantUseCase).toHaveBeenCalledWith("test-grant", {
+      version: "0.0.0",
       metadata: {
         description: "Updated test grant",
         startDate: new Date("2100-01-01T00:00:00.000Z"),
