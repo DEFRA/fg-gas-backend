@@ -39,6 +39,7 @@ describe("findGrantByCodeRoute", () => {
 
     expect(result).toEqual({
       code: "test-code",
+      version: "0.0.0",
       metadata: {
         description: "Test Grant",
         startDate: "2100-01-01T00:00:00.000Z",

@@ -4,6 +4,7 @@ const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
 export class Grant {
   constructor({
     code,
+    version,
     metadata,
     actions,
     phases,
@@ -11,6 +12,7 @@ export class Grant {
     amendablePositions,
   }) {
     this.code = code;
+    this.version = version ?? "0.0.0";
     this.metadata = {
       description: metadata.description,
       startDate: metadata.startDate,
