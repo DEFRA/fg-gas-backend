@@ -6,6 +6,9 @@
 // Handler interface: async (context, effect) => ({ output?, context? })
 //   output  — stored at context.outputs[effect.output] when effect.output is set
 //   context — fields to merge into the context passed to the next effect
+//
+// context.outputs is frozen before each handler call; writing to it directly throws
+// a TypeError. Return { output: value } and set effect.output instead.
 const snapshotEffectHandler = async (_context, { params: _params = {} }) => {
   throw new Error("snapshot handler not yet implemented");
 };
@@ -45,7 +48,10 @@ export const mergeEffectResult = (context, effect, result = {}) => ({
 });
 
 export const runAgreementEffects = async (effects, context) => {
-  let currentContext = { ...context, outputs: { ...context.outputs } };
+  let currentContext = {
+    ...context,
+    outputs: structuredClone(context.outputs ?? {}),
+  };
 
   for (const effect of effects) {
     const handler = handlers[effect.name];
@@ -58,7 +64,9 @@ export const runAgreementEffects = async (effects, context) => {
       );
     }
 
-    const handlerResult = await handler(currentContext, effect);
+    const handlerContext = structuredClone(currentContext);
+    handlerContext.outputs = Object.freeze(handlerContext.outputs);
+    const handlerResult = await handler(handlerContext, effect);
 
     currentContext = mergeEffectResult(currentContext, effect, handlerResult);
   }

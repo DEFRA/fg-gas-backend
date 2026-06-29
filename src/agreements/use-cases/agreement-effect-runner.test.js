@@ -199,6 +199,63 @@ describe("runAgreementEffects", () => {
     expect(Object.keys(result.outputs)).toHaveLength(0);
   });
 
+  it("passes a frozen outputs object to each handler", async () => {
+    let outputsSeenByHandler;
+    vi.spyOn(handlers, "snapshot").mockImplementation(async (context) => {
+      outputsSeenByHandler = context.outputs;
+    });
+
+    await runAgreementEffects([{ name: "snapshot" }], {});
+
+    expect(Object.isFrozen(outputsSeenByHandler)).toBe(true);
+  });
+
+  it("throws a TypeError when a handler writes directly to context.outputs", async () => {
+    vi.spyOn(handlers, "snapshot").mockImplementation(async (context) => {
+      context.outputs.injected = "malicious";
+    });
+
+    await expect(
+      runAgreementEffects([{ name: "snapshot" }], {}),
+    ).rejects.toThrow(TypeError);
+  });
+
+  it("does not carry nested mutations to existing output values into the next effect", async () => {
+    vi.spyOn(handlers, "snapshot").mockResolvedValue({
+      output: { count: 1 },
+    });
+    vi.spyOn(handlers, "callEndpoint").mockImplementation(async (context) => {
+      context.outputs.snapshotResult.count = 999;
+    });
+
+    const result = await runAgreementEffects(
+      [
+        { name: "snapshot", output: "snapshotResult" },
+        { name: "callEndpoint" },
+      ],
+      {},
+    );
+
+    expect(result.outputs.snapshotResult.count).toBe(1);
+  });
+
+  it("does not carry mutations to non-outputs context fields into the next effect", async () => {
+    let contextReceivedBySecond;
+    vi.spyOn(handlers, "snapshot").mockImplementation(async (context) => {
+      context.agreement.status = "mutated";
+    });
+    vi.spyOn(handlers, "callEndpoint").mockImplementation(async (context) => {
+      contextReceivedBySecond = context;
+    });
+
+    await runAgreementEffects(
+      [{ name: "snapshot" }, { name: "callEndpoint" }],
+      { agreement: { status: "original" } },
+    );
+
+    expect(contextReceivedBySecond.agreement.status).toBe("original");
+  });
+
   it("throws an actionable error and stops execution when an effect name has no handler", async () => {
     const snapshotSpy = vi.spyOn(handlers, "snapshot");
 
