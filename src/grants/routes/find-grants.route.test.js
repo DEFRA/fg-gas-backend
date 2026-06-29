@@ -78,6 +78,7 @@ describe("findGrantsRoute", () => {
     expect(result).toEqual([
       {
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Test Grant Description",
           startDate: "2023-01-01T00:00:00Z",
@@ -101,6 +102,7 @@ describe("findGrantsRoute", () => {
       },
       {
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Test Grant Description",
           startDate: "2023-01-01T00:00:00Z",
