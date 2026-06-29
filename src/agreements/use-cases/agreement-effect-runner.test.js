@@ -5,6 +5,32 @@ import {
   runAgreementEffects,
 } from "./agreement-effect-runner.js";
 
+describe("handlers", () => {
+  it("snapshot throws not-yet-implemented", async () => {
+    await expect(handlers.snapshot({}, {})).rejects.toThrow(
+      "snapshot handler not yet implemented",
+    );
+  });
+
+  it("callEndpoint throws not-yet-implemented", async () => {
+    await expect(handlers.callEndpoint({}, {})).rejects.toThrow(
+      "callEndpoint handler not yet implemented",
+    );
+  });
+
+  it("createPaymentClaim throws not-yet-implemented", async () => {
+    await expect(handlers.createPaymentClaim({}, {})).rejects.toThrow(
+      "createPaymentClaim handler not yet implemented",
+    );
+  });
+
+  it("publish throws not-yet-implemented", async () => {
+    await expect(handlers.publish({}, {})).rejects.toThrow(
+      "publish handler not yet implemented",
+    );
+  });
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
