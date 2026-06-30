@@ -8,7 +8,6 @@ import { phases } from "../grant/phases.js";
 export const grantRequestSchema = Joi.object({
   version: Joi.string()
     .pattern(/^\d+\.\d+\.\d+$/)
-    .default("0.0.0")
     .optional()
     .label("version"),
   metadata: Joi.object({
