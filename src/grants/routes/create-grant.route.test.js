@@ -69,7 +69,6 @@ describe("createGrantRoute", () => {
 
     expect(createGrantUseCase).toHaveBeenCalledWith({
       code: "test",
-      version: "0.0.0",
       metadata: {
         description: "test",
         startDate: new Date("2100-01-01T00:00:00.000Z"),
