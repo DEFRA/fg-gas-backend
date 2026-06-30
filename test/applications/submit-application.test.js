@@ -28,6 +28,7 @@ describe("POST /grants/{code}/applications", () => {
       json: true,
       payload: {
         code: "test-code-1",
+        version: "0.0.0",
         metadata: {
           description: "test description 1",
           startDate: "2100-01-01T00:00:00.000Z",
@@ -181,6 +182,7 @@ describe("POST /grants/{code}/applications", () => {
       json: true,
       payload: {
         code: "test-code-1",
+        version: "0.0.0",
         metadata: {
           description: "test description 1",
           startDate: "2100-01-01T00:00:00.000Z",
@@ -304,6 +306,7 @@ describe("POST /grants/{code}/applications", () => {
       json: true,
       payload: {
         code: "test-code-1",
+        version: "0.0.0",
         metadata: {
           description: "test description 1",
           startDate: "2100-01-01T00:00:00.000Z",
@@ -373,6 +376,7 @@ describe("POST /grants/{code}/applications", () => {
       json: true,
       payload: {
         code: "test-code-1",
+        version: "0.0.0",
         metadata: {
           description: "test description 1",
           startDate: "2100-01-01T00:00:00.000Z",
@@ -625,6 +629,7 @@ describe("POST /grants/{code}/applications", () => {
       json: true,
       payload: {
         code: "test-code-1",
+        version: "0.0.0",
         metadata: {
           description: "test description 1",
           startDate: "2100-01-01T00:00:00.000Z",
@@ -781,6 +786,7 @@ describe("POST /grants/{code}/applications", () => {
       json: true,
       payload: {
         code: "test-code-2",
+        version: "0.0.0",
         metadata: {
           description: "test description 1",
           startDate: "2100-01-01T00:00:00.000Z",
@@ -861,6 +867,7 @@ describe("POST /grants/{code}/applications", () => {
       json: true,
       payload: {
         code: "test-code-1",
+        version: "0.0.0",
         metadata: {
           description: "test description 1",
           startDate: "2100-01-01T00:00:00.000Z",

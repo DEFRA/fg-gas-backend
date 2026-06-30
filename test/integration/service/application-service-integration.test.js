@@ -24,6 +24,7 @@ describe("Application Service Integration Tests", () => {
       // Create grant with complex schema
       const grantData = {
         code: grantCode,
+        version: "0.0.0",
         metadata: {
           description: "Complex application processing grant",
           startDate: "2025-01-01T00:00:00.000Z",
@@ -218,6 +219,7 @@ describe("Application Service Integration Tests", () => {
       // Create grant with array and conditional validation
       const grantData = {
         code: grantCode,
+        version: "0.0.0",
         metadata: {
           description: "Grant testing array validation",
           startDate: "2025-01-01T00:00:00.000Z",
@@ -360,6 +362,7 @@ describe("Application Service Integration Tests", () => {
       // Create grant with strict validation rules
       const grantData = {
         code: grantCode,
+        version: "0.0.0",
         metadata: {
           description: "Grant for validation testing",
           startDate: "2025-01-01T00:00:00.000Z",
