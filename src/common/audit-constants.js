@@ -5,7 +5,6 @@ export const auditEntities = {
 export const auditActions = {
   SUBMIT_APPLICATION: "SUBMIT_APPLICATION",
   REPLACE_APPLICATION: "REPLACE_APPLICATION",
-  ACCEPT_AGREEMENT: "ACCEPT_AGREEMENT",
 };
 
 export const auditStatus = {
