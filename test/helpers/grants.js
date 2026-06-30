@@ -60,6 +60,7 @@ export const createTestGrant = (overrides = {}) => {
 export const createGrant = async () => {
   const payload = {
     code: "test-code-1",
+    version: "0.0.0",
     metadata: {
       description: "test description 1",
       startDate: "2100-01-01T00:00:00.000Z",
