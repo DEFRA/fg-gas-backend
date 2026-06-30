@@ -12,7 +12,7 @@ export class Grant {
     amendablePositions,
   }) {
     this.code = code;
-    this.version = version ?? "0.0.0";
+    this.version = version;
     this.metadata = {
       description: metadata.description,
       startDate: metadata.startDate,
