@@ -7,6 +7,7 @@ import { Grant } from "../models/grant.js";
 export const toGrant = (doc) =>
   new Grant({
     code: doc.code,
+    version: doc.version,
     metadata: doc.metadata,
     actions: doc.actions,
     phases: doc.phases,
@@ -33,7 +34,9 @@ export const save = async (grant) => {
 export const replace = async (grant) => {
   const document = new GrantDocument(grant);
 
-  await db.collection(collection).replaceOne({ code: grant.code }, document);
+  await db
+    .collection(collection)
+    .replaceOne({ code: grant.code, version: grant.version }, document);
 };
 
 export const findAll = async () => {
@@ -42,9 +45,10 @@ export const findAll = async () => {
   return results.map(toGrant);
 };
 
-export const findByCode = async (code) => {
+export const findByCode = async (code, version = "0.0.0") => {
   const result = await db.collection(collection).findOne({
     code,
+    version,
   });
 
   return result && toGrant(result);
