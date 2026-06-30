@@ -25,7 +25,7 @@ const message = {
   type: "io.onsite.agreement.status.updated",
   datacontenttype: "application/json",
   data: {
-    agreementNumber: "AGREEMENT-REF-123",
+    agreementNumber: "FPTT147850259",
     correlationId: "ebfd8259-1c16-4b34-af9b-6ca5ba7a02e9",
     clientRef: "clientcoc0u82x",
     version: 1,

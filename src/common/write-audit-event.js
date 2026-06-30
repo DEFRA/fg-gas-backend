@@ -60,7 +60,7 @@ export const writeAuditEvent = async (
   const payload = stripNulls(
     buildPayload(context, { entities, accounts, details, security, status }),
   );
-  logger.debug(payload, "audit event payload");
+  logger.info(payload, "audit event payload");
   const { valid, errors } = validateAuditEvent(payload);
   if (valid === false) {
     logger.warn(errors, "Audit event failed validation - skipping write.");
