@@ -27,6 +27,7 @@ describe("Simple Integration Tests", () => {
     // Create a simple grant using the same pattern as the working tests
     const grantData = {
       code: grantCode,
+      version: "0.0.0",
       metadata: {
         description: "Simple integration test grant",
         startDate: "2025-01-01T00:00:00.000Z",

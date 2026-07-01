@@ -1,6 +1,8 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { writeAuditEvent } from "../../common/write-audit-event.js";
 import { Application } from "../models/application.js";
 import {
   findByClientRefAndCode,
@@ -8,10 +10,14 @@ import {
 } from "../repositories/application-series.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
-import { replaceApplicationUseCase } from "./replace-application.use-case.js";
+import {
+  auditDataBuilder,
+  replaceApplicationUseCase,
+} from "./replace-application.use-case.js";
 import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
 
 vi.mock("../../common/with-transaction.js");
+vi.mock("../../common/write-audit-event.js");
 vi.mock("./create-application.use-case.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../repositories/application-series.repository.js");
@@ -40,6 +46,7 @@ describe("replaceApplicationUseCase", () => {
       },
       resolvedVersion: null,
     });
+    writeAuditEvent.mockResolvedValue(undefined);
   });
 
   it("creates a new application and updates the series when replacement is allowed", async () => {
@@ -164,5 +171,72 @@ describe("replaceApplicationUseCase", () => {
     ).rejects.toThrow("Failed to create application");
 
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("writes an audit event after a successful replace", async () => {
+    const prevApplication = new Application({
+      currentPhase: "PRE_AWARD",
+      currentStage: "REVIEW_OFFER",
+      currentStatus: "APPLICATION_AMEND",
+      code: "test-grant",
+      clientRef: "ref-123",
+      phases: [],
+    });
+
+    const mockSession = {};
+    withTransaction.mockImplementation(async (cb) => cb(mockSession));
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(prevApplication);
+    createApplicationUseCase.mockResolvedValue("new-application-id");
+    const mockXref = { addClientRef: vi.fn() };
+    findByClientRefAndCode.mockResolvedValue(mockXref);
+    update.mockResolvedValue({});
+
+    await replaceApplicationUseCase("test-grant", testApplication);
+
+    expect(writeAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entities: [
+          expect.objectContaining({
+            action: auditActions.REPLACE_APPLICATION,
+            entityid: "new-application-id",
+          }),
+        ],
+        accounts: {
+          sbi: testApplication.metadata.sbi,
+          frn: testApplication.metadata.frn,
+          crn: testApplication.metadata.crn,
+        },
+        messageGroupId: "submission-new-application-id",
+      }),
+      mockSession,
+    );
+  });
+});
+
+describe("auditDataBuilder", () => {
+  const applicationId = "new-application-id";
+  const args = [{ code: "test-grant", application: testApplication }, {}];
+
+  it("emits REPLACE_APPLICATION on the APPLICATION entity with the correct entityid", () => {
+    const event = auditDataBuilder(args, applicationId);
+    expect(event.entities[0]).toEqual({
+      entity: auditEntities.APPLICATION,
+      action: auditActions.REPLACE_APPLICATION,
+      entityid: applicationId,
+    });
+  });
+
+  it("sets accounts from application metadata sbi, frn and crn", () => {
+    const event = auditDataBuilder(args, applicationId);
+    expect(event.accounts).toEqual({
+      sbi: testApplication.metadata.sbi,
+      frn: testApplication.metadata.frn,
+      crn: testApplication.metadata.crn,
+    });
+  });
+
+  it("sets messageGroupId to submission-{applicationId}", () => {
+    const event = auditDataBuilder(args, applicationId);
+    expect(event.messageGroupId).toBe(`submission-${applicationId}`);
   });
 });

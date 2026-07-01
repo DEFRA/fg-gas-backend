@@ -47,11 +47,10 @@ export const findAll = async () => {
   return results.map(toGrant);
 };
 
-// TODO: Update to return the latest version once all callers are version-aware.
-// Currently used by apply-event-status-change.service.js for legacy flows.
-export const findByCode = async (code) => {
+export const findByCode = async (code, version = "0.0.0") => {
   const result = await db.collection(collection).findOne({
     code,
+    version,
   });
 
   return result && toGrant(result);

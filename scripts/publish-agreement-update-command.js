@@ -28,7 +28,7 @@ const message = {
     clientRef: "APPLICATION-PMF-001",
     code: "pigs-might-fly",
     status: "offered",
-    agreementNumber: "AGREEMENT-REF-123",
+    agreementNumber: "FPTT147850259",
     date: "2025-09-09T11:30:52.000Z",
     correlationId: "test-correlation-id",
   },

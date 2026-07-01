@@ -1,6 +1,6 @@
 export const grant1 = {
   code: "test-code-1",
-  version: "1.0.0",
+  version: "0.0.0",
   metadata: {
     description: "test description 1",
     startDate: "2100-01-01T00:00:00.000Z",
@@ -41,7 +41,7 @@ export const grant1 = {
 
 export const grant2 = {
   code: "test-code-2",
-  version: "1.0.0",
+  version: "0.0.0",
   metadata: {
     description: "test description 2",
     startDate: "2010-01-01T00:00:00.000Z",
@@ -82,7 +82,7 @@ export const grant2 = {
 
 export const grant3 = {
   code: "test-code-3",
-  version: "1.0.0",
+  version: "0.0.0",
   metadata: {
     description: "test description 3",
     startDate: "2100-01-01T00:00:00.000Z",
