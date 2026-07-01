@@ -46,7 +46,7 @@
     "@hapi/hapi": "^21.4.6",
     "@hapi/inert": "^7.1.0",
     "@hapi/vision": "^7.0.3",
-    "@hapi/wreck": "^18.1.0",
+    "@hapi/wreck": "^18.1.2",
     "ajv": "^8.17.1",
     "ajv-formats": "3.0.1",
     "aws4": "^1.13.2",
