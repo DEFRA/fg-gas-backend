@@ -27,6 +27,7 @@ describe("save", () => {
     await save(
       new Grant({
         code: "1",
+        version: "0.0.0",
         metadata: {
           description: "test",
           startDate: "2021-01-01T00:00:00.000Z",
@@ -50,7 +51,7 @@ describe("save", () => {
     expect(insertOne).toHaveBeenCalledWith(
       new GrantDocument({
         code: "1",
-        version: "1.0.0",
+        version: "0.0.0",
         metadata: {
           description: "test",
           startDate: "2021-01-01T00:00:00.000Z",
@@ -78,6 +79,7 @@ describe("save", () => {
       save(
         new Grant({
           code: "1",
+          version: "0.0.0",
           metadata: {
             description: "test",
             startDate: "2021-01-01T00:00:00.000Z",
@@ -111,6 +113,7 @@ describe("save", () => {
       save(
         new Grant({
           code: "1",
+          version: "0.0.0",
           metadata: {
             description: "test",
             startDate: "2021-01-01T00:00:00.000Z",
@@ -145,6 +148,7 @@ describe("replace", () => {
     await replace(
       new Grant({
         code: "code-1",
+        version: "0.0.0",
         metadata: {
           description: "test",
           startDate: "2021-01-01T00:00:00.000Z",
@@ -166,10 +170,10 @@ describe("replace", () => {
     expect(db.collection).toHaveBeenCalledWith("grants");
 
     expect(replaceOne).toHaveBeenCalledWith(
-      { code: "code-1", version: "1.0.0" },
+      { code: "code-1", version: "0.0.0" },
       new GrantDocument({
         code: "code-1",
-        version: "1.0.0",
+        version: "0.0.0",
         metadata: {
           description: "test",
           startDate: "2021-01-01T00:00:00.000Z",
@@ -193,6 +197,7 @@ describe("findAll", () => {
         toArray: vi.fn().mockResolvedValueOnce([
           {
             code: "1",
+            version: "0.0.0",
             metadata: {
               description: "test 1",
               startDate: "2021-01-01T00:00:00.000Z",
@@ -211,6 +216,7 @@ describe("findAll", () => {
           },
           {
             code: "2",
+            version: "0.0.0",
             metadata: {
               description: "test 2",
               startDate: "2021-01-02T00:00:00.000Z",
@@ -238,6 +244,7 @@ describe("findAll", () => {
     expect(result).toStrictEqual([
       new Grant({
         code: "1",
+        version: "0.0.0",
         metadata: {
           description: "test 1",
           startDate: "2021-01-01T00:00:00.000Z",
@@ -256,6 +263,7 @@ describe("findAll", () => {
       }),
       new Grant({
         code: "2",
+        version: "0.0.0",
         metadata: {
           description: "test 2",
           startDate: "2021-01-02T00:00:00.000Z",
@@ -277,9 +285,10 @@ describe("findAll", () => {
 });
 
 describe("findByCode", () => {
-  it("returns a Grant from the repository", async () => {
+  it("defaults to version 0.0.0 and returns the legacy grant", async () => {
     const findOne = vi.fn().mockResolvedValueOnce({
       code: "adding-value",
+      version: "0.0.0",
       metadata: {
         description: "test",
         startDate: "2021-01-01T00:00:00.000Z",
@@ -303,11 +312,13 @@ describe("findByCode", () => {
 
     expect(findOne).toHaveBeenCalledWith({
       code: "adding-value",
+      version: "0.0.0",
     });
 
     expect(result).toStrictEqual(
       new Grant({
         code: "adding-value",
+        version: "0.0.0",
         metadata: {
           description: "test",
           startDate: "2021-01-01T00:00:00.000Z",
@@ -319,6 +330,41 @@ describe("findByCode", () => {
             url: "http://localhost",
           },
         ],
+      }),
+    );
+  });
+
+  it("returns a grant for an explicit version", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce({
+      code: "adding-value",
+      version: "1.0.0",
+      metadata: {
+        description: "test v1",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [],
+    });
+
+    db.collection.mockReturnValue({
+      findOne,
+    });
+
+    const result = await findByCode("adding-value", "1.0.0");
+
+    expect(findOne).toHaveBeenCalledWith({
+      code: "adding-value",
+      version: "1.0.0",
+    });
+
+    expect(result).toStrictEqual(
+      new Grant({
+        code: "adding-value",
+        version: "1.0.0",
+        metadata: {
+          description: "test v1",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
       }),
     );
   });

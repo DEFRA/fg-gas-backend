@@ -113,6 +113,22 @@ export default [
               message:
                 "Services should only import repositories, use-cases, events, publishers and common",
             },
+            {
+              target: "**/agreements/**/!(*.test).js",
+              from: ["**/grants/**"],
+              message:
+                "Agreements must not import Grants or Application domain internals directly. " +
+                "Use HTTP APIs, events, commands, or inbox/outbox records as integration seams. " +
+                "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/grants/**/!(*.test).js",
+              from: ["**/agreements/**"],
+              message:
+                "Grants must not import Agreements domain internals directly. " +
+                "Use HTTP APIs, events, commands, or inbox/outbox records as integration seams. " +
+                "See docs/MODULE_BOUNDARIES.md.",
+            },
           ],
         },
       ],

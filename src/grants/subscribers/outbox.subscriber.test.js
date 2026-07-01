@@ -203,7 +203,7 @@ describe("outbox.subscriber", () => {
     expect(publish.mock.calls[0][2]).toBe("case-ref-workflow-code");
   });
 
-  it("should handle legacy event types", async () => {
+  it("should not change standard queue types", async () => {
     publish.mockResolvedValue(1);
     const mockEvent = {
       target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
@@ -214,7 +214,7 @@ describe("outbox.subscriber", () => {
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
     expect(publish.mock.calls[0][0]).toBe(
-      "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo",
+      "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
     );
   });
 

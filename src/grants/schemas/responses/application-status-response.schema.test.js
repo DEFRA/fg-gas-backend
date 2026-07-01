@@ -64,7 +64,7 @@ describe("application status response schema", () => {
     );
   });
 
-  it("should throw an error if a response grantCode or clientRef is not valid", async () => {
+  it("should throw an error if a response grantCode is not valid", async () => {
     const response = {
       grantCode: "___)9090sd",
       clientRef: "ref-123",
@@ -80,7 +80,7 @@ describe("application status response schema", () => {
     );
   });
 
-  it("should throw an error if a response grantCode or clientRef is not valid", async () => {
+  it("should throw an error if a response clientRef is not valid", async () => {
     const response = {
       grantCode: "grant-01",
       clientRef: "ref-123_++**&",

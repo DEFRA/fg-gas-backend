@@ -27,6 +27,7 @@ describe("Simple Grant Service Integration Tests", () => {
     // Create grant
     const grantData = {
       code: grantCode,
+      version: "0.0.0",
       metadata: {
         description: "Test grant with validation rules",
         startDate: "2025-01-01T00:00:00.000Z",
@@ -135,6 +136,7 @@ describe("Simple Grant Service Integration Tests", () => {
     // Create grant with validation rules
     const grantData = {
       code: grantCode,
+      version: "0.0.0",
       metadata: {
         description: "Test grant for validation",
         startDate: "2025-01-01T00:00:00.000Z",
@@ -211,6 +213,7 @@ describe("Simple Grant Service Integration Tests", () => {
 
     const grantData = {
       code: grantCode,
+      version: "0.0.0",
       metadata: {
         description: "Test duplicate prevention",
         startDate: "2025-01-01T00:00:00.000Z",

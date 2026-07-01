@@ -23,6 +23,7 @@ describe("findGrantsRoute", () => {
     findGrantsUseCase.mockResolvedValue([
       new Grant({
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Test Grant Description",
           startDate: "2023-01-01T00:00:00Z",
@@ -46,6 +47,7 @@ describe("findGrantsRoute", () => {
       }),
       new Grant({
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Test Grant Description",
           startDate: "2023-01-01T00:00:00Z",
@@ -78,12 +80,12 @@ describe("findGrantsRoute", () => {
     expect(result).toEqual([
       {
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Test Grant Description",
           startDate: "2023-01-01T00:00:00Z",
         },
         actions: [],
-        version: "1.0.0",
         phases: [
           {
             code: "PRE_AWARD",
@@ -102,12 +104,12 @@ describe("findGrantsRoute", () => {
       },
       {
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Test Grant Description",
           startDate: "2023-01-01T00:00:00Z",
         },
         actions: [],
-        version: "1.0.0",
         phases: [
           {
             code: "PRE_AWARD",
