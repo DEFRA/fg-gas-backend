@@ -46,7 +46,7 @@ const replaceApplication = async ({ code, application }, session) => {
   }
 };
 
-const auditDataBuilder = (args, results) => {
+export const auditDataBuilder = (args, results) => {
   const code = args[0].code;
   const newApplication = args[0].application;
 
