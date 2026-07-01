@@ -42,7 +42,7 @@ export const buildAuditEvent = ({
 export const withAudit = (f, dataBuilder) =>
   new Proxy(f, {
     async apply(target, _, args) {
-      logger.info("Begin attempt audit with proxy.");
+      logger.info("withAudit: Begin attempt audit with proxy.");
 
       let result;
       let status = auditStatus.SUCCESS;
@@ -55,7 +55,7 @@ export const withAudit = (f, dataBuilder) =>
         session = null;
         throw error;
       } finally {
-        logger.debug(result, "Use case result within proxy.");
+        logger.debug(result, "withAudit: Use case result within proxy.");
         try {
           const { entities, accounts, details, messageGroupId, security } =
             dataBuilder(args, result);
@@ -72,11 +72,14 @@ export const withAudit = (f, dataBuilder) =>
             session,
           );
         } catch (auditError) {
-          logger.error(auditError, `Failed to write ${status} audit event.`);
+          logger.error(
+            auditError,
+            `withAudit: Failed to write ${status} audit event.`,
+          );
         }
       }
 
-      logger.info("End audit with proxy.");
+      logger.info("withAudit: End audit with proxy.");
       return result;
     },
   });

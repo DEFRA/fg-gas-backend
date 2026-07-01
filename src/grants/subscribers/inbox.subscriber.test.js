@@ -27,7 +27,6 @@ import { applyExternalStateChange } from "../services/apply-event-status-change.
 import { InboxSubscriber } from "./inbox.subscriber.js";
 
 vi.mock("../../common/trace-parent.js");
-vi.mock("../use-cases/approve-application.use-case.js");
 vi.mock("../repositories/inbox.repository.js");
 vi.mock("../repositories/fifo-lock.repository.js");
 vi.mock("../services/apply-event-status-change.service.js");
