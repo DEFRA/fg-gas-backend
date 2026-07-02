@@ -62,20 +62,43 @@ beforeEach(() => {
 });
 
 describe("createAuditPayload", () => {
-  it("returns entities, status and details", () => {
+  it("should omit accounts if sbi, crn and frn are undefined", () => {
+    const result = createAuditPayload(
+      {},
+      [{ type: "APPLICATION" }],
+      auditStatus.SUCCESS,
+    );
+
+    expect(result).toEqual({
+      entities: [{ type: "APPLICATION" }],
+      status: auditStatus.SUCCESS,
+    });
+  });
+
+  it("should include accounts if either sbi, crn or frn are present", () => {
+    const result = createAuditPayload(
+      { sbi: "SBI" },
+      [{ type: "APPLICATION" }],
+      "FOO",
+    );
+    expect(result).toEqual({
+      accounts: { sbi: "SBI", frn: undefined, crn: undefined },
+      entities: [{ type: "APPLICATION" }],
+      status: "FOO",
+    });
+  });
+
+  it("returns entities, status", () => {
     const result = createAuditPayload(
       { sbi: "999-000" },
       [{ type: "APPLICATION" }],
-      { code: "woodlands" },
       auditStatus.SUCCESS,
-      null,
     );
 
     expect(result).toEqual({
       accounts: { sbi: "999-000" },
       entities: [{ type: "APPLICATION" }],
       status: auditStatus.SUCCESS,
-      details: { code: "woodlands" },
     });
   });
 });

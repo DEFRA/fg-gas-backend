@@ -64,6 +64,7 @@ describe("create status transition update", () => {
           code: "some-code",
           fromStatus: "SOME:STATUS:BARR",
           toStatus: "SOME:STATUS:FOO",
+          entityIdKey: "clientRef",
         },
         messageGroupId: "status-transition-some-client-ref",
       }),
@@ -91,12 +92,13 @@ describe("auditDataBuilder", () => {
     });
   });
 
-  it("sets details from code, previousStatus and currentStatus", () => {
+  it("sets details from code, previousStatus, currentStatus and entityIdKey", () => {
     const event = auditDataBuilder(args);
     expect(event.details).toEqual({
       code: "some-code",
       fromStatus: "SOME:STATUS:BARR",
       toStatus: "SOME:STATUS:FOO",
+      entityIdKey: "clientRef",
     });
   });
 });

@@ -36,7 +36,12 @@ export const auditDataBuilder = (args) => {
     entity: auditEntities.APPLICATION,
     action: auditActions.STATUS_TRANSITION,
     entityid: clientRef,
-    details: { code, fromStatus: previousStatus, toStatus: currentStatus },
+    details: {
+      code,
+      fromStatus: previousStatus,
+      toStatus: currentStatus,
+      entityIdKey: "clientRef",
+    },
     messageGroupId: `status-transition-${clientRef}`,
   });
 };

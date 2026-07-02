@@ -39,12 +39,19 @@ export const stripNulls = (obj) => {
   return result;
 };
 
-export const createAuditPayload = (accounts, entities, details, status) => ({
-  entities,
-  status,
-  accounts,
-  details,
-});
+// eslint-disable-next-line complexity
+export const createAuditPayload = (accountDetails = {}, entities, status) => {
+  let accounts;
+  const { sbi, crn, frn } = accountDetails;
+  if (sbi || crn || frn) {
+    accounts = { sbi, crn, frn };
+  }
+  return {
+    entities,
+    status,
+    accounts,
+  };
+};
 
 export const buildPayload = (
   context,
@@ -59,7 +66,7 @@ export const buildPayload = (
   user: getUser(context),
   sessionid: getSession(context),
   ip: getIP(context),
-  audit: createAuditPayload(accounts, entities, details, status),
+  audit: createAuditPayload(accounts, entities, status),
   ...buildSecurity(security),
 });
 
@@ -70,24 +77,27 @@ export const writeAuditEvent = async (
   logger.info("Begin write audit event.");
 
   const context = getRequestContext();
+
   // mongodb was replacing "undefined" with null which the audit service doesn't like.
   const payload = stripNulls(
-    buildPayload(context, { entities, accounts, details, security, status }),
+    buildPayload(context, { entities, accounts, security, status }),
   );
-  logger.info(payload, "audit event payload");
+
   const { valid, errors } = validateAuditEvent(payload);
+
   if (valid === false) {
     logger.warn(errors, "Audit event failed validation - skipping write.");
   } else {
     const msgGroupId = messageGroupId ?? randomUUID();
 
     const outboxEntry = new Outbox({
-      event: { ...payload, messageGroupId: msgGroupId },
+      event: { ...payload, details, messageGroupId: msgGroupId },
       target: config.sns.auditTopicArn,
       segregationRef: msgGroupId,
     });
 
     await insertMany([outboxEntry], session);
   }
+
   logger.info("End write audit event.");
 };
