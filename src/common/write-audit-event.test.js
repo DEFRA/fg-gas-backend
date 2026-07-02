@@ -63,11 +63,11 @@ beforeEach(() => {
 
 describe("createAuditPayload", () => {
   it("should omit accounts if sbi, crn and frn are undefined", () => {
-    const result = createAuditPayload(
-      {},
-      [{ type: "APPLICATION" }],
-      auditStatus.SUCCESS,
-    );
+    const result = createAuditPayload({
+      accountDetails: {},
+      entities: [{ type: "APPLICATION" }],
+      status: auditStatus.SUCCESS,
+    });
 
     expect(result).toEqual({
       entities: [{ type: "APPLICATION" }],
@@ -76,11 +76,11 @@ describe("createAuditPayload", () => {
   });
 
   it("should include accounts if either sbi, crn or frn are present", () => {
-    const result = createAuditPayload(
-      { sbi: "SBI" },
-      [{ type: "APPLICATION" }],
-      "FOO",
-    );
+    const result = createAuditPayload({
+      accountDetails: { sbi: "SBI" },
+      entities: [{ type: "APPLICATION" }],
+      status: "FOO",
+    });
     expect(result).toEqual({
       accounts: { sbi: "SBI", frn: undefined, crn: undefined },
       entities: [{ type: "APPLICATION" }],
@@ -89,11 +89,11 @@ describe("createAuditPayload", () => {
   });
 
   it("returns entities, status", () => {
-    const result = createAuditPayload(
-      { sbi: "999-000" },
-      [{ type: "APPLICATION" }],
-      auditStatus.SUCCESS,
-    );
+    const result = createAuditPayload({
+      accountDetails: { sbi: "999-000" },
+      entities: [{ type: "APPLICATION" }],
+      status: auditStatus.SUCCESS,
+    });
 
     expect(result).toEqual({
       accounts: { sbi: "999-000" },

@@ -14,7 +14,6 @@ const getCorrelationId = () => getTraceId() ?? randomUUID();
 const getUser = (context) => context?.user ?? undefined;
 const getSession = (context) => context?.sessionId ?? undefined;
 const getIP = (context) => context?.ip ?? getServiceIp();
-const isPlainObject = (value) => value?.constructor === Object;
 const getServiceIp = () => {
   for (const iface of Object.values(networkInterfaces())) {
     const addr = iface.find((n) => n.family === "IPv4" && !n.internal);
@@ -24,6 +23,15 @@ const getServiceIp = () => {
   }
   return null;
 };
+const getAccounts = (values) => {
+  let accounts;
+  const { sbi, crn, frn } = values;
+  if (sbi || crn || frn) {
+    accounts = { sbi, crn, frn };
+  }
+  return accounts;
+};
+const isPlainObject = (value) => value?.constructor === Object;
 
 export const stripNulls = (obj) => {
   const result = {};
@@ -39,23 +47,21 @@ export const stripNulls = (obj) => {
   return result;
 };
 
-// eslint-disable-next-line complexity
-export const createAuditPayload = (accountDetails = {}, entities, status) => {
-  let accounts;
-  const { sbi, crn, frn } = accountDetails;
-  if (sbi || crn || frn) {
-    accounts = { sbi, crn, frn };
-  }
+export const createAuditPayload = ({
+  accountDetails = {},
+  entities,
+  status,
+}) => {
   return {
     entities,
     status,
-    accounts,
+    accounts: getAccounts(accountDetails),
   };
 };
 
 export const buildPayload = (
   context,
-  { entities, accounts, details, status, security },
+  { entities, accounts, status, security },
 ) => ({
   datetime: new Date().toISOString(),
   version: config.serviceVersion,
@@ -66,7 +72,7 @@ export const buildPayload = (
   user: getUser(context),
   sessionid: getSession(context),
   ip: getIP(context),
-  audit: createAuditPayload(accounts, entities, status),
+  audit: createAuditPayload({ accountDetails: accounts, entities, status }),
   ...buildSecurity(security),
 });
 
@@ -78,7 +84,6 @@ export const writeAuditEvent = async (
 
   const context = getRequestContext();
 
-  // mongodb was replacing "undefined" with null which the audit service doesn't like.
   const payload = stripNulls(
     buildPayload(context, { entities, accounts, security, status }),
   );
