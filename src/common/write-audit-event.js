@@ -14,8 +14,7 @@ const getCorrelationId = () => getTraceId() ?? randomUUID();
 const getUser = (context) => context?.user ?? undefined;
 const getSession = (context) => context?.sessionId ?? undefined;
 const getIP = (context) => context?.ip ?? getServiceIp();
-const stripNulls = (obj) =>
-  Object.fromEntries(Object.entries(obj).filter(([, v]) => v != null));
+const isPlainObject = (value) => value?.constructor === Object;
 const getServiceIp = () => {
   for (const iface of Object.values(networkInterfaces())) {
     const addr = iface.find((n) => n.family === "IPv4" && !n.internal);
@@ -25,6 +24,21 @@ const getServiceIp = () => {
   }
   return null;
 };
+
+export const stripNulls = (obj) => {
+  const result = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value == null) {
+      continue;
+    }
+
+    result[key] = isPlainObject(value) ? stripNulls(value) : value;
+  }
+
+  return result;
+};
+
 export const createAuditPayload = (accounts, entities, details, status) => ({
   entities,
   status,

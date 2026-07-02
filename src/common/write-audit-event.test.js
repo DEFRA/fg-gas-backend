@@ -9,6 +9,7 @@ import { getRequestContext } from "./get-request-context.js";
 import {
   buildPayload,
   createAuditPayload,
+  stripNulls,
   writeAuditEvent,
 } from "./write-audit-event.js";
 
@@ -314,6 +315,19 @@ describe("writeAuditEvent", () => {
     const storedEvent = Outbox.mock.calls[0][0].event;
     expect(storedEvent).not.toHaveProperty("user");
     expect(storedEvent).not.toHaveProperty("sessionid");
+  });
+
+  it("strips null entries for account", () => {
+    const payload = {
+      context: {
+        user: "julian",
+      },
+      account: {
+        sbi: null,
+      },
+    };
+    const result = stripNulls(payload);
+    expect(result.account).not.toHaveProperty("sbi");
   });
 
   it("skips insertMany when payload fails validation", async () => {
