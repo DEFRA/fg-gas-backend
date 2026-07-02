@@ -3,6 +3,8 @@ const CODE = "woodland";
 const PHASE_CODE = "PHASE_PRE_AWARD";
 const BAD_PENCE = { $gt: 238769, $lt: 238770 };
 const FIXED_PENCE = 238770;
+const CREATE_AGREEMENT_EVENT_TYPE =
+  /^cloud\.defra\.[^.]+\.fg-gas-backend\.agreement\.create$/;
 
 export const up = async (db) => {
   await db.collection("applications").updateOne(
@@ -25,7 +27,7 @@ export const up = async (db) => {
 
   await db.collection("outbox").updateOne(
     {
-      "event.type": "cloud.defra.dev.fg-gas-backend.agreement.create",
+      "event.type": CREATE_AGREEMENT_EVENT_TYPE,
       "event.data.clientRef": CLIENT_REF,
       "event.data.code": CODE,
       "event.data.answers.totalAgreementPaymentPence": BAD_PENCE,
