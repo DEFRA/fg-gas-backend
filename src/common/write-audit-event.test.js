@@ -9,6 +9,7 @@ import { getRequestContext } from "./get-request-context.js";
 import {
   buildPayload,
   createAuditPayload,
+  stripNulls,
   writeAuditEvent,
 } from "./write-audit-event.js";
 
@@ -61,20 +62,43 @@ beforeEach(() => {
 });
 
 describe("createAuditPayload", () => {
-  it("returns entities, status and details", () => {
-    const result = createAuditPayload(
-      { sbi: "999-000" },
-      [{ type: "APPLICATION" }],
-      { code: "woodlands" },
-      auditStatus.SUCCESS,
-      null,
-    );
+  it("should omit accounts if sbi, crn and frn are undefined", () => {
+    const result = createAuditPayload({
+      accountDetails: {},
+      entities: [{ type: "APPLICATION" }],
+      status: auditStatus.SUCCESS,
+    });
+
+    expect(result).toEqual({
+      entities: [{ type: "APPLICATION" }],
+      status: auditStatus.SUCCESS,
+    });
+  });
+
+  it("should include accounts if either sbi, crn or frn are present", () => {
+    const result = createAuditPayload({
+      accountDetails: { sbi: "SBI" },
+      entities: [{ type: "APPLICATION" }],
+      status: "FOO",
+    });
+    expect(result).toEqual({
+      accounts: { sbi: "SBI", frn: undefined, crn: undefined },
+      entities: [{ type: "APPLICATION" }],
+      status: "FOO",
+    });
+  });
+
+  it("returns entities, status", () => {
+    const result = createAuditPayload({
+      accountDetails: { sbi: "999-000" },
+      entities: [{ type: "APPLICATION" }],
+      status: auditStatus.SUCCESS,
+    });
 
     expect(result).toEqual({
       accounts: { sbi: "999-000" },
       entities: [{ type: "APPLICATION" }],
       status: auditStatus.SUCCESS,
-      details: { code: "woodlands" },
     });
   });
 });
@@ -314,6 +338,19 @@ describe("writeAuditEvent", () => {
     const storedEvent = Outbox.mock.calls[0][0].event;
     expect(storedEvent).not.toHaveProperty("user");
     expect(storedEvent).not.toHaveProperty("sessionid");
+  });
+
+  it("strips null entries for account", () => {
+    const payload = {
+      context: {
+        user: "julian",
+      },
+      account: {
+        sbi: null,
+      },
+    };
+    const result = stripNulls(payload);
+    expect(result.account).not.toHaveProperty("sbi");
   });
 
   it("skips insertMany when payload fails validation", async () => {
