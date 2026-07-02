@@ -1,3 +1,4 @@
+import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
 import { Grant } from "../models/grant.js";
 import { findByCode, replace } from "../repositories/grant.repository.js";
@@ -10,6 +11,7 @@ describe("replaceGrantUseCase", () => {
     findByCode.mockResolvedValue(
       new Grant({
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Test Grant Description",
           startDate: "2023-01-01T00:00:00Z",
@@ -44,6 +46,7 @@ describe("replaceGrantUseCase", () => {
     expect(replace).toHaveBeenCalledWith(
       new Grant({
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Updated Test Grant Description",
           startDate: "2023-01-02T00:00:00Z",
@@ -63,10 +66,32 @@ describe("replaceGrantUseCase", () => {
     );
   });
 
+  it("throws notFound when grant does not exist at target version", async () => {
+    findByCode.mockResolvedValue(null);
+
+    await expect(
+      replaceGrantUseCase("test-grant", {
+        code: "test-grant",
+        version: "2.0.0",
+        metadata: {
+          description: "Test",
+          startDate: "2023-01-01T00:00:00Z",
+        },
+        actions: [],
+      }),
+    ).rejects.toThrow(
+      Boom.notFound('Grant with code "test-grant" version "2.0.0" not found'),
+    );
+
+    expect(findByCode).toHaveBeenCalledWith("test-grant", "2.0.0");
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it("replaces the grant with externalStatusMap", async () => {
     findByCode.mockResolvedValue(
       new Grant({
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Test Grant Description",
           startDate: "2023-01-01T00:00:00Z",
@@ -120,6 +145,7 @@ describe("replaceGrantUseCase", () => {
     expect(replace).toHaveBeenCalledWith(
       new Grant({
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Updated Test Grant Description",
           startDate: "2023-01-02T00:00:00Z",

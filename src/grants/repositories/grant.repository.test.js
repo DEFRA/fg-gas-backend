@@ -4,13 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
-import {
-  findAll,
-  findByCode,
-  findByCodeAndVersion,
-  replace,
-  save,
-} from "./grant.repository.js";
+import { findAll, findByCode, replace, save } from "./grant.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -368,52 +362,13 @@ describe("findByCode", () => {
       }),
     );
   });
-});
 
-describe("findByCodeAndVersion", () => {
-  it("returns a Grant matching code and version", async () => {
-    const findOne = vi.fn().mockResolvedValueOnce({
-      code: "woodland",
-      version: "1.2.3",
-      metadata: {
-        description: "test",
-        startDate: "2021-01-01T00:00:00.000Z",
-      },
-      actions: [],
-      phases: [],
-    });
-
-    db.collection.mockReturnValue({ findOne });
-
-    const result = await findByCodeAndVersion("woodland", "1.2.3");
-
-    expect(db.collection).toHaveBeenCalledWith("grants");
-
-    expect(findOne).toHaveBeenCalledWith({
-      code: "woodland",
-      version: "1.2.3",
-    });
-
-    expect(result).toStrictEqual(
-      new Grant({
-        code: "woodland",
-        version: "1.2.3",
-        metadata: {
-          description: "test",
-          startDate: "2021-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        phases: [],
-      }),
-    );
-  });
-
-  it("returns null when no match found", async () => {
+  it("returns null when no match found for a given version", async () => {
     db.collection.mockReturnValue({
       findOne: vi.fn().mockResolvedValueOnce(null),
     });
 
-    const result = await findByCodeAndVersion("woodland", "9.9.9");
+    const result = await findByCode("woodland", "9.9.9");
     expect(result).toBeNull();
   });
 });

@@ -8,7 +8,7 @@ import {
   updateFetchStatus,
 } from "../repositories/config-version.repository.js";
 import {
-  findByCodeAndVersion,
+  findByCode,
   saveFromDefinition,
 } from "../repositories/grant.repository.js";
 
@@ -91,7 +91,7 @@ const saveOrFallback = async (grantDefinition, grantCode, resolvedVersion) => {
       logger.info(
         `Concurrent insert for ${grantCode}@${resolvedVersion}, loading existing`,
       );
-      return await findByCodeAndVersion(grantCode, resolvedVersion);
+      return await findByCode(grantCode, resolvedVersion);
     }
     throw err;
   }
@@ -129,7 +129,7 @@ const findStoredGrant = async (configVersion, grantCode, resolvedVersion) => {
     return null;
   }
 
-  const existingGrant = await findByCodeAndVersion(grantCode, resolvedVersion);
+  const existingGrant = await findByCode(grantCode, resolvedVersion);
   if (existingGrant) {
     logger.info(`Resolved ${grantCode}@${resolvedVersion} from cache`);
   }

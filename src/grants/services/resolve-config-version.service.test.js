@@ -8,7 +8,7 @@ import {
   updateFetchStatus,
 } from "../repositories/config-version.repository.js";
 import {
-  findByCodeAndVersion,
+  findByCode,
   saveFromDefinition,
 } from "../repositories/grant.repository.js";
 import { resolveAndFetchGrant } from "./resolve-config-version.service.js";
@@ -35,7 +35,7 @@ vi.mock("../repositories/grant.repository.js", async (importOriginal) => {
   const original = await importOriginal();
   return {
     ...original,
-    findByCodeAndVersion: vi.fn(),
+    findByCode: vi.fn(),
     saveFromDefinition: vi.fn(),
   };
 });
@@ -90,7 +90,7 @@ describe("resolveAndFetchGrant", () => {
       ...mockGrantDefinition,
       version: VERSION,
     });
-    findByCodeAndVersion.mockResolvedValue(existingGrant);
+    findByCode.mockResolvedValue(existingGrant);
 
     const result = await resolveAndFetchGrant(GRANT_CODE, VERSION);
 
@@ -126,7 +126,7 @@ describe("resolveAndFetchGrant", () => {
   it("fetches from S3 when fetched but grant not found in grants collection", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Fetched });
     findLatestForMajor.mockResolvedValue(cv);
-    findByCodeAndVersion.mockResolvedValue(null);
+    findByCode.mockResolvedValue(null);
     fetchConfigFile.mockResolvedValue(mockGrantDefinition);
     const savedGrant = new Grant({ ...mockGrantDefinition, version: VERSION });
     saveFromDefinition.mockResolvedValue(savedGrant);
@@ -138,7 +138,7 @@ describe("resolveAndFetchGrant", () => {
     expect(result.grant).toBeInstanceOf(Grant);
   });
 
-  it("handles concurrent duplicate insert by falling back to findByCodeAndVersion", async () => {
+  it("handles concurrent duplicate insert by falling back to findByCode", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
     findLatestForMajor.mockResolvedValue(cv);
     fetchConfigFile.mockResolvedValue(mockGrantDefinition);
@@ -150,7 +150,7 @@ describe("resolveAndFetchGrant", () => {
       ...mockGrantDefinition,
       version: VERSION,
     });
-    findByCodeAndVersion.mockResolvedValue(existingGrant);
+    findByCode.mockResolvedValue(existingGrant);
 
     const result = await resolveAndFetchGrant(GRANT_CODE, VERSION);
 

@@ -1,16 +1,22 @@
+import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import { Grant } from "../models/grant.js";
-import { replace } from "../repositories/grant.repository.js";
-import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
+import { findByCode, replace } from "../repositories/grant.repository.js";
 
 export const replaceGrantUseCase = async (code, replaceGrantCommand) => {
   logger.info(`Replacing grant with code ${code}`);
 
-  await findGrantByCodeUseCase(code);
+  const version = replaceGrantCommand.version ?? "0.0.0";
+  const existing = await findByCode(code, version);
+  if (!existing) {
+    throw Boom.notFound(
+      `Grant with code "${code}" version "${version}" not found`,
+    );
+  }
 
   const grant = new Grant({
     code,
-    version: replaceGrantCommand.version,
+    version,
     metadata: {
       description: replaceGrantCommand.metadata.description,
       startDate: replaceGrantCommand.metadata.startDate,
