@@ -98,7 +98,7 @@ describe("save", () => {
         }),
       ),
     ).rejects.toThrow(
-      Boom.conflict('Grant with code "1" version "1.0.0" already exists'),
+      Boom.conflict('Grant with code "1" version "0.0.0" already exists'),
     );
   });
 
