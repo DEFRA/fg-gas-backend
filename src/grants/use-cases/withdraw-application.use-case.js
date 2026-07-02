@@ -47,6 +47,7 @@ export const withdrawApplicationUseCase = async (command, session) => {
     const statusCommand = new UpdateCaseStatusCommand({
       caseRef: clientRef,
       workflowCode: code,
+      configVersion: application.currentConfigVersion,
       newStatus: application.getFullyQualifiedStatus(),
       phase: currentPhase,
       stage: currentStage,
@@ -63,6 +64,7 @@ export const withdrawApplicationUseCase = async (command, session) => {
     const statusEvent = new ApplicationStatusUpdatedEvent({
       clientRef,
       code,
+      currentConfigVersion: application.currentConfigVersion,
       previousStatus: statusBeforeUpdate,
       currentStatus: application.getFullyQualifiedStatus(),
     });

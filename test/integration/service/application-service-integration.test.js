@@ -1,14 +1,17 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { seedConfigVersion } from "../../helpers/applications.js";
 import { wreck } from "../../helpers/wreck.js";
 
 let client;
+let db;
 let applications;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  applications = client.db().collection("applications");
+  db = client.db();
+  applications = db.collection("applications");
 });
 
 afterAll(async () => {
@@ -122,8 +125,11 @@ describe("Application Service Integration Tests", () => {
         payload: grantData,
       });
 
+      await seedConfigVersion(db, grantCode);
+
       // Submit comprehensive application
       const applicationData = {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: `app-service-${testId}`,
           submittedAt: new Date().toISOString(),
@@ -288,8 +294,11 @@ describe("Application Service Integration Tests", () => {
         payload: grantData,
       });
 
+      await seedConfigVersion(db, grantCode);
+
       // Submit application with complex array data
       const applicationData = {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: `app-service-array-${testId}`,
           submittedAt: new Date().toISOString(),
@@ -415,11 +424,14 @@ describe("Application Service Integration Tests", () => {
         payload: grantData,
       });
 
+      await seedConfigVersion(db, grantCode);
+
       // Test various validation failures
       const invalidApplications = [
         {
           name: "invalid email",
           data: {
+            configVersion: "1.0.0",
             metadata: {
               clientRef: `app-service-invalid-email-${testId}`,
               submittedAt: new Date().toISOString(),
@@ -439,6 +451,7 @@ describe("Application Service Integration Tests", () => {
         {
           name: "age below minimum",
           data: {
+            configVersion: "1.0.0",
             metadata: {
               clientRef: `app-service-invalid-age-${testId}`,
               submittedAt: new Date().toISOString(),
@@ -458,6 +471,7 @@ describe("Application Service Integration Tests", () => {
         {
           name: "invalid phone pattern",
           data: {
+            configVersion: "1.0.0",
             metadata: {
               clientRef: `app-service-invalid-phone-${testId}`,
               submittedAt: new Date().toISOString(),
@@ -477,6 +491,7 @@ describe("Application Service Integration Tests", () => {
         {
           name: "invalid enum value",
           data: {
+            configVersion: "1.0.0",
             metadata: {
               clientRef: `app-service-invalid-enum-${testId}`,
               submittedAt: new Date().toISOString(),

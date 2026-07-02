@@ -28,6 +28,7 @@ export class Application {
     phases: Joi.array().required(),
   });
 
+  // eslint-disable-next-line complexity
   constructor(props) {
     const { error } = Application.validationSchema.validate(props, {
       stripUnknown: true,
@@ -46,6 +47,9 @@ export class Application {
       currentStatus,
       clientRef,
       code,
+      configVersion,
+      originalConfigVersion,
+      currentConfigVersion,
       createdAt,
       updatedAt,
       submittedAt,
@@ -60,6 +64,8 @@ export class Application {
     this.currentStatus = currentStatus;
     this.clientRef = clientRef;
     this.code = code;
+    this.originalConfigVersion = originalConfigVersion ?? configVersion ?? null;
+    this.currentConfigVersion = currentConfigVersion ?? configVersion ?? null;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.submittedAt = submittedAt;
@@ -75,6 +81,7 @@ export class Application {
     currentStatus,
     clientRef,
     code,
+    configVersion,
     submittedAt,
     identifiers,
     metadata,
@@ -88,6 +95,8 @@ export class Application {
       currentStatus,
       clientRef,
       code,
+      originalConfigVersion: configVersion,
+      currentConfigVersion: configVersion,
       submittedAt,
       createdAt,
       updatedAt: createdAt,

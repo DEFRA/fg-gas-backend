@@ -1,15 +1,18 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { seedConfigVersion } from "../../helpers/applications.js";
 import { wreck } from "../../helpers/wreck.js";
 
 let client;
+let db;
 let grants, applications;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  grants = client.db().collection("grants");
-  applications = client.db().collection("applications");
+  db = client.db();
+  grants = db.collection("grants");
+  applications = db.collection("applications");
 });
 
 afterAll(async () => {
@@ -230,7 +233,7 @@ describe("Grant Service Integration Tests", () => {
 
       expect(duplicateError.statusCode).toBe(409);
       expect(duplicateError.message).toContain(
-        `Grant with code "${grantCode}" already exists`,
+        `Grant with code "${grantCode}" version "0.0.0" already exists`,
       );
 
       // Verify only one grant exists in database
@@ -277,8 +280,11 @@ describe("Grant Service Integration Tests", () => {
         payload: grantData,
       });
 
+      await seedConfigVersion(db, grantCode);
+
       // Submit application for the grant
       const applicationData = {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: `grant-service-${testId}`,
           submittedAt: new Date().toISOString(),
@@ -364,11 +370,19 @@ describe("Grant Service Integration Tests", () => {
         expect(response.res.statusCode).toBe(204);
       });
 
+      // Seed config versions for all grants
+      await Promise.all(
+        Array.from({ length: numConcurrentOperations }, (_, i) =>
+          seedConfigVersion(db, `test-grant-concurrent-${testId}-${i}`),
+        ),
+      );
+
       // Submit applications concurrently for each grant
       const applicationPromises = Array.from(
         { length: numConcurrentOperations },
         (_, i) => {
           const applicationData = {
+            configVersion: "1.0.0",
             metadata: {
               clientRef: `grant-service-concurrent-${testId}-${i}`,
               submittedAt: new Date().toISOString(),
@@ -397,6 +411,7 @@ describe("Grant Service Integration Tests", () => {
       const dbGrants = await grants
         .find({
           code: { $regex: `^test-grant-concurrent-${testId}-` },
+          version: "0.0.0",
         })
         .toArray();
       expect(dbGrants).toHaveLength(numConcurrentOperations);
@@ -485,8 +500,11 @@ describe("Grant Service Integration Tests", () => {
         payload: businessGrantData,
       });
 
+      await seedConfigVersion(db, grantCode);
+
       // Submit valid application
       const validApplicationData = {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: `grant-service-business-${testId}`,
           submittedAt: new Date().toISOString(),
@@ -527,6 +545,7 @@ describe("Grant Service Integration Tests", () => {
 
       // Test invalid application (violates business rules)
       const invalidApplicationData = {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: `grant-service-invalid-${testId}`,
           submittedAt: new Date().toISOString(),

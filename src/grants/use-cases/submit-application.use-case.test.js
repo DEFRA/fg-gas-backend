@@ -4,11 +4,11 @@ import { withTransaction } from "../../common/with-transaction.js";
 import { Application, ApplicationPhase } from "../models/application.js";
 import { save } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
+import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 import { submitApplicationUseCase } from "./submit-application.use-case.js";
 
 vi.mock("../repositories/outbox.repository.js");
-vi.mock("./find-grant-by-code.use-case.js");
+vi.mock("../services/resolve-config-version.service.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/application-series.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
@@ -32,9 +32,13 @@ describe("submitApplicationUseCase", () => {
     });
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
-    findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
+    resolveAndFetchGrant.mockResolvedValue({
+      grant: createTestGrant(),
+      resolvedVersion: "1.0.0",
+    });
 
     await submitApplicationUseCase("test-grant", {
+      configVersion: "1.0.0",
       metadata: {
         clientRef: "test-client-ref",
         sbi: "123456789",
@@ -52,15 +56,20 @@ describe("submitApplicationUseCase", () => {
     expect(application).toBeInstanceOf(Application);
     expect(application.currentPhase).toBe(ApplicationPhase.PreAward);
     expect(application.clientRef).toBe("test-client-ref");
+    expect(application.originalConfigVersion).toBe("1.0.0");
   });
 
   it("throws when answers do not match the schema", async () => {
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
-    findGrantByCodeUseCase.mockResolvedValue(createTestGrant());
+    resolveAndFetchGrant.mockResolvedValue({
+      grant: createTestGrant(),
+      resolvedVersion: "1.0.0",
+    });
 
     await expect(() =>
       submitApplicationUseCase("test-grant", {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           sbi: "123456789",
@@ -70,7 +79,7 @@ describe("submitApplicationUseCase", () => {
           submittedAt: "2000-01-01T12:00:00Z",
         },
         answers: {
-          question1: 42, // Invalid type
+          question1: 42,
         },
       }),
     ).rejects.toThrow(
@@ -81,8 +90,8 @@ describe("submitApplicationUseCase", () => {
   it("throws when answers do not match schema format", async () => {
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
-    findGrantByCodeUseCase.mockResolvedValue(
-      createTestGrant({
+    resolveAndFetchGrant.mockResolvedValue({
+      grant: createTestGrant({
         phases: [
           {
             code: "PRE_AWARD",
@@ -125,10 +134,12 @@ describe("submitApplicationUseCase", () => {
           },
         ],
       }),
-    );
+      resolvedVersion: "1.0.0",
+    });
 
     await expect(() =>
       submitApplicationUseCase("test-grant", {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: "application-1",
           submittedAt: new Date("2021-01-01T00:00:00.000Z"),
@@ -161,8 +172,8 @@ describe("submitApplicationUseCase", () => {
   it("throws when an unsupported format is used in schema", async () => {
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
-    findGrantByCodeUseCase.mockResolvedValue(
-      createTestGrant({
+    resolveAndFetchGrant.mockResolvedValue({
+      grant: createTestGrant({
         phases: [
           {
             code: "PRE_AWARD",
@@ -178,17 +189,19 @@ describe("submitApplicationUseCase", () => {
               properties: {
                 answer1: {
                   type: "string",
-                  format: "uuid", // Invalid format
+                  format: "uuid",
                 },
               },
             },
           },
         ],
       }),
-    );
+      resolvedVersion: "1.0.0",
+    });
 
     await expect(
       submitApplicationUseCase("test-grant", {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: "application-1",
           submittedAt: new Date("2021-01-01T00:00:00.000Z"),
@@ -209,12 +222,13 @@ describe("submitApplicationUseCase", () => {
   it("throws when grant is not found", async () => {
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
-    findGrantByCodeUseCase.mockRejectedValue(
+    resolveAndFetchGrant.mockRejectedValue(
       new Error('Grant with code "non-existent-grant" not found'),
     );
 
     await expect(
       submitApplicationUseCase("non-existent-grant", {
+        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           sbi: "123456789",

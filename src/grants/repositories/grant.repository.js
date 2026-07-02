@@ -24,7 +24,9 @@ export const save = async (grant) => {
     await db.collection(collection).insertOne(document);
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
-      throw Boom.conflict(`Grant with code "${grant.code}" already exists`);
+      throw Boom.conflict(
+        `Grant with code "${grant.code}" version "${grant.version}" already exists`,
+      );
     }
 
     throw error;
@@ -52,4 +54,10 @@ export const findByCode = async (code, version = "0.0.0") => {
   });
 
   return result && toGrant(result);
+};
+
+export const saveFromDefinition = async (grantDefinition, version) => {
+  const grant = new Grant({ ...grantDefinition, version });
+  await save(grant);
+  return grant;
 };

@@ -21,7 +21,6 @@ import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
-import { findByCode } from "../repositories/grant.repository.js";
 import { acceptAgreementUseCase } from "../use-cases/accept-agreement.use-case.js";
 import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
 import { applyAgreementTerminationUseCase } from "../use-cases/apply-agreement-termination.use-case.js";
@@ -30,6 +29,10 @@ import { createAgreementCommandUseCase } from "../use-cases/create-agreement-com
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
 import { requestAgreementCancellationUseCase } from "../use-cases/request-agreement-cancellation.use-case.js";
 import { requestAgreementTerminationUseCase } from "../use-cases/request-agreement-termination.use-case.js";
+import {
+  persistResolvedVersion,
+  resolveCurrentGrantUseCase,
+} from "../use-cases/resolve-current-grant.use-case.js";
 import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "../use-cases/withdraw-application.use-case.js";
 
@@ -137,12 +140,12 @@ const processStateTransition = (application, grant, command) => {
   updateApplicationState(application, validMapping);
 
   const newFullyQualifiedStatus = application.getFullyQualifiedStatus();
-  const { clientRef, code } = application;
+  const { clientRef, code, currentConfigVersion } = application;
 
-  // Create a status update event for the transition
   const statusTransitionHandler = createStatusTransitionUpdateUseCase({
     clientRef,
     code,
+    configVersion: currentConfigVersion,
     originalFullyQualifiedStatus,
     newFullyQualifiedStatus,
   });
@@ -202,7 +205,11 @@ export const applyExternalStateChange = async (command) => {
       );
     }
 
-    const grant = await findByCode(application.code);
+    const { grant, resolvedVersion } = await resolveCurrentGrantUseCase(
+      application.code,
+      application.originalConfigVersion,
+    );
+    await persistResolvedVersion(application, resolvedVersion);
 
     if (!grant) {
       throw Boom.notFound(`Grant with code "${application.code}" not found`);

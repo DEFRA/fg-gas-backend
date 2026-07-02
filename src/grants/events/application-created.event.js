@@ -7,6 +7,7 @@ export class ApplicationCreatedEvent extends CloudEvent {
       {
         clientRef: props.clientRef,
         code: props.code,
+        originalConfigVersion: props.originalConfigVersion ?? null,
         status: props.status,
       },
       `${props.clientRef}-${props.code}`,
