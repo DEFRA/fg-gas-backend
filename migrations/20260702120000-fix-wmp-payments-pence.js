@@ -38,6 +38,7 @@ export const up = async (db) => {
         "event.data.answers.payments.agreement.0.agreementTotalPence":
           FIXED_PENCE,
         status: "PUBLISHED",
+        completionAttempts: 1,
         completionDate: null,
         claimedAt: null,
         claimedBy: null,
