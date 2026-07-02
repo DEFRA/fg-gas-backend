@@ -99,6 +99,31 @@ describe("resolveAndFetchGrant", () => {
     expect(fetchConfigFile).not.toHaveBeenCalled();
   });
 
+  it("returns cached grant when fetched even if fetchAttempts reached max", async () => {
+    const cv = mockConfigVersion({
+      fetchStatus: FetchStatus.Fetched,
+      fetchAttempts: 5,
+    });
+    findLatestForMajor.mockResolvedValue(cv);
+
+    const existingGrant = new Grant({
+      ...mockGrantDefinition,
+      version: VERSION,
+    });
+    findByCode.mockResolvedValue(existingGrant);
+
+    const result = await resolveAndFetchGrant(GRANT_CODE, VERSION);
+
+    expect(result.grant).toBe(existingGrant);
+    expect(fetchConfigFile).not.toHaveBeenCalled();
+    expect(updateFetchStatus).not.toHaveBeenCalledWith(
+      GRANT_CODE,
+      VERSION,
+      FetchStatus.PermanentError,
+      expect.anything(),
+    );
+  });
+
   it("fetches from S3 when fetchStatus is pending", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
     findLatestForMajor.mockResolvedValue(cv);
@@ -156,6 +181,11 @@ describe("resolveAndFetchGrant", () => {
 
     expect(result.grant).toBe(existingGrant);
     expect(result.resolvedVersion).toBe(VERSION);
+    expect(updateFetchStatus).toHaveBeenCalledWith(
+      GRANT_CODE,
+      VERSION,
+      FetchStatus.Fetched,
+    );
   });
 
   it("throws badGateway on permanent S3 error (NoSuchKey)", async () => {

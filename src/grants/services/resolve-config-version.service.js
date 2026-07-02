@@ -42,10 +42,22 @@ const handleS3Error = async (err, grantCode, version) => {
 };
 
 const guardFetchStatus = async (configVersion, grantCode, resolvedVersion) => {
-  if (
-    configVersion.fetchAttempts >= MAX_FETCH_ATTEMPTS &&
-    configVersion.fetchStatus !== FetchStatus.PermanentError
-  ) {
+  // A successfully fetched version must never be poisoned by the retry limit,
+  // even if fetchAttempts accumulated before the fetch succeeded.
+  if (configVersion.fetchStatus === FetchStatus.Fetched) {
+    return;
+  }
+
+  if (configVersion.fetchStatus === FetchStatus.PermanentError) {
+    logger.warn(
+      `Permanent error recorded for ${grantCode}@${resolvedVersion}: ${configVersion.fetchError}`,
+    );
+    throw Boom.badGateway(
+      `Permanent error for ${grantCode}@${resolvedVersion}: ${configVersion.fetchError}`,
+    );
+  }
+
+  if (configVersion.fetchAttempts >= MAX_FETCH_ATTEMPTS) {
     logger.warn(
       `Max fetch attempts (${MAX_FETCH_ATTEMPTS}) exceeded for ${grantCode}@${resolvedVersion}`,
     );
@@ -57,15 +69,6 @@ const guardFetchStatus = async (configVersion, grantCode, resolvedVersion) => {
     );
     throw Boom.badGateway(
       `Max fetch attempts exceeded for ${grantCode}@${resolvedVersion}`,
-    );
-  }
-
-  if (configVersion.fetchStatus === FetchStatus.PermanentError) {
-    logger.warn(
-      `Permanent error recorded for ${grantCode}@${resolvedVersion}: ${configVersion.fetchError}`,
-    );
-    throw Boom.badGateway(
-      `Permanent error for ${grantCode}@${resolvedVersion}: ${configVersion.fetchError}`,
     );
   }
 };
@@ -91,6 +94,10 @@ const saveOrFallback = async (grantDefinition, grantCode, resolvedVersion) => {
       logger.info(
         `Concurrent insert for ${grantCode}@${resolvedVersion}, loading existing`,
       );
+      // The grant exists, so record Fetched here too in case the winning
+      // process crashed before updating the status; otherwise the row stays
+      // pending and every request re-fetches from S3.
+      await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
       return await findByCode(grantCode, resolvedVersion);
     }
     throw err;
