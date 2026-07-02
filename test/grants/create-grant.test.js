@@ -61,7 +61,7 @@ describe("POST /grants", () => {
     expect(response).toEqual({
       statusCode: 409,
       error: "Conflict",
-      message: `Grant with code "${grant1.code}" version "1.0.0" already exists`,
+      message: `Grant with code "${grant1.code}" version "${grant1.version}" already exists`,
     });
   });
 });
