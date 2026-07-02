@@ -61,12 +61,3 @@ export const saveFromDefinition = async (grantDefinition, version) => {
   await save(grant);
   return grant;
 };
-
-export const findByCodeAndVersion = async (code, version) => {
-  const result = await db.collection(collection).findOne({
-    code,
-    version,
-  });
-
-  return result && toGrant(result);
-};
