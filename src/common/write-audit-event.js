@@ -14,8 +14,6 @@ const getCorrelationId = () => getTraceId() ?? randomUUID();
 const getUser = (context) => context?.user ?? undefined;
 const getSession = (context) => context?.sessionId ?? undefined;
 const getIP = (context) => context?.ip ?? getServiceIp();
-const stripNulls = (obj) =>
-  Object.fromEntries(Object.entries(obj).filter(([, v]) => v != null));
 const getServiceIp = () => {
   for (const iface of Object.values(networkInterfaces())) {
     const addr = iface.find((n) => n.family === "IPv4" && !n.internal);
@@ -25,16 +23,45 @@ const getServiceIp = () => {
   }
   return null;
 };
-export const createAuditPayload = (accounts, entities, details, status) => ({
+const getAccounts = (values) => {
+  let accounts;
+  const { sbi, crn, frn } = values;
+  if (sbi || crn || frn) {
+    accounts = { sbi, crn, frn };
+  }
+  return accounts;
+};
+const isPlainObject = (value) => value?.constructor === Object;
+
+export const stripNulls = (obj) => {
+  const result = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value == null) {
+      continue;
+    }
+
+    result[key] = isPlainObject(value) ? stripNulls(value) : value;
+  }
+
+  return result;
+};
+
+export const createAuditPayload = ({
+  accountDetails = {},
   entities,
   status,
-  accounts,
-  details,
-});
+}) => {
+  return {
+    entities,
+    status,
+    accounts: getAccounts(accountDetails),
+  };
+};
 
 export const buildPayload = (
   context,
-  { entities, accounts, details, status, security },
+  { entities, accounts, status, security },
 ) => ({
   datetime: new Date().toISOString(),
   version: config.serviceVersion,
@@ -45,7 +72,7 @@ export const buildPayload = (
   user: getUser(context),
   sessionid: getSession(context),
   ip: getIP(context),
-  audit: createAuditPayload(accounts, entities, details, status),
+  audit: createAuditPayload({ accountDetails: accounts, entities, status }),
   ...buildSecurity(security),
 });
 
@@ -56,24 +83,26 @@ export const writeAuditEvent = async (
   logger.info("Begin write audit event.");
 
   const context = getRequestContext();
-  // mongodb was replacing "undefined" with null which the audit service doesn't like.
+
   const payload = stripNulls(
-    buildPayload(context, { entities, accounts, details, security, status }),
+    buildPayload(context, { entities, accounts, security, status }),
   );
-  logger.info(payload, "audit event payload");
+
   const { valid, errors } = validateAuditEvent(payload);
+
   if (valid === false) {
     logger.warn(errors, "Audit event failed validation - skipping write.");
   } else {
     const msgGroupId = messageGroupId ?? randomUUID();
 
     const outboxEntry = new Outbox({
-      event: { ...payload, messageGroupId: msgGroupId },
+      event: { ...payload, details, messageGroupId: msgGroupId },
       target: config.sns.auditTopicArn,
       segregationRef: msgGroupId,
     });
 
     await insertMany([outboxEntry], session);
   }
+
   logger.info("End write audit event.");
 };
