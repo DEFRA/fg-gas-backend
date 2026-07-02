@@ -233,7 +233,7 @@ describe("Grant Service Integration Tests", () => {
 
       expect(duplicateError.statusCode).toBe(409);
       expect(duplicateError.message).toContain(
-        `Grant with code "${grantCode}" version "1.0.0" already exists`,
+        `Grant with code "${grantCode}" version "0.0.0" already exists`,
       );
 
       // Verify only one grant exists in database
@@ -411,6 +411,7 @@ describe("Grant Service Integration Tests", () => {
       const dbGrants = await grants
         .find({
           code: { $regex: `^test-grant-concurrent-${testId}-` },
+          version: "0.0.0",
         })
         .toArray();
       expect(dbGrants).toHaveLength(numConcurrentOperations);

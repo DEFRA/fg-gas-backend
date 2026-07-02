@@ -54,6 +54,19 @@ export const seedConfigVersion = async (db, code, version = "1.0.0") => {
   await db
     .collection("config_versions")
     .updateOne({ grantCode: code, version }, { $set: doc }, { upsert: true });
+
+  // Copy the legacy grant definition to the versioned entry so findStoredGrant resolves it
+  const legacyGrant = await db.collection("grants").findOne({ code });
+  if (legacyGrant) {
+    const { _id, ...grantData } = legacyGrant;
+    await db
+      .collection("grants")
+      .updateOne(
+        { code, version },
+        { $set: { ...grantData, version } },
+        { upsert: true },
+      );
+  }
 };
 
 export const submitApplication = async (db) => {
