@@ -44,7 +44,9 @@ export const up = async (db) => {
           status: "active",
           s3Key: null,
           s3Bucket: null,
-          fetchStatus: "Fetched",
+          // Must match FetchStatus.Fetched ("fetched") so reads resolve from
+          // cache and never attempt an S3 fetch for legacy rows.
+          fetchStatus: "fetched",
           fetchedAt: new Date().toISOString(),
           fetchAttempts: 0,
           fetchError: null,
