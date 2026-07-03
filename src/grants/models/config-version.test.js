@@ -73,6 +73,15 @@ describe("ConfigVersion.validationSchema", () => {
     expect(error.message).toContain('"s3Bucket" is required');
   });
 
+  it("should accept null s3Key and s3Bucket (seeded legacy rows)", () => {
+    const { error } = ConfigVersion.validationSchema.validate({
+      ...validProps,
+      s3Key: null,
+      s3Bucket: null,
+    });
+    expect(error).toBeUndefined();
+  });
+
   it("should strip unknown properties", () => {
     const { value } = ConfigVersion.validationSchema.validate(
       { ...validProps, unknown: "field" },
@@ -183,6 +192,29 @@ describe("ConfigVersion", () => {
 
     it("should return null for null input", () => {
       expect(ConfigVersion.fromDocument(null)).toBeNull();
+    });
+
+    it("should hydrate a seeded legacy 0.0.0 row (null s3 fields, fetched)", () => {
+      const doc = {
+        grantCode: "woodland",
+        version: "0.0.0",
+        major: 0,
+        minor: 0,
+        patch: 0,
+        status: "active",
+        s3Key: null,
+        s3Bucket: null,
+        fetchStatus: "fetched",
+        fetchedAt: "2026-07-02T10:00:00Z",
+        fetchAttempts: 0,
+        fetchError: null,
+        lastFetchAttemptAt: null,
+      };
+
+      const cv = ConfigVersion.fromDocument(doc);
+      expect(cv.s3Key).toBeNull();
+      expect(cv.s3Bucket).toBeNull();
+      expect(cv.fetchStatus).toBe(FetchStatus.Fetched);
     });
   });
 

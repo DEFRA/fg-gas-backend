@@ -9,8 +9,10 @@ export class ConfigVersion {
   static validationSchema = Joi.object({
     grantCode: Joi.string().required(),
     version: Joi.string().required(),
-    s3Key: Joi.string().required(),
-    s3Bucket: Joi.string().required(),
+    // Null for seeded legacy 0.0.0 rows, which have no S3 source (their
+    // definitions already live in the grants collection).
+    s3Key: Joi.string().allow(null).required(),
+    s3Bucket: Joi.string().allow(null).required(),
   });
 
   // eslint-disable-next-line complexity
