@@ -11,10 +11,20 @@ import { validateAnswersAgainstSchema } from "../services/schema-validation.serv
 
 export const createApplicationUseCase = async (
   code,
-  { configVersion, metadata, answers },
+  { metadata, answers },
   session,
 ) => {
   logger.info(`Create application with clientRef ${metadata.clientRef}`);
+
+  const {
+    configVersion,
+    clientRef,
+    submittedAt,
+    sbi,
+    frn,
+    crn,
+    ...extraMetadata
+  } = metadata;
 
   const { grant, resolvedVersion } = await resolveAndFetchGrant(
     code,
@@ -22,8 +32,6 @@ export const createApplicationUseCase = async (
   );
 
   const { phase, stage, status } = grant.getInitialState();
-
-  const { clientRef, submittedAt, sbi, frn, crn, ...extraMetadata } = metadata;
 
   const application = Application.new({
     currentPhase: phase.code,

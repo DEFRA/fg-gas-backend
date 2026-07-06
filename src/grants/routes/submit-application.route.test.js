@@ -39,7 +39,6 @@ describe("submitApplicationRoute", () => {
       method: "POST",
       url: "/grants/test-grant/applications",
       payload: {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           sbi: "123456789",
@@ -47,6 +46,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           defraId: "DEFRA123456",
           submittedAt: "2000-01-01T12:00:00Z",
+          configVersion: "1.0.0",
         },
         answers: {
           q1: "John Doe",
@@ -60,7 +60,6 @@ describe("submitApplicationRoute", () => {
     expect(result).toEqual(null);
 
     expect(submitApplicationUseCase).toHaveBeenCalledWith("test-grant", {
-      configVersion: "1.0.0",
       metadata: {
         clientRef: "test-client-ref",
         sbi: "123456789",
@@ -68,6 +67,7 @@ describe("submitApplicationRoute", () => {
         crn: "CRN123456",
         defraId: "DEFRA123456",
         submittedAt: new Date("2000-01-01T12:00:00Z"),
+        configVersion: "1.0.0",
       },
       answers: {
         q1: "John Doe",
@@ -81,7 +81,6 @@ describe("submitApplicationRoute", () => {
       method: "POST",
       url: "/grants/test-grant/applications",
       payload: {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           previousClientRef: "prev-test-client-ref",
@@ -90,6 +89,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           defraId: "DEFRA123456",
           submittedAt: "2000-01-01T12:00:00Z",
+          configVersion: "1.0.0",
         },
         answers: {
           q1: "John Doe",
@@ -103,7 +103,6 @@ describe("submitApplicationRoute", () => {
     expect(result).toEqual(null);
 
     expect(replaceApplicationUseCase).toHaveBeenCalledWith("test-grant", {
-      configVersion: "1.0.0",
       metadata: {
         clientRef: "test-client-ref",
         previousClientRef: "prev-test-client-ref",
@@ -112,6 +111,7 @@ describe("submitApplicationRoute", () => {
         crn: "CRN123456",
         defraId: "DEFRA123456",
         submittedAt: new Date("2000-01-01T12:00:00Z"),
+        configVersion: "1.0.0",
       },
       answers: {
         q1: "John Doe",
@@ -125,7 +125,6 @@ describe("submitApplicationRoute", () => {
       method: "POST",
       url: "/grants/test-grant/applications",
       payload: {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           sbi: "123456789",
@@ -133,7 +132,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           wubble: "wobble",
           submittedAt: "2000-01-01T12:00:00Z",
-          configVersion: "0.0.2",
+          configVersion: "1.0.0",
         },
         answers: {
           q1: "John Doe",
@@ -144,7 +143,6 @@ describe("submitApplicationRoute", () => {
     expect(statusCode).toBe(204);
 
     expect(submitApplicationUseCase).toHaveBeenCalledWith("test-grant", {
-      configVersion: "1.0.0",
       metadata: {
         clientRef: "test-client-ref",
         sbi: "123456789",
@@ -152,7 +150,7 @@ describe("submitApplicationRoute", () => {
         crn: "CRN123456",
         wubble: "wobble",
         submittedAt: new Date("2000-01-01T12:00:00Z"),
-        configVersion: "0.0.2",
+        configVersion: "1.0.0",
       },
       answers: {
         q1: "John Doe",
@@ -177,7 +175,6 @@ describe("submitApplicationRoute", () => {
       method: "POST",
       url: "/grants/test-grant/applications",
       payload: {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           previousClientRef: "prev-test-client-ref",
@@ -186,6 +183,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           defraId: "DEFRA123456",
           submittedAt: "2000-01-01T12:00:00Z",
+          configVersion: "1.0.0",
         },
         answers: {
           q1: "John Doe",
@@ -203,7 +201,6 @@ describe("submitApplicationRoute", () => {
       method: "POST",
       url: "/grants/test-grant/applications",
       payload: {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           sbi: "123456789",
@@ -211,6 +208,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           defraId: "DEFRA123456",
           submittedAt: "invalid-date",
+          configVersion: "1.0.0",
         },
         answers: {
           q1: "John Doe",

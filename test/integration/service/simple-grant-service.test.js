@@ -92,7 +92,6 @@ describe("Simple Grant Service Integration Tests", () => {
 
     // Submit application
     const applicationData = {
-      configVersion: "1.0.0",
       metadata: {
         clientRef: `test-grant-service-app-${testId}`,
         submittedAt: new Date().toISOString(),
@@ -100,6 +99,7 @@ describe("Simple Grant Service Integration Tests", () => {
         frn: "987654321",
         crn: "555666777",
         defraId: "DEF123456",
+        configVersion: "1.0.0",
       },
       answers: {
         farmName: "Test Service Farm",
@@ -171,7 +171,6 @@ describe("Simple Grant Service Integration Tests", () => {
 
     // Try invalid application
     const invalidApplicationData = {
-      configVersion: "1.0.0",
       metadata: {
         clientRef: `test-validation-invalid-${testId}`,
         submittedAt: new Date().toISOString(),
@@ -179,6 +178,7 @@ describe("Simple Grant Service Integration Tests", () => {
         frn: "987654321",
         crn: "555666777",
         defraId: "DEF123456",
+        configVersion: "1.0.0",
       },
       answers: {
         email: "not-an-email", // Invalid email format

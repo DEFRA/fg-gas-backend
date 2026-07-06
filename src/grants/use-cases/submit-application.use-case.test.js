@@ -38,7 +38,6 @@ describe("submitApplicationUseCase", () => {
     });
 
     await submitApplicationUseCase("test-grant", {
-      configVersion: "1.0.0",
       metadata: {
         clientRef: "test-client-ref",
         sbi: "123456789",
@@ -46,6 +45,7 @@ describe("submitApplicationUseCase", () => {
         crn: "CRN123456",
         defraId: "DEFRA123456",
         submittedAt: "2000-01-01T12:00:00Z",
+        configVersion: "1.0.0",
       },
       answers: {
         question1: "answer1",
@@ -69,7 +69,6 @@ describe("submitApplicationUseCase", () => {
 
     await expect(() =>
       submitApplicationUseCase("test-grant", {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           sbi: "123456789",
@@ -77,6 +76,7 @@ describe("submitApplicationUseCase", () => {
           crn: "CRN123456",
           defraId: "DEFRA123456",
           submittedAt: "2000-01-01T12:00:00Z",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: 42,
@@ -139,7 +139,6 @@ describe("submitApplicationUseCase", () => {
 
     await expect(() =>
       submitApplicationUseCase("test-grant", {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: "application-1",
           submittedAt: new Date("2021-01-01T00:00:00.000Z"),
@@ -147,6 +146,7 @@ describe("submitApplicationUseCase", () => {
           frn: "frn-1",
           crn: "crn-1",
           defraId: "defraId-1",
+          configVersion: "1.0.0",
         },
         answers: {
           answer1: "invalid",
@@ -201,7 +201,6 @@ describe("submitApplicationUseCase", () => {
 
     await expect(
       submitApplicationUseCase("test-grant", {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: "application-1",
           submittedAt: new Date("2021-01-01T00:00:00.000Z"),
@@ -209,6 +208,7 @@ describe("submitApplicationUseCase", () => {
           frn: "frn-1",
           crn: "crn-1",
           defraId: "defraId-1",
+          configVersion: "1.0.0",
         },
         answers: {
           answer1: "value",
@@ -228,7 +228,6 @@ describe("submitApplicationUseCase", () => {
 
     await expect(
       submitApplicationUseCase("non-existent-grant", {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: "test-client-ref",
           sbi: "123456789",
@@ -236,6 +235,7 @@ describe("submitApplicationUseCase", () => {
           crn: "CRN123456",
           defraId: "DEFRA123456",
           submittedAt: "2000-01-01T12:00:00Z",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "answer1",

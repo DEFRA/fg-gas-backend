@@ -95,7 +95,6 @@ describe("Simple Integration Tests", () => {
 
     // Submit a simple application
     const applicationData = {
-      configVersion: "1.0.0",
       metadata: {
         clientRef: `simple-test-app-${testId}`,
         submittedAt: new Date().toISOString(),
@@ -103,6 +102,7 @@ describe("Simple Integration Tests", () => {
         frn: "987654321",
         crn: "555666777",
         defraId: "DEF123456",
+        configVersion: "1.0.0",
       },
       answers: {
         farmName: "Simple Test Farm",
