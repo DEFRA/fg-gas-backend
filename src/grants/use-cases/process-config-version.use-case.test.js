@@ -43,7 +43,7 @@ describe("processConfigVersionUseCase", () => {
     expect(arg.minor).toBe(2);
     expect(arg.patch).toBe(3);
     expect(arg.status).toBe("active");
-    expect(arg.s3Key).toBe("woodland/1.2.3/grant-definition.json");
+    expect(arg.s3Key).toBe("woodland/1.2.3/gas/gas.json");
     expect(arg.s3Bucket).toBe("config-broker-test");
     expect(arg.fetchStatus).toBe("pending");
   });

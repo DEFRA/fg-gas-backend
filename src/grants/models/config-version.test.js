@@ -32,7 +32,7 @@ describe("ConfigVersion.validationSchema", () => {
   const validProps = {
     grantCode: "woodland",
     version: "1.0.0",
-    s3Key: "woodland/1.0.0/grant-definition.json",
+    s3Key: "woodland/1.0.0/gas/gas.json",
     s3Bucket: "config-broker-local",
   };
 
@@ -106,7 +106,7 @@ describe("ConfigVersion", () => {
         grantCode: "woodland",
         version: "1.2.3",
         status: "active",
-        s3Key: "woodland/1.2.3/grant-definition.json",
+        s3Key: "woodland/1.2.3/gas/gas.json",
         s3Bucket: "config-broker-local",
       });
 
@@ -175,7 +175,7 @@ describe("ConfigVersion", () => {
         minor: 0,
         patch: 0,
         status: "active",
-        s3Key: "woodland/1.0.0/grant-definition.json",
+        s3Key: "woodland/1.0.0/gas/gas.json",
         s3Bucket: "config-broker-local",
         receivedAt: "2026-05-13T10:00:00Z",
         fetchedAt: null,
@@ -224,7 +224,7 @@ describe("ConfigVersion", () => {
         grantCode: "woodland",
         version: "2.1.0",
         status: "active",
-        s3Key: "woodland/2.1.0/grant-definition.json",
+        s3Key: "woodland/2.1.0/gas/gas.json",
         s3Bucket: "bucket",
       });
 
