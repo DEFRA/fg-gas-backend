@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { writeAuditEvent } from "../../common/write-audit-event.js";
 import { Grant } from "../models/grant.js";
 import { findByCode, replace } from "../repositories/grant.repository.js";
-import { replaceGrantUseCase } from "./replace-grant.use-case.js";
+import {
+  replaceGrantAuditBuilder,
+  replaceGrantUseCase,
+} from "./replace-grant.use-case.js";
 
 vi.mock("../repositories/grant.repository.js");
 vi.mock("../../common/write-audit-event.js");
@@ -203,5 +207,39 @@ describe("replaceGrantUseCase", () => {
         },
       }),
     );
+  });
+});
+
+describe("replaceGrantAuditBuilder", () => {
+  const command = {
+    code: "test-grant",
+    metadata: {
+      description: "Updated Test Grant Description",
+      startDate: "2023-01-02T00:00:00Z",
+    },
+    actions: [],
+  };
+  const args = [{ code: "test-grant", command }];
+
+  it("emits REPLACE_GRANT on the GRANT entity with the correct entityid", () => {
+    const event = replaceGrantAuditBuilder(args);
+
+    expect(event.entities[0]).toEqual({
+      entity: auditEntities.GRANT,
+      action: auditActions.REPLACE_GRANT,
+      entityid: "test-grant",
+    });
+  });
+
+  it("includes the new grant command in details", () => {
+    const event = replaceGrantAuditBuilder(args);
+
+    expect(event.details).toEqual({ newGrantCommand: command });
+  });
+
+  it("sets messageGroupId to replace-grant-{code}", () => {
+    const event = replaceGrantAuditBuilder(args);
+
+    expect(event.messageGroupId).toBe("replace-grant-test-grant");
   });
 });
