@@ -7,7 +7,7 @@ import {
 import { insertMany } from "../repositories/outbox.repository.js";
 import { createAgreementCaseUpdateOutbox } from "./agreement-case-update.helpers.js";
 
-export const auditDataBuilder = (args, results) => {
+export const auditDataBuilder = (args) => {
   const { clientRef, code, eventData } = args[0];
   return buildAuditEvent({
     entity: auditEntities.AGREEMENT,
