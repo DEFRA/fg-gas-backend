@@ -144,11 +144,11 @@ wait
 
 echo "SNS/SQS ready"
 
-# Create S3 bucket for config broker and seed with sample grant definition
+# Create S3 bucket for config broker and seed with sample grant config
 if ! awslocal s3api head-bucket --bucket config-broker-local >/dev/null 2>&1; then
   awslocal s3 mb s3://config-broker-local
 fi
-awslocal s3 cp /etc/localstack/init/ready.d/seed/pigs-might-fly/1.0.0/grant-definition.json \
-  s3://config-broker-local/pigs-might-fly/1.0.0/grant-definition.json
+awslocal s3 cp /etc/localstack/init/ready.d/seed/pigs-might-fly/1.0.0/gas/gas.json \
+  s3://config-broker-local/pigs-might-fly/1.0.0/gas/gas.json
 
 echo "S3 config broker bucket ready"

@@ -32,7 +32,7 @@ Grants UI                        GAS                           S3 / Config Broke
     |                             |<-- "1.2.3" -----------------------|
     |                             |                                   |
     |                             |-- Fetch from S3 (if not cached) ->|
-    |                             |<-- grant-definition.json ---------|
+    |                             |<-- gas/gas.json ------------------|
     |                             |                                   |
     |                             |-- Validate + create application   |
     |                             |-- SNS: case.create (with 1.2.3) ->|  CW
@@ -68,17 +68,17 @@ Grants UI                        GAS                           S3 / Config Broke
 
 ### Subtasks
 
-| # | Title | Blocked by |
-|---|-------|------------|
-| 1 | Local dev infrastructure -- add S3 to LocalStack | -- |
-| 2 | S3 client module | 1 |
-| 3 | `config_versions` collection, model, and repository | -- |
-| 4 | Config version SNS/SQS subscriber | 1, 3 |
-| 5 | Add version to Grant model and repository | -- |
-| 6 | Lazy S3 fetch with error handling | 2, 3, 5 |
-| 7 | Add `configVersion` to application submission flow | 6 |
-| 8 | Propagate `configVersion` to downstream CloudEvents | 7 |
-| 9 | Update Pact contract tests | 8 |
+| #   | Title                                               | Blocked by |
+| --- | --------------------------------------------------- | ---------- |
+| 1   | Local dev infrastructure -- add S3 to LocalStack    | --         |
+| 2   | S3 client module                                    | 1          |
+| 3   | `config_versions` collection, model, and repository | --         |
+| 4   | Config version SNS/SQS subscriber                   | 1, 3       |
+| 5   | Add version to Grant model and repository           | --         |
+| 6   | Lazy S3 fetch with error handling                   | 2, 3, 5    |
+| 7   | Add `configVersion` to application submission flow  | 6          |
+| 8   | Propagate `configVersion` to downstream CloudEvents | 7          |
+| 9   | Update Pact contract tests                          | 8          |
 
 ### Acceptance Criteria (parent ticket)
 
@@ -128,18 +128,21 @@ flowchart TD
 Add S3 support to the local development environment so developers can test Config Broker integration locally. Update LocalStack to provision an S3 bucket and seed it with a sample grant definition file.
 
 **Scope:**
+
 - Update `compose/start-localstack.sh` to create an S3 bucket (e.g., `config-broker-local`)
 - Update `compose.yml` LocalStack `SERVICES` to include `s3` (currently `sqs,sns`)
 - Add new env vars to `.env.example`: `CONFIG_BROKER_S3_BUCKET`
-- Seed a sample grant definition JSON into the S3 bucket at a known path (e.g., `pigs-might-fly/1.0.0/grant-definition.json`) using the existing PMF fixture
+- Seed a sample grant definition JSON into the S3 bucket at a known path (e.g., `pigs-might-fly/1.0.0/gas/gas.json`) using the existing PMF fixture
 
 **Files to change:**
+
 - `compose/start-localstack.sh`
 - `compose.yml`
 - `.env.example`
 - `src/common/config.js` (add `CONFIG_BROKER_S3_BUCKET` to schema)
 
 **Acceptance Criteria:**
+
 - [ ] `docker compose up` starts LocalStack with S3 enabled
 - [ ] S3 bucket `config-broker-local` exists after startup
 - [ ] Sample grant definition file is accessible at the expected S3 key
@@ -156,6 +159,7 @@ Add S3 support to the local development environment so developers can test Confi
 Create a reusable S3 client module for fetching and parsing grant definition files from the Config Broker's S3 bucket. This is the low-level fetch layer used by the lazy-fetch logic in Ticket 6.
 
 **Scope:**
+
 - Add `@aws-sdk/client-s3` dependency
 - Create `src/common/s3-client.js` with a `fetchConfigFile(bucket, key)` function that:
   - Calls `GetObjectCommand`
@@ -165,11 +169,13 @@ Create a reusable S3 client module for fetching and parsing grant definition fil
 - Add S3 path construction helper: `buildS3Key(grantCode, version)` that returns the expected key pattern
 
 **Files to change:**
+
 - `package.json` (add `@aws-sdk/client-s3`)
 - New: `src/common/s3-client.js`
 - New: `src/common/s3-client.test.js`
 
 **Acceptance Criteria:**
+
 - [ ] `fetchConfigFile` returns parsed JSON when the S3 object exists and is valid
 - [ ] `fetchConfigFile` throws a distinguishable error when the key does not exist (404)
 - [ ] `fetchConfigFile` throws a distinguishable error for access denied (403)
@@ -189,6 +195,7 @@ Create a reusable S3 client module for fetching and parsing grant definition fil
 Create the `config_versions` MongoDB collection that acts as GAS's local catalog of all known config versions published by the Config Broker. This collection is the source of truth for version resolution.
 
 **Scope:**
+
 - Create migration to add `config_versions` collection with indexes:
   - Unique: `{ grantCode: 1, version: 1 }`
   - Query: `{ grantCode: 1, major: 1, minor: 1, patch: -1, status: 1 }`
@@ -199,6 +206,7 @@ Create the `config_versions` MongoDB collection that acts as GAS's local catalog
   - `updateFetchStatus(grantCode, version, fetchStatus, fetchError)` -- update fetch state after S3 attempt
 
 **Files to change:**
+
 - New: `migrations/YYYYMMDD-create-config-versions.js`
 - New: `src/grants/models/config-version.js`
 - New: `src/grants/models/config-version.test.js`
@@ -206,6 +214,7 @@ Create the `config_versions` MongoDB collection that acts as GAS's local catalog
 - New: `src/grants/repositories/config-version.repository.test.js`
 
 **Acceptance Criteria:**
+
 - [ ] Migration creates the `config_versions` collection with both indexes
 - [ ] `upsert` inserts a new version record with `fetchStatus: "pending"`
 - [ ] `upsert` on a duplicate `{ grantCode, version }` updates the existing record (no duplicate error)
@@ -226,6 +235,7 @@ Create the `config_versions` MongoDB collection that acts as GAS's local catalog
 Create a new SQS subscriber that listens for Config Broker version notifications and processes them using GAS's **existing inbox/outbox pattern**. This ensures Config Broker messages get the same reliable, ordered processing as case status and agreement updates -- including FIFO locking, retries, and dead-letter handling.
 
 The existing pattern in GAS:
+
 1. `SqsSubscriber` polls the SQS queue and calls `saveInboxMessageUseCase` to persist the raw message to the **inbox** collection
 2. `InboxSubscriber` polls the inbox, claims messages with FIFO locks, and dispatches to a handler based on message type/source
 3. Failed messages are retried up to `INBOX_MAX_RETRIES`, then dead-lettered
@@ -233,6 +243,7 @@ The existing pattern in GAS:
 This ticket follows that same pattern rather than having the SQS subscriber write directly to `config_versions`.
 
 **Scope:**
+
 - Add new env vars: `GAS__SQS__CONFIG_VERSION_QUEUE_URL`
 - Update `src/common/config.js` with the new SQS queue URL
 - Create `src/grants/subscribers/config-version-updated.subscriber.js` (SQS poller) that:
@@ -248,6 +259,7 @@ This ticket follows that same pattern rather than having the SQS subscriber writ
 - Update `compose/start-localstack.sh` to create the new SQS queue
 
 **Files to change:**
+
 - `src/common/config.js`
 - `.env.example`
 - New: `src/grants/subscribers/config-version-updated.subscriber.js`
@@ -258,6 +270,7 @@ This ticket follows that same pattern rather than having the SQS subscriber writ
 - `compose/start-localstack.sh` (create SQS queue)
 
 **Acceptance Criteria:**
+
 - [ ] SQS subscriber starts and stops with the Hapi server lifecycle
 - [ ] Config Broker messages are persisted to the **inbox** collection via `saveInboxMessageUseCase` (not written directly to `config_versions`)
 - [ ] `InboxSubscriber` processes Config Broker messages from the inbox with the existing FIFO lock, retry, and dead-letter semantics
@@ -278,6 +291,7 @@ This ticket follows that same pattern rather than having the SQS subscriber writ
 Add a `version` field to the `Grant` model and `GrantDocument`, and update the repository to support looking up grants by `code + version`. Migrate existing grants to a default version.
 
 **Scope:**
+
 - Add `version` field to `Grant` constructor and `GrantDocument`
 - Update `grant.repository.js`:
   - `save` and `replace` include `version`
@@ -288,6 +302,7 @@ Add a `version` field to the `Grant` model and `GrantDocument`, and update the r
 - Update `createGrantUseCase` and `replaceGrantUseCase` to accept optional `version`
 
 **Files to change:**
+
 - `src/grants/models/grant.js`
 - `src/grants/models/grant-document.js`
 - `src/grants/repositories/grant.repository.js`
@@ -297,6 +312,7 @@ Add a `version` field to the `Grant` model and `GrantDocument`, and update the r
 - New: `migrations/YYYYMMDD-add-version-to-grants.js`
 
 **Acceptance Criteria:**
+
 - [ ] `Grant` model accepts and stores a `version` string
 - [ ] `GrantDocument` includes `version` in its persisted fields
 - [ ] `findByCodeAndVersion("woodland", "1.2.3")` returns the correct grant
@@ -316,6 +332,7 @@ Add a `version` field to the `Grant` model and `GrantDocument`, and update the r
 Implement the fetch-decision service that resolves a config version, fetches the grant definition from S3 if needed, and handles all error scenarios. This is the core logic that sits between the `config_versions` catalog and the `grants` collection.
 
 **Scope:**
+
 - Create `src/grants/services/resolve-config-version.service.js` with a `resolveAndFetchGrant(grantCode, requestedVersion)` function that:
   1. Parses `requestedVersion` into `major.minor`
   2. Queries `config_versions` for the latest active patch
@@ -329,10 +346,12 @@ Implement the fetch-decision service that resolves a config version, fetches the
 - Use appropriate Boom errors for each rejection scenario (404, 422, 502, 503)
 
 **Files to change:**
+
 - New: `src/grants/services/resolve-config-version.service.js`
 - New: `src/grants/services/resolve-config-version.service.test.js`
 
 **Acceptance Criteria:**
+
 - [ ] Returns the grant when `fetchStatus` is `"fetched"` (no S3 call)
 - [ ] Fetches from S3 and stores the grant when `fetchStatus` is `"pending"`
 - [ ] Retries fetch when `fetchStatus` is `"transient_error"` and `fetchAttempts < 5`
@@ -356,6 +375,7 @@ Implement the fetch-decision service that resolves a config version, fetches the
 Update the application submission flow to accept a `configVersion` from the caller, resolve the latest patch, and store the resolved version on the application.
 
 **Scope:**
+
 - Add `configVersion` (semver string) to `submitApplicationRequestSchema`
 - Add `configVersion` field to the `Application` model and its constructor
 - Update `createApplicationUseCase` to:
@@ -366,6 +386,7 @@ Update the application submission flow to accept a `configVersion` from the call
 - Create migration to add `configVersion: null` to existing application documents
 
 **Files to change:**
+
 - `src/grants/schemas/requests/submit-application-request.schema.js`
 - `src/grants/models/application.js`
 - `src/grants/use-cases/create-application.use-case.js`
@@ -373,6 +394,7 @@ Update the application submission flow to accept a `configVersion` from the call
 - New: `migrations/YYYYMMDD-add-config-version-to-applications.js`
 
 **Acceptance Criteria:**
+
 - [ ] `POST /grants/{code}/applications` accepts `configVersion` in the request body
 - [ ] Request is rejected with 400 if `configVersion` is missing or not a valid semver string
 - [ ] Application is created with the resolved version (e.g., sends `"1.2.0"`, gets `"1.2.3"`)
@@ -394,6 +416,7 @@ Update the application submission flow to accept a `configVersion` from the call
 Include `configVersion` in all outbound CloudEvent commands and events so downstream systems (Caseworking, Agreements, listeners) know which config version was used.
 
 **Scope:**
+
 - Update `CreateNewCaseCommand` to include `configVersion` in `data.payload`
 - Update `CreateAgreementCommand` to include `configVersion` in `data`
 - Update `UpdateCaseStatusCommand` to include `configVersion` in `data.supplementaryData`
@@ -401,6 +424,7 @@ Include `configVersion` in all outbound CloudEvent commands and events so downst
 - Update `ApplicationStatusUpdatedEvent` to include `configVersion` in `data`
 
 **Files to change:**
+
 - `src/grants/commands/create-new-case.command.js`
 - `src/grants/events/create-agreement.command.js`
 - `src/grants/commands/update-case-status.command.js`
@@ -409,6 +433,7 @@ Include `configVersion` in all outbound CloudEvent commands and events so downst
 - Unit test files for each of the above
 
 **Acceptance Criteria:**
+
 - [ ] `CreateNewCaseCommand` payload includes `configVersion` from the application
 - [ ] `CreateAgreementCommand` payload includes `configVersion` from the application
 - [ ] `UpdateCaseStatusCommand` supplementary data includes `configVersion`
@@ -427,6 +452,7 @@ Include `configVersion` in all outbound CloudEvent commands and events so downst
 Update consumer and provider Pact contract tests to include `configVersion` in all message contracts between GAS and downstream systems.
 
 **Scope:**
+
 - Update `test/contract/provider.cw-backend.test.js`:
   - Add `configVersion` to mock applications in `CreateNewCaseCommand` provider tests
   - Add `configVersion` to `UpdateCaseStatusCommand` provider tests
@@ -438,12 +464,14 @@ Update consumer and provider Pact contract tests to include `configVersion` in a
   - Add `configVersion` to expected message shape for agreement events
 
 **Files to change:**
+
 - `test/contract/provider.cw-backend.test.js`
 - `test/contract/provider.agreements-api.test.js`
 - `test/contract/consumer.cw-backend.test.js`
 - `test/contract/consumer.agreements-api.test.js`
 
 **Acceptance Criteria:**
+
 - [ ] `npm run test:contract:local` passes with `configVersion` in all message contracts
 - [ ] Provider tests for CW include `configVersion` in `CreateNewCaseCommand` and `UpdateCaseStatusCommand` messages
 - [ ] Provider tests for Agreements include `configVersion` in `CreateAgreementCommand` messages

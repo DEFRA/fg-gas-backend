@@ -40,20 +40,20 @@ describe("s3-client", () => {
   describe("buildS3Key", () => {
     it("should construct the S3 key from grant code and version", () => {
       expect(buildS3Key("woodland", "1.2.3")).toBe(
-        "woodland/1.2.3/grant-definition.json",
+        "woodland/1.2.3/gas/gas.json",
       );
     });
 
     it("should handle codes with hyphens", () => {
       expect(buildS3Key("frps-private-beta", "2.0.0")).toBe(
-        "frps-private-beta/2.0.0/grant-definition.json",
+        "frps-private-beta/2.0.0/gas/gas.json",
       );
     });
   });
 
   describe("fetchConfigFile", () => {
     const bucket = "config-broker-test";
-    const key = "woodland/1.0.0/grant-definition.json";
+    const key = "woodland/1.0.0/gas/gas.json";
 
     it("should return parsed JSON when the S3 object exists and is valid", async () => {
       const grantDef = { code: "woodland", phases: [] };
