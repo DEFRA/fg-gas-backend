@@ -80,7 +80,6 @@ export const submitApplication = async (db) => {
       "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
     },
     payload: {
-      configVersion: "1.0.0",
       metadata: {
         clientRef,
         submittedAt: new Date().toISOString(),
@@ -88,6 +87,7 @@ export const submitApplication = async (db) => {
         frn: "1234567890",
         crn: "1234567890",
         defraId: "1234567890",
+        configVersion: "1.0.0",
       },
       answers: {
         question1: "test answer",

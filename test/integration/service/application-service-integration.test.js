@@ -129,7 +129,6 @@ describe("Application Service Integration Tests", () => {
 
       // Submit comprehensive application
       const applicationData = {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: `app-service-${testId}`,
           submittedAt: new Date().toISOString(),
@@ -137,6 +136,7 @@ describe("Application Service Integration Tests", () => {
           frn: "987654321",
           crn: "555666777",
           defraId: "DEF123456",
+          configVersion: "1.0.0",
         },
         answers: {
           applicantDetails: {
@@ -298,7 +298,6 @@ describe("Application Service Integration Tests", () => {
 
       // Submit application with complex array data
       const applicationData = {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: `app-service-array-${testId}`,
           submittedAt: new Date().toISOString(),
@@ -306,6 +305,7 @@ describe("Application Service Integration Tests", () => {
           frn: "123456789",
           crn: "444555666",
           defraId: "DEF789012",
+          configVersion: "1.0.0",
         },
         answers: {
           livestockOperations: [
@@ -431,7 +431,6 @@ describe("Application Service Integration Tests", () => {
         {
           name: "invalid email",
           data: {
-            configVersion: "1.0.0",
             metadata: {
               clientRef: `app-service-invalid-email-${testId}`,
               submittedAt: new Date().toISOString(),
@@ -439,6 +438,7 @@ describe("Application Service Integration Tests", () => {
               frn: "987654321",
               crn: "555666777",
               defraId: "DEF123456",
+              configVersion: "1.0.0",
             },
             answers: {
               email: "not-an-email",
@@ -451,7 +451,6 @@ describe("Application Service Integration Tests", () => {
         {
           name: "age below minimum",
           data: {
-            configVersion: "1.0.0",
             metadata: {
               clientRef: `app-service-invalid-age-${testId}`,
               submittedAt: new Date().toISOString(),
@@ -459,6 +458,7 @@ describe("Application Service Integration Tests", () => {
               frn: "987654321",
               crn: "555666777",
               defraId: "DEF123456",
+              configVersion: "1.0.0",
             },
             answers: {
               email: "test@example.com",
@@ -471,7 +471,6 @@ describe("Application Service Integration Tests", () => {
         {
           name: "invalid phone pattern",
           data: {
-            configVersion: "1.0.0",
             metadata: {
               clientRef: `app-service-invalid-phone-${testId}`,
               submittedAt: new Date().toISOString(),
@@ -479,6 +478,7 @@ describe("Application Service Integration Tests", () => {
               frn: "987654321",
               crn: "555666777",
               defraId: "DEF123456",
+              configVersion: "1.0.0",
             },
             answers: {
               email: "test@example.com",
@@ -491,7 +491,6 @@ describe("Application Service Integration Tests", () => {
         {
           name: "invalid enum value",
           data: {
-            configVersion: "1.0.0",
             metadata: {
               clientRef: `app-service-invalid-enum-${testId}`,
               submittedAt: new Date().toISOString(),
@@ -499,6 +498,7 @@ describe("Application Service Integration Tests", () => {
               frn: "987654321",
               crn: "555666777",
               defraId: "DEF123456",
+              configVersion: "1.0.0",
             },
             answers: {
               email: "test@example.com",

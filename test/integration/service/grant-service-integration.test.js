@@ -284,7 +284,6 @@ describe("Grant Service Integration Tests", () => {
 
       // Submit application for the grant
       const applicationData = {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: `grant-service-${testId}`,
           submittedAt: new Date().toISOString(),
@@ -292,6 +291,7 @@ describe("Grant Service Integration Tests", () => {
           frn: "987654321",
           crn: "555666777",
           defraId: "DEF123456",
+          configVersion: "1.0.0",
         },
         answers: {
           farmName: "Test Integration Farm",
@@ -382,7 +382,6 @@ describe("Grant Service Integration Tests", () => {
         { length: numConcurrentOperations },
         (_, i) => {
           const applicationData = {
-            configVersion: "1.0.0",
             metadata: {
               clientRef: `grant-service-concurrent-${testId}-${i}`,
               submittedAt: new Date().toISOString(),
@@ -390,6 +389,7 @@ describe("Grant Service Integration Tests", () => {
               frn: `98765432${i}`,
               crn: `55566677${i}`,
               defraId: `DEF12345${i}`,
+              configVersion: "1.0.0",
             },
             answers: {
               testField: `Test value ${i}`,
@@ -504,7 +504,6 @@ describe("Grant Service Integration Tests", () => {
 
       // Submit valid application
       const validApplicationData = {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: `grant-service-business-${testId}`,
           submittedAt: new Date().toISOString(),
@@ -512,6 +511,7 @@ describe("Grant Service Integration Tests", () => {
           frn: "987654321",
           crn: "555666777",
           defraId: "DEF123456",
+          configVersion: "1.0.0",
         },
         answers: {
           farmType: "mixed",
@@ -545,7 +545,6 @@ describe("Grant Service Integration Tests", () => {
 
       // Test invalid application (violates business rules)
       const invalidApplicationData = {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: `grant-service-invalid-${testId}`,
           submittedAt: new Date().toISOString(),
@@ -553,6 +552,7 @@ describe("Grant Service Integration Tests", () => {
           frn: "987654321",
           crn: "555666777",
           defraId: "DEF123456",
+          configVersion: "1.0.0",
         },
         answers: {
           farmType: "invalid-type", // Invalid enum value

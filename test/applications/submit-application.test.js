@@ -70,7 +70,6 @@ describe("POST /grants/{code}/applications", () => {
         "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
       },
       payload: {
-        configVersion: "1.0.0",
         metadata: {
           clientRef,
           submittedAt,
@@ -78,7 +77,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
-          configVersion: "0.0.1",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "test answer",
@@ -113,7 +112,6 @@ describe("POST /grants/{code}/applications", () => {
         },
         metadata: {
           defraId: "1234567890",
-          configVersion: "0.0.1",
         },
         phases: [
           {
@@ -177,7 +175,6 @@ describe("POST /grants/{code}/applications", () => {
           },
           metadata: {
             defraId: "1234567890",
-            configVersion: "0.0.1",
           },
           answers: {
             question1: "test answer",
@@ -231,7 +228,6 @@ describe("POST /grants/{code}/applications", () => {
         "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
       },
       payload: {
-        configVersion: "1.0.0",
         metadata: {
           clientRef,
           submittedAt,
@@ -239,6 +235,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           wubble: "wobble",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "test answer",
@@ -358,7 +355,6 @@ describe("POST /grants/{code}/applications", () => {
       await wreck.post("/grants/test-code-1/applications", {
         json: true,
         payload: {
-          configVersion: "1.0.0",
           metadata: {
             clientRef: "12345",
             submittedAt: new Date(),
@@ -366,6 +362,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             question1: 42, // Invalid type
@@ -429,7 +426,6 @@ describe("POST /grants/{code}/applications", () => {
     await wreck.post("/grants/test-code-1/applications", {
       json: true,
       payload: {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: "12345",
           submittedAt: new Date(),
@@ -437,6 +433,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "test answer",
@@ -449,7 +446,6 @@ describe("POST /grants/{code}/applications", () => {
       await wreck.post("/grants/test-code-1/applications", {
         json: true,
         payload: {
-          configVersion: "1.0.0",
           metadata: {
             clientRef: "12345", // Duplicate clientRef
             submittedAt: new Date(),
@@ -457,6 +453,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             question1: "test answer 2",
@@ -516,7 +513,6 @@ describe("POST /grants/{code}/applications", () => {
       await wreck.post("/grants/test-code-3/applications", {
         json: true,
         payload: {
-          configVersion: "1.0.0",
           metadata: {
             clientRef: "12345",
             submittedAt: new Date(),
@@ -524,6 +520,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             scheme: "SFI",
@@ -568,7 +565,6 @@ describe("POST /grants/{code}/applications", () => {
       await wreck.post("/grants/test-code-3/applications", {
         json: true,
         payload: {
-          configVersion: "1.0.0",
           metadata: {
             clientRef: "12345",
             submittedAt: new Date(),
@@ -576,6 +572,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             scheme: "SFI",
@@ -619,7 +616,6 @@ describe("POST /grants/{code}/applications", () => {
       await wreck.post("/grants/test-code-3/applications", {
         json: true,
         payload: {
-          configVersion: "1.0.0",
           metadata: {
             clientRef: "12345",
             submittedAt: new Date(),
@@ -627,6 +623,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             scheme: "SFI",
@@ -726,7 +723,6 @@ describe("POST /grants/{code}/applications", () => {
         "x-cdp-request-id": "xxxx-xxxx-xxxx-xxxx",
       },
       payload: {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: newClientRef,
           previousClientRef,
@@ -735,6 +731,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "replacement answer",
@@ -860,7 +857,6 @@ describe("POST /grants/{code}/applications", () => {
 
     await wreck.post("/grants/test-code-2/applications", {
       payload: {
-        configVersion: "1.0.0",
         metadata: {
           clientRef: previousClientRef,
           submittedAt: new Date(),
@@ -868,6 +864,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "original answer",
@@ -880,7 +877,6 @@ describe("POST /grants/{code}/applications", () => {
       await wreck.post("/grants/test-code-2/applications", {
         json: true,
         payload: {
-          configVersion: "1.0.0",
           metadata: {
             clientRef: `cr-new-${randomUUID()}`,
             previousClientRef,
@@ -889,6 +885,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             question1: "replacement answer",
@@ -946,7 +943,6 @@ describe("POST /grants/{code}/applications", () => {
       await wreck.post("/grants/test-code-1/applications", {
         json: true,
         payload: {
-          configVersion: "1.0.0",
           metadata: {
             clientRef: `cr-new-${randomUUID()}`,
             previousClientRef: "non-existent-ref",
@@ -955,6 +951,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             question1: "answer",
@@ -986,7 +983,6 @@ describe("POST /grants/{code}/applications", () => {
       await wreck.post("/grants/test-code-3/applications", {
         json: true,
         payload: {
-          configVersion: "1.0.0",
           metadata: {
             clientRef: "12345",
             submittedAt: new Date(),
@@ -994,6 +990,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             scheme: "SFI",
