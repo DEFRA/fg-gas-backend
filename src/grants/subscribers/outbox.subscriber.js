@@ -21,6 +21,10 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
+import {
+  dispatchInternally,
+  isInternalAgreementCommand,
+} from "../services/outbox-dispatch.service.js";
 
 export class OutboxSubscriber {
   static ACTOR = "OUTBOX";
@@ -147,9 +151,18 @@ export class OutboxSubscriber {
       event: data,
       event: { messageGroupId },
     } = event;
-    logger.info(`Send outbox event to ${topic}`);
     try {
-      await publish(topic, data, this.getMessageGroupId(messageGroupId, data));
+      if (isInternalAgreementCommand(data)) {
+        logger.info("Deliver outbox event internally to Agreements module");
+        await dispatchInternally(data);
+      } else {
+        logger.info(`Send outbox event to ${topic}`);
+        await publish(
+          topic,
+          data,
+          this.getMessageGroupId(messageGroupId, data),
+        );
+      }
       await this.markEventComplete(event);
     } catch (ex) {
       logger.error(ex);

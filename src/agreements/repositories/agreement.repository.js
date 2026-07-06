@@ -65,3 +65,18 @@ export const findByAgreementNumber = async (agreementNumber) => {
 
   return toAgreement(doc);
 };
+
+export const findByClientRefAndCode = async (clientRef, code, session) => {
+  const doc = await db
+    .collection(agreementsCollection)
+    .findOne(
+      { "items.clientRef": clientRef, "items.agreementCode": code },
+      { session },
+    );
+
+  if (doc === null) {
+    return null;
+  }
+
+  return toAgreement(doc);
+};
