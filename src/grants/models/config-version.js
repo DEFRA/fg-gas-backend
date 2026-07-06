@@ -97,7 +97,7 @@ export class ConfigVersion {
       minor: 0,
       patch: 0,
       status: "active",
-      s3Key: "pigs-might-fly/1.0.0/grant-definition.json",
+      s3Key: "pigs-might-fly/1.0.0/gas/gas.json",
       s3Bucket: "config-broker-local",
       receivedAt: new Date().toISOString(),
       fetchStatus: FetchStatus.Pending,

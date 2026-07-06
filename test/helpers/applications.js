@@ -45,7 +45,7 @@ export const seedConfigVersion = async (db, code, version = "1.0.0") => {
     grantCode: code,
     version,
     status: "active",
-    s3Key: `${code}/${version}/grant-definition.json`,
+    s3Key: `${code}/${version}/gas/gas.json`,
     s3Bucket: "config-broker-local",
   });
   const doc = cv.toDocument();
