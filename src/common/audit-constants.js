@@ -1,4 +1,5 @@
 export const auditEntities = {
+  GRANT: "GRANT",
   APPLICATION: "APPLICATION",
 };
 
@@ -6,6 +7,7 @@ export const auditActions = {
   SUBMIT_APPLICATION: "SUBMIT_APPLICATION",
   REPLACE_APPLICATION: "REPLACE_APPLICATION",
   STATUS_TRANSITION: "STATUS_TRANSITION",
+  REPLACE_GRANT: "REPLACE_GRANT",
 };
 
 export const auditStatus = {

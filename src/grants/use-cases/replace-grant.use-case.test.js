@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
+import { writeAuditEvent } from "../../common/write-audit-event.js";
 import { Grant } from "../models/grant.js";
 import { findByCode, replace } from "../repositories/grant.repository.js";
 import { replaceGrantUseCase } from "./replace-grant.use-case.js";
 
 vi.mock("../repositories/grant.repository.js");
+vi.mock("../../common/write-audit-event.js");
 
 describe("replaceGrantUseCase", () => {
-  it("replaces the whole grant", async () => {
+  it("replaces the whole grant and creates an audit event", async () => {
+    writeAuditEvent.mockResolvedValue(true);
     findByCode.mockResolvedValue(
       new Grant({
         code: "test-grant",
@@ -22,7 +25,7 @@ describe("replaceGrantUseCase", () => {
       }),
     );
 
-    await replaceGrantUseCase("test-grant", {
+    const replacementGrantCommand = {
       code: "test-grant",
       metadata: {
         description: "Updated Test Grant Description",
@@ -39,6 +42,11 @@ describe("replaceGrantUseCase", () => {
         $schema: "https://json-schema.org/draft/2020-12/schema",
         type: "object",
       },
+    };
+
+    await replaceGrantUseCase({
+      code: "test-grant",
+      command: replacementGrantCommand,
     });
 
     expect(replace).toHaveBeenCalledWith(
@@ -61,6 +69,42 @@ describe("replaceGrantUseCase", () => {
         },
       }),
     );
+
+    expect(writeAuditEvent.mock.calls[0][1]).toBeUndefined();
+    expect(writeAuditEvent.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        details: {
+          newGrantCommand: {
+            actions: [
+              {
+                method: "GET",
+                name: "get-test",
+                url: "http://localhost:3002/test-grant/get-test",
+              },
+            ],
+            code: "test-grant",
+            metadata: {
+              description: "Updated Test Grant Description",
+              startDate: "2023-01-02T00:00:00Z",
+            },
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+            },
+          },
+        },
+        entities: [
+          {
+            action: "REPLACE_GRANT",
+            entity: "GRANT",
+            entityid: "test-grant",
+          },
+        ],
+        messageGroupId: "replace-grant-test-grant",
+        security: undefined,
+        status: "SUCCESS",
+      }),
+    );
   });
 
   it("replaces the grant with externalStatusMap", async () => {
@@ -79,41 +123,44 @@ describe("replaceGrantUseCase", () => {
       }),
     );
 
-    await replaceGrantUseCase("test-grant", {
+    await replaceGrantUseCase({
       code: "test-grant",
-      metadata: {
-        description: "Updated Test Grant Description",
-        startDate: "2023-01-02T00:00:00Z",
-      },
-      actions: [
-        {
-          method: "GET",
-          name: "get-test",
-          url: "http://localhost:3002/test-grant/get-test",
+      command: {
+        code: "test-grant",
+        metadata: {
+          description: "Updated Test Grant Description",
+          startDate: "2023-01-02T00:00:00Z",
         },
-      ],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
-      externalStatusMap: {
-        phases: [
+        actions: [
           {
-            code: "PRE_AWARD",
-            stages: [
-              {
-                code: "REVIEW",
-                statuses: [
-                  {
-                    code: "IN_PROGRESS",
-                    source: "CW",
-                    mappedTo: "IN_PROGRESS",
-                  },
-                ],
-              },
-            ],
+            method: "GET",
+            name: "get-test",
+            url: "http://localhost:3002/test-grant/get-test",
           },
         ],
+        questions: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+        },
+        externalStatusMap: {
+          phases: [
+            {
+              code: "PRE_AWARD",
+              stages: [
+                {
+                  code: "REVIEW",
+                  statuses: [
+                    {
+                      code: "IN_PROGRESS",
+                      source: "CW",
+                      mappedTo: "IN_PROGRESS",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       },
     });
 
