@@ -25,8 +25,12 @@ export const validateEndpointServiceUrls = (definitions) => {
   );
 
   if (missing.length > 0) {
+    const missingServicesUrls = missing
+      .map((service) => `${service}_URL`)
+      .join(", ");
+
     throw new Error(
-      `Missing required endpoint URL env var(s): ${missing.map((service) => `${service}_URL`).join(", ")}`,
+      `Missing required endpoint URL env var(s): ${missingServicesUrls}`,
     );
   }
 };
