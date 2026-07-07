@@ -11,6 +11,7 @@ export const auditActions = {
   REPLACE_GRANT: "REPLACE_GRANT",
   CANCEL_AGREEMENT: "CANCEL_AGREEMENT",
   ADD_AGREEMENT: "ADD_AGREEMENT",
+  ACCEPT_AGREEMENT: "ACCEPT_AGREEMENT",
 };
 
 export const auditStatus = {
