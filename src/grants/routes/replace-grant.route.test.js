@@ -52,28 +52,31 @@ describe("replaceGrantRoute", () => {
     expect(statusCode).toEqual(204);
     expect(result).toEqual(null);
 
-    expect(replaceGrantUseCase).toHaveBeenCalledWith("test-grant", {
-      metadata: {
-        description: "Updated test grant",
-        startDate: new Date("2100-01-01T00:00:00.000Z"),
-      },
-      actions: [],
-      amendablePositions: ["Position:number:one"],
-      phases: [
-        {
-          code: "PRE_AWARD",
-          stages: [
-            {
-              code: "ASSESSMENT",
-              statuses: [{ code: "RECEIVED", validFrom: [] }],
-            },
-          ],
-          questions: {
-            $schema: "https://json-schema.org/draft/2020-12/schema",
-            type: "object",
-          },
+    expect(replaceGrantUseCase).toHaveBeenCalledWith({
+      code: "test-grant",
+      command: {
+        metadata: {
+          description: "Updated test grant",
+          startDate: new Date("2100-01-01T00:00:00.000Z"),
         },
-      ],
+        actions: [],
+        amendablePositions: ["Position:number:one"],
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED", validFrom: [] }],
+              },
+            ],
+            questions: {
+              $schema: "https://json-schema.org/draft/2020-12/schema",
+              type: "object",
+            },
+          },
+        ],
+      },
     });
   });
 

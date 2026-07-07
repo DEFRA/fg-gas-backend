@@ -19,7 +19,10 @@ export const replaceGrantRoute = {
   },
   async handler(request, h) {
     logger.info(`Replacing grant with code ${request.params.code}`);
-    await replaceGrantUseCase(request.params.code, request.payload);
+    await replaceGrantUseCase({
+      code: request.params.code,
+      command: request.payload,
+    });
 
     logger.info(`Finished: Replacing grant with code ${request.params.code}`);
     return h.response().code(204);
