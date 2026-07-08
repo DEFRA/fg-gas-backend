@@ -10,7 +10,7 @@ import {
   saveAgreement,
   saveVersion,
 } from "../repositories/agreement.repository.js";
-import { runAgreementEffects } from "./agreement-effect-runner.js";
+import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 
 const SOURCE_SYSTEM = "GAS";
 

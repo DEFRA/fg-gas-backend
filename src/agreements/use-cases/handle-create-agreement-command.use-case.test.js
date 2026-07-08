@@ -7,14 +7,14 @@ import {
   saveAgreement,
   saveVersion,
 } from "../repositories/agreement.repository.js";
-import { runAgreementEffects } from "./agreement-effect-runner.js";
+import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { handleCreateAgreementCommand } from "./handle-create-agreement-command.use-case.js";
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("../models/agreement-definitions/index.js");
 vi.mock("../models/agreement-number.js");
 vi.mock("../repositories/agreement.repository.js");
-vi.mock("./agreement-effect-runner.js");
+vi.mock("../services/effects/agreement-effect-runner.js");
 
 const pmfDefinition = {
   code: "pigs-might-fly",

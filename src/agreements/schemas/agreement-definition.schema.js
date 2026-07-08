@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { handlers } from "../use-cases/agreement-effect-runner.js";
+import { handlers } from "../services/effects/agreement-effect-runner.js";
 
 const effect = Joi.object({
   name: Joi.string()

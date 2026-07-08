@@ -1,5 +1,5 @@
 import Boom from "@hapi/boom";
-import { wreck } from "../../common/wreck.js";
+import { wreck } from "../../../common/wreck.js";
 import { resolveEndpointServiceUrl } from "./resolve-endpoint-service-url.js";
 
 const HTTP_SUCCESS_MIN = 200;

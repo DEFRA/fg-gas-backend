@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { wreck } from "../../common/wreck.js";
+import { wreck } from "../../../common/wreck.js";
 import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
 import { resolveEndpointServiceUrl } from "./resolve-endpoint-service-url.js";
 
-vi.mock("../../common/wreck.js");
+vi.mock("../../../common/wreck.js");
 vi.mock("./resolve-endpoint-service-url.js");
 
 const endpointConfig = {
