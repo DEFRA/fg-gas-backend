@@ -37,7 +37,7 @@
   "license": "OGL-UK-3.0",
   "dependencies": {
     "@aws-sdk/client-sns": "^3.995.0",
-    "@aws-sdk/client-sqs": "^3.995.0",
+    "@aws-sdk/client-sqs": "^3.1077.0",
     "@aws-sdk/credential-providers": "^3.1004.0",
     "@defra/fcp-audit-publisher": "^1.0.7",
     "@defra/hapi-tracing": "^1.28.0",
