@@ -9,10 +9,6 @@ import {
   isInternalAgreementCommand,
 } from "./outbox-dispatch.service.js";
 
-vi.mock("../../common/with-transaction.js", () => ({
-  withTransaction: vi.fn((fn) => fn({ session: true })),
-}));
-
 describe("outbox-dispatch.service", () => {
   afterEach(() => {
     clearInternalCommandHandlers();
@@ -61,7 +57,7 @@ describe("outbox-dispatch.service", () => {
       );
     });
 
-    it("invokes the registered handler within a transaction", async () => {
+    it("invokes the registered handler, leaving it to manage its own transaction", async () => {
       const handler = vi.fn().mockResolvedValue();
       registerInternalCommandHandler(
         internalCommandTypes.AGREEMENT_CREATE,
@@ -74,7 +70,7 @@ describe("outbox-dispatch.service", () => {
 
       await dispatchInternally(event);
 
-      expect(handler).toHaveBeenCalledWith(event, { session: true });
+      expect(handler).toHaveBeenCalledWith(event);
     });
   });
 });

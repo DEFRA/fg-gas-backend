@@ -54,6 +54,7 @@
     "hapi-pulse": "^3.0.1",
     "hapi-swagger": "^17.3.2",
     "joi": "^17.13.3",
+    "jsonata": "2.2.0",
     "migrate-mongo": "^14.0.7",
     "mongodb": "^7.1.0",
     "pino": "^10.3.0",

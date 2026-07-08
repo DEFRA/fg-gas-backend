@@ -1,5 +1,5 @@
 import hapi from "@hapi/hapi";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearInternalCommandHandlers,
   getInternalCommandHandler,
@@ -11,6 +11,7 @@ import { handleCreateAgreementCommand } from "./use-cases/handle-create-agreemen
 describe("agreements", () => {
   afterEach(() => {
     clearInternalCommandHandlers();
+    vi.unstubAllEnvs();
   });
 
   it("registers as a hapi plugin", async () => {
@@ -26,5 +27,15 @@ describe("agreements", () => {
     expect(
       getInternalCommandHandler(internalCommandTypes.AGREEMENT_CREATE),
     ).toBe(handleCreateAgreementCommand);
+  });
+
+  it("fails to register when a registered agreement definition's endpoint has no URL configured", async () => {
+    vi.stubEnv("GRANT_FUNDING_CALCULATOR_URL", "");
+
+    const server = hapi.server();
+
+    await expect(server.register(agreements)).rejects.toThrow(
+      /Missing required endpoint URL env var\(s\): GRANT_FUNDING_CALCULATOR_URL/,
+    );
   });
 });

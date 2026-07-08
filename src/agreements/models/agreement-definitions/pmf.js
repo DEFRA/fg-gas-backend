@@ -2,6 +2,14 @@ export const pmfAgreementDefinition = {
   code: "pigs-might-fly",
   configVersion: "0.0.1",
   agreementNumberPrefix: "PMF",
+  endpoints: [
+    {
+      code: "calculate-funding",
+      method: "POST",
+      path: "/grantFundingCalculator",
+      service: "GRANT_FUNDING_CALCULATOR",
+    },
+  ],
   create: {
     target: "offered",
     effects: [
