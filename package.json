@@ -44,7 +44,7 @@
     "@elastic/ecs-pino-format": "^1.5.0",
     "@hapi/boom": "^10.0.1",
     "@hapi/hapi": "^21.4.6",
-    "@hapi/inert": "^7.1.0",
+    "@hapi/inert": "^7.1.2",
     "@hapi/vision": "^7.0.3",
     "@hapi/wreck": "^18.1.0",
     "ajv": "^8.17.1",
