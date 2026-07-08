@@ -1,6 +1,6 @@
 import Boom from "@hapi/boom";
-import { getAgreementDefinitionByCode } from "../models/agreement-definitions/index.js";
-import { validateAgreementDefinition } from "../models/agreement-definitions/validate.js";
+import { getAgreementDefinitionByCode } from "./index.js";
+import { validateAgreementDefinition } from "./validate.js";
 
 const loadValidatedDefinition = (code) => {
   const definition = getAgreementDefinitionByCode(code);

@@ -10,6 +10,8 @@ export class AgreementItem {
     identifiers,
     payload,
     createdAt,
+    status,
+    supplementaryData,
   }) {
     this.agreementItemId = agreementItemId;
     this.agreementCode = agreementCode;
@@ -19,6 +21,8 @@ export class AgreementItem {
     this.identifiers = identifiers;
     this.payload = payload;
     this.createdAt = createdAt;
+    this.status = status;
+    this.supplementaryData = supplementaryData;
   }
 
   static new({
