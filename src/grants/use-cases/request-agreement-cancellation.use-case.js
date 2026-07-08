@@ -37,7 +37,7 @@ const requestAgreementCancellation = async (command, session) => {
   const agreement = application?.getActiveAgreement();
 
   if (!agreement) {
-    return;
+    return undefined;
   }
 
   const updateAgreementStatusCommand = new UpdateAgreementStatusCommand({

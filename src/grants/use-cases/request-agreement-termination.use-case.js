@@ -45,7 +45,7 @@ const requestAgreementTermination = async ({ clientRef, code }, session) => {
     logger.warn(
       `No active agreement found for application ${clientRef} with code ${code}`,
     );
-    return;
+    return undefined;
   }
 
   const updateAgreementStatusCommand = new UpdateAgreementStatusCommand({

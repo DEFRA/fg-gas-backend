@@ -30,13 +30,13 @@ const createAgreementCommand = async ({ clientRef, code }, session) => {
     { clientRef, code },
     session,
   );
-  const createAgreementCommand = new CreateAgreementCommand(application);
+  const command = new CreateAgreementCommand(application);
   await insertMany(
     [
       new Outbox({
-        event: createAgreementCommand,
+        event: command,
         target: config.sns.createAgreementTopicArn,
-        segregationRef: Outbox.getSegregationRef(createAgreementCommand),
+        segregationRef: Outbox.getSegregationRef(command),
       }),
     ],
     session,
