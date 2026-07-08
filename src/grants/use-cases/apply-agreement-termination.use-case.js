@@ -1,3 +1,5 @@
+import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
 import {
   findByClientRefAndCode,
   update,
@@ -5,7 +7,22 @@ import {
 import { insertMany } from "../repositories/outbox.repository.js";
 import { createAgreementCaseUpdateOutbox } from "./agreement-case-update.helpers.js";
 
-export const applyAgreementTerminationUseCase = async (command, session) => {
+export const auditDataBuilder = (args) => {
+  const { clientRef, code, eventData } = args[0];
+  return buildAuditEvent({
+    entity: auditEntities.AGREEMENT,
+    action: auditActions.APPLY_AGREEMENT_TERMINATION,
+    entityid: eventData.agreementNumber,
+    details: {
+      clientRef,
+      code,
+      eventData,
+    },
+    messageGroupId: `apply-agreement-termination-${eventData.agreementNumber}`,
+  });
+};
+
+const applyAgreementTermination = async (command, session) => {
   const { clientRef, code, eventData } = command;
   const { agreementNumber, date } = eventData;
   const application = await findByClientRefAndCode(
@@ -29,3 +46,8 @@ export const applyAgreementTerminationUseCase = async (command, session) => {
     session,
   );
 };
+
+export const applyAgreementTerminationUseCase = withAudit(
+  applyAgreementTermination,
+  auditDataBuilder,
+);
