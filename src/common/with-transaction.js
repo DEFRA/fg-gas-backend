@@ -12,13 +12,18 @@ export const withTransaction = async (
   options = transactionOptions,
 ) => {
   const session = mongoClient.startSession();
+  let result;
 
   try {
-    await session.withTransaction(callback, options);
+    await session.withTransaction(async (activeSession) => {
+      result = await callback(activeSession);
+    }, options);
   } catch (e) {
     logger.error("ERROR: Transaction failed.");
     throw e;
   } finally {
     await session.endSession();
   }
+
+  return result;
 };

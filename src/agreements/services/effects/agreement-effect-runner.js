@@ -1,3 +1,6 @@
+import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
+import { isPlainObject, resolveEffectParams } from "./resolve-effect-params.js";
+
 // Effect shape: { name, output?, params? }
 //   name   — selects the handler (owned by the runner)
 //   output — where handler output is stored in context.outputs (owned by the runner)
@@ -9,15 +12,35 @@
 //
 // context.outputs is frozen before each handler call; writing to it directly throws
 // a TypeError. Return { output: value } and set effect.output instead.
-const snapshotEffectHandler = async (_context, { params: _params = {} }) => {
-  throw new Error("snapshot handler not yet implemented");
+const snapshotEffectHandler = async (context, { params = {} }) => {
+  const supplementaryData = await resolveEffectParams(params, context);
+
+  return { context: { supplementaryData } };
 };
 
-const callEndpointEffectHandler = async (
-  _context,
-  { params: _params = {} },
-) => {
-  throw new Error("callEndpoint handler not yet implemented");
+const findEndpointConfig = (context, endpointCode) => {
+  const endpointConfig = context.endpoints?.find(
+    (candidate) => candidate.code === endpointCode,
+  );
+
+  if (!endpointConfig) {
+    throw new Error(`No endpoint configured for code "${endpointCode}"`);
+  }
+
+  return endpointConfig;
+};
+
+const callEndpointEffectHandler = async (context, { params = {} }) => {
+  const endpointConfig = findEndpointConfig(context, params.endpoint?.code);
+
+  const resolvedParams = await resolveEffectParams(
+    params.endpoint.endpointParams ?? {},
+    context,
+  );
+
+  const output = await callAgreementEndpoint(endpointConfig, resolvedParams);
+
+  return { output };
 };
 
 const createPaymentClaimEffectHandler = async (
@@ -38,9 +61,27 @@ export const handlers = {
   publish: publishEffectHandler,
 };
 
+// Plain-object context values (e.g. supplementaryData) are merged key-by-key
+// rather than replaced wholesale, so multiple effects that each contribute to
+// the same context key (e.g. two snapshot effects in one chain) accumulate
+// instead of the later one silently discarding the earlier one's fields.
+const mergeContextValue = (existing, incoming) =>
+  isPlainObject(existing) && isPlainObject(incoming)
+    ? { ...existing, ...incoming }
+    : incoming;
+
+const mergeContext = (context, contextPatch) => {
+  const mergedContext = { ...context };
+
+  for (const [key, value] of Object.entries(contextPatch)) {
+    mergedContext[key] = mergeContextValue(context[key], value);
+  }
+
+  return mergedContext;
+};
+
 export const mergeEffectResult = (context, effect, result = {}) => ({
-  ...context,
-  ...(result.context ?? {}),
+  ...mergeContext(context, result.context ?? {}),
   outputs: {
     ...context.outputs,
     ...(effect.output !== undefined ? { [effect.output]: result.output } : {}),
