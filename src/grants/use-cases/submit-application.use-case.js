@@ -8,12 +8,12 @@ import { createApplicationUseCase } from "./create-application.use-case.js";
 
 const auditDataBuilder = (args, results) => {
   const code = args[0].code;
-  const { sbi, frn, crn } = args[0].submission.metadata;
+  const { clientRef, sbi, frn, crn } = args[0].submission.metadata;
 
   return buildAuditEvent({
     entity: auditEntities.APPLICATION,
     action: auditActions.SUBMIT_APPLICATION,
-    entityid: results,
+    entityid: clientRef,
     details: {
       applicationId: results,
       code,
@@ -21,7 +21,7 @@ const auditDataBuilder = (args, results) => {
       frn,
       crn,
     },
-    messageGroupId: results && `submission-${results}`,
+    messageGroupId: `submission-${clientRef}`,
   });
 };
 
