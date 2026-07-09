@@ -47,7 +47,7 @@ export const submitApplication = async () => {
       metadata: {
         clientRef,
         submittedAt: new Date().toISOString(),
-        sbi: "1234567890",
+        sbi: "123456789",
         frn: "1234567890",
         crn: "1234567890",
         defraId: "1234567890",
