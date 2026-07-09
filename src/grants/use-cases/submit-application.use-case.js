@@ -6,7 +6,7 @@ import { ApplicationSeries } from "../models/application-series.js";
 import { save as saveSeries } from "../repositories/application-series.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
 
-const auditDataBuilder = (args, results) => {
+export const auditDataBuilder = (args) => {
   const code = args[0].code;
   const { clientRef, sbi, frn, crn } = args[0].submission.metadata;
 
@@ -15,7 +15,7 @@ const auditDataBuilder = (args, results) => {
     action: auditActions.SUBMIT_APPLICATION,
     entityid: clientRef,
     details: {
-      applicationId: results,
+      clientRef,
       code,
       sbi,
       frn,
