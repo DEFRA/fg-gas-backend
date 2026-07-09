@@ -57,20 +57,28 @@ export const withAudit = (f, dataBuilder) =>
       } finally {
         logger.debug(result, "withAudit: Use case result within proxy.");
         try {
-          const { entities, accounts, details, messageGroupId, security } =
-            dataBuilder(args, result);
+          const auditData = dataBuilder(args, result);
 
-          await writeAuditEvent(
-            {
-              entities,
-              accounts,
-              details,
-              messageGroupId,
-              status,
-              security,
-            },
-            session,
-          );
+          if (!auditData) {
+            logger.info(
+              "withAudit: dataBuilder returned no audit data - skipping audit event.",
+            );
+          } else {
+            const { entities, accounts, details, messageGroupId, security } =
+              auditData;
+
+            await writeAuditEvent(
+              {
+                entities,
+                accounts,
+                details,
+                messageGroupId,
+                status,
+                security,
+              },
+              session,
+            );
+          }
         } catch (auditError) {
           logger.error(
             auditError,

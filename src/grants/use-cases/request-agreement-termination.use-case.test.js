@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { config } from "../../common/config.js";
+import { writeAuditEvent } from "../../common/write-audit-event.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -14,10 +16,14 @@ import {
 } from "../models/application.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { requestAgreementTerminationUseCase } from "./request-agreement-termination.use-case.js";
+import {
+  auditDataBuilder,
+  requestAgreementTerminationUseCase,
+} from "./request-agreement-termination.use-case.js";
 
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/outbox.repository.js");
+vi.mock("../../common/write-audit-event.js");
 
 describe("requestAgreementTerminationUseCase", () => {
   let agreement;
@@ -87,6 +93,26 @@ describe("requestAgreementTerminationUseCase", () => {
       AgreementServiceStatus.Terminated,
     );
     expect(outboxCall.event.data.agreementNumber).toBe("agreement-123");
+
+    expect(writeAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entities: [
+          expect.objectContaining({
+            entity: auditEntities.AGREEMENT,
+            action: auditActions.REQUEST_AGREEMENT_TERMINATION,
+            entityid: "agreement-123",
+          }),
+        ],
+        details: {
+          clientRef: "test-client-ref",
+          code: "test-code",
+          agreementNumber: "agreement-123",
+        },
+        messageGroupId: "request-agreement-termination-agreement-123",
+        status: "SUCCESS",
+      }),
+      session,
+    );
   });
 
   it("does not send request when no agreement exists", async () => {
@@ -110,5 +136,42 @@ describe("requestAgreementTerminationUseCase", () => {
     await requestAgreementTerminationUseCase(command, session);
 
     expect(insertMany).not.toHaveBeenCalled();
+    expect(writeAuditEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("auditDataBuilder", () => {
+  const args = [{ clientRef: "test-client-ref", code: "test-code" }, {}];
+
+  it("emits REQUEST_AGREEMENT_TERMINATION on the AGREEMENT entity with the agreementNumber as entityid", () => {
+    const event = auditDataBuilder(args, { agreementNumber: "agreement-123" });
+
+    expect(event.entities[0]).toEqual({
+      entity: auditEntities.AGREEMENT,
+      action: auditActions.REQUEST_AGREEMENT_TERMINATION,
+      entityid: "agreement-123",
+    });
+  });
+
+  it("returns null when no agreement was terminated so no audit is written", () => {
+    expect(auditDataBuilder(args, undefined)).toBeNull();
+  });
+
+  it("includes clientRef, code and agreementNumber in details", () => {
+    const event = auditDataBuilder(args, { agreementNumber: "agreement-123" });
+
+    expect(event.details).toEqual({
+      clientRef: "test-client-ref",
+      code: "test-code",
+      agreementNumber: "agreement-123",
+    });
+  });
+
+  it("sets messageGroupId to request-agreement-termination-{agreementNumber}", () => {
+    const event = auditDataBuilder(args, { agreementNumber: "agreement-123" });
+
+    expect(event.messageGroupId).toBe(
+      "request-agreement-termination-agreement-123",
+    );
   });
 });
