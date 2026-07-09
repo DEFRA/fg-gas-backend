@@ -77,6 +77,7 @@ describe("handleCreateAgreementCommand", () => {
       configVersion: "0.0.1",
       identifiers: command.data.identifiers,
       payload: command.data.answers,
+      status: "offered",
     });
 
     expect(saveVersion).toHaveBeenCalledWith(
