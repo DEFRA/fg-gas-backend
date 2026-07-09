@@ -17,17 +17,20 @@ export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
 
   const agreement = await findByClientRefCodeAndSbi(clientRef, code, sbi);
 
-  const item = agreement?.items.find(
+  const itemForCodeAndClientRef = agreement?.items.find(
     (item) => item.agreementCode === code && item.clientRef === clientRef,
   );
 
-  if (!item) {
+  if (!itemForCodeAndClientRef) {
     throw Boom.notFound(
       `Agreement not found for code "${code}", clientRef "${clientRef}" and sbi "${sbi}"`,
     );
   }
 
-  const pageDefinition = resolveAgreementPage(agreement.code, item.status);
+  const pageDefinition = resolveAgreementPage(
+    agreement.code,
+    itemForCodeAndClientRef.status,
+  );
   const actions = await resolveActions({ agreement }, pageDefinition.actions);
 
   logger.info(`Finished: Finding current agreement for code ${code}`);
@@ -37,7 +40,7 @@ export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
     code: agreement.code,
     clientRef,
     sbi,
-    status: item.status,
+    status: itemForCodeAndClientRef.status,
     page: { title: pageDefinition.title },
     components: pageDefinition.components,
     actions,

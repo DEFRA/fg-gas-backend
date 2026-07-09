@@ -1,3 +1,5 @@
 import Joi from "joi";
 
-export const sbi = Joi.string().length(9);
+const SBI_LENGTH = 9;
+
+export const sbi = Joi.string().length(SBI_LENGTH);
