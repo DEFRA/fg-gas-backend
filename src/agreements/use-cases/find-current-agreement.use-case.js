@@ -4,7 +4,7 @@ import { resolveAgreementPage } from "../models/agreement-definitions/agreement-
 import { findByCodeClientRefAndSbi } from "../repositories/agreement.repository.js";
 import { resolvePageHref } from "../services/resolve-page-href.js";
 
-const resolveActions = async (actions = [], context) =>
+const resolveActions = async (context, actions = []) =>
   Promise.all(
     actions.map(async (action) => ({
       text: action.text,
@@ -25,7 +25,7 @@ export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
 
   const [item] = agreement.items;
   const pageDefinition = resolveAgreementPage(agreement.code, item.status);
-  const actions = await resolveActions(pageDefinition.actions, { agreement });
+  const actions = await resolveActions({ agreement }, pageDefinition.actions);
 
   logger.info(`Finished: Finding current agreement for code ${code}`);
 
