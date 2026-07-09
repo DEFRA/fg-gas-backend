@@ -1,3 +1,3 @@
-import { sbi } from "../../../../common/schemas/sbi.js";
+import Joi from "joi";
 
-export { sbi };
+export const sbi = Joi.string();
