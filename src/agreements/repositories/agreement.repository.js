@@ -81,16 +81,15 @@ export const findByClientRefAndCode = async (clientRef, code, session) => {
   return toAgreement(doc);
 };
 
-export const findByCodeClientRefAndSbi = async (
-  code,
+export const findByClientRefCodeAndSbi = async (
   clientRef,
+  code,
   sbi,
   session,
 ) => {
   const doc = await db.collection(agreementsCollection).findOne(
     {
-      "items.agreementCode": code,
-      "items.clientRef": clientRef,
+      items: { $elemMatch: { agreementCode: code, clientRef } },
       "identifiers.sbi": sbi,
     },
     { session },

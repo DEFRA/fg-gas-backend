@@ -1,3 +1,3 @@
-import Joi from "joi";
+import { sbi as baseSbi } from "../../../common/schemas/sbi.js";
 
-export const sbi = Joi.string().example("300000069").label("sbi");
+export const sbi = baseSbi.example("300000069").label("sbi");

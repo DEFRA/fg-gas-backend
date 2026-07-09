@@ -20,4 +20,15 @@ describe("resolvePageHref", () => {
 
     expect(result).toBe("/PMF823153883/accept");
   });
+
+  it("throws when a template placeholder has no matching resolved param", async () => {
+    const href = {
+      urlTemplate: "/{agreementNumber}/accept",
+      params: {},
+    };
+
+    await expect(resolvePageHref(href, {})).rejects.toThrow(
+      'Unresolved param "agreementNumber" in href template "/{agreementNumber}/accept"',
+    );
+  });
 });

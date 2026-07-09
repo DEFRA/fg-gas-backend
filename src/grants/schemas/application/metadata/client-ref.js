@@ -1,5 +1,3 @@
-import Joi from "joi";
+import { clientRef as baseClientRef } from "../../../../common/schemas/client-ref.js";
 
-export const clientRef = Joi.string()
-  .pattern(/^[a-z0-9-]+$/)
-  .example("ref-1234");
+export const clientRef = baseClientRef.example("ref-1234");

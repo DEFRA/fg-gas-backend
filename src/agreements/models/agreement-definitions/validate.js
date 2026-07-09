@@ -59,7 +59,7 @@ const findReferenceErrors = ({ create, states, pages }) => {
   return errors;
 };
 
-export const validateAgreementDefinition = (definition) => {
+const runValidation = (definition) => {
   const { value, error } = agreementDefinitionSchema.validate(definition, {
     abortEarly: false,
   });
@@ -81,4 +81,17 @@ export const validateAgreementDefinition = (definition) => {
   }
 
   return value;
+};
+
+// Agreement definitions are static, in-memory objects, so a given definition
+// only ever needs to be validated once per process: cache by reference to
+// avoid re-running Joi + reference-integrity checks on every request.
+const validatedDefinitions = new WeakMap();
+
+export const validateAgreementDefinition = (definition) => {
+  if (!validatedDefinitions.has(definition)) {
+    validatedDefinitions.set(definition, runValidation(definition));
+  }
+
+  return validatedDefinitions.get(definition);
 };

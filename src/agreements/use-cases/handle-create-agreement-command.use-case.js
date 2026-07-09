@@ -57,15 +57,13 @@ export const handleCreateAgreementCommand = async (event) => {
     throw Boom.badRequest(`Unknown agreement code: "${code}"`);
   }
 
-  const item = new AgreementItem({
-    ...AgreementItem.new({
-      agreementCode: code,
-      clientRef,
-      sourceSystem: SOURCE_SYSTEM,
-      configVersion: definition.configVersion,
-      identifiers,
-      payload: answers,
-    }),
+  const item = AgreementItem.create({
+    agreementCode: code,
+    clientRef,
+    sourceSystem: SOURCE_SYSTEM,
+    configVersion: definition.configVersion,
+    identifiers,
+    payload: answers,
     status: definition.create.target,
   });
 

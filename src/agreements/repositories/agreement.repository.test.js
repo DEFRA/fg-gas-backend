@@ -9,7 +9,7 @@ import {
   agreementsCollection,
   findByAgreementNumber,
   findByClientRefAndCode,
-  findByCodeClientRefAndSbi,
+  findByClientRefCodeAndSbi,
   saveAgreement,
   saveVersion,
   versionsCollection,
@@ -247,7 +247,7 @@ describe("findByClientRefAndCode", () => {
   });
 });
 
-describe("findByCodeClientRefAndSbi", () => {
+describe("findByClientRefCodeAndSbi", () => {
   it("finds an agreement by code, clientRef and sbi and maps it to the domain model", async () => {
     const doc = {
       _id: "a889f23f-8256-4150-b82d-ee0e33a345f5",
@@ -274,9 +274,9 @@ describe("findByCodeClientRefAndSbi", () => {
     db.collection.mockReturnValue({ findOne });
 
     const session = { fake: "session" };
-    const result = await findByCodeClientRefAndSbi(
-      "pigs-might-fly",
+    const result = await findByClientRefCodeAndSbi(
       "xnp-rr3-nfa",
+      "pigs-might-fly",
       "300000069",
       session,
     );
@@ -284,8 +284,12 @@ describe("findByCodeClientRefAndSbi", () => {
     expect(db.collection).toHaveBeenCalledWith(agreementsCollection);
     expect(findOne).toHaveBeenCalledWith(
       {
-        "items.agreementCode": "pigs-might-fly",
-        "items.clientRef": "xnp-rr3-nfa",
+        items: {
+          $elemMatch: {
+            agreementCode: "pigs-might-fly",
+            clientRef: "xnp-rr3-nfa",
+          },
+        },
         "identifiers.sbi": "300000069",
       },
       { session },
@@ -298,9 +302,9 @@ describe("findByCodeClientRefAndSbi", () => {
       findOne: vi.fn().mockResolvedValueOnce(null),
     });
 
-    const result = await findByCodeClientRefAndSbi(
-      "pigs-might-fly",
+    const result = await findByClientRefCodeAndSbi(
       "unknown-client-ref",
+      "pigs-might-fly",
       "unknown-sbi",
     );
 
