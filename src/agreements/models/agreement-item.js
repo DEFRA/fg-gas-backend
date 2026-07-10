@@ -25,13 +25,14 @@ export class AgreementItem {
     this.supplementaryData = supplementaryData;
   }
 
-  static new({
+  static create({
     agreementCode,
     clientRef,
     sourceSystem,
     configVersion,
     identifiers,
     payload,
+    status,
   }) {
     return new AgreementItem({
       agreementItemId: randomUUID(),
@@ -42,6 +43,7 @@ export class AgreementItem {
       identifiers,
       payload,
       createdAt: new Date().toISOString(),
+      status,
     });
   }
 }
