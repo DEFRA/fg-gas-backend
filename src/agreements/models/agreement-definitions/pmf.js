@@ -120,5 +120,17 @@ export const pmfAgreementDefinition = {
         { component: "heading", level: 1, text: "Accept your agreement offer" },
       ],
     },
+    // TODO: placeholder copy - real content covered by a follow-up ticket
+    accepted: {
+      title: "Your agreement is now active",
+      components: [
+        {
+          component: "heading",
+          level: 1,
+          text: "Your agreement is now active",
+        },
+      ],
+      actions: [],
+    },
   },
 };

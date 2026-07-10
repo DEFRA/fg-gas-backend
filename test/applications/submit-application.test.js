@@ -68,7 +68,7 @@ describe("POST /grants/{code}/applications", () => {
         metadata: {
           clientRef,
           submittedAt,
-          sbi: "1234567890",
+          sbi: "123456789",
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
@@ -99,7 +99,7 @@ describe("POST /grants/{code}/applications", () => {
         createdAt: expect.any(String),
         updatedAt: expect.any(String),
         identifiers: {
-          sbi: "1234567890",
+          sbi: "123456789",
           frn: "1234567890",
           crn: "1234567890",
         },
@@ -161,7 +161,7 @@ describe("POST /grants/{code}/applications", () => {
           createdAt: expect.any(String),
           submittedAt: expect.any(String),
           identifiers: {
-            sbi: "1234567890",
+            sbi: "123456789",
             frn: "1234567890",
             crn: "1234567890",
           },
@@ -222,7 +222,7 @@ describe("POST /grants/{code}/applications", () => {
         metadata: {
           clientRef,
           submittedAt,
-          sbi: "1234567890",
+          sbi: "123456789",
           frn: "1234567890",
           crn: "1234567890",
           wubble: "wobble",
@@ -251,7 +251,7 @@ describe("POST /grants/{code}/applications", () => {
         createdAt: expect.any(String),
         updatedAt: expect.any(String),
         identifiers: {
-          sbi: "1234567890",
+          sbi: "123456789",
           frn: "1234567890",
           crn: "1234567890",
         },
@@ -286,7 +286,7 @@ describe("POST /grants/{code}/applications", () => {
           createdAt: expect.any(String),
           submittedAt: expect.any(String),
           identifiers: {
-            sbi: "1234567890",
+            sbi: "123456789",
             frn: "1234567890",
             crn: "1234567890",
           },
@@ -343,7 +343,7 @@ describe("POST /grants/{code}/applications", () => {
           metadata: {
             clientRef: "12345",
             submittedAt: new Date(),
-            sbi: "1234567890",
+            sbi: "123456789",
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
@@ -411,7 +411,7 @@ describe("POST /grants/{code}/applications", () => {
         metadata: {
           clientRef: "12345",
           submittedAt: new Date(),
-          sbi: "1234567890",
+          sbi: "123456789",
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
@@ -430,7 +430,7 @@ describe("POST /grants/{code}/applications", () => {
           metadata: {
             clientRef: "12345", // Duplicate clientRef
             submittedAt: new Date(),
-            sbi: "1234567890",
+            sbi: "123456789",
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
@@ -456,7 +456,7 @@ describe("POST /grants/{code}/applications", () => {
         identifiers: {
           crn: "1234567890",
           frn: "1234567890",
-          sbi: "1234567890",
+          sbi: "123456789",
         },
         metadata: {
           defraId: "1234567890",
@@ -492,7 +492,7 @@ describe("POST /grants/{code}/applications", () => {
           metadata: {
             clientRef: "12345",
             submittedAt: new Date(),
-            sbi: "1234567890",
+            sbi: "123456789",
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
@@ -541,7 +541,7 @@ describe("POST /grants/{code}/applications", () => {
           metadata: {
             clientRef: "12345",
             submittedAt: new Date(),
-            sbi: "1234567890",
+            sbi: "123456789",
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
@@ -589,7 +589,7 @@ describe("POST /grants/{code}/applications", () => {
           metadata: {
             clientRef: "12345",
             submittedAt: new Date(),
-            sbi: "1234567890",
+            sbi: "123456789",
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
@@ -670,7 +670,7 @@ describe("POST /grants/{code}/applications", () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       submittedAt: new Date("2024-01-01T00:00:00.000Z"),
-      identifiers: { sbi: "1234567890", frn: "1234567890", crn: "1234567890" },
+      identifiers: { sbi: "123456789", frn: "1234567890", crn: "1234567890" },
       metadata: { defraId: "1234567890" },
       phases: [{ code: "PHASE_1", answers: { question1: "original answer" } }],
       agreements: {},
@@ -694,7 +694,7 @@ describe("POST /grants/{code}/applications", () => {
           clientRef: newClientRef,
           previousClientRef,
           submittedAt,
-          sbi: "1234567890",
+          sbi: "123456789",
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
@@ -723,7 +723,7 @@ describe("POST /grants/{code}/applications", () => {
         createdAt: expect.any(String),
         updatedAt: expect.any(String),
         identifiers: {
-          sbi: "1234567890",
+          sbi: "123456789",
           frn: "1234567890",
           crn: "1234567890",
         },
@@ -821,7 +821,7 @@ describe("POST /grants/{code}/applications", () => {
         metadata: {
           clientRef: previousClientRef,
           submittedAt: new Date(),
-          sbi: "1234567890",
+          sbi: "123456789",
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
@@ -841,7 +841,7 @@ describe("POST /grants/{code}/applications", () => {
             clientRef: `cr-new-${randomUUID()}`,
             previousClientRef,
             submittedAt: new Date(),
-            sbi: "1234567890",
+            sbi: "123456789",
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
@@ -904,7 +904,7 @@ describe("POST /grants/{code}/applications", () => {
             clientRef: `cr-new-${randomUUID()}`,
             previousClientRef: "non-existent-ref",
             submittedAt: new Date(),
-            sbi: "1234567890",
+            sbi: "123456789",
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
@@ -940,7 +940,7 @@ describe("POST /grants/{code}/applications", () => {
           metadata: {
             clientRef: "12345",
             submittedAt: new Date(),
-            sbi: "1234567890",
+            sbi: "123456789",
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
