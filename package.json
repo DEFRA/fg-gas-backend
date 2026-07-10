@@ -71,7 +71,7 @@
     "eslint-plugin-import-x": "4.17.1",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.6",
-    "mongodb-memory-server": "^10.4.3",
+    "mongodb-memory-server": "^11.2.0",
     "neostandard": "^0.13.0",
     "nodemon": "^3.1.14",
     "openapi-types": "12.1.3",
