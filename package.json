@@ -28,6 +28,9 @@
     "**/*.js": "npm run lint",
     "*": "prettier --ignore-unknown --list-different --write"
   },
+  "overrides": {
+    "joi": "18.2.3"
+  },
   "prettier": {
     "plugins": [
       "prettier-plugin-organize-imports"
