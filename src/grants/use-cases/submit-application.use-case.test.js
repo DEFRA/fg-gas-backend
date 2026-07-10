@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
+import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { Application, ApplicationPhase } from "../models/application.js";
 import { save } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
-import { submitApplicationUseCase } from "./submit-application.use-case.js";
+import {
+  auditDataBuilder,
+  submitApplicationUseCase,
+} from "./submit-application.use-case.js";
 
 vi.mock("../repositories/outbox.repository.js");
 vi.mock("./find-grant-by-code.use-case.js");
@@ -228,5 +232,57 @@ describe("submitApplicationUseCase", () => {
         },
       }),
     ).rejects.toThrow('Grant with code "non-existent-grant" not found');
+  });
+});
+
+describe("auditDataBuilder", () => {
+  const submission = {
+    metadata: {
+      clientRef: "test-client-ref",
+      sbi: "123456789",
+      frn: "987654321",
+      crn: "CRN123456",
+    },
+  };
+  const args = [{ code: "test-grant", submission }];
+
+  it("emits SUBMIT_APPLICATION on the APPLICATION entity with clientRef as entityid", () => {
+    const event = auditDataBuilder(args);
+    expect(event.entities[0]).toEqual({
+      entity: auditEntities.APPLICATION,
+      action: auditActions.SUBMIT_APPLICATION,
+      entityid: submission.metadata.clientRef,
+    });
+  });
+
+  it("sets details to clientRef and code", () => {
+    const event = auditDataBuilder(args);
+    expect(event.details).toEqual({
+      clientRef: submission.metadata.clientRef,
+      code: "test-grant",
+    });
+  });
+
+  it("omits code from details when code is not available", () => {
+    const event = auditDataBuilder([{ submission }]);
+    expect(event.details).toEqual({
+      clientRef: submission.metadata.clientRef,
+    });
+  });
+
+  it("sets accounts from submission metadata sbi, frn and crn", () => {
+    const event = auditDataBuilder(args);
+    expect(event.accounts).toEqual({
+      sbi: submission.metadata.sbi,
+      frn: submission.metadata.frn,
+      crn: submission.metadata.crn,
+    });
+  });
+
+  it("sets messageGroupId to submission-{clientRef}", () => {
+    const event = auditDataBuilder(args);
+    expect(event.messageGroupId).toBe(
+      `submission-${submission.metadata.clientRef}`,
+    );
   });
 });
