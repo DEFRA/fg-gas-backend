@@ -80,3 +80,24 @@ export const findByClientRefAndCode = async (clientRef, code, session) => {
 
   return toAgreement(doc);
 };
+
+export const findByClientRefCodeAndSbi = async (
+  clientRef,
+  code,
+  sbi,
+  session,
+) => {
+  const doc = await db.collection(agreementsCollection).findOne(
+    {
+      items: { $elemMatch: { agreementCode: code, clientRef } },
+      "identifiers.sbi": sbi,
+    },
+    { session },
+  );
+
+  if (doc === null) {
+    return null;
+  }
+
+  return toAgreement(doc);
+};

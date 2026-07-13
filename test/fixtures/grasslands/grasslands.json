@@ -1,0 +1,186 @@
+{
+  "code": "grasslands",
+  "metadata": {
+    "description": "Grasslands Grant",
+    "startDate": "2026-04-01T00:00:00.000Z"
+  },
+  "actions": [
+    {
+      "name": "validate-land-parcel-actions",
+      "method": "POST",
+      "url": "https://land-grants-api.%ENVIRONMENT%.cdp-int.defra.cloud/actions/validate"
+    }
+  ],
+  "phases": [
+    {
+      "code": "PHASE_PRE_AWARD",
+      "name": "Pre-award",
+      "description": "Pre-award phase",
+      "questions": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "referenceNumber",
+          "businessDetailsUpToDate",
+          "confirmEligibility",
+          "confirmLandDetailsUpToDate",
+          "applicant",
+          "detailsConfirmedAt",
+          "selectedParcelId",
+          "actionCode"
+        ],
+        "properties": {
+          "referenceNumber": {
+            "type": "string"
+          },
+          "businessDetailsUpToDate": {
+            "type": "boolean"
+          },
+          "confirmEligibility": {
+            "type": "boolean"
+          },
+          "confirmLandDetailsUpToDate": {
+            "type": "boolean"
+          },
+          "applicant": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["business", "customer"],
+            "properties": {
+              "business": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "reference", "email", "phone", "address"],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "reference": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["address"],
+                    "properties": {
+                      "address": {
+                        "type": "string",
+                        "format": "email"
+                      }
+                    }
+                  },
+                  "phone": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["mobile"],
+                    "properties": {
+                      "mobile": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "address": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["city", "postalCode", "line1"],
+                    "properties": {
+                      "city": {
+                        "type": "string"
+                      },
+                      "postalCode": {
+                        "type": "string"
+                      },
+                      "line1": {
+                        "type": "string"
+                      },
+                      "line2": {
+                        "type": "string"
+                      },
+                      "line3": {
+                        "type": "string"
+                      },
+                      "line4": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "customer": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["title", "first", "last"],
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "first": {
+                        "type": "string"
+                      },
+                      "middle": {
+                        "type": "string"
+                      },
+                      "last": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "detailsConfirmedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "selectedParcelId": {
+            "type": "string"
+          },
+          "actionCode": {
+            "type": "string"
+          }
+        }
+      },
+      "stages": [
+        {
+          "code": "STAGE_REVIEW_APPLICATION",
+          "name": "Review Application",
+          "description": "Review the application for eligibility",
+          "statuses": [
+            {
+              "code": "STATUS_APPLICATION_RECEIVED",
+              "validFrom": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "externalStatusMap": {
+    "phases": [
+      {
+        "code": "PHASE_PRE_AWARD",
+        "stages": [
+          {
+            "code": "STAGE_REVIEW_APPLICATION",
+            "statuses": [
+              {
+                "code": "DUMMY_EXTERNAL_STATUS_DO_NOT_USE",
+                "source": "DUMMY_SOURCE_DO_NOT_USE",
+                "mappedTo": "PHASE_PRE_AWARD:STAGE_REVIEW_APPLICATION:STATUS_APPLICATION_RECEIVED"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "amendablePositions": [],
+  "version": "0.0.0"
+}

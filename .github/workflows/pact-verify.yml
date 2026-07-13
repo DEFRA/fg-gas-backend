@@ -19,7 +19,7 @@ jobs:
           echo "::add-mask::$PACT_PASS"
 
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

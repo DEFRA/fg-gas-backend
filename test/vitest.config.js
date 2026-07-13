@@ -58,6 +58,8 @@ export default defineConfig({
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_agreement_status_fifo.fifo",
       GAS__SQS__CONFIG_VERSION_QUEUE_URL: `${SQS_URL}/gas__sqs__config_version_updated`,
       CONFIG_BROKER_S3_BUCKET: "config-broker-local",
+      GAS__SNS__AUDIT_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn",
       OUTBOX_MAX_RETRIES: 2,
       OUTBOX_CLAIM_MAX_RECORDS: 2,
       OUTBOX_EXPIRES_MS: 5000,
@@ -68,6 +70,7 @@ export default defineConfig({
       INBOX_POLL_MS: 250,
       FIFO_LOCK_TTL_MS: 5000,
       PRINT_LOGS: process.env.PRINT_LOGS,
+      GRANT_FUNDING_CALCULATOR_URL: "http://grant-funding-calculator.test",
     },
     hookTimeout: 30000,
     testTimeout: 10000,

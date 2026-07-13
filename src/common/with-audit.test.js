@@ -157,6 +157,16 @@ describe("withAudit", () => {
       );
     });
 
+    it("skips writing the audit event when dataBuilder returns null", async () => {
+      const fn = vi.fn().mockResolvedValue({ id: "123" });
+      const dataBuilder = vi.fn().mockReturnValue(null);
+
+      const result = await withAudit(fn, dataBuilder)("arg0", "my-session");
+
+      expect(result).toEqual({ id: "123" });
+      expect(writeAuditEvent).not.toHaveBeenCalled();
+    });
+
     it("does not propagate writeAuditEvent errors", async () => {
       const fn = vi.fn().mockResolvedValue({ id: "123" });
       const dataBuilder = vi
