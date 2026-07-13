@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import {
+  assertAgreementPageAllowedForStatus,
   resolveAgreementPage,
   resolveAgreementPageMode,
 } from "../models/agreement-definitions/agreement-definition-resolver.js";
@@ -66,6 +67,8 @@ export const renderAgreementPageUseCase = async ({
     clientRef,
     `Agreement not found for code "${code}", clientRef "${clientRef}" and sbi "${sbi}"`,
   );
+
+  assertAgreementPageAllowedForStatus(code, page, item.status);
 
   const version = await findLatestVersionByAgreementNumber(
     agreement.agreementNumber,

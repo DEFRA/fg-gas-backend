@@ -54,6 +54,7 @@ export const pmfAgreementDefinition = {
   },
   states: {
     offered: {
+      page: "offered",
       on: {
         accept: {
           target: "accepted",
@@ -87,7 +88,9 @@ export const pmfAgreementDefinition = {
         },
       },
     },
-    accepted: {},
+    accepted: {
+      page: "accepted",
+    },
   },
   pages: {
     offered: {

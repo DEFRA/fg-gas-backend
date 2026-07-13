@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  assertAgreementPageAllowedForStatus,
   resolveAgreementPage,
   resolveAgreementPageMode,
 } from "../models/agreement-definitions/agreement-definition-resolver.js";
@@ -194,6 +195,35 @@ describe("renderAgreementPageUseCase", () => {
       Boom.notFound(
         'Agreement not found for code "pigs-might-fly", clientRef "xnp-rr3-nfa" and sbi "300000069"',
       ),
+    );
+    expect(findLatestVersionByAgreementNumber).not.toHaveBeenCalled();
+  });
+
+  it("throws Boom.forbidden when the requested page is not valid for the agreement's current status, without touching version data", async () => {
+    resolveAgreementPage.mockReturnValue({
+      title: "Review your agreement offer",
+      components: [],
+      actions: [],
+    });
+    resolveAgreementPageMode.mockReturnValue("view");
+    findByClientRefCodeAndSbi.mockResolvedValue({
+      ...agreement,
+      items: [{ ...agreement.items[0], status: "accepted" }],
+    });
+    assertAgreementPageAllowedForStatus.mockImplementation(() => {
+      throw Boom.forbidden(
+        'Page "offered" is not valid for agreement code "pigs-might-fly" in state "accepted"',
+      );
+    });
+
+    await expect(renderAgreementPageUseCase(query)).rejects.toThrow(
+      'Page "offered" is not valid for agreement code "pigs-might-fly" in state "accepted"',
+    );
+
+    expect(assertAgreementPageAllowedForStatus).toHaveBeenCalledWith(
+      "pigs-might-fly",
+      "offered",
+      "accepted",
     );
     expect(findLatestVersionByAgreementNumber).not.toHaveBeenCalled();
   });
