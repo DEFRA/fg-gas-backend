@@ -10,6 +10,7 @@ import {
   findByAgreementNumber,
   findByClientRefAndCode,
   findByClientRefCodeAndSbi,
+  findLatestVersionByAgreementNumber,
   saveAgreement,
   saveVersion,
   versionsCollection,
@@ -186,6 +187,45 @@ describe("findByAgreementNumber", () => {
     const result = await findByAgreementNumber("PMF823153883");
 
     expect(result.items).toEqual([]);
+  });
+});
+
+describe("findLatestVersionByAgreementNumber", () => {
+  it("finds the highest-versioned snapshot and maps it to the domain model", async () => {
+    const doc = {
+      _id: testVersion.id,
+      agreementId: testVersion.agreementId,
+      agreementNumber: testVersion.agreementNumber,
+      version: testVersion.version,
+      snapshot: new AgreementDocument(testAgreement),
+      createdAt: testVersion.createdAt,
+    };
+
+    const findOne = vi.fn().mockResolvedValueOnce(doc);
+    db.collection.mockReturnValue({ findOne });
+
+    const session = { fake: "session" };
+    const result = await findLatestVersionByAgreementNumber(
+      "PMF823153883",
+      session,
+    );
+
+    expect(db.collection).toHaveBeenCalledWith(versionsCollection);
+    expect(findOne).toHaveBeenCalledWith(
+      { agreementNumber: "PMF823153883" },
+      { session, sort: { version: -1 } },
+    );
+    expect(result).toStrictEqual(testVersion);
+  });
+
+  it("returns null when no version is found", async () => {
+    db.collection.mockReturnValue({
+      findOne: vi.fn().mockResolvedValueOnce(null),
+    });
+
+    const result = await findLatestVersionByAgreementNumber("PMF000000000");
+
+    expect(result).toBeNull();
   });
 });
 

@@ -45,6 +45,7 @@ const actionTransition = Joi.object({
   .label("ActionTransition");
 
 const state = Joi.object({
+  page: Joi.string().optional(),
   on: Joi.object().pattern(Joi.string(), actionTransition).optional(),
 }).label("State");
 
