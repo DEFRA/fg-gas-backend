@@ -2,6 +2,7 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
 import { AgreementItem } from "../models/agreement-item.js";
+import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
 import { AgreementDocument } from "./agreement/agreement-document.js";
 import { AgreementVersionDocument } from "./agreement/agreement-version-document.js";
@@ -15,6 +16,16 @@ export const toAgreement = (doc) =>
     items: (doc.items ?? []).map((item) => new AgreementItem(item)),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
+  });
+
+export const toAgreementVersion = (doc) =>
+  new AgreementVersion({
+    id: doc._id,
+    agreementId: doc.agreementId,
+    agreementNumber: doc.agreementNumber,
+    version: doc.version,
+    snapshot: toAgreement(doc.snapshot),
+    createdAt: doc.createdAt,
   });
 
 export const agreementsCollection = "agreements__agreements";
@@ -79,6 +90,21 @@ export const findByClientRefAndCode = async (clientRef, code, session) => {
   }
 
   return toAgreement(doc);
+};
+
+export const findLatestVersionByAgreementNumber = async (
+  agreementNumber,
+  session,
+) => {
+  const doc = await db
+    .collection(versionsCollection)
+    .findOne({ agreementNumber }, { session, sort: { version: -1 } });
+
+  if (doc === null) {
+    return null;
+  }
+
+  return toAgreementVersion(doc);
 };
 
 export const findByClientRefCodeAndSbi = async (

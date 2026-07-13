@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolvePageHref } from "./resolve-page-href.js";
+import { resolveActions, resolvePageHref } from "./resolve-page-href.js";
 
 describe("resolvePageHref", () => {
   it("returns a plain string href unchanged", async () => {
@@ -30,5 +30,36 @@ describe("resolvePageHref", () => {
     await expect(resolvePageHref(href, {})).rejects.toThrow(
       'Unresolved param "agreementNumber" in href template "/{agreementNumber}/accept"',
     );
+  });
+});
+
+describe("resolveActions", () => {
+  it("resolves each action's href against the context, keeping its text", async () => {
+    const actions = [
+      { text: "Continue", href: "#confirm" },
+      {
+        text: "Accept",
+        href: {
+          urlTemplate: "/{agreementNumber}/accept",
+          params: { agreementNumber: "$.agreement.agreementNumber" },
+        },
+      },
+    ];
+
+    const result = await resolveActions(
+      { agreement: { agreementNumber: "PMF823153883" } },
+      actions,
+    );
+
+    expect(result).toEqual([
+      { text: "Continue", href: "#confirm" },
+      { text: "Accept", href: "/PMF823153883/accept" },
+    ]);
+  });
+
+  it("returns an empty array when no actions are given", async () => {
+    const result = await resolveActions({});
+
+    expect(result).toEqual([]);
   });
 });
