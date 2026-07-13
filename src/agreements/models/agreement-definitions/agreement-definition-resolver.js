@@ -55,10 +55,10 @@ export const resolveAgreementPage = (code, page) => {
   return structuredClone(pageDefinition);
 };
 
-const SUPPORTED_RENDER_MODES = ["view"];
+const SUPPORTED_RENDER_MODES = new Set(["view"]);
 
 export const resolveAgreementPageMode = (mode) => {
-  if (!SUPPORTED_RENDER_MODES.includes(mode)) {
+  if (!SUPPORTED_RENDER_MODES.has(mode)) {
     throw Boom.notFound(`Unsupported mode "${mode}"`);
   }
 

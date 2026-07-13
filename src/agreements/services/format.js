@@ -3,10 +3,10 @@ const isNumeric = (value) =>
   (typeof value === "string" && value.trim() !== "");
 
 const poundsNoDecimals = (value) => {
-  const amount = isNumeric(value) ? Number(value) : NaN;
+  const amount = isNumeric(value) ? Number(value) : Number.NaN;
 
   if (Number.isNaN(amount)) {
-    throw new Error(`Cannot format "${value}" as poundsNoDecimals`);
+    throw new TypeError(`Cannot format "${value}" as poundsNoDecimals`);
   }
 
   return `£${Math.round(amount).toLocaleString("en-GB")}`;
