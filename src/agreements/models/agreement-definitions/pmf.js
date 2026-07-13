@@ -54,6 +54,7 @@ export const pmfAgreementDefinition = {
   },
   states: {
     offered: {
+      page: "offered",
       on: {
         accept: {
           target: "accepted",
@@ -87,7 +88,9 @@ export const pmfAgreementDefinition = {
         },
       },
     },
-    accepted: {},
+    accepted: {
+      page: "accepted",
+    },
   },
   pages: {
     offered: {
@@ -102,6 +105,11 @@ export const pmfAgreementDefinition = {
         {
           component: "table",
           head: [{ text: "Pig Type" }, { text: "Amount" }],
+          rowsRef: "$.item.supplementaryData.fundingCalculation.items",
+          rows: [
+            { text: "$.description" },
+            { text: "$.total", format: "poundsNoDecimals" },
+          ],
         },
       ],
       actions: [

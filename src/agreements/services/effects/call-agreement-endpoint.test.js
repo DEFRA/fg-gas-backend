@@ -19,7 +19,9 @@ describe("callAgreementEndpoint", () => {
       "http://grant-funding-calculator",
     );
     wreck.request.mockResolvedValue({ statusCode: 200 });
-    wreck.read.mockResolvedValue({ amount: 500 });
+    wreck.read.mockResolvedValue({
+      items: [{ description: "Large White", total: 320 }],
+    });
 
     const result = await callAgreementEndpoint(endpointConfig, {
       BODY: { pigTypes: [] },
@@ -37,7 +39,9 @@ describe("callAgreementEndpoint", () => {
         json: true,
       },
     );
-    expect(result).toEqual({ amount: 500 });
+    expect(result).toEqual({
+      items: [{ description: "Large White", total: 320 }],
+    });
   });
 
   it("throws Boom.badGateway on a non-2xx response", async () => {

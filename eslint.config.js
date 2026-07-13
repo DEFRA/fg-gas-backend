@@ -1,5 +1,5 @@
 import eslintConfigPrettier from "eslint-config-prettier/flat";
-import importX from "eslint-plugin-import-x";
+import eslintPluginImportX from "eslint-plugin-import-x";
 import neostandard from "neostandard";
 
 export default [
@@ -10,7 +10,7 @@ export default [
   {
     files: ["src/**/*"],
     plugins: {
-      "import-x": importX,
+      "import-x": eslintPluginImportX,
     },
     rules: {
       "func-style": ["error", "expression"],

@@ -1,8 +1,11 @@
+import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
 import {
+  assertAgreementPageAllowedForStatus,
   resolveAgreementAction,
   resolveAgreementCreation,
   resolveAgreementPage,
+  resolveAgreementPageMode,
 } from "./agreement-definition-resolver.js";
 import { getAgreementDefinitionByCode } from "./index.js";
 
@@ -18,19 +21,37 @@ const validDefinition = {
   },
   states: {
     offered: {
+      page: "offered",
       on: {
         accept: {
           target: "accepted",
+          validation: {
+            page: "accept",
+            required: [
+              {
+                name: "confirm",
+                value: "confirmed",
+                href: "#confirm",
+                message: "Confirm",
+              },
+            ],
+          },
           effects: [{ name: "publish" }],
         },
       },
     },
-    accepted: {},
+    accepted: {
+      page: "accepted",
+    },
   },
   pages: {
     offered: {
       title: "Offered page",
       components: [{ component: "heading", level: 1, text: "Offered" }],
+    },
+    accept: {
+      title: "Accept page",
+      components: [{ component: "heading", level: 1, text: "Accept" }],
     },
   },
 };
@@ -99,6 +120,17 @@ describe("resolveAgreementAction", () => {
 
     expect(resolveAgreementAction("test-code", "offered", "accept")).toEqual({
       target: "accepted",
+      validation: {
+        page: "accept",
+        required: [
+          {
+            name: "confirm",
+            value: "confirmed",
+            href: "#confirm",
+            message: "Confirm",
+          },
+        ],
+      },
       effects: [{ name: "publish" }],
     });
   });
@@ -174,5 +206,71 @@ describe("resolveAgreementPage", () => {
 
     expect(second.components[0].mutated).toBeUndefined();
     expect(validDefinition.pages.offered.components[0].mutated).toBeUndefined();
+  });
+});
+
+describe("assertAgreementPageAllowedForStatus", () => {
+  it("does not throw when the page is the state's own page", () => {
+    getAgreementDefinitionByCode.mockReturnValue(validDefinition);
+
+    expect(() =>
+      assertAgreementPageAllowedForStatus("test-code", "offered", "offered"),
+    ).not.toThrow();
+  });
+
+  it("does not throw when the page is an action's validation page for the state", () => {
+    getAgreementDefinitionByCode.mockReturnValue(validDefinition);
+
+    expect(() =>
+      assertAgreementPageAllowedForStatus("test-code", "accept", "offered"),
+    ).not.toThrow();
+  });
+
+  it("throws forbidden when the page is not valid for the current status", () => {
+    getAgreementDefinitionByCode.mockReturnValue(validDefinition);
+
+    expect(() =>
+      assertAgreementPageAllowedForStatus("test-code", "offered", "accepted"),
+    ).toThrow(
+      'Page "offered" is not valid for agreement code "test-code" in state "accepted"',
+    );
+    try {
+      assertAgreementPageAllowedForStatus("test-code", "offered", "accepted");
+      expect.unreachable(
+        "expected assertAgreementPageAllowedForStatus to throw",
+      );
+    } catch (error) {
+      expect(error.output.statusCode).toBe(Boom.forbidden().output.statusCode);
+    }
+  });
+
+  it("throws not found for an unknown status", () => {
+    getAgreementDefinitionByCode.mockReturnValue(validDefinition);
+
+    expect(() =>
+      assertAgreementPageAllowedForStatus(
+        "test-code",
+        "offered",
+        "unknown-status",
+      ),
+    ).toThrow('Unknown state "unknown-status" for agreement code "test-code"');
+  });
+});
+
+describe("resolveAgreementPageMode", () => {
+  it("returns the mode when it is supported", () => {
+    expect(resolveAgreementPageMode("view")).toBe("view");
+  });
+
+  it("throws not found for an unsupported mode", () => {
+    expect(() => resolveAgreementPageMode("document")).toThrow(
+      'Unsupported mode "document"',
+    );
+  });
+
+  it("throws not found when no mode is provided", () => {
+    expect(() => resolveAgreementPageMode(undefined)).toThrow(
+      'Unsupported mode "undefined"',
+    );
   });
 });

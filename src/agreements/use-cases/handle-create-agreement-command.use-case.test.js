@@ -119,13 +119,17 @@ describe("handleCreateAgreementCommand", () => {
     saveAgreement.mockResolvedValue();
     saveVersion.mockResolvedValue();
 
+    const fundingCalculation = {
+      items: [{ description: "Large White", total: 320 }],
+    };
+
     const callOrder = [];
     runAgreementEffects.mockImplementation(async () => {
       callOrder.push("effects");
       return {
         answers: command.data.answers,
-        outputs: { fundingCalculation: { amount: 500 } },
-        supplementaryData: { fundingCalculation: { amount: 500 } },
+        outputs: { fundingCalculation },
+        supplementaryData: { fundingCalculation },
       };
     });
     withTransaction.mockImplementation(async (callback) => {
@@ -148,7 +152,7 @@ describe("handleCreateAgreementCommand", () => {
           items: [
             expect.objectContaining({
               status: "offered",
-              supplementaryData: { fundingCalculation: { amount: 500 } },
+              supplementaryData: { fundingCalculation },
             }),
           ],
         }),
