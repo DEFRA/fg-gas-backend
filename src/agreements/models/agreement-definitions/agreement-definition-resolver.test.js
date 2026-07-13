@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { getAgreementDefinitionByCode } from "../models/agreement-definitions/index.js";
 import {
   resolveAgreementAction,
   resolveAgreementCreation,
   resolveAgreementPage,
 } from "./agreement-definition-resolver.js";
+import { getAgreementDefinitionByCode } from "./index.js";
 
-vi.mock("../models/agreement-definitions/index.js");
+vi.mock("./index.js");
 
 const validDefinition = {
   code: "test-code",

@@ -17,6 +17,7 @@ services:
       AWS_ENDPOINT_URL: "http://localstack:4566"
       OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
       INBOX_POLL_MS: "${INBOX_POLL_MS}"
+      GRANT_FUNDING_CALCULATOR_URL: "${GRANT_FUNDING_CALCULATOR_URL}"
     depends_on:
       mongo-ready:
         condition: service_healthy

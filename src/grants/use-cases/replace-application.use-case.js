@@ -53,16 +53,16 @@ const replaceApplication = async ({ code, application }, session) => {
   }
 };
 
-export const auditDataBuilder = (args, results) => {
+export const auditDataBuilder = (args) => {
   const code = args[0].code;
   const newApplication = args[0].application;
 
-  const { sbi, frn, crn } = args[0].application.metadata;
+  const { clientRef, sbi, frn, crn } = args[0].application.metadata;
 
   return buildAuditEvent({
     entity: auditEntities.APPLICATION,
     action: auditActions.REPLACE_APPLICATION,
-    entityid: results,
+    entityid: clientRef,
     details: {
       newApplication,
       code,
@@ -70,7 +70,7 @@ export const auditDataBuilder = (args, results) => {
       frn,
       crn,
     },
-    messageGroupId: results && `submission-${results}`,
+    messageGroupId: `submission-${clientRef}`,
   });
 };
 

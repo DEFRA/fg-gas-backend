@@ -21,6 +21,7 @@ export const setup = async ({ globalConfig }) => {
       LOCALSTACK_PORT: env.LOCALSTACK_PORT,
       OUTBOX_POLL_MS: env.OUTBOX_POLL_MS,
       INBOX_POLL_MS: env.INBOX_POLL_MS,
+      GRANT_FUNDING_CALCULATOR_URL: env.GRANT_FUNDING_CALCULATOR_URL,
     })
     .withWaitStrategy("gas", Wait.forHttp("/health"))
     .withNoRecreate()

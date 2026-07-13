@@ -12,16 +12,17 @@ describe("withTransaction", () => {
       endSession: vi.fn(),
     };
     vi.spyOn(mongoClient, "startSession").mockReturnValue(mockSession);
-    const transactionSpy = vi.fn().mockImplementation();
+    const transactionSpy = vi.fn().mockResolvedValue("callback result");
 
-    await withTransaction(transactionSpy);
+    const result = await withTransaction(transactionSpy);
 
     expect(mockSession.withTransaction).toHaveBeenCalledWith(
-      transactionSpy,
+      expect.any(Function),
       transactionOptions,
     );
     expect(transactionSpy).toHaveBeenCalled();
     expect(mockSession.endSession).toHaveBeenCalled();
+    expect(result).toBe("callback result");
   });
 
   it("should handle errors", async () => {
@@ -42,7 +43,7 @@ describe("withTransaction", () => {
     }
 
     expect(mockSession.withTransaction).toHaveBeenCalledWith(
-      transactionSpy,
+      expect.any(Function),
       transactionOptions,
     );
     expect(mockSession.endSession).toHaveBeenCalled();

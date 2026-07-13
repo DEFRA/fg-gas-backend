@@ -198,7 +198,7 @@ describe("replaceApplicationUseCase", () => {
         entities: [
           expect.objectContaining({
             action: auditActions.REPLACE_APPLICATION,
-            entityid: "new-application-id",
+            entityid: "new-client-ref",
           }),
         ],
         accounts: {
@@ -206,7 +206,7 @@ describe("replaceApplicationUseCase", () => {
           frn: testApplication.metadata.frn,
           crn: testApplication.metadata.crn,
         },
-        messageGroupId: "submission-new-application-id",
+        messageGroupId: "submission-new-client-ref",
       }),
       mockSession,
     );
@@ -222,7 +222,7 @@ describe("auditDataBuilder", () => {
     expect(event.entities[0]).toEqual({
       entity: auditEntities.APPLICATION,
       action: auditActions.REPLACE_APPLICATION,
-      entityid: applicationId,
+      entityid: testApplication.metadata.clientRef,
     });
   });
 
@@ -235,8 +235,10 @@ describe("auditDataBuilder", () => {
     });
   });
 
-  it("sets messageGroupId to submission-{applicationId}", () => {
+  it("sets messageGroupId to submission-{clientRef}", () => {
     const event = auditDataBuilder(args, applicationId);
-    expect(event.messageGroupId).toBe(`submission-${applicationId}`);
+    expect(event.messageGroupId).toBe(
+      `submission-${testApplication.metadata.clientRef}`,
+    );
   });
 });

@@ -103,7 +103,7 @@ describe("On CaseStatusUpdated", () => {
         code,
         currentConfigVersion: "1.0.0",
         identifiers: {
-          sbi: "1234567890",
+          sbi: "123456789",
           frn: "1234567890",
           crn: "1234567890",
         },

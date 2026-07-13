@@ -140,4 +140,25 @@ describe("agreementDefinitionSchema", () => {
 
     expect(error).toBeUndefined();
   });
+
+  it("fails when an endpoint is missing a required field", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    delete definition.endpoints[0].service;
+
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+    expect(error.details.map((d) => d.message).join(", ")).toMatch(
+      /"endpoints\[0\].service" is required/,
+    );
+  });
+
+  it("validates without an endpoints array, since it's optional", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    delete definition.endpoints;
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
 });

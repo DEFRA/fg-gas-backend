@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { writeAuditEvent } from "../../common/write-audit-event.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -18,7 +20,10 @@ import {
 } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
-import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
+import {
+  acceptAgreementUseCase,
+  auditDataBuilder,
+} from "./accept-agreement.use-case.js";
 
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
@@ -27,6 +32,7 @@ vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/outbox.repository.js");
+vi.mock("../../common/write-audit-event.js");
 
 describe("acceptAgreementUseCase", () => {
   beforeEach(() => {
@@ -73,6 +79,7 @@ describe("acceptAgreementUseCase", () => {
     );
 
     applyExternalStateChange.mockResolvedValue(true);
+    writeAuditEvent.mockResolvedValue(undefined);
 
     await acceptAgreementUseCase(
       {
@@ -107,5 +114,71 @@ describe("acceptAgreementUseCase", () => {
     expect(appl.agreements["agreement-123"].acceptedDate).toBe(
       "2024-01-01T12:00:00Z",
     );
+  });
+
+  it("writes an audit event for the accepted agreement", () => {
+    expect(writeAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entities: [
+          expect.objectContaining({
+            entity: auditEntities.AGREEMENT,
+            action: auditActions.ACCEPT_AGREEMENT,
+            entityid: "agreement-123",
+          }),
+        ],
+        details: {
+          clientRef: "test-client-ref",
+          code: "test-code",
+          eventData: {
+            date: "2024-01-01T12:00:00Z",
+            agreementNumber: "agreement-123",
+            startDate: "2026-01-01",
+            endDate: "2027-01-01",
+          },
+        },
+        messageGroupId: "accept-agreement-agreement-123",
+        status: "SUCCESS",
+      }),
+      {},
+    );
+  });
+});
+
+describe("auditDataBuilder", () => {
+  const eventData = {
+    date: "2024-01-01T12:00:00Z",
+    agreementNumber: "agreement-123",
+    startDate: "2026-01-01",
+    endDate: "2027-01-01",
+  };
+  const args = [
+    { clientRef: "test-client-ref", code: "test-code", eventData },
+    {},
+  ];
+
+  it("emits ACCEPT_AGREEMENT on the AGREEMENT entity with the correct entityid", () => {
+    const event = auditDataBuilder(args);
+
+    expect(event.entities[0]).toEqual({
+      entity: auditEntities.AGREEMENT,
+      action: auditActions.ACCEPT_AGREEMENT,
+      entityid: "agreement-123",
+    });
+  });
+
+  it("includes clientRef, code and eventData in details", () => {
+    const event = auditDataBuilder(args);
+
+    expect(event.details).toEqual({
+      clientRef: "test-client-ref",
+      code: "test-code",
+      eventData,
+    });
+  });
+
+  it("sets messageGroupId to accept-agreement-{agreementNumber}", () => {
+    const event = auditDataBuilder(args);
+
+    expect(event.messageGroupId).toBe("accept-agreement-agreement-123");
   });
 });
