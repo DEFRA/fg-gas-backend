@@ -54,14 +54,17 @@ describe("handlers", () => {
     };
 
     it("finds the endpoint by code, resolves params, and returns the call's output", async () => {
-      callAgreementEndpoint.mockResolvedValue({ amount: 500 });
+      const fundingCalculation = {
+        items: [{ description: "Large White", total: 320 }],
+      };
+      callAgreementEndpoint.mockResolvedValue(fundingCalculation);
 
       const result = await handlers.callEndpoint(context, effect);
 
       expect(callAgreementEndpoint).toHaveBeenCalledWith(context.endpoints[0], {
         BODY: { quantity: 5 },
       });
-      expect(result).toEqual({ output: { amount: 500 } });
+      expect(result).toEqual({ output: fundingCalculation });
     });
 
     it("throws when the endpoint code isn't in context.endpoints", async () => {

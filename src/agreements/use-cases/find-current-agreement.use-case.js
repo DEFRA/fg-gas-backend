@@ -2,15 +2,7 @@ import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import { resolveAgreementPage } from "../models/agreement-definitions/agreement-definition-resolver.js";
 import { findByClientRefCodeAndSbi } from "../repositories/agreement.repository.js";
-import { resolvePageHref } from "../services/resolve-page-href.js";
-
-const resolveActions = async (context, actions = []) =>
-  Promise.all(
-    actions.map(async (action) => ({
-      text: action.text,
-      href: await resolvePageHref(action.href, context),
-    })),
-  );
+import { resolveActions } from "../services/resolve-page-href.js";
 
 export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
   logger.info(`Finding current agreement for code ${code}`);

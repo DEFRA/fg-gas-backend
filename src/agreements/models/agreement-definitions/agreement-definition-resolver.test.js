@@ -3,6 +3,7 @@ import {
   resolveAgreementAction,
   resolveAgreementCreation,
   resolveAgreementPage,
+  resolveAgreementPageMode,
 } from "./agreement-definition-resolver.js";
 import { getAgreementDefinitionByCode } from "./index.js";
 
@@ -174,5 +175,23 @@ describe("resolveAgreementPage", () => {
 
     expect(second.components[0].mutated).toBeUndefined();
     expect(validDefinition.pages.offered.components[0].mutated).toBeUndefined();
+  });
+});
+
+describe("resolveAgreementPageMode", () => {
+  it("returns the mode when it is supported", () => {
+    expect(resolveAgreementPageMode("view")).toBe("view");
+  });
+
+  it("throws not found for an unsupported mode", () => {
+    expect(() => resolveAgreementPageMode("document")).toThrow(
+      'Unsupported mode "document"',
+    );
+  });
+
+  it("throws not found when no mode is provided", () => {
+    expect(() => resolveAgreementPageMode(undefined)).toThrow(
+      'Unsupported mode "undefined"',
+    );
   });
 });
