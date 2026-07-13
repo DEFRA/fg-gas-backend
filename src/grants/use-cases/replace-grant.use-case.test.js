@@ -118,14 +118,16 @@ describe("replaceGrantUseCase", () => {
     findByCode.mockResolvedValue(null);
 
     await expect(
-      replaceGrantUseCase("test-grant", {
+      replaceGrantUseCase({
         code: "test-grant",
-        version: "2.0.0",
-        metadata: {
-          description: "Test",
-          startDate: "2023-01-01T00:00:00Z",
+        command: {
+          version: "2.0.0",
+          metadata: {
+            description: "Test",
+            startDate: "2023-01-01T00:00:00Z",
+          },
+          actions: [],
         },
-        actions: [],
       }),
     ).rejects.toThrow(
       Boom.notFound('Grant with code "test-grant" version "2.0.0" not found'),
