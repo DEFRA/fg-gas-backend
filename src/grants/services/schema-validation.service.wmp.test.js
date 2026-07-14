@@ -3,8 +3,6 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { validateAnswersAgainstSchema } from "./schema-validation.service.js";
 
-// Schema is the single source of truth in the fixture — load, don't inline,
-// so test + runtime share the exact same shape.
 const woodlandGrant = JSON.parse(
   readFileSync(
     fileURLToPath(
@@ -15,7 +13,6 @@ const woodlandGrant = JSON.parse(
 );
 const woodlandSchema = woodlandGrant.phases[0].questions;
 
-// Inlined from test/fixtures/wmp/wmp-sample-application-request.json.answers.
 const sampleAnswers = {
   businessDetailsUpToDate: true,
   landRegisteredWithRpa: true,
@@ -108,6 +105,90 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
           { parcelId: "SD5848-9205", areaHa: 169.8586 },
         ],
       });
+    });
+  });
+
+  describe("pence attributes must be integers (FGP-1256)", () => {
+    it("accepts integer pence values", () => {
+      expect(
+        validate(
+          withAnswers({
+            totalAgreementPaymentPence: 166200,
+            payments: {
+              agreement: [
+                {
+                  code: "PA3",
+                  description: "Woodland management plan",
+                  activePaymentTier: 2,
+                  quantityInActiveTier: 5.4,
+                  activeTierRatePence: 3000,
+                  activeTierFlatRatePence: 150000,
+                  quantity: 55.4,
+                  agreementTotalPence: 166200,
+                  unit: "ha",
+                },
+              ],
+            },
+          }),
+        ),
+      ).toMatchObject({ totalAgreementPaymentPence: 166200 });
+    });
+
+    it("rejects a non-integer totalAgreementPaymentPence", () => {
+      expect(() =>
+        validate(withAnswers({ totalAgreementPaymentPence: 166200.5 })),
+      ).toThrow("totalAgreementPaymentPence must be integer");
+    });
+
+    it("rejects a non-integer activeTierRatePence", () => {
+      expect(() =>
+        validate(
+          withAnswers({
+            payments: {
+              agreement: [
+                {
+                  ...sampleAnswers.payments.agreement[0],
+                  activeTierRatePence: 3000.5,
+                },
+              ],
+            },
+          }),
+        ),
+      ).toThrow("must be integer");
+    });
+
+    it("rejects a non-integer activeTierFlatRatePence", () => {
+      expect(() =>
+        validate(
+          withAnswers({
+            payments: {
+              agreement: [
+                {
+                  ...sampleAnswers.payments.agreement[0],
+                  activeTierFlatRatePence: 150000.25,
+                },
+              ],
+            },
+          }),
+        ),
+      ).toThrow("must be integer");
+    });
+
+    it("rejects a non-integer agreementTotalPence", () => {
+      expect(() =>
+        validate(
+          withAnswers({
+            payments: {
+              agreement: [
+                {
+                  ...sampleAnswers.payments.agreement[0],
+                  agreementTotalPence: 166200.99,
+                },
+              ],
+            },
+          }),
+        ),
+      ).toThrow("must be integer");
     });
   });
 
