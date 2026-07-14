@@ -1,6 +1,5 @@
 import { getInternalCommandHandler } from "../../common/internal-command-bus.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
-import { withTransaction } from "../../common/with-transaction.js";
 
 const INTERNAL_AGREEMENT_CODES = ["pigs-might-fly"];
 
@@ -27,5 +26,5 @@ export const dispatchInternally = async (event) => {
     );
   }
 
-  await withTransaction((session) => handler(event, session));
+  await handler(event);
 };

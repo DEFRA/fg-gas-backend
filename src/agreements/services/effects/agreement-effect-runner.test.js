@@ -4,18 +4,76 @@ import {
   mergeEffectResult,
   runAgreementEffects,
 } from "./agreement-effect-runner.js";
+import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
+
+vi.mock("./call-agreement-endpoint.js");
 
 describe("handlers", () => {
-  it("snapshot throws not-yet-implemented", async () => {
-    await expect(handlers.snapshot({}, {})).rejects.toThrow(
-      "snapshot handler not yet implemented",
-    );
+  describe("snapshot", () => {
+    it("resolves effect.params against the context and returns them as supplementaryData", async () => {
+      const result = await handlers.snapshot(
+        { outputs: { fundingCalculation: { amount: 42 } } },
+        { params: { fundingCalculation: "$.outputs.fundingCalculation" } },
+      );
+
+      expect(result).toEqual({
+        context: { supplementaryData: { fundingCalculation: { amount: 42 } } },
+      });
+    });
+
+    it("defaults to an empty supplementaryData object when params is omitted", async () => {
+      const result = await handlers.snapshot({ outputs: {} }, {});
+
+      expect(result).toEqual({ context: { supplementaryData: {} } });
+    });
   });
 
-  it("callEndpoint throws not-yet-implemented", async () => {
-    await expect(handlers.callEndpoint({}, {})).rejects.toThrow(
-      "callEndpoint handler not yet implemented",
-    );
+  describe("callEndpoint", () => {
+    const context = {
+      answers: { whitePigsCount: 5 },
+      outputs: {},
+      endpoints: [
+        {
+          code: "calculate-funding",
+          method: "POST",
+          path: "/grantFundingCalculator",
+          service: "GRANT_FUNDING_CALCULATOR",
+        },
+      ],
+    };
+
+    const effect = {
+      params: {
+        endpoint: {
+          code: "calculate-funding",
+          endpointParams: {
+            BODY: { quantity: "$.answers.whitePigsCount ?? 0" },
+          },
+        },
+      },
+    };
+
+    it("finds the endpoint by code, resolves params, and returns the call's output", async () => {
+      const fundingCalculation = {
+        items: [{ description: "Large White", total: 320 }],
+      };
+      callAgreementEndpoint.mockResolvedValue(fundingCalculation);
+
+      const result = await handlers.callEndpoint(context, effect);
+
+      expect(callAgreementEndpoint).toHaveBeenCalledWith(context.endpoints[0], {
+        BODY: { quantity: 5 },
+      });
+      expect(result).toEqual({ output: fundingCalculation });
+    });
+
+    it("throws when the endpoint code isn't in context.endpoints", async () => {
+      await expect(
+        handlers.callEndpoint({ ...context, endpoints: [] }, effect),
+      ).rejects.toThrow(/No endpoint configured for code "calculate-funding"/);
+
+      expect(callAgreementEndpoint).not.toHaveBeenCalled();
+    });
   });
 
   it("createPaymentClaim throws not-yet-implemented", async () => {
@@ -118,6 +176,32 @@ describe("mergeEffectResult", () => {
     expect(mergeEffectResult(context, effect, result)).toEqual(
       mergedEffectResult,
     );
+  });
+
+  it("merges a plain-object context value key-by-key instead of replacing it wholesale, so sequential effects accumulate", () => {
+    const afterFirst = mergeEffectResult(
+      { outputs: {} },
+      {},
+      { context: { supplementaryData: { a: 1 } } },
+    );
+
+    const afterSecond = mergeEffectResult(
+      afterFirst,
+      {},
+      { context: { supplementaryData: { b: 2 } } },
+    );
+
+    expect(afterSecond.supplementaryData).toEqual({ a: 1, b: 2 });
+  });
+
+  it("replaces a non-object context value outright rather than attempting to merge it", () => {
+    const result = mergeEffectResult(
+      { count: 1, outputs: {} },
+      {},
+      { context: { count: 2 } },
+    );
+
+    expect(result.count).toBe(2);
   });
 });
 

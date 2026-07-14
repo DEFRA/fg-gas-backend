@@ -1,4 +1,6 @@
+import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { config } from "../../common/config.js";
+import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 import { UpdateAgreementStatusCommand } from "../events/update-agreement-status.command.js";
@@ -10,7 +12,21 @@ import {
 } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 
-export const withdrawApplicationUseCase = async (command, session) => {
+export const auditDataBuilder = (args) => {
+  const { clientRef, code } = args[0];
+  return buildAuditEvent({
+    entity: auditEntities.APPLICATION,
+    action: auditActions.WITHDRAW_APPLICATION,
+    entityid: clientRef,
+    details: {
+      clientRef,
+      code,
+    },
+    messageGroupId: `withdraw-application-${clientRef}`,
+  });
+};
+
+const withdrawApplication = async (command, session) => {
   const { clientRef, code } = command;
   const application = await findByClientRefAndCode(
     { clientRef, code },
@@ -78,3 +94,8 @@ export const withdrawApplicationUseCase = async (command, session) => {
 
   await insertMany(outboxObjects, session);
 };
+
+export const withdrawApplicationUseCase = withAudit(
+  withdrawApplication,
+  auditDataBuilder,
+);

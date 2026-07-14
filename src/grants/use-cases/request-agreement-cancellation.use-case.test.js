@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { config } from "../../common/config.js";
+import { writeAuditEvent } from "../../common/write-audit-event.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -9,10 +11,14 @@ import {
 import { Application } from "../models/application.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { requestAgreementCancellationUseCase } from "./request-agreement-cancellation.use-case.js";
+import {
+  auditDataBuilder,
+  requestAgreementCancellationUseCase,
+} from "./request-agreement-cancellation.use-case.js";
 
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/outbox.repository.js");
+vi.mock("../../common/write-audit-event.js");
 
 describe("requestAgreementCancellationUseCase", () => {
   it("publishes an agreement cancellation command when an offered agreement exists", async () => {
@@ -65,6 +71,26 @@ describe("requestAgreementCancellationUseCase", () => {
       ],
       {},
     );
+
+    expect(writeAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entities: [
+          expect.objectContaining({
+            entity: auditEntities.AGREEMENT,
+            action: auditActions.REQUEST_AGREEMENT_CANCELLATION,
+            entityid: "agreement-123",
+          }),
+        ],
+        details: {
+          clientRef: "test-client-ref",
+          code: "test-code",
+          agreementNumber: "agreement-123",
+        },
+        messageGroupId: "request-agreement-cancellation-agreement-123",
+        status: "SUCCESS",
+      }),
+      {},
+    );
   });
 
   it("does nothing when there is no active agreement", async () => {
@@ -90,5 +116,42 @@ describe("requestAgreementCancellationUseCase", () => {
     );
 
     expect(insertMany).not.toHaveBeenCalled();
+    expect(writeAuditEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("auditDataBuilder", () => {
+  const args = [{ clientRef: "test-client-ref", code: "test-code" }, {}];
+
+  it("emits REQUEST_AGREEMENT_CANCELLATION on the AGREEMENT entity with the agreementNumber as entityid", () => {
+    const event = auditDataBuilder(args, { agreementNumber: "agreement-123" });
+
+    expect(event.entities[0]).toEqual({
+      entity: auditEntities.AGREEMENT,
+      action: auditActions.REQUEST_AGREEMENT_CANCELLATION,
+      entityid: "agreement-123",
+    });
+  });
+
+  it("returns null when no agreement was cancelled so no audit is written", () => {
+    expect(auditDataBuilder(args, undefined)).toBeNull();
+  });
+
+  it("includes clientRef, code and agreementNumber in details", () => {
+    const event = auditDataBuilder(args, { agreementNumber: "agreement-123" });
+
+    expect(event.details).toEqual({
+      clientRef: "test-client-ref",
+      code: "test-code",
+      agreementNumber: "agreement-123",
+    });
+  });
+
+  it("sets messageGroupId to request-agreement-cancellation-{agreementNumber}", () => {
+    const event = auditDataBuilder(args, { agreementNumber: "agreement-123" });
+
+    expect(event.messageGroupId).toBe(
+      "request-agreement-cancellation-agreement-123",
+    );
   });
 });

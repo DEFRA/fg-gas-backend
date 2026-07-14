@@ -9,6 +9,8 @@ import {
   agreementsCollection,
   findByAgreementNumber,
   findByClientRefAndCode,
+  findByClientRefCodeAndSbi,
+  findLatestVersionByAgreementNumber,
   saveAgreement,
   saveVersion,
   versionsCollection,
@@ -188,6 +190,45 @@ describe("findByAgreementNumber", () => {
   });
 });
 
+describe("findLatestVersionByAgreementNumber", () => {
+  it("finds the highest-versioned snapshot and maps it to the domain model", async () => {
+    const doc = {
+      _id: testVersion.id,
+      agreementId: testVersion.agreementId,
+      agreementNumber: testVersion.agreementNumber,
+      version: testVersion.version,
+      snapshot: new AgreementDocument(testAgreement),
+      createdAt: testVersion.createdAt,
+    };
+
+    const findOne = vi.fn().mockResolvedValueOnce(doc);
+    db.collection.mockReturnValue({ findOne });
+
+    const session = { fake: "session" };
+    const result = await findLatestVersionByAgreementNumber(
+      "PMF823153883",
+      session,
+    );
+
+    expect(db.collection).toHaveBeenCalledWith(versionsCollection);
+    expect(findOne).toHaveBeenCalledWith(
+      { agreementNumber: "PMF823153883" },
+      { session, sort: { version: -1 } },
+    );
+    expect(result).toStrictEqual(testVersion);
+  });
+
+  it("returns null when no version is found", async () => {
+    db.collection.mockReturnValue({
+      findOne: vi.fn().mockResolvedValueOnce(null),
+    });
+
+    const result = await findLatestVersionByAgreementNumber("PMF000000000");
+
+    expect(result).toBeNull();
+  });
+});
+
 describe("findByClientRefAndCode", () => {
   it("finds an agreement by clientRef and code and maps it to the domain model", async () => {
     const doc = {
@@ -240,6 +281,71 @@ describe("findByClientRefAndCode", () => {
     const result = await findByClientRefAndCode(
       "unknown-client-ref",
       "pigs-might-fly",
+    );
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("findByClientRefCodeAndSbi", () => {
+  it("finds an agreement by code, clientRef and sbi and maps it to the domain model", async () => {
+    const doc = {
+      _id: "a889f23f-8256-4150-b82d-ee0e33a345f5",
+      agreementNumber: "PMF823153883",
+      code: "pigs-might-fly",
+      identifiers: { sbi: "300000069", frn: "frn", crn: "1300000069" },
+      items: [
+        {
+          agreementItemId: "29b829c4-4e38-405c-9f00-427ee94120a5",
+          agreementCode: "pigs-might-fly",
+          clientRef: "xnp-rr3-nfa",
+          sourceSystem: "GAS",
+          configVersion: "0.0.1",
+          identifiers: { sbi: "300000069" },
+          payload: null,
+          createdAt: "2026-06-17T09:09:32.395Z",
+        },
+      ],
+      createdAt: "2026-06-17T09:09:32.395Z",
+      updatedAt: "2026-06-17T09:09:32.395Z",
+    };
+
+    const findOne = vi.fn().mockResolvedValueOnce(doc);
+    db.collection.mockReturnValue({ findOne });
+
+    const session = { fake: "session" };
+    const result = await findByClientRefCodeAndSbi(
+      "xnp-rr3-nfa",
+      "pigs-might-fly",
+      "300000069",
+      session,
+    );
+
+    expect(db.collection).toHaveBeenCalledWith(agreementsCollection);
+    expect(findOne).toHaveBeenCalledWith(
+      {
+        items: {
+          $elemMatch: {
+            agreementCode: "pigs-might-fly",
+            clientRef: "xnp-rr3-nfa",
+          },
+        },
+        "identifiers.sbi": "300000069",
+      },
+      { session },
+    );
+    expect(result).toStrictEqual(testAgreement);
+  });
+
+  it("returns null when no agreement is found", async () => {
+    db.collection.mockReturnValue({
+      findOne: vi.fn().mockResolvedValueOnce(null),
+    });
+
+    const result = await findByClientRefCodeAndSbi(
+      "unknown-client-ref",
+      "pigs-might-fly",
+      "unknown-sbi",
     );
 
     expect(result).toBeNull();

@@ -2,6 +2,14 @@ export const pmfAgreementDefinition = {
   code: "pigs-might-fly",
   configVersion: "0.0.1",
   agreementNumberPrefix: "PMF",
+  endpoints: [
+    {
+      code: "calculate-funding",
+      method: "POST",
+      path: "/grantFundingCalculator",
+      service: "GRANT_FUNDING_CALCULATOR",
+    },
+  ],
   create: {
     target: "offered",
     effects: [
@@ -46,6 +54,7 @@ export const pmfAgreementDefinition = {
   },
   states: {
     offered: {
+      page: "offered",
       on: {
         accept: {
           target: "accepted",
@@ -79,7 +88,9 @@ export const pmfAgreementDefinition = {
         },
       },
     },
-    accepted: {},
+    accepted: {
+      page: "accepted",
+    },
   },
   pages: {
     offered: {
@@ -94,6 +105,11 @@ export const pmfAgreementDefinition = {
         {
           component: "table",
           head: [{ text: "Pig Type" }, { text: "Amount" }],
+          rowsRef: "$.item.supplementaryData.fundingCalculation.items",
+          rows: [
+            { text: "$.description" },
+            { text: "$.total", format: "poundsNoDecimals" },
+          ],
         },
       ],
       actions: [
@@ -111,6 +127,18 @@ export const pmfAgreementDefinition = {
       components: [
         { component: "heading", level: 1, text: "Accept your agreement offer" },
       ],
+    },
+    // TODO: placeholder copy - real content covered by a follow-up ticket
+    accepted: {
+      title: "Your agreement is now active",
+      components: [
+        {
+          component: "heading",
+          level: 1,
+          text: "Your agreement is now active",
+        },
+      ],
+      actions: [],
     },
   },
 };

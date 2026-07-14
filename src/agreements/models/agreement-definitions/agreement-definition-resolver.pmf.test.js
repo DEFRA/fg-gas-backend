@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertAgreementPageAllowedForStatus,
   resolveAgreementAction,
   resolveAgreementCreation,
   resolveAgreementPage,
@@ -23,5 +24,37 @@ describe("resolving agreement behaviour for code pigs-might-fly", () => {
     expect(resolveAgreementPage("pigs-might-fly", "offered")).toMatchObject({
       title: "Review your agreement offer",
     });
+  });
+
+  it("allows the offered page while the agreement is offered", () => {
+    expect(() =>
+      assertAgreementPageAllowedForStatus(
+        "pigs-might-fly",
+        "offered",
+        "offered",
+      ),
+    ).not.toThrow();
+  });
+
+  it("allows the accept page while the agreement is offered", () => {
+    expect(() =>
+      assertAgreementPageAllowedForStatus(
+        "pigs-might-fly",
+        "accept",
+        "offered",
+      ),
+    ).not.toThrow();
+  });
+
+  it("rejects the offered page once the agreement has been accepted", () => {
+    expect(() =>
+      assertAgreementPageAllowedForStatus(
+        "pigs-might-fly",
+        "offered",
+        "accepted",
+      ),
+    ).toThrow(
+      'Page "offered" is not valid for agreement code "pigs-might-fly" in state "accepted"',
+    );
   });
 });

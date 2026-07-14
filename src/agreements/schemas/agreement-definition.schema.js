@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { handlers } from "../use-cases/agreement-effect-runner.js";
+import { handlers } from "../services/effects/agreement-effect-runner.js";
 
 const effect = Joi.object({
   name: Joi.string()
@@ -45,6 +45,7 @@ const actionTransition = Joi.object({
   .label("ActionTransition");
 
 const state = Joi.object({
+  page: Joi.string().optional(),
   on: Joi.object().pattern(Joi.string(), actionTransition).optional(),
 }).label("State");
 
@@ -91,10 +92,22 @@ const pages = Joi.object()
   .required()
   .label("Pages");
 
+const endpoint = Joi.object({
+  code: Joi.string().required(),
+  method: Joi.string().required(),
+  path: Joi.string().required(),
+  service: Joi.string().required(),
+})
+  .unknown(true)
+  .label("Endpoint");
+
+const endpoints = Joi.array().items(endpoint).optional().label("Endpoints");
+
 export const agreementDefinitionSchema = Joi.object({
   code: Joi.string().required(),
   configVersion: Joi.string().required(),
   agreementNumberPrefix: Joi.string().required(),
+  endpoints,
   create,
   states,
   pages,

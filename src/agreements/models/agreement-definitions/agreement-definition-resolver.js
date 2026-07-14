@@ -1,6 +1,6 @@
 import Boom from "@hapi/boom";
-import { getAgreementDefinitionByCode } from "../models/agreement-definitions/index.js";
-import { validateAgreementDefinition } from "../models/agreement-definitions/validate.js";
+import { getAgreementDefinitionByCode } from "./index.js";
+import { validateAgreementDefinition } from "./validate.js";
 
 const loadValidatedDefinition = (code) => {
   const definition = getAgreementDefinitionByCode(code);
@@ -53,4 +53,42 @@ export const resolveAgreementPage = (code, page) => {
   }
 
   return structuredClone(pageDefinition);
+};
+
+const collectAllowedPages = (stateDefinition) =>
+  new Set(
+    [
+      stateDefinition.page,
+      ...Object.values(stateDefinition.on ?? {}).map(
+        (action) => action.validation?.page,
+      ),
+    ].filter(Boolean),
+  );
+
+export const assertAgreementPageAllowedForStatus = (code, page, status) => {
+  const definition = loadValidatedDefinition(code);
+
+  const stateDefinition = definition.states[status];
+
+  if (!stateDefinition) {
+    throw Boom.notFound(
+      `Unknown state "${status}" for agreement code "${code}"`,
+    );
+  }
+
+  if (!collectAllowedPages(stateDefinition).has(page)) {
+    throw Boom.forbidden(
+      `Page "${page}" is not valid for agreement code "${code}" in state "${status}"`,
+    );
+  }
+};
+
+const SUPPORTED_RENDER_MODES = new Set(["view"]);
+
+export const resolveAgreementPageMode = (mode) => {
+  if (!SUPPORTED_RENDER_MODES.has(mode)) {
+    throw Boom.notFound(`Unsupported mode "${mode}"`);
+  }
+
+  return mode;
 };
