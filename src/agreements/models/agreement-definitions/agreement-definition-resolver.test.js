@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertAgreementPageAllowedForStatus,
   resolveAgreementAction,
+  resolveAgreementActionForVersion,
   resolveAgreementCreation,
   resolveAgreementPage,
   resolveAgreementPageForStatus,
@@ -177,6 +178,36 @@ describe("resolveAgreementAction", () => {
     expect(
       validDefinition.states.offered.on.accept.effects[0].mutated,
     ).toBeUndefined();
+  });
+});
+
+describe("resolveAgreementActionForVersion", () => {
+  it("returns the action configured for the persisted definition version", () => {
+    getAgreementDefinitionByCode.mockReturnValue(validDefinition);
+
+    expect(
+      resolveAgreementActionForVersion({
+        code: "test-code",
+        state: "offered",
+        action: "accept",
+        configVersion: "0.0.1",
+      }),
+    ).toEqual(validDefinition.states.offered.on.accept);
+  });
+
+  it("rejects an action from another definition version", () => {
+    getAgreementDefinitionByCode.mockReturnValue(validDefinition);
+
+    expect(() =>
+      resolveAgreementActionForVersion({
+        code: "test-code",
+        state: "offered",
+        action: "accept",
+        configVersion: "0.0.0",
+      }),
+    ).toThrow(
+      'Agreement definition "test-code" is version "0.0.1" but the Agreement uses version "0.0.0"',
+    );
   });
 });
 
