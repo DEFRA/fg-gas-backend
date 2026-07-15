@@ -199,12 +199,12 @@ describe("assertAgreementPageAllowedForStatus", () => {
     getAgreementDefinitionByCodeAndVersion.mockReturnValue(validDefinition);
 
     expect(() =>
-      assertAgreementPageAllowedForStatus(
-        "test-code",
-        "offered",
-        "offered",
-        "0.0.1",
-      ),
+      assertAgreementPageAllowedForStatus({
+        code: "test-code",
+        page: "offered",
+        status: "offered",
+        configVersion: "0.0.1",
+      }),
     ).not.toThrow();
   });
 
@@ -212,12 +212,12 @@ describe("assertAgreementPageAllowedForStatus", () => {
     getAgreementDefinitionByCodeAndVersion.mockReturnValue(validDefinition);
 
     expect(() =>
-      assertAgreementPageAllowedForStatus(
-        "test-code",
-        "accept",
-        "offered",
-        "0.0.1",
-      ),
+      assertAgreementPageAllowedForStatus({
+        code: "test-code",
+        page: "accept",
+        status: "offered",
+        configVersion: "0.0.1",
+      }),
     ).not.toThrow();
   });
 
@@ -225,22 +225,22 @@ describe("assertAgreementPageAllowedForStatus", () => {
     getAgreementDefinitionByCodeAndVersion.mockReturnValue(validDefinition);
 
     expect(() =>
-      assertAgreementPageAllowedForStatus(
-        "test-code",
-        "offered",
-        "accepted",
-        "0.0.1",
-      ),
+      assertAgreementPageAllowedForStatus({
+        code: "test-code",
+        page: "offered",
+        status: "accepted",
+        configVersion: "0.0.1",
+      }),
     ).toThrow(
       'Page "offered" is not valid for agreement code "test-code" in state "accepted"',
     );
     try {
-      assertAgreementPageAllowedForStatus(
-        "test-code",
-        "offered",
-        "accepted",
-        "0.0.1",
-      );
+      assertAgreementPageAllowedForStatus({
+        code: "test-code",
+        page: "offered",
+        status: "accepted",
+        configVersion: "0.0.1",
+      });
       expect.unreachable(
         "expected assertAgreementPageAllowedForStatus to throw",
       );
@@ -253,12 +253,12 @@ describe("assertAgreementPageAllowedForStatus", () => {
     getAgreementDefinitionByCodeAndVersion.mockReturnValue(validDefinition);
 
     expect(() =>
-      assertAgreementPageAllowedForStatus(
-        "test-code",
-        "offered",
-        "unknown-status",
-        "0.0.1",
-      ),
+      assertAgreementPageAllowedForStatus({
+        code: "test-code",
+        page: "offered",
+        status: "unknown-status",
+        configVersion: "0.0.1",
+      }),
     ).toThrow('Unknown state "unknown-status" for agreement code "test-code"');
   });
 });

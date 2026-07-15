@@ -85,12 +85,12 @@ describe("renderAgreementPageFromVersionUseCase", () => {
       actions: pageDefinition.actions,
     });
 
-    expect(assertAgreementPageAllowedForStatus).toHaveBeenCalledWith(
-      reference.code,
-      "offered",
-      "offered",
-      "0.0.1",
-    );
+    expect(assertAgreementPageAllowedForStatus).toHaveBeenCalledWith({
+      code: reference.code,
+      page: "offered",
+      status: "offered",
+      configVersion: "0.0.1",
+    });
     expect(resolveComponents).toHaveBeenCalledWith(pageDefinition.components, {
       agreement: snapshot,
       snapshot,

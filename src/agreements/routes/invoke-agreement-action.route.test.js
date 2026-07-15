@@ -14,6 +14,15 @@ import { invokeAgreementActionRoute } from "./invoke-agreement-action.route.js";
 
 vi.mock("../use-cases/validate-agreement-action.use-case.js");
 
+const createPayload = (values) => ({
+  reference: {
+    code: "pigs-might-fly",
+    clientRef: "xnp-rr3-nfa",
+    sbi: "300000069",
+  },
+  values,
+});
+
 describe("invokeAgreementActionRoute", () => {
   let server;
 
@@ -44,14 +53,7 @@ describe("invokeAgreementActionRoute", () => {
     const { statusCode, result } = await server.inject({
       method: "POST",
       url: "/agreements/PMF823153883/actions/accept",
-      payload: {
-        reference: {
-          code: "pigs-might-fly",
-          clientRef: "xnp-rr3-nfa",
-          sbi: "300000069",
-        },
-        values: { confirm: "confirmed" },
-      },
+      payload: createPayload({ confirm: "confirmed" }),
     });
 
     expect(statusCode).toBe(200);
@@ -102,14 +104,7 @@ describe("invokeAgreementActionRoute", () => {
     const { statusCode, result } = await server.inject({
       method: "POST",
       url: "/agreements/PMF823153883/actions/accept",
-      payload: {
-        reference: {
-          code: "pigs-might-fly",
-          clientRef: "xnp-rr3-nfa",
-          sbi: "300000069",
-        },
-        values: {},
-      },
+      payload: createPayload({}),
     });
 
     expect(statusCode).toBe(200);
@@ -126,14 +121,7 @@ describe("invokeAgreementActionRoute", () => {
     const { statusCode, result } = await server.inject({
       method: "POST",
       url: "/agreements/PMF823153883/actions/accept",
-      payload: {
-        reference: {
-          code: "pigs-might-fly",
-          clientRef: "xnp-rr3-nfa",
-          sbi: "300000069",
-        },
-        values: { confirm: "confirmed" },
-      },
+      payload: createPayload({ confirm: "confirmed" }),
     });
 
     expect(statusCode).toBe(409);
@@ -148,14 +136,7 @@ describe("invokeAgreementActionRoute", () => {
   it.each(["code", "clientRef", "sbi"])(
     "rejects a request without required identity field %s",
     async (field) => {
-      const payload = {
-        reference: {
-          code: "pigs-might-fly",
-          clientRef: "xnp-rr3-nfa",
-          sbi: "300000069",
-        },
-        values: { confirm: "confirmed" },
-      };
+      const payload = createPayload({ confirm: "confirmed" });
       delete payload.reference[field];
 
       const { statusCode } = await server.inject({

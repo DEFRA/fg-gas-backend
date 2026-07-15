@@ -33,34 +33,34 @@ describe("resolving agreement behaviour for code pigs-might-fly", () => {
 
   it("allows the offered page while the agreement is offered", () => {
     expect(() =>
-      assertAgreementPageAllowedForStatus(
-        "pigs-might-fly",
-        "offered",
-        "offered",
-        "0.0.1",
-      ),
+      assertAgreementPageAllowedForStatus({
+        code: "pigs-might-fly",
+        page: "offered",
+        status: "offered",
+        configVersion: "0.0.1",
+      }),
     ).not.toThrow();
   });
 
   it("allows the accept page while the agreement is offered", () => {
     expect(() =>
-      assertAgreementPageAllowedForStatus(
-        "pigs-might-fly",
-        "accept",
-        "offered",
-        "0.0.1",
-      ),
+      assertAgreementPageAllowedForStatus({
+        code: "pigs-might-fly",
+        page: "accept",
+        status: "offered",
+        configVersion: "0.0.1",
+      }),
     ).not.toThrow();
   });
 
   it("rejects the offered page once the agreement has been accepted", () => {
     expect(() =>
-      assertAgreementPageAllowedForStatus(
-        "pigs-might-fly",
-        "offered",
-        "accepted",
-        "0.0.1",
-      ),
+      assertAgreementPageAllowedForStatus({
+        code: "pigs-might-fly",
+        page: "offered",
+        status: "accepted",
+        configVersion: "0.0.1",
+      }),
     ).toThrow(
       'Page "offered" is not valid for agreement code "pigs-might-fly" in state "accepted"',
     );

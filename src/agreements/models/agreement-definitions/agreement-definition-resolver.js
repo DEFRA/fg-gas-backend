@@ -103,12 +103,12 @@ const collectAllowedPages = (stateDefinition) =>
     ].filter(Boolean),
   );
 
-export const assertAgreementPageAllowedForStatus = (
+export const assertAgreementPageAllowedForStatus = ({
   code,
   page,
   status,
   configVersion,
-) => {
+}) => {
   const definition = loadValidatedDefinitionForVersion(code, configVersion);
 
   const stateDefinition = definition.states[status];
