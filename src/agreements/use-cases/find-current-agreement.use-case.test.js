@@ -55,7 +55,11 @@ describe("findCurrentAgreementUseCase", () => {
     await expect(findCurrentAgreementUseCase(query)).resolves.toEqual({
       ...identity,
       status: "accepted",
-      page: { title: "Your agreement is active" },
+      page: {
+        name: "active-agreement",
+        title: "Your agreement is active",
+        mode: "view",
+      },
       components: [{ component: "heading", text: "Active" }],
       actions: [],
     });

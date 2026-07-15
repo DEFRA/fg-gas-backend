@@ -3,11 +3,6 @@ import { resolveAgreementPageForStatus } from "../models/agreement-definitions/a
 import { renderAgreementPageFromVersion } from "./render-agreement-page-from-version.use-case.js";
 import { resolveCurrentAgreementByIdentity } from "./resolve-current-agreement.use-case.js";
 
-const toCurrentAgreementResponse = (renderedAgreement) => ({
-  ...renderedAgreement,
-  page: { title: renderedAgreement.page.title },
-});
-
 export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
   logger.info(`Finding current agreement for code ${code}`);
 
@@ -30,5 +25,5 @@ export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
 
   logger.info(`Finished: Finding current agreement for code ${code}`);
 
-  return toCurrentAgreementResponse(renderedAgreement);
+  return renderedAgreement;
 };

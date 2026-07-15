@@ -26,7 +26,11 @@ describe("findCurrentAgreementRoute", () => {
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
       status: "offered",
-      page: { title: "Review your agreement offer" },
+      page: {
+        name: "offered",
+        title: "Review your agreement offer",
+        mode: "view",
+      },
       components: [],
       actions: [{ text: "Continue", href: "/PMF823153883/accept" }],
     });
@@ -48,7 +52,11 @@ describe("findCurrentAgreementRoute", () => {
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
       status: "offered",
-      page: { title: "Review your agreement offer" },
+      page: {
+        name: "offered",
+        title: "Review your agreement offer",
+        mode: "view",
+      },
       components: [],
       actions: [{ text: "Continue", href: "/PMF823153883/accept" }],
     });
