@@ -1,40 +1,28 @@
-import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
-import { resolveAgreementPage } from "../models/agreement-definitions/agreement-definition-resolver.js";
-import { findByClientRefCodeAndSbi } from "../repositories/agreement.repository.js";
-import { resolveActions } from "../services/resolve-page-href.js";
+import { resolveAgreementPageForStatus } from "../models/agreement-definitions/agreement-definition-resolver.js";
+import { renderAgreementPageFromVersionUseCase } from "./render-agreement-page-from-version.use-case.js";
+import { resolveCurrentAgreementUseCase } from "./resolve-current-agreement.use-case.js";
 
 export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
   logger.info(`Finding current agreement for code ${code}`);
 
-  const agreement = await findByClientRefCodeAndSbi(clientRef, code, sbi);
-
-  const itemForCodeAndClientRef = agreement?.items.find(
-    (item) => item.agreementCode === code && item.clientRef === clientRef,
-  );
-
-  if (!itemForCodeAndClientRef) {
-    throw Boom.notFound(
-      `Agreement not found for code "${code}", clientRef "${clientRef}" and sbi "${sbi}"`,
-    );
-  }
-
-  const pageDefinition = resolveAgreementPage(
-    agreement.code,
-    itemForCodeAndClientRef.status,
-  );
-  const actions = await resolveActions({ agreement }, pageDefinition.actions);
+  const currentAgreement = await resolveCurrentAgreementUseCase({
+    code,
+    clientRef,
+    sbi,
+  });
+  const { reference, item } = currentAgreement;
+  const { pageId } = resolveAgreementPageForStatus({
+    code: reference.code,
+    status: item.status,
+  });
+  const renderedAgreement = await renderAgreementPageFromVersionUseCase({
+    currentAgreement,
+    page: pageId,
+    mode: "view",
+  });
 
   logger.info(`Finished: Finding current agreement for code ${code}`);
 
-  return {
-    agreementNumber: agreement.agreementNumber,
-    code: agreement.code,
-    clientRef,
-    sbi,
-    status: itemForCodeAndClientRef.status,
-    page: { title: pageDefinition.title },
-    components: pageDefinition.components,
-    actions,
-  };
+  return renderedAgreement;
 };

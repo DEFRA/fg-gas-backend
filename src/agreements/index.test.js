@@ -6,7 +6,7 @@ import {
 } from "../common/internal-command-bus.js";
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { agreements } from "./index.js";
-import { handleCreateAgreementCommand } from "./use-cases/handle-create-agreement-command.use-case.js";
+import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 
 describe("agreements", () => {
   afterEach(() => {
@@ -26,7 +26,7 @@ describe("agreements", () => {
 
     expect(
       getInternalCommandHandler(internalCommandTypes.AGREEMENT_CREATE),
-    ).toBe(handleCreateAgreementCommand);
+    ).toBe(handleCreateAgreementCommandUseCase);
   });
 
   it("fails to register when a registered agreement definition's endpoint has no URL configured", async () => {

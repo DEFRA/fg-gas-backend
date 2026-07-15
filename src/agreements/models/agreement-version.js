@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Agreement } from "./agreement.js";
 
 export class AgreementVersion {
   constructor({
@@ -13,7 +14,8 @@ export class AgreementVersion {
     this.agreementId = agreementId;
     this.agreementNumber = agreementNumber;
     this.version = version;
-    this.snapshot = snapshot;
+    this.snapshot =
+      snapshot instanceof Agreement ? snapshot : new Agreement(snapshot);
     this.createdAt = createdAt;
   }
 

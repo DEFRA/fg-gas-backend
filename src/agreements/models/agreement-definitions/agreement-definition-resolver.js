@@ -43,9 +43,7 @@ export const resolveAgreementAction = (code, state, action) => {
   return structuredClone(actionDefinition);
 };
 
-export const resolveAgreementPage = (code, page) => {
-  const definition = loadValidatedDefinition(code);
-
+const resolvePageFromDefinition = (definition, { code, page }) => {
   const pageDefinition = definition.pages[page];
 
   if (!pageDefinition) {
@@ -53,6 +51,53 @@ export const resolveAgreementPage = (code, page) => {
   }
 
   return structuredClone(pageDefinition);
+};
+
+export const resolveAgreementPage = (code, page) =>
+  resolvePageFromDefinition(loadValidatedDefinition(code), { code, page });
+
+const assertAgreementDefinitionVersion = (
+  definition,
+  { code, configVersion },
+) => {
+  if (definition.configVersion !== configVersion) {
+    throw Boom.badImplementation(
+      `Agreement definition "${code}" is version "${definition.configVersion}" but the Agreement uses version "${configVersion}"`,
+    );
+  }
+};
+
+export const resolveAgreementPageForVersion = ({
+  code,
+  page,
+  configVersion,
+}) => {
+  const definition = loadValidatedDefinition(code);
+  assertAgreementDefinitionVersion(definition, { code, configVersion });
+
+  return resolvePageFromDefinition(definition, { code, page });
+};
+
+export const resolveAgreementPageForStatus = ({ code, status }) => {
+  const definition = loadValidatedDefinition(code);
+  const stateDefinition = definition.states[status];
+
+  if (!stateDefinition) {
+    throw Boom.badImplementation(
+      `Agreement code "${code}" has unknown persisted state "${status}"`,
+    );
+  }
+
+  const pageId = stateDefinition.page;
+  const pageDefinition = definition.pages[pageId];
+
+  if (!pageId || !pageDefinition) {
+    throw Boom.badImplementation(
+      `Agreement code "${code}" state "${status}" has no configured page`,
+    );
+  }
+
+  return { pageId };
 };
 
 const collectAllowedPages = (stateDefinition) =>
