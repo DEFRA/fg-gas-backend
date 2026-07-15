@@ -55,6 +55,44 @@ export const resolveAgreementPage = (code, page) => {
   return structuredClone(pageDefinition);
 };
 
+const assertAgreementDefinitionVersion = (
+  definition,
+  { code, configVersion },
+) => {
+  if (definition.configVersion !== configVersion) {
+    throw Boom.badImplementation(
+      `Agreement definition "${code}" is version "${definition.configVersion}" but the Agreement uses version "${configVersion}"`,
+    );
+  }
+};
+
+export const resolveAgreementPageForStatus = ({
+  code,
+  status,
+  configVersion,
+}) => {
+  const definition = loadValidatedDefinition(code);
+  assertAgreementDefinitionVersion(definition, { code, configVersion });
+  const stateDefinition = definition.states[status];
+
+  if (!stateDefinition) {
+    throw Boom.badImplementation(
+      `Agreement code "${code}" has unknown persisted state "${status}"`,
+    );
+  }
+
+  const pageId = stateDefinition.page;
+  const pageDefinition = definition.pages[pageId];
+
+  if (!pageId || !pageDefinition) {
+    throw Boom.badImplementation(
+      `Agreement code "${code}" state "${status}" has no configured page`,
+    );
+  }
+
+  return { pageId };
+};
+
 const collectAllowedPages = (stateDefinition) =>
   new Set(
     [

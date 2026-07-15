@@ -1,40 +1,34 @@
-import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
-import { resolveAgreementPage } from "../models/agreement-definitions/agreement-definition-resolver.js";
-import { findByClientRefCodeAndSbi } from "../repositories/agreement.repository.js";
-import { resolveActions } from "../services/resolve-page-href.js";
+import { resolveAgreementPageForStatus } from "../models/agreement-definitions/agreement-definition-resolver.js";
+import { renderAgreementPageFromVersion } from "./render-agreement-page-from-version.use-case.js";
+import { resolveCurrentAgreementByIdentity } from "./resolve-current-agreement.use-case.js";
+
+const toCurrentAgreementResponse = (renderedAgreement) => ({
+  ...renderedAgreement,
+  page: { title: renderedAgreement.page.title },
+});
 
 export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
   logger.info(`Finding current agreement for code ${code}`);
 
-  const agreement = await findByClientRefCodeAndSbi(clientRef, code, sbi);
-
-  const itemForCodeAndClientRef = agreement?.items.find(
-    (item) => item.agreementCode === code && item.clientRef === clientRef,
-  );
-
-  if (!itemForCodeAndClientRef) {
-    throw Boom.notFound(
-      `Agreement not found for code "${code}", clientRef "${clientRef}" and sbi "${sbi}"`,
-    );
-  }
-
-  const pageDefinition = resolveAgreementPage(
-    agreement.code,
-    itemForCodeAndClientRef.status,
-  );
-  const actions = await resolveActions({ agreement }, pageDefinition.actions);
+  const { identity, version, item } = await resolveCurrentAgreementByIdentity({
+    code,
+    clientRef,
+    sbi,
+  });
+  const { pageId } = resolveAgreementPageForStatus({
+    code: identity.code,
+    status: item.status,
+    configVersion: item.configVersion,
+  });
+  const renderedAgreement = await renderAgreementPageFromVersion({
+    version,
+    identity,
+    page: pageId,
+    mode: "view",
+  });
 
   logger.info(`Finished: Finding current agreement for code ${code}`);
 
-  return {
-    agreementNumber: agreement.agreementNumber,
-    code: agreement.code,
-    clientRef,
-    sbi,
-    status: itemForCodeAndClientRef.status,
-    page: { title: pageDefinition.title },
-    components: pageDefinition.components,
-    actions,
-  };
+  return toCurrentAgreementResponse(renderedAgreement);
 };

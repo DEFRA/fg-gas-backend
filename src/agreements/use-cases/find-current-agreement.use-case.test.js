@@ -1,11 +1,13 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveAgreementPage } from "../models/agreement-definitions/agreement-definition-resolver.js";
-import { findByClientRefCodeAndSbi } from "../repositories/agreement.repository.js";
+import { resolveAgreementPageForStatus } from "../models/agreement-definitions/agreement-definition-resolver.js";
 import { findCurrentAgreementUseCase } from "./find-current-agreement.use-case.js";
+import { renderAgreementPageFromVersion } from "./render-agreement-page-from-version.use-case.js";
+import { resolveCurrentAgreementByIdentity } from "./resolve-current-agreement.use-case.js";
 
 vi.mock("../models/agreement-definitions/agreement-definition-resolver.js");
-vi.mock("../repositories/agreement.repository.js");
+vi.mock("./render-agreement-page-from-version.use-case.js");
+vi.mock("./resolve-current-agreement.use-case.js");
 
 const query = {
   code: "pigs-might-fly",
@@ -13,99 +15,75 @@ const query = {
   sbi: "300000069",
 };
 
-const agreement = {
+const identity = {
   agreementNumber: "PMF823153883",
-  code: "pigs-might-fly",
-  items: [
-    {
-      agreementCode: "pigs-might-fly",
-      clientRef: "xnp-rr3-nfa",
-      status: "offered",
-    },
-  ],
+  ...query,
+};
+
+const currentAgreement = {
+  identity,
+  version: { version: 2, snapshot: {} },
+  item: {
+    agreementCode: query.code,
+    clientRef: query.clientRef,
+    configVersion: "0.0.1",
+    status: "accepted",
+  },
 };
 
 describe("findCurrentAgreementUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resolveCurrentAgreementByIdentity.mockResolvedValue(currentAgreement);
+    resolveAgreementPageForStatus.mockReturnValue({
+      pageId: "active-agreement",
+    });
+    renderAgreementPageFromVersion.mockResolvedValue({
+      ...identity,
+      status: "accepted",
+      page: {
+        name: "active-agreement",
+        title: "Your agreement is active",
+        mode: "view",
+      },
+      components: [{ component: "heading", text: "Active" }],
+      actions: [],
+    });
   });
 
-  it("returns a UI representation of the current agreement when found", async () => {
-    findByClientRefCodeAndSbi.mockResolvedValue(agreement);
-    resolveAgreementPage.mockReturnValue({
-      title: "Review your agreement offer",
-      components: [{ component: "heading", level: 1, text: "Review" }],
-      actions: [{ text: "Continue", href: "#confirm" }],
+  it("renders the page configured for the latest Agreement item state", async () => {
+    await expect(findCurrentAgreementUseCase(query)).resolves.toEqual({
+      ...identity,
+      status: "accepted",
+      page: { title: "Your agreement is active" },
+      components: [{ component: "heading", text: "Active" }],
+      actions: [],
     });
 
-    const result = await findCurrentAgreementUseCase(query);
-
-    expect(findByClientRefCodeAndSbi).toHaveBeenCalledWith(
-      "xnp-rr3-nfa",
-      "pigs-might-fly",
-      "300000069",
-    );
-    expect(resolveAgreementPage).toHaveBeenCalledWith(
-      "pigs-might-fly",
-      "offered",
-    );
-    expect(result).toEqual({
-      agreementNumber: "PMF823153883",
+    expect(resolveCurrentAgreementByIdentity).toHaveBeenCalledWith(query);
+    expect(resolveAgreementPageForStatus).toHaveBeenCalledWith({
       code: "pigs-might-fly",
-      clientRef: "xnp-rr3-nfa",
-      sbi: "300000069",
-      status: "offered",
-      page: { title: "Review your agreement offer" },
-      components: [{ component: "heading", level: 1, text: "Review" }],
-      actions: [{ text: "Continue", href: "#confirm" }],
+      status: "accepted",
+      configVersion: "0.0.1",
+    });
+    expect(renderAgreementPageFromVersion).toHaveBeenCalledWith({
+      version: currentAgreement.version,
+      identity,
+      page: "active-agreement",
+      mode: "view",
     });
   });
 
-  it("resolves templated action hrefs against the found agreement", async () => {
-    findByClientRefCodeAndSbi.mockResolvedValue(agreement);
-    resolveAgreementPage.mockReturnValue({
-      title: "Review your agreement offer",
-      components: [],
-      actions: [
-        {
-          text: "Continue",
-          href: {
-            urlTemplate: "/{agreementNumber}/accept",
-            params: { agreementNumber: "$.agreement.agreementNumber" },
-          },
-        },
-      ],
+  it("does not render when the definition resolver rejects the stored config version", async () => {
+    resolveAgreementPageForStatus.mockImplementation(() => {
+      throw Boom.badImplementation(
+        'Agreement definition "pigs-might-fly" is version "0.0.2" but the Agreement uses version "0.0.1"',
+      );
     });
 
-    const result = await findCurrentAgreementUseCase(query);
-
-    expect(result.actions).toEqual([
-      { text: "Continue", href: "/PMF823153883/accept" },
-    ]);
-  });
-
-  it("throws Boom.notFound when no agreement matches the supplied identity", async () => {
-    findByClientRefCodeAndSbi.mockResolvedValue(null);
-
-    await expect(findCurrentAgreementUseCase(query)).rejects.toThrow(
-      Boom.notFound(
-        'Agreement not found for code "pigs-might-fly", clientRef "xnp-rr3-nfa" and sbi "300000069"',
-      ),
-    );
-    expect(resolveAgreementPage).not.toHaveBeenCalled();
-  });
-
-  it("throws Boom.notFound when the agreement is found but no item matches the code and clientRef", async () => {
-    findByClientRefCodeAndSbi.mockResolvedValue({
-      ...agreement,
-      items: [{ agreementCode: "some-other-code", clientRef: "xnp-rr3-nfa" }],
+    await expect(findCurrentAgreementUseCase(query)).rejects.toMatchObject({
+      output: { statusCode: 500 },
     });
-
-    await expect(findCurrentAgreementUseCase(query)).rejects.toThrow(
-      Boom.notFound(
-        'Agreement not found for code "pigs-might-fly", clientRef "xnp-rr3-nfa" and sbi "300000069"',
-      ),
-    );
-    expect(resolveAgreementPage).not.toHaveBeenCalled();
+    expect(renderAgreementPageFromVersion).not.toHaveBeenCalled();
   });
 });
