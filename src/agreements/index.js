@@ -2,6 +2,7 @@ import { registerInternalCommandHandler } from "../common/internal-command-bus.j
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { agreementDefinitions } from "./models/agreement-definitions/index.js";
 import { findCurrentAgreementRoute } from "./routes/find-current-agreement.route.js";
+import { invokeAgreementActionRoute } from "./routes/invoke-agreement-action.route.js";
 import { renderAgreementPageRoute } from "./routes/render-agreement-page.route.js";
 import { validateEndpointServiceUrls } from "./services/effects/resolve-endpoint-service-url.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
@@ -16,6 +17,10 @@ export const agreements = {
       handleCreateAgreementCommandUseCase,
     );
 
-    server.route([findCurrentAgreementRoute, renderAgreementPageRoute]);
+    server.route([
+      findCurrentAgreementRoute,
+      invokeAgreementActionRoute,
+      renderAgreementPageRoute,
+    ]);
   },
 };
