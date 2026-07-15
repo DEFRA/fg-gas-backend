@@ -11,14 +11,13 @@ export const renderAgreementPageUseCase = async ({
 }) => {
   logger.info(`Rendering page "${page}" (mode "${mode}") for code ${code}`);
 
-  const { reference, version } = await resolveCurrentAgreementUseCase({
+  const currentAgreement = await resolveCurrentAgreementUseCase({
     code,
     clientRef,
     sbi,
   });
   const renderModel = await renderAgreementPageFromVersionUseCase({
-    version,
-    reference,
+    currentAgreement,
     page,
     mode,
   });

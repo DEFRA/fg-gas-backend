@@ -46,6 +46,8 @@ const version = new AgreementVersion({
   snapshot,
 });
 
+const currentAgreement = { reference, version, item };
+
 const pageDefinition = {
   title: "Review your agreement offer",
   components: [{ component: "heading", text: "Review" }],
@@ -53,8 +55,7 @@ const pageDefinition = {
 };
 
 const renderRequest = {
-  version,
-  reference,
+  currentAgreement,
   page: "offered",
   mode: "view",
 };
@@ -99,26 +100,6 @@ describe("renderAgreementPageFromVersionUseCase", () => {
     );
   });
 
-  it.each([
-    ["agreement number", { agreementNumber: "PMF000000000" }],
-    ["code", { code: "another-code" }],
-    ["SBI", { identifiers: { sbi: "999999999" } }],
-    ["item", { items: [] }],
-  ])("rejects an inconsistent snapshot %s", async (_name, override) => {
-    await expect(
-      renderAgreementPageFromVersionUseCase({
-        ...renderRequest,
-        version: new AgreementVersion({
-          ...version,
-          snapshot: new Agreement({ ...snapshot, ...override }),
-        }),
-      }),
-    ).rejects.toMatchObject({ output: { statusCode: 500 } });
-
-    expect(resolveAgreementPageForVersion).not.toHaveBeenCalled();
-    expect(resolveComponents).not.toHaveBeenCalled();
-  });
-
   it("rejects a page unavailable in the latest lifecycle state", async () => {
     assertAgreementPageAllowedForStatus.mockImplementation(() => {
       throw Boom.forbidden("Page is unavailable");
@@ -144,11 +125,7 @@ describe("renderAgreementPageFromVersionUseCase", () => {
 describe("renderAgreementPageUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resolveCurrentAgreementUseCase.mockResolvedValue({
-      reference,
-      version,
-      item,
-    });
+    resolveCurrentAgreementUseCase.mockResolvedValue(currentAgreement);
     resolveAgreementPageForVersion.mockReturnValue(pageDefinition);
     resolveAgreementPageMode.mockReturnValue("view");
     resolveComponents.mockResolvedValue(pageDefinition.components);

@@ -8,18 +8,6 @@ import {
 import { resolveComponents } from "../services/resolve-components.js";
 import { resolveActions } from "../services/resolve-page-href.js";
 
-const requireSnapshotItem = (version, reference) => {
-  const item = version.snapshot?.findItem?.(reference);
-
-  if (!item) {
-    throw Boom.badImplementation(
-      `Agreement "${reference.agreementNumber}" version "${version.version}" is inconsistent`,
-    );
-  }
-
-  return item;
-};
-
 const resolveRenderModel = async (
   pageDefinition,
   context,
@@ -44,13 +32,12 @@ const resolveRenderModel = async (
 };
 
 export const renderAgreementPageFromVersionUseCase = async ({
-  version,
-  reference,
+  currentAgreement,
   page,
   mode,
 }) => {
+  const { reference, version, item } = currentAgreement;
   const { snapshot } = version;
-  const item = requireSnapshotItem(version, reference);
   const pageDefinition = resolveAgreementPageForVersion({
     code: reference.code,
     page,

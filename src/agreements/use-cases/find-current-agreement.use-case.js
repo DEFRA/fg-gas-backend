@@ -6,18 +6,18 @@ import { resolveCurrentAgreementUseCase } from "./resolve-current-agreement.use-
 export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
   logger.info(`Finding current agreement for code ${code}`);
 
-  const { reference, version, item } = await resolveCurrentAgreementUseCase({
+  const currentAgreement = await resolveCurrentAgreementUseCase({
     code,
     clientRef,
     sbi,
   });
+  const { reference, item } = currentAgreement;
   const { pageId } = resolveAgreementPageForStatus({
     code: reference.code,
     status: item.status,
   });
   const renderedAgreement = await renderAgreementPageFromVersionUseCase({
-    version,
-    reference,
+    currentAgreement,
     page: pageId,
     mode: "view",
   });

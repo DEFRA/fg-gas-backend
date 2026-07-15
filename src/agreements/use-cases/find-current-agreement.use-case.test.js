@@ -70,8 +70,7 @@ describe("findCurrentAgreementUseCase", () => {
       status: "accepted",
     });
     expect(renderAgreementPageFromVersionUseCase).toHaveBeenCalledWith({
-      version: currentAgreement.version,
-      reference,
+      currentAgreement,
       page: "active-agreement",
       mode: "view",
     });
