@@ -8,7 +8,7 @@ import {
   saveVersion,
 } from "../repositories/agreement.repository.js";
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
-import { handleCreateAgreementCommand } from "./handle-create-agreement-command.use-case.js";
+import { handleCreateAgreementCommandUseCase } from "./handle-create-agreement-command.use-case.js";
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("../models/agreement-definitions/index.js");
@@ -35,7 +35,7 @@ const command = {
 
 const session = { fake: "session" };
 
-describe("handleCreateAgreementCommand", () => {
+describe("handleCreateAgreementCommandUseCase", () => {
   beforeEach(() => {
     withTransaction.mockImplementation(async (callback) => callback(session));
   });
@@ -51,7 +51,7 @@ describe("handleCreateAgreementCommand", () => {
       outputs: {},
     });
 
-    const agreement = await handleCreateAgreementCommand(command);
+    const agreement = await handleCreateAgreementCommandUseCase(command);
 
     expect(findByClientRefAndCode).toHaveBeenCalledWith(
       "xnp-rr3-nfa",
@@ -137,7 +137,7 @@ describe("handleCreateAgreementCommand", () => {
       return callback(session);
     });
 
-    const agreement = await handleCreateAgreementCommand(command);
+    const agreement = await handleCreateAgreementCommandUseCase(command);
 
     expect(callOrder).toEqual(["effects", "transaction"]);
     expect(runAgreementEffects).toHaveBeenCalledWith(effects, {
@@ -166,7 +166,7 @@ describe("handleCreateAgreementCommand", () => {
     findByClientRefAndCode.mockResolvedValue(null);
     getAgreementDefinitionByCode.mockReturnValue(undefined);
 
-    await expect(handleCreateAgreementCommand(command)).rejects.toThrow(
+    await expect(handleCreateAgreementCommandUseCase(command)).rejects.toThrow(
       'Unknown agreement code: "pigs-might-fly"',
     );
     expect(saveAgreement).not.toHaveBeenCalled();
@@ -182,7 +182,7 @@ describe("handleCreateAgreementCommand", () => {
     };
     findByClientRefAndCode.mockResolvedValue(existingAgreement);
 
-    const agreement = await handleCreateAgreementCommand(command);
+    const agreement = await handleCreateAgreementCommandUseCase(command);
 
     expect(findByClientRefAndCode).toHaveBeenCalledWith(
       "xnp-rr3-nfa",
