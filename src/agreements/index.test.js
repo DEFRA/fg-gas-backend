@@ -20,6 +20,15 @@ describe("agreements", () => {
     expect(server.registrations.agreements).toBeDefined();
   });
 
+  it("registers the Agreement action endpoint", async () => {
+    const server = hapi.server();
+    await server.register(agreements);
+
+    expect(
+      server.match("post", "/agreements/PMF823153883/actions/accept")?.path,
+    ).toBe("/agreements/{agreementNumber}/actions/{actionName}");
+  });
+
   it("registers the internal handler for agreement.create commands", async () => {
     const server = hapi.server();
     await server.register(agreements);

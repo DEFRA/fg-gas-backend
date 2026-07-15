@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { AgreementLifecycle } from "../agreement-lifecycle.js";
 import { getAgreementDefinitionByCode } from "./index.js";
 import { validateAgreementDefinition } from "./validate.js";
 
@@ -21,27 +22,22 @@ export const resolveAgreementCreation = (code) => {
   });
 };
 
-export const resolveAgreementAction = (code, state, action) => {
-  const definition = loadValidatedDefinition(code);
-
-  const stateDefinition = definition.states[state];
-
-  if (!stateDefinition) {
+const resolveActionFromDefinition = (definition, { code, state, action }) => {
+  if (!Object.hasOwn(definition.states, state)) {
     throw Boom.notFound(
       `Unknown state "${state}" for agreement code "${code}"`,
     );
   }
 
-  const actionDefinition = stateDefinition.on?.[action];
-
-  if (!actionDefinition) {
-    throw Boom.notFound(
-      `Unknown action "${action}" for state "${state}" on agreement code "${code}"`,
-    );
-  }
-
-  return structuredClone(actionDefinition);
+  return new AgreementLifecycle(definition).resolveAction(state, action);
 };
+
+export const resolveAgreementAction = (code, state, action) =>
+  resolveActionFromDefinition(loadValidatedDefinition(code), {
+    code,
+    state,
+    action,
+  });
 
 const resolvePageFromDefinition = (definition, { code, page }) => {
   const pageDefinition = definition.pages[page];
@@ -67,6 +63,29 @@ const assertAgreementDefinitionVersion = (
   }
 };
 
+const requirePersistedStateDefinition = (definition, { code, state }) => {
+  if (!Object.hasOwn(definition.states, state)) {
+    throw Boom.badImplementation(
+      `Agreement code "${code}" has unknown persisted state "${state}"`,
+    );
+  }
+
+  return definition.states[state];
+};
+
+export const resolveAgreementActionForVersion = ({
+  code,
+  state,
+  action,
+  configVersion,
+}) => {
+  const definition = loadValidatedDefinition(code);
+  assertAgreementDefinitionVersion(definition, { code, configVersion });
+  requirePersistedStateDefinition(definition, { code, state });
+
+  return resolveActionFromDefinition(definition, { code, state, action });
+};
+
 export const resolveAgreementPageForVersion = ({
   code,
   page,
@@ -80,13 +99,10 @@ export const resolveAgreementPageForVersion = ({
 
 export const resolveAgreementPageForStatus = ({ code, status }) => {
   const definition = loadValidatedDefinition(code);
-  const stateDefinition = definition.states[status];
-
-  if (!stateDefinition) {
-    throw Boom.badImplementation(
-      `Agreement code "${code}" has unknown persisted state "${status}"`,
-    );
-  }
+  const stateDefinition = requirePersistedStateDefinition(definition, {
+    code,
+    state: status,
+  });
 
   const pageId = stateDefinition.page;
   const pageDefinition = definition.pages[pageId];

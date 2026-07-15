@@ -1,3 +1,4 @@
+import { AgreementAction } from "./agreement-action.js";
 import { InvalidAgreementTransitionError } from "./invalid-agreement-transition.error.js";
 
 export const defaultAgreementLifecycle = {
@@ -38,18 +39,25 @@ export class AgreementLifecycle {
     return Object.keys(stateDefinition.on ?? {});
   }
 
-  resolveAction(state, action) {
+  resolveAction(state, actionName) {
     const availableActions = this.getAvailableActions(state);
-    const transition = this.definition.states[state].on?.[action];
+    const transitions = this.definition.states[state].on ?? {};
 
-    if (!transition) {
+    if (!Object.hasOwn(transitions, actionName)) {
       throw new InvalidAgreementTransitionError({
         from: state,
-        action,
+        action: actionName,
         availableActions,
       });
     }
 
-    return { from: state, action, target: transition.target };
+    const { target, validation } = transitions[actionName];
+
+    return new AgreementAction({
+      from: state,
+      name: actionName,
+      target,
+      validation,
+    });
   }
 }

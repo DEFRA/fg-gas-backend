@@ -16,8 +16,12 @@ describe("resolving agreement behaviour for code pigs-might-fly", () => {
 
   it("selects the PMF definition's accept action configuration", () => {
     expect(
-      resolveAgreementAction("pigs-might-fly", "offered", "accept"),
-    ).toMatchObject({ target: "accepted" });
+      resolveAgreementAction("pigs-might-fly", "offered", "accept").transition,
+    ).toEqual({
+      from: "offered",
+      action: "accept",
+      target: "accepted",
+    });
   });
 
   it("selects the PMF definition's offered page configuration", () => {

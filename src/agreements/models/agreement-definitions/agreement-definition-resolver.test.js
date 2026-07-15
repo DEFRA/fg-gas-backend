@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertAgreementPageAllowedForStatus,
   resolveAgreementAction,
+  resolveAgreementActionForVersion,
   resolveAgreementCreation,
   resolveAgreementPage,
   resolveAgreementPageForStatus,
@@ -117,23 +118,27 @@ describe("resolveAgreementCreation", () => {
 });
 
 describe("resolveAgreementAction", () => {
-  it("returns the action configuration for a known state and action", () => {
+  it("returns an Agreement Action configured for the known transition", () => {
     getAgreementDefinitionByCode.mockReturnValue(validDefinition);
 
-    expect(resolveAgreementAction("test-code", "offered", "accept")).toEqual({
+    const action = resolveAgreementAction("test-code", "offered", "accept");
+
+    expect(action.transition).toEqual({
+      from: "offered",
+      action: "accept",
       target: "accepted",
-      validation: {
-        page: "accept",
-        required: [
-          {
-            name: "confirm",
-            value: "confirmed",
-            href: "#confirm",
-            message: "Confirm",
-          },
-        ],
-      },
-      effects: [{ name: "publish" }],
+    });
+    expect(action.validate({ confirm: "confirmed" })).toEqual({ valid: true });
+    expect(action.validate({})).toEqual({
+      valid: false,
+      page: "accept",
+      errors: [
+        {
+          name: "confirm",
+          href: "#confirm",
+          message: "Confirm",
+        },
+      ],
     });
   });
 
@@ -145,38 +150,109 @@ describe("resolveAgreementAction", () => {
     ).toThrow('Unknown state "unknown-state" for agreement code "test-code"');
   });
 
-  it("throws not found for an unknown action", () => {
+  it("rejects an unknown action with the lifecycle error", () => {
     getAgreementDefinitionByCode.mockReturnValue(validDefinition);
 
     expect(() =>
       resolveAgreementAction("test-code", "offered", "unknown-action"),
     ).toThrow(
-      'Unknown action "unknown-action" for state "offered" on agreement code "test-code"',
+      'Cannot perform action "unknown-action" from agreement state "offered". Available actions: accept.',
     );
   });
 
-  it("throws not found for an action on a state with no transitions", () => {
+  it("rejects an action on a state with no transitions", () => {
     getAgreementDefinitionByCode.mockReturnValue(validDefinition);
 
     expect(() =>
       resolveAgreementAction("test-code", "accepted", "accept"),
     ).toThrow(
-      'Unknown action "accept" for state "accepted" on agreement code "test-code"',
+      'Cannot perform action "accept" from agreement state "accepted". Available actions: none.',
     );
   });
 
-  it("does not return the same object reference across separate calls, so a caller cannot mutate the shared definition", () => {
+  it("does not expose mutable transition configuration", () => {
     getAgreementDefinitionByCode.mockReturnValue(validDefinition);
 
     const first = resolveAgreementAction("test-code", "offered", "accept");
-    first.effects[0].mutated = true;
+    first.transition.target = "mutated";
 
     const second = resolveAgreementAction("test-code", "offered", "accept");
 
-    expect(second.effects[0].mutated).toBeUndefined();
-    expect(
-      validDefinition.states.offered.on.accept.effects[0].mutated,
-    ).toBeUndefined();
+    expect(second.transition.target).toBe("accepted");
+    expect(validDefinition.states.offered.on.accept.target).toBe("accepted");
+  });
+});
+
+describe("resolveAgreementActionForVersion", () => {
+  it("returns the Agreement Action configured for the persisted definition version", () => {
+    getAgreementDefinitionByCode.mockReturnValue(validDefinition);
+
+    const action = resolveAgreementActionForVersion({
+      code: "test-code",
+      state: "offered",
+      action: "accept",
+      configVersion: "0.0.1",
+    });
+
+    expect(action.transition).toEqual({
+      from: "offered",
+      action: "accept",
+      target: "accepted",
+    });
+  });
+
+  it("preserves the resolved state and action when extensible config contains conflicting metadata", () => {
+    const definition = structuredClone(validDefinition);
+    definition.states.offered.on.accept.from = "accepted";
+    definition.states.offered.on.accept.name = "withdraw";
+    getAgreementDefinitionByCode.mockReturnValue(definition);
+
+    const action = resolveAgreementActionForVersion({
+      code: "test-code",
+      state: "offered",
+      action: "accept",
+      configVersion: "0.0.1",
+    });
+
+    expect(action.transition).toEqual({
+      from: "offered",
+      action: "accept",
+      target: "accepted",
+    });
+  });
+
+  it("rejects an action from another definition version", () => {
+    getAgreementDefinitionByCode.mockReturnValue(validDefinition);
+
+    expect(() =>
+      resolveAgreementActionForVersion({
+        code: "test-code",
+        state: "offered",
+        action: "accept",
+        configVersion: "0.0.0",
+      }),
+    ).toThrow(
+      'Agreement definition "test-code" is version "0.0.1" but the Agreement uses version "0.0.0"',
+    );
+  });
+
+  it("treats a persisted state absent from its definition as an integrity failure", () => {
+    getAgreementDefinitionByCode.mockReturnValue(validDefinition);
+
+    try {
+      resolveAgreementActionForVersion({
+        code: "test-code",
+        state: "future-state",
+        action: "accept",
+        configVersion: "0.0.1",
+      });
+      expect.unreachable("expected action resolution to fail");
+    } catch (error) {
+      expect(error.output.statusCode).toBe(500);
+      expect(error.message).toBe(
+        'Agreement code "test-code" has unknown persisted state "future-state"',
+      );
+    }
   });
 });
 
