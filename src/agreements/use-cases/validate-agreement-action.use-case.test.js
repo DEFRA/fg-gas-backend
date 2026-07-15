@@ -87,6 +87,49 @@ describe("validateAgreementActionUseCase", () => {
     expect(renderAgreementPageFromVersionUseCase).not.toHaveBeenCalled();
   });
 
+  it("does not treat Agreement identity metadata as submitted action values", async () => {
+    const identityNamedAction = new AgreementAction({
+      from: "offered",
+      name: "accept",
+      target: "accepted",
+      validation: {
+        page: "accept",
+        required: [
+          {
+            name: "code",
+            value: "pigs-might-fly",
+            href: "#code",
+            message: "Provide the configured action value",
+          },
+        ],
+      },
+    });
+    const renderModel = {
+      ...currentAgreement.reference,
+      status: "offered",
+      page: {
+        name: "accept",
+        title: "Accept your agreement offer",
+        mode: "view",
+      },
+      components: [],
+      actions: [],
+    };
+    resolveAgreementActionForVersion.mockReturnValue(identityNamedAction);
+    renderAgreementPageFromVersionUseCase.mockResolvedValue(renderModel);
+
+    await expect(validateAgreementActionUseCase(request)).resolves.toEqual({
+      ...renderModel,
+      errors: [
+        {
+          name: "code",
+          href: "#code",
+          message: "Provide the configured action value",
+        },
+      ],
+    });
+  });
+
   it("returns the configured validation page with exact field errors", async () => {
     const renderModel = {
       ...currentAgreement.reference,

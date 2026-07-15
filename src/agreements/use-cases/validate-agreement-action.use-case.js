@@ -27,7 +27,7 @@ export const validateAgreementActionUseCase = async ({
   actionName,
   payload,
 }) => {
-  const { code, clientRef, sbi } = payload;
+  const { code, clientRef, sbi, ...actionValues } = payload;
   const currentAgreement = await resolveCurrentAgreementUseCase({
     code,
     clientRef,
@@ -42,7 +42,7 @@ export const validateAgreementActionUseCase = async ({
     action: actionName,
     configVersion: item.configVersion,
   });
-  const validation = action.validate(payload);
+  const validation = action.validate(actionValues);
 
   if (!validation.valid) {
     const renderModel = await renderAgreementPageFromVersionUseCase({
