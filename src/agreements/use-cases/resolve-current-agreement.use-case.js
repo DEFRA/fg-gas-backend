@@ -40,7 +40,11 @@ const requireSnapshotItem = (version, reference) => {
   return item;
 };
 
-export const resolveCurrentAgreement = async ({ code, clientRef, sbi }) => {
+export const resolveCurrentAgreementUseCase = async ({
+  code,
+  clientRef,
+  sbi,
+}) => {
   const reference = requireAgreementReference(
     await findByClientRefCodeAndSbi(clientRef, code, sbi),
     { code, clientRef, sbi },

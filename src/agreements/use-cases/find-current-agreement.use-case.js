@@ -1,12 +1,12 @@
 import { logger } from "../../common/logger.js";
 import { resolveAgreementPageForStatus } from "../models/agreement-definitions/agreement-definition-resolver.js";
-import { renderAgreementPageFromVersion } from "./render-agreement-page-from-version.use-case.js";
-import { resolveCurrentAgreement } from "./resolve-current-agreement.use-case.js";
+import { renderAgreementPageFromVersionUseCase } from "./render-agreement-page-from-version.use-case.js";
+import { resolveCurrentAgreementUseCase } from "./resolve-current-agreement.use-case.js";
 
 export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
   logger.info(`Finding current agreement for code ${code}`);
 
-  const { reference, version, item } = await resolveCurrentAgreement({
+  const { reference, version, item } = await resolveCurrentAgreementUseCase({
     code,
     clientRef,
     sbi,
@@ -14,9 +14,8 @@ export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
   const { pageId } = resolveAgreementPageForStatus({
     code: reference.code,
     status: item.status,
-    configVersion: item.configVersion,
   });
-  const renderedAgreement = await renderAgreementPageFromVersion({
+  const renderedAgreement = await renderAgreementPageFromVersionUseCase({
     version,
     reference,
     page: pageId,

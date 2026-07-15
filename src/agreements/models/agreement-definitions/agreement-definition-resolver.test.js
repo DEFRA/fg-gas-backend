@@ -6,6 +6,7 @@ import {
   resolveAgreementCreation,
   resolveAgreementPage,
   resolveAgreementPageForStatus,
+  resolveAgreementPageForVersion,
   resolveAgreementPageMode,
 } from "./agreement-definition-resolver.js";
 import { getAgreementDefinitionByCode } from "./index.js";
@@ -210,21 +211,23 @@ describe("resolveAgreementPage", () => {
   });
 });
 
-describe("resolveAgreementPageForStatus", () => {
-  it("rejects a definition version mismatch before resolving the persisted status", () => {
+describe("resolveAgreementPageForVersion", () => {
+  it("rejects a definition version mismatch before resolving the page", () => {
     getAgreementDefinitionByCode.mockReturnValue(validDefinition);
 
     expect(() =>
-      resolveAgreementPageForStatus({
+      resolveAgreementPageForVersion({
         code: "test-code",
-        status: "removed-state",
+        page: "offered",
         configVersion: "0.0.0",
       }),
     ).toThrow(
       'Agreement definition "test-code" is version "0.0.1" but the Agreement uses version "0.0.0"',
     );
   });
+});
 
+describe("resolveAgreementPageForStatus", () => {
   it("returns the page configured for the lifecycle state", () => {
     const definition = structuredClone(validDefinition);
     definition.states.offered.page = "accept";
@@ -234,7 +237,6 @@ describe("resolveAgreementPageForStatus", () => {
       resolveAgreementPageForStatus({
         code: "test-code",
         status: "offered",
-        configVersion: "0.0.1",
       }),
     ).toEqual({
       pageId: "accept",
@@ -250,7 +252,6 @@ describe("resolveAgreementPageForStatus", () => {
       resolveAgreementPageForStatus({
         code: "test-code",
         status: "offered",
-        configVersion: "0.0.1",
       }),
     ).toThrow('state "offered" has no configured page');
   });

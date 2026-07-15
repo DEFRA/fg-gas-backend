@@ -6,7 +6,7 @@ import {
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
 } from "../repositories/agreement.repository.js";
-import { resolveCurrentAgreement } from "./resolve-current-agreement.use-case.js";
+import { resolveCurrentAgreementUseCase } from "./resolve-current-agreement.use-case.js";
 
 vi.mock("../repositories/agreement.repository.js");
 
@@ -41,7 +41,7 @@ const version = new AgreementVersion({
   snapshot: structuredClone(agreement),
 });
 
-describe("resolveCurrentAgreement", () => {
+describe("resolveCurrentAgreementUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findByClientRefCodeAndSbi.mockResolvedValue(agreement);
@@ -49,7 +49,7 @@ describe("resolveCurrentAgreement", () => {
   });
 
   it("returns the latest version, immutable reference and matching snapshot item", async () => {
-    await expect(resolveCurrentAgreement(request)).resolves.toEqual({
+    await expect(resolveCurrentAgreementUseCase(request)).resolves.toEqual({
       reference,
       version,
       item,
@@ -81,7 +81,9 @@ describe("resolveCurrentAgreement", () => {
     async (_name, value) => {
       findByClientRefCodeAndSbi.mockResolvedValue(value);
 
-      await expect(resolveCurrentAgreement(request)).rejects.toMatchObject({
+      await expect(
+        resolveCurrentAgreementUseCase(request),
+      ).rejects.toMatchObject({
         output: {
           statusCode: 404,
           payload: { message: "Agreement not found" },
@@ -94,9 +96,11 @@ describe("resolveCurrentAgreement", () => {
   it("returns 500 when the Agreement has no recorded version", async () => {
     findLatestVersionByAgreementNumber.mockResolvedValue(null);
 
-    await expect(resolveCurrentAgreement(request)).rejects.toMatchObject({
-      output: { statusCode: 500 },
-    });
+    await expect(resolveCurrentAgreementUseCase(request)).rejects.toMatchObject(
+      {
+        output: { statusCode: 500 },
+      },
+    );
   });
 
   it.each([
@@ -117,8 +121,10 @@ describe("resolveCurrentAgreement", () => {
       snapshot: snapshot === null ? null : new Agreement(snapshot),
     });
 
-    await expect(resolveCurrentAgreement(request)).rejects.toMatchObject({
-      output: { statusCode: 500 },
-    });
+    await expect(resolveCurrentAgreementUseCase(request)).rejects.toMatchObject(
+      {
+        output: { statusCode: 500 },
+      },
+    );
   });
 });

@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   assertAgreementPageAllowedForStatus,
-  resolveAgreementPage,
+  resolveAgreementPageForVersion,
   resolveAgreementPageMode,
 } from "../models/agreement-definitions/agreement-definition-resolver.js";
 import { AgreementReference } from "../models/agreement-reference.js";
@@ -10,9 +10,9 @@ import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
 import { resolveComponents } from "../services/resolve-components.js";
 import { resolveActions } from "../services/resolve-page-href.js";
-import { renderAgreementPageFromVersion } from "./render-agreement-page-from-version.use-case.js";
+import { renderAgreementPageFromVersionUseCase } from "./render-agreement-page-from-version.use-case.js";
 import { renderAgreementPageUseCase } from "./render-agreement-page.use-case.js";
-import { resolveCurrentAgreement } from "./resolve-current-agreement.use-case.js";
+import { resolveCurrentAgreementUseCase } from "./resolve-current-agreement.use-case.js";
 
 vi.mock("../models/agreement-definitions/agreement-definition-resolver.js");
 vi.mock("../services/resolve-components.js");
@@ -59,10 +59,10 @@ const renderRequest = {
   mode: "view",
 };
 
-describe("renderAgreementPageFromVersion", () => {
+describe("renderAgreementPageFromVersionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resolveAgreementPage.mockReturnValue(pageDefinition);
+    resolveAgreementPageForVersion.mockReturnValue(pageDefinition);
     resolveAgreementPageMode.mockReturnValue("view");
     resolveComponents.mockResolvedValue(pageDefinition.components);
     resolveActions.mockResolvedValue(pageDefinition.actions);
@@ -70,7 +70,7 @@ describe("renderAgreementPageFromVersion", () => {
 
   it("renders from the supplied latest-version snapshot", async () => {
     await expect(
-      renderAgreementPageFromVersion(renderRequest),
+      renderAgreementPageFromVersionUseCase(renderRequest),
     ).resolves.toEqual({
       ...reference,
       status: "offered",
@@ -106,7 +106,7 @@ describe("renderAgreementPageFromVersion", () => {
     ["item", { items: [] }],
   ])("rejects an inconsistent snapshot %s", async (_name, override) => {
     await expect(
-      renderAgreementPageFromVersion({
+      renderAgreementPageFromVersionUseCase({
         ...renderRequest,
         version: new AgreementVersion({
           ...version,
@@ -115,7 +115,7 @@ describe("renderAgreementPageFromVersion", () => {
       }),
     ).rejects.toMatchObject({ output: { statusCode: 500 } });
 
-    expect(resolveAgreementPage).not.toHaveBeenCalled();
+    expect(resolveAgreementPageForVersion).not.toHaveBeenCalled();
     expect(resolveComponents).not.toHaveBeenCalled();
   });
 
@@ -125,7 +125,7 @@ describe("renderAgreementPageFromVersion", () => {
     });
 
     await expect(
-      renderAgreementPageFromVersion(renderRequest),
+      renderAgreementPageFromVersionUseCase(renderRequest),
     ).rejects.toMatchObject({ output: { statusCode: 403 } });
     expect(resolveComponents).not.toHaveBeenCalled();
   });
@@ -133,7 +133,9 @@ describe("renderAgreementPageFromVersion", () => {
   it("converts render-resolution failures into a controlled error", async () => {
     resolveComponents.mockRejectedValue(new Error("Missing value"));
 
-    await expect(renderAgreementPageFromVersion(renderRequest)).rejects.toThrow(
+    await expect(
+      renderAgreementPageFromVersionUseCase(renderRequest),
+    ).rejects.toThrow(
       'Unable to render page "offered" for agreement "PMF823153883"',
     );
   });
@@ -142,12 +144,12 @@ describe("renderAgreementPageFromVersion", () => {
 describe("renderAgreementPageUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resolveCurrentAgreement.mockResolvedValue({
+    resolveCurrentAgreementUseCase.mockResolvedValue({
       reference,
       version,
       item,
     });
-    resolveAgreementPage.mockReturnValue(pageDefinition);
+    resolveAgreementPageForVersion.mockReturnValue(pageDefinition);
     resolveAgreementPageMode.mockReturnValue("view");
     resolveComponents.mockResolvedValue(pageDefinition.components);
     resolveActions.mockResolvedValue(pageDefinition.actions);
@@ -162,7 +164,7 @@ describe("renderAgreementPageUseCase", () => {
       mode: "view",
     });
 
-    expect(resolveCurrentAgreement).toHaveBeenCalledWith({
+    expect(resolveCurrentAgreementUseCase).toHaveBeenCalledWith({
       code: reference.code,
       clientRef: reference.clientRef,
       sbi: reference.sbi,

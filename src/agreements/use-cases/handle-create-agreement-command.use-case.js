@@ -42,7 +42,7 @@ const buildInitialVersion = async (definition, agreement, answers) => {
   });
 };
 
-export const handleCreateAgreementCommand = async (event) => {
+export const handleCreateAgreementCommandUseCase = async (event) => {
   const { clientRef, code, identifiers, answers } = event.data;
 
   const existingAgreement = await findByClientRefAndCode(clientRef, code);

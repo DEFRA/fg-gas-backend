@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import {
   assertAgreementPageAllowedForStatus,
-  resolveAgreementPage,
+  resolveAgreementPageForVersion,
   resolveAgreementPageMode,
 } from "../models/agreement-definitions/agreement-definition-resolver.js";
 import { resolveComponents } from "../services/resolve-components.js";
@@ -43,7 +43,7 @@ const resolveRenderModel = async (
   }
 };
 
-export const renderAgreementPageFromVersion = async ({
+export const renderAgreementPageFromVersionUseCase = async ({
   version,
   reference,
   page,
@@ -51,7 +51,11 @@ export const renderAgreementPageFromVersion = async ({
 }) => {
   const { snapshot } = version;
   const item = requireSnapshotItem(version, reference);
-  const pageDefinition = resolveAgreementPage(reference.code, page);
+  const pageDefinition = resolveAgreementPageForVersion({
+    code: reference.code,
+    page,
+    configVersion: item.configVersion,
+  });
   resolveAgreementPageMode(mode);
   assertAgreementPageAllowedForStatus(reference.code, page, item.status);
 

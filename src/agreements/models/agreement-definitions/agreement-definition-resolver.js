@@ -43,9 +43,7 @@ export const resolveAgreementAction = (code, state, action) => {
   return structuredClone(actionDefinition);
 };
 
-export const resolveAgreementPage = (code, page) => {
-  const definition = loadValidatedDefinition(code);
-
+const resolvePageFromDefinition = (definition, { code, page }) => {
   const pageDefinition = definition.pages[page];
 
   if (!pageDefinition) {
@@ -54,6 +52,9 @@ export const resolveAgreementPage = (code, page) => {
 
   return structuredClone(pageDefinition);
 };
+
+export const resolveAgreementPage = (code, page) =>
+  resolvePageFromDefinition(loadValidatedDefinition(code), { code, page });
 
 const assertAgreementDefinitionVersion = (
   definition,
@@ -66,13 +67,19 @@ const assertAgreementDefinitionVersion = (
   }
 };
 
-export const resolveAgreementPageForStatus = ({
+export const resolveAgreementPageForVersion = ({
   code,
-  status,
+  page,
   configVersion,
 }) => {
   const definition = loadValidatedDefinition(code);
   assertAgreementDefinitionVersion(definition, { code, configVersion });
+
+  return resolvePageFromDefinition(definition, { code, page });
+};
+
+export const resolveAgreementPageForStatus = ({ code, status }) => {
+  const definition = loadValidatedDefinition(code);
   const stateDefinition = definition.states[status];
 
   if (!stateDefinition) {
