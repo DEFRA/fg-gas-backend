@@ -15,6 +15,7 @@ export const findCurrentAgreementUseCase = async ({ code, clientRef, sbi }) => {
   const { pageId } = resolveAgreementPageForStatus({
     code: reference.code,
     status: item.status,
+    configVersion: item.configVersion,
   });
   const renderedAgreement = await renderAgreementPageFromVersionUseCase({
     currentAgreement,

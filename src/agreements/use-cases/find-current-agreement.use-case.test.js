@@ -69,6 +69,7 @@ describe("findCurrentAgreementUseCase", () => {
     expect(resolveAgreementPageForStatus).toHaveBeenCalledWith({
       code: "pigs-might-fly",
       status: "accepted",
+      configVersion: "0.0.1",
     });
     expect(renderAgreementPageFromVersionUseCase).toHaveBeenCalledWith({
       currentAgreement,

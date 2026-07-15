@@ -1,25 +1,21 @@
 import Boom from "@hapi/boom";
 import { AgreementLifecycle } from "../agreement-lifecycle.js";
-import { getAgreementDefinitionByCode } from "./index.js";
+import { getAgreementDefinitionByCodeAndVersion } from "./index.js";
 import { validateAgreementDefinition } from "./validate.js";
 
-const loadValidatedDefinition = (code) => {
-  const definition = getAgreementDefinitionByCode(code);
+const loadValidatedDefinitionForVersion = (code, configVersion) => {
+  const definition = getAgreementDefinitionByCodeAndVersion(
+    code,
+    configVersion,
+  );
 
   if (!definition) {
-    throw Boom.notFound(`Unknown agreement code: "${code}"`);
+    throw Boom.badImplementation(
+      `Agreement definition "${code}" version "${configVersion}" is unavailable`,
+    );
   }
 
   return validateAgreementDefinition(definition);
-};
-
-export const resolveAgreementCreation = (code) => {
-  const definition = loadValidatedDefinition(code);
-
-  return structuredClone({
-    agreementNumberPrefix: definition.agreementNumberPrefix,
-    ...definition.create,
-  });
 };
 
 const resolveActionFromDefinition = (definition, { code, state, action }) => {
@@ -32,13 +28,6 @@ const resolveActionFromDefinition = (definition, { code, state, action }) => {
   return new AgreementLifecycle(definition).resolveAction(state, action);
 };
 
-export const resolveAgreementAction = (code, state, action) =>
-  resolveActionFromDefinition(loadValidatedDefinition(code), {
-    code,
-    state,
-    action,
-  });
-
 const resolvePageFromDefinition = (definition, { code, page }) => {
   const pageDefinition = definition.pages[page];
 
@@ -47,20 +36,6 @@ const resolvePageFromDefinition = (definition, { code, page }) => {
   }
 
   return structuredClone(pageDefinition);
-};
-
-export const resolveAgreementPage = (code, page) =>
-  resolvePageFromDefinition(loadValidatedDefinition(code), { code, page });
-
-const assertAgreementDefinitionVersion = (
-  definition,
-  { code, configVersion },
-) => {
-  if (definition.configVersion !== configVersion) {
-    throw Boom.badImplementation(
-      `Agreement definition "${code}" is version "${definition.configVersion}" but the Agreement uses version "${configVersion}"`,
-    );
-  }
 };
 
 const requirePersistedStateDefinition = (definition, { code, state }) => {
@@ -79,8 +54,7 @@ export const resolveAgreementActionForVersion = ({
   action,
   configVersion,
 }) => {
-  const definition = loadValidatedDefinition(code);
-  assertAgreementDefinitionVersion(definition, { code, configVersion });
+  const definition = loadValidatedDefinitionForVersion(code, configVersion);
   requirePersistedStateDefinition(definition, { code, state });
 
   return resolveActionFromDefinition(definition, { code, state, action });
@@ -91,14 +65,17 @@ export const resolveAgreementPageForVersion = ({
   page,
   configVersion,
 }) => {
-  const definition = loadValidatedDefinition(code);
-  assertAgreementDefinitionVersion(definition, { code, configVersion });
+  const definition = loadValidatedDefinitionForVersion(code, configVersion);
 
   return resolvePageFromDefinition(definition, { code, page });
 };
 
-export const resolveAgreementPageForStatus = ({ code, status }) => {
-  const definition = loadValidatedDefinition(code);
+export const resolveAgreementPageForStatus = ({
+  code,
+  status,
+  configVersion,
+}) => {
+  const definition = loadValidatedDefinitionForVersion(code, configVersion);
   const stateDefinition = requirePersistedStateDefinition(definition, {
     code,
     state: status,
@@ -126,8 +103,13 @@ const collectAllowedPages = (stateDefinition) =>
     ].filter(Boolean),
   );
 
-export const assertAgreementPageAllowedForStatus = (code, page, status) => {
-  const definition = loadValidatedDefinition(code);
+export const assertAgreementPageAllowedForStatus = (
+  code,
+  page,
+  status,
+  configVersion,
+) => {
+  const definition = loadValidatedDefinitionForVersion(code, configVersion);
 
   const stateDefinition = definition.states[status];
 

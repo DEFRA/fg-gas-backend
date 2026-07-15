@@ -1,22 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   assertAgreementPageAllowedForStatus,
-  resolveAgreementAction,
-  resolveAgreementCreation,
-  resolveAgreementPage,
+  resolveAgreementActionForVersion,
+  resolveAgreementPageForVersion,
 } from "./agreement-definition-resolver.js";
 
 describe("resolving agreement behaviour for code pigs-might-fly", () => {
-  it("selects the PMF definition's creation configuration", () => {
-    expect(resolveAgreementCreation("pigs-might-fly")).toMatchObject({
-      agreementNumberPrefix: "PMF",
-      target: "offered",
-    });
-  });
-
   it("selects the PMF definition's accept action configuration", () => {
     expect(
-      resolveAgreementAction("pigs-might-fly", "offered", "accept").transition,
+      resolveAgreementActionForVersion({
+        code: "pigs-might-fly",
+        state: "offered",
+        action: "accept",
+        configVersion: "0.0.1",
+      }).transition,
     ).toEqual({
       from: "offered",
       action: "accept",
@@ -25,9 +22,13 @@ describe("resolving agreement behaviour for code pigs-might-fly", () => {
   });
 
   it("selects the PMF definition's offered page configuration", () => {
-    expect(resolveAgreementPage("pigs-might-fly", "offered")).toMatchObject({
-      title: "Review your agreement offer",
-    });
+    expect(
+      resolveAgreementPageForVersion({
+        code: "pigs-might-fly",
+        page: "offered",
+        configVersion: "0.0.1",
+      }),
+    ).toMatchObject({ title: "Review your agreement offer" });
   });
 
   it("allows the offered page while the agreement is offered", () => {
@@ -36,6 +37,7 @@ describe("resolving agreement behaviour for code pigs-might-fly", () => {
         "pigs-might-fly",
         "offered",
         "offered",
+        "0.0.1",
       ),
     ).not.toThrow();
   });
@@ -46,6 +48,7 @@ describe("resolving agreement behaviour for code pigs-might-fly", () => {
         "pigs-might-fly",
         "accept",
         "offered",
+        "0.0.1",
       ),
     ).not.toThrow();
   });
@@ -56,6 +59,7 @@ describe("resolving agreement behaviour for code pigs-might-fly", () => {
         "pigs-might-fly",
         "offered",
         "accepted",
+        "0.0.1",
       ),
     ).toThrow(
       'Page "offered" is not valid for agreement code "pigs-might-fly" in state "accepted"',

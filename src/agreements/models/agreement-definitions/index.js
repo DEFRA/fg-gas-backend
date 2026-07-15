@@ -1,10 +1,28 @@
 import { pmfAgreementDefinition } from "./pmf.js";
 
-const agreementDefinitionsByCode = {
-  [pmfAgreementDefinition.code]: pmfAgreementDefinition,
+const agreementDefinitionsByCode = new Map([
+  [
+    pmfAgreementDefinition.code,
+    {
+      defaultVersion: pmfAgreementDefinition.configVersion,
+      definitionsByVersion: new Map([
+        [pmfAgreementDefinition.configVersion, pmfAgreementDefinition],
+      ]),
+    },
+  ],
+]);
+
+export const agreementDefinitions = [
+  ...agreementDefinitionsByCode.values(),
+].flatMap(({ definitionsByVersion }) => [...definitionsByVersion.values()]);
+
+export const getAgreementDefinitionByCodeAndVersion = (code, configVersion) =>
+  agreementDefinitionsByCode.get(code)?.definitionsByVersion.get(configVersion);
+
+export const getAgreementDefinitionForCreation = (code, configVersion) => {
+  const registeredDefinitions = agreementDefinitionsByCode.get(code);
+  const resolvedVersion =
+    configVersion ?? registeredDefinitions?.defaultVersion;
+
+  return registeredDefinitions?.definitionsByVersion.get(resolvedVersion);
 };
-
-export const agreementDefinitions = Object.values(agreementDefinitionsByCode);
-
-export const getAgreementDefinitionByCode = (code) =>
-  agreementDefinitionsByCode[code];

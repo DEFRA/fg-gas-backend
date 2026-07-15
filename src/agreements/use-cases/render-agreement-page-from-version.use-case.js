@@ -44,7 +44,12 @@ export const renderAgreementPageFromVersionUseCase = async ({
     configVersion: item.configVersion,
   });
   resolveAgreementPageMode(mode);
-  assertAgreementPageAllowedForStatus(reference.code, page, item.status);
+  assertAgreementPageAllowedForStatus(
+    reference.code,
+    page,
+    item.status,
+    item.configVersion,
+  );
 
   const context = { agreement: snapshot, snapshot, item };
   const { components, actions } = await resolveRenderModel(

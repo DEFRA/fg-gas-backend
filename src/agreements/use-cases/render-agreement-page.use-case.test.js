@@ -89,6 +89,7 @@ describe("renderAgreementPageFromVersionUseCase", () => {
       reference.code,
       "offered",
       "offered",
+      "0.0.1",
     );
     expect(resolveComponents).toHaveBeenCalledWith(pageDefinition.components, {
       agreement: snapshot,

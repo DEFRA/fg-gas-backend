@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { withTransaction } from "../../common/with-transaction.js";
-import { getAgreementDefinitionByCode } from "../models/agreement-definitions/index.js";
+import { getAgreementDefinitionForCreation } from "../models/agreement-definitions/index.js";
 import { generateAgreementNumber } from "../models/agreement-number.js";
 import {
   findByClientRefAndCode,
@@ -29,6 +29,7 @@ const command = {
     clientRef: "xnp-rr3-nfa",
     code: "pigs-might-fly",
     identifiers: { sbi: "300000069", frn: "frn", crn: "1300000069" },
+    metadata: { configVersion: "0.0.1" },
     answers: { whitePigsCount: 5 },
   },
 };
@@ -42,7 +43,7 @@ describe("handleCreateAgreementCommandUseCase", () => {
 
   it("persists a new agreement in its initial state for a known code", async () => {
     findByClientRefAndCode.mockResolvedValue(null);
-    getAgreementDefinitionByCode.mockReturnValue(pmfDefinition);
+    getAgreementDefinitionForCreation.mockReturnValue(pmfDefinition);
     generateAgreementNumber.mockReturnValue("PMF823153883");
     saveAgreement.mockResolvedValue();
     saveVersion.mockResolvedValue();
@@ -57,7 +58,10 @@ describe("handleCreateAgreementCommandUseCase", () => {
       "xnp-rr3-nfa",
       "pigs-might-fly",
     );
-    expect(getAgreementDefinitionByCode).toHaveBeenCalledWith("pigs-might-fly");
+    expect(getAgreementDefinitionForCreation).toHaveBeenCalledWith(
+      "pigs-might-fly",
+      "0.0.1",
+    );
     expect(generateAgreementNumber).toHaveBeenCalledWith({ prefix: "PMF" });
     expect(runAgreementEffects).toHaveBeenCalledWith(
       pmfDefinition.create.effects,
@@ -114,7 +118,7 @@ describe("handleCreateAgreementCommandUseCase", () => {
     };
 
     findByClientRefAndCode.mockResolvedValue(null);
-    getAgreementDefinitionByCode.mockReturnValue(definitionWithEffects);
+    getAgreementDefinitionForCreation.mockReturnValue(definitionWithEffects);
     generateAgreementNumber.mockReturnValue("PMF823153883");
     saveAgreement.mockResolvedValue();
     saveVersion.mockResolvedValue();
@@ -162,12 +166,34 @@ describe("handleCreateAgreementCommandUseCase", () => {
     expect(agreement.items[0].supplementaryData).toBeUndefined();
   });
 
-  it("throws Boom.badRequest for an unknown agreement code", async () => {
+  it("persists the registry default version when the command omits one", async () => {
+    const unversionedCommand = {
+      data: { ...command.data, metadata: {} },
+    };
     findByClientRefAndCode.mockResolvedValue(null);
-    getAgreementDefinitionByCode.mockReturnValue(undefined);
+    getAgreementDefinitionForCreation.mockReturnValue(pmfDefinition);
+    generateAgreementNumber.mockReturnValue("PMF823153883");
+    runAgreementEffects.mockResolvedValue({
+      answers: unversionedCommand.data.answers,
+      outputs: {},
+    });
+
+    const agreement =
+      await handleCreateAgreementCommandUseCase(unversionedCommand);
+
+    expect(getAgreementDefinitionForCreation).toHaveBeenCalledWith(
+      "pigs-might-fly",
+      undefined,
+    );
+    expect(agreement.items[0].configVersion).toBe("0.0.1");
+  });
+
+  it("throws Boom.badRequest for an unknown agreement definition", async () => {
+    findByClientRefAndCode.mockResolvedValue(null);
+    getAgreementDefinitionForCreation.mockReturnValue(undefined);
 
     await expect(handleCreateAgreementCommandUseCase(command)).rejects.toThrow(
-      'Unknown agreement code: "pigs-might-fly"',
+      'Unknown agreement definition: "pigs-might-fly" version "0.0.1"',
     );
     expect(saveAgreement).not.toHaveBeenCalled();
     expect(saveVersion).not.toHaveBeenCalled();
@@ -189,7 +215,7 @@ describe("handleCreateAgreementCommandUseCase", () => {
       "pigs-might-fly",
     );
     expect(agreement).toBe(existingAgreement);
-    expect(getAgreementDefinitionByCode).not.toHaveBeenCalled();
+    expect(getAgreementDefinitionForCreation).not.toHaveBeenCalled();
     expect(runAgreementEffects).not.toHaveBeenCalled();
     expect(saveAgreement).not.toHaveBeenCalled();
     expect(saveVersion).not.toHaveBeenCalled();

@@ -1,6 +1,6 @@
 import Boom from "@hapi/boom";
 import { withTransaction } from "../../common/with-transaction.js";
-import { getAgreementDefinitionByCode } from "../models/agreement-definitions/index.js";
+import { getAgreementDefinitionForCreation } from "../models/agreement-definitions/index.js";
 import { AgreementItem } from "../models/agreement-item.js";
 import { generateAgreementNumber } from "../models/agreement-number.js";
 import { AgreementVersion } from "../models/agreement-version.js";
@@ -42,8 +42,26 @@ const buildInitialVersion = async (definition, agreement, answers) => {
   });
 };
 
+const requireAgreementDefinitionForCreation = (
+  code,
+  requestedConfigVersion,
+) => {
+  const definition = getAgreementDefinitionForCreation(
+    code,
+    requestedConfigVersion,
+  );
+
+  if (!definition) {
+    throw Boom.badRequest(
+      `Unknown agreement definition: "${code}" version "${requestedConfigVersion ?? "default"}"`,
+    );
+  }
+
+  return definition;
+};
+
 export const handleCreateAgreementCommandUseCase = async (event) => {
-  const { clientRef, code, identifiers, answers } = event.data;
+  const { clientRef, code, identifiers, metadata, answers } = event.data;
 
   const existingAgreement = await findByClientRefAndCode(clientRef, code);
 
@@ -51,11 +69,10 @@ export const handleCreateAgreementCommandUseCase = async (event) => {
     return existingAgreement;
   }
 
-  const definition = getAgreementDefinitionByCode(code);
-
-  if (!definition) {
-    throw Boom.badRequest(`Unknown agreement code: "${code}"`);
-  }
+  const definition = requireAgreementDefinitionForCreation(
+    code,
+    metadata?.configVersion,
+  );
 
   const item = AgreementItem.create({
     agreementCode: code,

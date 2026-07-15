@@ -1,24 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { getAgreementDefinitionByCode } from "./index.js";
+import {
+  getAgreementDefinitionByCodeAndVersion,
+  getAgreementDefinitionForCreation,
+} from "./index.js";
 import { pmfAgreementDefinition } from "./pmf.js";
-import { validateAgreementDefinition } from "./validate.js";
 
-describe("getAgreementDefinitionByCode", () => {
-  it("returns the PMF agreement definition for code pigs-might-fly", () => {
-    expect(getAgreementDefinitionByCode("pigs-might-fly")).toBe(
+describe("getAgreementDefinitionByCodeAndVersion", () => {
+  it("returns the exact configured definition version", () => {
+    expect(
+      getAgreementDefinitionByCodeAndVersion("pigs-might-fly", "0.0.1"),
+    ).toBe(pmfAgreementDefinition);
+  });
+
+  it("returns undefined when the code is unknown", () => {
+    expect(
+      getAgreementDefinitionByCodeAndVersion("unknown-code", "0.0.1"),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined when the version is unavailable", () => {
+    expect(
+      getAgreementDefinitionByCodeAndVersion("pigs-might-fly", "0.0.0"),
+    ).toBeUndefined();
+  });
+});
+
+describe("getAgreementDefinitionForCreation", () => {
+  it("returns the code-specific default when no version is requested", () => {
+    expect(getAgreementDefinitionForCreation("pigs-might-fly")).toBe(
       pmfAgreementDefinition,
     );
-  });
-
-  it("returns undefined for an unknown agreement code", () => {
-    expect(getAgreementDefinitionByCode("unknown-code")).toBeUndefined();
-  });
-
-  it("is available by code and validates successfully", () => {
-    expect(() =>
-      validateAgreementDefinition(
-        getAgreementDefinitionByCode("pigs-might-fly"),
-      ),
-    ).not.toThrow();
   });
 });
