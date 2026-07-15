@@ -62,7 +62,7 @@ describe("findCurrentAgreementRoute", () => {
     });
   });
 
-  it("returns not found when no agreement matches the supplied identity", async () => {
+  it("returns not found when no Agreement matches the supplied lookup criteria", async () => {
     findCurrentAgreementUseCase.mockRejectedValue(
       Boom.notFound("Agreement not found"),
     );

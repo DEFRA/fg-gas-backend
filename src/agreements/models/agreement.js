@@ -1,11 +1,5 @@
 import { randomUUID } from "node:crypto";
-
-const matchesIdentity = (agreement, identity) =>
-  [
-    agreement.agreementNumber === identity.agreementNumber,
-    agreement.code === identity.code,
-    agreement.identifiers?.sbi === identity.sbi,
-  ].every(Boolean);
+import { AgreementReference } from "./agreement-reference.js";
 
 export class Agreement {
   constructor({
@@ -26,15 +20,46 @@ export class Agreement {
     this.updatedAt = updatedAt;
   }
 
-  findItemForIdentity(identity) {
-    if (!matchesIdentity(this, identity)) {
+  resolveReference({ code, clientRef, sbi }) {
+    const values = {
+      agreementNumber: this.agreementNumber,
+      code,
+      clientRef,
+      sbi,
+    };
+
+    if (!this.#findReferencedItem(values)) {
+      return undefined;
+    }
+
+    return new AgreementReference(values);
+  }
+
+  findItem(reference) {
+    if (!(reference instanceof AgreementReference)) {
+      throw new TypeError(
+        "Agreement item lookup requires an Agreement Reference",
+      );
+    }
+
+    return this.#findReferencedItem(reference);
+  }
+
+  #findReferencedItem(reference) {
+    const matchesAgreement = [
+      this.agreementNumber === reference.agreementNumber,
+      this.code === reference.code,
+      this.identifiers?.sbi === reference.sbi,
+    ].every(Boolean);
+
+    if (!matchesAgreement) {
       return undefined;
     }
 
     return (this.items ?? []).find(
       (item) =>
-        item.agreementCode === identity.code &&
-        item.clientRef === identity.clientRef,
+        item.agreementCode === reference.code &&
+        item.clientRef === reference.clientRef,
     );
   }
 

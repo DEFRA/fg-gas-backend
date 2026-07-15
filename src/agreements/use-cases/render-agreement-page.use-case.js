@@ -1,6 +1,6 @@
 import { logger } from "../../common/logger.js";
 import { renderAgreementPageFromVersion } from "./render-agreement-page-from-version.use-case.js";
-import { resolveCurrentAgreementByIdentity } from "./resolve-current-agreement.use-case.js";
+import { resolveCurrentAgreement } from "./resolve-current-agreement.use-case.js";
 
 export const renderAgreementPageUseCase = async ({
   code,
@@ -11,14 +11,14 @@ export const renderAgreementPageUseCase = async ({
 }) => {
   logger.info(`Rendering page "${page}" (mode "${mode}") for code ${code}`);
 
-  const { identity, version } = await resolveCurrentAgreementByIdentity({
+  const { reference, version } = await resolveCurrentAgreement({
     code,
     clientRef,
     sbi,
   });
   const renderModel = await renderAgreementPageFromVersion({
     version,
-    identity,
+    reference,
     page,
     mode,
   });

@@ -1,9 +1,10 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveAgreementPageForStatus } from "../models/agreement-definitions/agreement-definition-resolver.js";
+import { AgreementReference } from "../models/agreement-reference.js";
 import { findCurrentAgreementUseCase } from "./find-current-agreement.use-case.js";
 import { renderAgreementPageFromVersion } from "./render-agreement-page-from-version.use-case.js";
-import { resolveCurrentAgreementByIdentity } from "./resolve-current-agreement.use-case.js";
+import { resolveCurrentAgreement } from "./resolve-current-agreement.use-case.js";
 
 vi.mock("../models/agreement-definitions/agreement-definition-resolver.js");
 vi.mock("./render-agreement-page-from-version.use-case.js");
@@ -15,13 +16,13 @@ const query = {
   sbi: "300000069",
 };
 
-const identity = {
+const reference = new AgreementReference({
   agreementNumber: "PMF823153883",
   ...query,
-};
+});
 
 const currentAgreement = {
-  identity,
+  reference,
   version: { version: 2, snapshot: {} },
   item: {
     agreementCode: query.code,
@@ -34,12 +35,12 @@ const currentAgreement = {
 describe("findCurrentAgreementUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resolveCurrentAgreementByIdentity.mockResolvedValue(currentAgreement);
+    resolveCurrentAgreement.mockResolvedValue(currentAgreement);
     resolveAgreementPageForStatus.mockReturnValue({
       pageId: "active-agreement",
     });
     renderAgreementPageFromVersion.mockResolvedValue({
-      ...identity,
+      ...reference,
       status: "accepted",
       page: {
         name: "active-agreement",
@@ -53,7 +54,7 @@ describe("findCurrentAgreementUseCase", () => {
 
   it("renders the page configured for the latest Agreement item state", async () => {
     await expect(findCurrentAgreementUseCase(query)).resolves.toEqual({
-      ...identity,
+      ...reference,
       status: "accepted",
       page: {
         name: "active-agreement",
@@ -64,7 +65,7 @@ describe("findCurrentAgreementUseCase", () => {
       actions: [],
     });
 
-    expect(resolveCurrentAgreementByIdentity).toHaveBeenCalledWith(query);
+    expect(resolveCurrentAgreement).toHaveBeenCalledWith(query);
     expect(resolveAgreementPageForStatus).toHaveBeenCalledWith({
       code: "pigs-might-fly",
       status: "accepted",
@@ -72,7 +73,7 @@ describe("findCurrentAgreementUseCase", () => {
     });
     expect(renderAgreementPageFromVersion).toHaveBeenCalledWith({
       version: currentAgreement.version,
-      identity,
+      reference,
       page: "active-agreement",
       mode: "view",
     });

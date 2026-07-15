@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AgreementReference } from "../models/agreement-reference.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
 import {
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
 } from "../repositories/agreement.repository.js";
-import { resolveCurrentAgreementByIdentity } from "./resolve-current-agreement.use-case.js";
+import { resolveCurrentAgreement } from "./resolve-current-agreement.use-case.js";
 
 vi.mock("../repositories/agreement.repository.js");
 
@@ -29,25 +30,27 @@ const agreement = new Agreement({
   items: [item],
 });
 
+const reference = new AgreementReference({
+  agreementNumber: agreement.agreementNumber,
+  ...request,
+});
+
 const version = new AgreementVersion({
   agreementNumber: agreement.agreementNumber,
   version: 2,
   snapshot: structuredClone(agreement),
 });
 
-describe("resolveCurrentAgreementByIdentity", () => {
+describe("resolveCurrentAgreement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findByClientRefCodeAndSbi.mockResolvedValue(agreement);
     findLatestVersionByAgreementNumber.mockResolvedValue(version);
   });
 
-  it("returns the latest version, immutable identity and matching snapshot item", async () => {
-    await expect(resolveCurrentAgreementByIdentity(request)).resolves.toEqual({
-      identity: {
-        agreementNumber: "PMF823153883",
-        ...request,
-      },
+  it("returns the latest version, immutable reference and matching snapshot item", async () => {
+    await expect(resolveCurrentAgreement(request)).resolves.toEqual({
+      reference,
       version,
       item,
     });
@@ -78,9 +81,7 @@ describe("resolveCurrentAgreementByIdentity", () => {
     async (_name, value) => {
       findByClientRefCodeAndSbi.mockResolvedValue(value);
 
-      await expect(
-        resolveCurrentAgreementByIdentity(request),
-      ).rejects.toMatchObject({
+      await expect(resolveCurrentAgreement(request)).rejects.toMatchObject({
         output: {
           statusCode: 404,
           payload: { message: "Agreement not found" },
@@ -93,9 +94,7 @@ describe("resolveCurrentAgreementByIdentity", () => {
   it("returns 500 when the Agreement has no recorded version", async () => {
     findLatestVersionByAgreementNumber.mockResolvedValue(null);
 
-    await expect(
-      resolveCurrentAgreementByIdentity(request),
-    ).rejects.toMatchObject({
+    await expect(resolveCurrentAgreement(request)).rejects.toMatchObject({
       output: { statusCode: 500 },
     });
   });
@@ -118,9 +117,7 @@ describe("resolveCurrentAgreementByIdentity", () => {
       snapshot: snapshot === null ? null : new Agreement(snapshot),
     });
 
-    await expect(
-      resolveCurrentAgreementByIdentity(request),
-    ).rejects.toMatchObject({
+    await expect(resolveCurrentAgreement(request)).rejects.toMatchObject({
       output: { statusCode: 500 },
     });
   });

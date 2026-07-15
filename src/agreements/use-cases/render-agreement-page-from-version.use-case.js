@@ -8,12 +8,12 @@ import {
 import { resolveComponents } from "../services/resolve-components.js";
 import { resolveActions } from "../services/resolve-page-href.js";
 
-const requireSnapshotItem = (version, identity) => {
-  const item = version.snapshot?.findItemForIdentity?.(identity);
+const requireSnapshotItem = (version, reference) => {
+  const item = version.snapshot?.findItem?.(reference);
 
   if (!item) {
     throw Boom.badImplementation(
-      `Agreement "${identity.agreementNumber}" version "${version.version}" is inconsistent`,
+      `Agreement "${reference.agreementNumber}" version "${version.version}" is inconsistent`,
     );
   }
 
@@ -45,25 +45,25 @@ const resolveRenderModel = async (
 
 export const renderAgreementPageFromVersion = async ({
   version,
-  identity,
+  reference,
   page,
   mode,
 }) => {
   const { snapshot } = version;
-  const item = requireSnapshotItem(version, identity);
-  const pageDefinition = resolveAgreementPage(identity.code, page);
+  const item = requireSnapshotItem(version, reference);
+  const pageDefinition = resolveAgreementPage(reference.code, page);
   resolveAgreementPageMode(mode);
-  assertAgreementPageAllowedForStatus(identity.code, page, item.status);
+  assertAgreementPageAllowedForStatus(reference.code, page, item.status);
 
   const context = { agreement: snapshot, snapshot, item };
   const { components, actions } = await resolveRenderModel(
     pageDefinition,
     context,
-    { page, agreementNumber: identity.agreementNumber },
+    { page, agreementNumber: reference.agreementNumber },
   );
 
   return {
-    ...identity,
+    ...reference,
     status: item.status,
     page: { name: page, title: pageDefinition.title, mode },
     components,

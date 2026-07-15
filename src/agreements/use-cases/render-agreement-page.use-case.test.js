@@ -5,42 +5,43 @@ import {
   resolveAgreementPage,
   resolveAgreementPageMode,
 } from "../models/agreement-definitions/agreement-definition-resolver.js";
+import { AgreementReference } from "../models/agreement-reference.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
 import { resolveComponents } from "../services/resolve-components.js";
 import { resolveActions } from "../services/resolve-page-href.js";
 import { renderAgreementPageFromVersion } from "./render-agreement-page-from-version.use-case.js";
 import { renderAgreementPageUseCase } from "./render-agreement-page.use-case.js";
-import { resolveCurrentAgreementByIdentity } from "./resolve-current-agreement.use-case.js";
+import { resolveCurrentAgreement } from "./resolve-current-agreement.use-case.js";
 
 vi.mock("../models/agreement-definitions/agreement-definition-resolver.js");
 vi.mock("../services/resolve-components.js");
 vi.mock("../services/resolve-page-href.js");
 vi.mock("./resolve-current-agreement.use-case.js");
 
-const identity = {
+const reference = new AgreementReference({
   agreementNumber: "PMF823153883",
   code: "pigs-might-fly",
   clientRef: "xnp-rr3-nfa",
   sbi: "300000069",
-};
+});
 
 const item = {
-  agreementCode: identity.code,
-  clientRef: identity.clientRef,
+  agreementCode: reference.code,
+  clientRef: reference.clientRef,
   configVersion: "0.0.1",
   status: "offered",
 };
 
 const snapshot = new Agreement({
-  agreementNumber: identity.agreementNumber,
-  code: identity.code,
-  identifiers: { sbi: identity.sbi },
+  agreementNumber: reference.agreementNumber,
+  code: reference.code,
+  identifiers: { sbi: reference.sbi },
   items: [item],
 });
 
 const version = new AgreementVersion({
-  agreementNumber: identity.agreementNumber,
+  agreementNumber: reference.agreementNumber,
   version: 2,
   snapshot,
 });
@@ -53,7 +54,7 @@ const pageDefinition = {
 
 const renderRequest = {
   version,
-  identity,
+  reference,
   page: "offered",
   mode: "view",
 };
@@ -71,7 +72,7 @@ describe("renderAgreementPageFromVersion", () => {
     await expect(
       renderAgreementPageFromVersion(renderRequest),
     ).resolves.toEqual({
-      ...identity,
+      ...reference,
       status: "offered",
       page: {
         name: "offered",
@@ -83,7 +84,7 @@ describe("renderAgreementPageFromVersion", () => {
     });
 
     expect(assertAgreementPageAllowedForStatus).toHaveBeenCalledWith(
-      identity.code,
+      reference.code,
       "offered",
       "offered",
     );
@@ -141,8 +142,8 @@ describe("renderAgreementPageFromVersion", () => {
 describe("renderAgreementPageUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resolveCurrentAgreementByIdentity.mockResolvedValue({
-      identity,
+    resolveCurrentAgreement.mockResolvedValue({
+      reference,
       version,
       item,
     });
@@ -154,17 +155,17 @@ describe("renderAgreementPageUseCase", () => {
 
   it("renders the requested page from the resolved current version", async () => {
     await renderAgreementPageUseCase({
-      code: identity.code,
-      clientRef: identity.clientRef,
-      sbi: identity.sbi,
+      code: reference.code,
+      clientRef: reference.clientRef,
+      sbi: reference.sbi,
       page: "offered",
       mode: "view",
     });
 
-    expect(resolveCurrentAgreementByIdentity).toHaveBeenCalledWith({
-      code: identity.code,
-      clientRef: identity.clientRef,
-      sbi: identity.sbi,
+    expect(resolveCurrentAgreement).toHaveBeenCalledWith({
+      code: reference.code,
+      clientRef: reference.clientRef,
+      sbi: reference.sbi,
     });
     expect(resolveComponents).toHaveBeenCalledWith(pageDefinition.components, {
       agreement: snapshot,
