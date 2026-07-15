@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AgreementVersion } from "../models/agreement-version.js";
+import { Agreement } from "../models/agreement.js";
 import {
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
@@ -20,17 +22,18 @@ const item = {
   status: "accepted",
 };
 
-const agreement = {
+const agreement = new Agreement({
   agreementNumber: "PMF823153883",
   code: request.code,
   identifiers: { sbi: request.sbi },
   items: [item],
-};
+});
 
-const version = {
+const version = new AgreementVersion({
+  agreementNumber: agreement.agreementNumber,
   version: 2,
   snapshot: structuredClone(agreement),
-};
+});
 
 describe("resolveCurrentAgreementByIdentity", () => {
   beforeEach(() => {
@@ -61,9 +64,15 @@ describe("resolveCurrentAgreementByIdentity", () => {
 
   it.each([
     ["missing Agreement", null],
-    ["root code", { ...agreement, code: "wrong-code" }],
-    ["root SBI", { ...agreement, identifiers: { sbi: "999999999" } }],
-    ["root item", { ...agreement, items: [] }],
+    ["root code", new Agreement({ ...agreement, code: "wrong-code" })],
+    [
+      "root SBI",
+      new Agreement({
+        ...agreement,
+        identifiers: { sbi: "999999999" },
+      }),
+    ],
+    ["root item", new Agreement({ ...agreement, items: [] })],
   ])(
     "returns the same non-disclosing 404 for an inconsistent %s",
     async (_name, value) => {
@@ -106,7 +115,7 @@ describe("resolveCurrentAgreementByIdentity", () => {
   ])("returns 500 for an inconsistent %s", async (_name, snapshot) => {
     findLatestVersionByAgreementNumber.mockResolvedValue({
       ...version,
-      snapshot,
+      snapshot: snapshot === null ? null : new Agreement(snapshot),
     });
 
     await expect(

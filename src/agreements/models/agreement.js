@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
 
+const matchesIdentity = (agreement, identity) =>
+  [
+    agreement.agreementNumber === identity.agreementNumber,
+    agreement.code === identity.code,
+    agreement.identifiers?.sbi === identity.sbi,
+  ].every(Boolean);
+
 export class Agreement {
   constructor({
     id,
@@ -17,6 +24,18 @@ export class Agreement {
     this.items = items;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
+  }
+
+  findItemForIdentity(identity) {
+    if (!matchesIdentity(this, identity)) {
+      return undefined;
+    }
+
+    return (this.items ?? []).find(
+      (item) =>
+        item.agreementCode === identity.code &&
+        item.clientRef === identity.clientRef,
+    );
   }
 
   static new({ agreementNumber, code, identifiers, items }) {

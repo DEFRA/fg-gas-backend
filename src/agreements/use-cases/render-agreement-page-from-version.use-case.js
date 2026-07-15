@@ -5,12 +5,11 @@ import {
   resolveAgreementPage,
   resolveAgreementPageMode,
 } from "../models/agreement-definitions/agreement-definition-resolver.js";
-import { findAgreementItemForIdentity } from "../models/agreement-identity.js";
 import { resolveComponents } from "../services/resolve-components.js";
 import { resolveActions } from "../services/resolve-page-href.js";
 
 const requireSnapshotItem = (version, identity) => {
-  const item = findAgreementItemForIdentity(version.snapshot, identity);
+  const item = version.snapshot?.findItemForIdentity?.(identity);
 
   if (!item) {
     throw Boom.badImplementation(

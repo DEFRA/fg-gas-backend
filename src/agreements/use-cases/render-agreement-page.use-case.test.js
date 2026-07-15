@@ -5,6 +5,8 @@ import {
   resolveAgreementPage,
   resolveAgreementPageMode,
 } from "../models/agreement-definitions/agreement-definition-resolver.js";
+import { AgreementVersion } from "../models/agreement-version.js";
+import { Agreement } from "../models/agreement.js";
 import { resolveComponents } from "../services/resolve-components.js";
 import { resolveActions } from "../services/resolve-page-href.js";
 import { renderAgreementPageFromVersion } from "./render-agreement-page-from-version.use-case.js";
@@ -30,14 +32,18 @@ const item = {
   status: "offered",
 };
 
-const snapshot = {
+const snapshot = new Agreement({
   agreementNumber: identity.agreementNumber,
   code: identity.code,
   identifiers: { sbi: identity.sbi },
   items: [item],
-};
+});
 
-const version = { version: 2, snapshot };
+const version = new AgreementVersion({
+  agreementNumber: identity.agreementNumber,
+  version: 2,
+  snapshot,
+});
 
 const pageDefinition = {
   title: "Review your agreement offer",
@@ -101,7 +107,10 @@ describe("renderAgreementPageFromVersion", () => {
     await expect(
       renderAgreementPageFromVersion({
         ...renderRequest,
-        version: { ...version, snapshot: { ...snapshot, ...override } },
+        version: new AgreementVersion({
+          ...version,
+          snapshot: new Agreement({ ...snapshot, ...override }),
+        }),
       }),
     ).rejects.toMatchObject({ output: { statusCode: 500 } });
 
