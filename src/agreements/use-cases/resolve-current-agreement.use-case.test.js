@@ -19,6 +19,7 @@ const request = {
 const item = {
   agreementCode: request.code,
   clientRef: request.clientRef,
+  identifiers: { sbi: request.sbi },
   configVersion: "0.0.1",
   status: "accepted",
 };

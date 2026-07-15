@@ -144,20 +144,31 @@ describe("Current Agreement resolution", () => {
     },
   );
 
-  it("returns a non-disclosing 404 when the root Agreement code is inconsistent", async () => {
-    await seedAgreement({
-      agreement: { ...toAgreement(), code: "wrong-code" },
-    });
-
-    await expect(
-      resolveCurrentAgreementUseCase({ code, clientRef, sbi }),
-    ).rejects.toMatchObject({
-      output: {
-        statusCode: 404,
-        payload: { message: "Agreement not found" },
+  it.each([
+    ["code", { code: "wrong-code" }],
+    [
+      "item SBI",
+      {
+        items: [{ ...toItem("offered"), identifiers: { sbi: "999999999" } }],
       },
-    });
-  });
+    ],
+  ])(
+    "returns a non-disclosing 404 when the root Agreement has an inconsistent %s",
+    async (_name, agreementOverride) => {
+      await seedAgreement({
+        agreement: { ...toAgreement(), ...agreementOverride },
+      });
+
+      await expect(
+        resolveCurrentAgreementUseCase({ code, clientRef, sbi }),
+      ).rejects.toMatchObject({
+        output: {
+          statusCode: 404,
+          payload: { message: "Agreement not found" },
+        },
+      });
+    },
+  );
 
   it("returns 500 when the Agreement has no recorded version", async () => {
     await seedAgreement({ versions: [] });
@@ -172,6 +183,12 @@ describe("Current Agreement resolution", () => {
     ["code", { code: "wrong-code" }],
     ["SBI", { identifiers: { sbi: "999999999" } }],
     ["item", { items: [{ ...toItem("offered"), clientRef: "other" }] }],
+    [
+      "item SBI",
+      {
+        items: [{ ...toItem("offered"), identifiers: { sbi: "999999999" } }],
+      },
+    ],
   ])(
     "returns 500 when the latest snapshot has an inconsistent %s",
     async (_name, snapshotOverride) => {

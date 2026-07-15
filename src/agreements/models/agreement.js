@@ -59,7 +59,8 @@ export class Agreement {
     return (this.items ?? []).find(
       (item) =>
         item.agreementCode === reference.code &&
-        item.clientRef === reference.clientRef,
+        item.clientRef === reference.clientRef &&
+        item.identifiers?.sbi === reference.sbi,
     );
   }
 

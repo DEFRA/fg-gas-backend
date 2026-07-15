@@ -29,6 +29,7 @@ const reference = new AgreementReference({
 const item = {
   agreementCode: reference.code,
   clientRef: reference.clientRef,
+  identifiers: { sbi: reference.sbi },
   configVersion: "0.0.1",
   status: "offered",
 };

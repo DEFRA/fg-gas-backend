@@ -18,6 +18,7 @@ const snapshot = {
     {
       agreementCode: reference.code,
       clientRef: reference.clientRef,
+      identifiers: { sbi: reference.sbi },
     },
   ],
 };

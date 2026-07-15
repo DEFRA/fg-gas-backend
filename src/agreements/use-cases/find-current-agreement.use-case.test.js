@@ -26,6 +26,7 @@ const currentAgreement = {
   item: {
     agreementCode: query.code,
     clientRef: query.clientRef,
+    identifiers: { sbi: query.sbi },
     configVersion: "0.0.1",
     status: "accepted",
   },

@@ -18,6 +18,7 @@ const query = {
 const item = {
   agreementCode: referenceValues.code,
   clientRef: referenceValues.clientRef,
+  identifiers: { sbi: referenceValues.sbi },
 };
 
 const toAgreement = (override = {}) =>
@@ -41,6 +42,7 @@ describe("Agreement.resolveReference", () => {
     ["code", { code: "another-code" }],
     ["SBI", { identifiers: { sbi: "999999999" } }],
     ["client reference", { items: [{ ...item, clientRef: "other" }] }],
+    ["item SBI", { items: [{ ...item, identifiers: { sbi: "999999999" } }] }],
     ["missing items", { items: undefined }],
   ])("returns undefined for a mismatched %s", (_name, override) => {
     expect(toAgreement(override).resolveReference(query)).toBeUndefined();
