@@ -14,26 +14,26 @@ vi.mock("./resolve-current-agreement.use-case.js");
 const request = {
   agreementNumber: "PMF823153883",
   actionName: "accept",
-  payload: {
+  reference: {
     code: "pigs-might-fly",
     clientRef: "xnp-rr3-nfa",
     sbi: "300000069",
-    confirm: "confirmed",
   },
+  values: { confirm: "confirmed" },
 };
 
 const currentAgreement = {
   reference: {
     agreementNumber: request.agreementNumber,
-    code: request.payload.code,
-    clientRef: request.payload.clientRef,
-    sbi: request.payload.sbi,
+    code: request.reference.code,
+    clientRef: request.reference.clientRef,
+    sbi: request.reference.sbi,
   },
   version: { version: 2, snapshot: {} },
   item: {
-    agreementCode: request.payload.code,
-    clientRef: request.payload.clientRef,
-    identifiers: { sbi: request.payload.sbi },
+    agreementCode: request.reference.code,
+    clientRef: request.reference.clientRef,
+    identifiers: { sbi: request.reference.sbi },
     configVersion: "0.0.1",
     status: "offered",
   },
@@ -87,7 +87,7 @@ describe("validateAgreementActionUseCase", () => {
     expect(renderAgreementPageFromVersionUseCase).not.toHaveBeenCalled();
   });
 
-  it("does not treat Agreement identity metadata as submitted action values", async () => {
+  it("validates action values independently from Agreement reference fields", async () => {
     const identityNamedAction = new AgreementAction({
       from: "offered",
       name: "accept",
@@ -97,37 +97,30 @@ describe("validateAgreementActionUseCase", () => {
         required: [
           {
             name: "code",
-            value: "pigs-might-fly",
+            value: "configured-action-code",
             href: "#code",
             message: "Provide the configured action value",
           },
         ],
       },
     });
-    const renderModel = {
-      ...currentAgreement.reference,
-      status: "offered",
-      page: {
-        name: "accept",
-        title: "Accept your agreement offer",
-        mode: "view",
-      },
-      components: [],
-      actions: [],
-    };
     resolveAgreementActionForVersion.mockReturnValue(identityNamedAction);
-    renderAgreementPageFromVersionUseCase.mockResolvedValue(renderModel);
 
-    await expect(validateAgreementActionUseCase(request)).resolves.toEqual({
-      ...renderModel,
-      errors: [
-        {
-          name: "code",
-          href: "#code",
-          message: "Provide the configured action value",
-        },
-      ],
+    await expect(
+      validateAgreementActionUseCase({
+        ...request,
+        values: { code: "configured-action-code" },
+      }),
+    ).resolves.toEqual({
+      valid: true,
+      transition: {
+        from: "offered",
+        action: "accept",
+        target: "accepted",
+      },
     });
+
+    expect(renderAgreementPageFromVersionUseCase).not.toHaveBeenCalled();
   });
 
   it("returns the configured validation page with exact field errors", async () => {
@@ -147,7 +140,7 @@ describe("validateAgreementActionUseCase", () => {
     await expect(
       validateAgreementActionUseCase({
         ...request,
-        payload: { ...request.payload, confirm: undefined },
+        values: { ...request.values, confirm: undefined },
       }),
     ).resolves.toEqual({
       ...renderModel,

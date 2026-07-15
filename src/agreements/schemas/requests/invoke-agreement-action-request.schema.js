@@ -8,10 +8,20 @@ export const invokeAgreementActionParamsSchema = Joi.object({
   actionName: Joi.string().required(),
 }).label("InvokeAgreementActionParams");
 
-export const invokeAgreementActionPayloadSchema = Joi.object({
+const agreementReference = Joi.object({
   code: code.required(),
   clientRef: clientRef.required(),
   sbi: sbi.required(),
 })
+  .required()
+  .label("AgreementActionReference");
+
+const actionValues = Joi.object()
   .unknown(true)
-  .label("InvokeAgreementActionPayload");
+  .required()
+  .label("AgreementActionValues");
+
+export const invokeAgreementActionPayloadSchema = Joi.object({
+  reference: agreementReference,
+  values: actionValues,
+}).label("InvokeAgreementActionPayload");

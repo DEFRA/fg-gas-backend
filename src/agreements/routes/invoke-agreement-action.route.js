@@ -23,7 +23,8 @@ export const invokeAgreementActionRoute = {
     return validateAgreementActionUseCase({
       agreementNumber: request.params.agreementNumber,
       actionName: request.params.actionName,
-      payload: request.payload,
+      reference: request.payload.reference,
+      values: request.payload.values,
     });
   },
 };

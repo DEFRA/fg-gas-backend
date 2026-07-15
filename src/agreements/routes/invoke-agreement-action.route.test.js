@@ -45,10 +45,12 @@ describe("invokeAgreementActionRoute", () => {
       method: "POST",
       url: "/agreements/PMF823153883/actions/accept",
       payload: {
-        code: "pigs-might-fly",
-        clientRef: "xnp-rr3-nfa",
-        sbi: "300000069",
-        confirm: "confirmed",
+        reference: {
+          code: "pigs-might-fly",
+          clientRef: "xnp-rr3-nfa",
+          sbi: "300000069",
+        },
+        values: { confirm: "confirmed" },
       },
     });
 
@@ -64,12 +66,12 @@ describe("invokeAgreementActionRoute", () => {
     expect(validateAgreementActionUseCase).toHaveBeenCalledWith({
       agreementNumber: "PMF823153883",
       actionName: "accept",
-      payload: {
+      reference: {
         code: "pigs-might-fly",
         clientRef: "xnp-rr3-nfa",
         sbi: "300000069",
-        confirm: "confirmed",
       },
+      values: { confirm: "confirmed" },
     });
   });
 
@@ -101,9 +103,12 @@ describe("invokeAgreementActionRoute", () => {
       method: "POST",
       url: "/agreements/PMF823153883/actions/accept",
       payload: {
-        code: "pigs-might-fly",
-        clientRef: "xnp-rr3-nfa",
-        sbi: "300000069",
+        reference: {
+          code: "pigs-might-fly",
+          clientRef: "xnp-rr3-nfa",
+          sbi: "300000069",
+        },
+        values: {},
       },
     });
 
@@ -122,10 +127,12 @@ describe("invokeAgreementActionRoute", () => {
       method: "POST",
       url: "/agreements/PMF823153883/actions/accept",
       payload: {
-        code: "pigs-might-fly",
-        clientRef: "xnp-rr3-nfa",
-        sbi: "300000069",
-        confirm: "confirmed",
+        reference: {
+          code: "pigs-might-fly",
+          clientRef: "xnp-rr3-nfa",
+          sbi: "300000069",
+        },
+        values: { confirm: "confirmed" },
       },
     });
 
@@ -142,12 +149,14 @@ describe("invokeAgreementActionRoute", () => {
     "rejects a request without required identity field %s",
     async (field) => {
       const payload = {
-        code: "pigs-might-fly",
-        clientRef: "xnp-rr3-nfa",
-        sbi: "300000069",
-        confirm: "confirmed",
+        reference: {
+          code: "pigs-might-fly",
+          clientRef: "xnp-rr3-nfa",
+          sbi: "300000069",
+        },
+        values: { confirm: "confirmed" },
       };
-      delete payload[field];
+      delete payload.reference[field];
 
       const { statusCode } = await server.inject({
         method: "POST",

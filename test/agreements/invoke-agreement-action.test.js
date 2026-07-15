@@ -48,7 +48,10 @@ const requestAction = async (actionName, answers = {}) => {
     "POST",
     `/agreements/${agreementNumber}/actions/${actionName}`,
     {
-      payload: { code, clientRef, sbi, ...answers },
+      payload: {
+        reference: { code, clientRef, sbi },
+        values: answers,
+      },
     },
   );
   const payload = await wreck.read(res, { json: true });
