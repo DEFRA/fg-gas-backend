@@ -9,6 +9,7 @@ export class AgreementVersion {
     version,
     snapshot,
     createdAt,
+    actionExecution,
   }) {
     this.id = id;
     this.agreementId = agreementId;
@@ -17,9 +18,16 @@ export class AgreementVersion {
     this.snapshot =
       snapshot instanceof Agreement ? snapshot : new Agreement(snapshot);
     this.createdAt = createdAt;
+    this.actionExecution = actionExecution;
   }
 
-  static new({ agreementId, agreementNumber, version, snapshot }) {
+  static new({
+    agreementId,
+    agreementNumber,
+    version,
+    snapshot,
+    actionExecution,
+  }) {
     return new AgreementVersion({
       id: randomUUID(),
       agreementId,
@@ -27,6 +35,7 @@ export class AgreementVersion {
       version,
       snapshot,
       createdAt: new Date().toISOString(),
+      actionExecution,
     });
   }
 }

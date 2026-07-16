@@ -11,6 +11,15 @@ export const invokeAgreementActionParamsSchema = agreementNumberParamsSchema
   .keys({ actionName: Joi.string().required() })
   .label("InvokeAgreementActionParams");
 
+export const invokeAgreementActionHeadersSchema = Joi.object({
+  "if-match": Joi.string()
+    .pattern(/^"[^":]+:[1-9]\d*"$/)
+    .required(),
+  "idempotency-key": Joi.string().guid({ version: "uuidv4" }).required(),
+})
+  .unknown(true)
+  .label("InvokeAgreementActionHeaders");
+
 const agreementReference = Joi.object({
   code: code.required(),
   clientRef: clientRef.required(),

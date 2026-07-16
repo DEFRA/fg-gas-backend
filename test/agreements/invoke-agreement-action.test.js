@@ -43,11 +43,20 @@ const toVersion = (state) => ({
   createdAt: "2026-07-15T12:01:00.000Z",
 });
 
-const requestAction = async (actionName, answers = {}) => {
+const requestAction = async (
+  actionName,
+  answers = {},
+  headerOverrides = {},
+) => {
   const res = await wreck.request(
     "POST",
     `/agreements/${agreementNumber}/actions/${actionName}`,
     {
+      headers: {
+        "if-match": `"${agreementNumber}:1"`,
+        "idempotency-key": "9ea924aa-45e9-43a7-888e-c25054ea658c",
+        ...headerOverrides,
+      },
       payload: {
         reference: { code, clientRef, sbi },
         values: answers,
@@ -127,6 +136,7 @@ describe("Agreement actions", () => {
       clientRef,
       sbi,
       state: "offered",
+      version: 1,
       page: {
         name: "accept",
         title: "Accept your agreement offer",
@@ -160,22 +170,142 @@ describe("Agreement actions", () => {
     await expectPersistenceUnchanged(persisted);
   });
 
-  it("returns the configured transition for valid confirmation without persisting it", async () => {
-    const persisted = await seedAgreement();
+  it("accepts the Agreement and redirects to its newly current page", async () => {
+    await seedAgreement();
 
-    const { res, payload } = await requestAction("accept", {
+    const { res } = await requestAction("accept", {
       confirm: "confirmed",
     });
 
-    expect(res.statusCode).toBe(200);
-    expect(payload).toEqual({
-      valid: true,
-      transition: {
-        from: "offered",
-        action: "accept",
-        target: "accepted",
+    expect(res.statusCode).toBe(303);
+    expect(res.headers.location).toBe(
+      `/agreements/${agreementNumber}?code=${code}&clientRef=${clientRef}&sbi=${sbi}`,
+    );
+
+    const storedVersions = await versions
+      .find({ agreementNumber })
+      .sort({ version: 1 })
+      .toArray();
+    expect(storedVersions).toHaveLength(2);
+    expect(storedVersions[1]).toMatchObject({
+      agreementId,
+      agreementNumber,
+      version: 2,
+      snapshot: {
+        items: [
+          expect.objectContaining({
+            state: "accepted",
+            supplementaryData: expect.objectContaining({
+              acceptedAt: expect.any(String),
+            }),
+          }),
+        ],
       },
     });
+    expect(
+      storedVersions[1].snapshot.items[0].supplementaryData,
+    ).not.toHaveProperty("acceptedBy");
+
+    const redirected = await wreck.request("GET", res.headers.location);
+    const page = await wreck.read(redirected, { json: true });
+    expect(redirected.statusCode).toBe(200);
+    expect(page).toMatchObject({
+      agreementNumber,
+      state: "accepted",
+      version: 2,
+      page: { name: "accepted" },
+    });
+  });
+
+  it("returns the original redirect when a successful submission is retried", async () => {
+    await seedAgreement();
+
+    const first = await requestAction("accept", { confirm: "confirmed" });
+    const retry = await requestAction("accept", { confirm: "confirmed" });
+
+    expect(first.res.statusCode).toBe(303);
+    expect(retry.res.statusCode).toBe(303);
+    expect(retry.res.headers.location).toBe(first.res.headers.location);
+    await expect(versions.countDocuments({ agreementNumber })).resolves.toBe(2);
+  });
+
+  it("allows only one concurrent acceptance to commit", async () => {
+    await seedAgreement();
+
+    const submissions = await Promise.all([
+      requestAction(
+        "accept",
+        { confirm: "confirmed" },
+        { "idempotency-key": "2f7e85ea-7d49-4e1f-a3e4-9e60ddf6220c" },
+      ),
+      requestAction(
+        "accept",
+        { confirm: "confirmed" },
+        { "idempotency-key": "16ab6e34-bbe7-46b8-804e-94f35f454bd1" },
+      ),
+    ]);
+
+    expect(submissions.map(({ res }) => res.statusCode).sort()).toEqual([
+      303, 412,
+    ]);
+    await expect(versions.countDocuments({ agreementNumber })).resolves.toBe(2);
+  });
+
+  it("reports a stale form before checking action availability", async () => {
+    await seedAgreement();
+    await requestAction("accept", { confirm: "confirmed" });
+
+    const { res } = await requestAction(
+      "accept",
+      { confirm: "confirmed" },
+      { "idempotency-key": "c4abbbb5-2aa0-47fb-84eb-45f536b63a0f" },
+    );
+
+    expect(res.statusCode).toBe(412);
+    await expect(versions.countDocuments({ agreementNumber })).resolves.toBe(2);
+  });
+
+  it("rejects a stale prepared form and identifies the current Agreement", async () => {
+    const persisted = await seedAgreement();
+
+    const { res, payload } = await requestAction(
+      "accept",
+      { confirm: "confirmed" },
+      { "if-match": `"${agreementNumber}:3"` },
+    );
+
+    expect(res.statusCode).toBe(412);
+    expect(res.headers.location).toBe(
+      `/agreements/${agreementNumber}?code=${code}&clientRef=${clientRef}&sbi=${sbi}`,
+    );
+    expect(payload).toMatchObject({
+      statusCode: 412,
+      error: "Precondition Failed",
+    });
+    await expectPersistenceUnchanged(persisted);
+  });
+
+  it("requires stale-form and retry protection headers", async () => {
+    const persisted = await seedAgreement();
+    const path = `/agreements/${agreementNumber}/actions/accept`;
+    const payload = {
+      reference: { code, clientRef, sbi },
+      values: { confirm: "confirmed" },
+    };
+
+    const missingIfMatch = await wreck.request("POST", path, {
+      headers: {
+        "idempotency-key": "9ea924aa-45e9-43a7-888e-c25054ea658c",
+      },
+      payload,
+    });
+    const missingIdempotencyKey = await wreck.request("POST", path, {
+      headers: { "if-match": `"${agreementNumber}:1"` },
+      payload,
+    });
+
+    expect(missingIfMatch.statusCode).toBe(400);
+    expect(missingIdempotencyKey.statusCode).toBe(400);
     await expectPersistenceUnchanged(persisted);
   });
 
@@ -191,6 +321,7 @@ describe("Agreement actions", () => {
       clientRef,
       sbi,
       state: "offered",
+      version: 1,
       page: {
         name: "accept",
         title: "Accept your agreement offer",

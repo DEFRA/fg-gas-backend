@@ -23,6 +23,7 @@ const pageModel = {
   clientRef: "xnp-rr3-nfa",
   sbi: "300000069",
   state: "offered",
+  version: 1,
   page: {
     name: "accept",
     title: "Accept your agreement offer",

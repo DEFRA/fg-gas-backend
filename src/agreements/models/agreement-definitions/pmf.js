@@ -75,7 +75,6 @@ export const pmfAgreementDefinition = {
               name: "snapshot",
               params: {
                 acceptedAt: "$.executedAt",
-                acceptedBy: "$.command.acceptedBy",
                 claimId: "$.outputs.paymentClaim.claimId",
                 correlationId: "$.outputs.paymentClaim.correlationId",
                 originalInvoiceNumber:

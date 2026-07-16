@@ -29,13 +29,21 @@ const requireVersion = (version, agreementNumber) => {
   return version;
 };
 
-export const loadCurrentAgreement = async ({ code, clientRef, sbi }) => {
+export const loadCurrentAgreement = async ({
+  code,
+  clientRef,
+  sbi,
+  session,
+}) => {
   const reference = requireAgreementReference(
-    await findByClientRefCodeAndSbi(clientRef, code, sbi),
+    await findByClientRefCodeAndSbi(clientRef, code, sbi, session),
     { code, clientRef, sbi },
   );
   const version = requireVersion(
-    await findLatestVersionByAgreementNumber(reference.agreementNumber),
+    await findLatestVersionByAgreementNumber(
+      reference.agreementNumber,
+      session,
+    ),
     reference.agreementNumber,
   );
 

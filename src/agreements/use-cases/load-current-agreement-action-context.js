@@ -3,7 +3,7 @@ import { InvalidAgreementTransitionError } from "../models/invalid-agreement-tra
 import { assertCurrentAgreementReference } from "./assert-current-agreement-reference.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
-const resolveAgreementAction = (agreementDefinition, options) => {
+export const resolveAgreementAction = (agreementDefinition, options) => {
   try {
     return agreementDefinition.resolveAction(options);
   } catch (error) {
@@ -21,9 +21,10 @@ export const loadCurrentAgreementActionContext = async ({
   code,
   clientRef,
   sbi,
+  session,
 }) => {
   const { currentAgreement, agreementDefinition } =
-    await loadCurrentAgreementContext({ code, clientRef, sbi });
+    await loadCurrentAgreementContext({ code, clientRef, sbi, session });
   assertCurrentAgreementReference(currentAgreement, {
     agreementNumber,
     code,

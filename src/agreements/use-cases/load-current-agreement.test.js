@@ -59,9 +59,11 @@ describe("loadCurrentAgreement", () => {
       request.clientRef,
       request.code,
       request.sbi,
+      undefined,
     );
     expect(findLatestVersionByAgreementNumber).toHaveBeenCalledWith(
       agreement.agreementNumber,
+      undefined,
     );
   });
 

@@ -58,6 +58,7 @@ export const buildAgreementPageModel = async ({
   return {
     ...currentAgreement.reference,
     state: currentAgreement.state,
+    version: currentAgreement.version.version,
     page: { name: page, title: pageDefinition.title, ...layout },
     components,
     actions,

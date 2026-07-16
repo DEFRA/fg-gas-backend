@@ -26,6 +26,7 @@ export const toAgreementVersion = (doc) =>
     version: doc.version,
     snapshot: toAgreement(doc.snapshot),
     createdAt: doc.createdAt,
+    actionExecution: doc.actionExecution,
   });
 
 export const agreementsCollection = "agreements__agreements";
@@ -90,6 +91,22 @@ export const findByClientRefAndCode = async (clientRef, code, session) => {
   }
 
   return toAgreement(doc);
+};
+
+export const findVersionByActionIdempotencyKey = async (
+  agreementNumber,
+  idempotencyKey,
+  session,
+) => {
+  const doc = await db.collection(versionsCollection).findOne(
+    {
+      agreementNumber,
+      "actionExecution.idempotencyKey": idempotencyKey,
+    },
+    { session },
+  );
+
+  return doc === null ? null : toAgreementVersion(doc);
 };
 
 export const findLatestVersionByAgreementNumber = async (
