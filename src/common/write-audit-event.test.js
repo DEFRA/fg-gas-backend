@@ -309,6 +309,14 @@ describe("writeAuditEvent", () => {
     );
   });
 
+  it("nests details under audit rather than at the top level", async () => {
+    await writeAuditEvent(eventData, {});
+
+    const storedEvent = Outbox.mock.calls[0][0].event;
+    expect(storedEvent).not.toHaveProperty("details");
+    expect(storedEvent.audit).toMatchObject({ details: { code: "woodlands" } });
+  });
+
   it("strips null user and sessionid from the payload before validation", async () => {
     getRequestContext.mockReturnValue({ user: null, sessionId: null });
 
