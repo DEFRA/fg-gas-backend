@@ -83,7 +83,7 @@ describe("invokeAgreementActionRoute", () => {
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
-      status: "offered",
+      state: "offered",
       page: {
         name: "accept",
         title: "Accept your agreement offer",

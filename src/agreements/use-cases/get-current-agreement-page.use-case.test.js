@@ -7,7 +7,7 @@ import {
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
 } from "../repositories/agreement.repository.js";
-import { renderAgreementPageUseCase } from "./render-agreement-page.use-case.js";
+import { getCurrentAgreementPageUseCase } from "./get-current-agreement-page.use-case.js";
 
 vi.mock("../models/agreement-definitions/agreement-definition-registry.js");
 vi.mock("../repositories/agreement.repository.js");
@@ -16,8 +16,6 @@ const request = {
   code: "pigs-might-fly",
   clientRef: "xnp-rr3-nfa",
   sbi: "300000069",
-  page: "offered",
-  mode: "view",
 };
 
 const item = new AgreementItem({
@@ -25,7 +23,7 @@ const item = new AgreementItem({
   clientRef: request.clientRef,
   identifiers: { sbi: request.sbi },
   configVersion: "0.0.1",
-  state: "offered",
+  state: "accepted",
 });
 
 const agreement = new Agreement({
@@ -40,16 +38,23 @@ const definition = {
   configVersion: "0.0.1",
   agreementNumberPrefix: "PMF",
   create: { target: "offered", effects: [] },
-  states: { offered: { page: "offered" } },
+  states: {
+    offered: { page: "offered" },
+    accepted: { page: "active-agreement" },
+  },
   pages: {
     offered: {
-      title: "Review your agreement offer",
-      components: [{ component: "heading", text: "Review" }],
+      title: "Agreement offer",
+      components: [{ component: "heading", text: "Offer" }],
+    },
+    "active-agreement": {
+      title: "Your agreement is active",
+      components: [{ component: "heading", text: "Active" }],
     },
   },
 };
 
-describe("renderAgreementPageUseCase", () => {
+describe("getCurrentAgreementPageUseCase", () => {
   beforeEach(() => {
     findByClientRefCodeAndSbi.mockResolvedValue(agreement);
     findLatestVersionByAgreementNumber.mockResolvedValue(
@@ -62,14 +67,15 @@ describe("renderAgreementPageUseCase", () => {
     findAgreementDefinition.mockReturnValue(definition);
   });
 
-  it("gets the requested Agreement Page Model", async () => {
-    await expect(renderAgreementPageUseCase(request)).resolves.toMatchObject({
+  it("gets the page selected by the latest lifecycle state", async () => {
+    await expect(
+      getCurrentAgreementPageUseCase(request),
+    ).resolves.toMatchObject({
       agreementNumber: "PMF823153883",
-      code: "pigs-might-fly",
-      state: "offered",
+      state: "accepted",
       page: {
-        name: "offered",
-        title: "Review your agreement offer",
+        name: "active-agreement",
+        title: "Your agreement is active",
         mode: "view",
       },
     });

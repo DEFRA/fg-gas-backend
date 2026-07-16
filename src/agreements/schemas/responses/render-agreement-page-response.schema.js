@@ -19,7 +19,7 @@ export const renderAgreementPageResponseSchema = Joi.object({
   code: code.required(),
   clientRef: clientRef.required(),
   sbi: sbi.required(),
-  status: Joi.string().required(),
+  state: Joi.string().required(),
   page: Joi.object({
     name: Joi.string().required(),
     title: Joi.string().required(),

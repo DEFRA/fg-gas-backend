@@ -60,7 +60,7 @@ Agreement definitions should define:
 - valid transitions
 - external status mappings where needed
 - named processes to run during transitions
-- actions available for each status or page
+- actions available for each lifecycle state or page
 
 Named processes can cover version creation, agreement number handling, payment calculation, payment request creation, acceptance recording, status publishing, PDF requests, cancellation and termination.
 

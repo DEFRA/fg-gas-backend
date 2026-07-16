@@ -3,14 +3,12 @@ import { loadAgreementDefinition } from "../models/agreement-definitions/agreeme
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { loadCurrentAgreement } from "./load-current-agreement.js";
 
-export const renderAgreementPageUseCase = async ({
+export const getCurrentAgreementPageUseCase = async ({
   code,
   clientRef,
   sbi,
-  page,
-  mode,
 }) => {
-  logger.info(`Rendering page "${page}" (mode "${mode}") for code ${code}`);
+  logger.info(`Getting current agreement page for code ${code}`);
 
   const currentAgreement = await loadCurrentAgreement({
     code,
@@ -21,14 +19,17 @@ export const renderAgreementPageUseCase = async ({
     code: currentAgreement.code,
     configVersion: currentAgreement.definitionVersion,
   });
+  const { pageId } = agreementDefinition.resolvePageForState(
+    currentAgreement.state,
+  );
   const pageModel = await buildAgreementPageModel({
     currentAgreement,
     agreementDefinition,
-    page,
-    mode,
+    page: pageId,
+    mode: "view",
   });
 
-  logger.info(`Finished: Rendering page "${page}" for code ${code}`);
+  logger.info(`Finished: Getting current agreement page for code ${code}`);
 
   return pageModel;
 };

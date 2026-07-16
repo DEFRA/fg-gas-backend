@@ -16,10 +16,7 @@ export const agreementDefinitions = [
   ...agreementDefinitionsByCode.values(),
 ].flatMap(({ definitionsByVersion }) => [...definitionsByVersion.values()]);
 
-export const getAgreementDefinitionByCodeAndVersion = (code, configVersion) =>
-  agreementDefinitionsByCode.get(code)?.definitionsByVersion.get(configVersion);
-
-export const getAgreementDefinitionForCreation = (code, configVersion) => {
+export const findAgreementDefinition = ({ code, configVersion }) => {
   const registeredDefinitions = agreementDefinitionsByCode.get(code);
   const resolvedVersion =
     configVersion ?? registeredDefinitions?.defaultVersion;

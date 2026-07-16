@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AgreementReference } from "../models/agreement-reference.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
+import { CurrentAgreement } from "../models/current-agreement.js";
 import {
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
 } from "../repositories/agreement.repository.js";
-import { resolveCurrentAgreementUseCase } from "./resolve-current-agreement.use-case.js";
+import { loadCurrentAgreement } from "./load-current-agreement.js";
 
 vi.mock("../repositories/agreement.repository.js");
 
@@ -21,7 +21,7 @@ const item = {
   clientRef: request.clientRef,
   identifiers: { sbi: request.sbi },
   configVersion: "0.0.1",
-  status: "accepted",
+  state: "accepted",
 };
 
 const agreement = new Agreement({
@@ -31,31 +31,30 @@ const agreement = new Agreement({
   items: [item],
 });
 
-const reference = new AgreementReference({
-  agreementNumber: agreement.agreementNumber,
-  ...request,
-});
-
 const version = new AgreementVersion({
   agreementNumber: agreement.agreementNumber,
   version: 2,
   snapshot: structuredClone(agreement),
 });
 
-describe("resolveCurrentAgreementUseCase", () => {
+describe("loadCurrentAgreement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findByClientRefCodeAndSbi.mockResolvedValue(agreement);
     findLatestVersionByAgreementNumber.mockResolvedValue(version);
   });
 
-  it("returns the latest version, immutable reference and matching snapshot item", async () => {
-    await expect(resolveCurrentAgreementUseCase(request)).resolves.toEqual({
-      reference,
-      version,
-      item,
-    });
+  it("loads the Current Agreement from its latest recorded version", async () => {
+    const currentAgreement = await loadCurrentAgreement(request);
 
+    expect(currentAgreement).toBeInstanceOf(CurrentAgreement);
+    expect(currentAgreement).toMatchObject({
+      agreementNumber: "PMF823153883",
+      code: "pigs-might-fly",
+      definitionVersion: "0.0.1",
+      state: "accepted",
+      version,
+    });
     expect(findByClientRefCodeAndSbi).toHaveBeenCalledWith(
       request.clientRef,
       request.code,
@@ -82,9 +81,7 @@ describe("resolveCurrentAgreementUseCase", () => {
     async (_name, value) => {
       findByClientRefCodeAndSbi.mockResolvedValue(value);
 
-      await expect(
-        resolveCurrentAgreementUseCase(request),
-      ).rejects.toMatchObject({
+      await expect(loadCurrentAgreement(request)).rejects.toMatchObject({
         output: {
           statusCode: 404,
           payload: { message: "Agreement not found" },
@@ -97,11 +94,9 @@ describe("resolveCurrentAgreementUseCase", () => {
   it("returns 500 when the Agreement has no recorded version", async () => {
     findLatestVersionByAgreementNumber.mockResolvedValue(null);
 
-    await expect(resolveCurrentAgreementUseCase(request)).rejects.toMatchObject(
-      {
-        output: { statusCode: 500 },
-      },
-    );
+    await expect(loadCurrentAgreement(request)).rejects.toMatchObject({
+      output: { statusCode: 500 },
+    });
   });
 
   it.each([
@@ -122,10 +117,8 @@ describe("resolveCurrentAgreementUseCase", () => {
       snapshot: snapshot === null ? null : new Agreement(snapshot),
     });
 
-    await expect(resolveCurrentAgreementUseCase(request)).rejects.toMatchObject(
-      {
-        output: { statusCode: 500 },
-      },
-    );
+    await expect(loadCurrentAgreement(request)).rejects.toMatchObject({
+      output: { statusCode: 500 },
+    });
   });
 });

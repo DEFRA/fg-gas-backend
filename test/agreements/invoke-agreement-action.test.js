@@ -9,7 +9,7 @@ const clientRef = "xnp-rr3-nfb";
 const sbi = "300000070";
 const agreementId = "invoke-agreement-action-id";
 
-const toItem = (status) => ({
+const toItem = (state) => ({
   agreementItemId: "invoke-agreement-action-item-id",
   agreementCode: code,
   clientRef,
@@ -18,7 +18,7 @@ const toItem = (status) => ({
   identifiers: { sbi },
   payload: {},
   createdAt: "2026-07-15T12:00:00.000Z",
-  status,
+  state,
 });
 
 const toAgreement = () => ({
@@ -31,14 +31,14 @@ const toAgreement = () => ({
   updatedAt: "2026-07-15T12:00:00.000Z",
 });
 
-const toVersion = (status) => ({
-  _id: `invoke-agreement-action-version-${status}`,
+const toVersion = (state) => ({
+  _id: `invoke-agreement-action-version-${state}`,
   agreementId,
   agreementNumber,
   version: 1,
   snapshot: {
     ...toAgreement(),
-    items: [toItem(status)],
+    items: [toItem(state)],
   },
   createdAt: "2026-07-15T12:01:00.000Z",
 });
@@ -85,9 +85,9 @@ describe("POST /agreements/{agreementNumber}/actions/{actionName}", () => {
     await client?.close();
   });
 
-  const seedAgreement = async (status = "offered") => {
+  const seedAgreement = async (state = "offered") => {
     const agreement = toAgreement();
-    const version = toVersion(status);
+    const version = toVersion(state);
     await agreements.insertOne(agreement);
     await versions.insertOne(version);
 
@@ -133,7 +133,7 @@ describe("POST /agreements/{agreementNumber}/actions/{actionName}", () => {
       code,
       clientRef,
       sbi,
-      status: "offered",
+      state: "offered",
       page: {
         name: "accept",
         title: "Accept your agreement offer",

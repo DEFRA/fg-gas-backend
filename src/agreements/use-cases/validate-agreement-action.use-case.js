@@ -1,8 +1,8 @@
 import Boom from "@hapi/boom";
-import { resolveAgreementActionForVersion } from "../models/agreement-definitions/agreement-definition-resolver.js";
+import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
-import { renderAgreementPageFromVersionUseCase } from "./render-agreement-page-from-version.use-case.js";
-import { resolveCurrentAgreementUseCase } from "./resolve-current-agreement.use-case.js";
+import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
+import { loadCurrentAgreement } from "./load-current-agreement.js";
 
 const requireMatchingAgreementNumber = (reference, agreementNumber) => {
   if (reference.agreementNumber !== agreementNumber) {
@@ -10,9 +10,9 @@ const requireMatchingAgreementNumber = (reference, agreementNumber) => {
   }
 };
 
-const resolveAgreementAction = (options) => {
+const resolveAgreementAction = (agreementDefinition, options) => {
   try {
-    return resolveAgreementActionForVersion(options);
+    return agreementDefinition.resolveAction(options);
   } catch (error) {
     if (error instanceof InvalidAgreementTransitionError) {
       throw Boom.conflict(error.message);
@@ -28,30 +28,32 @@ export const validateAgreementActionUseCase = async ({
   reference: { code, clientRef, sbi },
   values,
 }) => {
-  const currentAgreement = await resolveCurrentAgreementUseCase({
+  const currentAgreement = await loadCurrentAgreement({
     code,
     clientRef,
     sbi,
   });
-  const { reference, item } = currentAgreement;
-  requireMatchingAgreementNumber(reference, agreementNumber);
+  requireMatchingAgreementNumber(currentAgreement.reference, agreementNumber);
 
-  const action = resolveAgreementAction({
-    code: reference.code,
-    state: item.status,
+  const agreementDefinition = await loadAgreementDefinition({
+    code: currentAgreement.code,
+    configVersion: currentAgreement.definitionVersion,
+  });
+  const action = resolveAgreementAction(agreementDefinition, {
+    state: currentAgreement.state,
     action: actionName,
-    configVersion: item.configVersion,
   });
   const validation = action.validate(values);
 
   if (!validation.valid) {
-    const renderModel = await renderAgreementPageFromVersionUseCase({
+    const pageModel = await buildAgreementPageModel({
       currentAgreement,
+      agreementDefinition,
       page: validation.page,
       mode: "view",
     });
 
-    return { ...renderModel, errors: validation.errors };
+    return { ...pageModel, errors: validation.errors };
   }
 
   return { valid: true, transition: action.transition };

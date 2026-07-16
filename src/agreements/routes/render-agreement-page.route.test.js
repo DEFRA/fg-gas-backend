@@ -25,7 +25,7 @@ describe("renderAgreementPageRoute", () => {
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
-      status: "offered",
+      state: "offered",
       page: {
         name: "offered",
         title: "Review your agreement offer",
@@ -53,7 +53,7 @@ describe("renderAgreementPageRoute", () => {
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
-      status: "offered",
+      state: "offered",
       page: {
         name: "offered",
         title: "Review your agreement offer",
@@ -70,7 +70,7 @@ describe("renderAgreementPageRoute", () => {
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
-      status: "offered",
+      state: "offered",
       page: {
         name: "offered",
         title: "Review your agreement offer",

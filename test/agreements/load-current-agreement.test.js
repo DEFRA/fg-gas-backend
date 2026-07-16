@@ -16,7 +16,7 @@ const clientRef = "xnp-rr3-nfa";
 const sbi = "300000069";
 const agreementId = "agreement-id";
 
-const toItem = (status) => ({
+const toItem = (state) => ({
   agreementItemId: "item-id",
   agreementCode: code,
   clientRef,
@@ -25,40 +25,40 @@ const toItem = (status) => ({
   identifiers: { sbi },
   payload: {},
   createdAt: "2026-07-14T12:00:00.000Z",
-  status,
+  state,
 });
 
-const toAgreement = (status = "offered") => ({
+const toAgreement = (state = "offered") => ({
   _id: agreementId,
   agreementNumber,
   code,
   identifiers: { sbi },
-  items: [toItem(status)],
+  items: [toItem(state)],
   createdAt: "2026-07-14T12:00:00.000Z",
   updatedAt: "2026-07-14T12:00:00.000Z",
 });
 
-const toVersion = (version, status) => ({
+const toVersion = (version, state) => ({
   _id: `version-${version}`,
   agreementId,
   agreementNumber,
   version,
-  snapshot: toAgreement(status),
+  snapshot: toAgreement(state),
   createdAt: `2026-07-14T12:0${version}:00.000Z`,
 });
 
-describe("Current Agreement resolution", () => {
+describe("loadCurrentAgreement", () => {
   let client;
   let database;
   let mongoServer;
-  let resolveCurrentAgreementUseCase;
+  let loadCurrentAgreement;
 
   beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create();
     vi.stubEnv("MONGO_URI", mongoServer.getUri());
     vi.stubEnv("MONGO_DATABASE", "current-agreement-test");
-    ({ resolveCurrentAgreementUseCase } =
-      await import("../../src/agreements/use-cases/resolve-current-agreement.use-case.js"));
+    ({ loadCurrentAgreement } =
+      await import("../../src/agreements/use-cases/load-current-agreement.js"));
     client = await MongoClient.connect(process.env.MONGO_URI);
     database = client.db(process.env.MONGO_DATABASE);
   });
@@ -90,7 +90,7 @@ describe("Current Agreement resolution", () => {
   it("returns the latest Agreement version and matching item", async () => {
     await seedAgreement();
 
-    const result = await resolveCurrentAgreementUseCase({
+    const result = await loadCurrentAgreement({
       code,
       clientRef,
       sbi,
@@ -103,14 +103,15 @@ describe("Current Agreement resolution", () => {
       sbi,
     });
     expect(result.version.version).toBe(2);
-    expect(result.item.status).toBe("accepted");
+    expect(result.state).toBe("accepted");
+    expect(result.item.state).toBe("accepted");
     expect(result).not.toHaveProperty("agreement");
     expect(result).not.toHaveProperty("definition");
   });
 
   it("returns a non-disclosing 404 when the Agreement Reference cannot be resolved", async () => {
     await expect(
-      resolveCurrentAgreementUseCase({ code, clientRef, sbi }),
+      loadCurrentAgreement({ code, clientRef, sbi }),
     ).rejects.toMatchObject({
       output: {
         statusCode: 404,
@@ -129,7 +130,7 @@ describe("Current Agreement resolution", () => {
       await seedAgreement();
 
       await expect(
-        resolveCurrentAgreementUseCase({
+        loadCurrentAgreement({
           code,
           clientRef,
           sbi,
@@ -160,7 +161,7 @@ describe("Current Agreement resolution", () => {
       });
 
       await expect(
-        resolveCurrentAgreementUseCase({ code, clientRef, sbi }),
+        loadCurrentAgreement({ code, clientRef, sbi }),
       ).rejects.toMatchObject({
         output: {
           statusCode: 404,
@@ -174,7 +175,7 @@ describe("Current Agreement resolution", () => {
     await seedAgreement({ versions: [] });
 
     await expect(
-      resolveCurrentAgreementUseCase({ code, clientRef, sbi }),
+      loadCurrentAgreement({ code, clientRef, sbi }),
     ).rejects.toMatchObject({ output: { statusCode: 500 } });
   });
 
@@ -197,7 +198,7 @@ describe("Current Agreement resolution", () => {
       await seedAgreement({ versions: [version] });
 
       await expect(
-        resolveCurrentAgreementUseCase({ code, clientRef, sbi }),
+        loadCurrentAgreement({ code, clientRef, sbi }),
       ).rejects.toMatchObject({ output: { statusCode: 500 } });
     },
   );
