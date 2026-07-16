@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { assertSupportedAgreementPageMode } from "./assert-supported-agreement-page-mode.js";
 
 describe("assertSupportedAgreementPageMode", () => {
-  it("allows a supported mode", () => {
-    expect(() => assertSupportedAgreementPageMode("view")).not.toThrow();
+  it.each(["view", "print"])("allows supported mode %s", (mode) => {
+    expect(() => assertSupportedAgreementPageMode(mode)).not.toThrow();
   });
 
   it("rejects an unsupported mode", () => {

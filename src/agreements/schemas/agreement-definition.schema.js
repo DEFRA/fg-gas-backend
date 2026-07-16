@@ -72,6 +72,8 @@ const pageHref = Joi.alternatives()
   .label("PageHref");
 
 const pageAction = Joi.object({
+  name: Joi.string().required(),
+  method: Joi.string().valid("GET", "POST").required(),
   href: pageHref.required(),
   text: Joi.string().required(),
 })
@@ -80,6 +82,7 @@ const pageAction = Joi.object({
 
 const pageDefinition = Joi.object({
   title: Joi.string().required(),
+  layout: Joi.string().valid("document").optional(),
   components: Joi.array().items(component).min(1).required(),
   actions: Joi.array().items(pageAction).optional(),
 })

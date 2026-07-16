@@ -16,6 +16,10 @@ export class CurrentAgreement {
     this.configVersion = this.item.configVersion;
     this.state = this.item.state;
   }
+
+  matchesReference(reference) {
+    return this.reference.equals(reference);
+  }
 }
 
 const findCurrentItem = ({ reference, snapshot }) => {

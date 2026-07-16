@@ -4,15 +4,18 @@ import { assertSupportedAgreementPageMode } from "./assert-supported-agreement-p
 import { resolveComponents } from "./resolve-components.js";
 import { resolveActions } from "./resolve-page-href.js";
 
+const resolvePageActions = (pageDefinition, context, mode) =>
+  mode === "print" ? [] : resolveActions(context, pageDefinition.actions);
+
 const resolvePageModel = async (
   pageDefinition,
   context,
-  { page, agreementNumber },
+  { page, agreementNumber, mode },
 ) => {
   try {
     const [components, actions] = await Promise.all([
       resolveComponents(pageDefinition.components, context),
-      resolveActions(context, pageDefinition.actions),
+      resolvePageActions(pageDefinition, context, mode),
     ]);
 
     return { components, actions };
@@ -48,13 +51,14 @@ export const buildAgreementPageModel = async ({
   const { components, actions } = await resolvePageModel(
     pageDefinition,
     context,
-    { page, agreementNumber: currentAgreement.agreementNumber },
+    { page, agreementNumber: currentAgreement.agreementNumber, mode },
   );
+  const layout = pageDefinition.layout ? { layout: pageDefinition.layout } : {};
 
   return {
     ...currentAgreement.reference,
     state: currentAgreement.state,
-    page: { name: page, title: pageDefinition.title, mode },
+    page: { name: page, title: pageDefinition.title, ...layout },
     components,
     actions,
   };

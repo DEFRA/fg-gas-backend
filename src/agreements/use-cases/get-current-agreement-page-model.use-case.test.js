@@ -50,6 +50,14 @@ const definition = {
     "active-agreement": {
       title: "Your agreement is active",
       components: [{ component: "heading", text: "Active" }],
+      actions: [
+        {
+          name: "download",
+          method: "GET",
+          text: "Download",
+          href: "/download",
+        },
+      ],
     },
   },
 };
@@ -76,8 +84,29 @@ describe("getCurrentAgreementPageModelUseCase", () => {
       page: {
         name: "active-agreement",
         title: "Your agreement is active",
-        mode: "view",
       },
+    });
+  });
+
+  it("uses print presentation without exposing interactive actions", async () => {
+    await expect(
+      getCurrentAgreementPageModelUseCase({ ...request, mode: "print" }),
+    ).resolves.toMatchObject({
+      page: { name: "active-agreement" },
+      actions: [],
+    });
+  });
+
+  it("returns non-disclosing not found when a supplied Agreement number mismatches", async () => {
+    await expect(
+      getCurrentAgreementPageModelUseCase({
+        ...request,
+        agreementNumber: "PMF000000000",
+      }),
+    ).rejects.toMatchObject({
+      isBoom: true,
+      message: "Agreement not found",
+      output: { statusCode: 404 },
     });
   });
 });

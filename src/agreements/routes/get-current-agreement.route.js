@@ -17,8 +17,8 @@ export const getCurrentAgreementRoute = {
     },
   },
   async handler(request, _h) {
-    const { code, clientRef, sbi } = request.query;
+    const { code, clientRef, sbi, mode } = request.query;
 
-    return getCurrentAgreementPageModelUseCase({ code, clientRef, sbi });
+    return getCurrentAgreementPageModelUseCase({ code, clientRef, sbi, mode });
   },
 };

@@ -25,6 +25,7 @@ const validationError = Joi.object({
 
 const validationFailureResponse = agreementPageModelResponseSchema
   .keys({
+    values: Joi.object().unknown(true).required(),
     errors: Joi.array().items(validationError).min(1).required(),
   })
   .label("InvalidAgreementActionResponse");

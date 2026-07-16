@@ -114,9 +114,18 @@ export const pmfAgreementDefinition = {
       ],
       actions: [
         {
+          name: "accept",
+          method: "GET",
           href: {
-            urlTemplate: "/{agreementNumber}/accept",
-            params: { agreementNumber: "$.agreement.agreementNumber" },
+            urlTemplate:
+              "/agreements/{agreementNumber}/actions/{name}?code={code}&clientRef={clientRef}&sbi={sbi}",
+            params: {
+              agreementNumber: "$.agreement.agreementNumber",
+              name: "accept",
+              code: "$.agreement.code",
+              clientRef: "$.item.clientRef",
+              sbi: "$.agreement.identifiers.sbi",
+            },
           },
           text: "Continue",
         },
@@ -126,6 +135,30 @@ export const pmfAgreementDefinition = {
       title: "Accept your agreement offer",
       components: [
         { component: "heading", level: 1, text: "Accept your agreement offer" },
+        {
+          component: "checkboxes",
+          name: "confirm",
+          items: [
+            {
+              value: "confirmed",
+              text: "I confirm I have read the information in this section and accept this agreement offer.",
+            },
+          ],
+        },
+      ],
+      actions: [
+        {
+          name: "accept",
+          method: "POST",
+          href: {
+            urlTemplate: "/agreements/{agreementNumber}/actions/{name}",
+            params: {
+              agreementNumber: "$.agreement.agreementNumber",
+              name: "accept",
+            },
+          },
+          text: "Accept agreement offer",
+        },
       ],
     },
     // TODO: placeholder copy - real content covered by a follow-up ticket

@@ -53,6 +53,20 @@ describe("CurrentAgreement", () => {
     });
   });
 
+  it("matches its complete Agreement Reference", () => {
+    const currentAgreement = new CurrentAgreement({ reference, version });
+
+    expect(currentAgreement.matchesReference(reference)).toBe(true);
+    expect(
+      currentAgreement.matchesReference(
+        new AgreementReference({
+          ...reference,
+          agreementNumber: "PMF000000000",
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("rejects a latest version that does not contain the referenced item", () => {
     const inconsistentVersion = new AgreementVersion({
       agreementNumber: reference.agreementNumber,

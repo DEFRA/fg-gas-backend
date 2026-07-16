@@ -5,6 +5,8 @@ import {
 import { invokeAgreementActionResponseSchema } from "../schemas/responses/invoke-agreement-action-response.schema.js";
 import { validateAgreementActionUseCase } from "../use-cases/validate-agreement-action.use-case.js";
 
+const UNPROCESSABLE_CONTENT_STATUS_CODE = 422;
+
 export const invokeAgreementActionRoute = {
   method: "POST",
   path: "/agreements/{agreementNumber}/actions/{actionName}",
@@ -19,8 +21,8 @@ export const invokeAgreementActionRoute = {
       schema: invokeAgreementActionResponseSchema,
     },
   },
-  async handler(request, _h) {
-    return validateAgreementActionUseCase({
+  async handler(request, h) {
+    const result = await validateAgreementActionUseCase({
       actionName: request.params.actionName,
       reference: {
         agreementNumber: request.params.agreementNumber,
@@ -28,5 +30,9 @@ export const invokeAgreementActionRoute = {
       },
       values: request.payload.values,
     });
+
+    return result.valid
+      ? result
+      : h.response(result).code(UNPROCESSABLE_CONTENT_STATUS_CODE);
   },
 };

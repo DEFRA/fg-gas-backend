@@ -1,43 +1,19 @@
-import Boom from "@hapi/boom";
-import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
-
-const requireMatchingAgreementNumber = (reference, agreementNumber) => {
-  if (reference.agreementNumber !== agreementNumber) {
-    throw Boom.notFound("Agreement not found");
-  }
-};
-
-const resolveAgreementAction = (agreementDefinition, options) => {
-  try {
-    return agreementDefinition.resolveAction(options);
-  } catch (error) {
-    if (error instanceof InvalidAgreementTransitionError) {
-      throw Boom.conflict(error.message);
-    }
-
-    throw error;
-  }
-};
+import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 
 export const validateAgreementActionUseCase = async ({
   actionName,
   reference: { agreementNumber, code, clientRef, sbi },
   values,
 }) => {
-  const { currentAgreement, agreementDefinition } =
-    await loadCurrentAgreementContext({
+  const { action, currentAgreement, agreementDefinition } =
+    await loadCurrentAgreementActionContext({
+      actionName,
+      agreementNumber,
       code,
       clientRef,
       sbi,
     });
-  requireMatchingAgreementNumber(currentAgreement.reference, agreementNumber);
-
-  const action = resolveAgreementAction(agreementDefinition, {
-    state: currentAgreement.state,
-    action: actionName,
-  });
   const validation = action.validate(values);
 
   if (!validation.valid) {
@@ -48,7 +24,7 @@ export const validateAgreementActionUseCase = async ({
       mode: "view",
     });
 
-    return { ...pageModel, errors: validation.errors };
+    return { ...pageModel, values, errors: validation.errors };
   }
 
   return { valid: true, transition: action.transition };

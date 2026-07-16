@@ -42,6 +42,10 @@ export class AgreementAction {
     };
   }
 
+  get preparationPage() {
+    return this.#validation?.page;
+  }
+
   validate(values) {
     const requirements = this.#validation?.required;
 
