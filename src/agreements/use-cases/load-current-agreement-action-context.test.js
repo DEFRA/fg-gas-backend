@@ -52,6 +52,25 @@ describe("loadCurrentAgreementActionContext", () => {
     });
   });
 
+  it("resolves an action for the Agreement Item inside the active transaction", async () => {
+    const session = { id: "session" };
+    const itemRequest = {
+      actionName: request.actionName,
+      agreementNumber: request.agreementNumber,
+      agreementItemId: "29b829c4-4e38-405c-9f00-427ee94120a5",
+      session,
+    };
+
+    await expect(
+      loadCurrentAgreementActionContext(itemRequest),
+    ).resolves.toEqual({ action, currentAgreement, agreementDefinition });
+    expect(loadCurrentAgreementContext).toHaveBeenCalledWith({
+      agreementNumber: request.agreementNumber,
+      agreementItemId: itemRequest.agreementItemId,
+      session,
+    });
+  });
+
   it("returns non-disclosing not found for a mismatched Agreement number", async () => {
     await expect(
       loadCurrentAgreementActionContext({

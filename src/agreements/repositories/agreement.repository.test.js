@@ -126,6 +126,27 @@ describe("saveVersion", () => {
       { session },
     );
   });
+
+  it("persists the action execution that produced the version", async () => {
+    const insertOne = vi.fn().mockResolvedValue({ insertedId: testVersion.id });
+    db.collection.mockReturnValue({ insertOne });
+    const actionExecution = {
+      name: "accept",
+      agreementItemId: testAgreement.items[0].agreementItemId,
+      idempotencyKey: "9ea924aa-45e9-43a7-888e-c25054ea658c",
+    };
+    const version = new AgreementVersion({
+      ...testVersion,
+      actionExecution,
+    });
+
+    await saveVersion(version);
+
+    expect(insertOne).toHaveBeenCalledWith(
+      expect.objectContaining({ actionExecution }),
+      { session: undefined },
+    );
+  });
 });
 
 describe("findByAgreementNumber", () => {

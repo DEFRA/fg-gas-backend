@@ -6,15 +6,17 @@ import {
   findLatestVersionByAgreementNumber,
 } from "../repositories/agreement.repository.js";
 
+const AGREEMENT_NOT_FOUND_MESSAGE = "Agreement not found";
+
 const requireAgreementReference = (agreement, query) => {
   if (!agreement) {
-    throw Boom.notFound("Agreement not found");
+    throw Boom.notFound(AGREEMENT_NOT_FOUND_MESSAGE);
   }
 
   const reference = agreement.resolveReference(query);
 
   if (!reference) {
-    throw Boom.notFound("Agreement not found");
+    throw Boom.notFound(AGREEMENT_NOT_FOUND_MESSAGE);
   }
 
   return reference;
@@ -64,13 +66,13 @@ export const loadCurrentAgreementByItem = async ({
   const agreement = await findByAgreementNumber(agreementNumber, session);
 
   if (!agreement) {
-    throw Boom.notFound("Agreement not found");
+    throw Boom.notFound(AGREEMENT_NOT_FOUND_MESSAGE);
   }
 
   const reference = agreement.resolveItemReference(agreementItemId);
 
   if (!reference) {
-    throw Boom.notFound("Agreement not found");
+    throw Boom.notFound(AGREEMENT_NOT_FOUND_MESSAGE);
   }
 
   return loadCurrentAgreementVersion({ reference, session });

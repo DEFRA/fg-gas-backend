@@ -62,6 +62,16 @@ describe("Agreement.resolveItemReference", () => {
       toAgreement().resolveItemReference("unknown-item-id"),
     ).toBeUndefined();
   });
+
+  it("returns undefined when the Agreement Item has no SBI", () => {
+    const agreement = toAgreement({
+      items: [{ ...item, identifiers: undefined }],
+    });
+
+    expect(
+      agreement.resolveItemReference(item.agreementItemId),
+    ).toBeUndefined();
+  });
 });
 
 describe("Agreement.findItem", () => {

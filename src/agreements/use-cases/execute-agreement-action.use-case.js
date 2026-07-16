@@ -12,6 +12,8 @@ import { buildAgreementPageModel } from "../services/build-agreement-page-model.
 import { resolveAgreementAction } from "./load-current-agreement-action-context.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
+const MONGO_DUPLICATE_KEY_ERROR = 11000;
+
 const transitionCurrentItem = ({ currentAgreement, target }) =>
   currentAgreement.snapshot.items.map((item) => {
     if (item.agreementItemId !== currentAgreement.item.agreementItemId) {
@@ -156,7 +158,7 @@ const executeInTransaction = async ({
 };
 
 const isDuplicateKeyError = (error) =>
-  error instanceof MongoServerError && error.code === 11000;
+  error instanceof MongoServerError && error.code === MONGO_DUPLICATE_KEY_ERROR;
 
 const hasVersionKeyPattern = (error) =>
   ["agreementId", "version"].every((key) => error.keyPattern?.[key]);

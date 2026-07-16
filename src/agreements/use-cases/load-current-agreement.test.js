@@ -71,6 +71,23 @@ describe("loadCurrentAgreement", () => {
     );
   });
 
+  it("returns 404 when the Agreement does not exist", async () => {
+    findByAgreementNumber.mockResolvedValue(null);
+
+    await expect(
+      loadCurrentAgreementByItem({
+        agreementNumber: agreement.agreementNumber,
+        agreementItemId: item.agreementItemId,
+      }),
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 404,
+        payload: { message: "Agreement not found" },
+      },
+    });
+    expect(findLatestVersionByAgreementNumber).not.toHaveBeenCalled();
+  });
+
   it("returns 404 when the Agreement Item does not belong to the Agreement", async () => {
     await expect(
       loadCurrentAgreementByItem({
