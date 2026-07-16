@@ -89,9 +89,15 @@ describe("AgreementLifecycle", () => {
     expect(lifecycle.definition).toBe(defaultAgreementLifecycle);
   });
 
-  it("throws when asked for available actions on an unknown state", () => {
-    expect(() => lifecycle.getAvailableActions("unknown")).toThrow(
-      'Unknown agreement lifecycle state: "unknown"',
-    );
+  it("treats an unknown state as an integrity failure", () => {
+    try {
+      lifecycle.getAvailableActions("unknown");
+      expect.unreachable("expected available action resolution to fail");
+    } catch (error) {
+      expect(error.output.statusCode).toBe(500);
+      expect(error.message).toBe(
+        'Agreement lifecycle has unknown persisted state "unknown"',
+      );
+    }
   });
 });

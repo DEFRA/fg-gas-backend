@@ -3,6 +3,7 @@ import { AgreementItem } from "../agreement-item.js";
 import { AgreementLifecycle } from "../agreement-lifecycle.js";
 import { generateAgreementNumber } from "../agreement-number.js";
 import { Agreement } from "../agreement.js";
+import { requirePersistedAgreementState } from "../require-persisted-agreement-state.js";
 import { validateAgreementDefinition } from "./validate.js";
 
 export class AgreementDefinition {
@@ -41,21 +42,7 @@ export class AgreementDefinition {
     return structuredClone(this.#definition.endpoints ?? []);
   }
 
-  #requirePersistedState(state) {
-    const stateDefinition = this.#definition.states[state];
-
-    if (!stateDefinition) {
-      throw Boom.badImplementation(
-        `Agreement code "${this.#definition.code}" has unknown persisted state "${state}"`,
-      );
-    }
-
-    return stateDefinition;
-  }
-
   resolveAction({ state, action }) {
-    this.#requirePersistedState(state);
-
     return new AgreementLifecycle(this.#definition).resolveAction(
       state,
       action,
@@ -75,7 +62,10 @@ export class AgreementDefinition {
   }
 
   resolvePageForState(state) {
-    const stateDefinition = this.#requirePersistedState(state);
+    const stateDefinition = requirePersistedAgreementState({
+      definition: this.#definition,
+      state,
+    });
     const pageId = stateDefinition.page;
 
     if (!pageId || !this.#definition.pages[pageId]) {
