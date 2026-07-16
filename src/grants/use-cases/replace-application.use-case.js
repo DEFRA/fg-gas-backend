@@ -11,6 +11,7 @@ import { createApplicationUseCase } from "./create-application.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import {
   persistResolvedVersion,
+  pinnedVersionOf,
   resolveCurrentGrantUseCase,
 } from "./resolve-current-grant.use-case.js";
 
@@ -26,7 +27,7 @@ const replaceApplication = async ({ code, application }, session) => {
 
   const { grant, resolvedVersion } = await resolveCurrentGrantUseCase(
     code,
-    previousAppl.originalConfigVersion,
+    pinnedVersionOf(previousAppl),
   );
   await persistResolvedVersion(previousAppl, resolvedVersion);
 

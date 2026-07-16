@@ -32,7 +32,17 @@ vi.mock("../use-cases/withdraw-application.use-case.js");
 vi.mock("../use-cases/withdraw-agreement.use-case.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/outbox.repository.js");
-vi.mock("../use-cases/resolve-current-grant.use-case.js");
+vi.mock(
+  "../use-cases/resolve-current-grant.use-case.js",
+  async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+      ...actual,
+      resolveCurrentGrantUseCase: vi.fn(),
+      persistResolvedVersion: vi.fn(),
+    };
+  },
+);
 vi.mock("../../common/with-transaction.js", () => ({
   withTransaction: vi.fn((fn) => fn({})),
 }));
