@@ -1,12 +1,7 @@
 import Boom from "@hapi/boom";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
+import { assertCurrentAgreementReference } from "./assert-current-agreement-reference.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
-
-const requireMatchingAgreementNumber = (reference, agreementNumber) => {
-  if (reference.agreementNumber !== agreementNumber) {
-    throw Boom.notFound("Agreement not found");
-  }
-};
 
 const resolveAgreementAction = (agreementDefinition, options) => {
   try {
@@ -29,7 +24,12 @@ export const loadCurrentAgreementActionContext = async ({
 }) => {
   const { currentAgreement, agreementDefinition } =
     await loadCurrentAgreementContext({ code, clientRef, sbi });
-  requireMatchingAgreementNumber(currentAgreement.reference, agreementNumber);
+  assertCurrentAgreementReference(currentAgreement, {
+    agreementNumber,
+    code,
+    clientRef,
+    sbi,
+  });
 
   const action = resolveAgreementAction(agreementDefinition, {
     state: currentAgreement.state,

@@ -1,13 +1,7 @@
-import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
+import { assertCurrentAgreementReference } from "./assert-current-agreement-reference.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
-
-const requireMatchingAgreementNumber = (currentAgreement, agreementNumber) => {
-  if (agreementNumber && currentAgreement.agreementNumber !== agreementNumber) {
-    throw Boom.notFound("Agreement not found");
-  }
-};
 
 export const getCurrentAgreementPageModelUseCase = async ({
   agreementNumber,
@@ -24,7 +18,12 @@ export const getCurrentAgreementPageModelUseCase = async ({
       clientRef,
       sbi,
     });
-  requireMatchingAgreementNumber(currentAgreement, agreementNumber);
+  assertCurrentAgreementReference(currentAgreement, {
+    agreementNumber,
+    code,
+    clientRef,
+    sbi,
+  });
 
   const { pageId } = agreementDefinition.resolvePageForState(
     currentAgreement.state,

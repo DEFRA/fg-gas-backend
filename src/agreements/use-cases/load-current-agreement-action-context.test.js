@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AgreementReference } from "../models/agreement-reference.js";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
@@ -15,9 +16,11 @@ const request = {
 };
 
 const action = { preparationPage: "accept" };
+const reference = new AgreementReference(request);
 const currentAgreement = {
   state: "offered",
-  reference: { agreementNumber: request.agreementNumber },
+  reference,
+  matchesReference: (candidate) => reference.equals(candidate),
 };
 const agreementDefinition = { resolveAction: vi.fn() };
 
