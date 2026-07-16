@@ -45,7 +45,7 @@ const buildNextVersion = ({
   return AgreementVersion.new({
     agreementId: snapshot.id,
     agreementNumber: snapshot.agreementNumber,
-    version: currentAgreement.version.version + 1,
+    version: currentAgreement.versionNumber + 1,
     snapshot,
     actionExecution: { name: actionName, idempotencyKey },
   });
@@ -58,7 +58,7 @@ const buildLocation = ({ agreementNumber, code, clientRef, sbi }) => {
 };
 
 const assertCurrentVersion = ({ currentAgreement, ifMatch, location }) => {
-  const currentTag = `"${currentAgreement.agreementNumber}:${currentAgreement.version.version}"`;
+  const currentTag = `"${currentAgreement.agreementNumber}:${currentAgreement.versionNumber}"`;
 
   if (ifMatch !== currentTag) {
     const error = Boom.preconditionFailed("Agreement version is stale");
