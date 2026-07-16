@@ -197,13 +197,13 @@ describe("Agreement actions", () => {
         items: [
           expect.objectContaining({
             state: "accepted",
-            supplementaryData: expect.objectContaining({
-              acceptedAt: expect.any(String),
-            }),
           }),
         ],
       },
     });
+    expect(storedVersions[1].snapshot.items[0]).not.toHaveProperty(
+      "supplementaryData.acceptedAt",
+    );
 
     const redirected = await wreck.request("GET", res.headers.location);
     const page = await wreck.read(redirected, { json: true });

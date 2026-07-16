@@ -12,7 +12,7 @@ import { buildAgreementPageModel } from "../services/build-agreement-page-model.
 import { resolveAgreementAction } from "./load-current-agreement-action-context.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
-const transitionCurrentItem = ({ currentAgreement, target, executedAt }) =>
+const transitionCurrentItem = ({ currentAgreement, target }) =>
   currentAgreement.snapshot.items.map((item) => {
     if (item.agreementItemId !== currentAgreement.item.agreementItemId) {
       return item;
@@ -21,10 +21,6 @@ const transitionCurrentItem = ({ currentAgreement, target, executedAt }) =>
     return new AgreementItem({
       ...item,
       state: target,
-      supplementaryData: {
-        ...item.supplementaryData,
-        acceptedAt: executedAt,
-      },
     });
   });
 
@@ -38,7 +34,7 @@ const buildNextVersion = ({
   const executedAt = new Date().toISOString();
   const snapshot = new Agreement({
     ...currentAgreement.snapshot,
-    items: transitionCurrentItem({ currentAgreement, target, executedAt }),
+    items: transitionCurrentItem({ currentAgreement, target }),
     updatedAt: executedAt,
   });
 
