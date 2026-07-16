@@ -37,7 +37,7 @@ describe("getCurrentAgreementRoute", () => {
           name: "accept",
           method: "GET",
           text: "Continue",
-          href: "/agreements/PMF823153883/actions/accept",
+          href: "/agreements/PMF823153883/items/29b829c4-4e38-405c-9f00-427ee94120a5/actions/accept",
         },
       ],
     });

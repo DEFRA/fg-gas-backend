@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import { CurrentAgreement } from "../models/current-agreement.js";
 import {
+  findByAgreementNumber,
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
 } from "../repositories/agreement.repository.js";
@@ -29,6 +30,18 @@ const requireVersion = (version, agreementNumber) => {
   return version;
 };
 
+const loadCurrentAgreementVersion = async ({ reference, session }) => {
+  const version = requireVersion(
+    await findLatestVersionByAgreementNumber(
+      reference.agreementNumber,
+      session,
+    ),
+    reference.agreementNumber,
+  );
+
+  return new CurrentAgreement({ reference, version });
+};
+
 export const loadCurrentAgreement = async ({
   code,
   clientRef,
@@ -39,13 +52,26 @@ export const loadCurrentAgreement = async ({
     await findByClientRefCodeAndSbi(clientRef, code, sbi, session),
     { code, clientRef, sbi },
   );
-  const version = requireVersion(
-    await findLatestVersionByAgreementNumber(
-      reference.agreementNumber,
-      session,
-    ),
-    reference.agreementNumber,
-  );
 
-  return new CurrentAgreement({ reference, version });
+  return loadCurrentAgreementVersion({ reference, session });
+};
+
+export const loadCurrentAgreementByItem = async ({
+  agreementNumber,
+  agreementItemId,
+  session,
+}) => {
+  const agreement = await findByAgreementNumber(agreementNumber, session);
+
+  if (!agreement) {
+    throw Boom.notFound("Agreement not found");
+  }
+
+  const reference = agreement.resolveItemReference(agreementItemId);
+
+  if (!reference) {
+    throw Boom.notFound("Agreement not found");
+  }
+
+  return loadCurrentAgreementVersion({ reference, session });
 };

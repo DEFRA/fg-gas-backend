@@ -14,26 +14,19 @@ import { invokeAgreementActionRoute } from "./invoke-agreement-action.route.js";
 
 vi.mock("../use-cases/execute-agreement-action.use-case.js");
 
+const agreementItemId = "29b829c4-4e38-405c-9f00-427ee94120a5";
+
 const headers = {
-  "if-match": '"PMF823153883:1"',
+  "if-match": '"opaque-etag"',
   "idempotency-key": "9ea924aa-45e9-43a7-888e-c25054ea658c",
 };
-
-const createPayload = (values) => ({
-  reference: {
-    code: "pigs-might-fly",
-    clientRef: "xnp-rr3-nfa",
-    sbi: "300000069",
-  },
-  values,
-});
 
 const injectAction = (server, values) =>
   server.inject({
     method: "POST",
-    url: "/agreements/PMF823153883/actions/accept",
+    url: `/agreements/PMF823153883/items/${agreementItemId}/actions/accept`,
     headers,
-    payload: createPayload(values),
+    payload: { values },
   });
 
 describe("invokeAgreementActionRoute", () => {
@@ -67,12 +60,8 @@ describe("invokeAgreementActionRoute", () => {
     expect(responseHeaders.location).toBe(location);
     expect(executeAgreementActionUseCase).toHaveBeenCalledWith({
       actionName: "accept",
-      reference: {
-        agreementNumber: "PMF823153883",
-        code: "pigs-might-fly",
-        clientRef: "xnp-rr3-nfa",
-        sbi: "300000069",
-      },
+      agreementNumber: "PMF823153883",
+      agreementItemId,
       values: { confirm: "confirmed" },
       ifMatch: headers["if-match"],
       idempotencyKey: headers["idempotency-key"],
@@ -130,17 +119,17 @@ describe("invokeAgreementActionRoute", () => {
     });
   });
 
-  it.each(["code", "clientRef", "sbi"])(
-    "rejects a request without required identity field %s",
-    async (field) => {
-      const payload = createPayload({ confirm: "confirmed" });
-      delete payload.reference[field];
+  it.each(["if-match", "idempotency-key"])(
+    "rejects a request without %s",
+    async (header) => {
+      const requestHeaders = { ...headers };
+      delete requestHeaders[header];
 
       const { statusCode } = await server.inject({
         method: "POST",
-        url: "/agreements/PMF823153883/actions/accept",
-        headers,
-        payload,
+        url: `/agreements/PMF823153883/items/${agreementItemId}/actions/accept`,
+        headers: requestHeaders,
+        payload: { values: { confirm: "confirmed" } },
       });
 
       expect(statusCode).toBe(400);

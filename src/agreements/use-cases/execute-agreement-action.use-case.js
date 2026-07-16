@@ -9,7 +9,6 @@ import {
   saveVersion,
 } from "../repositories/agreement.repository.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { assertCurrentAgreementReference } from "./assert-current-agreement-reference.js";
 import { resolveAgreementAction } from "./load-current-agreement-action-context.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
@@ -33,6 +32,7 @@ const buildNextVersion = ({
   currentAgreement,
   target,
   actionName,
+  agreementItemId,
   idempotencyKey,
 }) => {
   const executedAt = new Date().toISOString();
@@ -47,7 +47,7 @@ const buildNextVersion = ({
     agreementNumber: snapshot.agreementNumber,
     version: currentAgreement.versionNumber + 1,
     snapshot,
-    actionExecution: { name: actionName, idempotencyKey },
+    actionExecution: { name: actionName, agreementItemId, idempotencyKey },
   });
 };
 
@@ -69,14 +69,15 @@ const assertCurrentVersion = ({ currentAgreement, ifMatch, location }) => {
 
 const findCompletedExecution = async ({
   actionName,
-  reference,
+  agreementNumber,
+  agreementItemId,
   idempotencyKey,
   location,
   session,
-  currentAgreement,
 }) => {
   const version = await findVersionByActionIdempotencyKey(
-    reference.agreementNumber,
+    agreementNumber,
+    agreementItemId,
     idempotencyKey,
     session,
   );
@@ -84,8 +85,6 @@ const findCompletedExecution = async ({
   if (!version) {
     return null;
   }
-
-  assertCurrentAgreementReference(currentAgreement, reference);
 
   if (version.actionExecution.name !== actionName) {
     throw Boom.conflict("Idempotency key has already been used");
@@ -96,23 +95,27 @@ const findCompletedExecution = async ({
 
 const executeInTransaction = async ({
   actionName,
-  reference,
+  agreementNumber,
+  agreementItemId,
   values,
   ifMatch,
   idempotencyKey,
-  location,
   session,
 }) => {
   const { currentAgreement, agreementDefinition } =
-    await loadCurrentAgreementContext({ ...reference, session });
-  assertCurrentAgreementReference(currentAgreement, reference);
+    await loadCurrentAgreementContext({
+      agreementNumber,
+      agreementItemId,
+      session,
+    });
+  const location = buildLocation(currentAgreement.reference);
   const completed = await findCompletedExecution({
     actionName,
-    reference,
+    agreementNumber,
+    agreementItemId,
     idempotencyKey,
     location,
     session,
-    currentAgreement,
   });
 
   if (completed) {
@@ -142,6 +145,7 @@ const executeInTransaction = async ({
       currentAgreement,
       target: action.transition.target,
       actionName,
+      agreementItemId,
       idempotencyKey,
     }),
     session,
@@ -153,23 +157,7 @@ const executeInTransaction = async ({
 const isVersionConflict = (error) =>
   error instanceof MongoServerError && error.code === 11000;
 
-export const executeAgreementActionUseCase = async ({
-  actionName,
-  reference,
-  values,
-  ifMatch,
-  idempotencyKey,
-}) => {
-  const location = buildLocation(reference);
-  const options = {
-    actionName,
-    reference,
-    values,
-    ifMatch,
-    idempotencyKey,
-    location,
-  };
-
+export const executeAgreementActionUseCase = async (options) => {
   try {
     return await withTransaction((session) =>
       executeInTransaction({ ...options, session }),
@@ -179,10 +167,13 @@ export const executeAgreementActionUseCase = async ({
       throw error;
     }
 
-    const { currentAgreement } = await loadCurrentAgreementContext(reference);
+    const { currentAgreement } = await loadCurrentAgreementContext({
+      agreementNumber: options.agreementNumber,
+      agreementItemId: options.agreementItemId,
+    });
     const completed = await findCompletedExecution({
       ...options,
-      currentAgreement,
+      location: buildLocation(currentAgreement.reference),
     });
 
     if (completed) {

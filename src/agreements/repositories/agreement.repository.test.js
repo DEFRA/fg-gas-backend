@@ -11,6 +11,7 @@ import {
   findByClientRefAndCode,
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
+  findVersionByActionIdempotencyKey,
   saveAgreement,
   saveVersion,
   versionsCollection,
@@ -153,10 +154,14 @@ describe("findByAgreementNumber", () => {
     const findOne = vi.fn().mockResolvedValueOnce(doc);
     db.collection.mockReturnValue({ findOne });
 
-    const result = await findByAgreementNumber("PMF823153883");
+    const session = { fake: "session" };
+    const result = await findByAgreementNumber("PMF823153883", session);
 
     expect(db.collection).toHaveBeenCalledWith(agreementsCollection);
-    expect(findOne).toHaveBeenCalledWith({ agreementNumber: "PMF823153883" });
+    expect(findOne).toHaveBeenCalledWith(
+      { agreementNumber: "PMF823153883" },
+      { session },
+    );
     expect(result).toStrictEqual(testAgreement);
   });
 
@@ -187,6 +192,45 @@ describe("findByAgreementNumber", () => {
     const result = await findByAgreementNumber("PMF823153883");
 
     expect(result.items).toEqual([]);
+  });
+});
+
+describe("findVersionByActionIdempotencyKey", () => {
+  it("finds the version produced by an idempotent action execution", async () => {
+    const actionExecution = {
+      name: "accept",
+      agreementItemId: testAgreement.items[0].agreementItemId,
+      idempotencyKey: "9ea924aa-45e9-43a7-888e-c25054ea658c",
+    };
+    const doc = {
+      _id: testVersion.id,
+      agreementId: testVersion.agreementId,
+      agreementNumber: testVersion.agreementNumber,
+      version: testVersion.version,
+      snapshot: new AgreementDocument(testAgreement),
+      createdAt: testVersion.createdAt,
+      actionExecution,
+    };
+    const findOne = vi.fn().mockResolvedValue(doc);
+    db.collection.mockReturnValue({ findOne });
+    const session = { fake: "session" };
+
+    const result = await findVersionByActionIdempotencyKey(
+      testVersion.agreementNumber,
+      actionExecution.agreementItemId,
+      actionExecution.idempotencyKey,
+      session,
+    );
+
+    expect(findOne).toHaveBeenCalledWith(
+      {
+        agreementNumber: testVersion.agreementNumber,
+        "actionExecution.agreementItemId": actionExecution.agreementItemId,
+        "actionExecution.idempotencyKey": actionExecution.idempotencyKey,
+      },
+      { session },
+    );
+    expect(result.actionExecution).toEqual(actionExecution);
   });
 });
 

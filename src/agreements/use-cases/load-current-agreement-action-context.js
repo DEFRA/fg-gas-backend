@@ -18,19 +18,27 @@ export const resolveAgreementAction = (agreementDefinition, options) => {
 export const loadCurrentAgreementActionContext = async ({
   actionName,
   agreementNumber,
+  agreementItemId,
   code,
   clientRef,
   sbi,
   session,
 }) => {
+  const identity = agreementItemId
+    ? { agreementNumber, agreementItemId }
+    : { code, clientRef, sbi };
+  const contextOptions = session ? { ...identity, session } : identity;
   const { currentAgreement, agreementDefinition } =
-    await loadCurrentAgreementContext({ code, clientRef, sbi, session });
-  assertCurrentAgreementReference(currentAgreement, {
-    agreementNumber,
-    code,
-    clientRef,
-    sbi,
-  });
+    await loadCurrentAgreementContext(contextOptions);
+
+  if (!agreementItemId) {
+    assertCurrentAgreementReference(currentAgreement, {
+      agreementNumber,
+      code,
+      clientRef,
+      sbi,
+    });
+  }
 
   const action = resolveAgreementAction(agreementDefinition, {
     state: currentAgreement.state,

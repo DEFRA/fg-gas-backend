@@ -117,13 +117,11 @@ export const pmfAgreementDefinition = {
           method: "GET",
           href: {
             urlTemplate:
-              "/agreements/{agreementNumber}/actions/{name}?code={code}&clientRef={clientRef}&sbi={sbi}",
+              "/agreements/{agreementNumber}/items/{agreementItemId}/actions/{name}",
             params: {
               agreementNumber: "$.agreement.agreementNumber",
+              agreementItemId: "$.item.agreementItemId",
               name: "accept",
-              code: "$.agreement.code",
-              clientRef: "$.item.clientRef",
-              sbi: "$.agreement.identifiers.sbi",
             },
           },
           text: "Continue",
@@ -150,9 +148,11 @@ export const pmfAgreementDefinition = {
           name: "accept",
           method: "POST",
           href: {
-            urlTemplate: "/agreements/{agreementNumber}/actions/{name}",
+            urlTemplate:
+              "/agreements/{agreementNumber}/items/{agreementItemId}/actions/{name}",
             params: {
               agreementNumber: "$.agreement.agreementNumber",
+              agreementItemId: "$.item.agreementItemId",
               name: "accept",
             },
           },

@@ -35,6 +35,22 @@ export class Agreement {
     return new AgreementReference(values);
   }
 
+  resolveItemReference(agreementItemId) {
+    const item = (this.items ?? []).find(
+      (candidate) => candidate.agreementItemId === agreementItemId,
+    );
+
+    if (!item) {
+      return undefined;
+    }
+
+    return this.resolveReference({
+      code: item.agreementCode,
+      clientRef: item.clientRef,
+      sbi: item.identifiers?.sbi,
+    });
+  }
+
   findItem(reference) {
     if (!(reference instanceof AgreementReference)) {
       throw new TypeError(

@@ -14,8 +14,8 @@ import { prepareAgreementActionRoute } from "./prepare-agreement-action.route.js
 
 vi.mock("../use-cases/prepare-agreement-action.use-case.js");
 
-const url =
-  "/agreements/PMF823153883/actions/accept?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069";
+const agreementItemId = "29b829c4-4e38-405c-9f00-427ee94120a5";
+const url = `/agreements/PMF823153883/items/${agreementItemId}/actions/accept`;
 
 const pageModel = {
   agreementNumber: "PMF823153883",
@@ -33,7 +33,7 @@ const pageModel = {
     {
       name: "accept",
       method: "POST",
-      href: "/agreements/PMF823153883/actions/accept",
+      href: `/agreements/PMF823153883/items/${agreementItemId}/actions/accept`,
       text: "Accept agreement offer",
     },
   ],
@@ -66,9 +66,7 @@ describe("prepareAgreementActionRoute", () => {
     expect(prepareAgreementActionUseCase).toHaveBeenCalledWith({
       actionName: "accept",
       agreementNumber: "PMF823153883",
-      code: "pigs-might-fly",
-      clientRef: "xnp-rr3-nfa",
-      sbi: "300000069",
+      agreementItemId,
     });
   });
 
@@ -82,23 +80,13 @@ describe("prepareAgreementActionRoute", () => {
     expect(statusCode).toBe(409);
   });
 
-  it.each(["code", "clientRef", "sbi"])(
-    "rejects a request without required identity field %s",
-    async (field) => {
-      const query = new URLSearchParams({
-        code: "pigs-might-fly",
-        clientRef: "xnp-rr3-nfa",
-        sbi: "300000069",
-      });
-      query.delete(field);
+  it("does not match an action route without an Agreement Item ID", async () => {
+    const { statusCode } = await server.inject({
+      method: "GET",
+      url: "/agreements/PMF823153883/actions/accept",
+    });
 
-      const { statusCode } = await server.inject({
-        method: "GET",
-        url: `/agreements/PMF823153883/actions/accept?${query}`,
-      });
-
-      expect(statusCode).toBe(400);
-      expect(prepareAgreementActionUseCase).not.toHaveBeenCalled();
-    },
-  );
+    expect(statusCode).toBe(404);
+    expect(prepareAgreementActionUseCase).not.toHaveBeenCalled();
+  });
 });

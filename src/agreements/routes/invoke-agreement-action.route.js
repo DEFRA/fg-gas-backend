@@ -11,7 +11,7 @@ const UNPROCESSABLE_CONTENT_STATUS_CODE = 422;
 
 export const invokeAgreementActionRoute = {
   method: "POST",
-  path: "/agreements/{agreementNumber}/actions/{actionName}",
+  path: "/agreements/{agreementNumber}/items/{agreementItemId}/actions/{actionName}",
   options: {
     description: "Execute an Agreement lifecycle action",
     tags: ["api"],
@@ -30,10 +30,8 @@ export const invokeAgreementActionRoute = {
   async handler(request, h) {
     const result = await executeAgreementActionUseCase({
       actionName: request.params.actionName,
-      reference: {
-        agreementNumber: request.params.agreementNumber,
-        ...request.payload.reference,
-      },
+      agreementNumber: request.params.agreementNumber,
+      agreementItemId: request.params.agreementItemId,
       values: request.payload.values,
       ifMatch: request.headers["if-match"],
       idempotencyKey: request.headers["idempotency-key"],
