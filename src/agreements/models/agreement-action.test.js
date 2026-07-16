@@ -18,6 +18,11 @@ describe("AgreementAction", () => {
     });
   });
 
+  it("returns its configured preparation page", () => {
+    expect(toAction({ page: "accept" }).preparationPage).toBe("accept");
+    expect(toAction().preparationPage).toBeUndefined();
+  });
+
   it("accepts a submitted scalar value that matches the configured value", () => {
     const validation = {
       required: [

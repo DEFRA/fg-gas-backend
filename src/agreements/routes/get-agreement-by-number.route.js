@@ -1,15 +1,16 @@
 import { getCurrentAgreementQuerySchema } from "../schemas/requests/get-current-agreement-query.schema.js";
+import { agreementNumberParamsSchema } from "../schemas/requests/invoke-agreement-action-request.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
 import { getCurrentAgreementPageModelUseCase } from "../use-cases/get-current-agreement-page-model.use-case.js";
 
-export const getCurrentAgreementRoute = {
+export const getAgreementByNumberRoute = {
   method: "GET",
-  path: "/agreements/current",
+  path: "/agreements/{agreementNumber}",
   options: {
-    description:
-      "Get the current agreement page model by code, client reference and SBI",
+    description: "Get the current page model for an Agreement number",
     tags: ["api"],
     validate: {
+      params: agreementNumberParamsSchema,
       query: getCurrentAgreementQuerySchema,
     },
     response: {
@@ -17,8 +18,12 @@ export const getCurrentAgreementRoute = {
     },
   },
   async handler(request, _h) {
-    const { code, clientRef, sbi, mode } = request.query;
-
-    return getCurrentAgreementPageModelUseCase({ code, clientRef, sbi, mode });
+    return getCurrentAgreementPageModelUseCase({
+      agreementNumber: request.params.agreementNumber,
+      code: request.query.code,
+      clientRef: request.query.clientRef,
+      sbi: request.query.sbi,
+      mode: request.query.mode,
+    });
   },
 };

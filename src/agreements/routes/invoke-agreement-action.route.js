@@ -19,8 +19,8 @@ export const invokeAgreementActionRoute = {
       schema: invokeAgreementActionResponseSchema,
     },
   },
-  async handler(request, _h) {
-    return validateAgreementActionUseCase({
+  async handler(request, h) {
+    const result = await validateAgreementActionUseCase({
       actionName: request.params.actionName,
       reference: {
         agreementNumber: request.params.agreementNumber,
@@ -28,5 +28,7 @@ export const invokeAgreementActionRoute = {
       },
       values: request.payload.values,
     });
+
+    return result.valid ? result : h.response(result).code(422);
   },
 };

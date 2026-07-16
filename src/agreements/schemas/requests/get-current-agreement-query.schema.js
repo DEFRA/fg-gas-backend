@@ -7,4 +7,5 @@ export const getCurrentAgreementQuerySchema = Joi.object({
   code: code.required(),
   clientRef: clientRef.required(),
   sbi: sbi.required(),
+  mode: Joi.string().valid("view", "print").default("view"),
 }).label("GetCurrentAgreementQuery");
