@@ -4,7 +4,7 @@ import { agreementDefinitions } from "./models/agreement-definitions/index.js";
 import { findCurrentAgreementRoute } from "./routes/find-current-agreement.route.js";
 import { renderAgreementPageRoute } from "./routes/render-agreement-page.route.js";
 import { validateEndpointServiceUrls } from "./services/effects/resolve-endpoint-service-url.js";
-import { handleCreateAgreementCommand } from "./use-cases/handle-create-agreement-command.use-case.js";
+import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 
 export const agreements = {
   name: "agreements",
@@ -13,7 +13,7 @@ export const agreements = {
 
     registerInternalCommandHandler(
       internalCommandTypes.AGREEMENT_CREATE,
-      handleCreateAgreementCommand,
+      handleCreateAgreementCommandUseCase,
     );
 
     server.route([findCurrentAgreementRoute, renderAgreementPageRoute]);
