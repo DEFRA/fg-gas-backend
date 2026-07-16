@@ -10,7 +10,7 @@ export class AgreementItem {
     identifiers,
     payload,
     createdAt,
-    status,
+    state,
     supplementaryData,
   }) {
     this.agreementItemId = agreementItemId;
@@ -21,7 +21,7 @@ export class AgreementItem {
     this.identifiers = identifiers;
     this.payload = payload;
     this.createdAt = createdAt;
-    this.status = status;
+    this.state = state;
     this.supplementaryData = supplementaryData;
   }
 
@@ -32,7 +32,7 @@ export class AgreementItem {
     configVersion,
     identifiers,
     payload,
-    status,
+    state,
   }) {
     return new AgreementItem({
       agreementItemId: randomUUID(),
@@ -43,7 +43,7 @@ export class AgreementItem {
       identifiers,
       payload,
       createdAt: new Date().toISOString(),
-      status,
+      state,
     });
   }
 }

@@ -1,10 +1,7 @@
-import Boom from "@hapi/boom";
 import { withTransaction } from "../../common/with-transaction.js";
-import { getAgreementDefinitionByCode } from "../models/agreement-definitions/index.js";
+import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { AgreementItem } from "../models/agreement-item.js";
-import { generateAgreementNumber } from "../models/agreement-number.js";
 import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
 import {
   findByClientRefAndCode,
   saveAgreement,
@@ -20,17 +17,17 @@ const SOURCE_SYSTEM = "GAS";
 // callback on transient errors, so any external side effect performed inside
 // it would risk firing more than once for the same command.
 const buildInitialVersion = async (definition, agreement, answers) => {
-  const { target, effects = [] } = definition.create;
-
-  const effectContext = await runAgreementEffects(effects, {
-    answers,
-    outputs: {},
-    endpoints: definition.endpoints ?? [],
-  });
+  const effectContext = await runAgreementEffects(
+    definition.getCreationEffects(),
+    {
+      answers,
+      outputs: {},
+      endpoints: definition.getEndpoints(),
+    },
+  );
 
   const snapshotItem = new AgreementItem({
     ...agreement.items[0],
-    status: target,
     supplementaryData: effectContext.supplementaryData,
   });
 
@@ -43,7 +40,7 @@ const buildInitialVersion = async (definition, agreement, answers) => {
 };
 
 export const handleCreateAgreementCommandUseCase = async (event) => {
-  const { clientRef, code, identifiers, answers } = event.data;
+  const { clientRef, code, identifiers, metadata, answers } = event.data;
 
   const existingAgreement = await findByClientRefAndCode(clientRef, code);
 
@@ -51,29 +48,15 @@ export const handleCreateAgreementCommandUseCase = async (event) => {
     return existingAgreement;
   }
 
-  const definition = getAgreementDefinitionByCode(code);
-
-  if (!definition) {
-    throw Boom.badRequest(`Unknown agreement code: "${code}"`);
-  }
-
-  const item = AgreementItem.create({
-    agreementCode: code,
+  const definition = await loadAgreementDefinition({
+    code,
+    configVersion: metadata?.configVersion,
+  });
+  const agreement = definition.createAgreement({
     clientRef,
     sourceSystem: SOURCE_SYSTEM,
-    configVersion: definition.configVersion,
     identifiers,
     payload: answers,
-    status: definition.create.target,
-  });
-
-  const agreement = Agreement.new({
-    agreementNumber: generateAgreementNumber({
-      prefix: definition.agreementNumberPrefix,
-    }),
-    code,
-    identifiers,
-    items: [item],
   });
 
   const version = await buildInitialVersion(definition, agreement, answers);

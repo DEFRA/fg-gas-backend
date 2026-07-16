@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { CurrentAgreement } from "../models/current-agreement.js";
 import {
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
@@ -28,23 +29,7 @@ const requireVersion = (version, agreementNumber) => {
   return version;
 };
 
-const requireSnapshotItem = (version, reference) => {
-  const item = version.snapshot?.findItem?.(reference);
-
-  if (!item) {
-    throw Boom.badImplementation(
-      `Agreement "${reference.agreementNumber}" latest version is inconsistent`,
-    );
-  }
-
-  return item;
-};
-
-export const resolveCurrentAgreementUseCase = async ({
-  code,
-  clientRef,
-  sbi,
-}) => {
+export const loadCurrentAgreement = async ({ code, clientRef, sbi }) => {
   const reference = requireAgreementReference(
     await findByClientRefCodeAndSbi(clientRef, code, sbi),
     { code, clientRef, sbi },
@@ -53,7 +38,6 @@ export const resolveCurrentAgreementUseCase = async ({
     await findLatestVersionByAgreementNumber(reference.agreementNumber),
     reference.agreementNumber,
   );
-  const item = requireSnapshotItem(version, reference);
 
-  return { reference, version, item };
+  return new CurrentAgreement({ reference, version });
 };
