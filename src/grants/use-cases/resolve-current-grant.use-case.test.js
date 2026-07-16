@@ -4,6 +4,7 @@ import { findByCode } from "../repositories/grant.repository.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 import {
   __clearGrantDefinitionCache,
+  pinnedVersionOf,
   resolveCurrentGrantUseCase,
 } from "./resolve-current-grant.use-case.js";
 
@@ -104,5 +105,31 @@ describe("resolveCurrentGrantUseCase", () => {
 
     expect(findLatestForMajor).toHaveBeenCalledTimes(1);
     expect(resolveAndFetchGrant).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("pinnedVersionOf", () => {
+  it("returns currentConfigVersion when present", () => {
+    const application = {
+      currentConfigVersion: "1.3.1",
+      originalConfigVersion: "0.0.0",
+    };
+    expect(pinnedVersionOf(application)).toBe("1.3.1");
+  });
+
+  it("falls back to originalConfigVersion when currentConfigVersion is null", () => {
+    const application = {
+      currentConfigVersion: null,
+      originalConfigVersion: "1.0.0",
+    };
+    expect(pinnedVersionOf(application)).toBe("1.0.0");
+  });
+
+  it("returns null when both are null", () => {
+    const application = {
+      currentConfigVersion: null,
+      originalConfigVersion: null,
+    };
+    expect(pinnedVersionOf(application)).toBeNull();
   });
 });

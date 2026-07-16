@@ -10,7 +10,14 @@ import { getApplicationStatusUseCase } from "./get-application-status.use-case.j
 import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
 
 vi.mock("./find-application-by-client-ref-and-code.use-case");
-vi.mock("./resolve-current-grant.use-case.js");
+vi.mock("./resolve-current-grant.use-case.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    resolveCurrentGrantUseCase: vi.fn(),
+    persistResolvedVersion: vi.fn(),
+  };
+});
 describe("get application status use case", () => {
   it("should get the status of an application", async () => {
     const code = "grant-1";
@@ -22,7 +29,7 @@ describe("get application status use case", () => {
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
     resolveCurrentGrantUseCase.mockResolvedValue({
       grant: {},
-      resolvedVersion: application.originalConfigVersion,
+      resolvedVersion: application.currentConfigVersion,
     });
 
     await expect(
@@ -43,7 +50,49 @@ describe("get application status use case", () => {
     );
     expect(resolveCurrentGrantUseCase).toHaveBeenCalledWith(
       code,
+      application.currentConfigVersion,
+    );
+  });
+
+  it("falls back to originalConfigVersion when currentConfigVersion is null", async () => {
+    const code = "grant-1";
+    const clientRef = "ref-124";
+    const application = createTestApplication({
+      clientRef,
+      code,
+    });
+    application.currentConfigVersion = null;
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
+    resolveCurrentGrantUseCase.mockResolvedValue({
+      grant: {},
+      resolvedVersion: application.originalConfigVersion,
+    });
+
+    await getApplicationStatusUseCase({ code, clientRef });
+
+    expect(resolveCurrentGrantUseCase).toHaveBeenCalledWith(
+      code,
       application.originalConfigVersion,
     );
+  });
+
+  it("uses currentConfigVersion over originalConfigVersion when both present", async () => {
+    const code = "grant-1";
+    const clientRef = "ref-124";
+    const application = createTestApplication({
+      clientRef,
+      code,
+    });
+    application.originalConfigVersion = "0.0.0";
+    application.currentConfigVersion = "1.3.1";
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
+    resolveCurrentGrantUseCase.mockResolvedValue({
+      grant: {},
+      resolvedVersion: "1.4.0",
+    });
+
+    await getApplicationStatusUseCase({ code, clientRef });
+
+    expect(resolveCurrentGrantUseCase).toHaveBeenCalledWith(code, "1.3.1");
   });
 });

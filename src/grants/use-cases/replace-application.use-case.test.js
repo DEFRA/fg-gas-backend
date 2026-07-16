@@ -21,7 +21,14 @@ vi.mock("../../common/write-audit-event.js");
 vi.mock("./create-application.use-case.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../repositories/application-series.repository.js");
-vi.mock("./resolve-current-grant.use-case.js");
+vi.mock("./resolve-current-grant.use-case.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    resolveCurrentGrantUseCase: vi.fn(),
+    persistResolvedVersion: vi.fn(),
+  };
+});
 
 const testApplication = {
   metadata: {
