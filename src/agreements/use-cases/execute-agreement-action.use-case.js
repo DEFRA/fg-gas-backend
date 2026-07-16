@@ -57,13 +57,18 @@ const buildLocation = ({ agreementNumber, code, clientRef, sbi }) => {
   return `/agreements/${agreementNumber}?${query}`;
 };
 
+const createStaleVersionError = (location) => {
+  const error = Boom.preconditionFailed("Agreement version is stale");
+  error.output.headers.location = location;
+
+  return error;
+};
+
 const assertCurrentVersion = ({ currentAgreement, ifMatch, location }) => {
   const currentTag = `"${currentAgreement.agreementNumber}:${currentAgreement.versionNumber}"`;
 
   if (ifMatch !== currentTag) {
-    const error = Boom.preconditionFailed("Agreement version is stale");
-    error.output.headers.location = location;
-    throw error;
+    throw createStaleVersionError(location);
   }
 };
 
@@ -154,8 +159,14 @@ const executeInTransaction = async ({
   return { location };
 };
 
-const isVersionConflict = (error) =>
+const isDuplicateKeyError = (error) =>
   error instanceof MongoServerError && error.code === 11000;
+
+const hasVersionKeyPattern = (error) =>
+  ["agreementId", "version"].every((key) => error.keyPattern?.[key]);
+
+const isVersionConflict = (error) =>
+  isDuplicateKeyError(error) && hasVersionKeyPattern(error);
 
 export const executeAgreementActionUseCase = async (options) => {
   try {
@@ -171,15 +182,16 @@ export const executeAgreementActionUseCase = async (options) => {
       agreementNumber: options.agreementNumber,
       agreementItemId: options.agreementItemId,
     });
+    const location = buildLocation(currentAgreement.reference);
     const completed = await findCompletedExecution({
       ...options,
-      location: buildLocation(currentAgreement.reference),
+      location,
     });
 
     if (completed) {
       return completed;
     }
 
-    throw Boom.conflict("Agreement has already changed");
+    throw createStaleVersionError(location);
   }
 };
