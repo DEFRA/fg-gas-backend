@@ -7,7 +7,7 @@ import {
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
 } from "../repositories/agreement.repository.js";
-import { renderAgreementPageUseCase } from "./render-agreement-page.use-case.js";
+import { getAgreementPageModelUseCase } from "./get-agreement-page-model.use-case.js";
 
 vi.mock("../models/agreement-definitions/agreement-definition-registry.js");
 vi.mock("../repositories/agreement.repository.js");
@@ -49,7 +49,7 @@ const definition = {
   },
 };
 
-describe("renderAgreementPageUseCase", () => {
+describe("getAgreementPageModelUseCase", () => {
   beforeEach(() => {
     findByClientRefCodeAndSbi.mockResolvedValue(agreement);
     findLatestVersionByAgreementNumber.mockResolvedValue(
@@ -63,7 +63,7 @@ describe("renderAgreementPageUseCase", () => {
   });
 
   it("gets the requested Agreement Page Model", async () => {
-    await expect(renderAgreementPageUseCase(request)).resolves.toMatchObject({
+    await expect(getAgreementPageModelUseCase(request)).resolves.toMatchObject({
       agreementNumber: "PMF823153883",
       code: "pigs-might-fly",
       state: "offered",

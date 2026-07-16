@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { renderAgreementPageResponseSchema } from "./render-agreement-page-response.schema.js";
+import { agreementPageModelResponseSchema } from "./agreement-page-model-response.schema.js";
 
 const transition = Joi.object({
   from: Joi.string().required(),
@@ -23,7 +23,7 @@ const validationError = Joi.object({
   message: Joi.string().required(),
 }).label("AgreementActionValidationError");
 
-const validationFailureResponse = renderAgreementPageResponseSchema
+const validationFailureResponse = agreementPageModelResponseSchema
   .keys({
     errors: Joi.array().items(validationError).min(1).required(),
   })

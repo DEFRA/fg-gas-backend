@@ -7,14 +7,14 @@ const component = Joi.object({
   component: Joi.string().required(),
 })
   .unknown(true)
-  .label("CurrentAgreementPageComponent");
+  .label("AgreementPageModelComponent");
 
 const action = Joi.object({
   text: Joi.string().required(),
   href: Joi.string().required(),
-}).label("CurrentAgreementPageAction");
+}).label("AgreementPageModelAction");
 
-export const getCurrentAgreementPageResponseSchema = Joi.object({
+export const agreementPageModelResponseSchema = Joi.object({
   agreementNumber: Joi.string().required(),
   code: code.required(),
   clientRef: clientRef.required(),
@@ -32,4 +32,4 @@ export const getCurrentAgreementPageResponseSchema = Joi.object({
     presence: "required",
     stripUnknown: true,
   })
-  .label("GetCurrentAgreementPageResponse");
+  .label("AgreementPageModelResponse");

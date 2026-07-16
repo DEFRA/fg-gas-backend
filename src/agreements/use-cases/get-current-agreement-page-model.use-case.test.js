@@ -7,7 +7,7 @@ import {
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
 } from "../repositories/agreement.repository.js";
-import { getCurrentAgreementPageUseCase } from "./get-current-agreement-page.use-case.js";
+import { getCurrentAgreementPageModelUseCase } from "./get-current-agreement-page-model.use-case.js";
 
 vi.mock("../models/agreement-definitions/agreement-definition-registry.js");
 vi.mock("../repositories/agreement.repository.js");
@@ -54,7 +54,7 @@ const definition = {
   },
 };
 
-describe("getCurrentAgreementPageUseCase", () => {
+describe("getCurrentAgreementPageModelUseCase", () => {
   beforeEach(() => {
     findByClientRefCodeAndSbi.mockResolvedValue(agreement);
     findLatestVersionByAgreementNumber.mockResolvedValue(
@@ -69,7 +69,7 @@ describe("getCurrentAgreementPageUseCase", () => {
 
   it("gets the page selected by the latest lifecycle state", async () => {
     await expect(
-      getCurrentAgreementPageUseCase(request),
+      getCurrentAgreementPageModelUseCase(request),
     ).resolves.toMatchObject({
       agreementNumber: "PMF823153883",
       state: "accepted",

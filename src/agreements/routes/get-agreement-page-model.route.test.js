@@ -1,17 +1,17 @@
 import Boom from "@hapi/boom";
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { renderAgreementPageUseCase } from "../use-cases/render-agreement-page.use-case.js";
-import { renderAgreementPageRoute } from "./render-agreement-page.route.js";
+import { getAgreementPageModelUseCase } from "../use-cases/get-agreement-page-model.use-case.js";
+import { getAgreementPageModelRoute } from "./get-agreement-page-model.route.js";
 
-vi.mock("../use-cases/render-agreement-page.use-case.js");
+vi.mock("../use-cases/get-agreement-page-model.use-case.js");
 
-describe("renderAgreementPageRoute", () => {
+describe("getAgreementPageModelRoute", () => {
   let server;
 
   beforeAll(async () => {
     server = hapi.server();
-    server.route(renderAgreementPageRoute);
+    server.route(getAgreementPageModelRoute);
     await server.initialize();
   });
 
@@ -19,8 +19,8 @@ describe("renderAgreementPageRoute", () => {
     await server.stop();
   });
 
-  it("renders the requested agreement page", async () => {
-    renderAgreementPageUseCase.mockResolvedValue({
+  it("gets the requested agreement page model", async () => {
+    getAgreementPageModelUseCase.mockResolvedValue({
       agreementNumber: "PMF823153883",
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
@@ -40,7 +40,7 @@ describe("renderAgreementPageRoute", () => {
       url: "/agreements/render?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069&page=offered",
     });
 
-    expect(renderAgreementPageUseCase).toHaveBeenCalledWith({
+    expect(getAgreementPageModelUseCase).toHaveBeenCalledWith({
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
@@ -65,7 +65,7 @@ describe("renderAgreementPageRoute", () => {
   });
 
   it("defaults mode to view when not supplied", async () => {
-    renderAgreementPageUseCase.mockResolvedValue({
+    getAgreementPageModelUseCase.mockResolvedValue({
       agreementNumber: "PMF823153883",
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
@@ -85,13 +85,13 @@ describe("renderAgreementPageRoute", () => {
       url: "/agreements/render?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069&page=offered",
     });
 
-    expect(renderAgreementPageUseCase).toHaveBeenCalledWith(
+    expect(getAgreementPageModelUseCase).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "view" }),
     );
   });
 
   it("returns not found when the agreement cannot be resolved", async () => {
-    renderAgreementPageUseCase.mockRejectedValue(
+    getAgreementPageModelUseCase.mockRejectedValue(
       Boom.notFound("Agreement not found"),
     );
 
@@ -109,7 +109,7 @@ describe("renderAgreementPageRoute", () => {
   });
 
   it("surfaces an unsupported mode as a controlled 404 from the use case, not a Joi 400", async () => {
-    renderAgreementPageUseCase.mockRejectedValue(
+    getAgreementPageModelUseCase.mockRejectedValue(
       Boom.notFound('Unsupported mode "document"'),
     );
 
@@ -118,7 +118,7 @@ describe("renderAgreementPageRoute", () => {
       url: "/agreements/render?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069&page=offered&mode=document",
     });
 
-    expect(renderAgreementPageUseCase).toHaveBeenCalledWith(
+    expect(getAgreementPageModelUseCase).toHaveBeenCalledWith(
       expect.objectContaining({ mode: "document" }),
     );
     expect(statusCode).toEqual(404);
@@ -126,7 +126,7 @@ describe("renderAgreementPageRoute", () => {
   });
 
   it("surfaces an unsupported page as a controlled 404 from the use case", async () => {
-    renderAgreementPageUseCase.mockRejectedValue(
+    getAgreementPageModelUseCase.mockRejectedValue(
       Boom.notFound('Unknown page "bogus" for agreement code "pigs-might-fly"'),
     );
 
@@ -153,6 +153,6 @@ describe("renderAgreementPageRoute", () => {
       message: "Invalid request query input",
       statusCode: 400,
     });
-    expect(renderAgreementPageUseCase).not.toHaveBeenCalled();
+    expect(getAgreementPageModelUseCase).not.toHaveBeenCalled();
   });
 });

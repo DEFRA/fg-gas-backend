@@ -1,10 +1,10 @@
 import Boom from "@hapi/boom";
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { getCurrentAgreementPageUseCase } from "../use-cases/get-current-agreement-page.use-case.js";
+import { getCurrentAgreementPageModelUseCase } from "../use-cases/get-current-agreement-page-model.use-case.js";
 import { getCurrentAgreementRoute } from "./get-current-agreement.route.js";
 
-vi.mock("../use-cases/get-current-agreement-page.use-case.js");
+vi.mock("../use-cases/get-current-agreement-page-model.use-case.js");
 
 describe("getCurrentAgreementRoute", () => {
   let server;
@@ -19,8 +19,8 @@ describe("getCurrentAgreementRoute", () => {
     await server.stop();
   });
 
-  it("gets the current agreement by code, clientRef and sbi", async () => {
-    getCurrentAgreementPageUseCase.mockResolvedValue({
+  it("gets the current agreement page model by code, clientRef and sbi", async () => {
+    getCurrentAgreementPageModelUseCase.mockResolvedValue({
       agreementNumber: "PMF823153883",
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
@@ -40,7 +40,7 @@ describe("getCurrentAgreementRoute", () => {
       url: "/agreements/current?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069",
     });
 
-    expect(getCurrentAgreementPageUseCase).toHaveBeenCalledWith({
+    expect(getCurrentAgreementPageModelUseCase).toHaveBeenCalledWith({
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
@@ -54,7 +54,7 @@ describe("getCurrentAgreementRoute", () => {
   });
 
   it("returns not found when no Agreement matches the supplied identity", async () => {
-    getCurrentAgreementPageUseCase.mockRejectedValue(
+    getCurrentAgreementPageModelUseCase.mockRejectedValue(
       Boom.notFound("Agreement not found"),
     );
 
@@ -77,6 +77,6 @@ describe("getCurrentAgreementRoute", () => {
     });
 
     expect(statusCode).toEqual(400);
-    expect(getCurrentAgreementPageUseCase).not.toHaveBeenCalled();
+    expect(getCurrentAgreementPageModelUseCase).not.toHaveBeenCalled();
   });
 });

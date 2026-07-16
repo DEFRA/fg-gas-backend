@@ -2,12 +2,16 @@ import { logger } from "../../common/logger.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
-export const getCurrentAgreementPageUseCase = async ({
+export const getAgreementPageModelUseCase = async ({
   code,
   clientRef,
   sbi,
+  page,
+  mode,
 }) => {
-  logger.info(`Getting current agreement page for code ${code}`);
+  logger.info(
+    `Getting agreement page model "${page}" (mode "${mode}") for code ${code}`,
+  );
 
   const { currentAgreement, agreementDefinition } =
     await loadCurrentAgreementContext({
@@ -15,17 +19,16 @@ export const getCurrentAgreementPageUseCase = async ({
       clientRef,
       sbi,
     });
-  const { pageId } = agreementDefinition.resolvePageForState(
-    currentAgreement.state,
-  );
   const pageModel = await buildAgreementPageModel({
     currentAgreement,
     agreementDefinition,
-    page: pageId,
-    mode: "view",
+    page,
+    mode,
   });
 
-  logger.info(`Finished: Getting current agreement page for code ${code}`);
+  logger.info(
+    `Finished: Getting agreement page model "${page}" for code ${code}`,
+  );
 
   return pageModel;
 };
