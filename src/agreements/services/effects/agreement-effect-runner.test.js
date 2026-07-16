@@ -326,7 +326,7 @@ describe("runAgreementEffects", () => {
   it("does not carry mutations to non-outputs context fields into the next effect", async () => {
     let contextReceivedBySecond;
     vi.spyOn(handlers, "snapshot").mockImplementation(async (context) => {
-      context.agreement.status = "mutated";
+      context.agreement.state = "mutated";
     });
     vi.spyOn(handlers, "callEndpoint").mockImplementation(async (context) => {
       contextReceivedBySecond = context;
@@ -334,10 +334,10 @@ describe("runAgreementEffects", () => {
 
     await runAgreementEffects(
       [{ name: "snapshot" }, { name: "callEndpoint" }],
-      { agreement: { status: "original" } },
+      { agreement: { state: "original" } },
     );
 
-    expect(contextReceivedBySecond.agreement.status).toBe("original");
+    expect(contextReceivedBySecond.agreement.state).toBe("original");
   });
 
   it("throws an actionable error and stops execution when an effect name has no handler", async () => {
