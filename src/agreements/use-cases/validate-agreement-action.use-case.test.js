@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgreementAction } from "../models/agreement-action.js";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
+import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 import { validateAgreementActionUseCase } from "./validate-agreement-action.use-case.js";
 
 vi.mock("../services/build-agreement-page-model.js");
-vi.mock("./load-current-agreement-context.js");
+vi.mock("./load-current-agreement-action-context.js");
 
 const request = {
   actionName: "accept",
@@ -60,11 +60,11 @@ const agreementDefinition = {
 describe("validateAgreementActionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    loadCurrentAgreementContext.mockResolvedValue({
+    loadCurrentAgreementActionContext.mockResolvedValue({
+      action: acceptAction,
       currentAgreement,
       agreementDefinition,
     });
-    agreementDefinition.resolveAction.mockReturnValue(acceptAction);
   });
 
   it("returns the configured transition when validation succeeds", async () => {
@@ -77,14 +77,12 @@ describe("validateAgreementActionUseCase", () => {
       },
     });
 
-    expect(loadCurrentAgreementContext).toHaveBeenCalledWith({
+    expect(loadCurrentAgreementActionContext).toHaveBeenCalledWith({
+      actionName: "accept",
+      agreementNumber: "PMF823153883",
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
-    });
-    expect(agreementDefinition.resolveAction).toHaveBeenCalledWith({
-      state: "offered",
-      action: "accept",
     });
     expect(buildAgreementPageModel).not.toHaveBeenCalled();
   });
@@ -106,7 +104,11 @@ describe("validateAgreementActionUseCase", () => {
         ],
       },
     });
-    agreementDefinition.resolveAction.mockReturnValue(identityNamedAction);
+    loadCurrentAgreementActionContext.mockResolvedValue({
+      action: identityNamedAction,
+      currentAgreement,
+      agreementDefinition,
+    });
 
     await expect(
       validateAgreementActionUseCase({
@@ -132,7 +134,6 @@ describe("validateAgreementActionUseCase", () => {
       page: {
         name: "accept",
         title: "Accept your agreement offer",
-        mode: "view",
       },
       components: [],
       actions: [],
@@ -146,6 +147,7 @@ describe("validateAgreementActionUseCase", () => {
       }),
     ).resolves.toEqual({
       ...pageModel,
+      values: { ...request.values, confirm: undefined },
       errors: [
         {
           name: "confirm",
@@ -164,13 +166,15 @@ describe("validateAgreementActionUseCase", () => {
   });
 
   it("maps an unsupported action to a specific conflict", async () => {
-    agreementDefinition.resolveAction.mockImplementation(() => {
-      throw new InvalidAgreementTransitionError({
-        from: "offered",
-        action: "decline",
-        availableActions: ["accept"],
-      });
-    });
+    loadCurrentAgreementActionContext.mockRejectedValue(
+      Boom.conflict(
+        new InvalidAgreementTransitionError({
+          from: "offered",
+          action: "decline",
+          availableActions: ["accept"],
+        }).message,
+      ),
+    );
 
     await expect(
       validateAgreementActionUseCase({ ...request, actionName: "decline" }),
@@ -188,30 +192,22 @@ describe("validateAgreementActionUseCase", () => {
     const error = Boom.badImplementation(
       'Agreement definition "pigs-might-fly" is version "0.0.2" but the Agreement uses version "0.0.1"',
     );
-    agreementDefinition.resolveAction.mockImplementation(() => {
-      throw error;
-    });
+    loadCurrentAgreementActionContext.mockRejectedValue(error);
 
     await expect(validateAgreementActionUseCase(request)).rejects.toBe(error);
     expect(buildAgreementPageModel).not.toHaveBeenCalled();
   });
 
   it("rejects duplicate accept using the latest snapshot state", async () => {
-    loadCurrentAgreementContext.mockResolvedValue({
-      currentAgreement: {
-        ...currentAgreement,
-        state: "accepted",
-        item: { ...currentAgreement.item, state: "accepted" },
-      },
-      agreementDefinition,
-    });
-    agreementDefinition.resolveAction.mockImplementation(() => {
-      throw new InvalidAgreementTransitionError({
-        from: "accepted",
-        action: "accept",
-        availableActions: ["terminate"],
-      });
-    });
+    loadCurrentAgreementActionContext.mockRejectedValue(
+      Boom.conflict(
+        new InvalidAgreementTransitionError({
+          from: "accepted",
+          action: "accept",
+          availableActions: ["terminate"],
+        }).message,
+      ),
+    );
 
     await expect(validateAgreementActionUseCase(request)).rejects.toMatchObject(
       {
@@ -224,6 +220,10 @@ describe("validateAgreementActionUseCase", () => {
   });
 
   it("returns non-disclosing not found when the URL identifies another Agreement", async () => {
+    loadCurrentAgreementActionContext.mockRejectedValue(
+      Boom.notFound("Agreement not found"),
+    );
+
     await expect(
       validateAgreementActionUseCase({
         ...request,

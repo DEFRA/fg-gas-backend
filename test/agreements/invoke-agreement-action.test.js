@@ -58,7 +58,19 @@ const requestAction = async (actionName, answers = {}) => {
 
   return { res, payload };
 };
-describe("POST /agreements/{agreementNumber}/actions/{actionName}", () => {
+
+const prepareAction = async (actionName) => {
+  const query = new URLSearchParams({ code, clientRef, sbi });
+  const res = await wreck.request(
+    "GET",
+    `/agreements/${agreementNumber}/actions/${actionName}?${query}`,
+  );
+  const payload = await wreck.read(res, { json: true });
+
+  return { res, payload };
+};
+
+describe("Agreement actions", () => {
   let client;
   let agreements;
   let versions;
@@ -103,6 +115,51 @@ describe("POST /agreements/{agreementNumber}/actions/{actionName}", () => {
     ).resolves.toEqual([version]);
   };
 
+  it("prepares the configured form without mutating the Agreement", async () => {
+    const persisted = await seedAgreement();
+
+    const { res, payload } = await prepareAction("accept");
+
+    expect(res.statusCode).toBe(200);
+    expect(payload).toEqual({
+      agreementNumber,
+      code,
+      clientRef,
+      sbi,
+      state: "offered",
+      page: {
+        name: "accept",
+        title: "Accept your agreement offer",
+      },
+      components: [
+        {
+          component: "heading",
+          level: 1,
+          text: "Accept your agreement offer",
+        },
+        {
+          component: "checkboxes",
+          name: "confirm",
+          items: [
+            {
+              value: "confirmed",
+              text: "I confirm I have read the information in this section and accept this agreement offer.",
+            },
+          ],
+        },
+      ],
+      actions: [
+        {
+          name: "accept",
+          method: "POST",
+          href: `/agreements/${agreementNumber}/actions/accept`,
+          text: "Accept agreement offer",
+        },
+      ],
+    });
+    await expectPersistenceUnchanged(persisted);
+  });
+
   it("returns the configured transition for valid confirmation without persisting it", async () => {
     const persisted = await seedAgreement();
 
@@ -127,7 +184,7 @@ describe("POST /agreements/{agreementNumber}/actions/{actionName}", () => {
 
     const { res, payload } = await requestAction("accept");
 
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(422);
     expect(payload).toEqual({
       agreementNumber,
       code,
@@ -137,7 +194,6 @@ describe("POST /agreements/{agreementNumber}/actions/{actionName}", () => {
       page: {
         name: "accept",
         title: "Accept your agreement offer",
-        mode: "view",
       },
       components: [
         {
@@ -145,8 +201,26 @@ describe("POST /agreements/{agreementNumber}/actions/{actionName}", () => {
           level: 1,
           text: "Accept your agreement offer",
         },
+        {
+          component: "checkboxes",
+          name: "confirm",
+          items: [
+            {
+              value: "confirmed",
+              text: "I confirm I have read the information in this section and accept this agreement offer.",
+            },
+          ],
+        },
       ],
-      actions: [],
+      actions: [
+        {
+          name: "accept",
+          method: "POST",
+          href: `/agreements/${agreementNumber}/actions/accept`,
+          text: "Accept agreement offer",
+        },
+      ],
+      values: {},
       errors: [
         {
           name: "confirm",

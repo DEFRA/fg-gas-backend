@@ -87,10 +87,10 @@ describe("invokeAgreementActionRoute", () => {
       page: {
         name: "accept",
         title: "Accept your agreement offer",
-        mode: "view",
       },
       components: [],
       actions: [],
+      values: {},
       errors: [
         {
           name: "confirm",
@@ -107,7 +107,7 @@ describe("invokeAgreementActionRoute", () => {
       payload: createPayload({}),
     });
 
-    expect(statusCode).toBe(200);
+    expect(statusCode).toBe(422);
     expect(result).toEqual(validationResult);
   });
 

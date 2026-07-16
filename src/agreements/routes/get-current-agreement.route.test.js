@@ -29,10 +29,16 @@ describe("getCurrentAgreementRoute", () => {
       page: {
         name: "offered",
         title: "Review your agreement offer",
-        mode: "view",
       },
       components: [],
-      actions: [{ text: "Continue", href: "/PMF823153883/accept" }],
+      actions: [
+        {
+          name: "accept",
+          method: "GET",
+          text: "Continue",
+          href: "/agreements/PMF823153883/actions/accept",
+        },
+      ],
     });
 
     const { statusCode, result } = await server.inject({
@@ -44,6 +50,7 @@ describe("getCurrentAgreementRoute", () => {
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
+      mode: "view",
     });
     expect(statusCode).toEqual(200);
     expect(result).toMatchObject({
@@ -51,6 +58,46 @@ describe("getCurrentAgreementRoute", () => {
       state: "offered",
       page: { name: "offered" },
     });
+  });
+
+  it("passes print mode without allowing the caller to select a page", async () => {
+    getCurrentAgreementPageModelUseCase.mockResolvedValue({
+      agreementNumber: "PMF823153883",
+      code: "pigs-might-fly",
+      clientRef: "xnp-rr3-nfa",
+      sbi: "300000069",
+      state: "offered",
+      page: {
+        name: "view",
+        title: "Agreement document",
+        layout: "document",
+      },
+      components: [],
+      actions: [],
+    });
+
+    const { statusCode } = await server.inject({
+      method: "GET",
+      url: "/agreements/current?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069&mode=print",
+    });
+
+    expect(statusCode).toBe(200);
+    expect(getCurrentAgreementPageModelUseCase).toHaveBeenCalledWith({
+      code: "pigs-might-fly",
+      clientRef: "xnp-rr3-nfa",
+      sbi: "300000069",
+      mode: "print",
+    });
+  });
+
+  it("rejects an unsupported mode before loading the Agreement", async () => {
+    const { statusCode } = await server.inject({
+      method: "GET",
+      url: "/agreements/current?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069&mode=document",
+    });
+
+    expect(statusCode).toBe(400);
+    expect(getCurrentAgreementPageModelUseCase).not.toHaveBeenCalled();
   });
 
   it("returns not found when no Agreement matches the supplied identity", async () => {

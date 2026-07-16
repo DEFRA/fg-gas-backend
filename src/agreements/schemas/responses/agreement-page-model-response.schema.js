@@ -10,6 +10,8 @@ const component = Joi.object({
   .label("AgreementPageModelComponent");
 
 const action = Joi.object({
+  name: Joi.string().required(),
+  method: Joi.string().valid("GET", "POST").required(),
   text: Joi.string().required(),
   href: Joi.string().required(),
 }).label("AgreementPageModelAction");
@@ -23,7 +25,7 @@ export const agreementPageModelResponseSchema = Joi.object({
   page: Joi.object({
     name: Joi.string().required(),
     title: Joi.string().required(),
-    mode: Joi.string().required(),
+    layout: Joi.string().valid("document").optional(),
   }).required(),
   components: Joi.array().items(component).required(),
   actions: Joi.array().items(action).required(),

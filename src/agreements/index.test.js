@@ -20,13 +20,30 @@ describe("agreements", () => {
     expect(server.registrations.agreements).toBeDefined();
   });
 
-  it("registers the Agreement action endpoint", async () => {
+  it("registers current-page and Agreement action endpoints", async () => {
     const server = hapi.server();
     await server.register(agreements);
 
-    expect(
-      server.match("post", "/agreements/PMF823153883/actions/accept")?.path,
-    ).toBe("/agreements/{agreementNumber}/actions/{actionName}");
+    const routes = server.table().map(({ method, path }) => ({ method, path }));
+
+    expect(routes).toEqual(
+      expect.arrayContaining([
+        { method: "get", path: "/agreements/current" },
+        { method: "get", path: "/agreements/{agreementNumber}" },
+        {
+          method: "get",
+          path: "/agreements/{agreementNumber}/actions/{actionName}",
+        },
+        {
+          method: "post",
+          path: "/agreements/{agreementNumber}/actions/{actionName}",
+        },
+      ]),
+    );
+    expect(routes).not.toContainEqual({
+      method: "get",
+      path: "/agreements/render",
+    });
   });
 
   it("registers the internal handler for agreement.create commands", async () => {
