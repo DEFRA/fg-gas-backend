@@ -21,9 +21,11 @@ export const invokeAgreementActionRoute = {
   },
   async handler(request, _h) {
     return validateAgreementActionUseCase({
-      agreementNumber: request.params.agreementNumber,
       actionName: request.params.actionName,
-      reference: request.payload.reference,
+      reference: {
+        agreementNumber: request.params.agreementNumber,
+        ...request.payload.reference,
+      },
       values: request.payload.values,
     });
   },

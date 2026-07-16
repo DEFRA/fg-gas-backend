@@ -6,14 +6,14 @@ export class CurrentAgreement {
     this.version = version;
     this.snapshot = version.snapshot;
     this.item = findCurrentItem({ reference, snapshot: this.snapshot });
-    assertDefinitionVersion({
+    assertConfigVersion({
       agreementNumber: reference.agreementNumber,
       item: this.item,
     });
 
     this.agreementNumber = reference.agreementNumber;
     this.code = reference.code;
-    this.definitionVersion = this.item.configVersion;
+    this.configVersion = this.item.configVersion;
     this.state = this.item.state;
   }
 }
@@ -30,10 +30,10 @@ const findCurrentItem = ({ reference, snapshot }) => {
   return item;
 };
 
-const assertDefinitionVersion = ({ agreementNumber, item }) => {
+const assertConfigVersion = ({ agreementNumber, item }) => {
   if (!item.configVersion) {
     throw Boom.badImplementation(
-      `Agreement "${agreementNumber}" latest version has no Definition Version`,
+      `Agreement "${agreementNumber}" latest version has no Config Version`,
     );
   }
 };

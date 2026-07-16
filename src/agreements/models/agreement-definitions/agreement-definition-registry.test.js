@@ -3,7 +3,7 @@ import { findAgreementDefinition } from "./agreement-definition-registry.js";
 import { pmfAgreementDefinition } from "./pmf.js";
 
 describe("findAgreementDefinition", () => {
-  it("returns the exact configured definition version", () => {
+  it("returns the exact configured config version", () => {
     expect(
       findAgreementDefinition({
         code: "pigs-might-fly",

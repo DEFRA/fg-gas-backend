@@ -1,20 +1,18 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgreementAction } from "../models/agreement-action.js";
-import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { loadCurrentAgreement } from "./load-current-agreement.js";
+import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 import { validateAgreementActionUseCase } from "./validate-agreement-action.use-case.js";
 
-vi.mock("../models/agreement-definitions/agreement-definition-loader.js");
 vi.mock("../services/build-agreement-page-model.js");
-vi.mock("./load-current-agreement.js");
+vi.mock("./load-current-agreement-context.js");
 
 const request = {
-  agreementNumber: "PMF823153883",
   actionName: "accept",
   reference: {
+    agreementNumber: "PMF823153883",
     code: "pigs-might-fly",
     clientRef: "xnp-rr3-nfa",
     sbi: "300000069",
@@ -23,16 +21,11 @@ const request = {
 };
 
 const currentAgreement = {
-  agreementNumber: request.agreementNumber,
+  agreementNumber: request.reference.agreementNumber,
   code: request.reference.code,
-  definitionVersion: "0.0.1",
+  configVersion: "0.0.1",
   state: "offered",
-  reference: {
-    agreementNumber: request.agreementNumber,
-    code: request.reference.code,
-    clientRef: request.reference.clientRef,
-    sbi: request.reference.sbi,
-  },
+  reference: request.reference,
   version: { version: 2, snapshot: {} },
   item: {
     agreementCode: request.reference.code,
@@ -67,8 +60,10 @@ const agreementDefinition = {
 describe("validateAgreementActionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    loadCurrentAgreement.mockResolvedValue(currentAgreement);
-    loadAgreementDefinition.mockResolvedValue(agreementDefinition);
+    loadCurrentAgreementContext.mockResolvedValue({
+      currentAgreement,
+      agreementDefinition,
+    });
     agreementDefinition.resolveAction.mockReturnValue(acceptAction);
   });
 
@@ -82,15 +77,10 @@ describe("validateAgreementActionUseCase", () => {
       },
     });
 
-    expect(loadCurrentAgreement).toHaveBeenCalledWith({
+    expect(loadCurrentAgreementContext).toHaveBeenCalledWith({
       code: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
-    });
-    expect(loadAgreementDefinition).toHaveBeenCalledOnce();
-    expect(loadAgreementDefinition).toHaveBeenCalledWith({
-      code: "pigs-might-fly",
-      configVersion: "0.0.1",
     });
     expect(agreementDefinition.resolveAction).toHaveBeenCalledWith({
       state: "offered",
@@ -171,7 +161,6 @@ describe("validateAgreementActionUseCase", () => {
       page: "accept",
       mode: "view",
     });
-    expect(loadAgreementDefinition).toHaveBeenCalledOnce();
   });
 
   it("maps an unsupported action to a specific conflict", async () => {
@@ -195,7 +184,7 @@ describe("validateAgreementActionUseCase", () => {
     expect(buildAgreementPageModel).not.toHaveBeenCalled();
   });
 
-  it("preserves definition-version integrity failures", async () => {
+  it("preserves config-version integrity failures", async () => {
     const error = Boom.badImplementation(
       'Agreement definition "pigs-might-fly" is version "0.0.2" but the Agreement uses version "0.0.1"',
     );
@@ -208,10 +197,13 @@ describe("validateAgreementActionUseCase", () => {
   });
 
   it("rejects duplicate accept using the latest snapshot state", async () => {
-    loadCurrentAgreement.mockResolvedValue({
-      ...currentAgreement,
-      state: "accepted",
-      item: { ...currentAgreement.item, state: "accepted" },
+    loadCurrentAgreementContext.mockResolvedValue({
+      currentAgreement: {
+        ...currentAgreement,
+        state: "accepted",
+        item: { ...currentAgreement.item, state: "accepted" },
+      },
+      agreementDefinition,
     });
     agreementDefinition.resolveAction.mockImplementation(() => {
       throw new InvalidAgreementTransitionError({
@@ -235,7 +227,10 @@ describe("validateAgreementActionUseCase", () => {
     await expect(
       validateAgreementActionUseCase({
         ...request,
-        agreementNumber: "PMF000000000",
+        reference: {
+          ...request.reference,
+          agreementNumber: "PMF000000000",
+        },
       }),
     ).rejects.toMatchObject({
       isBoom: true,
@@ -243,7 +238,6 @@ describe("validateAgreementActionUseCase", () => {
       output: { statusCode: 404 },
     });
 
-    expect(loadAgreementDefinition).not.toHaveBeenCalled();
     expect(buildAgreementPageModel).not.toHaveBeenCalled();
   });
 });

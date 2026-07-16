@@ -128,7 +128,7 @@ describe("POST /agreements/{agreementNumber}/actions/{actionName}", () => {
     const { res, payload } = await requestAction("accept");
 
     expect(res.statusCode).toBe(200);
-    expect(payload).toMatchObject({
+    expect(payload).toEqual({
       agreementNumber,
       code,
       clientRef,
@@ -139,6 +139,14 @@ describe("POST /agreements/{agreementNumber}/actions/{actionName}", () => {
         title: "Accept your agreement offer",
         mode: "view",
       },
+      components: [
+        {
+          component: "heading",
+          level: 1,
+          text: "Accept your agreement offer",
+        },
+      ],
+      actions: [],
       errors: [
         {
           name: "confirm",

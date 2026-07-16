@@ -1,7 +1,6 @@
 import { logger } from "../../common/logger.js";
-import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { loadCurrentAgreement } from "./load-current-agreement.js";
+import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
 export const renderAgreementPageUseCase = async ({
   code,
@@ -12,15 +11,12 @@ export const renderAgreementPageUseCase = async ({
 }) => {
   logger.info(`Rendering page "${page}" (mode "${mode}") for code ${code}`);
 
-  const currentAgreement = await loadCurrentAgreement({
-    code,
-    clientRef,
-    sbi,
-  });
-  const agreementDefinition = await loadAgreementDefinition({
-    code: currentAgreement.code,
-    configVersion: currentAgreement.definitionVersion,
-  });
+  const { currentAgreement, agreementDefinition } =
+    await loadCurrentAgreementContext({
+      code,
+      clientRef,
+      sbi,
+    });
   const pageModel = await buildAgreementPageModel({
     currentAgreement,
     agreementDefinition,

@@ -44,7 +44,7 @@ describe("CurrentAgreement", () => {
     expect(currentAgreement).toMatchObject({
       agreementNumber: "PMF823153883",
       code: "pigs-might-fly",
-      definitionVersion: "0.0.1",
+      configVersion: "0.0.1",
       state: "accepted",
       item,
       reference,
@@ -70,7 +70,7 @@ describe("CurrentAgreement", () => {
     ).toThrow('Agreement "PMF823153883" latest version is inconsistent');
   });
 
-  it("rejects a persisted Agreement item without a Definition Version", () => {
+  it("rejects a persisted Agreement item without a Config Version", () => {
     const unversionedItem = new AgreementItem({
       ...item,
       configVersion: undefined,
@@ -88,8 +88,6 @@ describe("CurrentAgreement", () => {
 
     expect(
       () => new CurrentAgreement({ reference, version: unversionedVersion }),
-    ).toThrow(
-      'Agreement "PMF823153883" latest version has no Definition Version',
-    );
+    ).toThrow('Agreement "PMF823153883" latest version has no Config Version');
   });
 });

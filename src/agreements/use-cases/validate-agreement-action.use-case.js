@@ -1,8 +1,7 @@
 import Boom from "@hapi/boom";
-import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { loadCurrentAgreement } from "./load-current-agreement.js";
+import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
 const requireMatchingAgreementNumber = (reference, agreementNumber) => {
   if (reference.agreementNumber !== agreementNumber) {
@@ -23,22 +22,18 @@ const resolveAgreementAction = (agreementDefinition, options) => {
 };
 
 export const validateAgreementActionUseCase = async ({
-  agreementNumber,
   actionName,
-  reference: { code, clientRef, sbi },
+  reference: { agreementNumber, code, clientRef, sbi },
   values,
 }) => {
-  const currentAgreement = await loadCurrentAgreement({
-    code,
-    clientRef,
-    sbi,
-  });
+  const { currentAgreement, agreementDefinition } =
+    await loadCurrentAgreementContext({
+      code,
+      clientRef,
+      sbi,
+    });
   requireMatchingAgreementNumber(currentAgreement.reference, agreementNumber);
 
-  const agreementDefinition = await loadAgreementDefinition({
-    code: currentAgreement.code,
-    configVersion: currentAgreement.definitionVersion,
-  });
   const action = resolveAgreementAction(agreementDefinition, {
     state: currentAgreement.state,
     action: actionName,

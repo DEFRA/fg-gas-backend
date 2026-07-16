@@ -48,7 +48,7 @@ const validDefinition = {
 };
 
 describe("loadAgreementDefinition", () => {
-  it("loads the exact definition version and returns its domain behaviour", async () => {
+  it("loads the exact config version and returns its domain behaviour", async () => {
     findAgreementDefinition.mockReturnValue(validDefinition);
 
     const definition = await loadAgreementDefinition({
@@ -70,7 +70,7 @@ describe("loadAgreementDefinition", () => {
     });
   });
 
-  it("rejects an unavailable definition version", async () => {
+  it("rejects an unavailable config version", async () => {
     findAgreementDefinition.mockReturnValue(undefined);
 
     await expect(

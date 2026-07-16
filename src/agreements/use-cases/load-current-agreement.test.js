@@ -51,7 +51,7 @@ describe("loadCurrentAgreement", () => {
     expect(currentAgreement).toMatchObject({
       agreementNumber: "PMF823153883",
       code: "pigs-might-fly",
-      definitionVersion: "0.0.1",
+      configVersion: "0.0.1",
       state: "accepted",
       version,
     });

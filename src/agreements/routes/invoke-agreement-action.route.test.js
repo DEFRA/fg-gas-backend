@@ -66,9 +66,9 @@ describe("invokeAgreementActionRoute", () => {
       },
     });
     expect(validateAgreementActionUseCase).toHaveBeenCalledWith({
-      agreementNumber: "PMF823153883",
       actionName: "accept",
       reference: {
+        agreementNumber: "PMF823153883",
         code: "pigs-might-fly",
         clientRef: "xnp-rr3-nfa",
         sbi: "300000069",
