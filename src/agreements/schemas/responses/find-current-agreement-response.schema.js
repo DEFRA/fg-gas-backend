@@ -21,7 +21,9 @@ export const findCurrentAgreementResponseSchema = Joi.object({
   sbi: sbi.required(),
   status: Joi.string().required(),
   page: Joi.object({
+    name: Joi.string().required(),
     title: Joi.string().required(),
+    mode: Joi.string().required(),
   }).required(),
   components: Joi.array().items(component).required(),
   actions: Joi.array().items(action).required(),

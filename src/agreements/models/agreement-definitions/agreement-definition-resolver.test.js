@@ -5,6 +5,8 @@ import {
   resolveAgreementAction,
   resolveAgreementCreation,
   resolveAgreementPage,
+  resolveAgreementPageForStatus,
+  resolveAgreementPageForVersion,
   resolveAgreementPageMode,
 } from "./agreement-definition-resolver.js";
 import { getAgreementDefinitionByCode } from "./index.js";
@@ -206,6 +208,52 @@ describe("resolveAgreementPage", () => {
 
     expect(second.components[0].mutated).toBeUndefined();
     expect(validDefinition.pages.offered.components[0].mutated).toBeUndefined();
+  });
+});
+
+describe("resolveAgreementPageForVersion", () => {
+  it("rejects a definition version mismatch before resolving the page", () => {
+    getAgreementDefinitionByCode.mockReturnValue(validDefinition);
+
+    expect(() =>
+      resolveAgreementPageForVersion({
+        code: "test-code",
+        page: "offered",
+        configVersion: "0.0.0",
+      }),
+    ).toThrow(
+      'Agreement definition "test-code" is version "0.0.1" but the Agreement uses version "0.0.0"',
+    );
+  });
+});
+
+describe("resolveAgreementPageForStatus", () => {
+  it("returns the page configured for the lifecycle state", () => {
+    const definition = structuredClone(validDefinition);
+    definition.states.offered.page = "accept";
+    getAgreementDefinitionByCode.mockReturnValue(definition);
+
+    expect(
+      resolveAgreementPageForStatus({
+        code: "test-code",
+        status: "offered",
+      }),
+    ).toEqual({
+      pageId: "accept",
+    });
+  });
+
+  it("treats a state without a configured page as a definition defect", () => {
+    const definition = structuredClone(validDefinition);
+    definition.states.offered.page = "missing";
+    getAgreementDefinitionByCode.mockReturnValue(definition);
+
+    expect(() =>
+      resolveAgreementPageForStatus({
+        code: "test-code",
+        status: "offered",
+      }),
+    ).toThrow('state "offered" has no configured page');
   });
 });
 
