@@ -3,7 +3,7 @@ import { InvalidAgreementTransitionError } from "../models/invalid-agreement-tra
 import { assertCurrentAgreementReference } from "./assert-current-agreement-reference.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
-const resolveAgreementAction = (agreementDefinition, options) => {
+export const resolveAgreementAction = (agreementDefinition, options) => {
   try {
     return agreementDefinition.resolveAction(options);
   } catch (error) {
@@ -18,18 +18,27 @@ const resolveAgreementAction = (agreementDefinition, options) => {
 export const loadCurrentAgreementActionContext = async ({
   actionName,
   agreementNumber,
+  agreementItemId,
   code,
   clientRef,
   sbi,
+  session,
 }) => {
+  const identity = agreementItemId
+    ? { agreementNumber, agreementItemId }
+    : { code, clientRef, sbi };
+  const contextOptions = session ? { ...identity, session } : identity;
   const { currentAgreement, agreementDefinition } =
-    await loadCurrentAgreementContext({ code, clientRef, sbi });
-  assertCurrentAgreementReference(currentAgreement, {
-    agreementNumber,
-    code,
-    clientRef,
-    sbi,
-  });
+    await loadCurrentAgreementContext(contextOptions);
+
+  if (!agreementItemId) {
+    assertCurrentAgreementReference(currentAgreement, {
+      agreementNumber,
+      code,
+      clientRef,
+      sbi,
+    });
+  }
 
   const action = resolveAgreementAction(agreementDefinition, {
     state: currentAgreement.state,

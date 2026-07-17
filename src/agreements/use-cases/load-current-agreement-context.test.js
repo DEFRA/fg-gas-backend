@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
-import { loadCurrentAgreement } from "./load-current-agreement.js";
+import {
+  loadCurrentAgreement,
+  loadCurrentAgreementByItem,
+} from "./load-current-agreement.js";
 
 vi.mock("../models/agreement-definitions/agreement-definition-loader.js");
 vi.mock("./load-current-agreement.js");
@@ -23,6 +26,7 @@ describe("loadCurrentAgreementContext", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     loadCurrentAgreement.mockResolvedValue(currentAgreement);
+    loadCurrentAgreementByItem.mockResolvedValue(currentAgreement);
     loadAgreementDefinition.mockResolvedValue(agreementDefinition);
   });
 
@@ -37,5 +41,21 @@ describe("loadCurrentAgreementContext", () => {
       code: currentAgreement.code,
       configVersion: currentAgreement.configVersion,
     });
+  });
+
+  it("loads the Current Agreement by its Agreement and Item IDs", async () => {
+    const itemRequest = {
+      agreementNumber: "PMF823153883",
+      agreementItemId: "29b829c4-4e38-405c-9f00-427ee94120a5",
+      session: { id: "session" },
+    };
+
+    await expect(loadCurrentAgreementContext(itemRequest)).resolves.toEqual({
+      currentAgreement,
+      agreementDefinition,
+    });
+
+    expect(loadCurrentAgreementByItem).toHaveBeenCalledWith(itemRequest);
+    expect(loadCurrentAgreement).not.toHaveBeenCalled();
   });
 });

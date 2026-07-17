@@ -22,6 +22,7 @@ export const agreementPageModelResponseSchema = Joi.object({
   clientRef: clientRef.required(),
   sbi: sbi.required(),
   state: Joi.string().required(),
+  version: Joi.number().integer().min(1).required(),
   page: Joi.object({
     name: Joi.string().required(),
     title: Joi.string().required(),

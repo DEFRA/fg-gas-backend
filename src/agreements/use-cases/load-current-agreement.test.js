@@ -3,10 +3,14 @@ import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
 import { CurrentAgreement } from "../models/current-agreement.js";
 import {
+  findByAgreementNumber,
   findByClientRefCodeAndSbi,
   findLatestVersionByAgreementNumber,
 } from "../repositories/agreement.repository.js";
-import { loadCurrentAgreement } from "./load-current-agreement.js";
+import {
+  loadCurrentAgreement,
+  loadCurrentAgreementByItem,
+} from "./load-current-agreement.js";
 
 vi.mock("../repositories/agreement.repository.js");
 
@@ -17,6 +21,7 @@ const request = {
 };
 
 const item = {
+  agreementItemId: "29b829c4-4e38-405c-9f00-427ee94120a5",
   agreementCode: request.code,
   clientRef: request.clientRef,
   identifiers: { sbi: request.sbi },
@@ -40,8 +45,62 @@ const version = new AgreementVersion({
 describe("loadCurrentAgreement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    findByAgreementNumber.mockResolvedValue(agreement);
     findByClientRefCodeAndSbi.mockResolvedValue(agreement);
     findLatestVersionByAgreementNumber.mockResolvedValue(version);
+  });
+
+  it("loads the Current Agreement using its Agreement and Item IDs", async () => {
+    const currentAgreement = await loadCurrentAgreementByItem({
+      agreementNumber: agreement.agreementNumber,
+      agreementItemId: item.agreementItemId,
+    });
+
+    expect(currentAgreement).toMatchObject({
+      agreementNumber: agreement.agreementNumber,
+      state: "accepted",
+      versionNumber: 2,
+    });
+    expect(findByAgreementNumber).toHaveBeenCalledWith(
+      agreement.agreementNumber,
+      undefined,
+    );
+    expect(findLatestVersionByAgreementNumber).toHaveBeenCalledWith(
+      agreement.agreementNumber,
+      undefined,
+    );
+  });
+
+  it("returns 404 when the Agreement does not exist", async () => {
+    findByAgreementNumber.mockResolvedValue(null);
+
+    await expect(
+      loadCurrentAgreementByItem({
+        agreementNumber: agreement.agreementNumber,
+        agreementItemId: item.agreementItemId,
+      }),
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 404,
+        payload: { message: "Agreement not found" },
+      },
+    });
+    expect(findLatestVersionByAgreementNumber).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the Agreement Item does not belong to the Agreement", async () => {
+    await expect(
+      loadCurrentAgreementByItem({
+        agreementNumber: agreement.agreementNumber,
+        agreementItemId: "unknown-item-id",
+      }),
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 404,
+        payload: { message: "Agreement not found" },
+      },
+    });
+    expect(findLatestVersionByAgreementNumber).not.toHaveBeenCalled();
   });
 
   it("loads the Current Agreement from its latest recorded version", async () => {
@@ -59,9 +118,11 @@ describe("loadCurrentAgreement", () => {
       request.clientRef,
       request.code,
       request.sbi,
+      undefined,
     );
     expect(findLatestVersionByAgreementNumber).toHaveBeenCalledWith(
       agreement.agreementNumber,
+      undefined,
     );
   });
 

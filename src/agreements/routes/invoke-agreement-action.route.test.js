@@ -9,19 +9,25 @@ import {
   it,
   vi,
 } from "vitest";
-import { validateAgreementActionUseCase } from "../use-cases/validate-agreement-action.use-case.js";
+import { executeAgreementActionUseCase } from "../use-cases/execute-agreement-action.use-case.js";
 import { invokeAgreementActionRoute } from "./invoke-agreement-action.route.js";
 
-vi.mock("../use-cases/validate-agreement-action.use-case.js");
+vi.mock("../use-cases/execute-agreement-action.use-case.js");
 
-const createPayload = (values) => ({
-  reference: {
-    code: "pigs-might-fly",
-    clientRef: "xnp-rr3-nfa",
-    sbi: "300000069",
-  },
-  values,
-});
+const agreementItemId = "29b829c4-4e38-405c-9f00-427ee94120a5";
+
+const headers = {
+  "if-match": '"opaque-etag"',
+  "idempotency-key": "9ea924aa-45e9-43a7-888e-c25054ea658c",
+};
+
+const injectAction = (server, values) =>
+  server.inject({
+    method: "POST",
+    url: `/agreements/PMF823153883/items/${agreementItemId}/actions/accept`,
+    headers,
+    payload: { values },
+  });
 
 describe("invokeAgreementActionRoute", () => {
   let server;
@@ -40,40 +46,25 @@ describe("invokeAgreementActionRoute", () => {
     await server.stop();
   });
 
-  it("returns the configured transition when action validation succeeds", async () => {
-    validateAgreementActionUseCase.mockResolvedValue({
-      valid: true,
-      transition: {
-        from: "offered",
-        action: "accept",
-        target: "accepted",
-      },
-    });
+  it("redirects to the current Agreement after execution", async () => {
+    const location =
+      "/agreements/PMF823153883?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069";
+    executeAgreementActionUseCase.mockResolvedValue({ location });
 
-    const { statusCode, result } = await server.inject({
-      method: "POST",
-      url: "/agreements/PMF823153883/actions/accept",
-      payload: createPayload({ confirm: "confirmed" }),
-    });
+    const { statusCode, headers: responseHeaders } = await injectAction(
+      server,
+      { confirm: "confirmed" },
+    );
 
-    expect(statusCode).toBe(200);
-    expect(result).toEqual({
-      valid: true,
-      transition: {
-        from: "offered",
-        action: "accept",
-        target: "accepted",
-      },
-    });
-    expect(validateAgreementActionUseCase).toHaveBeenCalledWith({
+    expect(statusCode).toBe(303);
+    expect(responseHeaders.location).toBe(location);
+    expect(executeAgreementActionUseCase).toHaveBeenCalledWith({
       actionName: "accept",
-      reference: {
-        agreementNumber: "PMF823153883",
-        code: "pigs-might-fly",
-        clientRef: "xnp-rr3-nfa",
-        sbi: "300000069",
-      },
+      agreementNumber: "PMF823153883",
+      agreementItemId,
       values: { confirm: "confirmed" },
+      ifMatch: headers["if-match"],
+      idempotencyKey: headers["idempotency-key"],
     });
   });
 
@@ -84,6 +75,7 @@ describe("invokeAgreementActionRoute", () => {
       clientRef: "xnp-rr3-nfa",
       sbi: "300000069",
       state: "offered",
+      version: 1,
       page: {
         name: "accept",
         title: "Accept your agreement offer",
@@ -99,29 +91,23 @@ describe("invokeAgreementActionRoute", () => {
         },
       ],
     };
-    validateAgreementActionUseCase.mockResolvedValue(validationResult);
+    executeAgreementActionUseCase.mockResolvedValue(validationResult);
 
-    const { statusCode, result } = await server.inject({
-      method: "POST",
-      url: "/agreements/PMF823153883/actions/accept",
-      payload: createPayload({}),
-    });
+    const { statusCode, result } = await injectAction(server, {});
 
     expect(statusCode).toBe(422);
     expect(result).toEqual(validationResult);
   });
 
   it("returns conflict for an invalid lifecycle transition", async () => {
-    validateAgreementActionUseCase.mockRejectedValue(
+    executeAgreementActionUseCase.mockRejectedValue(
       Boom.conflict(
         'Cannot perform action "accept" from agreement state "accepted". Available actions: none.',
       ),
     );
 
-    const { statusCode, result } = await server.inject({
-      method: "POST",
-      url: "/agreements/PMF823153883/actions/accept",
-      payload: createPayload({ confirm: "confirmed" }),
+    const { statusCode, result } = await injectAction(server, {
+      confirm: "confirmed",
     });
 
     expect(statusCode).toBe(409);
@@ -133,20 +119,21 @@ describe("invokeAgreementActionRoute", () => {
     });
   });
 
-  it.each(["code", "clientRef", "sbi"])(
-    "rejects a request without required identity field %s",
-    async (field) => {
-      const payload = createPayload({ confirm: "confirmed" });
-      delete payload.reference[field];
+  it.each(["if-match", "idempotency-key"])(
+    "rejects a request without %s",
+    async (header) => {
+      const requestHeaders = { ...headers };
+      delete requestHeaders[header];
 
       const { statusCode } = await server.inject({
         method: "POST",
-        url: "/agreements/PMF823153883/actions/accept",
-        payload,
+        url: `/agreements/PMF823153883/items/${agreementItemId}/actions/accept`,
+        headers: requestHeaders,
+        payload: { values: { confirm: "confirmed" } },
       });
 
       expect(statusCode).toBe(400);
-      expect(validateAgreementActionUseCase).not.toHaveBeenCalled();
+      expect(executeAgreementActionUseCase).not.toHaveBeenCalled();
     },
   );
 });
