@@ -5,17 +5,13 @@ import { loadCurrentAgreementActionContext } from "./load-current-agreement-acti
 export const prepareAgreementActionUseCase = async ({
   actionName,
   agreementNumber,
-  code,
-  clientRef,
-  sbi,
+  agreementItemId,
 }) => {
   const { action, currentAgreement, agreementDefinition } =
     await loadCurrentAgreementActionContext({
       actionName,
       agreementNumber,
-      code,
-      clientRef,
-      sbi,
+      agreementItemId,
     });
   const page = action.preparationPage;
 

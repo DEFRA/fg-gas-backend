@@ -74,6 +74,7 @@ describe("buildAgreementPageModel", () => {
     ).resolves.toEqual({
       ...reference,
       state: "offered",
+      version: 2,
       page: {
         name: "offered",
         title: "Review your agreement offer",

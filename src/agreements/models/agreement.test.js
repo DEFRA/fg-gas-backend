@@ -16,6 +16,7 @@ const query = {
 };
 
 const item = {
+  agreementItemId: "29b829c4-4e38-405c-9f00-427ee94120a5",
   agreementCode: referenceValues.code,
   clientRef: referenceValues.clientRef,
   identifiers: { sbi: referenceValues.sbi },
@@ -46,6 +47,30 @@ describe("Agreement.resolveReference", () => {
     ["missing items", { items: undefined }],
   ])("returns undefined for a mismatched %s", (_name, override) => {
     expect(toAgreement(override).resolveReference(query)).toBeUndefined();
+  });
+});
+
+describe("Agreement.resolveItemReference", () => {
+  it("resolves a complete reference for the identified Agreement Item", () => {
+    expect(toAgreement().resolveItemReference(item.agreementItemId)).toEqual(
+      toReference(),
+    );
+  });
+
+  it("returns undefined when the Agreement Item does not exist", () => {
+    expect(
+      toAgreement().resolveItemReference("unknown-item-id"),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined when the Agreement Item has no SBI", () => {
+    const agreement = toAgreement({
+      items: [{ ...item, identifiers: undefined }],
+    });
+
+    expect(
+      agreement.resolveItemReference(item.agreementItemId),
+    ).toBeUndefined();
   });
 });
 

@@ -50,6 +50,7 @@ describe("CurrentAgreement", () => {
       reference,
       snapshot,
       version,
+      versionNumber: 2,
     });
   });
 

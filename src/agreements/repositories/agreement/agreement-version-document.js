@@ -8,5 +8,8 @@ export class AgreementVersionDocument {
     this.version = version.version;
     this.snapshot = new AgreementDocument(version.snapshot);
     this.createdAt = version.createdAt;
+    if (version.actionExecution) {
+      this.actionExecution = version.actionExecution;
+    }
   }
 }

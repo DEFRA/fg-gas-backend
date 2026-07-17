@@ -32,11 +32,11 @@ describe("agreements", () => {
         { method: "get", path: "/agreements/{agreementNumber}" },
         {
           method: "get",
-          path: "/agreements/{agreementNumber}/actions/{actionName}",
+          path: "/agreements/{agreementNumber}/items/{agreementItemId}/actions/{actionName}",
         },
         {
           method: "post",
-          path: "/agreements/{agreementNumber}/actions/{actionName}",
+          path: "/agreements/{agreementNumber}/items/{agreementItemId}/actions/{actionName}",
         },
       ]),
     );

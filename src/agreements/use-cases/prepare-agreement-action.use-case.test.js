@@ -9,9 +9,7 @@ vi.mock("./load-current-agreement-action-context.js");
 const request = {
   actionName: "accept",
   agreementNumber: "PMF900000001",
-  code: "pigs-might-fly",
-  clientRef: "xnp-rr3-nfa",
-  sbi: "900000013",
+  agreementItemId: "29b829c4-4e38-405c-9f00-427ee94120a5",
 };
 
 const currentAgreement = { state: "offered" };

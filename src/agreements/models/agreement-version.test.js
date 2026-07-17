@@ -25,14 +25,21 @@ const snapshot = {
 
 describe("AgreementVersion", () => {
   it("normalizes a plain snapshot into an Agreement", () => {
+    const actionExecution = {
+      name: "accept",
+      agreementItemId: "29b829c4-4e38-405c-9f00-427ee94120a5",
+      idempotencyKey: "9ea924aa-45e9-43a7-888e-c25054ea658c",
+    };
     const version = AgreementVersion.new({
       agreementId: "agreement-id",
       agreementNumber: reference.agreementNumber,
       version: 1,
       snapshot,
+      actionExecution,
     });
 
     expect(version.snapshot).toBeInstanceOf(Agreement);
     expect(version.snapshot.findItem(reference)).toEqual(snapshot.items[0]);
+    expect(version.actionExecution).toEqual(actionExecution);
   });
 });

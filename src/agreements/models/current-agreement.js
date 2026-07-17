@@ -1,10 +1,11 @@
 import Boom from "@hapi/boom";
 
 export class CurrentAgreement {
-  constructor({ reference, version }) {
+  constructor({ reference, version: agreementVersion }) {
     this.reference = reference;
-    this.version = version;
-    this.snapshot = version.snapshot;
+    this.version = agreementVersion;
+    this.versionNumber = agreementVersion.version;
+    this.snapshot = agreementVersion.snapshot;
     this.item = findCurrentItem({ reference, snapshot: this.snapshot });
     assertConfigVersion({
       agreementNumber: reference.agreementNumber,
