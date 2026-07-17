@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
+import { addEventsToOutbox } from "../../common/add-events-to-outbox.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementItem } from "../models/agreement-item.js";
 import { AgreementVersion } from "../models/agreement-version.js";
@@ -9,19 +10,20 @@ import {
   saveVersion,
 } from "../repositories/agreement.repository.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
+import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { resolveAgreementAction } from "./load-current-agreement-action-context.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
 const MONGO_DUPLICATE_KEY_ERROR = 11000;
 
-const transitionCurrentItem = ({ currentAgreement, target }) =>
+const transitionCurrentItem = ({ currentAgreement, target, effectContext }) =>
   currentAgreement.snapshot.items.map((item) => {
     if (item.agreementItemId !== currentAgreement.item.agreementItemId) {
       return item;
     }
 
     return new AgreementItem({
-      ...item,
+      ...effectContext.item,
       state: target,
     });
   });
@@ -32,11 +34,16 @@ const buildNextVersion = ({
   actionName,
   agreementItemId,
   idempotencyKey,
+  effectContext,
+  executedAt,
 }) => {
-  const executedAt = new Date().toISOString();
   const snapshot = new Agreement({
     ...currentAgreement.snapshot,
-    items: transitionCurrentItem({ currentAgreement, target }),
+    items: transitionCurrentItem({
+      currentAgreement,
+      target,
+      effectContext,
+    }),
     updatedAt: executedAt,
   });
 
@@ -143,6 +150,18 @@ const executeInTransaction = async ({
     return { ...pageModel, values, errors: validation.errors };
   }
 
+  const executedAt = new Date().toISOString();
+  const effectContext = await runAgreementEffects(action.effects, {
+    agreement: currentAgreement.snapshot,
+    item: currentAgreement.item,
+    values,
+    endpoints: agreementDefinition.getEndpoints(),
+    executedAt,
+    target: action.transition.target,
+    version: currentAgreement.versionNumber + 1,
+    outputs: {},
+  });
+
   await saveVersion(
     buildNextVersion({
       currentAgreement,
@@ -150,9 +169,12 @@ const executeInTransaction = async ({
       actionName,
       agreementItemId,
       idempotencyKey,
+      effectContext,
+      executedAt,
     }),
     session,
   );
+  await addEventsToOutbox(effectContext.outboundEvents, session);
 
   return { location };
 };

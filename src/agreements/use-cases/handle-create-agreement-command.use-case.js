@@ -11,25 +11,21 @@ import { runAgreementEffects } from "../services/effects/agreement-effect-runner
 
 const SOURCE_SYSTEM = "GAS";
 
-// Runs create effects (which may include a real, non-idempotent external
-// HTTP call via the callEndpoint effect) and builds version 1. Deliberately
-// called before any transaction is opened: withTransaction retries its whole
-// callback on transient errors, so any external side effect performed inside
-// it would risk firing more than once for the same command.
+// Runs create effects (which may include a repeatable external calculation via
+// the callEndpoint effect) and builds version 1. Called before the transaction
+// so remote latency does not extend the MongoDB transaction.
 const buildInitialVersion = async (definition, agreement, answers) => {
   const effectContext = await runAgreementEffects(
     definition.getCreationEffects(),
     {
       answers,
       outputs: {},
+      item: agreement.items[0],
       endpoints: definition.getEndpoints(),
     },
   );
 
-  const snapshotItem = new AgreementItem({
-    ...agreement.items[0],
-    supplementaryData: effectContext.supplementaryData,
-  });
+  const snapshotItem = new AgreementItem(effectContext.item);
 
   return AgreementVersion.new({
     agreementId: agreement.id,

@@ -1,5 +1,6 @@
 import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { addEventsToOutbox } from "../../common/add-events-to-outbox.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import { pmfAgreementDefinition } from "../models/agreement-definitions/pmf.js";
@@ -14,6 +15,7 @@ import {
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
+vi.mock("../../common/add-events-to-outbox.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("./load-current-agreement-context.js");
@@ -108,6 +110,21 @@ describe("executeAgreementActionUseCase", () => {
           idempotencyKey: options.idempotencyKey,
         },
       }),
+      session,
+    );
+    expect(addEventsToOutbox).toHaveBeenCalledWith(
+      [
+        {
+          event: expect.objectContaining({
+            data: expect.objectContaining({
+              agreementNumber: agreement.agreementNumber,
+              status: "accepted",
+              version: 2,
+            }),
+          }),
+          target: expect.any(String),
+        },
+      ],
       session,
     );
     const savedVersion = saveVersion.mock.calls[0][0];

@@ -2,11 +2,11 @@ import { validateAuditEvent } from "@defra/fcp-audit-publisher";
 import { getTraceId } from "@defra/hapi-tracing";
 import { randomUUID } from "node:crypto";
 import { networkInterfaces } from "node:os";
-import { Outbox } from "../grants/models/outbox.js";
-import { insertMany } from "../grants/repositories/outbox.repository.js";
 import { config } from "./config.js";
 import { getRequestContext } from "./get-request-context.js";
 import { logger } from "./logger.js";
+import { Outbox } from "./outbox.js";
+import { insertMany } from "./outbox.repository.js";
 
 // helpers to stop lint complaining about complexity.
 const buildSecurity = (security) => security && { security };

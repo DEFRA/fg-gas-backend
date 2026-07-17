@@ -118,6 +118,68 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
+  it("allows the same effects for Agreement creation and actions", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.states.offered.on.accept.effects = [
+      structuredClone(definition.create.effects[0]),
+    ];
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
+  it("rejects the obsolete snapshot destination property", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.states.offered.on.accept.effects[0].destination = "item";
+
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+    expect(error.details.map((d) => d.message).join(", ")).toMatch(
+      /"states.offered.on.accept.effects\[0\].destination" is not allowed/,
+    );
+  });
+
+  it.each(["state", "agreementItemId", "schemeSpecificResult"])(
+    "rejects the unsupported top-level snapshot parameter %s",
+    (field) => {
+      const definition = structuredClone(pmfAgreementDefinition);
+      definition.states.offered.on.accept.effects[0].params[field] =
+        "$.outputs.value";
+
+      const { error } = validate(definition);
+
+      expect(error).toBeDefined();
+      expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+        new RegExp(
+          `states\\.offered\\.on\\.accept\\.effects\\[0\\]\\.params\\.${field}.*not allowed`,
+        ),
+      );
+    },
+  );
+
+  it("allows arbitrary snapshot fields beneath supplementaryData", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.states.offered.on.accept.effects[0].params.supplementaryData = {
+      schemeSpecificResult: "$.outputs.value",
+    };
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
+  it("allows supplementaryData to be supplied by a resolved object reference", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.states.offered.on.accept.effects[0].params.supplementaryData =
+      "$.outputs.schemeData";
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
   it("allows extra keys on validation and action transitions, so other agreement types can extend them", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.states.offered.on.accept.validation.hint = "extra guidance";

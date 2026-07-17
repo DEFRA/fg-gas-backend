@@ -48,6 +48,9 @@ const session = { fake: "session" };
 describe("handleCreateAgreementCommandUseCase", () => {
   beforeEach(() => {
     withTransaction.mockImplementation(async (callback) => callback(session));
+    runAgreementEffects.mockImplementation(
+      async (_effects, context) => context,
+    );
   });
 
   it("persists a new agreement in its initial state for a known code", async () => {
@@ -58,11 +61,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
     generateAgreementNumber.mockReturnValue("PMF823153883");
     saveAgreement.mockResolvedValue();
     saveVersion.mockResolvedValue();
-    runAgreementEffects.mockResolvedValue({
-      answers: command.data.answers,
-      outputs: {},
-    });
-
     const agreement = await handleCreateAgreementCommandUseCase(command);
 
     expect(findByClientRefAndCode).toHaveBeenCalledWith(
@@ -76,7 +74,15 @@ describe("handleCreateAgreementCommandUseCase", () => {
     expect(generateAgreementNumber).toHaveBeenCalledWith({ prefix: "PMF" });
     expect(runAgreementEffects).toHaveBeenCalledWith(
       pmfDefinition.create.effects,
-      { answers: command.data.answers, outputs: {}, endpoints: [] },
+      expect.objectContaining({
+        answers: command.data.answers,
+        outputs: {},
+        item: expect.objectContaining({
+          agreementCode: "pigs-might-fly",
+          state: "offered",
+        }),
+        endpoints: [],
+      }),
     );
     expect(saveAgreement).toHaveBeenCalledWith(agreement, session);
     expect(agreement).toMatchObject({
@@ -119,7 +125,11 @@ describe("handleCreateAgreementCommandUseCase", () => {
       { name: "callEndpoint", output: "fundingCalculation" },
       {
         name: "snapshot",
-        params: { fundingCalculation: "$.outputs.fundingCalculation" },
+        params: {
+          supplementaryData: {
+            fundingCalculation: "$.outputs.fundingCalculation",
+          },
+        },
       },
     ];
     const definitionWithEffects = {
@@ -148,12 +158,15 @@ describe("handleCreateAgreementCommandUseCase", () => {
     };
 
     const callOrder = [];
-    runAgreementEffects.mockImplementation(async () => {
+    runAgreementEffects.mockImplementation(async (_effects, context) => {
       callOrder.push("effects");
       return {
-        answers: command.data.answers,
+        ...context,
         outputs: { fundingCalculation },
-        supplementaryData: { fundingCalculation },
+        item: {
+          ...context.item,
+          supplementaryData: { fundingCalculation },
+        },
       };
     });
     withTransaction.mockImplementation(async (callback) => {
@@ -164,11 +177,15 @@ describe("handleCreateAgreementCommandUseCase", () => {
     const agreement = await handleCreateAgreementCommandUseCase(command);
 
     expect(callOrder).toEqual(["effects", "transaction"]);
-    expect(runAgreementEffects).toHaveBeenCalledWith(effects, {
-      answers: command.data.answers,
-      outputs: {},
-      endpoints: definitionWithEffects.endpoints,
-    });
+    expect(runAgreementEffects).toHaveBeenCalledWith(
+      effects,
+      expect.objectContaining({
+        answers: command.data.answers,
+        outputs: {},
+        item: expect.objectContaining({ state: "offered" }),
+        endpoints: definitionWithEffects.endpoints,
+      }),
+    );
     expect(saveVersion).toHaveBeenCalledWith(
       expect.objectContaining({
         version: 1,
@@ -195,11 +212,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
       new AgreementDefinition(pmfDefinition),
     );
     generateAgreementNumber.mockReturnValue("PMF823153883");
-    runAgreementEffects.mockResolvedValue({
-      answers: unversionedCommand.data.answers,
-      outputs: {},
-    });
-
     const agreement =
       await handleCreateAgreementCommandUseCase(unversionedCommand);
 

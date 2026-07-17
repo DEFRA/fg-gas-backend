@@ -1,4 +1,6 @@
+import { applyItemSnapshotEffect } from "../../use-cases/apply-item-snapshot-effect.js";
 import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
+import { createAgreementStatusUpdatedOutboundEvent } from "./create-agreement-status-updated-outbound-event.js";
 import { isPlainObject, resolveEffectParams } from "./resolve-effect-params.js";
 
 // Effect shape: { name, output?, params? }
@@ -12,12 +14,6 @@ import { isPlainObject, resolveEffectParams } from "./resolve-effect-params.js";
 //
 // context.outputs is frozen before each handler call; writing to it directly throws
 // a TypeError. Return { output: value } and set effect.output instead.
-const snapshotEffectHandler = async (context, { params = {} }) => {
-  const supplementaryData = await resolveEffectParams(params, context);
-
-  return { context: { supplementaryData } };
-};
-
 const findEndpointConfig = (context, endpointCode) => {
   const endpointConfig = context.endpoints?.find(
     (candidate) => candidate.code === endpointCode,
@@ -43,27 +39,33 @@ const callEndpointEffectHandler = async (context, { params = {} }) => {
   return { output };
 };
 
-const createPaymentClaimEffectHandler = async (
-  _context,
-  { params: _params = {} },
-) => {
-  throw new Error("createPaymentClaim handler not yet implemented");
+const publishEffectHandler = async (context, { params = {} }) => {
+  if (params.event !== "agreementStatusUpdated") {
+    throw new Error(`Unsupported Agreement publication: "${params.event}"`);
+  }
+
+  return {
+    context: {
+      outboundEvents: [
+        ...(context.outboundEvents ?? []),
+        createAgreementStatusUpdatedOutboundEvent(context),
+      ],
+    },
+  };
 };
 
-const publishEffectHandler = async (_context, { params: _params = {} }) => {
-  throw new Error("publish handler not yet implemented");
-};
-
-export const handlers = {
-  snapshot: snapshotEffectHandler,
-  callEndpoint: callEndpointEffectHandler,
-  createPaymentClaim: createPaymentClaimEffectHandler,
+// Effects may run inside a retryable MongoDB transaction callback. Direct
+// external calls must therefore be side-effect-free and safe to repeat;
+// durable external commands and events belong in the outbox.
+export const agreementEffectHandlers = {
+  snapshot: applyItemSnapshotEffect,
   publish: publishEffectHandler,
+  callEndpoint: callEndpointEffectHandler,
 };
 
-// Plain-object context values (e.g. supplementaryData) are merged key-by-key
+// Plain-object context values (e.g. item) are merged key-by-key
 // rather than replaced wholesale, so multiple effects that each contribute to
-// the same context key (e.g. two snapshot effects in one chain) accumulate
+// the same context key (e.g. two item effects in one chain) accumulate
 // instead of the later one silently discarding the earlier one's fields.
 const mergeContextValue = (existing, incoming) =>
   isPlainObject(existing) && isPlainObject(incoming)
@@ -89,19 +91,19 @@ export const mergeEffectResult = (context, effect, result = {}) => ({
 });
 
 export const runAgreementEffects = async (effects, context) => {
-  let currentContext = {
+  let currentContext = structuredClone({
     ...context,
-    outputs: structuredClone(context.outputs ?? {}),
-  };
+    outputs: context.outputs ?? {},
+  });
 
   for (const effect of effects) {
-    const handler = handlers[effect.name];
+    const handler = agreementEffectHandlers[effect.name];
 
     if (!handler) {
       // using a plain Error instead of Hapi Boom.badImplementation as that will send
       // "An internal server error occurred" to the logs rather than the actual error.
       throw new Error(
-        `Unsupported agreement effect: "${effect.name}". Supported effects are: ${Object.keys(handlers).join(", ")}`,
+        `Unsupported agreement effect: "${effect.name}". Supported effects are: ${Object.keys(agreementEffectHandlers).join(", ")}`,
       );
     }
 

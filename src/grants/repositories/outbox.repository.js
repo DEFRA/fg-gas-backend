@@ -3,6 +3,8 @@ import { logger } from "../../common/logger.js";
 import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 
+export { insertMany } from "../../common/outbox.repository.js";
+
 const collection = "outbox";
 
 const MAX_RETRIES = config.outbox.outboxMaxRetries;
@@ -87,13 +89,6 @@ export const update = async (event, claimedBy) => {
   return db
     .collection(collection)
     .updateOne({ _id, claimedBy }, { $set: updateDoc });
-};
-
-export const insertMany = async (events, session) => {
-  return db.collection(collection).insertMany(
-    events.map((event) => event.toDocument()),
-    { session },
-  );
 };
 
 export const updateExpiredEvents = async () => {

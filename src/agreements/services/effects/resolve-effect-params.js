@@ -3,7 +3,10 @@ import jsonata from "jsonata";
 const isRef = (value) => typeof value === "string" && value.startsWith("$.");
 
 export const isPlainObject = (value) =>
-  value !== null && typeof value === "object";
+  value !== null &&
+  typeof value === "object" &&
+  !Array.isArray(value) &&
+  Object.getPrototypeOf(value) === Object.prototype;
 
 const resolveArray = (value, context) =>
   Promise.all(value.map((item) => resolveEffectParams(item, context)));
@@ -19,16 +22,13 @@ const resolveObject = async (value, context) => {
   return Object.fromEntries(entries);
 };
 
-const hasDefault = (ref) => ref.includes("??");
-
-// A ref with no "??" default is declaring the referenced value is required;
-// resolving to undefined means the effect config and the context it's
-// evaluated against have drifted out of sync (e.g. a renamed output key),
-// so it's surfaced as an error rather than silently persisted.
+// Resolving to undefined means either the required reference is missing or a
+// configured fallback also failed to produce a value. Surface both cases
+// rather than silently persisting an incomplete snapshot.
 const resolveRef = async (ref, context) => {
   const resolved = await jsonata(ref).evaluate(context);
 
-  if (resolved === undefined && !hasDefault(ref)) {
+  if (resolved === undefined) {
     throw new Error(`Unresolved reference "${ref}" in effect params`);
   }
 

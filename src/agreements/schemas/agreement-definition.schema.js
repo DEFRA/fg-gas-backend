@@ -1,16 +1,35 @@
 import Joi from "joi";
-import { handlers } from "../services/effects/agreement-effect-runner.js";
+import { agreementEffectHandlers } from "../services/effects/agreement-effect-runner.js";
 
-const effect = Joi.object({
-  name: Joi.string()
-    .valid(...Object.keys(handlers))
-    .required(),
-  output: Joi.string().optional(),
-  params: Joi.object().optional(),
-})
-  .unknown(true)
-  .label("Effect");
+const supplementaryDataSnapshot = Joi.alternatives().try(
+  Joi.object().unknown(true),
+  Joi.string().pattern(/^\$\./),
+);
 
+const snapshotParams = Joi.object({
+  acceptedAt: Joi.string().optional(),
+  supplementaryData: supplementaryDataSnapshot.optional(),
+}).unknown(false);
+
+const effectParams = Joi.when("name", {
+  is: "snapshot",
+  then: snapshotParams.optional(),
+  otherwise: Joi.object().optional(),
+});
+
+const createEffectSchema = (handlerNames) =>
+  Joi.object({
+    name: Joi.string()
+      .valid(...handlerNames)
+      .required(),
+    output: Joi.string().optional(),
+    destination: Joi.forbidden(),
+    params: effectParams,
+  })
+    .unknown(true)
+    .label("Effect");
+
+const effect = createEffectSchema(Object.keys(agreementEffectHandlers));
 const effects = Joi.array().items(effect).optional().label("Effects");
 
 const create = Joi.object({

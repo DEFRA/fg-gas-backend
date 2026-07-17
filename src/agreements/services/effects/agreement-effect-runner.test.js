@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  handlers,
+  agreementEffectHandlers,
   mergeEffectResult,
   runAgreementEffects,
 } from "./agreement-effect-runner.js";
@@ -8,23 +8,42 @@ import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
 
 vi.mock("./call-agreement-endpoint.js");
 
-describe("handlers", () => {
+describe("agreementEffectHandlers", () => {
   describe("snapshot", () => {
-    it("resolves effect.params against the context and returns them as supplementaryData", async () => {
-      const result = await handlers.snapshot(
-        { outputs: { fundingCalculation: { amount: 42 } } },
-        { params: { fundingCalculation: "$.outputs.fundingCalculation" } },
+    it("resolves effect.params as an item-shaped patch", async () => {
+      const result = await agreementEffectHandlers.snapshot(
+        {
+          item: { agreementItemId: "item-1" },
+          outputs: { fundingCalculation: { amount: 42 } },
+        },
+        {
+          params: {
+            supplementaryData: {
+              fundingCalculation: "$.outputs.fundingCalculation",
+            },
+          },
+        },
       );
 
       expect(result).toEqual({
-        context: { supplementaryData: { fundingCalculation: { amount: 42 } } },
+        context: {
+          item: {
+            agreementItemId: "item-1",
+            supplementaryData: { fundingCalculation: { amount: 42 } },
+          },
+        },
       });
     });
 
-    it("defaults to an empty supplementaryData object when params is omitted", async () => {
-      const result = await handlers.snapshot({ outputs: {} }, {});
+    it("defaults params to an empty object", async () => {
+      const result = await agreementEffectHandlers.snapshot(
+        { item: { agreementItemId: "item-1" }, outputs: {} },
+        {},
+      );
 
-      expect(result).toEqual({ context: { supplementaryData: {} } });
+      expect(result).toEqual({
+        context: { item: { agreementItemId: "item-1" } },
+      });
     });
   });
 
@@ -59,7 +78,10 @@ describe("handlers", () => {
       };
       callAgreementEndpoint.mockResolvedValue(fundingCalculation);
 
-      const result = await handlers.callEndpoint(context, effect);
+      const result = await agreementEffectHandlers.callEndpoint(
+        context,
+        effect,
+      );
 
       expect(callAgreementEndpoint).toHaveBeenCalledWith(context.endpoints[0], {
         BODY: { quantity: 5 },
@@ -69,23 +91,14 @@ describe("handlers", () => {
 
     it("throws when the endpoint code isn't in context.endpoints", async () => {
       await expect(
-        handlers.callEndpoint({ ...context, endpoints: [] }, effect),
+        agreementEffectHandlers.callEndpoint(
+          { ...context, endpoints: [] },
+          effect,
+        ),
       ).rejects.toThrow(/No endpoint configured for code "calculate-funding"/);
 
       expect(callAgreementEndpoint).not.toHaveBeenCalled();
     });
-  });
-
-  it("createPaymentClaim throws not-yet-implemented", async () => {
-    await expect(handlers.createPaymentClaim({}, {})).rejects.toThrow(
-      "createPaymentClaim handler not yet implemented",
-    );
-  });
-
-  it("publish throws not-yet-implemented", async () => {
-    await expect(handlers.publish({}, {})).rejects.toThrow(
-      "publish handler not yet implemented",
-    );
   });
 });
 
@@ -158,7 +171,7 @@ describe("mergeEffectResult", () => {
       agreementId: "agr-123",
       outputs: { snapshotId: "snap-1" },
     };
-    const effect = { name: "createPaymentClaim", output: "paymentClaim" };
+    const effect = { name: "callEndpoint", output: "fundingCalculation" };
     const result = {
       output: { amount: 500 },
       context: { publication: { id: "pub-1" } },
@@ -169,7 +182,7 @@ describe("mergeEffectResult", () => {
       publication: { id: "pub-1" },
       outputs: {
         snapshotId: "snap-1",
-        paymentClaim: { amount: 500 },
+        fundingCalculation: { amount: 500 },
       },
     };
 
@@ -182,16 +195,16 @@ describe("mergeEffectResult", () => {
     const afterFirst = mergeEffectResult(
       { outputs: {} },
       {},
-      { context: { supplementaryData: { a: 1 } } },
+      { context: { snapshot: { a: 1 } } },
     );
 
     const afterSecond = mergeEffectResult(
       afterFirst,
       {},
-      { context: { supplementaryData: { b: 2 } } },
+      { context: { snapshot: { b: 2 } } },
     );
 
-    expect(afterSecond.supplementaryData).toEqual({ a: 1, b: 2 });
+    expect(afterSecond.snapshot).toEqual({ a: 1, b: 2 });
   });
 
   it("replaces a non-object context value outright rather than attempting to merge it", () => {
@@ -203,17 +216,119 @@ describe("mergeEffectResult", () => {
 
     expect(result.count).toBe(2);
   });
+
+  it("replaces an array context value instead of merging its indexes", () => {
+    const result = mergeEffectResult(
+      { scheduledPayments: ["old", "also-old"], outputs: {} },
+      {},
+      { context: { scheduledPayments: ["replacement"] } },
+    );
+
+    expect(result.scheduledPayments).toEqual(["replacement"]);
+  });
 });
 
 describe("runAgreementEffects", () => {
-  it("calls handlers in the same order as the configured effects", async () => {
+  it("snapshots configured fields onto the item", async () => {
+    const result = await runAgreementEffects(
+      [
+        {
+          name: "snapshot",
+          params: { acceptedAt: "$.executedAt" },
+        },
+      ],
+      {
+        executedAt: "2026-07-17T11:30:00.000Z",
+        item: { agreementItemId: "item-1", state: "offered" },
+      },
+    );
+
+    expect(result.item).toEqual({
+      agreementItemId: "item-1",
+      state: "offered",
+      acceptedAt: "2026-07-17T11:30:00.000Z",
+    });
+  });
+
+  it("snapshots configured fields into supplementary data", async () => {
+    const result = await runAgreementEffects(
+      [
+        {
+          name: "snapshot",
+          params: {
+            supplementaryData: {
+              paymentSchedule: [{ amount: 300 }],
+              assessment: { score: 8 },
+              note: null,
+            },
+          },
+        },
+      ],
+      {
+        item: {
+          agreementItemId: "item-1",
+          supplementaryData: {
+            paymentSchedule: [{ amount: 100 }, { amount: 200 }],
+            assessment: { score: 4, reason: "original" },
+            note: "clear me",
+            preserved: true,
+          },
+        },
+      },
+    );
+
+    expect(result.item.supplementaryData).toEqual({
+      paymentSchedule: [{ amount: 300 }],
+      assessment: { score: 8 },
+      note: null,
+      preserved: true,
+    });
+  });
+
+  it("creates a payment-free outbound lifecycle event", async () => {
+    const result = await runAgreementEffects(
+      [
+        {
+          name: "publish",
+          params: { event: "agreementStatusUpdated" },
+        },
+      ],
+      {
+        agreement: { agreementNumber: "PMF823153884" },
+        item: {
+          agreementCode: "pigs-might-fly",
+          acceptedAt: "2026-07-17T11:29:00.000Z",
+          clientRef: "xnp-rr3-nfb",
+        },
+        version: 2,
+        target: "accepted",
+        executedAt: "2026-07-17T11:30:00.000Z",
+      },
+    );
+
+    expect(result.outboundEvents).toHaveLength(1);
+    expect(result.outboundEvents[0].event.data).toEqual({
+      agreementNumber: "PMF823153884",
+      clientRef: "xnp-rr3-nfb",
+      code: "pigs-might-fly",
+      version: 2,
+      status: "accepted",
+      date: "2026-07-17T11:29:00.000Z",
+    });
+  });
+
+  it("calls agreement effect handlers in configured order", async () => {
     const callOrder = [];
-    vi.spyOn(handlers, "snapshot").mockImplementation(async () => {
-      callOrder.push("snapshot");
-    });
-    vi.spyOn(handlers, "callEndpoint").mockImplementation(async () => {
-      callOrder.push("callEndpoint");
-    });
+    vi.spyOn(agreementEffectHandlers, "snapshot").mockImplementation(
+      async () => {
+        callOrder.push("snapshot");
+      },
+    );
+    vi.spyOn(agreementEffectHandlers, "callEndpoint").mockImplementation(
+      async () => {
+        callOrder.push("callEndpoint");
+      },
+    );
 
     await runAgreementEffects(
       [{ name: "snapshot" }, { name: "callEndpoint" }],
@@ -225,12 +340,14 @@ describe("runAgreementEffects", () => {
 
   it("passes the context returned by each handler to the next", async () => {
     let contextReceivedBySecond;
-    vi.spyOn(handlers, "snapshot").mockResolvedValue({
+    vi.spyOn(agreementEffectHandlers, "snapshot").mockResolvedValue({
       context: { snapshotId: "snap-1" },
     });
-    vi.spyOn(handlers, "callEndpoint").mockImplementation(async (context) => {
-      contextReceivedBySecond = context;
-    });
+    vi.spyOn(agreementEffectHandlers, "callEndpoint").mockImplementation(
+      async (context) => {
+        contextReceivedBySecond = context;
+      },
+    );
 
     await runAgreementEffects(
       [{ name: "snapshot" }, { name: "callEndpoint" }],
@@ -241,12 +358,12 @@ describe("runAgreementEffects", () => {
   });
 
   it("stores handler output at context.outputs[effect.output] when effect.output is set", async () => {
-    vi.spyOn(handlers, "createPaymentClaim").mockResolvedValue({
+    vi.spyOn(agreementEffectHandlers, "callEndpoint").mockResolvedValue({
       output: { amount: 500 },
     });
 
     const result = await runAgreementEffects(
-      [{ name: "createPaymentClaim", output: "fundingCalculation" }],
+      [{ name: "callEndpoint", output: "fundingCalculation" }],
       {},
     );
 
@@ -254,15 +371,17 @@ describe("runAgreementEffects", () => {
   });
 
   it("keeps existing outputs intact when adding a new named output", async () => {
-    vi.spyOn(handlers, "snapshot").mockResolvedValue({ output: "snap-data" });
-    vi.spyOn(handlers, "createPaymentClaim").mockResolvedValue({
+    vi.spyOn(agreementEffectHandlers, "snapshot").mockResolvedValue({
+      output: "snap-data",
+    });
+    vi.spyOn(agreementEffectHandlers, "callEndpoint").mockResolvedValue({
       output: { amount: 500 },
     });
 
     const result = await runAgreementEffects(
       [
         { name: "snapshot", output: "snapshotResult" },
-        { name: "createPaymentClaim", output: "fundingCalculation" },
+        { name: "callEndpoint", output: "fundingCalculation" },
       ],
       {},
     );
@@ -272,7 +391,7 @@ describe("runAgreementEffects", () => {
   });
 
   it("merges context patch without adding an output key when effect.output is not set", async () => {
-    vi.spyOn(handlers, "snapshot").mockResolvedValue({
+    vi.spyOn(agreementEffectHandlers, "snapshot").mockResolvedValue({
       output: "snap-data",
       context: { publication: { id: "pub-1" } },
     });
@@ -285,9 +404,11 @@ describe("runAgreementEffects", () => {
 
   it("passes a frozen outputs object to each handler", async () => {
     let outputsSeenByHandler;
-    vi.spyOn(handlers, "snapshot").mockImplementation(async (context) => {
-      outputsSeenByHandler = context.outputs;
-    });
+    vi.spyOn(agreementEffectHandlers, "snapshot").mockImplementation(
+      async (context) => {
+        outputsSeenByHandler = context.outputs;
+      },
+    );
 
     await runAgreementEffects([{ name: "snapshot" }], {});
 
@@ -295,9 +416,11 @@ describe("runAgreementEffects", () => {
   });
 
   it("throws a TypeError when a handler writes directly to context.outputs", async () => {
-    vi.spyOn(handlers, "snapshot").mockImplementation(async (context) => {
-      context.outputs.injected = "malicious";
-    });
+    vi.spyOn(agreementEffectHandlers, "snapshot").mockImplementation(
+      async (context) => {
+        context.outputs.injected = "malicious";
+      },
+    );
 
     await expect(
       runAgreementEffects([{ name: "snapshot" }], {}),
@@ -305,12 +428,14 @@ describe("runAgreementEffects", () => {
   });
 
   it("does not carry nested mutations to existing output values into the next effect", async () => {
-    vi.spyOn(handlers, "snapshot").mockResolvedValue({
+    vi.spyOn(agreementEffectHandlers, "snapshot").mockResolvedValue({
       output: { count: 1 },
     });
-    vi.spyOn(handlers, "callEndpoint").mockImplementation(async (context) => {
-      context.outputs.snapshotResult.count = 999;
-    });
+    vi.spyOn(agreementEffectHandlers, "callEndpoint").mockImplementation(
+      async (context) => {
+        context.outputs.snapshotResult.count = 999;
+      },
+    );
 
     const result = await runAgreementEffects(
       [
@@ -325,12 +450,16 @@ describe("runAgreementEffects", () => {
 
   it("does not carry mutations to non-outputs context fields into the next effect", async () => {
     let contextReceivedBySecond;
-    vi.spyOn(handlers, "snapshot").mockImplementation(async (context) => {
-      context.agreement.state = "mutated";
-    });
-    vi.spyOn(handlers, "callEndpoint").mockImplementation(async (context) => {
-      contextReceivedBySecond = context;
-    });
+    vi.spyOn(agreementEffectHandlers, "snapshot").mockImplementation(
+      async (context) => {
+        context.agreement.state = "mutated";
+      },
+    );
+    vi.spyOn(agreementEffectHandlers, "callEndpoint").mockImplementation(
+      async (context) => {
+        contextReceivedBySecond = context;
+      },
+    );
 
     await runAgreementEffects(
       [{ name: "snapshot" }, { name: "callEndpoint" }],
@@ -341,7 +470,7 @@ describe("runAgreementEffects", () => {
   });
 
   it("throws an actionable error and stops execution when an effect name has no handler", async () => {
-    const snapshotSpy = vi.spyOn(handlers, "snapshot");
+    const snapshotSpy = vi.spyOn(agreementEffectHandlers, "snapshot");
 
     await expect(
       runAgreementEffects(

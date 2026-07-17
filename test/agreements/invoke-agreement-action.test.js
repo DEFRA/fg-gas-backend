@@ -79,18 +79,21 @@ const prepareAction = async (actionName) => {
 describe("Agreement actions", () => {
   let client;
   let agreements;
+  let outbox;
   let versions;
 
   beforeAll(async () => {
     client = await MongoClient.connect(env.MONGO_URI);
     const database = client.db();
     agreements = database.collection("agreements__agreements");
+    outbox = database.collection("outbox");
     versions = database.collection("agreements__versions");
   });
 
   beforeEach(async () => {
     await Promise.all([
       agreements.deleteMany({ agreementNumber }),
+      outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
       versions.deleteMany({ agreementNumber }),
     ]);
   });
@@ -98,6 +101,7 @@ describe("Agreement actions", () => {
   afterAll(async () => {
     await Promise.all([
       agreements?.deleteMany({ agreementNumber }),
+      outbox?.deleteMany({ "event.data.agreementNumber": agreementNumber }),
       versions?.deleteMany({ agreementNumber }),
     ]);
     await client?.close();
@@ -119,6 +123,9 @@ describe("Agreement actions", () => {
     await expect(
       versions.find({ agreementNumber }).sort({ version: 1 }).toArray(),
     ).resolves.toEqual([version]);
+    await expect(
+      outbox.countDocuments({ "event.data.agreementNumber": agreementNumber }),
+    ).resolves.toBe(0);
   };
 
   it("prepares the configured form without mutating the Agreement", async () => {
@@ -170,11 +177,11 @@ describe("Agreement actions", () => {
   it("accepts the Agreement and redirects to its newly current page", async () => {
     await seedAgreement();
 
-    const { res } = await requestAction("accept", {
+    const { res, payload } = await requestAction("accept", {
       confirm: "confirmed",
     });
 
-    expect(res.statusCode).toBe(303);
+    expect(res.statusCode, JSON.stringify(payload)).toBe(303);
     expect(res.headers.location).toBe(
       `/agreements/${agreementNumber}?code=${code}&clientRef=${clientRef}&sbi=${sbi}`,
     );
@@ -196,6 +203,9 @@ describe("Agreement actions", () => {
       snapshot: {
         items: [
           expect.objectContaining({
+            acceptedAt: expect.stringMatching(
+              /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+            ),
             state: "accepted",
           }),
         ],
@@ -204,6 +214,31 @@ describe("Agreement actions", () => {
     expect(storedVersions[1].snapshot.items[0]).not.toHaveProperty(
       "supplementaryData.acceptedAt",
     );
+
+    const outboundEvent = await outbox.findOne({
+      "event.data.agreementNumber": agreementNumber,
+    });
+    expect(outboundEvent).toMatchObject({
+      target: env.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
+      event: {
+        data: {
+          agreementNumber,
+          clientRef,
+          code,
+          version: 2,
+          status: "accepted",
+          date: storedVersions[1].snapshot.items[0].acceptedAt,
+        },
+      },
+    });
+    expect(outboundEvent.event.data).toEqual({
+      agreementNumber,
+      clientRef,
+      code,
+      version: 2,
+      status: "accepted",
+      date: storedVersions[1].snapshot.items[0].acceptedAt,
+    });
 
     const redirected = await wreck.request("GET", res.headers.location);
     const page = await wreck.read(redirected, { json: true });
@@ -261,6 +296,9 @@ describe("Agreement actions", () => {
     expect(retry.res.statusCode).toBe(303);
     expect(retry.res.headers.location).toBe(first.res.headers.location);
     await expect(versions.countDocuments({ agreementNumber })).resolves.toBe(2);
+    await expect(
+      outbox.countDocuments({ "event.data.agreementNumber": agreementNumber }),
+    ).resolves.toBe(1);
   });
 
   it("allows only one concurrent acceptance to commit", async () => {
@@ -283,6 +321,50 @@ describe("Agreement actions", () => {
       303, 412,
     ]);
     await expect(versions.countDocuments({ agreementNumber })).resolves.toBe(2);
+    await expect(
+      outbox.countDocuments({ "event.data.agreementNumber": agreementNumber }),
+    ).resolves.toBe(1);
+  });
+
+  it("rolls back acceptance when its outbound event cannot be added to the outbox", async () => {
+    const persisted = await seedAgreement();
+    const indexName = "reject-duplicate-agreement-publication";
+    const blockingEventId = "blocking-outbound-event";
+    await outbox.createIndex(
+      { "event.data.agreementNumber": 1 },
+      {
+        name: indexName,
+        unique: true,
+        partialFilterExpression: {
+          "event.data.agreementNumber": agreementNumber,
+        },
+      },
+    );
+    await outbox.insertOne({
+      _id: blockingEventId,
+      event: { data: { agreementNumber } },
+      status: "DEAD_LETTER",
+    });
+
+    try {
+      const { res } = await requestAction("accept", { confirm: "confirmed" });
+
+      expect(res.statusCode).toBe(500);
+      await expect(agreements.findOne({ agreementNumber })).resolves.toEqual(
+        persisted.agreement,
+      );
+      await expect(
+        versions.find({ agreementNumber }).sort({ version: 1 }).toArray(),
+      ).resolves.toEqual([persisted.version]);
+      await expect(
+        outbox.countDocuments({
+          "event.data.agreementNumber": agreementNumber,
+        }),
+      ).resolves.toBe(1);
+    } finally {
+      await outbox.deleteOne({ _id: blockingEventId });
+      await outbox.dropIndex(indexName);
+    }
   });
 
   it("returns 412 when an opaque If-Match value is stale", async () => {

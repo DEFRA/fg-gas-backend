@@ -2,10 +2,10 @@ import { validateAuditEvent } from "@defra/fcp-audit-publisher";
 import { getTraceId } from "@defra/hapi-tracing";
 import { networkInterfaces } from "node:os";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Outbox } from "../grants/models/outbox.js";
-import { insertMany } from "../grants/repositories/outbox.repository.js";
 import { auditStatus } from "./audit-constants.js";
 import { getRequestContext } from "./get-request-context.js";
+import { Outbox } from "./outbox.js";
+import { insertMany } from "./outbox.repository.js";
 import {
   buildPayload,
   createAuditPayload,
@@ -38,11 +38,11 @@ vi.mock("./get-request-context.js", () => ({
   getRequestContext: vi.fn(),
 }));
 
-vi.mock("../grants/models/outbox.js", () => ({
+vi.mock("./outbox.js", () => ({
   Outbox: vi.fn(),
 }));
 
-vi.mock("../grants/repositories/outbox.repository.js", () => ({
+vi.mock("./outbox.repository.js", () => ({
   insertMany: vi.fn(),
 }));
 

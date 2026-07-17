@@ -47,7 +47,9 @@ export const pmfAgreementDefinition = {
       {
         name: "snapshot",
         params: {
-          fundingCalculation: "$.outputs.fundingCalculation",
+          supplementaryData: {
+            fundingCalculation: "$.outputs.fundingCalculation",
+          },
         },
       },
     ],
@@ -70,19 +72,16 @@ export const pmfAgreementDefinition = {
             ],
           },
           effects: [
-            { name: "createPaymentClaim", output: "paymentClaim" },
             {
               name: "snapshot",
               params: {
                 acceptedAt: "$.executedAt",
-                claimId: "$.outputs.paymentClaim.claimId",
-                correlationId: "$.outputs.paymentClaim.correlationId",
-                originalInvoiceNumber:
-                  "$.outputs.paymentClaim.originalInvoiceNumber",
-                payment: "$.outputs.paymentClaim.payment",
               },
             },
-            { name: "publish", params: { event: "lifecycle" } },
+            {
+              name: "publish",
+              params: { event: "agreementStatusUpdated" },
+            },
           ],
         },
       },
