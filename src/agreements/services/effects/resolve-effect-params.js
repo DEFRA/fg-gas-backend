@@ -1,12 +1,7 @@
 import jsonata from "jsonata";
+import { isPlainObject } from "../../../common/is-plain-object.js";
 
 const isRef = (value) => typeof value === "string" && value.startsWith("$.");
-
-export const isPlainObject = (value) =>
-  value !== null &&
-  typeof value === "object" &&
-  !Array.isArray(value) &&
-  Object.getPrototypeOf(value) === Object.prototype;
 
 const resolveArray = (value, context) =>
   Promise.all(value.map((item) => resolveEffectParams(item, context)));

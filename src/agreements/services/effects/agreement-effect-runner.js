@@ -1,5 +1,5 @@
+import { isPlainObject } from "../../../common/is-plain-object.js";
 import { agreementEffectHandlers } from "./agreement-effect-handlers.js";
-import { isPlainObject } from "./resolve-effect-params.js";
 
 // Effect shape: { name, output?, params? }
 //   name   — selects the handler (owned by the runner)

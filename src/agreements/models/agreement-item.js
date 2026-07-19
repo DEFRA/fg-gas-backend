@@ -1,12 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { isPlainObject } from "../../common/is-plain-object.js";
 
 const snapshotFields = new Set(["acceptedAt", "supplementaryData"]);
-
-const isPlainObject = (value) =>
-  value !== null &&
-  typeof value === "object" &&
-  !Array.isArray(value) &&
-  Object.getPrototypeOf(value) === Object.prototype;
 
 const hasSnapshotField = (snapshot, field) => Object.hasOwn(snapshot, field);
 
