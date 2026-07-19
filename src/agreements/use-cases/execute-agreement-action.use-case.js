@@ -4,7 +4,6 @@ import { addEventsToOutbox } from "../../common/add-events-to-outbox.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementItem } from "../models/agreement-item.js";
 import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
 import {
   findVersionByActionIdempotencyKey,
   saveVersion,
@@ -16,18 +15,6 @@ import { loadCurrentAgreementContextByItem } from "./load-current-agreement-cont
 
 const MONGO_DUPLICATE_KEY_ERROR = 11000;
 
-const transitionCurrentItem = ({ currentAgreement, target, effectContext }) =>
-  currentAgreement.snapshot.items.map((item) => {
-    if (item.agreementItemId !== currentAgreement.item.agreementItemId) {
-      return item;
-    }
-
-    return new AgreementItem({
-      ...effectContext.item,
-      state: target,
-    });
-  });
-
 const buildNextVersion = ({
   currentAgreement,
   target,
@@ -37,13 +24,12 @@ const buildNextVersion = ({
   effectContext,
   executedAt,
 }) => {
-  const snapshot = new Agreement({
-    ...currentAgreement.snapshot,
-    items: transitionCurrentItem({
-      currentAgreement,
-      target,
-      effectContext,
-    }),
+  const transitionedItem = new AgreementItem({
+    ...effectContext.item,
+    state: target,
+  });
+  const snapshot = currentAgreement.snapshot.withUpdatedItem({
+    item: transitionedItem,
     updatedAt: executedAt,
   });
 

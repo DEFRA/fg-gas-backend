@@ -158,6 +158,7 @@ describe("executeAgreementActionUseCase", () => {
         state: "offered",
       }),
     ]);
+    expect(currentAgreement.snapshot.items[0].state).toBe("offered");
   });
 
   it("returns the configured page without recording a version when validation fails", async () => {

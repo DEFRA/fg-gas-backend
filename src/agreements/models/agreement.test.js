@@ -94,3 +94,45 @@ describe("Agreement.findItem", () => {
     );
   });
 });
+
+describe("Agreement.withUpdatedItem", () => {
+  it("returns a new Agreement with only the matching item replaced", () => {
+    const otherItem = {
+      ...item,
+      agreementItemId: "another-item-id",
+      clientRef: "another-client-ref",
+    };
+    const items = [item, otherItem];
+    const agreement = toAgreement({
+      items,
+      updatedAt: "2026-07-17T11:00:00.000Z",
+    });
+    const updatedItem = { ...item, state: "accepted" };
+
+    const result = agreement.withUpdatedItem({
+      item: updatedItem,
+      updatedAt: "2026-07-17T11:30:00.000Z",
+    });
+
+    expect(result).toBeInstanceOf(Agreement);
+    expect(result).not.toBe(agreement);
+    expect(result.items).toEqual([updatedItem, otherItem]);
+    expect(result.updatedAt).toBe("2026-07-17T11:30:00.000Z");
+    expect(agreement.items).toBe(items);
+    expect(agreement.items).toEqual([item, otherItem]);
+    expect(agreement.updatedAt).toBe("2026-07-17T11:00:00.000Z");
+  });
+
+  it("rejects an item that does not belong to the Agreement", () => {
+    const agreement = toAgreement();
+
+    expect(() =>
+      agreement.withUpdatedItem({
+        item: { ...item, agreementItemId: "unknown-item-id" },
+        updatedAt: "2026-07-17T11:30:00.000Z",
+      }),
+    ).toThrow(
+      'Agreement "PMF823153883" does not contain Agreement Item "unknown-item-id"',
+    );
+  });
+});

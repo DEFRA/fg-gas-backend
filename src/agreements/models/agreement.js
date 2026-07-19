@@ -61,6 +61,27 @@ export class Agreement {
     return this.#findReferencedItem(reference);
   }
 
+  withUpdatedItem({ item, updatedAt }) {
+    const itemIndex = (this.items ?? []).findIndex(
+      (candidate) => candidate.agreementItemId === item.agreementItemId,
+    );
+
+    if (itemIndex === -1) {
+      throw new Error(
+        `Agreement "${this.agreementNumber}" does not contain Agreement Item "${item.agreementItemId}"`,
+      );
+    }
+
+    const items = [...this.items];
+    items[itemIndex] = item;
+
+    return new Agreement({
+      ...this,
+      items,
+      updatedAt,
+    });
+  }
+
   #findReferencedItem(reference) {
     const matchesAgreement = [
       this.agreementNumber === reference.agreementNumber,
