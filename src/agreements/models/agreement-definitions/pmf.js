@@ -73,9 +73,17 @@ export const pmfAgreementDefinition = {
           },
           effects: [
             {
+              name: "calculateAgreementDates",
+              output: "agreementDates",
+              params: { durationMonths: 12 },
+            },
+            {
               name: "snapshot",
               params: {
                 acceptedAt: "$.executedAt",
+                supplementaryData: {
+                  agreementDates: "$.outputs.agreementDates",
+                },
               },
             },
             {

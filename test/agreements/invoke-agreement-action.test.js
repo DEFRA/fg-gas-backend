@@ -6,14 +6,18 @@ import { wreck } from "../helpers/wreck.js";
 const agreementNumber = "PMF823153884";
 const code = "pigs-might-fly";
 const clientRef = "xnp-rr3-nfb";
+const correlationId = "application-correlation-id";
 const sbi = "300000070";
 const agreementId = "invoke-agreement-action-id";
 const agreementItemId = "invoke-agreement-action-item-id";
+const agreementStatusUpdatedTopicArn =
+  "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo";
 
 const toItem = (state) => ({
   agreementItemId,
   agreementCode: code,
   clientRef,
+  correlationId,
   sourceSystem: "GAS",
   configVersion: "0.0.1",
   identifiers: { sbi },
@@ -206,6 +210,12 @@ describe("Agreement actions", () => {
             acceptedAt: expect.stringMatching(
               /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
             ),
+            supplementaryData: {
+              agreementDates: {
+                startDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+                endDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+              },
+            },
             state: "accepted",
           }),
         ],
@@ -215,29 +225,31 @@ describe("Agreement actions", () => {
       "supplementaryData.acceptedAt",
     );
 
-    const outboundEvent = await outbox.findOne({
+    const pdfEvent = await outbox.findOne({
+      target: agreementStatusUpdatedTopicArn,
       "event.data.agreementNumber": agreementNumber,
     });
-    expect(outboundEvent).toMatchObject({
-      target: env.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
+    expect(pdfEvent).toMatchObject({
+      target: agreementStatusUpdatedTopicArn,
       event: {
+        type: "io.onsite.agreement.status.updated",
         data: {
           agreementNumber,
+          agreementUrl: `http://host.docker.internal:3000/agreement/${agreementNumber}`,
           clientRef,
+          correlationId,
           code,
           version: 2,
           status: "accepted",
           date: storedVersions[1].snapshot.items[0].acceptedAt,
+          startDate:
+            storedVersions[1].snapshot.items[0].supplementaryData.agreementDates
+              .startDate,
+          endDate:
+            storedVersions[1].snapshot.items[0].supplementaryData.agreementDates
+              .endDate,
         },
       },
-    });
-    expect(outboundEvent.event.data).toEqual({
-      agreementNumber,
-      clientRef,
-      code,
-      version: 2,
-      status: "accepted",
-      date: storedVersions[1].snapshot.items[0].acceptedAt,
     });
 
     const redirected = await wreck.request("GET", res.headers.location);

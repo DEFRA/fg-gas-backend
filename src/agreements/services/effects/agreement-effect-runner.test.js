@@ -285,7 +285,7 @@ describe("runAgreementEffects", () => {
     });
   });
 
-  it("creates a payment-free outbound lifecycle event", async () => {
+  it("creates a legacy-compatible Agreement status event", async () => {
     const result = await runAgreementEffects(
       [
         {
@@ -307,13 +307,21 @@ describe("runAgreementEffects", () => {
     );
 
     expect(result.outboundEvents).toHaveLength(1);
-    expect(result.outboundEvents[0].event.data).toEqual({
-      agreementNumber: "PMF823153884",
-      clientRef: "xnp-rr3-nfb",
-      code: "pigs-might-fly",
-      version: 2,
-      status: "accepted",
-      date: "2026-07-17T11:29:00.000Z",
+    expect(result.outboundEvents[0]).toMatchObject({
+      target:
+        "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
+      event: {
+        type: "io.onsite.agreement.status.updated",
+        data: {
+          agreementNumber: "PMF823153884",
+          agreementUrl: "http://localhost:3000/agreement/PMF823153884",
+          clientRef: "xnp-rr3-nfb",
+          code: "pigs-might-fly",
+          version: 2,
+          status: "accepted",
+          date: "2026-07-17T11:29:00.000Z",
+        },
+      },
     });
   });
 

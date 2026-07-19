@@ -69,6 +69,7 @@ export class AgreementItem {
     clientRef,
     sourceSystem,
     configVersion,
+    correlationId,
     identifiers,
     payload,
     createdAt,
@@ -81,6 +82,7 @@ export class AgreementItem {
     this.clientRef = clientRef;
     this.sourceSystem = sourceSystem;
     this.configVersion = configVersion;
+    this.correlationId = correlationId;
     this.identifiers = identifiers;
     this.payload = payload;
     this.createdAt = createdAt;
@@ -104,6 +106,7 @@ export class AgreementItem {
       clientRef,
       sourceSystem,
       configVersion,
+      correlationId: randomUUID(),
       identifiers,
       payload,
       createdAt: new Date().toISOString(),

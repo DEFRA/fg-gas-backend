@@ -1,5 +1,5 @@
 import { MongoServerError } from "mongodb";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addEventsToOutbox } from "../../common/add-events-to-outbox.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
@@ -46,6 +46,7 @@ const agreement = new Agreement({
       agreementItemId: options.agreementItemId,
       agreementCode: reference.code,
       clientRef: reference.clientRef,
+      correlationId: "application-correlation-id",
       identifiers: { sbi: reference.sbi },
       configVersion: pmfAgreementDefinition.configVersion,
       state: "offered",
@@ -82,6 +83,10 @@ const duplicateKeyError = (keyPattern) =>
   });
 
 describe("executeAgreementActionUseCase", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     withTransaction.mockImplementation((callback) => callback(session));
@@ -93,6 +98,9 @@ describe("executeAgreementActionUseCase", () => {
   });
 
   it("records the accepted Agreement version and returns its current-page location", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T11:29:00.000Z"));
+
     const result = await executeAgreementActionUseCase(options);
 
     expect(result).toEqual({
@@ -116,13 +124,19 @@ describe("executeAgreementActionUseCase", () => {
       [
         {
           event: expect.objectContaining({
+            type: "io.onsite.agreement.status.updated",
             data: expect.objectContaining({
               agreementNumber: agreement.agreementNumber,
+              agreementUrl: "http://localhost:3000/agreement/PMF823153883",
+              correlationId: "application-correlation-id",
               status: "accepted",
               version: 2,
+              startDate: "2026-08-01",
+              endDate: "2027-07-31",
             }),
           }),
-          target: expect.any(String),
+          target:
+            "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
         },
       ],
       session,
@@ -132,6 +146,12 @@ describe("executeAgreementActionUseCase", () => {
       expect.objectContaining({
         agreementItemId: options.agreementItemId,
         state: "accepted",
+        supplementaryData: {
+          agreementDates: {
+            startDate: "2026-08-01",
+            endDate: "2027-07-31",
+          },
+        },
       }),
       expect.objectContaining({
         agreementItemId: "another-item-id",

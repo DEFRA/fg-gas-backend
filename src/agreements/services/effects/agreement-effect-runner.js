@@ -54,6 +54,40 @@ const publishEffectHandler = async (context, { params = {} }) => {
   };
 };
 
+const toDateOnly = (date) => date.toISOString().slice(0, 10);
+
+const firstDayOfNextMonth = (date) =>
+  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+
+const lastDayOfAgreement = (startDate, durationMonths) =>
+  new Date(
+    Date.UTC(
+      startDate.getUTCFullYear(),
+      startDate.getUTCMonth() + durationMonths,
+      0,
+    ),
+  );
+
+const calculateAgreementDatesEffectHandler = async (
+  context,
+  { params = {} },
+) => {
+  if (!Number.isInteger(params.durationMonths) || params.durationMonths < 1) {
+    throw new Error(
+      "Agreement date calculation requires a positive durationMonths",
+    );
+  }
+
+  const startDate = firstDayOfNextMonth(new Date(context.executedAt));
+
+  return {
+    output: {
+      startDate: toDateOnly(startDate),
+      endDate: toDateOnly(lastDayOfAgreement(startDate, params.durationMonths)),
+    },
+  };
+};
+
 // Effects may run inside a retryable MongoDB transaction callback. Direct
 // external calls must therefore be side-effect-free and safe to repeat;
 // durable external commands and events belong in the outbox.
@@ -61,6 +95,7 @@ export const agreementEffectHandlers = {
   snapshot: applyItemSnapshotEffect,
   publish: publishEffectHandler,
   callEndpoint: callEndpointEffectHandler,
+  calculateAgreementDates: calculateAgreementDatesEffectHandler,
 };
 
 // Plain-object context values (e.g. item) are merged key-by-key

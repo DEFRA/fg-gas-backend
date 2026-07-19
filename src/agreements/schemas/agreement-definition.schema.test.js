@@ -5,6 +5,11 @@ import { agreementDefinitionSchema } from "./agreement-definition.schema.js";
 const validate = (definition) =>
   agreementDefinitionSchema.validate(definition, { abortEarly: false });
 
+const getAcceptSnapshotEffect = (definition) =>
+  definition.states.offered.on.accept.effects.find(
+    (effect) => effect.name === "snapshot",
+  );
+
 describe("agreementDefinitionSchema", () => {
   it("validates a complete agreement definition", () => {
     const { error } = validate(pmfAgreementDefinition);
@@ -131,13 +136,13 @@ describe("agreementDefinitionSchema", () => {
 
   it("rejects the obsolete snapshot destination property", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.states.offered.on.accept.effects[0].destination = "item";
+    getAcceptSnapshotEffect(definition).destination = "item";
 
     const { error } = validate(definition);
 
     expect(error).toBeDefined();
     expect(error.details.map((d) => d.message).join(", ")).toMatch(
-      /"states.offered.on.accept.effects\[0\].destination" is not allowed/,
+      /effects\[\d+\]\.destination.*is not allowed/,
     );
   });
 
@@ -145,23 +150,20 @@ describe("agreementDefinitionSchema", () => {
     "rejects the unsupported top-level snapshot parameter %s",
     (field) => {
       const definition = structuredClone(pmfAgreementDefinition);
-      definition.states.offered.on.accept.effects[0].params[field] =
-        "$.outputs.value";
+      getAcceptSnapshotEffect(definition).params[field] = "$.outputs.value";
 
       const { error } = validate(definition);
 
       expect(error).toBeDefined();
       expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
-        new RegExp(
-          `states\\.offered\\.on\\.accept\\.effects\\[0\\]\\.params\\.${field}.*not allowed`,
-        ),
+        new RegExp(`params\\.${field}.*not allowed`),
       );
     },
   );
 
   it("allows arbitrary snapshot fields beneath supplementaryData", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.states.offered.on.accept.effects[0].params.supplementaryData = {
+    getAcceptSnapshotEffect(definition).params.supplementaryData = {
       schemeSpecificResult: "$.outputs.value",
     };
 
@@ -172,7 +174,7 @@ describe("agreementDefinitionSchema", () => {
 
   it("allows supplementaryData to be supplied by a resolved object reference", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.states.offered.on.accept.effects[0].params.supplementaryData =
+    getAcceptSnapshotEffect(definition).params.supplementaryData =
       "$.outputs.schemeData";
 
     const { error } = validate(definition);

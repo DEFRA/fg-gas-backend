@@ -1,11 +1,13 @@
-import { CloudEvent } from "../../common/cloud-event.js";
+import { randomUUID } from "node:crypto";
 
-export class AgreementStatusUpdatedEvent extends CloudEvent {
-  constructor({ agreementNumber, clientRef, code, version, status, date }) {
-    super(
-      "agreement.status.updated",
-      { agreementNumber, clientRef, code, version, status, date },
-      `${clientRef}-${code}`,
-    );
+export class AgreementStatusUpdatedEvent {
+  constructor(data) {
+    this.id = randomUUID();
+    this.source = "urn:service:agreement";
+    this.specversion = "1.0";
+    this.type = "io.onsite.agreement.status.updated";
+    this.time = new Date().toISOString();
+    this.datacontenttype = "application/json";
+    this.data = data;
   }
 }
