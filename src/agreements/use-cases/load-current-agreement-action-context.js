@@ -1,7 +1,6 @@
 import Boom from "@hapi/boom";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
-import { assertCurrentAgreementReference } from "./assert-current-agreement-reference.js";
-import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
+import { loadCurrentAgreementContextByItem } from "./load-current-agreement-context.js";
 
 export const resolveAgreementAction = (agreementDefinition, options) => {
   try {
@@ -19,26 +18,14 @@ export const loadCurrentAgreementActionContext = async ({
   actionName,
   agreementNumber,
   agreementItemId,
-  code,
-  clientRef,
-  sbi,
   session,
 }) => {
-  const identity = agreementItemId
-    ? { agreementNumber, agreementItemId }
-    : { code, clientRef, sbi };
-  const contextOptions = session ? { ...identity, session } : identity;
   const { currentAgreement, agreementDefinition } =
-    await loadCurrentAgreementContext(contextOptions);
-
-  if (!agreementItemId) {
-    assertCurrentAgreementReference(currentAgreement, {
+    await loadCurrentAgreementContextByItem({
       agreementNumber,
-      code,
-      clientRef,
-      sbi,
+      agreementItemId,
+      ...(session ? { session } : {}),
     });
-  }
 
   const action = resolveAgreementAction(agreementDefinition, {
     state: currentAgreement.state,

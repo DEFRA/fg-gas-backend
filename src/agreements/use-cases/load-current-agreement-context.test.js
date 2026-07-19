@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
-import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
+import {
+  loadCurrentAgreementContextByItem,
+  loadCurrentAgreementContextByReference,
+} from "./load-current-agreement-context.js";
 import {
   loadCurrentAgreement,
   loadCurrentAgreementByItem,
@@ -30,13 +33,13 @@ describe("loadCurrentAgreementContext", () => {
     loadAgreementDefinition.mockResolvedValue(agreementDefinition);
   });
 
-  it("loads the Agreement Definition matching the Current Agreement config version", async () => {
-    await expect(loadCurrentAgreementContext(request)).resolves.toEqual({
-      currentAgreement,
-      agreementDefinition,
-    });
+  it("loads by Agreement reference fields", async () => {
+    await expect(
+      loadCurrentAgreementContextByReference(request),
+    ).resolves.toEqual({ currentAgreement, agreementDefinition });
 
     expect(loadCurrentAgreement).toHaveBeenCalledWith(request);
+    expect(loadCurrentAgreementByItem).not.toHaveBeenCalled();
     expect(loadAgreementDefinition).toHaveBeenCalledWith({
       code: currentAgreement.code,
       configVersion: currentAgreement.configVersion,
@@ -50,12 +53,15 @@ describe("loadCurrentAgreementContext", () => {
       session: { id: "session" },
     };
 
-    await expect(loadCurrentAgreementContext(itemRequest)).resolves.toEqual({
-      currentAgreement,
-      agreementDefinition,
-    });
+    await expect(
+      loadCurrentAgreementContextByItem(itemRequest),
+    ).resolves.toEqual({ currentAgreement, agreementDefinition });
 
     expect(loadCurrentAgreementByItem).toHaveBeenCalledWith(itemRequest);
     expect(loadCurrentAgreement).not.toHaveBeenCalled();
+    expect(loadAgreementDefinition).toHaveBeenCalledWith({
+      code: currentAgreement.code,
+      configVersion: currentAgreement.configVersion,
+    });
   });
 });

@@ -13,7 +13,7 @@ import {
   saveVersion,
 } from "../repositories/agreement.repository.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
-import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
+import { loadCurrentAgreementContextByItem } from "./load-current-agreement-context.js";
 
 vi.mock("../../common/add-events-to-outbox.js");
 vi.mock("../../common/with-transaction.js");
@@ -90,7 +90,7 @@ describe("executeAgreementActionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     withTransaction.mockImplementation((callback) => callback(session));
-    loadCurrentAgreementContext.mockResolvedValue({
+    loadCurrentAgreementContextByItem.mockResolvedValue({
       agreementDefinition,
       currentAgreement,
     });
@@ -255,7 +255,7 @@ describe("executeAgreementActionUseCase", () => {
     withTransaction.mockRejectedValue(error);
 
     await expect(executeAgreementActionUseCase(options)).rejects.toBe(error);
-    expect(loadCurrentAgreementContext).not.toHaveBeenCalled();
+    expect(loadCurrentAgreementContextByItem).not.toHaveBeenCalled();
   });
 
   it("does not translate a non-Mongo error into a stale version response", async () => {
@@ -263,6 +263,6 @@ describe("executeAgreementActionUseCase", () => {
     withTransaction.mockRejectedValue(error);
 
     await expect(executeAgreementActionUseCase(options)).rejects.toBe(error);
-    expect(loadCurrentAgreementContext).not.toHaveBeenCalled();
+    expect(loadCurrentAgreementContextByItem).not.toHaveBeenCalled();
   });
 });

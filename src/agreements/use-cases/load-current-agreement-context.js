@@ -4,21 +4,7 @@ import {
   loadCurrentAgreementByItem,
 } from "./load-current-agreement.js";
 
-export const loadCurrentAgreementContext = async ({
-  agreementNumber,
-  agreementItemId,
-  code,
-  clientRef,
-  sbi,
-  session,
-}) => {
-  const currentAgreement = agreementItemId
-    ? await loadCurrentAgreementByItem({
-        agreementNumber,
-        agreementItemId,
-        session,
-      })
-    : await loadCurrentAgreement({ code, clientRef, sbi, session });
+const loadContext = async (currentAgreement) => {
   const agreementDefinition = await loadAgreementDefinition({
     code: currentAgreement.code,
     configVersion: currentAgreement.configVersion,
@@ -26,3 +12,24 @@ export const loadCurrentAgreementContext = async ({
 
   return { currentAgreement, agreementDefinition };
 };
+
+export const loadCurrentAgreementContextByReference = async ({
+  code,
+  clientRef,
+  sbi,
+  session,
+}) =>
+  loadContext(await loadCurrentAgreement({ code, clientRef, sbi, session }));
+
+export const loadCurrentAgreementContextByItem = async ({
+  agreementNumber,
+  agreementItemId,
+  session,
+}) =>
+  loadContext(
+    await loadCurrentAgreementByItem({
+      agreementNumber,
+      agreementItemId,
+      session,
+    }),
+  );

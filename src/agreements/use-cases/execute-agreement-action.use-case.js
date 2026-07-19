@@ -12,7 +12,7 @@ import {
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { resolveAgreementAction } from "./load-current-agreement-action-context.js";
-import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
+import { loadCurrentAgreementContextByItem } from "./load-current-agreement-context.js";
 
 const MONGO_DUPLICATE_KEY_ERROR = 11000;
 
@@ -113,7 +113,7 @@ const executeInTransaction = async ({
   session,
 }) => {
   const { currentAgreement, agreementDefinition } =
-    await loadCurrentAgreementContext({
+    await loadCurrentAgreementContextByItem({
       agreementNumber,
       agreementItemId,
       session,
@@ -198,7 +198,7 @@ export const executeAgreementActionUseCase = async (options) => {
       throw error;
     }
 
-    const { currentAgreement } = await loadCurrentAgreementContext({
+    const { currentAgreement } = await loadCurrentAgreementContextByItem({
       agreementNumber: options.agreementNumber,
       agreementItemId: options.agreementItemId,
     });
