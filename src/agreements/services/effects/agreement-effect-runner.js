@@ -1,7 +1,5 @@
-import { applyItemSnapshotEffect } from "../../use-cases/apply-item-snapshot-effect.js";
-import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
-import { createAgreementStatusUpdatedOutboundEvent } from "./create-agreement-status-updated-outbound-event.js";
-import { isPlainObject, resolveEffectParams } from "./resolve-effect-params.js";
+import { agreementEffectHandlers } from "./agreement-effect-handlers.js";
+import { isPlainObject } from "./resolve-effect-params.js";
 
 // Effect shape: { name, output?, params? }
 //   name   — selects the handler (owned by the runner)
@@ -14,90 +12,6 @@ import { isPlainObject, resolveEffectParams } from "./resolve-effect-params.js";
 //
 // context.outputs is frozen before each handler call; writing to it directly throws
 // a TypeError. Return { output: value } and set effect.output instead.
-const findEndpointConfig = (context, endpointCode) => {
-  const endpointConfig = context.endpoints?.find(
-    (candidate) => candidate.code === endpointCode,
-  );
-
-  if (!endpointConfig) {
-    throw new Error(`No endpoint configured for code "${endpointCode}"`);
-  }
-
-  return endpointConfig;
-};
-
-const callEndpointEffectHandler = async (context, { params = {} }) => {
-  const endpointConfig = findEndpointConfig(context, params.endpoint?.code);
-
-  const resolvedParams = await resolveEffectParams(
-    params.endpoint.endpointParams ?? {},
-    context,
-  );
-
-  const output = await callAgreementEndpoint(endpointConfig, resolvedParams);
-
-  return { output };
-};
-
-const publishEffectHandler = async (context, { params = {} }) => {
-  if (params.event !== "agreementStatusUpdated") {
-    throw new Error(`Unsupported Agreement publication: "${params.event}"`);
-  }
-
-  return {
-    context: {
-      outboundEvents: [
-        ...(context.outboundEvents ?? []),
-        createAgreementStatusUpdatedOutboundEvent(context),
-      ],
-    },
-  };
-};
-
-const toDateOnly = (date) => date.toISOString().slice(0, 10);
-
-const firstDayOfNextMonth = (date) =>
-  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
-
-const lastDayOfAgreement = (startDate, durationMonths) =>
-  new Date(
-    Date.UTC(
-      startDate.getUTCFullYear(),
-      startDate.getUTCMonth() + durationMonths,
-      0,
-    ),
-  );
-
-const calculateAgreementDatesEffectHandler = async (
-  context,
-  { params = {} },
-) => {
-  if (!Number.isInteger(params.durationMonths) || params.durationMonths < 1) {
-    throw new Error(
-      "Agreement date calculation requires a positive durationMonths",
-    );
-  }
-
-  const startDate = firstDayOfNextMonth(new Date(context.executedAt));
-
-  return {
-    output: {
-      startDate: toDateOnly(startDate),
-      endDate: toDateOnly(lastDayOfAgreement(startDate, params.durationMonths)),
-    },
-  };
-};
-
-// Effects may run inside a retryable MongoDB transaction callback. Direct
-// external calls must therefore be side-effect-free and safe to repeat;
-// durable external commands and events belong in the outbox.
-export const agreementEffectHandlers = {
-  snapshot: applyItemSnapshotEffect,
-  publish: publishEffectHandler,
-  callEndpoint: callEndpointEffectHandler,
-  calculateAgreementDates: calculateAgreementDatesEffectHandler,
-};
-
 // Plain-object context values (e.g. item) are merged key-by-key
 // rather than replaced wholesale, so multiple effects that each contribute to
 // the same context key (e.g. two item effects in one chain) accumulate

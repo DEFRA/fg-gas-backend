@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { agreementEffectHandlers } from "../services/effects/agreement-effect-runner.js";
+import { agreementEffectHandlers } from "../services/effects/agreement-effect-handlers.js";
 
 const supplementaryDataSnapshot = Joi.alternatives().try(
   Joi.object().unknown(true),
