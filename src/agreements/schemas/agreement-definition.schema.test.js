@@ -74,7 +74,7 @@ describe("agreementDefinitionSchema", () => {
 
     expect(error).toBeDefined();
     expect(error.details.map((d) => d.message).join(", ")).toMatch(
-      /"create.effects\[0\].name" is required/,
+      /"create.effects\[0].name" is required/,
     );
   });
 
@@ -98,7 +98,7 @@ describe("agreementDefinitionSchema", () => {
 
     expect(error).toBeDefined();
     expect(error.details.map((d) => d.message).join(", ")).toMatch(
-      /"pages.offered.components\[0\].component" is required/,
+      /"pages.offered.components\[0].component" is required/,
     );
   });
 
@@ -119,7 +119,7 @@ describe("agreementDefinitionSchema", () => {
 
     expect(error).toBeDefined();
     expect(error.details.map((d) => d.message).join(", ")).toMatch(
-      /"create.effects\[0\].name" must be one of/,
+      /"create.effects\[0].name" must be one of/,
     );
   });
 
@@ -134,7 +134,7 @@ describe("agreementDefinitionSchema", () => {
 
     expect(error).toBeDefined();
     expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
-      /effects\[0\]\.name.*must be one of \[snapshot, publish, callEndpoint\]/,
+      /effects\[0]\.name.*must be one of \[snapshot, publish, callEndpoint]/,
     );
   });
 
@@ -149,53 +149,12 @@ describe("agreementDefinitionSchema", () => {
     expect(error).toBeUndefined();
   });
 
-  it("rejects the obsolete snapshot destination property", () => {
+  it("allows arbitrary snapshot parameters", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    getAcceptSnapshotEffect(definition).destination = "item";
-
-    const { error } = validate(definition);
-
-    expect(error).toBeDefined();
-    expect(error.details.map((d) => d.message).join(", ")).toMatch(
-      /effects\[\d+\]\.destination.*is not allowed/,
-    );
-  });
-
-  it.each([
-    "state",
-    "agreementItemId",
-    "schemeSpecificResult",
-    "claimId",
-    "correlationId",
-    "originalInvoiceNumber",
-    "payment",
-  ])("rejects the unsupported top-level snapshot parameter %s", (field) => {
-    const definition = structuredClone(pmfAgreementDefinition);
-    getAcceptSnapshotEffect(definition).params[field] = "$.outputs.value";
-
-    const { error } = validate(definition);
-
-    expect(error).toBeDefined();
-    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
-      new RegExp(`params\\.${field}.*not allowed`),
-    );
-  });
-
-  it("allows arbitrary snapshot fields beneath supplementaryData", () => {
-    const definition = structuredClone(pmfAgreementDefinition);
-    getAcceptSnapshotEffect(definition).params.supplementaryData = {
+    getAcceptSnapshotEffect(definition).params = {
       schemeSpecificResult: "$.outputs.value",
+      nested: { value: "$.outputs.nested" },
     };
-
-    const { error } = validate(definition);
-
-    expect(error).toBeUndefined();
-  });
-
-  it("allows supplementaryData to be supplied by a resolved object reference", () => {
-    const definition = structuredClone(pmfAgreementDefinition);
-    getAcceptSnapshotEffect(definition).params.supplementaryData =
-      "$.outputs.schemeData";
 
     const { error } = validate(definition);
 
@@ -233,7 +192,7 @@ describe("agreementDefinitionSchema", () => {
 
     expect(error).toBeDefined();
     expect(error.details.map((d) => d.message).join(", ")).toMatch(
-      /"endpoints\[0\].service" is required/,
+      /"endpoints\[0].service" is required/,
     );
   });
 

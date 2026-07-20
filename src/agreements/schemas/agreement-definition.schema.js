@@ -2,29 +2,12 @@ import Joi from "joi";
 
 const effectNames = ["snapshot", "publish", "callEndpoint"];
 
-const resolvedObject = Joi.alternatives().try(
-  Joi.object().unknown(true),
-  Joi.string().pattern(/^\$\./),
-);
-
-const snapshotParams = Joi.object({
-  acceptedAt: Joi.string().optional(),
-  supplementaryData: resolvedObject.optional(),
-}).unknown(false);
-
-const effectParams = Joi.when("name", {
-  is: "snapshot",
-  then: snapshotParams.optional(),
-  otherwise: Joi.object().optional(),
-});
-
 const effect = Joi.object({
   name: Joi.string()
     .valid(...effectNames)
     .required(),
   output: Joi.string().optional(),
-  destination: Joi.forbidden(),
-  params: effectParams,
+  params: Joi.object().unknown(true).optional(),
 })
   .unknown(true)
   .label("Effect");
