@@ -2,11 +2,10 @@ import hapi from "@hapi/hapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import {
+  canHandleInternally,
   clearInternalMessageHandlers,
-  getInternalMessageHandler,
 } from "../common/internal-message-bus.js";
 import { agreements } from "./index.js";
-import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 
 describe("agreements", () => {
   afterEach(() => {
@@ -46,13 +45,22 @@ describe("agreements", () => {
     });
   });
 
-  it("registers the internal handler for agreement.create commands", async () => {
+  it("accepts create commands only for registered Agreement definitions", async () => {
     const server = hapi.server();
     await server.register(agreements);
 
     expect(
-      getInternalMessageHandler(internalCommandTypes.AGREEMENT_CREATE),
-    ).toBe(handleCreateAgreementCommandUseCase);
+      canHandleInternally({
+        type: internalCommandTypes.AGREEMENT_CREATE,
+        data: { code: "pigs-might-fly" },
+      }),
+    ).toBe(true);
+    expect(
+      canHandleInternally({
+        type: internalCommandTypes.AGREEMENT_CREATE,
+        data: { code: "farming-post-transition-tier" },
+      }),
+    ).toBe(false);
   });
 
   it("fails to register when a registered agreement definition's endpoint has no URL configured", async () => {

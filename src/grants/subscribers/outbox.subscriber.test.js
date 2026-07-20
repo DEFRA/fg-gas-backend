@@ -9,6 +9,10 @@ import {
   it,
   vi,
 } from "vitest";
+import {
+  canHandleInternally,
+  dispatchInternalMessage,
+} from "../../common/internal-message-bus.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import { Outbox } from "../models/outbox.js";
@@ -27,17 +31,13 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
-import {
-  dispatchInternally,
-  isInternalAgreementCommand,
-} from "../services/outbox-dispatch.service.js";
 import { OutboxSubscriber } from "./outbox.subscriber.js";
 
+vi.mock("../../common/internal-message-bus.js");
 vi.mock("../../common/sns-client.js");
 
 vi.mock("../repositories/fifo-lock.repository.js");
 vi.mock("../repositories/outbox.repository.js");
-vi.mock("../services/outbox-dispatch.service.js");
 
 const createOutbox = (doc) =>
   new Outbox({
@@ -56,7 +56,7 @@ describe("outbox.subscriber", () => {
     updateFailedEvents.mockResolvedValue({ modifiedCount: 1 });
     publish.mockResolvedValue(1);
     claimEvents.mockResolvedValue([]);
-    isInternalAgreementCommand.mockReturnValue(false);
+    canHandleInternally.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -225,8 +225,8 @@ describe("outbox.subscriber", () => {
   });
 
   it("delivers a configured internal Agreement command internally", async () => {
-    isInternalAgreementCommand.mockReturnValue(true);
-    dispatchInternally.mockResolvedValue();
+    canHandleInternally.mockReturnValue(true);
+    dispatchInternalMessage.mockResolvedValue();
 
     const mockEvent = {
       target: "arn:aws:sns:eu-west-2:000000000000:create-agreement-topic",
@@ -237,14 +237,14 @@ describe("outbox.subscriber", () => {
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
 
-    expect(dispatchInternally).toHaveBeenCalledWith(mockEvent.event);
+    expect(dispatchInternalMessage).toHaveBeenCalledWith(mockEvent.event);
     expect(publish).not.toHaveBeenCalled();
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
   it("marks an internal message as unsent if internal delivery fails", async () => {
-    isInternalAgreementCommand.mockReturnValue(true);
-    dispatchInternally.mockRejectedValue(new Error("handler failed"));
+    canHandleInternally.mockReturnValue(true);
+    dispatchInternalMessage.mockRejectedValue(new Error("handler failed"));
 
     const mockEvent = {
       target: "arn:aws:sns:eu-west-2:000000000000:create-agreement-topic",
@@ -274,7 +274,7 @@ describe("outbox.subscriber", () => {
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
 
-    expect(dispatchInternally).not.toHaveBeenCalled();
+    expect(dispatchInternalMessage).not.toHaveBeenCalled();
     expect(publish).toHaveBeenCalled();
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
@@ -291,7 +291,7 @@ describe("outbox.subscriber", () => {
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
 
-    expect(dispatchInternally).not.toHaveBeenCalled();
+    expect(dispatchInternalMessage).not.toHaveBeenCalled();
     expect(publish).toHaveBeenCalled();
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });

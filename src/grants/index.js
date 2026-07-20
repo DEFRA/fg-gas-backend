@@ -22,10 +22,10 @@ import { handleAgreementLifecycleEventUseCase } from "./use-cases/handle-agreeme
 export const grants = {
   name: "grants",
   async register(server) {
-    registerInternalMessageHandler(
-      internalEventTypes.AGREEMENT_STATUS_UPDATED,
-      handleAgreementLifecycleEventUseCase,
-    );
+    registerInternalMessageHandler({
+      type: internalEventTypes.AGREEMENT_STATUS_UPDATED,
+      handler: handleAgreementLifecycleEventUseCase,
+    });
 
     logger.info("Running migrations");
     const migrated = await up(db, mongoClient);

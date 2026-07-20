@@ -18,7 +18,10 @@ describe("Outbox internal delivery", () => {
 
   it("delivers an Agreement lifecycle event to Grants without publishing to SNS", async () => {
     const handler = vi.fn().mockResolvedValue();
-    registerInternalMessageHandler("agreement.status.updated", handler);
+    registerInternalMessageHandler({
+      type: "agreement.status.updated",
+      handler,
+    });
     const event = {
       type: "cloud.defra.local.fg-gas-backend.agreement.status.updated",
       data: {

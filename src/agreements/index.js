@@ -8,15 +8,19 @@ import { prepareAgreementActionRoute } from "./routes/prepare-agreement-action.r
 import { validateEndpointServiceUrls } from "./services/effects/resolve-endpoint-service-url.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 
+const canHandleCreateAgreementCommand = ({ data }) =>
+  agreementDefinitions.some(({ code }) => code === data?.code);
+
 export const agreements = {
   name: "agreements",
   register(server) {
     validateEndpointServiceUrls(agreementDefinitions);
 
-    registerInternalMessageHandler(
-      internalCommandTypes.AGREEMENT_CREATE,
-      handleCreateAgreementCommandUseCase,
-    );
+    registerInternalMessageHandler({
+      type: internalCommandTypes.AGREEMENT_CREATE,
+      handler: handleCreateAgreementCommandUseCase,
+      canHandle: canHandleCreateAgreementCommand,
+    });
 
     server.route([
       getCurrentAgreementRoute,

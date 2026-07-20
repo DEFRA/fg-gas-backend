@@ -3,8 +3,8 @@ import { up } from "migrate-mongo";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internalEventTypes } from "../common/internal-event-types.js";
 import {
+  canHandleInternally,
   clearInternalMessageHandlers,
-  getInternalMessageHandler,
 } from "../common/internal-message-bus.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
@@ -123,7 +123,10 @@ describe("grants", () => {
     await server.register(grants);
 
     expect(
-      getInternalMessageHandler(internalEventTypes.AGREEMENT_STATUS_UPDATED),
-    ).toEqual(expect.any(Function));
+      canHandleInternally({
+        type: internalEventTypes.AGREEMENT_STATUS_UPDATED,
+        data: {},
+      }),
+    ).toBe(true);
   });
 });

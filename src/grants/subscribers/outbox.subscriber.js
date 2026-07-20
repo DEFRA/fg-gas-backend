@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { config } from "../../common/config.js";
 import { getMessageGroupId } from "../../common/get-message-group-id.js";
+import {
+  canHandleInternally,
+  dispatchInternalMessage,
+} from "../../common/internal-message-bus.js";
 import { internalMessageTargets } from "../../common/internal-message-targets.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
@@ -22,15 +26,10 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
-import {
-  dispatchInternally,
-  isInternalAgreementCommand,
-} from "../services/outbox-dispatch.service.js";
-
 const internalTargets = new Set(Object.values(internalMessageTargets));
 
 const shouldDispatchInternally = ({ target, event }) =>
-  internalTargets.has(target) || isInternalAgreementCommand(event);
+  internalTargets.has(target) || canHandleInternally(event);
 
 export class OutboxSubscriber {
   static ACTOR = "OUTBOX";
@@ -160,7 +159,7 @@ export class OutboxSubscriber {
     try {
       if (shouldDispatchInternally(event)) {
         logger.info(`Deliver outbox event internally: ${data.type}`);
-        await dispatchInternally(data);
+        await dispatchInternalMessage(data);
       } else {
         logger.info(`Send outbox event to ${topic}`);
         await publish(
