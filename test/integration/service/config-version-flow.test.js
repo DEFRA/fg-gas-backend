@@ -42,6 +42,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      manifest: ["woodland/1.2.3/gas/gas.json", "woodland/1.2.3/metadata.json"],
     });
 
     const cvDoc = await configVersionsCol.findOne({
@@ -62,6 +63,7 @@ describe("config broker message flow", () => {
         grantCode: "woodland",
         version: "not-a-version",
         status: "active",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
 
@@ -76,6 +78,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "2.0.0",
       status: "active",
+      manifest: ["woodland/2.0.0/gas/gas.json", "woodland/2.0.0/metadata.json"],
     };
 
     await processConfigVersionUseCase(eventData);

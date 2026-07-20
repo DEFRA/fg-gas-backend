@@ -33,6 +33,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      manifest: ["woodland/1.2.3/gas/gas.json", "woodland/1.2.3/metadata.json"],
     });
 
     expect(mockUpsert).toHaveBeenCalledTimes(1);
@@ -53,6 +54,7 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         grantCode: "woodland",
         version: "1.0.0",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("invalid status");
   });
@@ -63,13 +65,18 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "published",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("invalid status");
   });
 
   it("should throw when grantCode is missing", async () => {
     await expect(
-      processConfigVersionUseCase({ version: "1.0.0", status: "active" }),
+      processConfigVersionUseCase({
+        version: "1.0.0",
+        status: "active",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
+      }),
     ).rejects.toThrow("missing required fields");
   });
 
@@ -78,8 +85,30 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         grantCode: "woodland",
         status: "active",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("missing required fields");
+  });
+
+  it("should throw when manifest is missing", async () => {
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.0.0",
+        status: "active",
+      }),
+    ).rejects.toThrow("manifest");
+  });
+
+  it("should throw when manifest is empty", async () => {
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.0.0",
+        status: "active",
+        manifest: [],
+      }),
+    ).rejects.toThrow("manifest");
   });
 
   it("should throw for invalid semver version", async () => {
@@ -88,6 +117,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "not-a-version",
         status: "active",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
   });
@@ -98,6 +128,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0-rc1",
         status: "active",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
   });
@@ -107,6 +138,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "2.0.0",
       status: "draft",
+      manifest: ["woodland/2.0.0/gas/gas.json"],
     });
 
     const arg = mockUpsert.mock.calls[0][0];
