@@ -17,14 +17,18 @@ import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
 import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
-import { handleAgreementLifecycleEventUseCase } from "./use-cases/handle-agreement-lifecycle-event.use-case.js";
+import {
+  messageSource,
+  saveInboxMessageUseCase,
+} from "./use-cases/save-inbox-message.use-case.js";
 
 export const grants = {
   name: "grants",
   async register(server) {
     registerInternalMessageHandler({
       type: internalEventTypes.AGREEMENT_STATUS_UPDATED,
-      handler: handleAgreementLifecycleEventUseCase,
+      handler: (event) =>
+        saveInboxMessageUseCase(event, messageSource.AgreementService),
     });
 
     logger.info("Running migrations");
