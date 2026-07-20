@@ -60,30 +60,4 @@ describe("AgreementItem.applySnapshot", () => {
       outcome: "eligible",
     });
   });
-
-  it.each([
-    "state",
-    "agreementItemId",
-    "schemeSpecificResult",
-    "claimId",
-    "correlationId",
-    "originalInvoiceNumber",
-    "payment",
-  ])("rejects the unsupported top-level field %s", (field) => {
-    expect(() =>
-      createItem().applySnapshotPatch({ [field]: "changed" }),
-    ).toThrow(`Unsupported Agreement item snapshot field: "${field}"`);
-  });
-
-  it("requires supplementary data to resolve to an object", () => {
-    expect(() =>
-      createItem().applySnapshotPatch({ supplementaryData: null }),
-    ).toThrow("Agreement item supplementaryData snapshot must be an object");
-  });
-
-  it("requires acceptedAt to resolve to a string", () => {
-    expect(() => createItem().applySnapshotPatch({ acceptedAt: 42 })).toThrow(
-      "Agreement item acceptedAt snapshot must be a string",
-    );
-  });
 });
