@@ -1,6 +1,6 @@
 import { up } from "migrate-mongo";
+import { internalEventTypes } from "../common/internal-event-types.js";
 import { registerInternalMessageHandler } from "../common/internal-message-bus.js";
-import { internalMessageTypes } from "../common/internal-message-types.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
 import { applicationStatusRoute } from "./routes/application-status.route.js";
@@ -23,7 +23,7 @@ export const grants = {
   name: "grants",
   async register(server) {
     registerInternalMessageHandler(
-      internalMessageTypes.AGREEMENT_STATUS_UPDATED,
+      internalEventTypes.AGREEMENT_STATUS_UPDATED,
       handleAgreementLifecycleEventUseCase,
     );
 

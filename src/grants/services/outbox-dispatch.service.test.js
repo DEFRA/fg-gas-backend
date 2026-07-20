@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { internalCommandTypes } from "../../common/internal-command-types.js";
+import { internalEventTypes } from "../../common/internal-event-types.js";
 import {
   clearInternalMessageHandlers,
   registerInternalMessageHandler,
 } from "../../common/internal-message-bus.js";
-import { internalMessageTypes } from "../../common/internal-message-types.js";
 import {
   dispatchInternally,
   isInternalAgreementCommand,
@@ -50,7 +51,7 @@ describe("outbox-dispatch.service", () => {
 
   describe("dispatchInternally", () => {
     it("throws when no handler is registered for agreement.create", async () => {
-      const event = { type: internalMessageTypes.AGREEMENT_CREATE, data: {} };
+      const event = { type: internalCommandTypes.AGREEMENT_CREATE, data: {} };
 
       await expect(dispatchInternally(event)).rejects.toThrow(
         'No internal message handler registered for "agreement.create"',
@@ -60,11 +61,11 @@ describe("outbox-dispatch.service", () => {
     it("invokes the registered handler, leaving it to manage its own transaction", async () => {
       const handler = vi.fn().mockResolvedValue();
       registerInternalMessageHandler(
-        internalMessageTypes.AGREEMENT_CREATE,
+        internalCommandTypes.AGREEMENT_CREATE,
         handler,
       );
       const event = {
-        type: internalMessageTypes.AGREEMENT_CREATE,
+        type: internalCommandTypes.AGREEMENT_CREATE,
         data: { code: "pigs-might-fly" },
       };
 
@@ -75,7 +76,10 @@ describe("outbox-dispatch.service", () => {
 
     it("routes an Agreement lifecycle event to its registered handler", async () => {
       const handler = vi.fn().mockResolvedValue();
-      registerInternalMessageHandler("agreement.status.updated", handler);
+      registerInternalMessageHandler(
+        internalEventTypes.AGREEMENT_STATUS_UPDATED,
+        handler,
+      );
       const event = {
         type: "cloud.defra.dev.fg-gas-backend.agreement.status.updated",
         data: { agreementNumber: "PMF823153884", status: "accepted" },

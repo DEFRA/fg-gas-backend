@@ -1,11 +1,12 @@
+import { internalCommandTypes } from "../../common/internal-command-types.js";
+import { internalEventTypes } from "../../common/internal-event-types.js";
 import { getInternalMessageHandler } from "../../common/internal-message-bus.js";
-import { internalMessageTypes } from "../../common/internal-message-types.js";
 
 const INTERNAL_AGREEMENT_CODES = ["pigs-might-fly"];
 
 const isCreateAgreementCommand = (event) =>
   typeof event.type === "string" &&
-  event.type.endsWith(`.${internalMessageTypes.AGREEMENT_CREATE}`);
+  event.type.endsWith(`.${internalCommandTypes.AGREEMENT_CREATE}`);
 
 export const isInternalAgreementCommand = (event) => {
   if (!isCreateAgreementCommand(event)) {
@@ -15,8 +16,13 @@ export const isInternalAgreementCommand = (event) => {
   return INTERNAL_AGREEMENT_CODES.includes(event.data?.code);
 };
 
+const internalMessageTypes = [
+  ...Object.values(internalCommandTypes),
+  ...Object.values(internalEventTypes),
+];
+
 const getInternalMessageType = (event) =>
-  Object.values(internalMessageTypes).find(
+  internalMessageTypes.find(
     (type) => event.type === type || event.type?.endsWith(`.${type}`),
   );
 

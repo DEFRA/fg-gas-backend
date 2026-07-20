@@ -1,10 +1,10 @@
 import hapi from "@hapi/hapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { internalCommandTypes } from "../common/internal-command-types.js";
 import {
   clearInternalMessageHandlers,
   getInternalMessageHandler,
 } from "../common/internal-message-bus.js";
-import { internalMessageTypes } from "../common/internal-message-types.js";
 import { agreements } from "./index.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 
@@ -51,7 +51,7 @@ describe("agreements", () => {
     await server.register(agreements);
 
     expect(
-      getInternalMessageHandler(internalMessageTypes.AGREEMENT_CREATE),
+      getInternalMessageHandler(internalCommandTypes.AGREEMENT_CREATE),
     ).toBe(handleCreateAgreementCommandUseCase);
   });
 
