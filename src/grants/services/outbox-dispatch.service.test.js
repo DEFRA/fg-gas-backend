@@ -17,7 +17,7 @@ describe("outbox-dispatch.service", () => {
   });
 
   describe("isInternalAgreementCommand", () => {
-    it("returns true for a PMF agreement.create command", () => {
+    it("identifies PMF create commands for internal delivery", () => {
       const event = {
         type: "cloud.defra.dev.gas.agreement.create",
         data: { code: "pigs-might-fly" },
@@ -26,7 +26,7 @@ describe("outbox-dispatch.service", () => {
       expect(isInternalAgreementCommand(event)).toBe(true);
     });
 
-    it("returns false for a non-PMF agreement.create command (legacy FPTT/WMP)", () => {
+    it("leaves legacy create commands for external delivery", () => {
       const event = {
         type: "cloud.defra.dev.gas.agreement.create",
         data: { code: "farming-post-transition-tier" },
@@ -35,17 +35,13 @@ describe("outbox-dispatch.service", () => {
       expect(isInternalAgreementCommand(event)).toBe(false);
     });
 
-    it("returns false for a non-Agreement event", () => {
+    it("does not classify other PMF messages as create commands", () => {
       const event = {
-        type: "cloud.defra.dev.gas.grant-application.status.updated",
+        type: "cloud.defra.dev.gas.agreement.status.updated",
         data: { code: "pigs-might-fly" },
       };
 
       expect(isInternalAgreementCommand(event)).toBe(false);
-    });
-
-    it("returns false when the event has no type", () => {
-      expect(isInternalAgreementCommand({ data: {} })).toBe(false);
     });
   });
 

@@ -224,7 +224,7 @@ describe("outbox.subscriber", () => {
     );
   });
 
-  it("delivers a configured internal Agreement command to the Agreements module and does not publish to SNS/SQS", async () => {
+  it("delivers a configured internal Agreement command internally", async () => {
     isInternalAgreementCommand.mockReturnValue(true);
     dispatchInternally.mockResolvedValue();
 
@@ -242,7 +242,7 @@ describe("outbox.subscriber", () => {
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
-  it("marks an internal command as unsent if internal delivery fails", async () => {
+  it("marks an internal message as unsent if internal delivery fails", async () => {
     isInternalAgreementCommand.mockReturnValue(true);
     dispatchInternally.mockRejectedValue(new Error("handler failed"));
 
@@ -259,8 +259,7 @@ describe("outbox.subscriber", () => {
     expect(mockEvent.markAsFailed).toHaveBeenCalled();
   });
 
-  it("still publishes legacy Agreement commands (FPTT/WMP) externally", async () => {
-    isInternalAgreementCommand.mockReturnValue(false);
+  it("publishes externally targeted legacy Agreement commands", async () => {
     publish.mockResolvedValue(1);
 
     const mockEvent = {
@@ -281,7 +280,6 @@ describe("outbox.subscriber", () => {
   });
 
   it("leaves non-Agreement outbox events unaffected (still publish externally)", async () => {
-    isInternalAgreementCommand.mockReturnValue(false);
     publish.mockResolvedValue(1);
 
     const mockEvent = {

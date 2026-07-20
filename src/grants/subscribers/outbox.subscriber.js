@@ -27,6 +27,11 @@ import {
   isInternalAgreementCommand,
 } from "../services/outbox-dispatch.service.js";
 
+const internalTargets = new Set(Object.values(internalMessageTargets));
+
+const shouldDispatchInternally = ({ target, event }) =>
+  internalTargets.has(target) || isInternalAgreementCommand(event);
+
 export class OutboxSubscriber {
   static ACTOR = "OUTBOX";
   asyncLocalStorage = new AsyncLocalStorage();
@@ -153,11 +158,8 @@ export class OutboxSubscriber {
       event: { messageGroupId },
     } = event;
     try {
-      if (isInternalAgreementCommand(data)) {
-        logger.info("Deliver outbox event internally to Agreements module");
-        await dispatchInternally(data);
-      } else if (topic === internalMessageTargets.GRANTS) {
-        logger.info("Deliver outbox event internally to Grants module");
+      if (shouldDispatchInternally(event)) {
+        logger.info(`Deliver outbox event to ${topic}`);
         await dispatchInternally(data);
       } else {
         logger.info(`Send outbox event to ${topic}`);
