@@ -159,7 +159,7 @@ export class OutboxSubscriber {
     } = event;
     try {
       if (shouldDispatchInternally(event)) {
-        logger.info(`Deliver outbox event to ${topic}`);
+        logger.info(`Deliver outbox event internally: ${data.type}`);
         await dispatchInternally(data);
       } else {
         logger.info(`Send outbox event to ${topic}`);
