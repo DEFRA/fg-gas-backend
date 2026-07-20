@@ -12,13 +12,14 @@ import {
   findVersionByActionIdempotencyKey,
   saveVersion,
 } from "../repositories/agreement.repository.js";
-import { agreementEffectHandlers } from "../services/effects/agreement-effect-handlers.js";
+import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementContextByItem } from "./load-current-agreement-context.js";
 
 vi.mock("../../common/add-events-to-outbox.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
+vi.mock("../services/effects/agreement-effect-runner.js");
 vi.mock("./load-current-agreement-context.js");
 
 const options = {
@@ -82,6 +83,34 @@ const duplicateKeyError = (keyPattern) =>
     keyPattern,
   });
 
+const runEffects = async (_effects, context) => ({
+  ...context,
+  item: {
+    ...context.item,
+    acceptedAt: context.executedAt,
+    claimId: "R00000001",
+    correlationId: "payment-correlation-id",
+    originalInvoiceNumber: "R00000001-V001Q1",
+    payment: { payments: [{ amount: 300 }] },
+  },
+  outboundEvents: [
+    {
+      event: {
+        type: "cloud.defra.local.fg-gas-backend.agreement.status.updated",
+        data: {
+          agreementNumber: context.agreement.agreementNumber,
+          clientRef: context.item.clientRef,
+          code: context.item.agreementCode,
+          version: context.version,
+          status: context.target,
+          date: context.executedAt,
+        },
+      },
+      target: "some:arn",
+    },
+  ],
+});
+
 describe("executeAgreementActionUseCase", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -95,14 +124,7 @@ describe("executeAgreementActionUseCase", () => {
       currentAgreement,
     });
     findVersionByActionIdempotencyKey.mockResolvedValue(null);
-    vi.spyOn(agreementEffectHandlers, "createPaymentClaim").mockResolvedValue({
-      output: {
-        claimId: "R00000001",
-        correlationId: "payment-correlation-id",
-        originalInvoiceNumber: "R00000001-V001Q1",
-        payment: { payments: [{ amount: 300 }] },
-      },
-    });
+    runAgreementEffects.mockImplementation(runEffects);
   });
 
   it("records the accepted Agreement version and returns its current-page location", async () => {
@@ -115,6 +137,15 @@ describe("executeAgreementActionUseCase", () => {
       location:
         "/agreements/PMF823153883?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069",
     });
+    expect(runAgreementEffects).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({
+        agreement: currentAgreement.snapshot,
+        item: currentAgreement.item,
+        target: "accepted",
+        version: 2,
+      }),
+    );
     expect(saveVersion).toHaveBeenCalledWith(
       expect.objectContaining({
         agreementId: agreement.id,

@@ -1,5 +1,11 @@
 import Joi from "joi";
-import { agreementEffectHandlers } from "../services/effects/agreement-effect-handlers.js";
+
+const effectNames = [
+  "snapshot",
+  "publish",
+  "callEndpoint",
+  "createPaymentClaim",
+];
 
 const resolvedObject = Joi.alternatives().try(
   Joi.object().unknown(true),
@@ -21,19 +27,17 @@ const effectParams = Joi.when("name", {
   otherwise: Joi.object().optional(),
 });
 
-const createEffectSchema = (handlerNames) =>
-  Joi.object({
-    name: Joi.string()
-      .valid(...handlerNames)
-      .required(),
-    output: Joi.string().optional(),
-    destination: Joi.forbidden(),
-    params: effectParams,
-  })
-    .unknown(true)
-    .label("Effect");
+const effect = Joi.object({
+  name: Joi.string()
+    .valid(...effectNames)
+    .required(),
+  output: Joi.string().optional(),
+  destination: Joi.forbidden(),
+  params: effectParams,
+})
+  .unknown(true)
+  .label("Effect");
 
-const effect = createEffectSchema(Object.keys(agreementEffectHandlers));
 const effects = Joi.array().items(effect).optional().label("Effects");
 
 const create = Joi.object({

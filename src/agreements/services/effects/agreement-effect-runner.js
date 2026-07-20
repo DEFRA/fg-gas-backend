@@ -1,5 +1,6 @@
-import { isPlainObject } from "../../../common/is-plain-object.js";
-import { agreementEffectHandlers } from "./agreement-effect-handlers.js";
+import { callEndpointEffect } from "./handlers/call-endpoint-effect.js";
+import { publishEffect } from "./handlers/publish-effect.js";
+import { snapshotEffect } from "./handlers/snapshot-effect.js";
 
 // Effect shape: { name, output?, params? }
 //   name   — selects the handler (owned by the runner)
@@ -10,29 +11,35 @@ import { agreementEffectHandlers } from "./agreement-effect-handlers.js";
 //   output  — stored at context.outputs[effect.output] when effect.output is set
 //   context — fields to merge into the context passed to the next effect
 //
-// context.outputs is frozen before each handler call; writing to it directly throws
-// a TypeError. Return { output: value } and set effect.output instead.
-// Plain-object context values (e.g. item) are merged key-by-key
-// rather than replaced wholesale, so multiple effects that each contribute to
-// the same context key (e.g. two item effects in one chain) accumulate
-// instead of the later one silently discarding the earlier one's fields.
-const mergeContextValue = (existing, incoming) =>
-  isPlainObject(existing) && isPlainObject(incoming)
-    ? { ...existing, ...incoming }
-    : incoming;
-
-const mergeContext = (context, contextPatch) => {
-  const mergedContext = { ...context };
-
-  for (const [key, value] of Object.entries(contextPatch)) {
-    mergedContext[key] = mergeContextValue(context[key], value);
-  }
-
-  return mergedContext;
+const createPaymentClaimEffect = async () => {
+  throw new Error("createPaymentClaim handler not yet implemented");
 };
 
-export const mergeEffectResult = (context, effect, result = {}) => ({
-  ...mergeContext(context, result.context ?? {}),
+// Effects may run inside a retryable MongoDB transaction callback. Direct
+// external calls must therefore be safe to repeat. Durable commands and events
+// belong in the outbox.
+const effectHandlers = {
+  snapshot: snapshotEffect,
+  publish: publishEffect,
+  callEndpoint: callEndpointEffect,
+  createPaymentClaim: createPaymentClaimEffect,
+};
+
+const getEffectHandler = (name) => {
+  const handler = effectHandlers[name];
+
+  if (!handler) {
+    throw new Error(
+      `Unsupported agreement effect: "${name}". Supported effects are: ${Object.keys(effectHandlers).join(", ")}`,
+    );
+  }
+
+  return handler;
+};
+
+const mergeEffectResult = (context, effect, result = {}) => ({
+  ...context,
+  ...(result.context ?? {}),
   outputs: {
     ...context.outputs,
     ...(effect.output !== undefined ? { [effect.output]: result.output } : {}),
@@ -40,25 +47,14 @@ export const mergeEffectResult = (context, effect, result = {}) => ({
 });
 
 export const runAgreementEffects = async (effects, context) => {
-  let currentContext = structuredClone({
+  let currentContext = {
     ...context,
-    outputs: context.outputs ?? {},
-  });
+    outputs: { ...(context.outputs ?? {}) },
+  };
 
   for (const effect of effects) {
-    const handler = agreementEffectHandlers[effect.name];
-
-    if (!handler) {
-      // using a plain Error instead of Hapi Boom.badImplementation as that will send
-      // "An internal server error occurred" to the logs rather than the actual error.
-      throw new Error(
-        `Unsupported agreement effect: "${effect.name}". Supported effects are: ${Object.keys(agreementEffectHandlers).join(", ")}`,
-      );
-    }
-
-    const handlerContext = structuredClone(currentContext);
-    handlerContext.outputs = Object.freeze(handlerContext.outputs);
-    const handlerResult = await handler(handlerContext, effect);
+    const handler = getEffectHandler(effect.name);
+    const handlerResult = await handler(currentContext, effect);
 
     currentContext = mergeEffectResult(currentContext, effect, handlerResult);
   }

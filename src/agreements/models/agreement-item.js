@@ -1,73 +1,48 @@
 import { randomUUID } from "node:crypto";
 import { isPlainObject } from "../../common/is-plain-object.js";
 
-const stringSnapshotFields = new Set([
-  "acceptedAt",
-  "claimId",
-  "correlationId",
-  "originalInvoiceNumber",
-]);
-const objectSnapshotFields = new Set(["payment"]);
-const snapshotFields = new Set([
-  ...stringSnapshotFields,
-  ...objectSnapshotFields,
-  "supplementaryData",
-]);
-
-const hasSnapshotField = (snapshot, field) => Object.hasOwn(snapshot, field);
-
-const assertSnapshotFields = (snapshot) => {
-  const unsupportedField = Object.keys(snapshot).find(
-    (field) => !snapshotFields.has(field),
-  );
-
-  if (unsupportedField) {
-    throw new Error(
-      `Unsupported Agreement item snapshot field: "${unsupportedField}"`,
-    );
-  }
+const stringSnapshotField = {
+  isValid: (value) => typeof value === "string",
+  expectedType: "a string",
+};
+const objectSnapshotField = {
+  isValid: isPlainObject,
+  expectedType: "an object",
 };
 
-const assertStringSnapshots = (snapshot) => {
-  for (const field of stringSnapshotFields) {
-    if (
-      hasSnapshotField(snapshot, field) &&
-      typeof snapshot[field] !== "string"
-    ) {
-      throw new TypeError(`Agreement item ${field} snapshot must be a string`);
-    }
-  }
+const snapshotFields = {
+  acceptedAt: stringSnapshotField,
+  claimId: stringSnapshotField,
+  correlationId: stringSnapshotField,
+  originalInvoiceNumber: stringSnapshotField,
+  payment: objectSnapshotField,
+  supplementaryData: objectSnapshotField,
 };
 
-const assertObjectSnapshots = (snapshot) => {
-  for (const field of objectSnapshotFields) {
-    if (hasSnapshotField(snapshot, field) && !isPlainObject(snapshot[field])) {
-      throw new TypeError(`Agreement item ${field} snapshot must be an object`);
-    }
-  }
-};
+const assertSnapshotField = ([name, value]) => {
+  const field = snapshotFields[name];
 
-const assertSupplementaryDataSnapshot = (snapshot) => {
-  if (!hasSnapshotField(snapshot, "supplementaryData")) {
-    return;
+  if (!field) {
+    throw new Error(`Unsupported Agreement item snapshot field: "${name}"`);
   }
 
-  if (!isPlainObject(snapshot.supplementaryData)) {
+  if (!field.isValid(value)) {
     throw new TypeError(
-      "Agreement item supplementaryData snapshot must be an object",
+      `Agreement item ${name} snapshot must be ${field.expectedType}`,
     );
   }
 };
+
+const assertSnapshotPatch = (snapshot) =>
+  Object.entries(snapshot).forEach(assertSnapshotField);
 
 const firstClassSnapshotPatch = (snapshot) =>
   Object.fromEntries(
-    [...stringSnapshotFields, ...objectSnapshotFields]
-      .filter((field) => hasSnapshotField(snapshot, field))
-      .map((field) => [field, snapshot[field]]),
+    Object.entries(snapshot).filter(([field]) => field !== "supplementaryData"),
   );
 
 const supplementaryDataPatch = (existing, snapshot) => {
-  if (!hasSnapshotField(snapshot, "supplementaryData")) {
+  if (!Object.hasOwn(snapshot, "supplementaryData")) {
     return {};
   }
 
@@ -137,10 +112,7 @@ export class AgreementItem {
   }
 
   applySnapshotPatch(snapshotPatch = {}) {
-    assertSnapshotFields(snapshotPatch);
-    assertStringSnapshots(snapshotPatch);
-    assertObjectSnapshots(snapshotPatch);
-    assertSupplementaryDataSnapshot(snapshotPatch);
+    assertSnapshotPatch(snapshotPatch);
 
     return new AgreementItem({
       ...this,
