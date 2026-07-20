@@ -1,6 +1,6 @@
 import { MongoServerError } from "mongodb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { addEventsToOutbox } from "../../common/add-events-to-outbox.js";
+import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import { pmfAgreementDefinition } from "../models/agreement-definitions/pmf.js";
@@ -16,7 +16,7 @@ import { runAgreementEffects } from "../services/effects/agreement-effect-runner
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementContextByItem } from "./load-current-agreement-context.js";
 
-vi.mock("../../common/add-events-to-outbox.js");
+vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("../services/effects/agreement-effect-runner.js");
@@ -93,7 +93,7 @@ const runEffects = async (_effects, context) => ({
     originalInvoiceNumber: "R00000001-V001Q1",
     payment: { payments: [{ amount: 300 }] },
   },
-  outboundEvents: [
+  outboxEvents: [
     {
       event: {
         type: "cloud.defra.local.fg-gas-backend.agreement.status.updated",
@@ -159,7 +159,7 @@ describe("executeAgreementActionUseCase", () => {
       }),
       session,
     );
-    expect(addEventsToOutbox).toHaveBeenCalledWith(
+    expect(saveOutboxEvents).toHaveBeenCalledWith(
       [
         {
           event: expect.objectContaining({

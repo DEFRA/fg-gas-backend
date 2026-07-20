@@ -4,7 +4,7 @@ import { config } from "../../../../common/config.js";
 const getLifecycleDate = (context) =>
   context.target === "accepted" ? context.item.acceptedAt : context.executedAt;
 
-const createLifecyclePublication = (context) => ({
+const createLifecycleOutboxEvent = (context) => ({
   event: new CloudEvent(
     "agreement.status.updated",
     {
@@ -22,14 +22,14 @@ const createLifecyclePublication = (context) => ({
 
 export const publishEffect = async (context, { params = {} }) => {
   if (params.event !== "lifecycle") {
-    throw new Error(`Unsupported Agreement publication: "${params.event}"`);
+    throw new Error(`Unsupported Agreement outbox event: "${params.event}"`);
   }
 
   return {
     context: {
-      outboundEvents: [
-        ...(context.outboundEvents ?? []),
-        createLifecyclePublication(context),
+      outboxEvents: [
+        ...(context.outboxEvents ?? []),
+        createLifecycleOutboxEvent(context),
       ],
     },
   };

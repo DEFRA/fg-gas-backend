@@ -1,8 +1,8 @@
 import { Outbox } from "./outbox.js";
 import { insertMany } from "./outbox.repository.js";
 
-export const addEventsToOutbox = async (outboundEvents = [], session) => {
-  const outboxEntries = outboundEvents.map(
+export const saveOutboxEvents = async (outboxEvents = [], session) => {
+  const outboxEntries = outboxEvents.map(
     ({ event, target }) =>
       new Outbox({
         event,

@@ -79,7 +79,7 @@ describe("runAgreementEffects", () => {
       [callEndpoint, snapshot, publish],
       createContext({
         outputs: { existing: "kept" },
-        outboundEvents: [existingEvent],
+        outboxEvents: [existingEvent],
       }),
     );
 
@@ -99,9 +99,9 @@ describe("runAgreementEffects", () => {
         calculatedPayment: paymentClaim.payment,
       },
     });
-    expect(result.outboundEvents).toHaveLength(2);
-    expect(result.outboundEvents[0]).toBe(existingEvent);
-    expect(result.outboundEvents[1]).toMatchObject({
+    expect(result.outboxEvents).toHaveLength(2);
+    expect(result.outboxEvents[0]).toBe(existingEvent);
+    expect(result.outboxEvents[1]).toMatchObject({
       target: "some:arn",
       event: {
         type: "cloud.defra.local.fg-gas-backend.agreement.status.updated",
@@ -136,13 +136,13 @@ describe("runAgreementEffects", () => {
     expect(callAgreementEndpoint).not.toHaveBeenCalled();
   });
 
-  it("rejects an unsupported publication", async () => {
+  it("rejects an unsupported outbox event", async () => {
     await expect(
       runAgreementEffects(
         [{ ...publish, params: { event: "unsupported" } }],
         createContext(),
       ),
-    ).rejects.toThrow('Unsupported Agreement publication: "unsupported"');
+    ).rejects.toThrow('Unsupported Agreement outbox event: "unsupported"');
   });
 
   it("rejects an unsupported effect before running later effects", async () => {

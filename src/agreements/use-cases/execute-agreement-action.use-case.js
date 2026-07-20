@@ -1,6 +1,6 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
-import { addEventsToOutbox } from "../../common/add-events-to-outbox.js";
+import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementItem } from "../models/agreement-item.js";
 import { AgreementVersion } from "../models/agreement-version.js";
@@ -160,7 +160,7 @@ const executeInTransaction = async ({
     }),
     session,
   );
-  await addEventsToOutbox(effectContext.outboundEvents, session);
+  await saveOutboxEvents(effectContext.outboxEvents, session);
 
   return { location };
 };
