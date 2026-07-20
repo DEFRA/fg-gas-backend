@@ -34,6 +34,15 @@ describe("outbox-dispatch.service", () => {
       expect(isInternalAgreementCommand(event)).toBe(false);
     });
 
+    it("returns true for an Agreement lifecycle event", () => {
+      const event = {
+        type: "cloud.defra.dev.gas.agreement.status.updated",
+        data: { code: "pigs-might-fly" },
+      };
+
+      expect(isInternalAgreementCommand(event)).toBe(true);
+    });
+
     it("returns false for a non-Agreement event", () => {
       const event = {
         type: "cloud.defra.dev.gas.grant-application.status.updated",
@@ -55,6 +64,22 @@ describe("outbox-dispatch.service", () => {
       await expect(dispatchInternally(event)).rejects.toThrow(
         'No internal command handler registered for "agreement.create"',
       );
+    });
+
+    it("dispatches an Agreement lifecycle event to its registered handler", async () => {
+      const handler = vi.fn().mockResolvedValue();
+      registerInternalCommandHandler(
+        internalCommandTypes.AGREEMENT_STATUS_UPDATED,
+        handler,
+      );
+      const event = {
+        type: "cloud.defra.dev.gas.agreement.status.updated",
+        data: { code: "pigs-might-fly" },
+      };
+
+      await dispatchInternally(event);
+
+      expect(handler).toHaveBeenCalledWith(event);
     });
 
     it("invokes the registered handler, leaving it to manage its own transaction", async () => {

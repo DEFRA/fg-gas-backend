@@ -1,3 +1,5 @@
+import { CloudEvent } from "../../../common/cloud-event.js";
+import { config } from "../../../common/config.js";
 import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
 import { isPlainObject, resolveEffectParams } from "./resolve-effect-params.js";
 
@@ -13,9 +15,17 @@ import { isPlainObject, resolveEffectParams } from "./resolve-effect-params.js";
 // context.outputs is frozen before each handler call; writing to it directly throws
 // a TypeError. Return { output: value } and set effect.output instead.
 const snapshotEffectHandler = async (context, { params = {} }) => {
-  const supplementaryData = await resolveEffectParams(params, context);
+  const snapshot = await resolveEffectParams(params, context);
 
-  return { context: { supplementaryData } };
+  if (!context.item) {
+    return { context: { supplementaryData: snapshot } };
+  }
+
+  return {
+    context: {
+      item: { ...context.item, ...snapshot },
+    },
+  };
 };
 
 const findEndpointConfig = (context, endpointCode) => {
@@ -43,21 +53,37 @@ const callEndpointEffectHandler = async (context, { params = {} }) => {
   return { output };
 };
 
-const createPaymentClaimEffectHandler = async (
-  _context,
-  { params: _params = {} },
-) => {
-  throw new Error("createPaymentClaim handler not yet implemented");
-};
+const publishEffectHandler = async (context, { params = {} }) => {
+  if (params.event !== "lifecycle") {
+    throw new Error(`Unsupported Agreement publication: "${params.event}"`);
+  }
 
-const publishEffectHandler = async (_context, { params: _params = {} }) => {
-  throw new Error("publish handler not yet implemented");
+  const event = new CloudEvent(
+    "agreement.status.updated",
+    {
+      agreementNumber: context.agreement.agreementNumber,
+      clientRef: context.item.clientRef,
+      code: context.item.agreementCode,
+      version: context.version,
+      status: context.target,
+      date: context.executedAt,
+    },
+    `${context.item.clientRef}-${context.item.agreementCode}`,
+  );
+
+  return {
+    context: {
+      outboundEvents: [
+        ...(context.outboundEvents ?? []),
+        { event, target: config.sns.updateAgreementStatusTopicArn },
+      ],
+    },
+  };
 };
 
 export const handlers = {
   snapshot: snapshotEffectHandler,
   callEndpoint: callEndpointEffectHandler,
-  createPaymentClaim: createPaymentClaimEffectHandler,
   publish: publishEffectHandler,
 };
 

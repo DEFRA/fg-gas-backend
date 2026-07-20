@@ -1,15 +1,31 @@
+import { createServer } from "node:http";
 import * as path from "node:path";
 import { styleText } from "node:util";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
 import { ensureQueues } from "./helpers/sqs.js";
 
 let environment;
+let fundingCalculator;
+
+const startFundingCalculator = () =>
+  new Promise((resolve) => {
+    fundingCalculator = createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          items: [{ description: "Large White", total: 32000 }],
+        }),
+      );
+    });
+    fundingCalculator.listen(4568, "0.0.0.0", resolve);
+  });
 
 export const setup = async ({ globalConfig }) => {
   const { env } = globalConfig;
 
   const composeFilePath = path.resolve(import.meta.dirname, "..");
 
+  await startFundingCalculator();
   environment = await new DockerComposeEnvironment(
     composeFilePath,
     "compose.yml",
@@ -22,6 +38,9 @@ export const setup = async ({ globalConfig }) => {
       OUTBOX_POLL_MS: env.OUTBOX_POLL_MS,
       INBOX_POLL_MS: env.INBOX_POLL_MS,
       GRANT_FUNDING_CALCULATOR_URL: env.GRANT_FUNDING_CALCULATOR_URL,
+      GAS__SNS__AUDIT_TOPIC_ARN: env.GAS__SNS__AUDIT_TOPIC_ARN,
+      GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
+        env.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
     })
     .withWaitStrategy("gas", Wait.forHttp("/health"))
     .withNoRecreate()
@@ -47,4 +66,12 @@ export const setup = async ({ globalConfig }) => {
 
 export const teardown = async () => {
   await environment?.down();
+  await new Promise((resolve) => {
+    if (!fundingCalculator) {
+      resolve();
+      return;
+    }
+
+    fundingCalculator.close(resolve);
+  });
 };

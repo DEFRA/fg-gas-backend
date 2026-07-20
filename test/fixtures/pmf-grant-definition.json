@@ -21,52 +21,36 @@
         "type": "object",
         "properties": {
           "isPigFarmer": {
-            "type": "boolean"
-          }
-        },
-        "required": ["isPigFarmer"],
-        "if": {
-          "properties": {
-            "isPigFarmer": {
-              "type": "boolean",
-              "const": true
-            }
-          }
-        },
-        "then": {
-          "properties": {
-            "totalPigs": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000
-            },
-            "whitePigsCount": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "britishLandracePigsCount": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "berkshirePigsCount": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "otherPigsCount": {
-              "type": "integer",
-              "minimum": 1
-            }
+            "type": "boolean",
+            "const": true
           },
-          "required": ["totalPigs"],
-          "fgSumEquals": {
-            "fields": [
-              "whitePigsCount",
-              "berkshirePigsCount",
-              "britishLandracePigsCount",
-              "otherPigsCount"
-            ],
-            "targetField": "totalPigs"
+          "totalPigs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "whitePigsCount": {
+            "type": "integer"
+          },
+          "britishLandracePigsCount": {
+            "type": "integer"
+          },
+          "berkshirePigsCount": {
+            "type": "integer"
+          },
+          "otherPigsCount": {
+            "type": "integer"
           }
+        },
+        "required": ["isPigFarmer", "totalPigs"],
+        "fgSumEquals": {
+          "fields": [
+            "whitePigsCount",
+            "berkshirePigsCount",
+            "britishLandracePigsCount",
+            "otherPigsCount"
+          ],
+          "targetField": "totalPigs"
         }
       },
       "stages": [
@@ -82,23 +66,100 @@
             {
               "code": "IN_REVIEW",
               "validFrom": [
-                { "code": "APPLICATION_RECEIVED", "processes": [] },
-                { "code": "APPLICATION_REJECTED", "processes": [] },
-                { "code": "ON_HOLD", "processes": [] }
+                {
+                  "code": "APPLICATION_RECEIVED",
+                  "processes": []
+                },
+                {
+                  "code": "APPLICATION_REJECTED",
+                  "processes": []
+                },
+                {
+                  "code": "ON_HOLD",
+                  "processes": []
+                }
+              ]
+            },
+            {
+              "code": "AGREEMENT_GENERATING",
+              "validFrom": [
+                {
+                  "code": "IN_REVIEW",
+                  "processes": ["GENERATE_OFFER"]
+                }
               ]
             },
             {
               "code": "ON_HOLD",
-              "validFrom": [{ "code": "IN_REVIEW", "processes": [] }]
+              "validFrom": [
+                {
+                  "code": "IN_REVIEW",
+                  "processes": []
+                }
+              ]
             },
             {
               "code": "APPLICATION_REJECTED",
-              "validFrom": [{ "code": "IN_REVIEW", "processes": [] }]
-            },
-            {
-              "code": "APPLICATION_APPROVED",
               "validFrom": [
-                { "code": "IN_REVIEW", "processes": ["GENERATE_OFFER"] }
+                {
+                  "code": "IN_REVIEW",
+                  "processes": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "REVIEW_OFFER",
+          "name": "Preparing Agreement",
+          "description": "Agreement document being drafted and made ready for the applicant",
+          "statuses": [
+            {
+              "code": "AGREEMENT_DRAFTED",
+              "validFrom": [
+                {
+                  "code": "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+                  "processes": ["STORE_AGREEMENT_CASE"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "CUSTOMER_AGREEMENT_REVIEW",
+          "name": "Agreement with Applicant",
+          "description": "Agreement is with the applicant, awaiting their response",
+          "statuses": [
+            {
+              "code": "AGREEMENT_OFFERED",
+              "validFrom": [
+                {
+                  "code": "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
+                  "processes": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "POST_AGREEMENT_MONITORING",
+      "name": "Post Agreement Monitoring",
+      "description": "Agreement has been accepted and is monitored",
+      "stages": [
+        {
+          "code": "MONITORING",
+          "name": "Monitoring",
+          "description": "Monitor accepted agreement",
+          "statuses": [
+            {
+              "code": "AGREEMENT_ACCEPTED",
+              "validFrom": [
+                {
+                  "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
+                  "processes": ["ACCEPT_AGREEMENT"]
+                }
               ]
             }
           ]
@@ -132,7 +193,57 @@
               {
                 "code": "PRE_AWARD:FINAL_REVIEW:APPLICATION_APPROVED",
                 "source": "CW",
-                "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_APPROVED"
+                "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING"
+              },
+              {
+                "code": "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING"
+              },
+              {
+                "code": "offered",
+                "source": "AS",
+                "mappedTo": "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED"
+              }
+            ]
+          },
+          {
+            "code": "REVIEW_OFFER",
+            "statuses": [
+              {
+                "code": "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED"
+              },
+              {
+                "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED"
+              }
+            ]
+          },
+          {
+            "code": "CUSTOMER_AGREEMENT_REVIEW",
+            "statuses": [
+              {
+                "code": "accepted",
+                "source": "AS",
+                "mappedTo": "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "code": "POST_AGREEMENT_MONITORING",
+        "stages": [
+          {
+            "code": "MONITORING",
+            "statuses": [
+              {
+                "code": "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
+                "source": "CW",
+                "mappedTo": "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED"
               }
             ]
           }

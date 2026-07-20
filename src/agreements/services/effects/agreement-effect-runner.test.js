@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { config } from "../../../common/config.js";
 import {
   handlers,
   mergeEffectResult,
@@ -25,6 +26,22 @@ describe("handlers", () => {
       const result = await handlers.snapshot({ outputs: {} }, {});
 
       expect(result).toEqual({ context: { supplementaryData: {} } });
+    });
+
+    it("applies resolved action facts to the Agreement Item", async () => {
+      const result = await handlers.snapshot(
+        {
+          executedAt: "2026-07-17T11:29:00.000Z",
+          item: { agreementItemId: "item-1", state: "offered" },
+        },
+        { params: { acceptedAt: "$.executedAt" } },
+      );
+
+      expect(result.context.item).toMatchObject({
+        agreementItemId: "item-1",
+        acceptedAt: "2026-07-17T11:29:00.000Z",
+        state: "offered",
+      });
     });
   });
 
@@ -76,16 +93,40 @@ describe("handlers", () => {
     });
   });
 
-  it("createPaymentClaim throws not-yet-implemented", async () => {
-    await expect(handlers.createPaymentClaim({}, {})).rejects.toThrow(
-      "createPaymentClaim handler not yet implemented",
+  it("creates a lifecycle publication intent", async () => {
+    const result = await handlers.publish(
+      {
+        agreement: { agreementNumber: "PMF123" },
+        item: {
+          clientRef: "client-1",
+          agreementCode: "pigs-might-fly",
+        },
+        version: 2,
+        target: "accepted",
+        executedAt: "2026-07-17T11:29:00.000Z",
+      },
+      { params: { event: "lifecycle" } },
     );
-  });
 
-  it("publish throws not-yet-implemented", async () => {
-    await expect(handlers.publish({}, {})).rejects.toThrow(
-      "publish handler not yet implemented",
-    );
+    expect(result).toMatchObject({
+      context: {
+        outboundEvents: [
+          {
+            target: config.sns.updateAgreementStatusTopicArn,
+            event: {
+              data: {
+                agreementNumber: "PMF123",
+                clientRef: "client-1",
+                code: "pigs-might-fly",
+                version: 2,
+                status: "accepted",
+                date: "2026-07-17T11:29:00.000Z",
+              },
+            },
+          },
+        ],
+      },
+    });
   });
 });
 
@@ -158,7 +199,7 @@ describe("mergeEffectResult", () => {
       agreementId: "agr-123",
       outputs: { snapshotId: "snap-1" },
     };
-    const effect = { name: "createPaymentClaim", output: "paymentClaim" };
+    const effect = { name: "callEndpoint", output: "paymentClaim" };
     const result = {
       output: { amount: 500 },
       context: { publication: { id: "pub-1" } },
@@ -241,12 +282,12 @@ describe("runAgreementEffects", () => {
   });
 
   it("stores handler output at context.outputs[effect.output] when effect.output is set", async () => {
-    vi.spyOn(handlers, "createPaymentClaim").mockResolvedValue({
+    vi.spyOn(handlers, "callEndpoint").mockResolvedValue({
       output: { amount: 500 },
     });
 
     const result = await runAgreementEffects(
-      [{ name: "createPaymentClaim", output: "fundingCalculation" }],
+      [{ name: "callEndpoint", output: "fundingCalculation" }],
       {},
     );
 
@@ -255,14 +296,14 @@ describe("runAgreementEffects", () => {
 
   it("keeps existing outputs intact when adding a new named output", async () => {
     vi.spyOn(handlers, "snapshot").mockResolvedValue({ output: "snap-data" });
-    vi.spyOn(handlers, "createPaymentClaim").mockResolvedValue({
+    vi.spyOn(handlers, "callEndpoint").mockResolvedValue({
       output: { amount: 500 },
     });
 
     const result = await runAgreementEffects(
       [
         { name: "snapshot", output: "snapshotResult" },
-        { name: "createPaymentClaim", output: "fundingCalculation" },
+        { name: "callEndpoint", output: "fundingCalculation" },
       ],
       {},
     );

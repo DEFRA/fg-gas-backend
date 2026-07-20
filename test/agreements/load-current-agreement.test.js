@@ -21,7 +21,7 @@ const toItem = (state) => ({
   agreementCode: code,
   clientRef,
   sourceSystem: "GAS",
-  configVersion: "0.0.1",
+  configVersion: "1.0.1",
   identifiers: { sbi },
   payload: {},
   createdAt: "2026-07-14T12:00:00.000Z",

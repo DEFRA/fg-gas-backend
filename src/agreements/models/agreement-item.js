@@ -10,6 +10,7 @@ export class AgreementItem {
     identifiers,
     payload,
     createdAt,
+    acceptedAt,
     state,
     supplementaryData,
   }) {
@@ -21,6 +22,7 @@ export class AgreementItem {
     this.identifiers = identifiers;
     this.payload = payload;
     this.createdAt = createdAt;
+    this.acceptedAt = acceptedAt;
     this.state = state;
     this.supplementaryData = supplementaryData;
   }
