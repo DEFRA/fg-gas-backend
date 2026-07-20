@@ -1,9 +1,6 @@
 import { CloudEvent } from "../../../../common/cloud-event.js";
 import { internalMessageTargets } from "../../../../common/internal-message-targets.js";
 
-const getLifecycleDate = (context) =>
-  context.target === "accepted" ? context.item.acceptedAt : context.executedAt;
-
 const createLifecycleOutboxEvent = (context) => ({
   event: new CloudEvent(
     "agreement.status.updated",
@@ -13,7 +10,7 @@ const createLifecycleOutboxEvent = (context) => ({
       code: context.item.agreementCode,
       version: context.version,
       status: context.target,
-      date: getLifecycleDate(context),
+      date: context.executedAt,
     },
     `${context.item.clientRef}-${context.item.agreementCode}`,
   ),
