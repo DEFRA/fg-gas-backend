@@ -1,14 +1,18 @@
 import Joi from "joi";
 import { agreementEffectHandlers } from "../services/effects/agreement-effect-handlers.js";
 
-const supplementaryDataSnapshot = Joi.alternatives().try(
+const resolvedObject = Joi.alternatives().try(
   Joi.object().unknown(true),
   Joi.string().pattern(/^\$\./),
 );
 
 const snapshotParams = Joi.object({
   acceptedAt: Joi.string().optional(),
-  supplementaryData: supplementaryDataSnapshot.optional(),
+  claimId: Joi.string().optional(),
+  correlationId: Joi.string().optional(),
+  originalInvoiceNumber: Joi.string().optional(),
+  payment: resolvedObject.optional(),
+  supplementaryData: resolvedObject.optional(),
 }).unknown(false);
 
 const effectParams = Joi.when("name", {

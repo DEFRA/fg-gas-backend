@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { isPlainObject } from "../../common/is-plain-object.js";
 
-const snapshotFields = new Set(["acceptedAt", "supplementaryData"]);
+const stringSnapshotFields = new Set([
+  "acceptedAt",
+  "claimId",
+  "correlationId",
+  "originalInvoiceNumber",
+]);
+const objectSnapshotFields = new Set(["payment"]);
+const snapshotFields = new Set([
+  ...stringSnapshotFields,
+  ...objectSnapshotFields,
+  "supplementaryData",
+]);
 
 const hasSnapshotField = (snapshot, field) => Object.hasOwn(snapshot, field);
 
@@ -17,13 +28,22 @@ const assertSnapshotFields = (snapshot) => {
   }
 };
 
-const assertAcceptedAtSnapshot = (snapshot) => {
-  if (!hasSnapshotField(snapshot, "acceptedAt")) {
-    return;
+const assertStringSnapshots = (snapshot) => {
+  for (const field of stringSnapshotFields) {
+    if (
+      hasSnapshotField(snapshot, field) &&
+      typeof snapshot[field] !== "string"
+    ) {
+      throw new TypeError(`Agreement item ${field} snapshot must be a string`);
+    }
   }
+};
 
-  if (typeof snapshot.acceptedAt !== "string") {
-    throw new TypeError("Agreement item acceptedAt snapshot must be a string");
+const assertObjectSnapshots = (snapshot) => {
+  for (const field of objectSnapshotFields) {
+    if (hasSnapshotField(snapshot, field) && !isPlainObject(snapshot[field])) {
+      throw new TypeError(`Agreement item ${field} snapshot must be an object`);
+    }
   }
 };
 
@@ -39,10 +59,12 @@ const assertSupplementaryDataSnapshot = (snapshot) => {
   }
 };
 
-const acceptedAtPatch = (snapshot) =>
-  hasSnapshotField(snapshot, "acceptedAt")
-    ? { acceptedAt: snapshot.acceptedAt }
-    : {};
+const firstClassSnapshotPatch = (snapshot) =>
+  Object.fromEntries(
+    [...stringSnapshotFields, ...objectSnapshotFields]
+      .filter((field) => hasSnapshotField(snapshot, field))
+      .map((field) => [field, snapshot[field]]),
+  );
 
 const supplementaryDataPatch = (existing, snapshot) => {
   if (!hasSnapshotField(snapshot, "supplementaryData")) {
@@ -64,11 +86,14 @@ export class AgreementItem {
     clientRef,
     sourceSystem,
     configVersion,
-    correlationId,
     identifiers,
     payload,
     createdAt,
     acceptedAt,
+    claimId,
+    correlationId,
+    originalInvoiceNumber,
+    payment,
     state,
     supplementaryData,
   }) {
@@ -77,11 +102,14 @@ export class AgreementItem {
     this.clientRef = clientRef;
     this.sourceSystem = sourceSystem;
     this.configVersion = configVersion;
-    this.correlationId = correlationId;
     this.identifiers = identifiers;
     this.payload = payload;
     this.createdAt = createdAt;
     this.acceptedAt = acceptedAt;
+    this.claimId = claimId;
+    this.correlationId = correlationId;
+    this.originalInvoiceNumber = originalInvoiceNumber;
+    this.payment = payment;
     this.state = state;
     this.supplementaryData = supplementaryData;
   }
@@ -101,7 +129,6 @@ export class AgreementItem {
       clientRef,
       sourceSystem,
       configVersion,
-      correlationId: randomUUID(),
       identifiers,
       payload,
       createdAt: new Date().toISOString(),
@@ -111,12 +138,13 @@ export class AgreementItem {
 
   applySnapshotPatch(snapshotPatch = {}) {
     assertSnapshotFields(snapshotPatch);
-    assertAcceptedAtSnapshot(snapshotPatch);
+    assertStringSnapshots(snapshotPatch);
+    assertObjectSnapshots(snapshotPatch);
     assertSupplementaryDataSnapshot(snapshotPatch);
 
     return new AgreementItem({
       ...this,
-      ...acceptedAtPatch(snapshotPatch),
+      ...firstClassSnapshotPatch(snapshotPatch),
       ...supplementaryDataPatch(this.supplementaryData, snapshotPatch),
     });
   }

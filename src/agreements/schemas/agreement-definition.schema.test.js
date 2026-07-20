@@ -161,6 +161,21 @@ describe("agreementDefinitionSchema", () => {
     },
   );
 
+  it("allows known payment fields in an item snapshot", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    getAcceptSnapshotEffect(definition).params = {
+      acceptedAt: "$.executedAt",
+      claimId: "$.outputs.paymentClaim.claimId",
+      correlationId: "$.outputs.paymentClaim.correlationId",
+      originalInvoiceNumber: "$.outputs.paymentClaim.originalInvoiceNumber",
+      payment: "$.outputs.paymentClaim.payment",
+    };
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
   it("allows arbitrary snapshot fields beneath supplementaryData", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     getAcceptSnapshotEffect(definition).params.supplementaryData = {

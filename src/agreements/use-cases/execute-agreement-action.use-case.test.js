@@ -12,6 +12,7 @@ import {
   findVersionByActionIdempotencyKey,
   saveVersion,
 } from "../repositories/agreement.repository.js";
+import { agreementEffectHandlers } from "../services/effects/agreement-effect-handlers.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementContextByItem } from "./load-current-agreement-context.js";
 
@@ -46,7 +47,6 @@ const agreement = new Agreement({
       agreementItemId: options.agreementItemId,
       agreementCode: reference.code,
       clientRef: reference.clientRef,
-      correlationId: "application-correlation-id",
       identifiers: { sbi: reference.sbi },
       configVersion: pmfAgreementDefinition.configVersion,
       state: "offered",
@@ -95,6 +95,14 @@ describe("executeAgreementActionUseCase", () => {
       currentAgreement,
     });
     findVersionByActionIdempotencyKey.mockResolvedValue(null);
+    vi.spyOn(agreementEffectHandlers, "createPaymentClaim").mockResolvedValue({
+      output: {
+        claimId: "R00000001",
+        correlationId: "payment-correlation-id",
+        originalInvoiceNumber: "R00000001-V001Q1",
+        payment: { payments: [{ amount: 300 }] },
+      },
+    });
   });
 
   it("records the accepted Agreement version and returns its current-page location", async () => {
@@ -124,19 +132,17 @@ describe("executeAgreementActionUseCase", () => {
       [
         {
           event: expect.objectContaining({
-            type: "io.onsite.agreement.status.updated",
-            data: expect.objectContaining({
+            type: "cloud.defra.local.fg-gas-backend.agreement.status.updated",
+            data: {
               agreementNumber: agreement.agreementNumber,
-              agreementUrl: "http://localhost:3000/agreement/PMF823153883",
-              correlationId: "application-correlation-id",
+              clientRef: reference.clientRef,
+              code: reference.code,
               status: "accepted",
               version: 2,
-              startDate: "2026-08-01",
-              endDate: "2027-07-31",
-            }),
+              date: "2026-07-17T11:29:00.000Z",
+            },
           }),
-          target:
-            "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
+          target: "some:arn",
         },
       ],
       session,
@@ -146,12 +152,11 @@ describe("executeAgreementActionUseCase", () => {
       expect.objectContaining({
         agreementItemId: options.agreementItemId,
         state: "accepted",
-        supplementaryData: {
-          agreementDates: {
-            startDate: "2026-08-01",
-            endDate: "2027-07-31",
-          },
-        },
+        acceptedAt: "2026-07-17T11:29:00.000Z",
+        claimId: "R00000001",
+        correlationId: "payment-correlation-id",
+        originalInvoiceNumber: "R00000001-V001Q1",
+        payment: { payments: [{ amount: 300 }] },
       }),
       expect.objectContaining({
         agreementItemId: "another-item-id",

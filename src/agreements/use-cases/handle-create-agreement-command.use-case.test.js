@@ -103,13 +103,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
       payload: command.data.answers,
       state: "offered",
     });
-    expect(agreement.items[0].correlationId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
-    expect(agreement.items[0].correlationId).not.toBe(
-      command.data.metadata.correlationId,
-    );
-
     expect(saveVersion).toHaveBeenCalledWith(
       expect.objectContaining({
         agreementId: agreement.id,
@@ -119,7 +112,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
           items: [
             expect.objectContaining({
               agreementCode: "pigs-might-fly",
-              correlationId: agreement.items[0].correlationId,
               state: "offered",
               supplementaryData: undefined,
             }),
@@ -230,28 +222,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
       configVersion: undefined,
     });
     expect(agreement.items[0].configVersion).toBe("0.0.1");
-  });
-
-  it("creates a correlation ID when the command does not supply one", async () => {
-    const commandWithoutCorrelationId = {
-      data: {
-        ...command.data,
-        metadata: { configVersion: "0.0.1" },
-      },
-    };
-    findByClientRefAndCode.mockResolvedValue(null);
-    loadAgreementDefinition.mockResolvedValue(
-      new AgreementDefinition(pmfDefinition),
-    );
-    generateAgreementNumber.mockReturnValue("PMF823153883");
-
-    const agreement = await handleCreateAgreementCommandUseCase(
-      commandWithoutCorrelationId,
-    );
-
-    expect(agreement.items[0].correlationId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
   });
 
   it("throws Boom.badImplementation for an unavailable agreement definition", async () => {

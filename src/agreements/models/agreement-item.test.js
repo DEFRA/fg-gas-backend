@@ -32,6 +32,22 @@ describe("AgreementItem.applySnapshot", () => {
     expect(item.acceptedAt).toBeUndefined();
   });
 
+  it("applies known payment fields as first-class Agreement item data", () => {
+    const result = createItem().applySnapshotPatch({
+      claimId: "R00000001",
+      correlationId: "payment-correlation-id",
+      originalInvoiceNumber: "R00000001-V001Q1",
+      payment: { payments: [{ amount: 300 }] },
+    });
+
+    expect(result).toMatchObject({
+      claimId: "R00000001",
+      correlationId: "payment-correlation-id",
+      originalInvoiceNumber: "R00000001-V001Q1",
+      payment: { payments: [{ amount: 300 }] },
+    });
+  });
+
   it("preserves supplementary siblings while replacing configured field values", () => {
     const result = createItem().applySnapshotPatch({
       supplementaryData: {
@@ -79,6 +95,12 @@ describe("AgreementItem.applySnapshot", () => {
   it("requires acceptedAt to resolve to a string", () => {
     expect(() => createItem().applySnapshotPatch({ acceptedAt: 42 })).toThrow(
       "Agreement item acceptedAt snapshot must be a string",
+    );
+  });
+
+  it("requires payment to resolve to an object", () => {
+    expect(() => createItem().applySnapshotPatch({ payment: [] })).toThrow(
+      "Agreement item payment snapshot must be an object",
     );
   });
 });

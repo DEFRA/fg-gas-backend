@@ -40,10 +40,7 @@ export default defineConfig({
       GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: "some:arn",
       GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: "some:arn",
       GAS__SNS__UPDATE_CASE_STATUS_TOPIC_ARN: "some:arn",
-      GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
       GRANT_FUNDING_CALCULATOR_URL: "http://grant-funding-calculator.test",
-      VIEW_AGREEMENT_URI: "http://localhost:3000/agreement",
     },
   },
 });

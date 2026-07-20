@@ -41,8 +41,6 @@ const schema = Joi.object({
   GAS__SQS__UPDATE_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional(),
-  GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
-  VIEW_AGREEMENT_URI: Joi.string().uri().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -74,7 +72,6 @@ export const config = {
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
   cdpEnvironment: vars.ENVIRONMENT,
-  viewAgreementUri: vars.VIEW_AGREEMENT_URI,
   outbox: {
     outboxMaxRetries: vars.OUTBOX_MAX_RETRIES,
     outboxExpiresMs: vars.OUTBOX_EXPIRES_MS,
@@ -91,8 +88,6 @@ export const config = {
     ttlMs: vars.FIFO_LOCK_TTL_MS,
   },
   sns: {
-    agreementStatusUpdatedTopicArn:
-      vars.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN,
     updateAgreementStatusTopicArn:
       vars.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
     createAgreementTopicArn: vars.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,

@@ -14,20 +14,18 @@ const context = {
 };
 
 describe("publishEffect", () => {
-  it("creates a legacy-compatible Agreement status event", async () => {
+  it("creates a payment-free Agreement lifecycle event", async () => {
     const result = await publishEffect(context, {
-      params: { event: "agreementStatusUpdated" },
+      params: { event: "lifecycle" },
     });
 
     expect(result.context.outboundEvents).toHaveLength(1);
     expect(result.context.outboundEvents[0]).toMatchObject({
-      target:
-        "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
+      target: "some:arn",
       event: {
-        type: "io.onsite.agreement.status.updated",
+        type: "cloud.defra.local.fg-gas-backend.agreement.status.updated",
         data: {
           agreementNumber: "PMF823153884",
-          agreementUrl: "http://localhost:3000/agreement/PMF823153884",
           clientRef: "xnp-rr3-nfb",
           code: "pigs-might-fly",
           version: 2,
@@ -36,13 +34,21 @@ describe("publishEffect", () => {
         },
       },
     });
+    expect(result.context.outboundEvents[0].event.data).toEqual({
+      agreementNumber: "PMF823153884",
+      clientRef: "xnp-rr3-nfb",
+      code: "pigs-might-fly",
+      version: 2,
+      status: "accepted",
+      date: "2026-07-17T11:29:00.000Z",
+    });
   });
 
   it("preserves existing outbound events", async () => {
     const existingEvent = { target: "existing-topic", event: { id: "one" } };
     const result = await publishEffect(
       { ...context, outboundEvents: [existingEvent] },
-      { params: { event: "agreementStatusUpdated" } },
+      { params: { event: "lifecycle" } },
     );
 
     expect(result.context.outboundEvents[0]).toBe(existingEvent);

@@ -54,6 +54,31 @@ describe("applyItemSnapshotEffect", () => {
     });
   });
 
+  it("resolves known payment fields onto the Agreement item", async () => {
+    const paymentClaim = {
+      claimId: "R00000001",
+      correlationId: "payment-correlation-id",
+      originalInvoiceNumber: "R00000001-V001Q1",
+      payment: { payments: [{ amount: 300 }] },
+    };
+    const result = await applyItemSnapshotEffect(
+      {
+        item: { agreementItemId: "item-1", state: "offered" },
+        outputs: { paymentClaim },
+      },
+      {
+        params: {
+          claimId: "$.outputs.paymentClaim.claimId",
+          correlationId: "$.outputs.paymentClaim.correlationId",
+          originalInvoiceNumber: "$.outputs.paymentClaim.originalInvoiceNumber",
+          payment: "$.outputs.paymentClaim.payment",
+        },
+      },
+    );
+
+    expect(result.context.item).toMatchObject(paymentClaim);
+  });
+
   it("merges configured supplementary data", async () => {
     const result = await applyItemSnapshotEffect(
       {
