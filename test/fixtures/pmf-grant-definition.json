@@ -100,6 +100,15 @@
               "validFrom": [
                 { "code": "IN_REVIEW", "processes": ["GENERATE_OFFER"] }
               ]
+            },
+            {
+              "code": "OFFER_ACCEPTED",
+              "validFrom": [
+                {
+                  "code": "APPLICATION_APPROVED",
+                  "processes": ["ACCEPT_AGREEMENT"]
+                }
+              ]
             }
           ]
         }
@@ -133,6 +142,11 @@
                 "code": "PRE_AWARD:FINAL_REVIEW:APPLICATION_APPROVED",
                 "source": "CW",
                 "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_APPROVED"
+              },
+              {
+                "code": "accepted",
+                "source": "AS",
+                "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:OFFER_ACCEPTED"
               }
             ]
           }

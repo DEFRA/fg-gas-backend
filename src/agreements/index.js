@@ -1,5 +1,5 @@
-import { registerInternalCommandHandler } from "../common/internal-command-bus.js";
-import { internalCommandTypes } from "../common/internal-command-types.js";
+import { registerInternalMessageHandler } from "../common/internal-message-bus.js";
+import { internalMessageTypes } from "../common/internal-message-types.js";
 import { agreementDefinitions } from "./models/agreement-definitions/agreement-definition-registry.js";
 import { getAgreementByNumberRoute } from "./routes/get-agreement-by-number.route.js";
 import { getCurrentAgreementRoute } from "./routes/get-current-agreement.route.js";
@@ -13,8 +13,8 @@ export const agreements = {
   register(server) {
     validateEndpointServiceUrls(agreementDefinitions);
 
-    registerInternalCommandHandler(
-      internalCommandTypes.AGREEMENT_CREATE,
+    registerInternalMessageHandler(
+      internalMessageTypes.AGREEMENT_CREATE,
       handleCreateAgreementCommandUseCase,
     );
 

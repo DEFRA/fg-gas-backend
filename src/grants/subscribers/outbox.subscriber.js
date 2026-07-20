@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { config } from "../../common/config.js";
 import { getMessageGroupId } from "../../common/get-message-group-id.js";
+import { internalMessageTargets } from "../../common/internal-message-targets.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import {
@@ -154,6 +155,9 @@ export class OutboxSubscriber {
     try {
       if (isInternalAgreementCommand(data)) {
         logger.info("Deliver outbox event internally to Agreements module");
+        await dispatchInternally(data);
+      } else if (topic === internalMessageTargets.GRANTS) {
+        logger.info("Deliver outbox event internally to Grants module");
         await dispatchInternally(data);
       } else {
         logger.info(`Send outbox event to ${topic}`);

@@ -1,5 +1,5 @@
 import { CloudEvent } from "../../../../common/cloud-event.js";
-import { config } from "../../../../common/config.js";
+import { internalMessageTargets } from "../../../../common/internal-message-targets.js";
 
 const getLifecycleDate = (context) =>
   context.target === "accepted" ? context.item.acceptedAt : context.executedAt;
@@ -17,7 +17,7 @@ const createLifecycleOutboxEvent = (context) => ({
     },
     `${context.item.clientRef}-${context.item.agreementCode}`,
   ),
-  target: config.sns.updateAgreementStatusTopicArn,
+  target: internalMessageTargets.GRANTS,
 });
 
 export const publishEffect = async (context, { params = {} }) => {

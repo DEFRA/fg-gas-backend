@@ -1,16 +1,16 @@
 import hapi from "@hapi/hapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  clearInternalCommandHandlers,
-  getInternalCommandHandler,
-} from "../common/internal-command-bus.js";
-import { internalCommandTypes } from "../common/internal-command-types.js";
+  clearInternalMessageHandlers,
+  getInternalMessageHandler,
+} from "../common/internal-message-bus.js";
+import { internalMessageTypes } from "../common/internal-message-types.js";
 import { agreements } from "./index.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 
 describe("agreements", () => {
   afterEach(() => {
-    clearInternalCommandHandlers();
+    clearInternalMessageHandlers();
     vi.unstubAllEnvs();
   });
 
@@ -51,7 +51,7 @@ describe("agreements", () => {
     await server.register(agreements);
 
     expect(
-      getInternalCommandHandler(internalCommandTypes.AGREEMENT_CREATE),
+      getInternalMessageHandler(internalMessageTypes.AGREEMENT_CREATE),
     ).toBe(handleCreateAgreementCommandUseCase);
   });
 

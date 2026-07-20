@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  clearInternalCommandHandlers,
-  registerInternalCommandHandler,
-} from "../../common/internal-command-bus.js";
-import { internalCommandTypes } from "../../common/internal-command-types.js";
+  clearInternalMessageHandlers,
+  registerInternalMessageHandler,
+} from "../../common/internal-message-bus.js";
+import { internalMessageTypes } from "../../common/internal-message-types.js";
 import {
   dispatchInternally,
   isInternalAgreementCommand,
@@ -11,7 +11,7 @@ import {
 
 describe("outbox-dispatch.service", () => {
   afterEach(() => {
-    clearInternalCommandHandlers();
+    clearInternalMessageHandlers();
     vi.clearAllMocks();
   });
 
@@ -50,22 +50,35 @@ describe("outbox-dispatch.service", () => {
 
   describe("dispatchInternally", () => {
     it("throws when no handler is registered for agreement.create", async () => {
-      const event = { type: internalCommandTypes.AGREEMENT_CREATE, data: {} };
+      const event = { type: internalMessageTypes.AGREEMENT_CREATE, data: {} };
 
       await expect(dispatchInternally(event)).rejects.toThrow(
-        'No internal command handler registered for "agreement.create"',
+        'No internal message handler registered for "agreement.create"',
       );
     });
 
     it("invokes the registered handler, leaving it to manage its own transaction", async () => {
       const handler = vi.fn().mockResolvedValue();
-      registerInternalCommandHandler(
-        internalCommandTypes.AGREEMENT_CREATE,
+      registerInternalMessageHandler(
+        internalMessageTypes.AGREEMENT_CREATE,
         handler,
       );
       const event = {
-        type: internalCommandTypes.AGREEMENT_CREATE,
+        type: internalMessageTypes.AGREEMENT_CREATE,
         data: { code: "pigs-might-fly" },
+      };
+
+      await dispatchInternally(event);
+
+      expect(handler).toHaveBeenCalledWith(event);
+    });
+
+    it("routes an Agreement lifecycle event to its registered handler", async () => {
+      const handler = vi.fn().mockResolvedValue();
+      registerInternalMessageHandler("agreement.status.updated", handler);
+      const event = {
+        type: "cloud.defra.dev.fg-gas-backend.agreement.status.updated",
+        data: { agreementNumber: "PMF823153884", status: "accepted" },
       };
 
       await dispatchInternally(event);

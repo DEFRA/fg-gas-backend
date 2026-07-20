@@ -1,6 +1,11 @@
 import hapi from "@hapi/hapi";
 import { up } from "migrate-mongo";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  clearInternalMessageHandlers,
+  getInternalMessageHandler,
+} from "../common/internal-message-bus.js";
+import { internalMessageTypes } from "../common/internal-message-types.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
 import { grants } from "./index.js";
@@ -32,6 +37,10 @@ describe("grants", () => {
     server = hapi.server();
     up.mockResolvedValue([]);
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    clearInternalMessageHandlers();
   });
 
   it("runs migrations on startup", async () => {
@@ -108,5 +117,13 @@ describe("grants", () => {
       { method: "get", path: "/grants/{code}/applications/{clientRef}/status" },
       { method: "get", path: "/grants/{code}/actions/{name}/invoke" },
     ]);
+  });
+
+  it("registers a consumer for internal Agreement lifecycle events", async () => {
+    await server.register(grants);
+
+    expect(
+      getInternalMessageHandler(internalMessageTypes.AGREEMENT_STATUS_UPDATED),
+    ).toEqual(expect.any(Function));
   });
 });

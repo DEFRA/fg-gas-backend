@@ -94,7 +94,7 @@ describe("runAgreementEffects", () => {
     expect(result.outboxEvents).toHaveLength(2);
     expect(result.outboxEvents[0]).toBe(existingEvent);
     expect(result.outboxEvents[1]).toMatchObject({
-      target: "some:arn",
+      target: "internal:grants",
       event: {
         type: "cloud.defra.local.fg-gas-backend.agreement.status.updated",
         data: {

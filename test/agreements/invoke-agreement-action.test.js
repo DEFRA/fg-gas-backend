@@ -1,4 +1,5 @@
 import { MongoClient } from "mongodb";
+import { readFileSync } from "node:fs";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { wreck } from "../helpers/wreck.js";
@@ -9,8 +10,15 @@ const clientRef = "xnp-rr3-nfb";
 const sbi = "300000070";
 const agreementId = "invoke-agreement-action-id";
 const agreementItemId = "invoke-agreement-action-item-id";
-const agreementUpdateTopicArn =
-  "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_agreement_status_fifo.fifo";
+const agreementLifecycleTarget = "internal:grants";
+const caseworkingUpdateTarget =
+  "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo";
+const pmfGrantDefinition = JSON.parse(
+  readFileSync(
+    new URL("../fixtures/pmf-grant-definition.json", import.meta.url),
+    "utf8",
+  ),
+);
 
 const toItem = (state) => ({
   agreementItemId,
@@ -79,15 +87,19 @@ const prepareAction = async (actionName) => {
 };
 
 describe("Agreement actions", () => {
+  let applications;
   let client;
   let agreements;
+  let grants;
   let outbox;
   let versions;
 
   beforeAll(async () => {
     client = await MongoClient.connect(env.MONGO_URI);
     const database = client.db();
+    applications = database.collection("applications");
     agreements = database.collection("agreements__agreements");
+    grants = database.collection("grants");
     outbox = database.collection("outbox");
     versions = database.collection("agreements__versions");
   });
@@ -116,6 +128,38 @@ describe("Agreement actions", () => {
     await versions.insertOne(version);
 
     return { agreement, version };
+  };
+
+  const seedGrantApplication = async () => {
+    const createdAt = "2026-07-15T12:00:00.000Z";
+
+    await grants.insertOne(structuredClone(pmfGrantDefinition));
+    await applications.insertOne({
+      currentPhase: "PRE_AWARD",
+      currentStage: "REVIEW_APPLICATION",
+      currentStatus: "APPLICATION_APPROVED",
+      clientRef,
+      code,
+      createdAt,
+      updatedAt: createdAt,
+      submittedAt: createdAt,
+      identifiers: { sbi },
+      metadata: {},
+      phases: [{ code: "PRE_AWARD", answers: {} }],
+      agreements: {
+        [agreementNumber]: {
+          agreementRef: agreementNumber,
+          latestStatus: "OFFERED",
+          updatedAt: createdAt,
+          history: [
+            {
+              agreementStatus: "OFFERED",
+              createdAt,
+            },
+          ],
+        },
+      },
+    });
   };
 
   const expectPersistenceUnchanged = async ({ agreement, version }) => {
@@ -218,11 +262,11 @@ describe("Agreement actions", () => {
     );
 
     const lifecycleEvent = await outbox.findOne({
-      target: agreementUpdateTopicArn,
+      target: agreementLifecycleTarget,
       "event.data.agreementNumber": agreementNumber,
     });
     expect(lifecycleEvent).toMatchObject({
-      target: agreementUpdateTopicArn,
+      target: agreementLifecycleTarget,
       event: {
         type: "cloud.defra.local.fg-gas-backend.agreement.status.updated",
         data: {
@@ -244,6 +288,28 @@ describe("Agreement actions", () => {
       state: "accepted",
       version: 2,
       page: { name: "accepted" },
+    });
+  });
+
+  it("updates the Grant application and queues a Caseworking update after acceptance", async () => {
+    await Promise.all([seedAgreement(), seedGrantApplication()]);
+
+    const { res } = await requestAction("accept", { confirm: "confirmed" });
+
+    expect(res.statusCode).toBe(303);
+    await expect(applications).toHaveRecord({
+      clientRef,
+      code,
+      currentStatus: "OFFER_ACCEPTED",
+      [`agreements.${agreementNumber}.latestStatus`]: "ACCEPTED",
+    });
+    await expect(outbox).toHaveRecord({
+      target: caseworkingUpdateTarget,
+      "event.type": "cloud.defra.local.fg-gas-backend.case.update.status",
+      "event.data.caseRef": clientRef,
+      "event.data.workflowCode": code,
+      "event.data.newStatus": "PRE_AWARD:REVIEW_APPLICATION:OFFER_ACCEPTED",
+      "event.data.supplementaryData.targetNode": "agreements",
     });
   });
 
