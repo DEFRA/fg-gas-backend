@@ -1,10 +1,9 @@
 import Joi from "joi";
-
-const effectNames = ["snapshot", "publish", "callEndpoint"];
+import { agreementEffectHandlers } from "../services/effects/agreement-effect-registry.js";
 
 const effect = Joi.object({
   name: Joi.string()
-    .valid(...effectNames)
+    .valid(...Object.keys(agreementEffectHandlers))
     .required(),
   output: Joi.string().optional(),
   params: Joi.object().unknown(true).optional(),

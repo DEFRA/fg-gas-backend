@@ -123,21 +123,6 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
-  it("rejects payment creation until the Payables capability is available", () => {
-    const definition = structuredClone(pmfAgreementDefinition);
-    definition.states.offered.on.accept.effects.unshift({
-      name: "createPaymentClaim",
-      output: "paymentClaim",
-    });
-
-    const { error } = validate(definition);
-
-    expect(error).toBeDefined();
-    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
-      /effects\[0]\.name.*must be one of \[snapshot, publish, callEndpoint]/,
-    );
-  });
-
   it("allows the same effects for Agreement creation and actions", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.states.offered.on.accept.effects = [

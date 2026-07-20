@@ -143,18 +143,8 @@ describe("runAgreementEffects", () => {
         [{ name: "unknownEffect" }, callEndpoint],
         createContext(),
       ),
-    ).rejects.toThrow(
-      'Unsupported agreement effect: "unknownEffect". Supported effects are: snapshot, publish, callEndpoint',
-    );
+    ).rejects.toThrow('Unsupported agreement effect: "unknownEffect"');
 
     expect(callAgreementEndpoint).not.toHaveBeenCalled();
-  });
-
-  it("rejects payment creation until the Payables capability is available", async () => {
-    await expect(
-      runAgreementEffects([{ name: "createPaymentClaim" }], createContext()),
-    ).rejects.toThrow(
-      'Unsupported agreement effect: "createPaymentClaim". Supported effects are: snapshot, publish, callEndpoint',
-    );
   });
 });

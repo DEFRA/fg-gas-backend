@@ -1,31 +1,18 @@
-import { callEndpointEffect } from "./handlers/call-endpoint-effect.js";
-import { publishEffect } from "./handlers/publish-effect.js";
-import { snapshotEffect } from "./handlers/snapshot-effect.js";
+import { agreementEffectHandlers } from "./agreement-effect-registry.js";
 
-// Effect shape: { name, output?, params? }
-//   name   — selects the handler (owned by the runner)
-//   output — where handler output is stored in context.outputs (owned by the runner)
-//   params — handler-specific configuration (owned by the handler)
+// Effect: { name, output?, params? }
+// Handler: async (context, effect) => ({ output?, context? })
 //
-// Handler interface: async (context, effect) => ({ output?, context? })
-//   output  — stored at context.outputs[effect.output] when effect.output is set
-//   context — fields to merge into the context passed to the next effect
-//
-// Effects may run inside a retryable MongoDB transaction callback. Direct
-// external calls must therefore be safe to repeat. Durable commands and events
-// belong in the outbox.
-const effectHandlers = {
-  snapshot: snapshotEffect,
-  publish: publishEffect,
-  callEndpoint: callEndpointEffect,
-};
-
+// name selects a handler from the registry.
+// output names the context.outputs entry for the handler result.
+// params contains handler-specific configuration.
+// context contains changes passed to the next effect.
 const getEffectHandler = (name) => {
-  const handler = effectHandlers[name];
+  const handler = agreementEffectHandlers[name];
 
   if (!handler) {
     throw new Error(
-      `Unsupported agreement effect: "${name}". Supported effects are: ${Object.keys(effectHandlers).join(", ")}`,
+      `Unsupported agreement effect: "${name}". Supported effects are: ${Object.keys(agreementEffectHandlers).join(", ")}`,
     );
   }
 
