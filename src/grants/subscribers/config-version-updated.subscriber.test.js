@@ -52,10 +52,13 @@ describe("configVersionUpdatedSubscriber", () => {
     expect(mockStop).toHaveBeenCalled();
   });
 
-  it("should extract message attributes and call processConfigVersionUseCase", async () => {
+  it("should extract message attributes and manifest then call processConfigVersionUseCase", async () => {
     await import("./config-version-updated.subscriber.js");
 
-    const body = ["example-grant/1.0.0/metadata.json"];
+    const body = [
+      "woodland/1.2.3/gas/gas.json",
+      "woodland/1.2.3/metadata.json",
+    ];
     const messageAttributes = {
       grant: { DataType: "String", StringValue: "woodland" },
       version: { DataType: "String", StringValue: "1.2.3" },
@@ -68,6 +71,7 @@ describe("configVersionUpdatedSubscriber", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      manifest: body,
     });
   });
 });

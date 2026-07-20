@@ -11,16 +11,22 @@ const extractStringAttribute = (attributes, key) =>
 const subscriber = queueUrl
   ? new SqsSubscriber({
       queueUrl,
-      async onMessage(_body, messageAttributes) {
+      async onMessage(body, messageAttributes) {
         const grantCode = extractStringAttribute(messageAttributes, "grant");
         const version = extractStringAttribute(messageAttributes, "version");
         const status = extractStringAttribute(messageAttributes, "status");
+        const manifest = body;
 
         logger.info(
           `Received config version update: ${grantCode}@${version} (${status})`,
         );
 
-        await processConfigVersionUseCase({ grantCode, version, status });
+        await processConfigVersionUseCase({
+          grantCode,
+          version,
+          status,
+          manifest,
+        });
       },
     })
   : null;
