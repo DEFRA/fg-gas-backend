@@ -1,6 +1,10 @@
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { S3FetchError, buildS3Key, fetchConfigFile } from "./s3-client.js";
+import {
+  S3FetchError,
+  fetchConfigFile,
+  findS3KeyInManifest,
+} from "./s3-client.js";
 
 const { mockSend } = vi.hoisted(() => {
   const mockSend = vi.fn();
@@ -37,16 +41,37 @@ describe("s3-client", () => {
     vi.clearAllMocks();
   });
 
-  describe("buildS3Key", () => {
-    it("should construct the S3 key from grant code and version", () => {
-      expect(buildS3Key("woodland", "1.2.3")).toBe(
+  describe("findS3KeyInManifest", () => {
+    it("should return the matching path from the manifest", () => {
+      const manifest = [
+        "woodland/1.2.3/grants-ui/allowlist.yaml",
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/metadata.json",
+      ];
+      expect(findS3KeyInManifest(manifest, "gas")).toBe(
         "woodland/1.2.3/gas/gas.json",
       );
     });
 
-    it("should handle codes with hyphens", () => {
-      expect(buildS3Key("frps-private-beta", "2.0.0")).toBe(
+    it("should handle manifests with many entries", () => {
+      const manifest = [
+        "frps-private-beta/2.0.0/cw/cw.json",
         "frps-private-beta/2.0.0/gas/gas.json",
+        "frps-private-beta/2.0.0/grants-ui/allowlist.yaml",
+        "frps-private-beta/2.0.0/metadata.json",
+      ];
+      expect(findS3KeyInManifest(manifest, "gas")).toBe(
+        "frps-private-beta/2.0.0/gas/gas.json",
+      );
+    });
+
+    it("should throw when the manifest does not contain a matching path", () => {
+      const manifest = [
+        "woodland/1.2.3/cw/cw.json",
+        "woodland/1.2.3/metadata.json",
+      ];
+      expect(() => findS3KeyInManifest(manifest, "gas")).toThrow(
+        "Manifest does not contain a gas config file",
       );
     });
   });
