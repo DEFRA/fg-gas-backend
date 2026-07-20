@@ -88,10 +88,6 @@ const runEffects = async (_effects, context) => ({
   item: {
     ...context.item,
     acceptedAt: context.executedAt,
-    claimId: "R00000001",
-    correlationId: "payment-correlation-id",
-    originalInvoiceNumber: "R00000001-V001Q1",
-    payment: { payments: [{ amount: 300 }] },
   },
   outboxEvents: [
     {
@@ -184,10 +180,6 @@ describe("executeAgreementActionUseCase", () => {
         agreementItemId: options.agreementItemId,
         state: "accepted",
         acceptedAt: "2026-07-17T11:29:00.000Z",
-        claimId: "R00000001",
-        correlationId: "payment-correlation-id",
-        originalInvoiceNumber: "R00000001-V001Q1",
-        payment: { payments: [{ amount: 300 }] },
       }),
       expect.objectContaining({
         agreementItemId: "another-item-id",

@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import { describe, expect, it } from "vitest";
 import { AgreementDefinition } from "./agreement-definition.js";
+import { pmfAgreementDefinition } from "./pmf.js";
 
 const validDefinition = {
   code: "test-code",
@@ -89,6 +90,20 @@ describe("AgreementDefinition", () => {
       action: "accept",
       target: "accepted",
     });
+  });
+
+  it("resolves PMF acceptance without creating payment data", () => {
+    const definition = new AgreementDefinition(pmfAgreementDefinition);
+
+    expect(
+      definition.resolveAction({ state: "offered", action: "accept" }).effects,
+    ).toEqual([
+      {
+        name: "snapshot",
+        params: { acceptedAt: "$.executedAt" },
+      },
+      { name: "publish", params: { event: "lifecycle" } },
+    ]);
   });
 
   it("preserves the requested state and action over extensible metadata", () => {

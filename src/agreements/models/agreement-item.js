@@ -12,10 +12,6 @@ const objectSnapshotField = {
 
 const snapshotFields = {
   acceptedAt: stringSnapshotField,
-  claimId: stringSnapshotField,
-  correlationId: stringSnapshotField,
-  originalInvoiceNumber: stringSnapshotField,
-  payment: objectSnapshotField,
   supplementaryData: objectSnapshotField,
 };
 
@@ -65,10 +61,6 @@ export class AgreementItem {
     payload,
     createdAt,
     acceptedAt,
-    claimId,
-    correlationId,
-    originalInvoiceNumber,
-    payment,
     state,
     supplementaryData,
   }) {
@@ -81,10 +73,6 @@ export class AgreementItem {
     this.payload = payload;
     this.createdAt = createdAt;
     this.acceptedAt = acceptedAt;
-    this.claimId = claimId;
-    this.correlationId = correlationId;
-    this.originalInvoiceNumber = originalInvoiceNumber;
-    this.payment = payment;
     this.state = state;
     this.supplementaryData = supplementaryData;
   }

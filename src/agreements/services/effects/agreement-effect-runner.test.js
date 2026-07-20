@@ -6,15 +6,15 @@ import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
 vi.mock("./call-agreement-endpoint.js");
 
 const endpoint = {
-  code: "calculate-payment",
+  code: "calculate-funding",
   method: "POST",
-  path: "/calculate-payment",
-  service: "PAYMENT_SERVICE",
+  path: "/calculate-funding",
+  service: "GRANT_FUNDING_CALCULATOR",
 };
 
 const callEndpoint = {
   name: "callEndpoint",
-  output: "paymentClaim",
+  output: "fundingCalculation",
   params: {
     endpoint: {
       code: endpoint.code,
@@ -29,12 +29,8 @@ const snapshot = {
   name: "snapshot",
   params: {
     acceptedAt: "$.executedAt",
-    claimId: "$.outputs.paymentClaim.claimId",
-    correlationId: "$.outputs.paymentClaim.correlationId",
-    originalInvoiceNumber: "$.outputs.paymentClaim.originalInvoiceNumber",
-    payment: "$.outputs.paymentClaim.payment",
     supplementaryData: {
-      calculatedPayment: "$.outputs.paymentClaim.payment",
+      fundingCalculation: "$.outputs.fundingCalculation",
     },
   },
 };
@@ -66,14 +62,11 @@ describe("runAgreementEffects", () => {
   });
 
   it("runs configured effects in order and passes each result to the next", async () => {
-    const paymentClaim = {
-      claimId: "R00000001",
-      correlationId: "payment-correlation-id",
-      originalInvoiceNumber: "R00000001-V001Q1",
-      payment: { payments: [{ amount: 300 }] },
+    const fundingCalculation = {
+      items: [{ description: "Large White", total: 300 }],
     };
     const existingEvent = { target: "existing-topic", event: { id: "one" } };
-    callAgreementEndpoint.mockResolvedValue(paymentClaim);
+    callAgreementEndpoint.mockResolvedValue(fundingCalculation);
 
     const result = await runAgreementEffects(
       [callEndpoint, snapshot, publish],
@@ -88,15 +81,14 @@ describe("runAgreementEffects", () => {
     });
     expect(result.outputs).toEqual({
       existing: "kept",
-      paymentClaim,
+      fundingCalculation,
     });
     expect(result.item).toMatchObject({
       state: "offered",
       acceptedAt: "2026-07-17T11:29:00.000Z",
-      ...paymentClaim,
       supplementaryData: {
         preserved: true,
-        calculatedPayment: paymentClaim.payment,
+        fundingCalculation,
       },
     });
     expect(result.outboxEvents).toHaveLength(2);
@@ -131,7 +123,7 @@ describe("runAgreementEffects", () => {
   it("rejects an endpoint that is not configured", async () => {
     await expect(
       runAgreementEffects([callEndpoint], createContext({ endpoints: [] })),
-    ).rejects.toThrow('No endpoint configured for code "calculate-payment"');
+    ).rejects.toThrow('No endpoint configured for code "calculate-funding"');
 
     expect(callAgreementEndpoint).not.toHaveBeenCalled();
   });
@@ -152,15 +144,17 @@ describe("runAgreementEffects", () => {
         createContext(),
       ),
     ).rejects.toThrow(
-      'Unsupported agreement effect: "unknownEffect". Supported effects are: snapshot, publish, callEndpoint, createPaymentClaim',
+      'Unsupported agreement effect: "unknownEffect". Supported effects are: snapshot, publish, callEndpoint',
     );
 
     expect(callAgreementEndpoint).not.toHaveBeenCalled();
   });
 
-  it("reports the payment claim handler as not implemented", async () => {
+  it("rejects payment creation until the Payables capability is available", async () => {
     await expect(
       runAgreementEffects([{ name: "createPaymentClaim" }], createContext()),
-    ).rejects.toThrow("createPaymentClaim handler not yet implemented");
+    ).rejects.toThrow(
+      'Unsupported agreement effect: "createPaymentClaim". Supported effects are: snapshot, publish, callEndpoint',
+    );
   });
 });

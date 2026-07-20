@@ -1,11 +1,6 @@
 import Joi from "joi";
 
-const effectNames = [
-  "snapshot",
-  "publish",
-  "callEndpoint",
-  "createPaymentClaim",
-];
+const effectNames = ["snapshot", "publish", "callEndpoint"];
 
 const resolvedObject = Joi.alternatives().try(
   Joi.object().unknown(true),
@@ -14,10 +9,6 @@ const resolvedObject = Joi.alternatives().try(
 
 const snapshotParams = Joi.object({
   acceptedAt: Joi.string().optional(),
-  claimId: Joi.string().optional(),
-  correlationId: Joi.string().optional(),
-  originalInvoiceNumber: Joi.string().optional(),
-  payment: resolvedObject.optional(),
   supplementaryData: resolvedObject.optional(),
 }).unknown(false);
 

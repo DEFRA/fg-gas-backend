@@ -11,10 +11,6 @@ import { snapshotEffect } from "./handlers/snapshot-effect.js";
 //   output  — stored at context.outputs[effect.output] when effect.output is set
 //   context — fields to merge into the context passed to the next effect
 //
-const createPaymentClaimEffect = async () => {
-  throw new Error("createPaymentClaim handler not yet implemented");
-};
-
 // Effects may run inside a retryable MongoDB transaction callback. Direct
 // external calls must therefore be safe to repeat. Durable commands and events
 // belong in the outbox.
@@ -22,7 +18,6 @@ const effectHandlers = {
   snapshot: snapshotEffect,
   publish: publishEffect,
   callEndpoint: callEndpointEffect,
-  createPaymentClaim: createPaymentClaimEffect,
 };
 
 const getEffectHandler = (name) => {

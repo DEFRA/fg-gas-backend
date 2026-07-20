@@ -123,6 +123,21 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
+  it("rejects payment creation until the Payables capability is available", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.states.offered.on.accept.effects.unshift({
+      name: "createPaymentClaim",
+      output: "paymentClaim",
+    });
+
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /effects\[0\]\.name.*must be one of \[snapshot, publish, callEndpoint\]/,
+    );
+  });
+
   it("allows the same effects for Agreement creation and actions", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.states.offered.on.accept.effects = [
@@ -146,34 +161,24 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
-  it.each(["state", "agreementItemId", "schemeSpecificResult"])(
-    "rejects the unsupported top-level snapshot parameter %s",
-    (field) => {
-      const definition = structuredClone(pmfAgreementDefinition);
-      getAcceptSnapshotEffect(definition).params[field] = "$.outputs.value";
-
-      const { error } = validate(definition);
-
-      expect(error).toBeDefined();
-      expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
-        new RegExp(`params\\.${field}.*not allowed`),
-      );
-    },
-  );
-
-  it("allows known payment fields in an item snapshot", () => {
+  it.each([
+    "state",
+    "agreementItemId",
+    "schemeSpecificResult",
+    "claimId",
+    "correlationId",
+    "originalInvoiceNumber",
+    "payment",
+  ])("rejects the unsupported top-level snapshot parameter %s", (field) => {
     const definition = structuredClone(pmfAgreementDefinition);
-    getAcceptSnapshotEffect(definition).params = {
-      acceptedAt: "$.executedAt",
-      claimId: "$.outputs.paymentClaim.claimId",
-      correlationId: "$.outputs.paymentClaim.correlationId",
-      originalInvoiceNumber: "$.outputs.paymentClaim.originalInvoiceNumber",
-      payment: "$.outputs.paymentClaim.payment",
-    };
+    getAcceptSnapshotEffect(definition).params[field] = "$.outputs.value";
 
     const { error } = validate(definition);
 
-    expect(error).toBeUndefined();
+    expect(error).toBeDefined();
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      new RegExp(`params\\.${field}.*not allowed`),
+    );
   });
 
   it("allows arbitrary snapshot fields beneath supplementaryData", () => {
