@@ -43,6 +43,27 @@ describe("handlers", () => {
         state: "offered",
       });
     });
+
+    it("adds supplementary data without discarding values from earlier effects", async () => {
+      const result = await handlers.snapshot(
+        {
+          item: {
+            agreementItemId: "item-1",
+            supplementaryData: { acceptedBy: "applicant" },
+          },
+        },
+        {
+          params: {
+            supplementaryData: { fundingCalculation: { amount: 42 } },
+          },
+        },
+      );
+
+      expect(result.context.item.supplementaryData).toEqual({
+        acceptedBy: "applicant",
+        fundingCalculation: { amount: 42 },
+      });
+    });
   });
 
   describe("callEndpoint", () => {

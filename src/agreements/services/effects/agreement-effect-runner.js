@@ -14,6 +14,19 @@ import { isPlainObject, resolveEffectParams } from "./resolve-effect-params.js";
 //
 // context.outputs is frozen before each handler call; writing to it directly throws
 // a TypeError. Return { output: value } and set effect.output instead.
+const applySnapshotToItem = (item, snapshot) => {
+  const nextItem = { ...item, ...snapshot };
+
+  if (isPlainObject(snapshot.supplementaryData)) {
+    nextItem.supplementaryData = {
+      ...(item.supplementaryData ?? {}),
+      ...snapshot.supplementaryData,
+    };
+  }
+
+  return nextItem;
+};
+
 const snapshotEffectHandler = async (context, { params = {} }) => {
   const snapshot = await resolveEffectParams(params, context);
 
@@ -23,7 +36,7 @@ const snapshotEffectHandler = async (context, { params = {} }) => {
 
   return {
     context: {
-      item: { ...context.item, ...snapshot },
+      item: applySnapshotToItem(context.item, snapshot),
     },
   };
 };
