@@ -1,4 +1,5 @@
 import { MongoClient } from "mongodb";
+import { readFileSync } from "node:fs";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { wreck } from "../helpers/wreck.js";
@@ -9,13 +10,21 @@ const clientRef = "xnp-rr3-nfb";
 const sbi = "300000070";
 const agreementId = "invoke-agreement-action-id";
 const agreementItemId = "invoke-agreement-action-item-id";
+const caseworkingUpdateTarget =
+  "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo";
+const pmfGrantDefinition = JSON.parse(
+  readFileSync(
+    new URL("../fixtures/pmf-grant-definition.json", import.meta.url),
+    "utf8",
+  ),
+);
 
 const toItem = (state) => ({
   agreementItemId,
   agreementCode: code,
   clientRef,
   sourceSystem: "GAS",
-  configVersion: "0.0.1",
+  configVersion: "1.0.1",
   identifiers: { sbi },
   payload: {},
   createdAt: "2026-07-15T12:00:00.000Z",
@@ -77,27 +86,49 @@ const prepareAction = async (actionName) => {
 };
 
 describe("Agreement actions", () => {
+  let applications;
   let client;
   let agreements;
+  let grants;
+  let outbox;
   let versions;
+
+  const deleteAgreementOutboxEntries = () =>
+    outbox.deleteMany({
+      $or: [
+        { "event.data.agreementNumber": agreementNumber },
+        { "event.data.caseRef": clientRef },
+        { "event.audit.details.agreementNumber": agreementNumber },
+        { "event.audit.details.eventData.agreementNumber": agreementNumber },
+      ],
+    });
 
   beforeAll(async () => {
     client = await MongoClient.connect(env.MONGO_URI);
     const database = client.db();
+    applications = database.collection("applications");
     agreements = database.collection("agreements__agreements");
+    grants = database.collection("grants");
+    outbox = database.collection("outbox");
     versions = database.collection("agreements__versions");
   });
 
   beforeEach(async () => {
     await Promise.all([
+      applications.deleteMany({ clientRef, code }),
       agreements.deleteMany({ agreementNumber }),
+      grants.deleteMany({ code }),
+      deleteAgreementOutboxEntries(),
       versions.deleteMany({ agreementNumber }),
     ]);
   });
 
   afterAll(async () => {
     await Promise.all([
+      applications?.deleteMany({ clientRef, code }),
       agreements?.deleteMany({ agreementNumber }),
+      grants?.deleteMany({ code }),
+      deleteAgreementOutboxEntries(),
       versions?.deleteMany({ agreementNumber }),
     ]);
     await client?.close();
@@ -110,6 +141,38 @@ describe("Agreement actions", () => {
     await versions.insertOne(version);
 
     return { agreement, version };
+  };
+
+  const seedGrantApplication = async () => {
+    const createdAt = "2026-07-15T12:00:00.000Z";
+
+    await grants.insertOne(structuredClone(pmfGrantDefinition));
+    await applications.insertOne({
+      currentPhase: "PRE_AWARD",
+      currentStage: "CUSTOMER_AGREEMENT_REVIEW",
+      currentStatus: "AGREEMENT_OFFERED",
+      clientRef,
+      code,
+      createdAt,
+      updatedAt: createdAt,
+      submittedAt: createdAt,
+      identifiers: { sbi },
+      metadata: {},
+      phases: [{ code: "PRE_AWARD", answers: {} }],
+      agreements: {
+        [agreementNumber]: {
+          agreementRef: agreementNumber,
+          latestStatus: "OFFERED",
+          updatedAt: createdAt,
+          history: [
+            {
+              agreementStatus: "OFFERED",
+              createdAt,
+            },
+          ],
+        },
+      },
+    });
   };
 
   const expectPersistenceUnchanged = async ({ agreement, version }) => {
@@ -170,11 +233,11 @@ describe("Agreement actions", () => {
   it("accepts the Agreement and redirects to its newly current page", async () => {
     await seedAgreement();
 
-    const { res } = await requestAction("accept", {
+    const { res, payload } = await requestAction("accept", {
       confirm: "confirmed",
     });
 
-    expect(res.statusCode).toBe(303);
+    expect(res.statusCode, JSON.stringify(payload)).toBe(303);
     expect(res.headers.location).toBe(
       `/agreements/${agreementNumber}?code=${code}&clientRef=${clientRef}&sbi=${sbi}`,
     );
@@ -201,9 +264,32 @@ describe("Agreement actions", () => {
         ],
       },
     });
-    expect(storedVersions[1].snapshot.items[0]).not.toHaveProperty(
-      "supplementaryData.acceptedAt",
-    );
+    expect(storedVersions[1].snapshot.items[0]).toMatchObject({
+      acceptedAt: expect.any(String),
+    });
+
+    await expect(
+      outbox.findOne({
+        "event.type":
+          "cloud.defra.local.fg-gas-backend.agreement.status.updated",
+        "event.data.agreementNumber": agreementNumber,
+      }),
+    ).resolves.toMatchObject({
+      event: {
+        data: {
+          agreementNumber,
+          clientRef,
+          code,
+          version: 2,
+          status: "accepted",
+        },
+      },
+    });
+    await expect(
+      outbox.findOne({
+        "event.audit.details.agreementNumber": agreementNumber,
+      }),
+    ).resolves.toBeNull();
 
     const redirected = await wreck.request("GET", res.headers.location);
     const page = await wreck.read(redirected, { json: true });
@@ -213,6 +299,55 @@ describe("Agreement actions", () => {
       state: "accepted",
       version: 2,
       page: { name: "accepted" },
+    });
+  });
+
+  it("updates the Grant application and queues a Caseworking update after acceptance", async () => {
+    await Promise.all([seedAgreement(), seedGrantApplication()]);
+
+    const { res } = await requestAction("accept", { confirm: "confirmed" });
+
+    expect(res.statusCode).toBe(303);
+    await expect(applications).toHaveRecord({
+      clientRef,
+      code,
+      currentStatus: "AGREEMENT_ACCEPTED",
+      [`agreements.${agreementNumber}.latestStatus`]: "ACCEPTED",
+    });
+    await expect(outbox).toHaveRecord({
+      target: caseworkingUpdateTarget,
+      "event.type": "cloud.defra.local.fg-gas-backend.case.update.status",
+      "event.data.caseRef": clientRef,
+      "event.data.workflowCode": code,
+      "event.data.newStatus":
+        "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
+      "event.data.supplementaryData.targetNode": "agreements",
+    });
+    const acceptanceAuditQuery = {
+      "event.audit.entities": {
+        $elemMatch: {
+          entity: "AGREEMENT",
+          action: "ACCEPT_AGREEMENT",
+          entityid: agreementNumber,
+        },
+      },
+    };
+    await expect(outbox).toHaveRecord(acceptanceAuditQuery);
+    const acceptanceAudits = await outbox.find(acceptanceAuditQuery).toArray();
+    expect(acceptanceAudits).toHaveLength(1);
+    expect(acceptanceAudits[0]).toMatchObject({
+      event: {
+        audit: {
+          entities: [
+            {
+              entity: "AGREEMENT",
+              action: "ACCEPT_AGREEMENT",
+              entityid: agreementNumber,
+            },
+          ],
+          status: "SUCCESS",
+        },
+      },
     });
   });
 
@@ -261,6 +396,14 @@ describe("Agreement actions", () => {
     expect(retry.res.statusCode).toBe(303);
     expect(retry.res.headers.location).toBe(first.res.headers.location);
     await expect(versions.countDocuments({ agreementNumber })).resolves.toBe(2);
+    await expect(
+      outbox.countDocuments({ "event.data.agreementNumber": agreementNumber }),
+    ).resolves.toBe(1);
+    await expect(
+      outbox.countDocuments({
+        "event.audit.details.agreementNumber": agreementNumber,
+      }),
+    ).resolves.toBe(0);
   });
 
   it("allows only one concurrent acceptance to commit", async () => {
@@ -283,6 +426,55 @@ describe("Agreement actions", () => {
       303, 412,
     ]);
     await expect(versions.countDocuments({ agreementNumber })).resolves.toBe(2);
+    await expect(
+      outbox.countDocuments({ "event.data.agreementNumber": agreementNumber }),
+    ).resolves.toBe(1);
+    await expect(
+      outbox.countDocuments({
+        "event.audit.details.agreementNumber": agreementNumber,
+      }),
+    ).resolves.toBe(0);
+  });
+
+  it("rolls back acceptance when its publication intent cannot be recorded", async () => {
+    const persisted = await seedAgreement();
+    const indexName = "reject-duplicate-agreement-publication";
+    const blockingEventId = "blocking-outbound-event";
+    await outbox.createIndex(
+      { "event.data.agreementNumber": 1 },
+      {
+        name: indexName,
+        unique: true,
+        partialFilterExpression: {
+          "event.data.agreementNumber": agreementNumber,
+        },
+      },
+    );
+    await outbox.insertOne({
+      _id: blockingEventId,
+      event: { data: { agreementNumber } },
+      status: "DEAD_LETTER",
+    });
+
+    try {
+      const { res } = await requestAction("accept", { confirm: "confirmed" });
+
+      expect(res.statusCode).toBe(500);
+      await expectPersistenceUnchanged(persisted);
+      await expect(
+        outbox.countDocuments({
+          "event.data.agreementNumber": agreementNumber,
+        }),
+      ).resolves.toBe(1);
+      await expect(
+        outbox.countDocuments({
+          "event.audit.details.agreementNumber": agreementNumber,
+        }),
+      ).resolves.toBe(0);
+    } finally {
+      await outbox.deleteOne({ _id: blockingEventId });
+      await outbox.dropIndex(indexName);
+    }
   });
 
   it("returns 412 when an opaque If-Match value is stale", async () => {
