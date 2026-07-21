@@ -112,13 +112,13 @@ To verify an SNS message has been queued locally you will need the aws cli insta
 
 Install aws cli (https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 
-### Configure your localstack with aws config
+### Configure your floci with aws config
 
-Add the following localstack profile to your `~/.aws/config`
+Add the following floci profile to your `~/.aws/config`
 
 ```bash
-[profile localstack]
-region=eu-west-1
+[profile floci]
+region=eu-west-2
 output=json
 endpoint_url=http://localhost:4566
 ```
@@ -126,17 +126,17 @@ endpoint_url=http://localhost:4566
 Add the following config to your `~/.aws/credentials`
 
 ```bash
-[localstack]
+[floci]
 aws_access_key_id=test
 aws_secret_access_key=test
 ```
 
-### Query localstack
+### Query floci
 
 Then run the following to fetch messages in the queue. The queue-url should match the output from local stack in your console environment
 
 ```bash
-aws sqs receive-message --queue-url http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant_application_created --profile localstack
+aws sqs receive-message --queue-url http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant_application_created --profile floci
 ```
 
 ### Development

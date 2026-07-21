@@ -24,9 +24,9 @@ services:
       timeout: 3s
       retries: 60
 
-  localstack:
+  floci:
     volumes:
-      - ../fg-gas-backend/compose/start-localstack.sh:/etc/localstack/init/ready.d/start-gas-localstack.sh
+      - ../fg-gas-backend/compose/floci/start.d:/etc/floci/init/ready.d/start.d:ro
 
 networks:
   cdp-tenant:
