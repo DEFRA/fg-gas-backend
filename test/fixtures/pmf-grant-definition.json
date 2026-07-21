@@ -21,36 +21,52 @@
         "type": "object",
         "properties": {
           "isPigFarmer": {
-            "type": "boolean",
-            "const": true
-          },
-          "totalPigs": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1000
-          },
-          "whitePigsCount": {
-            "type": "integer"
-          },
-          "britishLandracePigsCount": {
-            "type": "integer"
-          },
-          "berkshirePigsCount": {
-            "type": "integer"
-          },
-          "otherPigsCount": {
-            "type": "integer"
+            "type": "boolean"
           }
         },
-        "required": ["isPigFarmer", "totalPigs"],
-        "fgSumEquals": {
-          "fields": [
-            "whitePigsCount",
-            "berkshirePigsCount",
-            "britishLandracePigsCount",
-            "otherPigsCount"
-          ],
-          "targetField": "totalPigs"
+        "required": ["isPigFarmer"],
+        "if": {
+          "properties": {
+            "isPigFarmer": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "totalPigs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "whitePigsCount": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "britishLandracePigsCount": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "berkshirePigsCount": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "otherPigsCount": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": ["totalPigs"],
+          "fgSumEquals": {
+            "fields": [
+              "whitePigsCount",
+              "berkshirePigsCount",
+              "britishLandracePigsCount",
+              "otherPigsCount"
+            ],
+            "targetField": "totalPigs"
+          }
         }
       },
       "stages": [
