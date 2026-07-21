@@ -1,6 +1,8 @@
 import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { writeAuditEvent } from "../../common/write-audit-event.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import { pmfAgreementDefinition } from "../models/agreement-definitions/pmf.js";
 import { AgreementReference } from "../models/agreement-reference.js";
@@ -11,11 +13,15 @@ import {
   findVersionByActionIdempotencyKey,
   saveVersion,
 } from "../repositories/agreement.repository.js";
+import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
+vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
+vi.mock("../../common/write-audit-event.js");
 vi.mock("../repositories/agreement.repository.js");
+vi.mock("../services/effects/agreement-effect-runner.js");
 vi.mock("./load-current-agreement-context.js");
 
 const options = {
@@ -88,6 +94,11 @@ describe("executeAgreementActionUseCase", () => {
       currentAgreement,
     });
     findVersionByActionIdempotencyKey.mockResolvedValue(null);
+    runAgreementEffects.mockImplementation(async (_effects, context) => ({
+      ...context,
+      item: { ...context.item, acceptedAt: "2026-07-17T11:29:00.000Z" },
+      outboundEvents: [{ event: { data: {} }, target: "some:arn" }],
+    }));
   });
 
   it("records the accepted Agreement version and returns its current-page location", async () => {
@@ -110,10 +121,25 @@ describe("executeAgreementActionUseCase", () => {
       }),
       session,
     );
+    expect(runAgreementEffects).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({
+        agreement: currentAgreement.snapshot,
+        item: currentAgreement.item,
+        target: "accepted",
+        version: 2,
+      }),
+    );
+    expect(saveOutboxEvents).toHaveBeenCalledWith(
+      [{ event: { data: {} }, target: "some:arn" }],
+      session,
+    );
+    expect(writeAuditEvent).not.toHaveBeenCalled();
     const savedVersion = saveVersion.mock.calls[0][0];
     expect(savedVersion.snapshot.items).toEqual([
       expect.objectContaining({
         agreementItemId: options.agreementItemId,
+        acceptedAt: expect.any(String),
         state: "accepted",
       }),
       expect.objectContaining({

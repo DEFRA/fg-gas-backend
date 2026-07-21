@@ -7,7 +7,7 @@ describe("findAgreementDefinition", () => {
     expect(
       findAgreementDefinition({
         code: "pigs-might-fly",
-        configVersion: "0.0.1",
+        configVersion: "1.0.1",
       }),
     ).toBe(pmfAgreementDefinition);
   });
