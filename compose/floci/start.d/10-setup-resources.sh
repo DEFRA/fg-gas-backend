@@ -95,3 +95,5 @@ wait
 
 
 echo "SNS/SQS ready"
+
+echo READY > /tmp/READY
