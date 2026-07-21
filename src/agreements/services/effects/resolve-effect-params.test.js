@@ -40,6 +40,14 @@ describe("resolveEffectParams", () => {
     ).rejects.toThrow(/Unresolved reference "\$\.outputs\.missing"/);
   });
 
+  it("throws when both a ref and its ?? fallback resolve to undefined", async () => {
+    const ref = "$.answers.missing ?? $.answers.alsoMissing";
+
+    await expect(resolveEffectParams(ref, { answers: {} })).rejects.toThrow(
+      `Unresolved reference "${ref}"`,
+    );
+  });
+
   it("throws when a nested ref with no ?? default resolves to undefined, catching output/reference drift", async () => {
     await expect(
       resolveEffectParams(
