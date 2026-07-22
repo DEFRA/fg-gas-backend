@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
@@ -12,6 +13,7 @@ import {
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { handleCreateAgreementCommandUseCase } from "./handle-create-agreement-command.use-case.js";
 
+vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../models/agreement-definitions/agreement-definition-loader.js");
 vi.mock("../models/agreement-number.js");
@@ -20,7 +22,7 @@ vi.mock("../services/effects/agreement-effect-runner.js");
 
 const pmfDefinition = {
   code: "pigs-might-fly",
-  configVersion: "0.0.1",
+  configVersion: "1.0.1",
   agreementNumberPrefix: "PMF",
   endpoints: [],
   create: { target: "offered", effects: [] },
@@ -38,7 +40,7 @@ const command = {
     clientRef: "xnp-rr3-nfa",
     code: "pigs-might-fly",
     identifiers: { sbi: "300000069", frn: "frn", crn: "1300000069" },
-    metadata: { configVersion: "0.0.1" },
+    metadata: { configVersion: "1.0.1" },
     answers: { whitePigsCount: 5 },
   },
 };
@@ -58,10 +60,10 @@ describe("handleCreateAgreementCommandUseCase", () => {
     generateAgreementNumber.mockReturnValue("PMF823153883");
     saveAgreement.mockResolvedValue();
     saveVersion.mockResolvedValue();
-    runAgreementEffects.mockResolvedValue({
-      answers: command.data.answers,
-      outputs: {},
-    });
+    runAgreementEffects.mockImplementation(async (_effects, context) => ({
+      ...context,
+      outboundEvents: [],
+    }));
 
     const agreement = await handleCreateAgreementCommandUseCase(command);
 
@@ -71,12 +73,20 @@ describe("handleCreateAgreementCommandUseCase", () => {
     );
     expect(loadAgreementDefinition).toHaveBeenCalledWith({
       code: "pigs-might-fly",
-      configVersion: "0.0.1",
+      configVersion: "1.0.1",
     });
     expect(generateAgreementNumber).toHaveBeenCalledWith({ prefix: "PMF" });
     expect(runAgreementEffects).toHaveBeenCalledWith(
       pmfDefinition.create.effects,
-      { answers: command.data.answers, outputs: {}, endpoints: [] },
+      expect.objectContaining({
+        agreement,
+        answers: command.data.answers,
+        item: agreement.items[0],
+        outputs: {},
+        endpoints: [],
+        target: "offered",
+        version: 1,
+      }),
     );
     expect(saveAgreement).toHaveBeenCalledWith(agreement, session);
     expect(agreement).toMatchObject({
@@ -89,12 +99,13 @@ describe("handleCreateAgreementCommandUseCase", () => {
       agreementCode: "pigs-might-fly",
       clientRef: "xnp-rr3-nfa",
       sourceSystem: "GAS",
-      configVersion: "0.0.1",
+      configVersion: "1.0.1",
       identifiers: command.data.identifiers,
       payload: command.data.answers,
       state: "offered",
     });
 
+    expect(saveOutboxEvents).toHaveBeenCalledWith([], session);
     expect(saveVersion).toHaveBeenCalledWith(
       expect.objectContaining({
         agreementId: agreement.id,
@@ -153,7 +164,12 @@ describe("handleCreateAgreementCommandUseCase", () => {
       return {
         answers: command.data.answers,
         outputs: { fundingCalculation },
-        supplementaryData: { fundingCalculation },
+        item: {
+          agreementItemId: "item-id",
+          state: "offered",
+          supplementaryData: { fundingCalculation },
+        },
+        outboundEvents: [{ event: { data: {} }, target: "some:arn" }],
       };
     });
     withTransaction.mockImplementation(async (callback) => {
@@ -164,11 +180,18 @@ describe("handleCreateAgreementCommandUseCase", () => {
     const agreement = await handleCreateAgreementCommandUseCase(command);
 
     expect(callOrder).toEqual(["effects", "transaction"]);
-    expect(runAgreementEffects).toHaveBeenCalledWith(effects, {
-      answers: command.data.answers,
-      outputs: {},
-      endpoints: definitionWithEffects.endpoints,
-    });
+    expect(runAgreementEffects).toHaveBeenCalledWith(
+      effects,
+      expect.objectContaining({
+        agreement,
+        answers: command.data.answers,
+        item: agreement.items[0],
+        outputs: {},
+        endpoints: definitionWithEffects.endpoints,
+        target: "offered",
+        version: 1,
+      }),
+    );
     expect(saveVersion).toHaveBeenCalledWith(
       expect.objectContaining({
         version: 1,
@@ -183,6 +206,10 @@ describe("handleCreateAgreementCommandUseCase", () => {
       }),
       session,
     );
+    expect(saveOutboxEvents).toHaveBeenCalledWith(
+      [{ event: { data: {} }, target: "some:arn" }],
+      session,
+    );
     expect(agreement.items[0].supplementaryData).toBeUndefined();
   });
 
@@ -195,10 +222,10 @@ describe("handleCreateAgreementCommandUseCase", () => {
       new AgreementDefinition(pmfDefinition),
     );
     generateAgreementNumber.mockReturnValue("PMF823153883");
-    runAgreementEffects.mockResolvedValue({
-      answers: unversionedCommand.data.answers,
-      outputs: {},
-    });
+    runAgreementEffects.mockImplementation(async (_effects, context) => ({
+      ...context,
+      outboundEvents: [],
+    }));
 
     const agreement =
       await handleCreateAgreementCommandUseCase(unversionedCommand);
@@ -207,19 +234,19 @@ describe("handleCreateAgreementCommandUseCase", () => {
       code: "pigs-might-fly",
       configVersion: undefined,
     });
-    expect(agreement.items[0].configVersion).toBe("0.0.1");
+    expect(agreement.items[0].configVersion).toBe("1.0.1");
   });
 
   it("throws Boom.badImplementation for an unavailable agreement definition", async () => {
     findByClientRefAndCode.mockResolvedValue(null);
     loadAgreementDefinition.mockRejectedValue(
       Boom.badImplementation(
-        'Agreement definition "pigs-might-fly" version "0.0.1" is unavailable',
+        'Agreement definition "pigs-might-fly" version "1.0.1" is unavailable',
       ),
     );
 
     await expect(handleCreateAgreementCommandUseCase(command)).rejects.toThrow(
-      'Agreement definition "pigs-might-fly" version "0.0.1" is unavailable',
+      'Agreement definition "pigs-might-fly" version "1.0.1" is unavailable',
     );
     expect(saveAgreement).not.toHaveBeenCalled();
     expect(saveVersion).not.toHaveBeenCalled();

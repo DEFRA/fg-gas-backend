@@ -1,6 +1,6 @@
 export const pmfAgreementDefinition = {
   code: "pigs-might-fly",
-  configVersion: "0.0.1",
+  configVersion: "1.0.1",
   agreementNumberPrefix: "PMF",
   endpoints: [
     {
@@ -47,9 +47,12 @@ export const pmfAgreementDefinition = {
       {
         name: "snapshot",
         params: {
-          fundingCalculation: "$.outputs.fundingCalculation",
+          supplementaryData: {
+            fundingCalculation: "$.outputs.fundingCalculation",
+          },
         },
       },
+      { name: "publish", params: { event: "lifecycle" } },
     ],
   },
   states: {
@@ -70,16 +73,10 @@ export const pmfAgreementDefinition = {
             ],
           },
           effects: [
-            { name: "createPaymentClaim", output: "paymentClaim" },
             {
               name: "snapshot",
               params: {
                 acceptedAt: "$.executedAt",
-                claimId: "$.outputs.paymentClaim.claimId",
-                correlationId: "$.outputs.paymentClaim.correlationId",
-                originalInvoiceNumber:
-                  "$.outputs.paymentClaim.originalInvoiceNumber",
-                payment: "$.outputs.paymentClaim.payment",
               },
             },
             { name: "publish", params: { event: "lifecycle" } },
