@@ -51,17 +51,19 @@ export const createAuditPayload = ({
   accountDetails = {},
   entities,
   status,
+  details,
 }) => {
   return {
     entities,
     status,
     accounts: getAccounts(accountDetails),
+    details,
   };
 };
 
 export const buildPayload = (
   context,
-  { entities, accounts, status, security },
+  { entities, accounts, status, security, details },
 ) => ({
   datetime: new Date().toISOString(),
   version: config.serviceVersion,
@@ -72,7 +74,12 @@ export const buildPayload = (
   user: getUser(context),
   sessionid: getSession(context),
   ip: getIP(context),
-  audit: createAuditPayload({ accountDetails: accounts, entities, status }),
+  audit: createAuditPayload({
+    accountDetails: accounts,
+    entities,
+    status,
+    details,
+  }),
   ...buildSecurity(security),
 });
 
@@ -85,7 +92,7 @@ export const writeAuditEvent = async (
   const context = getRequestContext();
 
   const payload = stripNulls(
-    buildPayload(context, { entities, accounts, security, status }),
+    buildPayload(context, { entities, accounts, security, status, details }),
   );
 
   const { valid, errors } = validateAuditEvent(payload);
@@ -96,7 +103,7 @@ export const writeAuditEvent = async (
     const msgGroupId = messageGroupId ?? randomUUID();
 
     const outboxEntry = new Outbox({
-      event: { ...payload, details, messageGroupId: msgGroupId },
+      event: { ...payload, messageGroupId: msgGroupId },
       target: config.sns.auditTopicArn,
       segregationRef: msgGroupId,
     });

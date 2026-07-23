@@ -12,6 +12,15 @@ function create_topic() {
   echo $topic_arn
 }
 
+function create_standard_topic() {
+  local topic_name=$1
+  local topic_arn=$(awslocal sns create-topic \
+	  --name $topic_name \
+	  --query "TopicArn" \
+	  --output text)
+  echo $topic_arn
+}
+
 function create_queue() {
   local queue_name=$1
   local base="${queue_name%%_fifo.fifo}"
@@ -136,6 +145,7 @@ create_topic_and_queue "gas__sns__create_new_case_fifo.fifo" "cw__sqs__create_ne
 create_topic_and_queue "gas__sns__update_case_status_fifo.fifo" "cw__sqs__update_status_fifo.fifo" &
 create_topic_and_queue "gas__sns__create_agreement_fifo.fifo" "create_agreement_fifo.fifo" &
 
+create_standard_topic "gas__sns__audit_topic_arn" &
 create_topic "gas__sns__update_agreement_status_fifo.fifo" &
 
 create_standard_topic_and_queue "gfr__sns___config_update" "gas__sqs__config_version_updated" &

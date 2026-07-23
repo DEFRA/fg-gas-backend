@@ -1,6 +1,6 @@
 export const pmfAgreementDefinition = {
   code: "pigs-might-fly",
-  configVersion: "0.0.1",
+  configVersion: "1.0.1",
   agreementNumberPrefix: "PMF",
   endpoints: [
     {
@@ -47,9 +47,12 @@ export const pmfAgreementDefinition = {
       {
         name: "snapshot",
         params: {
-          fundingCalculation: "$.outputs.fundingCalculation",
+          supplementaryData: {
+            fundingCalculation: "$.outputs.fundingCalculation",
+          },
         },
       },
+      { name: "publish", params: { event: "lifecycle" } },
     ],
   },
   states: {
@@ -70,17 +73,10 @@ export const pmfAgreementDefinition = {
             ],
           },
           effects: [
-            { name: "createPaymentClaim", output: "paymentClaim" },
             {
               name: "snapshot",
               params: {
                 acceptedAt: "$.executedAt",
-                acceptedBy: "$.command.acceptedBy",
-                claimId: "$.outputs.paymentClaim.claimId",
-                correlationId: "$.outputs.paymentClaim.correlationId",
-                originalInvoiceNumber:
-                  "$.outputs.paymentClaim.originalInvoiceNumber",
-                payment: "$.outputs.paymentClaim.payment",
               },
             },
             { name: "publish", params: { event: "lifecycle" } },
@@ -114,9 +110,16 @@ export const pmfAgreementDefinition = {
       ],
       actions: [
         {
+          name: "accept",
+          method: "GET",
           href: {
-            urlTemplate: "/{agreementNumber}/accept",
-            params: { agreementNumber: "$.agreement.agreementNumber" },
+            urlTemplate:
+              "/agreements/{agreementNumber}/items/{agreementItemId}/actions/{name}",
+            params: {
+              agreementNumber: "$.agreement.agreementNumber",
+              agreementItemId: "$.item.agreementItemId",
+              name: "accept",
+            },
           },
           text: "Continue",
         },
@@ -126,6 +129,32 @@ export const pmfAgreementDefinition = {
       title: "Accept your agreement offer",
       components: [
         { component: "heading", level: 1, text: "Accept your agreement offer" },
+        {
+          component: "checkboxes",
+          name: "confirm",
+          items: [
+            {
+              value: "confirmed",
+              text: "I confirm I have read the information in this section and accept this agreement offer.",
+            },
+          ],
+        },
+      ],
+      actions: [
+        {
+          name: "accept",
+          method: "POST",
+          href: {
+            urlTemplate:
+              "/agreements/{agreementNumber}/items/{agreementItemId}/actions/{name}",
+            params: {
+              agreementNumber: "$.agreement.agreementNumber",
+              agreementItemId: "$.item.agreementItemId",
+              name: "accept",
+            },
+          },
+          text: "Accept agreement offer",
+        },
       ],
     },
     // TODO: placeholder copy - real content covered by a follow-up ticket

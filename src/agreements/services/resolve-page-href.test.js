@@ -34,10 +34,17 @@ describe("resolvePageHref", () => {
 });
 
 describe("resolveActions", () => {
-  it("resolves each action's href against the context, keeping its text", async () => {
+  it("resolves each complete action affordance against the context", async () => {
     const actions = [
-      { text: "Continue", href: "#confirm" },
       {
+        name: "continue",
+        method: "GET",
+        text: "Continue",
+        href: "#confirm",
+      },
+      {
+        name: "accept",
+        method: "POST",
         text: "Accept",
         href: {
           urlTemplate: "/{agreementNumber}/accept",
@@ -52,8 +59,18 @@ describe("resolveActions", () => {
     );
 
     expect(result).toEqual([
-      { text: "Continue", href: "#confirm" },
-      { text: "Accept", href: "/PMF823153883/accept" },
+      {
+        name: "continue",
+        method: "GET",
+        text: "Continue",
+        href: "#confirm",
+      },
+      {
+        name: "accept",
+        method: "POST",
+        text: "Accept",
+        href: "/PMF823153883/accept",
+      },
     ]);
   });
 

@@ -70,7 +70,6 @@ export default defineConfig({
       INBOX_POLL_MS: 250,
       FIFO_LOCK_TTL_MS: 5000,
       PRINT_LOGS: process.env.PRINT_LOGS,
-      GRANT_FUNDING_CALCULATOR_URL: "http://grant-funding-calculator.test",
     },
     hookTimeout: 30000,
     testTimeout: 10000,

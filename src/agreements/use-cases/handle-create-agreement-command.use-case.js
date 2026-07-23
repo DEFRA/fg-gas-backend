@@ -1,10 +1,8 @@
-import Boom from "@hapi/boom";
+import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { getAgreementDefinitionByCode } from "../models/agreement-definitions/index.js";
+import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { AgreementItem } from "../models/agreement-item.js";
-import { generateAgreementNumber } from "../models/agreement-number.js";
 import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
 import {
   findByClientRefAndCode,
   saveAgreement,
@@ -20,30 +18,37 @@ const SOURCE_SYSTEM = "GAS";
 // callback on transient errors, so any external side effect performed inside
 // it would risk firing more than once for the same command.
 const buildInitialVersion = async (definition, agreement, answers) => {
-  const { target, effects = [] } = definition.create;
-
-  const effectContext = await runAgreementEffects(effects, {
-    answers,
-    outputs: {},
-    endpoints: definition.endpoints ?? [],
-  });
-
-  const snapshotItem = new AgreementItem({
-    ...agreement.items[0],
-    status: target,
-    supplementaryData: effectContext.supplementaryData,
-  });
-
-  return AgreementVersion.new({
+  const item = agreement.items[0];
+  const executedAt = new Date().toISOString();
+  const versionNumber = 1;
+  const effectContext = await runAgreementEffects(
+    definition.getCreationEffects(),
+    {
+      agreement,
+      answers,
+      outputs: {},
+      item,
+      endpoints: definition.getEndpoints(),
+      executedAt,
+      target: item.state,
+      version: versionNumber,
+    },
+  );
+  const version = AgreementVersion.new({
     agreementId: agreement.id,
     agreementNumber: agreement.agreementNumber,
-    version: 1,
-    snapshot: { ...agreement, items: [snapshotItem] },
+    version: versionNumber,
+    snapshot: {
+      ...agreement,
+      items: [new AgreementItem(effectContext.item)],
+    },
   });
+
+  return { version, outboundEvents: effectContext.outboundEvents ?? [] };
 };
 
 export const handleCreateAgreementCommandUseCase = async (event) => {
-  const { clientRef, code, identifiers, answers } = event.data;
+  const { clientRef, code, identifiers, metadata, answers } = event.data;
 
   const existingAgreement = await findByClientRefAndCode(clientRef, code);
 
@@ -51,36 +56,27 @@ export const handleCreateAgreementCommandUseCase = async (event) => {
     return existingAgreement;
   }
 
-  const definition = getAgreementDefinitionByCode(code);
-
-  if (!definition) {
-    throw Boom.badRequest(`Unknown agreement code: "${code}"`);
-  }
-
-  const item = AgreementItem.create({
-    agreementCode: code,
+  const definition = await loadAgreementDefinition({
+    code,
+    configVersion: metadata?.configVersion,
+  });
+  const agreement = definition.createAgreement({
     clientRef,
     sourceSystem: SOURCE_SYSTEM,
-    configVersion: definition.configVersion,
     identifiers,
     payload: answers,
-    status: definition.create.target,
   });
 
-  const agreement = Agreement.new({
-    agreementNumber: generateAgreementNumber({
-      prefix: definition.agreementNumberPrefix,
-    }),
-    code,
-    identifiers,
-    items: [item],
-  });
-
-  const version = await buildInitialVersion(definition, agreement, answers);
+  const { version, outboundEvents } = await buildInitialVersion(
+    definition,
+    agreement,
+    answers,
+  );
 
   return withTransaction(async (session) => {
     await saveAgreement(agreement, session);
     await saveVersion(version, session);
+    await saveOutboxEvents(outboundEvents, session);
 
     return agreement;
   });

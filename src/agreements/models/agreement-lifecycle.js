@@ -1,4 +1,6 @@
+import { AgreementAction } from "./agreement-action.js";
 import { InvalidAgreementTransitionError } from "./invalid-agreement-transition.error.js";
+import { requirePersistedAgreementState } from "./require-persisted-agreement-state.js";
 
 export const defaultAgreementLifecycle = {
   create: { target: "offered" },
@@ -31,25 +33,38 @@ export class AgreementLifecycle {
   }
 
   getAvailableActions(state) {
-    const stateDefinition = this.definition.states[state];
-    if (!stateDefinition) {
-      throw new Error(`Unknown agreement lifecycle state: "${state}"`);
-    }
+    const stateDefinition = requirePersistedAgreementState({
+      definition: this.definition,
+      state,
+    });
+
     return Object.keys(stateDefinition.on ?? {});
   }
 
-  resolveAction(state, action) {
-    const availableActions = this.getAvailableActions(state);
-    const transition = this.definition.states[state].on?.[action];
+  resolveAction(state, actionName) {
+    const stateDefinition = requirePersistedAgreementState({
+      definition: this.definition,
+      state,
+    });
+    const transitions = stateDefinition.on ?? {};
+    const availableActions = Object.keys(transitions);
 
-    if (!transition) {
+    if (!Object.hasOwn(transitions, actionName)) {
       throw new InvalidAgreementTransitionError({
         from: state,
-        action,
+        action: actionName,
         availableActions,
       });
     }
 
-    return { from: state, action, target: transition.target };
+    const { target, validation, effects } = transitions[actionName];
+
+    return new AgreementAction({
+      from: state,
+      name: actionName,
+      target,
+      validation,
+      effects,
+    });
   }
 }
