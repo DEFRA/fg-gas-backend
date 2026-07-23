@@ -29,8 +29,8 @@ const applyFormats = (value) => {
   return applyFormatsToObject(value);
 };
 
-// Cell templates are resolved against a single row item (not the full render
-// context) - refs like "$.description" address fields on that one row.
+// Cell templates are resolved against a single row item (not the full page
+// model context) - refs like "$.description" address fields on that one row.
 const resolveCell = async (cellTemplate, rowItem) =>
   applyFormats(await resolveEffectParams(cellTemplate, rowItem));
 

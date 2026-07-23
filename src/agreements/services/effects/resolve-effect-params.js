@@ -19,16 +19,13 @@ const resolveObject = async (value, context) => {
   return Object.fromEntries(entries);
 };
 
-const hasDefault = (ref) => ref.includes("??");
-
-// A ref with no "??" default is declaring the referenced value is required;
-// resolving to undefined means the effect config and the context it's
-// evaluated against have drifted out of sync (e.g. a renamed output key),
-// so it's surfaced as an error rather than silently persisted.
+// Resolving to undefined means either the required reference is missing or a
+// configured fallback also failed. Surface both cases rather than silently
+// persisting an incomplete effect result.
 const resolveRef = async (ref, context) => {
   const resolved = await jsonata(ref).evaluate(context);
 
-  if (resolved === undefined && !hasDefault(ref)) {
+  if (resolved === undefined) {
     throw new Error(`Unresolved reference "${ref}" in effect params`);
   }
 

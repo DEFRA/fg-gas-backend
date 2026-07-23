@@ -26,6 +26,7 @@ export const toAgreementVersion = (doc) =>
     version: doc.version,
     snapshot: toAgreement(doc.snapshot),
     createdAt: doc.createdAt,
+    actionExecution: doc.actionExecution,
   });
 
 export const agreementsCollection = "agreements__agreements";
@@ -65,10 +66,10 @@ export const saveVersion = async (version, session) => {
     .insertOne(new AgreementVersionDocument(version), { session });
 };
 
-export const findByAgreementNumber = async (agreementNumber) => {
+export const findByAgreementNumber = async (agreementNumber, session) => {
   const doc = await db
     .collection(agreementsCollection)
-    .findOne({ agreementNumber });
+    .findOne({ agreementNumber }, { session });
 
   if (doc === null) {
     return null;
@@ -90,6 +91,24 @@ export const findByClientRefAndCode = async (clientRef, code, session) => {
   }
 
   return toAgreement(doc);
+};
+
+export const findVersionByActionIdempotencyKey = async (
+  agreementNumber,
+  agreementItemId,
+  idempotencyKey,
+  session,
+) => {
+  const doc = await db.collection(versionsCollection).findOne(
+    {
+      agreementNumber,
+      "actionExecution.agreementItemId": agreementItemId,
+      "actionExecution.idempotencyKey": idempotencyKey,
+    },
+    { session },
+  );
+
+  return doc === null ? null : toAgreementVersion(doc);
 };
 
 export const findLatestVersionByAgreementNumber = async (

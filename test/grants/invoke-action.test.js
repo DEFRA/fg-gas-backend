@@ -16,6 +16,20 @@ import { wreck } from "../helpers/wreck.js";
 let grants;
 let client;
 
+const listenOnAvailablePort = (server) =>
+  new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "0.0.0.0", () => {
+      server.off("error", reject);
+      resolve(server.address().port);
+    });
+  });
+
+const closeServer = (server) =>
+  new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   grants = client.db().collection("grants");
@@ -26,44 +40,45 @@ afterAll(async () => {
 });
 
 describe("POST /grants/{code}/actions/{name}/invoke", () => {
+  let calculatorUrl;
   let server;
 
   beforeEach(async () => {
-    server = http
-      .createServer((_req, res) => {
-        if (
-          _req.url === "/calculations/my-super-calc?code=test-code-1" &&
-          _req.method.toUpperCase() === "POST"
-        ) {
-          res.writeHead(200, {
-            "Content-Type": "application/json",
-          });
-          res.end(
-            JSON.stringify({
-              message: "Action invoked: my-super-calc",
-            }),
-          );
-        }
-        if (
-          _req.url ===
-            "/calculations/my-area-calc/area/123?code=test-code-1&paramOne=a&paramTwo=b" &&
-          _req.method.toUpperCase() === "POST"
-        ) {
-          res.writeHead(200, {
-            "Content-Type": "application/json",
-          });
-          res.end(
-            JSON.stringify({
-              message: "Action invoked: my-area-calc",
-            }),
-          );
-        }
-      })
-      .listen(3002);
+    server = http.createServer((_req, res) => {
+      if (
+        _req.url === "/calculations/my-super-calc?code=test-code-1" &&
+        _req.method.toUpperCase() === "POST"
+      ) {
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+        });
+        res.end(
+          JSON.stringify({
+            message: "Action invoked: my-super-calc",
+          }),
+        );
+      }
+      if (
+        _req.url ===
+          "/calculations/my-area-calc/area/123?code=test-code-1&paramOne=a&paramTwo=b" &&
+        _req.method.toUpperCase() === "POST"
+      ) {
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+        });
+        res.end(
+          JSON.stringify({
+            message: "Action invoked: my-area-calc",
+          }),
+        );
+      }
+    });
+    const port = await listenOnAvailablePort(server);
+    calculatorUrl = `http://host.docker.internal:${port}`;
   });
 
-  afterEach(() => {
-    server.close();
+  afterEach(async () => {
+    await closeServer(server);
   });
 
   it("invokes an action and returns the response", async () => {
@@ -74,12 +89,12 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
           {
             name: "calc-totals",
             method: "POST",
-            url: "http://host.docker.internal:3002/calculations/my-super-calc",
+            url: `${calculatorUrl}/calculations/my-super-calc`,
           },
           {
             name: "calc-with-params",
             method: "POST",
-            url: "http://host.docker.internal:3002/calculations/my-area-calc/area/{areaId}",
+            url: `${calculatorUrl}/calculations/my-area-calc/area/{areaId}`,
           },
         ],
       },
@@ -107,7 +122,7 @@ describe("POST /grants/{code}/actions/{name}/invoke", () => {
           {
             name: "calc-with-params",
             method: "POST",
-            url: "http://host.docker.internal:3002/calculations/my-area-calc/area/$areaId",
+            url: `${calculatorUrl}/calculations/my-area-calc/area/$areaId`,
           },
         ],
       },
