@@ -1,14 +1,14 @@
 const agreementsCollection = "agreements__agreements";
 const versionsCollection = "agreements__versions";
+const namespaceNotFoundErrorCode = 26;
 
 const dropCollection = async (collection) => {
   try {
     await collection.drop();
   } catch (error) {
-    console.error(
-      `Failed to drop collection "${collection.collectionName}"`,
-      error,
-    );
+    if (error.code !== namespaceNotFoundErrorCode) {
+      throw error;
+    }
   }
 };
 

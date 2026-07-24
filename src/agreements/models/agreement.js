@@ -34,9 +34,11 @@ export class Agreement {
   }
 
   transition({ target, transitionedAt, changes = {} }) {
+    const transitionChanges = resolveTransitionChanges(this, changes);
+
     return new Agreement({
       ...this,
-      ...resolveTransitionChanges(this, changes),
+      ...transitionChanges,
       state: target,
       version: this.version + 1,
       updatedAt: transitionedAt,
@@ -74,7 +76,7 @@ const cloneOptional = (value) =>
   value === undefined ? undefined : structuredClone(value);
 
 const resolveTransitionChanges = (agreement, changes) => ({
-  acceptedAt: changes.acceptedAt ?? agreement.acceptedAt,
+  acceptedAt: agreement.acceptedAt ?? changes.acceptedAt,
   paymentCalculation:
     changes.paymentCalculation ?? agreement.paymentCalculation,
   supplementaryData: changes.supplementaryData ?? agreement.supplementaryData,

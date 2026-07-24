@@ -86,6 +86,7 @@ describe("Agreement", () => {
     const terminated = agreement.transition({
       target: "terminated",
       transitionedAt: "2026-07-19T10:00:00.000Z",
+      changes: { acceptedAt: "2026-07-19T10:00:00.000Z" },
     });
 
     expect(terminated.acceptedAt).toBe("2026-07-18T09:15:00.000Z");
