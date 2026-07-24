@@ -14,7 +14,7 @@ import {
   auditDataBuilder,
   replaceApplicationUseCase,
 } from "./replace-application.use-case.js";
-import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
+import { resolveGrantForApplication } from "./resolve-current-grant.use-case.js";
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../common/write-audit-event.js");
@@ -25,7 +25,7 @@ vi.mock("./resolve-current-grant.use-case.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    resolveCurrentGrantUseCase: vi.fn(),
+    resolveGrantForApplication: vi.fn(),
     persistResolvedVersion: vi.fn(),
   };
 });
@@ -47,7 +47,7 @@ const testApplication = {
 
 describe("replaceApplicationUseCase", () => {
   beforeEach(() => {
-    resolveCurrentGrantUseCase.mockResolvedValue({
+    resolveGrantForApplication.mockResolvedValue({
       grant: {
         amendablePositions: ["PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND"],
       },

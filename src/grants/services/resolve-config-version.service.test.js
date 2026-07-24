@@ -96,6 +96,7 @@ describe("resolveAndFetchGrant", () => {
 
     expect(result.grant).toBe(existingGrant);
     expect(result.resolvedVersion).toBe(VERSION);
+    expect(result.definitionSource).toBe("mongodb");
     expect(fetchConfigFile).not.toHaveBeenCalled();
   });
 
@@ -146,6 +147,7 @@ describe("resolveAndFetchGrant", () => {
     );
     expect(result.grant).toBeInstanceOf(Grant);
     expect(result.resolvedVersion).toBe(VERSION);
+    expect(result.definitionSource).toBe("s3");
   });
 
   it("fetches from S3 when fetched but grant not found in grants collection", async () => {
@@ -161,6 +163,7 @@ describe("resolveAndFetchGrant", () => {
 
     expect(fetchConfigFile).toHaveBeenCalled();
     expect(result.grant).toBeInstanceOf(Grant);
+    expect(result.definitionSource).toBe("s3");
   });
 
   it("handles concurrent duplicate insert by falling back to findByCode", async () => {
@@ -181,6 +184,7 @@ describe("resolveAndFetchGrant", () => {
 
     expect(result.grant).toBe(existingGrant);
     expect(result.resolvedVersion).toBe(VERSION);
+    expect(result.definitionSource).toBe("s3");
     expect(updateFetchStatus).toHaveBeenCalledWith(
       GRANT_CODE,
       VERSION,
