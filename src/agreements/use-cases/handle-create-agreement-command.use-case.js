@@ -1,56 +1,48 @@
+import { MongoServerError } from "mongodb";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
-import { AgreementItem } from "../models/agreement-item.js";
 import { AgreementVersion } from "../models/agreement-version.js";
+import { Agreement } from "../models/agreement.js";
 import {
-  findByClientRefAndCode,
-  saveAgreement,
-  saveVersion,
+  findAgreementBySourceIdentity,
+  insertAgreementVersion,
+  insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
+import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
 
-const SOURCE_SYSTEM = "GAS";
-
-// Runs create effects (which may include a real, non-idempotent external
-// HTTP call via the callEndpoint effect) and builds version 1. Deliberately
-// called before any transaction is opened: withTransaction retries its whole
-// callback on transient errors, so any external side effect performed inside
-// it would risk firing more than once for the same command.
-const buildInitialVersion = async (definition, agreement, answers) => {
-  const item = agreement.items[0];
-  const executedAt = new Date().toISOString();
-  const versionNumber = 1;
+const buildInitialAgreement = async (definition, agreement, answers) => {
   const effectContext = await runAgreementEffects(
     definition.getCreationEffects(),
     {
       agreement,
       answers,
       outputs: {},
-      item,
       endpoints: definition.getEndpoints(),
-      executedAt,
-      target: item.state,
-      version: versionNumber,
+      executedAt: agreement.createdAt,
+      target: agreement.state,
+      version: agreement.version,
     },
   );
-  const version = AgreementVersion.new({
-    agreementId: agreement.id,
-    agreementNumber: agreement.agreementNumber,
-    version: versionNumber,
-    snapshot: {
-      ...agreement,
-      items: [new AgreementItem(effectContext.item)],
-    },
-  });
 
-  return { version, outboundEvents: effectContext.outboundEvents ?? [] };
+  const resultingAgreement = new Agreement(effectContext.agreement);
+
+  return {
+    agreement: resultingAgreement,
+    outboundEvents: createOutboxMessages(
+      effectContext.outboxMessageTypes ?? [],
+      resultingAgreement,
+    ),
+  };
 };
 
-export const handleCreateAgreementCommandUseCase = async (event) => {
+const createAgreement = async (event) => {
   const { clientRef, code, identifiers, metadata, answers } = event.data;
-
-  const existingAgreement = await findByClientRefAndCode(clientRef, code);
+  const existingAgreement = await findAgreementBySourceIdentity({
+    clientRef,
+    code,
+  });
 
   if (existingAgreement) {
     return existingAgreement;
@@ -60,24 +52,48 @@ export const handleCreateAgreementCommandUseCase = async (event) => {
     code,
     configVersion: metadata?.configVersion,
   });
-  const agreement = definition.createAgreement({
+  const initialAgreement = definition.createAgreement({
     clientRef,
-    sourceSystem: SOURCE_SYSTEM,
     identifiers,
     payload: answers,
   });
-
-  const { version, outboundEvents } = await buildInitialVersion(
+  const { agreement, outboundEvents } = await buildInitialAgreement(
     definition,
-    agreement,
+    initialAgreement,
     answers,
   );
+  const agreementVersion = AgreementVersion.create({
+    agreement,
+    versionedAt: agreement.createdAt,
+  });
 
   return withTransaction(async (session) => {
-    await saveAgreement(agreement, session);
-    await saveVersion(version, session);
+    await insertCurrentAgreement(agreement, session);
+    await insertAgreementVersion(agreementVersion, session);
     await saveOutboxEvents(outboundEvents, session);
 
     return agreement;
   });
+};
+
+const isDuplicateKeyError = (error) =>
+  error instanceof MongoServerError && error.code === 11000;
+
+const hasSourceIdentityKey = (error) =>
+  Boolean(error.keyPattern?.code && error.keyPattern?.clientRef);
+
+const isSourceIdentityConflict = (error) =>
+  isDuplicateKeyError(error) && hasSourceIdentityKey(error);
+
+export const handleCreateAgreementCommandUseCase = async (event) => {
+  try {
+    return await createAgreement(event);
+  } catch (error) {
+    if (!isSourceIdentityConflict(error)) {
+      throw error;
+    }
+
+    const { clientRef, code } = event.data;
+    return findAgreementBySourceIdentity({ clientRef, code });
+  }
 };

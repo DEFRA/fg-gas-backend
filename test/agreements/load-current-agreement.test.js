@@ -1,205 +1,75 @@
 import { MongoClient } from "mongodb";
-import { MongoMemoryServer } from "mongodb-memory-server";
+import { env } from "node:process";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+  loadCurrentAgreement,
+  loadCurrentAgreementByNumber,
+} from "../../src/agreements/use-cases/load-current-agreement.js";
 
-const agreementNumber = "PMF823153883";
+const agreementNumber = "PMF823153885";
 const code = "pigs-might-fly";
-const clientRef = "xnp-rr3-nfa";
-const sbi = "300000069";
-const agreementId = "agreement-id";
-
-const toItem = (state) => ({
-  agreementItemId: "item-id",
-  agreementCode: code,
+const clientRef = "load-current-client";
+const sbi = "300000071";
+const current = {
+  _id: agreementNumber,
+  agreementNumber,
+  version: 2,
+  code,
   clientRef,
-  sourceSystem: "GAS",
   configVersion: "1.0.1",
+  correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
   identifiers: { sbi },
   payload: {},
-  createdAt: "2026-07-14T12:00:00.000Z",
-  state,
-});
+  state: "accepted",
+  createdAt: "2026-07-15T12:00:00.000Z",
+  updatedAt: "2026-07-16T12:00:00.000Z",
+};
 
-const toAgreement = (state = "offered") => ({
-  _id: agreementId,
-  agreementNumber,
-  code,
-  identifiers: { sbi },
-  items: [toItem(state)],
-  createdAt: "2026-07-14T12:00:00.000Z",
-  updatedAt: "2026-07-14T12:00:00.000Z",
-});
-
-const toVersion = (version, state) => ({
-  _id: `version-${version}`,
-  agreementId,
-  agreementNumber,
-  version,
-  snapshot: toAgreement(state),
-  createdAt: `2026-07-14T12:0${version}:00.000Z`,
-});
-
-describe("loadCurrentAgreement", () => {
+describe("load one current Agreement", () => {
   let client;
-  let database;
-  let mongoServer;
-  let loadCurrentAgreement;
+  let agreements;
 
   beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
-    vi.stubEnv("MONGO_URI", mongoServer.getUri());
-    vi.stubEnv("MONGO_DATABASE", "current-agreement-test");
-    ({ loadCurrentAgreement } =
-      await import("../../src/agreements/use-cases/load-current-agreement.js"));
-    client = await MongoClient.connect(process.env.MONGO_URI);
-    database = client.db(process.env.MONGO_DATABASE);
+    client = await MongoClient.connect(env.MONGO_URI);
+    agreements = client.db().collection("agreements__agreements");
   });
 
   beforeEach(async () => {
-    await Promise.all([
-      database.collection("agreements__agreements").deleteMany({}),
-      database.collection("agreements__versions").deleteMany({}),
-    ]);
+    await agreements.deleteMany({ agreementNumber });
+    await agreements.insertOne(structuredClone(current));
   });
 
   afterAll(async () => {
-    await client?.close();
-    await mongoServer?.stop();
-    vi.unstubAllEnvs();
+    await agreements.deleteMany({ agreementNumber });
+    await client.close();
   });
 
-  const seedAgreement = async ({
-    agreement = toAgreement(),
-    versions = [toVersion(1, "offered"), toVersion(2, "accepted")],
-  } = {}) => {
-    await database.collection("agreements__agreements").insertOne(agreement);
+  it("loads direct current state by source identity and SBI scope", async () => {
+    const result = await loadCurrentAgreement({ code, clientRef, sbi });
 
-    if (versions.length > 0) {
-      await database.collection("agreements__versions").insertMany(versions);
-    }
-  };
-
-  it("returns the latest Agreement version and matching item", async () => {
-    await seedAgreement();
-
-    const result = await loadCurrentAgreement({
-      code,
-      clientRef,
-      sbi,
-    });
-
-    expect(result.reference).toEqual({
+    expect(result).toMatchObject({
       agreementNumber,
-      code,
-      clientRef,
-      sbi,
+      version: 2,
+      state: "accepted",
     });
-    expect(result.version.version).toBe(2);
-    expect(result.state).toBe("accepted");
-    expect(result.item.state).toBe("accepted");
-    expect(result).not.toHaveProperty("agreement");
-    expect(result).not.toHaveProperty("definition");
+    expect(result).not.toHaveProperty("items");
   });
 
-  it("returns a non-disclosing 404 when the Agreement Reference cannot be resolved", async () => {
+  it("loads canonical current state by Agreement Number", async () => {
     await expect(
-      loadCurrentAgreement({ code, clientRef, sbi }),
-    ).rejects.toMatchObject({
-      output: {
-        statusCode: 404,
-        payload: { message: "Agreement not found" },
-      },
-    });
+      loadCurrentAgreementByNumber({ agreementNumber }),
+    ).resolves.toMatchObject({ agreementNumber, version: 2 });
   });
 
-  it.each([
-    ["code", { code: "wrong-code" }],
-    ["client reference", { clientRef: "wrong-client" }],
-    ["SBI", { sbi: "999999999" }],
-  ])(
-    "returns the same non-disclosing 404 for a wrong %s",
-    async (_name, override) => {
-      await seedAgreement();
-
-      await expect(
-        loadCurrentAgreement({
-          code,
-          clientRef,
-          sbi,
-          ...override,
-        }),
-      ).rejects.toMatchObject({
-        output: {
-          statusCode: 404,
-          payload: { message: "Agreement not found" },
-        },
-      });
-    },
-  );
-
-  it.each([
-    ["code", { code: "wrong-code" }],
-    [
-      "item SBI",
-      {
-        items: [{ ...toItem("offered"), identifiers: { sbi: "999999999" } }],
-      },
-    ],
-  ])(
-    "returns a non-disclosing 404 when the root Agreement has an inconsistent %s",
-    async (_name, agreementOverride) => {
-      await seedAgreement({
-        agreement: { ...toAgreement(), ...agreementOverride },
-      });
-
-      await expect(
-        loadCurrentAgreement({ code, clientRef, sbi }),
-      ).rejects.toMatchObject({
-        output: {
-          statusCode: 404,
-          payload: { message: "Agreement not found" },
-        },
-      });
-    },
-  );
-
-  it("returns 500 when the Agreement has no recorded version", async () => {
-    await seedAgreement({ versions: [] });
-
+  it("does not disclose an Agreement outside the SBI account", async () => {
     await expect(
-      loadCurrentAgreement({ code, clientRef, sbi }),
-    ).rejects.toMatchObject({ output: { statusCode: 500 } });
+      loadCurrentAgreement({ code, clientRef, sbi: "999999999" }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
   });
 
-  it.each([
-    ["agreement number", { agreementNumber: "PMF000000000" }],
-    ["code", { code: "wrong-code" }],
-    ["SBI", { identifiers: { sbi: "999999999" } }],
-    ["item", { items: [{ ...toItem("offered"), clientRef: "other" }] }],
-    [
-      "item SBI",
-      {
-        items: [{ ...toItem("offered"), identifiers: { sbi: "999999999" } }],
-      },
-    ],
-  ])(
-    "returns 500 when the latest snapshot has an inconsistent %s",
-    async (_name, snapshotOverride) => {
-      const version = toVersion(1, "offered");
-      version.snapshot = { ...version.snapshot, ...snapshotOverride };
-      await seedAgreement({ versions: [version] });
-
-      await expect(
-        loadCurrentAgreement({ code, clientRef, sbi }),
-      ).rejects.toMatchObject({ output: { statusCode: 500 } });
-    },
-  );
+  it("returns not found for an unknown Agreement Number", async () => {
+    await expect(
+      loadCurrentAgreementByNumber({ agreementNumber: "PMF000000000" }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+  });
 });

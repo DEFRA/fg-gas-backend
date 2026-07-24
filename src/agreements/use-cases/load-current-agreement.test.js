@@ -1,185 +1,56 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
-import { CurrentAgreement } from "../models/current-agreement.js";
 import {
-  findByAgreementNumber,
-  findByClientRefCodeAndSbi,
-  findLatestVersionByAgreementNumber,
+  findAgreementByNumber,
+  findAgreementBySourceIdentity,
 } from "../repositories/agreement.repository.js";
 import {
   loadCurrentAgreement,
-  loadCurrentAgreementByItem,
+  loadCurrentAgreementByNumber,
 } from "./load-current-agreement.js";
 
 vi.mock("../repositories/agreement.repository.js");
 
-const request = {
+const agreement = {
+  agreementNumber: "PMF823153883",
   code: "pigs-might-fly",
   clientRef: "xnp-rr3-nfa",
-  sbi: "300000069",
+  identifiers: { sbi: "300000069" },
 };
 
-const item = {
-  agreementItemId: "29b829c4-4e38-405c-9f00-427ee94120a5",
-  agreementCode: request.code,
-  clientRef: request.clientRef,
-  identifiers: { sbi: request.sbi },
-  configVersion: "0.0.1",
-  state: "accepted",
-};
+describe("load current Agreement", () => {
+  beforeEach(() => vi.clearAllMocks());
 
-const agreement = new Agreement({
-  agreementNumber: "PMF823153883",
-  code: request.code,
-  identifiers: { sbi: request.sbi },
-  items: [item],
-});
-
-const version = new AgreementVersion({
-  agreementNumber: agreement.agreementNumber,
-  version: 2,
-  snapshot: structuredClone(agreement),
-});
-
-describe("loadCurrentAgreement", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    findByAgreementNumber.mockResolvedValue(agreement);
-    findByClientRefCodeAndSbi.mockResolvedValue(agreement);
-    findLatestVersionByAgreementNumber.mockResolvedValue(version);
-  });
-
-  it("loads the Current Agreement using its Agreement and Item IDs", async () => {
-    const currentAgreement = await loadCurrentAgreementByItem({
-      agreementNumber: agreement.agreementNumber,
-      agreementItemId: item.agreementItemId,
-    });
-
-    expect(currentAgreement).toMatchObject({
-      agreementNumber: agreement.agreementNumber,
-      state: "accepted",
-      versionNumber: 2,
-    });
-    expect(findByAgreementNumber).toHaveBeenCalledWith(
-      agreement.agreementNumber,
-      undefined,
-    );
-    expect(findLatestVersionByAgreementNumber).toHaveBeenCalledWith(
-      agreement.agreementNumber,
-      undefined,
-    );
-  });
-
-  it("returns 404 when the Agreement does not exist", async () => {
-    findByAgreementNumber.mockResolvedValue(null);
+  it("loads by source identity within the SBI account", async () => {
+    findAgreementBySourceIdentity.mockResolvedValue(agreement);
 
     await expect(
-      loadCurrentAgreementByItem({
-        agreementNumber: agreement.agreementNumber,
-        agreementItemId: item.agreementItemId,
+      loadCurrentAgreement({
+        code: agreement.code,
+        clientRef: agreement.clientRef,
+        sbi: agreement.identifiers.sbi,
       }),
-    ).rejects.toMatchObject({
-      output: {
-        statusCode: 404,
-        payload: { message: "Agreement not found" },
-      },
-    });
-    expect(findLatestVersionByAgreementNumber).not.toHaveBeenCalled();
+    ).resolves.toBe(agreement);
   });
 
-  it("returns 404 when the Agreement Item does not belong to the Agreement", async () => {
+  it("does not disclose an Agreement from another SBI account", async () => {
+    findAgreementBySourceIdentity.mockResolvedValue(agreement);
+
     await expect(
-      loadCurrentAgreementByItem({
+      loadCurrentAgreement({
+        code: agreement.code,
+        clientRef: agreement.clientRef,
+        sbi: "999999999",
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+  });
+
+  it("loads canonical access by Agreement Number", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadCurrentAgreementByNumber({
         agreementNumber: agreement.agreementNumber,
-        agreementItemId: "unknown-item-id",
       }),
-    ).rejects.toMatchObject({
-      output: {
-        statusCode: 404,
-        payload: { message: "Agreement not found" },
-      },
-    });
-    expect(findLatestVersionByAgreementNumber).not.toHaveBeenCalled();
-  });
-
-  it("loads the Current Agreement from its latest recorded version", async () => {
-    const currentAgreement = await loadCurrentAgreement(request);
-
-    expect(currentAgreement).toBeInstanceOf(CurrentAgreement);
-    expect(currentAgreement).toMatchObject({
-      agreementNumber: "PMF823153883",
-      code: "pigs-might-fly",
-      configVersion: "0.0.1",
-      state: "accepted",
-      version,
-    });
-    expect(findByClientRefCodeAndSbi).toHaveBeenCalledWith(
-      request.clientRef,
-      request.code,
-      request.sbi,
-      undefined,
-    );
-    expect(findLatestVersionByAgreementNumber).toHaveBeenCalledWith(
-      agreement.agreementNumber,
-      undefined,
-    );
-  });
-
-  it.each([
-    ["missing Agreement", null],
-    ["root code", new Agreement({ ...agreement, code: "wrong-code" })],
-    [
-      "root SBI",
-      new Agreement({
-        ...agreement,
-        identifiers: { sbi: "999999999" },
-      }),
-    ],
-    ["root item", new Agreement({ ...agreement, items: [] })],
-  ])(
-    "returns the same non-disclosing 404 for an inconsistent %s",
-    async (_name, value) => {
-      findByClientRefCodeAndSbi.mockResolvedValue(value);
-
-      await expect(loadCurrentAgreement(request)).rejects.toMatchObject({
-        output: {
-          statusCode: 404,
-          payload: { message: "Agreement not found" },
-        },
-      });
-      expect(findLatestVersionByAgreementNumber).not.toHaveBeenCalled();
-    },
-  );
-
-  it("returns 500 when the Agreement has no recorded version", async () => {
-    findLatestVersionByAgreementNumber.mockResolvedValue(null);
-
-    await expect(loadCurrentAgreement(request)).rejects.toMatchObject({
-      output: { statusCode: 500 },
-    });
-  });
-
-  it.each([
-    ["missing snapshot", null],
-    [
-      "snapshot agreement number",
-      { ...version.snapshot, agreementNumber: "PMF000000000" },
-    ],
-    ["snapshot code", { ...version.snapshot, code: "wrong-code" }],
-    [
-      "snapshot SBI",
-      { ...version.snapshot, identifiers: { sbi: "999999999" } },
-    ],
-    ["snapshot item", { ...version.snapshot, items: undefined }],
-  ])("returns 500 for an inconsistent %s", async (_name, snapshot) => {
-    findLatestVersionByAgreementNumber.mockResolvedValue({
-      ...version,
-      snapshot: snapshot === null ? null : new Agreement(snapshot),
-    });
-
-    await expect(loadCurrentAgreement(request)).rejects.toMatchObject({
-      output: { statusCode: 500 },
-    });
+    ).resolves.toBe(agreement);
   });
 });

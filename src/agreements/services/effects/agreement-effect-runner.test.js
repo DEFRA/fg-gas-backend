@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { config } from "../../../common/config.js";
 import {
   handlers,
   mergeEffectResult,
@@ -11,44 +10,40 @@ vi.mock("./call-agreement-endpoint.js");
 
 describe("handlers", () => {
   describe("snapshot", () => {
-    it("resolves effect.params against the context and returns them as supplementaryData", async () => {
-      const result = await handlers.snapshot(
-        { outputs: { fundingCalculation: { amount: 42 } } },
-        { params: { fundingCalculation: "$.outputs.fundingCalculation" } },
-      );
-
-      expect(result).toEqual({
-        context: { supplementaryData: { fundingCalculation: { amount: 42 } } },
-      });
-    });
-
-    it("defaults to an empty supplementaryData object when params is omitted", async () => {
-      const result = await handlers.snapshot({ outputs: {} }, {});
-
-      expect(result).toEqual({ context: { supplementaryData: {} } });
-    });
-
-    it("applies resolved action facts to the Agreement Item", async () => {
+    it("applies resolved creation facts to the Agreement", async () => {
       const result = await handlers.snapshot(
         {
-          executedAt: "2026-07-17T11:29:00.000Z",
-          item: { agreementItemId: "item-1", state: "offered" },
+          agreement: { agreementNumber: "PMF123", state: "offered" },
+          outputs: { fundingCalculation: { amount: 42 } },
         },
-        { params: { acceptedAt: "$.executedAt" } },
+        {
+          params: {
+            supplementaryData: {
+              fundingCalculation: "$.outputs.fundingCalculation",
+            },
+          },
+        },
       );
 
-      expect(result.context.item).toMatchObject({
-        agreementItemId: "item-1",
-        acceptedAt: "2026-07-17T11:29:00.000Z",
+      expect(result.context.agreement).toEqual({
+        agreementNumber: "PMF123",
         state: "offered",
+        supplementaryData: { fundingCalculation: { amount: 42 } },
       });
+    });
+
+    it("leaves the Agreement unchanged when params is omitted", async () => {
+      const agreement = { agreementNumber: "PMF123", state: "offered" };
+      const result = await handlers.snapshot({ agreement, outputs: {} }, {});
+
+      expect(result.context.agreement).toEqual(agreement);
     });
 
     it("adds supplementary data without discarding values from earlier effects", async () => {
       const result = await handlers.snapshot(
         {
-          item: {
-            agreementItemId: "item-1",
+          agreement: {
+            agreementNumber: "PMF123",
             supplementaryData: { acceptedBy: "applicant" },
           },
         },
@@ -59,7 +54,7 @@ describe("handlers", () => {
         },
       );
 
-      expect(result.context.item.supplementaryData).toEqual({
+      expect(result.context.agreement.supplementaryData).toEqual({
         acceptedBy: "applicant",
         fundingCalculation: { amount: 42 },
       });
@@ -116,36 +111,13 @@ describe("handlers", () => {
 
   it("creates a lifecycle publication intent", async () => {
     const result = await handlers.publish(
-      {
-        agreement: { agreementNumber: "PMF123" },
-        item: {
-          clientRef: "client-1",
-          agreementCode: "pigs-might-fly",
-        },
-        version: 2,
-        target: "accepted",
-        executedAt: "2026-07-17T11:29:00.000Z",
-      },
+      { outboxMessageTypes: ["existing"] },
       { params: { event: "lifecycle" } },
     );
 
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       context: {
-        outboundEvents: [
-          {
-            target: config.sns.updateAgreementStatusTopicArn,
-            event: {
-              data: {
-                agreementNumber: "PMF123",
-                clientRef: "client-1",
-                code: "pigs-might-fly",
-                version: 2,
-                status: "accepted",
-                date: "2026-07-17T11:29:00.000Z",
-              },
-            },
-          },
-        ],
+        outboxMessageTypes: ["existing", "lifecycle"],
       },
     });
   });
@@ -268,6 +240,72 @@ describe("mergeEffectResult", () => {
 });
 
 describe("runAgreementEffects", () => {
+  it("records acceptance time from the configured snapshot", async () => {
+    const result = await runAgreementEffects(
+      [
+        {
+          name: "snapshot",
+          params: { acceptedAt: "$.executedAt" },
+        },
+      ],
+      {
+        agreement: { agreementNumber: "PMF123", state: "offered" },
+        executedAt: "2026-07-18T09:15:00.000Z",
+        outputs: {},
+      },
+    );
+
+    expect(result.agreement.acceptedAt).toBe("2026-07-18T09:15:00.000Z");
+  });
+
+  it("only applies supported Agreement snapshot fields", async () => {
+    const agreement = {
+      agreementNumber: "PMF123",
+      code: "pigs-might-fly",
+      clientRef: "client-ref",
+      configVersion: "1.0.1",
+      correlationId: "correlation-id",
+      identifiers: { sbi: "300000069" },
+      payload: { whitePigsCount: 5 },
+      state: "offered",
+      version: 1,
+      createdAt: "2026-07-17T11:29:00.000Z",
+      updatedAt: "2026-07-17T11:29:00.000Z",
+    };
+
+    const result = await runAgreementEffects(
+      [
+        {
+          name: "snapshot",
+          params: {
+            agreementNumber: "CHANGED",
+            code: "changed",
+            clientRef: "changed",
+            configVersion: "changed",
+            correlationId: "changed",
+            identifiers: { sbi: "999999999" },
+            payload: {},
+            state: "accepted",
+            version: 99,
+            createdAt: "changed",
+            updatedAt: "changed",
+            acceptedAt: "changed",
+            paymentCalculation: { total: 100 },
+            supplementaryData: { calculated: true },
+          },
+        },
+      ],
+      { agreement, outputs: {} },
+    );
+
+    expect(result.agreement).toEqual({
+      ...agreement,
+      acceptedAt: "changed",
+      paymentCalculation: { total: 100 },
+      supplementaryData: { calculated: true },
+    });
+  });
+
   it("calls handlers in the same order as the configured effects", async () => {
     const callOrder = [];
     vi.spyOn(handlers, "snapshot").mockImplementation(async () => {

@@ -1,92 +1,41 @@
-import Boom from "@hapi/boom";
 import hapi from "@hapi/hapi";
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prepareAgreementActionUseCase } from "../use-cases/prepare-agreement-action.use-case.js";
 import { prepareAgreementActionRoute } from "./prepare-agreement-action.route.js";
 
 vi.mock("../use-cases/prepare-agreement-action.use-case.js");
 
-const agreementItemId = "29b829c4-4e38-405c-9f00-427ee94120a5";
-const url = `/agreements/PMF823153883/items/${agreementItemId}/actions/accept`;
-
-const pageModel = {
-  agreementNumber: "PMF823153883",
-  code: "pigs-might-fly",
-  clientRef: "xnp-rr3-nfa",
-  sbi: "300000069",
-  state: "offered",
-  version: 1,
-  page: {
-    name: "accept",
-    title: "Accept your agreement offer",
-  },
-  components: [],
-  actions: [
-    {
-      name: "accept",
-      method: "POST",
-      href: `/agreements/PMF823153883/items/${agreementItemId}/actions/accept`,
-      text: "Accept agreement offer",
-    },
-  ],
-};
-
 describe("prepareAgreementActionRoute", () => {
   let server;
-
-  beforeAll(async () => {
+  beforeEach(() => {
     server = hapi.server();
     server.route(prepareAgreementActionRoute);
-    await server.initialize();
+    prepareAgreementActionUseCase.mockResolvedValue({
+      agreement: {
+        agreementNumber: "PMF123",
+        code: "pigs-might-fly",
+        clientRef: "client",
+        identifiers: { sbi: "300000000" },
+        state: "offered",
+        version: 1,
+      },
+      page: { name: "accept", title: "Accept" },
+      components: [],
+      actions: [],
+    });
   });
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  it("prepares a number-addressed action with its ETag", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/agreements/PMF123/actions/accept",
+    });
 
-  afterAll(async () => {
-    await server.stop();
-  });
-
-  it("prepares a named Agreement action", async () => {
-    prepareAgreementActionUseCase.mockResolvedValue(pageModel);
-
-    const { statusCode, result } = await server.inject({ method: "GET", url });
-
-    expect(statusCode).toBe(200);
-    expect(result).toEqual(pageModel);
+    expect(response.statusCode).toBe(200);
+    expect(response.headers.etag).toBe('"PMF123:1"');
     expect(prepareAgreementActionUseCase).toHaveBeenCalledWith({
       actionName: "accept",
-      agreementNumber: "PMF823153883",
-      agreementItemId,
+      agreementNumber: "PMF123",
     });
-  });
-
-  it("rejects an unavailable action", async () => {
-    prepareAgreementActionUseCase.mockRejectedValue(
-      Boom.conflict("Action is unavailable"),
-    );
-
-    const { statusCode } = await server.inject({ method: "GET", url });
-
-    expect(statusCode).toBe(409);
-  });
-
-  it("does not match an action route without an Agreement Item ID", async () => {
-    const { statusCode } = await server.inject({
-      method: "GET",
-      url: "/agreements/PMF823153883/actions/accept",
-    });
-
-    expect(statusCode).toBe(404);
-    expect(prepareAgreementActionUseCase).not.toHaveBeenCalled();
   });
 });

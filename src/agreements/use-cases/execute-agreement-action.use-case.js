@@ -2,213 +2,205 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { AgreementItem } from "../models/agreement-item.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
 import {
-  findVersionByActionIdempotencyKey,
-  saveVersion,
+  findAgreementByNumber,
+  findVersionByIdempotencyKey,
+  insertAgreementVersion,
+  replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
-import { resolveAgreementAction } from "./load-current-agreement-action-context.js";
-import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
+import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
+import { toEtag } from "./agreement-etag.js";
+import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 
-const MONGO_DUPLICATE_KEY_ERROR = 11000;
+const toLocation = (agreementNumber) => `/agreements/${agreementNumber}`;
 
-const transitionCurrentItem = ({ currentAgreement, target, effectContext }) =>
-  currentAgreement.snapshot.items.map((item) => {
-    if (item.agreementItemId !== currentAgreement.item.agreementItemId) {
-      return item;
-    }
-
-    return new AgreementItem({
-      ...effectContext.item,
-      state: target,
-    });
-  });
-
-const buildNextVersion = ({
-  currentAgreement,
-  target,
-  actionName,
-  agreementItemId,
-  idempotencyKey,
-  effectContext,
-  executedAt,
-}) => {
-  const snapshot = new Agreement({
-    ...currentAgreement.snapshot,
-    items: transitionCurrentItem({ currentAgreement, target, effectContext }),
-    updatedAt: executedAt,
-  });
-
-  return AgreementVersion.new({
-    agreementId: snapshot.id,
-    agreementNumber: snapshot.agreementNumber,
-    version: currentAgreement.versionNumber + 1,
-    snapshot,
-    actionExecution: { name: actionName, agreementItemId, idempotencyKey },
-  });
-};
-
-const buildLocation = ({ agreementNumber, code, clientRef, sbi }) => {
-  const query = new URLSearchParams({ code, clientRef, sbi });
-
-  return `/agreements/${agreementNumber}?${query}`;
-};
-
-const createStaleVersionError = (location) => {
+const staleError = (agreement) => {
   const error = Boom.preconditionFailed("Agreement version is stale");
-  error.output.headers.location = location;
-
+  error.output.headers.location = toLocation(agreement.agreementNumber);
+  error.output.headers.etag = toEtag(agreement);
   return error;
 };
 
-const assertCurrentVersion = ({ currentAgreement, ifMatch, location }) => {
-  const currentTag = `"${currentAgreement.agreementNumber}:${currentAgreement.versionNumber}"`;
-
-  if (ifMatch !== currentTag) {
-    throw createStaleVersionError(location);
-  }
-};
-
-const findCompletedExecution = async ({
-  actionName,
-  agreementNumber,
-  agreementItemId,
-  idempotencyKey,
-  location,
+const findCompleted = async (
+  { agreementNumber, actionName, idempotencyKey },
   session,
-}) => {
-  const version = await findVersionByActionIdempotencyKey(
+) => {
+  const version = await findVersionByIdempotencyKey(
     agreementNumber,
-    agreementItemId,
     idempotencyKey,
     session,
   );
-
   if (!version) {
     return null;
   }
-
   if (version.actionExecution.name !== actionName) {
     throw Boom.conflict("Idempotency key has already been used");
   }
-
-  return { location };
+  return { location: toLocation(agreementNumber) };
 };
 
-const executeInTransaction = async ({
-  actionName,
-  agreementNumber,
-  agreementItemId,
+const runAction = async ({
+  action,
+  agreement,
+  agreementDefinition,
   values,
-  ifMatch,
-  idempotencyKey,
-  session,
 }) => {
-  const { currentAgreement, agreementDefinition } =
-    await loadCurrentAgreementContext({
-      agreementNumber,
-      agreementItemId,
-      session,
-    });
-  const location = buildLocation(currentAgreement.reference);
-  const completed = await findCompletedExecution({
-    actionName,
-    agreementNumber,
-    agreementItemId,
-    idempotencyKey,
-    location,
-    session,
+  const executedAt = new Date().toISOString();
+  const context = await runAgreementEffects(action.effects, {
+    agreement,
+    values,
+    outputs: {},
+    endpoints: agreementDefinition.getEndpoints(),
+    executedAt,
+    target: action.transition.target,
+    version: agreement.version + 1,
   });
 
+  const currentAgreement =
+    agreement instanceof Agreement ? agreement : new Agreement(agreement);
+
+  const nextAgreement = currentAgreement.transition({
+    target: action.transition.target,
+    transitionedAt: executedAt,
+    changes: context.agreement,
+  });
+
+  return {
+    agreement: nextAgreement,
+    events: createOutboxMessages(
+      context.outboxMessageTypes ?? [],
+      nextAgreement,
+    ),
+  };
+};
+
+const concurrentUpdate = Symbol("concurrentUpdate");
+
+const actionConflictIndexFields = ["version", "actionExecution.idempotencyKey"];
+
+const hasActionConflictIndex = (keyPattern) =>
+  actionConflictIndexFields.some((field) => Boolean(keyPattern?.[field]));
+
+const isDuplicateKeyError = (error) =>
+  error instanceof MongoServerError && error.code === 11000;
+
+const hasAgreementNumberIndex = (keyPattern) =>
+  Boolean(keyPattern?.agreementNumber);
+
+const isConcurrentActionConflict = (error) =>
+  isDuplicateKeyError(error) &&
+  hasAgreementNumberIndex(error.keyPattern) &&
+  hasActionConflictIndex(error.keyPattern);
+
+const commitActionTransaction = async (
+  { actionName, current, idempotencyKey, next },
+  session,
+) => {
+  const completed = await findCompleted(
+    {
+      agreementNumber: current.agreementNumber,
+      actionName,
+      idempotencyKey,
+    },
+    session,
+  );
   if (completed) {
     return completed;
   }
 
-  assertCurrentVersion({ currentAgreement, ifMatch, location });
-  const action = resolveAgreementAction(agreementDefinition, {
-    state: currentAgreement.state,
-    action: actionName,
-  });
-  const validation = action.validate(values);
+  const result = await replaceCurrentAgreement(
+    next.agreement,
+    current.version,
+    session,
+  );
+  if (result.modifiedCount !== 1) {
+    return concurrentUpdate;
+  }
+  await insertAgreementVersion(
+    new AgreementVersion({
+      agreementNumber: current.agreementNumber,
+      version: next.agreement.version,
+      snapshot: next.agreement,
+      versionedAt: next.agreement.updatedAt,
+      actionExecution: { name: actionName, idempotencyKey },
+    }),
+    session,
+  );
+  await saveOutboxEvents(next.events, session);
+  return { location: toLocation(current.agreementNumber) };
+};
 
+const resolveConcurrentUpdate = async (options) => {
+  const completed = await findCompleted(options);
+  if (completed) {
+    return completed;
+  }
+
+  const agreement = await findAgreementByNumber(options.agreementNumber);
+  throw staleError(agreement);
+};
+
+const toConcurrentOptions = (options) => ({
+  agreementNumber: options.current.agreementNumber,
+  actionName: options.actionName,
+  idempotencyKey: options.idempotencyKey,
+});
+
+const commitAction = async (options) => {
+  let result;
+
+  try {
+    result = await withTransaction((session) =>
+      commitActionTransaction(options, session),
+    );
+  } catch (error) {
+    if (!isConcurrentActionConflict(error)) {
+      throw error;
+    }
+    return resolveConcurrentUpdate(toConcurrentOptions(options));
+  }
+
+  return result === concurrentUpdate
+    ? resolveConcurrentUpdate(toConcurrentOptions(options))
+    : result;
+};
+
+export const executeAgreementActionUseCase = async (options) => {
+  const completed = await findCompleted(options);
+  if (completed) {
+    return completed;
+  }
+
+  const { action, agreement, agreementDefinition } =
+    await loadCurrentAgreementActionContext(options);
+  if (options.ifMatch !== toEtag(agreement)) {
+    throw staleError(agreement);
+  }
+  const validation = action.validate(options.values);
   if (!validation.valid) {
     const pageModel = await buildAgreementPageModel({
-      currentAgreement,
+      agreement,
       agreementDefinition,
       page: validation.page,
       mode: "view",
     });
-
-    return { ...pageModel, values, errors: validation.errors };
+    return { ...pageModel, values: options.values, errors: validation.errors };
   }
 
-  const executedAt = new Date().toISOString();
-  const version = currentAgreement.versionNumber + 1;
-  const effectContext = await runAgreementEffects(action.effects, {
-    agreement: currentAgreement.snapshot,
-    item: currentAgreement.item,
-    values,
-    endpoints: agreementDefinition.getEndpoints(),
-    executedAt,
-    target: action.transition.target,
-    version,
-    outputs: {},
+  const next = await runAction({
+    action,
+    agreement,
+    agreementDefinition,
+    values: options.values,
   });
-
-  await saveVersion(
-    buildNextVersion({
-      currentAgreement,
-      target: action.transition.target,
-      actionName,
-      agreementItemId,
-      idempotencyKey,
-      effectContext,
-      executedAt,
-    }),
-    session,
-  );
-  await saveOutboxEvents(effectContext.outboundEvents ?? [], session);
-
-  return { location };
-};
-
-const isDuplicateKeyError = (error) =>
-  error instanceof MongoServerError && error.code === MONGO_DUPLICATE_KEY_ERROR;
-
-const hasVersionKeyPattern = (error) =>
-  ["agreementId", "version"].every((key) => error.keyPattern?.[key]);
-
-const isVersionConflict = (error) =>
-  isDuplicateKeyError(error) && hasVersionKeyPattern(error);
-
-export const executeAgreementActionUseCase = async (options) => {
-  try {
-    return await withTransaction((session) =>
-      executeInTransaction({ ...options, session }),
-    );
-  } catch (error) {
-    if (!isVersionConflict(error)) {
-      throw error;
-    }
-
-    const { currentAgreement } = await loadCurrentAgreementContext({
-      agreementNumber: options.agreementNumber,
-      agreementItemId: options.agreementItemId,
-    });
-    const location = buildLocation(currentAgreement.reference);
-    const completed = await findCompletedExecution({
-      ...options,
-      location,
-    });
-
-    if (completed) {
-      return completed;
-    }
-
-    throw createStaleVersionError(location);
-  }
+  return commitAction({
+    actionName: options.actionName,
+    current: agreement,
+    idempotencyKey: options.idempotencyKey,
+    next,
+  });
 };

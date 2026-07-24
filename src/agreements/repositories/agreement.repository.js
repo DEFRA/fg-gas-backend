@@ -1,148 +1,79 @@
-import Boom from "@hapi/boom";
-import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
-import { AgreementItem } from "../models/agreement-item.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
-import { AgreementDocument } from "./agreement/agreement-document.js";
-import { AgreementVersionDocument } from "./agreement/agreement-version-document.js";
-
-export const toAgreement = (doc) =>
-  new Agreement({
-    id: doc._id,
-    agreementNumber: doc.agreementNumber,
-    code: doc.code,
-    identifiers: doc.identifiers,
-    items: (doc.items ?? []).map((item) => new AgreementItem(item)),
-    createdAt: doc.createdAt,
-    updatedAt: doc.updatedAt,
-  });
-
-export const toAgreementVersion = (doc) =>
-  new AgreementVersion({
-    id: doc._id,
-    agreementId: doc.agreementId,
-    agreementNumber: doc.agreementNumber,
-    version: doc.version,
-    snapshot: toAgreement(doc.snapshot),
-    createdAt: doc.createdAt,
-    actionExecution: doc.actionExecution,
-  });
 
 export const agreementsCollection = "agreements__agreements";
 export const versionsCollection = "agreements__versions";
 
-const throwOnDuplicateKey = (error, agreementNumber) => {
-  if (error.keyPattern?.agreementNumber) {
-    throw Boom.conflict(
-      `Agreement with number "${agreementNumber}" already exists`,
-    );
-  }
-  throw Boom.conflict(
-    "Agreement item with the same source identity already exists",
-  );
+const toCurrentDocument = (agreement) => ({
+  _id: agreement.agreementNumber,
+  ...structuredClone(agreement),
+});
+
+const toVersionDocument = (agreementVersion) => ({
+  agreementNumber: agreementVersion.agreementNumber,
+  version: agreementVersion.version,
+  snapshot: structuredClone(agreementVersion.snapshot),
+  versionedAt: agreementVersion.versionedAt,
+  ...(agreementVersion.actionExecution
+    ? { actionExecution: agreementVersion.actionExecution }
+    : {}),
+});
+
+export const findAgreementByNumber = async (agreementNumber, session) => {
+  const document = await db
+    .collection(agreementsCollection)
+    .findOne({ _id: agreementNumber }, { session });
+
+  return document ? new Agreement(document) : null;
 };
 
-export const saveAgreement = async (agreement, session) => {
-  try {
-    await db
-      .collection(agreementsCollection)
-      .insertOne(new AgreementDocument(agreement), { session });
-  } catch (error) {
-    const MONGO_DUPLICATE_KEY_ERROR = 11000;
-    if (
-      error instanceof MongoServerError &&
-      error.code === MONGO_DUPLICATE_KEY_ERROR
-    ) {
-      throwOnDuplicateKey(error, agreement.agreementNumber);
-    }
-    throw error;
-  }
+export const findAgreementBySourceIdentity = async (
+  { code, clientRef },
+  session,
+) => {
+  const document = await db
+    .collection(agreementsCollection)
+    .findOne({ code, clientRef }, { session });
+
+  return document ? new Agreement(document) : null;
 };
 
-export const saveVersion = async (version, session) => {
-  await db
+export const insertCurrentAgreement = async (agreement, session) =>
+  db
+    .collection(agreementsCollection)
+    .insertOne(toCurrentDocument(agreement), { session });
+
+export const insertAgreementVersion = async (agreementVersion, session) =>
+  db
     .collection(versionsCollection)
-    .insertOne(new AgreementVersionDocument(version), { session });
-};
+    .insertOne(toVersionDocument(agreementVersion), { session });
 
-export const findByAgreementNumber = async (agreementNumber, session) => {
-  const doc = await db
+export const replaceCurrentAgreement = async (
+  agreement,
+  expectedVersion,
+  session,
+) =>
+  db
     .collection(agreementsCollection)
-    .findOne({ agreementNumber }, { session });
-
-  if (doc === null) {
-    return null;
-  }
-
-  return toAgreement(doc);
-};
-
-export const findByClientRefAndCode = async (clientRef, code, session) => {
-  const doc = await db
-    .collection(agreementsCollection)
-    .findOne(
-      { "items.clientRef": clientRef, "items.agreementCode": code },
+    .replaceOne(
+      { _id: agreement.agreementNumber, version: expectedVersion },
+      toCurrentDocument(agreement),
       { session },
     );
 
-  if (doc === null) {
-    return null;
-  }
-
-  return toAgreement(doc);
-};
-
-export const findVersionByActionIdempotencyKey = async (
+export const findVersionByIdempotencyKey = async (
   agreementNumber,
-  agreementItemId,
   idempotencyKey,
   session,
 ) => {
-  const doc = await db.collection(versionsCollection).findOne(
+  const document = await db.collection(versionsCollection).findOne(
     {
       agreementNumber,
-      "actionExecution.agreementItemId": agreementItemId,
       "actionExecution.idempotencyKey": idempotencyKey,
     },
     { session },
   );
 
-  return doc === null ? null : toAgreementVersion(doc);
-};
-
-export const findLatestVersionByAgreementNumber = async (
-  agreementNumber,
-  session,
-) => {
-  const doc = await db
-    .collection(versionsCollection)
-    .findOne({ agreementNumber }, { session, sort: { version: -1 } });
-
-  if (doc === null) {
-    return null;
-  }
-
-  return toAgreementVersion(doc);
-};
-
-export const findByClientRefCodeAndSbi = async (
-  clientRef,
-  code,
-  sbi,
-  session,
-) => {
-  const doc = await db.collection(agreementsCollection).findOne(
-    {
-      items: { $elemMatch: { agreementCode: code, clientRef } },
-      "identifiers.sbi": sbi,
-    },
-    { session },
-  );
-
-  if (doc === null) {
-    return null;
-  }
-
-  return toAgreement(doc);
+  return document ? new AgreementVersion(document) : null;
 };

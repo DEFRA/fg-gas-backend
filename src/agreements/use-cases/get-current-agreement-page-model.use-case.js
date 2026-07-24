@@ -1,6 +1,5 @@
 import { logger } from "../../common/logger.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { assertCurrentAgreementReference } from "./assert-current-agreement-reference.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
 export const getCurrentAgreementPageModelUseCase = async ({
@@ -10,34 +9,27 @@ export const getCurrentAgreementPageModelUseCase = async ({
   sbi,
   mode = "view",
 }) => {
-  logger.info(`Getting current agreement page model for code ${code}`);
+  logger.info(
+    { agreementNumber, code, clientRef, sbi, mode },
+    "Getting current agreement page model",
+  );
 
-  const { currentAgreement, agreementDefinition } =
-    await loadCurrentAgreementContext({
-      code,
-      clientRef,
-      sbi,
-    });
-  assertCurrentAgreementReference(currentAgreement, {
+  const { agreement, agreementDefinition } = await loadCurrentAgreementContext({
     agreementNumber,
     code,
     clientRef,
     sbi,
   });
-
-  const { pageId } = agreementDefinition.resolvePageForState(
-    currentAgreement.state,
-  );
+  const { pageId } = agreementDefinition.resolvePageForState(agreement.state);
   const pageModel = await buildAgreementPageModel({
-    currentAgreement,
+    agreement,
     agreementDefinition,
     page: pageId,
     mode,
   });
 
   logger.info(
-    `Finished: Getting current agreement page model for code ${code}`,
+    `Rendered Agreement ${agreement.agreementNumber} version ${agreement.version}`,
   );
-
-  return pageModel;
+  return { agreement, pageModel };
 };

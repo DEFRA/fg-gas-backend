@@ -1,96 +1,113 @@
 import { describe, expect, it } from "vitest";
-import { AgreementReference } from "./agreement-reference.js";
 import { Agreement } from "./agreement.js";
 
-const referenceValues = {
-  agreementNumber: "PMF823153883",
-  code: "pigs-might-fly",
-  clientRef: "xnp-rr3-nfa",
-  sbi: "300000069",
-};
+describe("Agreement", () => {
+  it("creates version 1 with immutable identity and equal timestamps", () => {
+    const identifiers = { sbi: "300000069", frn: "1000000000" };
+    const payload = { whitePigsCount: 5 };
 
-const query = {
-  code: referenceValues.code,
-  clientRef: referenceValues.clientRef,
-  sbi: referenceValues.sbi,
-};
-
-const item = {
-  agreementItemId: "29b829c4-4e38-405c-9f00-427ee94120a5",
-  agreementCode: referenceValues.code,
-  clientRef: referenceValues.clientRef,
-  identifiers: { sbi: referenceValues.sbi },
-};
-
-const toAgreement = (override = {}) =>
-  new Agreement({
-    agreementNumber: referenceValues.agreementNumber,
-    code: referenceValues.code,
-    identifiers: { sbi: referenceValues.sbi },
-    items: [item],
-    ...override,
-  });
-
-const toReference = (override = {}) =>
-  new AgreementReference({ ...referenceValues, ...override });
-
-describe("Agreement.resolveReference", () => {
-  it("resolves a complete reference for a matching Agreement and item", () => {
-    expect(toAgreement().resolveReference(query)).toEqual(toReference());
-  });
-
-  it.each([
-    ["code", { code: "another-code" }],
-    ["SBI", { identifiers: { sbi: "999999999" } }],
-    ["client reference", { items: [{ ...item, clientRef: "other" }] }],
-    ["item SBI", { items: [{ ...item, identifiers: { sbi: "999999999" } }] }],
-    ["missing items", { items: undefined }],
-  ])("returns undefined for a mismatched %s", (_name, override) => {
-    expect(toAgreement(override).resolveReference(query)).toBeUndefined();
-  });
-});
-
-describe("Agreement.resolveItemReference", () => {
-  it("resolves a complete reference for the identified Agreement Item", () => {
-    expect(toAgreement().resolveItemReference(item.agreementItemId)).toEqual(
-      toReference(),
-    );
-  });
-
-  it("returns undefined when the Agreement Item does not exist", () => {
-    expect(
-      toAgreement().resolveItemReference("unknown-item-id"),
-    ).toBeUndefined();
-  });
-
-  it("returns undefined when the Agreement Item has no SBI", () => {
-    const agreement = toAgreement({
-      items: [{ ...item, identifiers: undefined }],
+    const agreement = Agreement.create({
+      agreementNumber: "PMF823153883",
+      code: "pigs-might-fly",
+      clientRef: "xnp-rr3-nfa",
+      configVersion: "1.0.1",
+      correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
+      identifiers,
+      payload,
+      state: "offered",
+      createdAt: "2026-07-17T11:29:00.000Z",
     });
 
-    expect(
-      agreement.resolveItemReference(item.agreementItemId),
-    ).toBeUndefined();
-  });
-});
-
-describe("Agreement.findItem", () => {
-  it("returns the item matching an Agreement Reference", () => {
-    expect(toAgreement().findItem(toReference())).toBe(item);
-  });
-
-  it.each([
-    ["agreement number", { agreementNumber: "PMF000000000" }],
-    ["code", { code: "another-code" }],
-    ["SBI", { sbi: "999999999" }],
-    ["client reference", { clientRef: "other" }],
-  ])("returns undefined for a mismatched %s", (_name, override) => {
-    expect(toAgreement().findItem(toReference(override))).toBeUndefined();
+    expect(agreement).toEqual({
+      agreementNumber: "PMF823153883",
+      version: 1,
+      code: "pigs-might-fly",
+      clientRef: "xnp-rr3-nfa",
+      configVersion: "1.0.1",
+      correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
+      identifiers,
+      payload,
+      state: "offered",
+      createdAt: "2026-07-17T11:29:00.000Z",
+      updatedAt: "2026-07-17T11:29:00.000Z",
+      acceptedAt: undefined,
+      paymentCalculation: undefined,
+      supplementaryData: undefined,
+    });
   });
 
-  it("requires an Agreement Reference", () => {
-    expect(() => toAgreement().findItem(referenceValues)).toThrow(
-      "Agreement item lookup requires an Agreement Reference",
-    );
+  it("applies acceptance time produced by configured effects", () => {
+    const agreement = Agreement.create({
+      agreementNumber: "PMF823153883",
+      code: "pigs-might-fly",
+      clientRef: "xnp-rr3-nfa",
+      configVersion: "1.0.1",
+      identifiers: { sbi: "300000069" },
+      payload: {},
+      state: "offered",
+      createdAt: "2026-07-17T11:29:00.000Z",
+    });
+
+    const accepted = agreement.transition({
+      target: "accepted",
+      transitionedAt: "2026-07-18T09:15:00.000Z",
+      changes: { acceptedAt: "2026-07-18T09:14:00.000Z" },
+    });
+
+    expect(accepted).toMatchObject({
+      state: "accepted",
+      version: 2,
+      updatedAt: "2026-07-18T09:15:00.000Z",
+      acceptedAt: "2026-07-18T09:14:00.000Z",
+    });
+    expect(agreement).toMatchObject({
+      state: "offered",
+      version: 1,
+      acceptedAt: undefined,
+    });
+  });
+
+  it("preserves the original acceptance time on later transitions", () => {
+    const agreement = new Agreement({
+      agreementNumber: "PMF823153883",
+      version: 2,
+      code: "pigs-might-fly",
+      clientRef: "xnp-rr3-nfa",
+      configVersion: "1.0.1",
+      correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
+      identifiers: { sbi: "300000069" },
+      payload: {},
+      state: "accepted",
+      createdAt: "2026-07-17T11:29:00.000Z",
+      updatedAt: "2026-07-18T09:15:00.000Z",
+      acceptedAt: "2026-07-18T09:15:00.000Z",
+    });
+
+    const terminated = agreement.transition({
+      target: "terminated",
+      transitionedAt: "2026-07-19T10:00:00.000Z",
+    });
+
+    expect(terminated.acceptedAt).toBe("2026-07-18T09:15:00.000Z");
+  });
+
+  it("does not retain mutable references from the creation command", () => {
+    const identifiers = { sbi: "300000069" };
+    const payload = { applicant: { name: "A Farmer" } };
+    const agreement = Agreement.create({
+      agreementNumber: "PMF823153883",
+      code: "pigs-might-fly",
+      clientRef: "xnp-rr3-nfa",
+      configVersion: "1.0.1",
+      identifiers,
+      payload,
+      state: "offered",
+    });
+
+    identifiers.sbi = "999999999";
+    payload.applicant.name = "Another Farmer";
+
+    expect(agreement.identifiers.sbi).toBe("300000069");
+    expect(agreement.payload.applicant.name).toBe("A Farmer");
   });
 });

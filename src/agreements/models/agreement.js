@@ -1,95 +1,81 @@
 import { randomUUID } from "node:crypto";
-import { AgreementReference } from "./agreement-reference.js";
 
 export class Agreement {
   constructor({
-    id,
     agreementNumber,
+    version,
     code,
+    clientRef,
+    configVersion,
+    correlationId,
     identifiers,
-    items,
+    payload,
+    state,
     createdAt,
     updatedAt,
+    acceptedAt,
+    paymentCalculation,
+    supplementaryData,
   }) {
-    this.id = id;
     this.agreementNumber = agreementNumber;
+    this.version = version;
     this.code = code;
-    this.identifiers = identifiers;
-    this.items = items;
+    this.clientRef = clientRef;
+    this.configVersion = configVersion;
+    this.correlationId = correlationId;
+    this.identifiers = structuredClone(identifiers);
+    this.payload = structuredClone(payload);
+    this.state = state;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
+    this.acceptedAt = acceptedAt;
+    this.paymentCalculation = cloneOptional(paymentCalculation);
+    this.supplementaryData = cloneOptional(supplementaryData);
   }
 
-  resolveReference({ code, clientRef, sbi }) {
-    const values = {
-      agreementNumber: this.agreementNumber,
-      code,
-      clientRef,
-      sbi,
-    };
-
-    if (!this.#findReferencedItem(values)) {
-      return undefined;
-    }
-
-    return new AgreementReference(values);
-  }
-
-  resolveItemReference(agreementItemId) {
-    const item = (this.items ?? []).find(
-      (candidate) => candidate.agreementItemId === agreementItemId,
-    );
-
-    if (!item) {
-      return undefined;
-    }
-
-    return this.resolveReference({
-      code: item.agreementCode,
-      clientRef: item.clientRef,
-      sbi: item.identifiers?.sbi,
+  transition({ target, transitionedAt, changes = {} }) {
+    return new Agreement({
+      ...this,
+      ...resolveTransitionChanges(this, changes),
+      state: target,
+      version: this.version + 1,
+      updatedAt: transitionedAt,
     });
   }
 
-  findItem(reference) {
-    if (!(reference instanceof AgreementReference)) {
-      throw new TypeError(
-        "Agreement item lookup requires an Agreement Reference",
-      );
-    }
-
-    return this.#findReferencedItem(reference);
-  }
-
-  #findReferencedItem(reference) {
-    const matchesAgreement = [
-      this.agreementNumber === reference.agreementNumber,
-      this.code === reference.code,
-      this.identifiers?.sbi === reference.sbi,
-    ].every(Boolean);
-
-    if (!matchesAgreement) {
-      return undefined;
-    }
-
-    return (this.items ?? []).find(
-      (item) =>
-        item.agreementCode === reference.code &&
-        item.clientRef === reference.clientRef &&
-        item.identifiers?.sbi === reference.sbi,
-    );
-  }
-
-  static new({ agreementNumber, code, identifiers, items }) {
-    const now = new Date().toISOString();
+  static create({
+    agreementNumber,
+    code,
+    clientRef,
+    configVersion,
+    identifiers,
+    payload,
+    state,
+    correlationId = randomUUID(),
+    createdAt = new Date().toISOString(),
+  }) {
     return new Agreement({
-      id: randomUUID(),
       agreementNumber,
+      version: 1,
       code,
+      clientRef,
+      configVersion,
+      correlationId,
       identifiers,
-      items,
-      createdAt: now,
-      updatedAt: now,
+      payload,
+      state,
+      createdAt,
+      updatedAt: createdAt,
     });
   }
 }
+
+const cloneOptional = (value) =>
+  value === undefined ? undefined : structuredClone(value);
+
+const resolveTransitionChanges = (agreement, changes) => ({
+  acceptedAt: changes.acceptedAt ?? agreement.acceptedAt,
+  paymentCalculation:
+    changes.paymentCalculation ?? agreement.paymentCalculation,
+  supplementaryData: changes.supplementaryData ?? agreement.supplementaryData,
+});

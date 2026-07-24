@@ -6,7 +6,6 @@ export const agreementNumberParamsSchema = Joi.object({
 
 export const invokeAgreementActionParamsSchema = agreementNumberParamsSchema
   .keys({
-    agreementItemId: Joi.string().required(),
     actionName: Joi.string().required(),
   })
   .label("InvokeAgreementActionParams");

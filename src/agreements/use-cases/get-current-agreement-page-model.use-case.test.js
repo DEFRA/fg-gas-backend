@@ -1,112 +1,36 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { findAgreementDefinition } from "../models/agreement-definitions/agreement-definition-registry.js";
-import { AgreementItem } from "../models/agreement-item.js";
-import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
-import {
-  findByClientRefCodeAndSbi,
-  findLatestVersionByAgreementNumber,
-} from "../repositories/agreement.repository.js";
+import { describe, expect, it, vi } from "vitest";
+import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { getCurrentAgreementPageModelUseCase } from "./get-current-agreement-page-model.use-case.js";
+import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
-vi.mock("../models/agreement-definitions/agreement-definition-registry.js");
-vi.mock("../repositories/agreement.repository.js");
-
-const request = {
-  code: "pigs-might-fly",
-  clientRef: "xnp-rr3-nfa",
-  sbi: "300000069",
-};
-
-const item = new AgreementItem({
-  agreementCode: request.code,
-  clientRef: request.clientRef,
-  identifiers: { sbi: request.sbi },
-  configVersion: "0.0.1",
-  state: "accepted",
-});
-
-const agreement = new Agreement({
-  agreementNumber: "PMF823153883",
-  code: request.code,
-  identifiers: { sbi: request.sbi },
-  items: [item],
-});
-
-const definition = {
-  code: request.code,
-  configVersion: "0.0.1",
-  agreementNumberPrefix: "PMF",
-  create: { target: "offered", effects: [] },
-  states: {
-    offered: { page: "offered" },
-    accepted: { page: "active-agreement" },
-  },
-  pages: {
-    offered: {
-      title: "Agreement offer",
-      components: [{ component: "heading", text: "Offer" }],
-    },
-    "active-agreement": {
-      title: "Your agreement is active",
-      components: [{ component: "heading", text: "Active" }],
-      actions: [
-        {
-          name: "download",
-          method: "GET",
-          text: "Download",
-          href: "/download",
-        },
-      ],
-    },
-  },
-};
+vi.mock("../services/build-agreement-page-model.js");
+vi.mock("./load-current-agreement-context.js");
 
 describe("getCurrentAgreementPageModelUseCase", () => {
-  beforeEach(() => {
-    findByClientRefCodeAndSbi.mockResolvedValue(agreement);
-    findLatestVersionByAgreementNumber.mockResolvedValue(
-      new AgreementVersion({
-        agreementNumber: agreement.agreementNumber,
-        version: 2,
-        snapshot: agreement,
-      }),
-    );
-    findAgreementDefinition.mockReturnValue(definition);
-  });
-
-  it("gets the page selected by the latest lifecycle state", async () => {
-    await expect(
-      getCurrentAgreementPageModelUseCase(request),
-    ).resolves.toMatchObject({
-      agreementNumber: "PMF823153883",
-      state: "accepted",
-      page: {
-        name: "active-agreement",
-        title: "Your agreement is active",
-      },
+  it("renders the page for the Agreement lifecycle state", async () => {
+    const agreement = {
+      agreementNumber: "PMF123",
+      state: "offered",
+      version: 1,
+    };
+    const agreementDefinition = {
+      resolvePageForState: vi.fn().mockReturnValue({ pageId: "offer" }),
+    };
+    const pageModel = { agreement: { agreementNumber: "PMF123" } };
+    loadCurrentAgreementContext.mockResolvedValue({
+      agreement,
+      agreementDefinition,
     });
-  });
+    buildAgreementPageModel.mockResolvedValue(pageModel);
 
-  it("uses print presentation without exposing interactive actions", async () => {
     await expect(
-      getCurrentAgreementPageModelUseCase({ ...request, mode: "print" }),
-    ).resolves.toMatchObject({
-      page: { name: "active-agreement" },
-      actions: [],
-    });
-  });
-
-  it("returns non-disclosing not found when a supplied Agreement number mismatches", async () => {
-    await expect(
-      getCurrentAgreementPageModelUseCase({
-        ...request,
-        agreementNumber: "PMF000000000",
-      }),
-    ).rejects.toMatchObject({
-      isBoom: true,
-      message: "Agreement not found",
-      output: { statusCode: 404 },
+      getCurrentAgreementPageModelUseCase({ agreementNumber: "PMF123" }),
+    ).resolves.toEqual({ agreement, pageModel });
+    expect(buildAgreementPageModel).toHaveBeenCalledWith({
+      agreement,
+      agreementDefinition,
+      page: "offer",
+      mode: "view",
     });
   });
 });
