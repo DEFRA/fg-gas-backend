@@ -16,7 +16,7 @@ const snapshotFieldUpdates = {
   acceptedAt: (_agreement, value) => value,
   paymentCalculation: (_agreement, value) => value,
   supplementaryData: (agreement, value) => ({
-    ...(agreement.supplementaryData ?? {}),
+    ...agreement.supplementaryData,
     ...value,
   }),
 };
