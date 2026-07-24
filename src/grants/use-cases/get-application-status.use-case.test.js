@@ -7,14 +7,14 @@ import {
 } from "../models/application.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import { getApplicationStatusUseCase } from "./get-application-status.use-case.js";
-import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
+import { resolveGrantForApplication } from "./resolve-current-grant.use-case.js";
 
 vi.mock("./find-application-by-client-ref-and-code.use-case");
 vi.mock("./resolve-current-grant.use-case.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    resolveCurrentGrantUseCase: vi.fn(),
+    resolveGrantForApplication: vi.fn(),
     persistResolvedVersion: vi.fn(),
   };
 });
@@ -27,7 +27,7 @@ describe("get application status use case", () => {
       code,
     });
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
-    resolveCurrentGrantUseCase.mockResolvedValue({
+    resolveGrantForApplication.mockResolvedValue({
       grant: {},
       resolvedVersion: application.currentConfigVersion,
     });
@@ -48,10 +48,7 @@ describe("get application status use case", () => {
       clientRef,
       code,
     );
-    expect(resolveCurrentGrantUseCase).toHaveBeenCalledWith(
-      code,
-      application.currentConfigVersion,
-    );
+    expect(resolveGrantForApplication).toHaveBeenCalledWith(application);
   });
 
   it("falls back to originalConfigVersion when currentConfigVersion is null", async () => {
@@ -63,17 +60,14 @@ describe("get application status use case", () => {
     });
     application.currentConfigVersion = null;
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
-    resolveCurrentGrantUseCase.mockResolvedValue({
+    resolveGrantForApplication.mockResolvedValue({
       grant: {},
       resolvedVersion: application.originalConfigVersion,
     });
 
     await getApplicationStatusUseCase({ code, clientRef });
 
-    expect(resolveCurrentGrantUseCase).toHaveBeenCalledWith(
-      code,
-      application.originalConfigVersion,
-    );
+    expect(resolveGrantForApplication).toHaveBeenCalledWith(application);
   });
 
   it("uses currentConfigVersion over originalConfigVersion when both present", async () => {
@@ -86,13 +80,13 @@ describe("get application status use case", () => {
     application.originalConfigVersion = "0.0.0";
     application.currentConfigVersion = "1.3.1";
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
-    resolveCurrentGrantUseCase.mockResolvedValue({
+    resolveGrantForApplication.mockResolvedValue({
       grant: {},
       resolvedVersion: "1.4.0",
     });
 
     await getApplicationStatusUseCase({ code, clientRef });
 
-    expect(resolveCurrentGrantUseCase).toHaveBeenCalledWith(code, "1.3.1");
+    expect(resolveGrantForApplication).toHaveBeenCalledWith(application);
   });
 });

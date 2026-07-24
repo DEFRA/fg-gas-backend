@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { DefinitionSource } from "../../common/definition-source.js";
 import { FetchStatus } from "../../common/fetch-status.js";
 import { logger } from "../../common/logger.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
@@ -175,7 +176,11 @@ export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
     resolvedVersion,
   );
   if (cached) {
-    return { grant: cached, resolvedVersion };
+    return {
+      grant: cached,
+      resolvedVersion,
+      definitionSource: DefinitionSource.MongoDB,
+    };
   }
 
   const grant = await fetchAndStoreGrant(
@@ -184,5 +189,5 @@ export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
     resolvedVersion,
   );
 
-  return { grant, resolvedVersion };
+  return { grant, resolvedVersion, definitionSource: DefinitionSource.S3 };
 };
