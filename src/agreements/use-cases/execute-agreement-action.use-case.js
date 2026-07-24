@@ -1,5 +1,5 @@
 import Boom from "@hapi/boom";
-import { MongoServerError } from "mongodb";
+import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementVersion } from "../models/agreement-version.js";
@@ -85,14 +85,11 @@ const actionConflictIndexFields = ["version", "actionExecution.idempotencyKey"];
 const hasActionConflictIndex = (keyPattern) =>
   actionConflictIndexFields.some((field) => Boolean(keyPattern?.[field]));
 
-const isDuplicateKeyError = (error) =>
-  error instanceof MongoServerError && error.code === 11000;
-
 const hasAgreementNumberIndex = (keyPattern) =>
   Boolean(keyPattern?.agreementNumber);
 
 const isConcurrentActionConflict = (error) =>
-  isDuplicateKeyError(error) &&
+  isMongoDuplicateKeyError(error) &&
   hasAgreementNumberIndex(error.keyPattern) &&
   hasActionConflictIndex(error.keyPattern);
 

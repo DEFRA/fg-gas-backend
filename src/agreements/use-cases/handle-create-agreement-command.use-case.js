@@ -1,4 +1,4 @@
-import { MongoServerError } from "mongodb";
+import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
@@ -76,14 +76,11 @@ const createAgreement = async (event) => {
   });
 };
 
-const isDuplicateKeyError = (error) =>
-  error instanceof MongoServerError && error.code === 11000;
-
 const hasSourceIdentityKey = (error) =>
   Boolean(error.keyPattern?.code && error.keyPattern?.clientRef);
 
 const isSourceIdentityConflict = (error) =>
-  isDuplicateKeyError(error) && hasSourceIdentityKey(error);
+  isMongoDuplicateKeyError(error) && hasSourceIdentityKey(error);
 
 export const handleCreateAgreementCommandUseCase = async (event) => {
   try {
