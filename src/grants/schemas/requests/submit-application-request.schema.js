@@ -16,7 +16,7 @@ export const submitApplicationRequestSchema = Joi.object({
     submittedAt: submittedAt.optional(),
     configVersion: configVersion
       .message("Config version must be a valid config string (e.g. 1.0.3)")
-      .optional(),
+      .required(),
   }).unknown(true),
   answers: Joi.object({}).unknown(),
 })

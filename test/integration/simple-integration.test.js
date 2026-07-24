@@ -1,15 +1,18 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { seedConfigVersion } from "../helpers/applications.js";
 import { wreck } from "../helpers/wreck.js";
 
 let client;
+let db;
 let grants, applications;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  grants = client.db().collection("grants");
-  applications = client.db().collection("applications");
+  db = client.db();
+  grants = db.collection("grants");
+  applications = db.collection("applications");
 });
 
 afterAll(async () => {
@@ -87,6 +90,9 @@ describe("Simple Integration Tests", () => {
     expect(getResponse.res.statusCode).toBe(200);
     expect(getResponse.payload.code).toBe(grantCode);
 
+    // Seed config version for the grant
+    await seedConfigVersion(db, grantCode);
+
     // Submit a simple application
     const applicationData = {
       metadata: {
@@ -96,6 +102,7 @@ describe("Simple Integration Tests", () => {
         frn: "987654321",
         crn: "555666777",
         defraId: "DEF123456",
+        configVersion: "1.0.0",
       },
       answers: {
         farmName: "Simple Test Farm",

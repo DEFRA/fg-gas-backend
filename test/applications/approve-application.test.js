@@ -6,14 +6,16 @@ import { submitApplication } from "../helpers/applications.js";
 import { createGrant } from "../helpers/grants.js";
 import { sendMessage } from "../helpers/sqs.js";
 
+let db;
 let applications;
 let outbox;
 let client;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  applications = client.db().collection("applications");
-  outbox = client.db().collection("outbox");
+  db = client.db();
+  applications = db.collection("applications");
+  outbox = db.collection("outbox");
 });
 
 afterAll(async () => {
@@ -25,7 +27,7 @@ describe("On CaseStatusUpdated", () => {
     const traceparent = "ts-001";
     await createGrant();
 
-    const { clientRef, code } = await submitApplication(applications);
+    const { clientRef, code } = await submitApplication(db);
 
     await expect(applications).toHaveRecord({
       clientRef,
@@ -81,6 +83,7 @@ describe("On CaseStatusUpdated", () => {
       data: {
         clientRef,
         grantCode: "test-code-1",
+        currentConfigVersion: "1.0.0",
         currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
         previousStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
       },
@@ -98,6 +101,7 @@ describe("On CaseStatusUpdated", () => {
       data: {
         clientRef,
         code,
+        currentConfigVersion: "1.0.0",
         identifiers: {
           sbi: "123456789",
           frn: "1234567890",

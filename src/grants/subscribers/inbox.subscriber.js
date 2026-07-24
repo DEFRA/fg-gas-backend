@@ -133,7 +133,6 @@ export class InboxSubscriber {
       const code = data.workflowCode || data.code || null;
 
       if (status && source) {
-        // status transition/update
         await withTraceParent(traceparent, async () =>
           applyExternalStateChange({
             sourceSystem: source,
@@ -150,9 +149,9 @@ export class InboxSubscriber {
       await this.markEventComplete(msg);
     } catch (ex) {
       logger.error(
+        ex,
         `Error handling event for inbox message ${type}:${messageId}`,
       );
-      logger.error(ex);
       await this.markEventFailed(msg);
     }
   }
