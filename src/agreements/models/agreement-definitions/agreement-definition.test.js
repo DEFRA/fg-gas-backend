@@ -53,24 +53,20 @@ describe("AgreementDefinition", () => {
       clientRef: "xnp-rr3-nfa",
       identifiers: { sbi: "300000069" },
       payload: { applicant: "Test Farmer" },
-      sourceSystem: "GAS",
     });
 
     expect(agreement.agreementNumber).toMatch(/^TST/);
     expect(agreement).toMatchObject({
+      version: 1,
       code: "test-code",
+      clientRef: "xnp-rr3-nfa",
+      configVersion: "0.0.1",
       identifiers: { sbi: "300000069" },
-      items: [
-        {
-          agreementCode: "test-code",
-          clientRef: "xnp-rr3-nfa",
-          configVersion: "0.0.1",
-          identifiers: { sbi: "300000069" },
-          payload: { applicant: "Test Farmer" },
-          sourceSystem: "GAS",
-          state: "offered",
-        },
-      ],
+      payload: { applicant: "Test Farmer" },
+      state: "offered",
+      correlationId: expect.any(String),
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
     });
     expect(definition.getCreationEffects()).toEqual(
       validDefinition.create.effects,

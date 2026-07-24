@@ -7,18 +7,20 @@ export const getCurrentAgreementRoute = {
   path: "/agreements/current",
   options: {
     description:
-      "Get the current agreement page model by code, client reference and SBI",
+      "Get the current Agreement page model by source identity and SBI account",
     tags: ["api"],
-    validate: {
-      query: getCurrentAgreementQuerySchema,
-    },
-    response: {
-      schema: agreementPageModelResponseSchema,
-    },
+    validate: { query: getCurrentAgreementQuerySchema },
+    response: { schema: agreementPageModelResponseSchema },
   },
   async handler(request, _h) {
     const { code, clientRef, sbi, mode } = request.query;
+    const { pageModel } = await getCurrentAgreementPageModelUseCase({
+      code,
+      clientRef,
+      sbi,
+      mode,
+    });
 
-    return getCurrentAgreementPageModelUseCase({ code, clientRef, sbi, mode });
+    return pageModel;
   },
 };

@@ -2,256 +2,192 @@ import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { writeAuditEvent } from "../../common/write-audit-event.js";
-import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
-import { pmfAgreementDefinition } from "../models/agreement-definitions/pmf.js";
-import { AgreementReference } from "../models/agreement-reference.js";
-import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
-import { CurrentAgreement } from "../models/current-agreement.js";
 import {
-  findVersionByActionIdempotencyKey,
-  saveVersion,
+  findAgreementByNumber,
+  findVersionByIdempotencyKey,
+  insertAgreementVersion,
+  replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
+import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
-import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
+import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 
 vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
-vi.mock("../../common/write-audit-event.js");
 vi.mock("../repositories/agreement.repository.js");
+vi.mock("../services/build-agreement-page-model.js");
 vi.mock("../services/effects/agreement-effect-runner.js");
-vi.mock("./load-current-agreement-context.js");
+vi.mock("./load-current-agreement-action-context.js");
 
 const options = {
   actionName: "accept",
   agreementNumber: "PMF823153883",
-  agreementItemId: "29b829c4-4e38-405c-9f00-427ee94120a5",
   values: { confirm: "confirmed" },
   ifMatch: '"PMF823153883:1"',
   idempotencyKey: "9ea924aa-45e9-43a7-888e-c25054ea658c",
 };
-
-const reference = new AgreementReference({
+const agreement = {
   agreementNumber: options.agreementNumber,
+  version: 1,
   code: "pigs-might-fly",
-  clientRef: "xnp-rr3-nfa",
-  sbi: "300000069",
-});
-
-const agreement = new Agreement({
-  id: "a889f23f-8256-4150-b82d-ee0e33a345f5",
-  agreementNumber: options.agreementNumber,
-  code: reference.code,
-  identifiers: { sbi: reference.sbi },
-  items: [
+  clientRef: "client",
+  configVersion: "1.0.1",
+  correlationId: "correlation",
+  identifiers: { sbi: "300000069" },
+  payload: {},
+  state: "offered",
+  createdAt: "2026-07-17T10:00:00.000Z",
+  updatedAt: "2026-07-17T10:00:00.000Z",
+};
+const action = {
+  effects: [
     {
-      agreementItemId: options.agreementItemId,
-      agreementCode: reference.code,
-      clientRef: reference.clientRef,
-      identifiers: { sbi: reference.sbi },
-      configVersion: pmfAgreementDefinition.configVersion,
-      state: "offered",
+      name: "snapshot",
+      params: { acceptedAt: "$.executedAt" },
     },
-    {
-      agreementItemId: "another-item-id",
-      agreementCode: reference.code,
-      clientRef: "another-client-ref",
-      identifiers: { sbi: reference.sbi },
-      configVersion: pmfAgreementDefinition.configVersion,
-      state: "offered",
-    },
+    { name: "publish", params: { event: "lifecycle" } },
   ],
-});
-
-const currentAgreement = new CurrentAgreement({
-  reference,
-  version: new AgreementVersion({
-    agreementId: agreement.id,
-    agreementNumber: agreement.agreementNumber,
-    version: 1,
-    snapshot: agreement,
-  }),
-});
-
-const agreementDefinition = new AgreementDefinition(pmfAgreementDefinition);
-const session = { id: "session" };
-
-const duplicateKeyError = (keyPattern) =>
-  new MongoServerError({
-    message: "Duplicate key",
-    code: 11000,
-    keyPattern,
-  });
+  transition: { target: "accepted" },
+  validate: vi.fn().mockReturnValue({ valid: true }),
+};
+const agreementDefinition = { getEndpoints: vi.fn().mockReturnValue([]) };
+const session = {};
 
 describe("executeAgreementActionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    withTransaction.mockImplementation((callback) => callback(session));
-    loadCurrentAgreementContext.mockResolvedValue({
+    findAgreementByNumber.mockResolvedValue(agreement);
+    findVersionByIdempotencyKey.mockResolvedValue(null);
+    loadCurrentAgreementActionContext.mockResolvedValue({
+      action,
+      agreement,
       agreementDefinition,
-      currentAgreement,
     });
-    findVersionByActionIdempotencyKey.mockResolvedValue(null);
     runAgreementEffects.mockImplementation(async (_effects, context) => ({
       ...context,
-      item: { ...context.item, acceptedAt: "2026-07-17T11:29:00.000Z" },
-      outboundEvents: [{ event: { data: {} }, target: "some:arn" }],
+      agreement: { ...context.agreement, acceptedAt: context.executedAt },
+      outboxMessageTypes: ["lifecycle"],
     }));
+    replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 1 });
+    withTransaction.mockImplementation((callback) => callback(session));
+    action.validate.mockReturnValue({ valid: true });
   });
 
-  it("records the accepted Agreement version and returns its current-page location", async () => {
-    const result = await executeAgreementActionUseCase(options);
-
-    expect(result).toEqual({
-      location:
-        "/agreements/PMF823153883?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069",
+  it("atomically replaces current Agreement, records Version and publications", async () => {
+    await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
+      location: "/agreements/PMF823153883",
     });
-    expect(saveVersion).toHaveBeenCalledWith(
+    expect(replaceCurrentAgreement).toHaveBeenCalledWith(
       expect.objectContaining({
-        agreementId: agreement.id,
-        agreementNumber: agreement.agreementNumber,
+        state: "accepted",
+        version: 2,
+        acceptedAt: expect.any(String),
+      }),
+      1,
+      session,
+    );
+    expect(insertAgreementVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agreementNumber: options.agreementNumber,
         version: 2,
         actionExecution: {
-          name: options.actionName,
-          agreementItemId: options.agreementItemId,
+          name: "accept",
           idempotencyKey: options.idempotencyKey,
         },
       }),
       session,
     );
-    expect(runAgreementEffects).toHaveBeenCalledWith(
-      expect.any(Array),
-      expect.objectContaining({
-        agreement: currentAgreement.snapshot,
-        item: currentAgreement.item,
-        target: "accepted",
-        version: 2,
-      }),
-    );
     expect(saveOutboxEvents).toHaveBeenCalledWith(
-      [{ event: { data: {} }, target: "some:arn" }],
+      [
+        expect.objectContaining({
+          event: expect.objectContaining({
+            data: expect.objectContaining({
+              agreementNumber: options.agreementNumber,
+              version: 2,
+              status: "accepted",
+            }),
+          }),
+        }),
+      ],
       session,
     );
-    expect(writeAuditEvent).not.toHaveBeenCalled();
-    const savedVersion = saveVersion.mock.calls[0][0];
-    expect(savedVersion.snapshot.items).toEqual([
-      expect.objectContaining({
-        agreementItemId: options.agreementItemId,
-        acceptedAt: expect.any(String),
-        state: "accepted",
-      }),
-      expect.objectContaining({
-        agreementItemId: "another-item-id",
-        state: "offered",
-      }),
-    ]);
   });
 
-  it("returns the configured page without recording a version when validation fails", async () => {
-    const result = await executeAgreementActionUseCase({
-      ...options,
-      values: {},
+  it("returns a completed idempotent action before running effects", async () => {
+    findVersionByIdempotencyKey.mockResolvedValue({
+      actionExecution: { name: "accept" },
     });
 
-    expect(result).toMatchObject({
-      agreementNumber: options.agreementNumber,
-      state: "offered",
-      version: 1,
-      page: { name: "accept" },
-      values: {},
-      errors: [
-        {
-          name: "confirm",
-          message: "Confirm this agreement offer before accepting it",
-        },
-      ],
+    await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
+      location: "/agreements/PMF823153883",
     });
-    expect(saveVersion).not.toHaveBeenCalled();
+    expect(runAgreementEffects).not.toHaveBeenCalled();
   });
 
-  it("rejects an action prepared from a stale Agreement version", async () => {
+  it("rejects stale ETags", async () => {
     await expect(
       executeAgreementActionUseCase({ ...options, ifMatch: '"stale"' }),
     ).rejects.toMatchObject({
       output: {
         statusCode: 412,
         headers: {
-          location:
-            "/agreements/PMF823153883?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069",
-        },
-      },
-    });
-    expect(saveVersion).not.toHaveBeenCalled();
-  });
-
-  it("returns the original location when a completed action is retried", async () => {
-    findVersionByActionIdempotencyKey.mockResolvedValue({
-      actionExecution: { name: options.actionName },
-    });
-
-    await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location:
-        "/agreements/PMF823153883?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069",
-    });
-    expect(saveVersion).not.toHaveBeenCalled();
-  });
-
-  it("rejects an idempotency key previously used for another action", async () => {
-    findVersionByActionIdempotencyKey.mockResolvedValue({
-      actionExecution: { name: "decline" },
-    });
-
-    await expect(executeAgreementActionUseCase(options)).rejects.toMatchObject({
-      output: { statusCode: 409 },
-    });
-    expect(saveVersion).not.toHaveBeenCalled();
-  });
-
-  it("returns 412 with the current Agreement location when another version wins", async () => {
-    withTransaction.mockRejectedValue(
-      duplicateKeyError({ agreementId: 1, version: 1 }),
-    );
-
-    await expect(executeAgreementActionUseCase(options)).rejects.toMatchObject({
-      output: {
-        statusCode: 412,
-        headers: {
-          location:
-            "/agreements/PMF823153883?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069",
+          location: "/agreements/PMF823153883",
+          etag: '"PMF823153883:1"',
         },
       },
     });
   });
 
-  it("returns the original location when the same action won concurrently", async () => {
-    withTransaction.mockRejectedValue(
-      duplicateKeyError({ agreementId: 1, version: 1 }),
-    );
-    findVersionByActionIdempotencyKey.mockResolvedValue({
-      actionExecution: { name: options.actionName },
+  it("returns configured validation without committing", async () => {
+    const errors = [{ name: "confirm", href: "#confirm", message: "Confirm" }];
+    action.validate.mockReturnValue({ valid: false, page: "accept", errors });
+    buildAgreementPageModel.mockResolvedValue({
+      agreement: { agreementNumber: "PMF823153883" },
     });
+
+    await expect(
+      executeAgreementActionUseCase({ ...options, values: {} }),
+    ).resolves.toMatchObject({ values: {}, errors });
+    expect(withTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns an idempotent result when the same action completes concurrently", async () => {
+    findVersionByIdempotencyKey
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ actionExecution: { name: "accept" } });
+    replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 0 });
 
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location:
-        "/agreements/PMF823153883?code=pigs-might-fly&clientRef=xnp-rr3-nfa&sbi=300000069",
+      location: "/agreements/PMF823153883",
+    });
+    expect(findAgreementByNumber).not.toHaveBeenCalled();
+  });
+
+  it("returns an idempotent result after a concurrent version conflict", async () => {
+    findVersionByIdempotencyKey
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ actionExecution: { name: "accept" } });
+    withTransaction.mockRejectedValue(
+      new MongoServerError({
+        message: "Duplicate key",
+        code: 11000,
+        keyPattern: { agreementNumber: 1, version: 1 },
+      }),
+    );
+
+    await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
+      location: "/agreements/PMF823153883",
     });
   });
 
-  it("does not translate an unrelated duplicate key into a stale version response", async () => {
-    const error = duplicateKeyError({ _id: 1 });
-    withTransaction.mockRejectedValue(error);
+  it("rejects a concurrent stale replacement", async () => {
+    replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 0 });
 
-    await expect(executeAgreementActionUseCase(options)).rejects.toBe(error);
-    expect(loadCurrentAgreementContext).not.toHaveBeenCalled();
-  });
-
-  it("does not translate a non-Mongo error into a stale version response", async () => {
-    const error = new Error("database unavailable");
-    withTransaction.mockRejectedValue(error);
-
-    await expect(executeAgreementActionUseCase(options)).rejects.toBe(error);
-    expect(loadCurrentAgreementContext).not.toHaveBeenCalled();
+    await expect(executeAgreementActionUseCase(options)).rejects.toMatchObject({
+      output: { statusCode: 412 },
+    });
+    expect(insertAgreementVersion).not.toHaveBeenCalled();
   });
 });

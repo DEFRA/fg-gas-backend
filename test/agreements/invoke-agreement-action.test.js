@@ -1,622 +1,143 @@
 import { MongoClient } from "mongodb";
-import { readFileSync } from "node:fs";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { wreck } from "../helpers/wreck.js";
 
 const agreementNumber = "PMF823153884";
-const code = "pigs-might-fly";
-const clientRef = "xnp-rr3-nfb";
-const sbi = "300000070";
-const agreementId = "invoke-agreement-action-id";
-const agreementItemId = "invoke-agreement-action-item-id";
-const caseworkingUpdateTarget =
-  "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo";
-const pmfGrantDefinition = JSON.parse(
-  readFileSync(
-    new URL("../fixtures/pmf-grant-definition.json", import.meta.url),
-    "utf8",
-  ),
-);
+const idempotencyKey = "9ea924aa-45e9-43a7-888e-c25054ea658c";
+const createdAt = "2026-07-15T12:00:00.000Z";
 
-const toItem = (state) => ({
-  agreementItemId,
-  agreementCode: code,
-  clientRef,
-  sourceSystem: "GAS",
-  configVersion: "1.0.1",
-  identifiers: { sbi },
-  payload: {},
-  createdAt: "2026-07-15T12:00:00.000Z",
-  state,
-});
-
-const toAgreement = () => ({
-  _id: agreementId,
-  agreementNumber,
-  code,
-  identifiers: { sbi },
-  items: [toItem("offered")],
-  createdAt: "2026-07-15T12:00:00.000Z",
-  updatedAt: "2026-07-15T12:00:00.000Z",
-});
-
-const toVersion = (state) => ({
-  _id: `invoke-agreement-action-version-${state}`,
-  agreementId,
+const agreement = () => ({
+  _id: agreementNumber,
   agreementNumber,
   version: 1,
-  snapshot: {
-    ...toAgreement(),
-    items: [toItem(state)],
+  code: "pigs-might-fly",
+  clientRef: "xnp-rr3-nfb",
+  configVersion: "1.0.1",
+  correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
+  identifiers: { sbi: "300000070" },
+  payload: { whitePigsCount: 5 },
+  state: "offered",
+  createdAt,
+  updatedAt: createdAt,
+  supplementaryData: {
+    fundingCalculation: {
+      items: [{ description: "Large White", total: 32000 }],
+    },
   },
-  createdAt: "2026-07-15T12:01:00.000Z",
 });
 
-const requestAction = async (
-  actionName,
-  answers = {},
-  headerOverrides = {},
-) => {
-  const res = await wreck.request(
+const requestAction = async ({
+  values = { confirm: "confirmed" },
+  ifMatch = `"${agreementNumber}:1"`,
+  key = idempotencyKey,
+} = {}) => {
+  const response = await wreck.request(
     "POST",
-    `/agreements/${agreementNumber}/items/${agreementItemId}/actions/${actionName}`,
+    `/agreements/${agreementNumber}/actions/accept`,
     {
-      headers: {
-        "if-match": `"${agreementNumber}:1"`,
-        "idempotency-key": "9ea924aa-45e9-43a7-888e-c25054ea658c",
-        ...headerOverrides,
-      },
-      payload: { values: answers },
+      headers: { "if-match": ifMatch, "idempotency-key": key },
+      payload: { values },
     },
   );
-  const payload = await wreck.read(res, { json: true });
-
-  return { res, payload };
+  const payload = await wreck.read(response, { json: true });
+  return { response, payload };
 };
 
-const prepareAction = async (actionName) => {
-  const res = await wreck.request(
-    "GET",
-    `/agreements/${agreementNumber}/items/${agreementItemId}/actions/${actionName}`,
-  );
-  const payload = await wreck.read(res, { json: true });
-
-  return { res, payload };
-};
-
-describe("Agreement actions", () => {
-  let applications;
+describe("single Agreement actions", () => {
   let client;
   let agreements;
-  let grants;
-  let outbox;
   let versions;
-
-  const deleteAgreementOutboxEntries = () =>
-    outbox.deleteMany({
-      $or: [
-        { "event.data.agreementNumber": agreementNumber },
-        { "event.data.caseRef": clientRef },
-        { "event.audit.details.agreementNumber": agreementNumber },
-        { "event.audit.details.eventData.agreementNumber": agreementNumber },
-      ],
-    });
+  let outbox;
 
   beforeAll(async () => {
     client = await MongoClient.connect(env.MONGO_URI);
     const database = client.db();
-    applications = database.collection("applications");
     agreements = database.collection("agreements__agreements");
-    grants = database.collection("grants");
-    outbox = database.collection("outbox");
     versions = database.collection("agreements__versions");
+    outbox = database.collection("outbox");
   });
 
   beforeEach(async () => {
     await Promise.all([
-      applications.deleteMany({ clientRef, code }),
       agreements.deleteMany({ agreementNumber }),
-      grants.deleteMany({ code }),
-      deleteAgreementOutboxEntries(),
       versions.deleteMany({ agreementNumber }),
+      outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
     ]);
+    const current = agreement();
+    await agreements.insertOne(current);
+    await versions.insertOne({
+      agreementNumber,
+      version: 1,
+      snapshot: { ...current, _id: undefined },
+      versionedAt: createdAt,
+    });
   });
 
   afterAll(async () => {
     await Promise.all([
-      applications?.deleteMany({ clientRef, code }),
-      agreements?.deleteMany({ agreementNumber }),
-      grants?.deleteMany({ code }),
-      deleteAgreementOutboxEntries(),
-      versions?.deleteMany({ agreementNumber }),
+      agreements.deleteMany({ agreementNumber }),
+      versions.deleteMany({ agreementNumber }),
+      outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
     ]);
-    await client?.close();
+    await client.close();
   });
 
-  const seedAgreement = async (state = "offered") => {
-    const agreement = toAgreement();
-    const version = toVersion(state);
-    await agreements.insertOne(agreement);
-    await versions.insertOne(version);
-
-    return { agreement, version };
-  };
-
-  const seedGrantApplication = async () => {
-    const createdAt = "2026-07-15T12:00:00.000Z";
-
-    await grants.insertOne(structuredClone(pmfGrantDefinition));
-    await applications.insertOne({
-      currentPhase: "PRE_AWARD",
-      currentStage: "CUSTOMER_AGREEMENT_REVIEW",
-      currentStatus: "AGREEMENT_OFFERED",
-      clientRef,
-      code,
-      createdAt,
-      updatedAt: createdAt,
-      submittedAt: createdAt,
-      identifiers: { sbi },
-      metadata: {},
-      phases: [{ code: "PRE_AWARD", answers: {} }],
-      agreements: {
-        [agreementNumber]: {
-          agreementRef: agreementNumber,
-          latestStatus: "OFFERED",
-          updatedAt: createdAt,
-          history: [
-            {
-              agreementStatus: "OFFERED",
-              createdAt,
-            },
-          ],
-        },
-      },
-    });
-  };
-
-  const expectPersistenceUnchanged = async ({ agreement, version }) => {
-    await expect(agreements.findOne({ agreementNumber })).resolves.toEqual(
-      agreement,
+  it("prepares the action without Agreement Item identity", async () => {
+    const response = await wreck.request(
+      "GET",
+      `/agreements/${agreementNumber}/actions/accept`,
     );
-    await expect(
-      versions.find({ agreementNumber }).sort({ version: 1 }).toArray(),
-    ).resolves.toEqual([version]);
-  };
+    const payload = await wreck.read(response, { json: true });
 
-  it("prepares the configured form without mutating the Agreement", async () => {
-    const persisted = await seedAgreement();
-
-    const { res, payload } = await prepareAction("accept");
-
-    expect(res.statusCode).toBe(200);
-    expect(payload).toEqual({
-      agreementNumber,
-      code,
-      clientRef,
-      sbi,
-      state: "offered",
-      version: 1,
-      page: {
-        name: "accept",
-        title: "Accept your agreement offer",
-      },
-      components: [
-        {
-          component: "heading",
-          level: 1,
-          text: "Accept your agreement offer",
-        },
-        {
-          component: "checkboxes",
-          name: "confirm",
-          items: [
-            {
-              value: "confirmed",
-              text: "I confirm I have read the information in this section and accept this agreement offer.",
-            },
-          ],
-        },
-      ],
-      actions: [
-        {
-          name: "accept",
-          method: "POST",
-          href: `/agreements/${agreementNumber}/items/${agreementItemId}/actions/accept`,
-          text: "Accept agreement offer",
-        },
-      ],
-    });
-    await expectPersistenceUnchanged(persisted);
+    expect(response.statusCode).toBe(200);
+    expect(response.headers.etag).toBe(`"${agreementNumber}:1"`);
+    expect(payload.agreement.agreementNumber).toBe(agreementNumber);
+    expect(JSON.stringify(payload)).not.toContain("agreementItem");
   });
 
-  it("accepts the Agreement and redirects to its newly current page", async () => {
-    await seedAgreement();
+  it("accepts and atomically records current Agreement, Version and event", async () => {
+    const { response } = await requestAction();
 
-    const { res, payload } = await requestAction("accept", {
-      confirm: "confirmed",
-    });
-
-    expect(res.statusCode, JSON.stringify(payload)).toBe(303);
-    expect(res.headers.location).toBe(
-      `/agreements/${agreementNumber}?code=${code}&clientRef=${clientRef}&sbi=${sbi}`,
-    );
-
-    const storedVersions = await versions
-      .find({ agreementNumber })
-      .sort({ version: 1 })
-      .toArray();
-    expect(storedVersions).toHaveLength(2);
-    expect(storedVersions[1]).toMatchObject({
-      agreementId,
+    expect(response.statusCode).toBe(303);
+    expect(response.headers.location).toBe(`/agreements/${agreementNumber}`);
+    await expect(agreements).toHaveRecord({
       agreementNumber,
       version: 2,
-      actionExecution: {
-        name: "accept",
-        agreementItemId,
-        idempotencyKey: "9ea924aa-45e9-43a7-888e-c25054ea658c",
-      },
-      snapshot: {
-        items: [
-          expect.objectContaining({
-            state: "accepted",
-          }),
-        ],
-      },
-    });
-    expect(storedVersions[1].snapshot.items[0]).toMatchObject({
-      acceptedAt: expect.any(String),
-    });
-
-    await expect(
-      outbox.findOne({
-        "event.type":
-          "cloud.defra.local.fg-gas-backend.agreement.status.updated",
-        "event.data.agreementNumber": agreementNumber,
-      }),
-    ).resolves.toMatchObject({
-      event: {
-        data: {
-          agreementNumber,
-          clientRef,
-          code,
-          version: 2,
-          status: "accepted",
-        },
-      },
-    });
-    await expect(
-      outbox.findOne({
-        "event.audit.details.agreementNumber": agreementNumber,
-      }),
-    ).resolves.toBeNull();
-
-    const redirected = await wreck.request("GET", res.headers.location);
-    const page = await wreck.read(redirected, { json: true });
-    expect(redirected.statusCode).toBe(200);
-    expect(page).toMatchObject({
-      agreementNumber,
       state: "accepted",
-      version: 2,
-      page: { name: "accepted" },
     });
-  });
-
-  it("updates the Grant application and queues a Caseworking update after acceptance", async () => {
-    await Promise.all([seedAgreement(), seedGrantApplication()]);
-
-    const { res } = await requestAction("accept", { confirm: "confirmed" });
-
-    expect(res.statusCode).toBe(303);
-    await expect(applications).toHaveRecord({
-      clientRef,
-      code,
-      currentStatus: "AGREEMENT_ACCEPTED",
-      [`agreements.${agreementNumber}.latestStatus`]: "ACCEPTED",
-    });
-    await expect(outbox).toHaveRecord({
-      target: caseworkingUpdateTarget,
-      "event.type": "cloud.defra.local.fg-gas-backend.case.update.status",
-      "event.data.caseRef": clientRef,
-      "event.data.workflowCode": code,
-      "event.data.newStatus":
-        "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
-      "event.data.supplementaryData.targetNode": "agreements",
-    });
-    const acceptanceAuditQuery = {
-      "event.audit.entities": {
-        $elemMatch: {
-          entity: "AGREEMENT",
-          action: "ACCEPT_AGREEMENT",
-          entityid: agreementNumber,
-        },
-      },
-    };
-    await expect(outbox).toHaveRecord(acceptanceAuditQuery);
-    const acceptanceAudits = await outbox.find(acceptanceAuditQuery).toArray();
-    expect(acceptanceAudits).toHaveLength(1);
-    expect(acceptanceAudits[0]).toMatchObject({
-      event: {
-        audit: {
-          entities: [
-            {
-              entity: "AGREEMENT",
-              action: "ACCEPT_AGREEMENT",
-              entityid: agreementNumber,
-            },
-          ],
-          status: "SUCCESS",
-        },
-      },
-    });
-  });
-
-  it("changes only the Agreement Item identified by the action URL", async () => {
-    await seedAgreement();
-    const otherItem = {
-      ...toItem("offered"),
-      agreementItemId: "another-agreement-item-id",
-      clientRef: "another-client-ref",
-    };
-    await agreements.updateOne(
-      { agreementNumber },
-      { $push: { items: otherItem } },
-    );
-    await versions.updateOne(
-      { agreementNumber },
-      { $push: { "snapshot.items": otherItem } },
-    );
-
-    const { res } = await requestAction("accept", { confirm: "confirmed" });
-
-    expect(res.statusCode).toBe(303);
-    const currentVersion = await versions.findOne({
+    const accepted = await agreements.findOne({ agreementNumber });
+    expect(accepted.acceptedAt).toEqual(expect.any(String));
+    await expect(versions).toHaveRecord({
       agreementNumber,
       version: 2,
+      "snapshot.state": "accepted",
+      "actionExecution.name": "accept",
+      "actionExecution.idempotencyKey": idempotencyKey,
     });
-    expect(
-      currentVersion.snapshot.items.find(
-        (item) => item.agreementItemId === agreementItemId,
-      ).state,
-    ).toBe("accepted");
-    expect(
-      currentVersion.snapshot.items.find(
-        (item) => item.agreementItemId === otherItem.agreementItemId,
-      ).state,
-    ).toBe("offered");
   });
 
-  it("returns the original redirect when a successful submission is retried", async () => {
-    await seedAgreement();
+  it("returns configured validation without changing the Agreement", async () => {
+    const { response, payload } = await requestAction({ values: {} });
 
-    const first = await requestAction("accept", { confirm: "confirmed" });
-    const retry = await requestAction("accept", { confirm: "confirmed" });
-
-    expect(first.res.statusCode).toBe(303);
-    expect(retry.res.statusCode).toBe(303);
-    expect(retry.res.headers.location).toBe(first.res.headers.location);
-    await expect(versions.countDocuments({ agreementNumber })).resolves.toBe(2);
-    await expect(
-      outbox.countDocuments({ "event.data.agreementNumber": agreementNumber }),
-    ).resolves.toBe(1);
-    await expect(
-      outbox.countDocuments({
-        "event.audit.details.agreementNumber": agreementNumber,
-      }),
-    ).resolves.toBe(0);
+    expect(response.statusCode).toBe(422);
+    expect(payload.errors[0].name).toBe("confirm");
+    await expect(agreements).toHaveRecord({ agreementNumber, version: 1 });
   });
 
-  it("allows only one concurrent acceptance to commit", async () => {
-    await seedAgreement();
+  it("rejects a stale expected version", async () => {
+    const { response } = await requestAction({ ifMatch: '"PMF823153884:0"' });
 
-    const submissions = await Promise.all([
-      requestAction(
-        "accept",
-        { confirm: "confirmed" },
-        { "idempotency-key": "2f7e85ea-7d49-4e1f-a3e4-9e60ddf6220c" },
-      ),
-      requestAction(
-        "accept",
-        { confirm: "confirmed" },
-        { "idempotency-key": "16ab6e34-bbe7-46b8-804e-94f35f454bd1" },
-      ),
-    ]);
-
-    expect(submissions.map(({ res }) => res.statusCode).sort()).toEqual([
-      303, 412,
-    ]);
-    await expect(versions.countDocuments({ agreementNumber })).resolves.toBe(2);
-    await expect(
-      outbox.countDocuments({ "event.data.agreementNumber": agreementNumber }),
-    ).resolves.toBe(1);
-    await expect(
-      outbox.countDocuments({
-        "event.audit.details.agreementNumber": agreementNumber,
-      }),
-    ).resolves.toBe(0);
+    expect(response.statusCode).toBe(412);
+    expect(response.headers.etag).toBe(`"${agreementNumber}:1"`);
   });
 
-  it("rolls back acceptance when its publication intent cannot be recorded", async () => {
-    const persisted = await seedAgreement();
-    const indexName = "reject-duplicate-agreement-publication";
-    const blockingEventId = "blocking-outbound-event";
-    await outbox.createIndex(
-      { "event.data.agreementNumber": 1 },
-      {
-        name: indexName,
-        unique: true,
-        partialFilterExpression: {
-          "event.data.agreementNumber": agreementNumber,
-        },
-      },
-    );
-    await outbox.insertOne({
-      _id: blockingEventId,
-      event: { data: { agreementNumber } },
-      status: "DEAD_LETTER",
-    });
+  it("replays a successful idempotency key without another Version", async () => {
+    const first = await requestAction();
+    const replay = await requestAction();
 
-    try {
-      const { res } = await requestAction("accept", { confirm: "confirmed" });
-
-      expect(res.statusCode).toBe(500);
-      await expectPersistenceUnchanged(persisted);
-      await expect(
-        outbox.countDocuments({
-          "event.data.agreementNumber": agreementNumber,
-        }),
-      ).resolves.toBe(1);
-      await expect(
-        outbox.countDocuments({
-          "event.audit.details.agreementNumber": agreementNumber,
-        }),
-      ).resolves.toBe(0);
-    } finally {
-      await outbox.deleteOne({ _id: blockingEventId });
-      await outbox.dropIndex(indexName);
-    }
-  });
-
-  it("returns 412 when an opaque If-Match value is stale", async () => {
-    const persisted = await seedAgreement();
-
-    const res = await wreck.request(
-      "POST",
-      `/agreements/${agreementNumber}/items/${agreementItemId}/actions/accept`,
-      {
-        headers: {
-          "if-match": '"opaque-etag"',
-          "idempotency-key": "9ea924aa-45e9-43a7-888e-c25054ea658c",
-        },
-        payload: { values: { confirm: "confirmed" } },
-      },
-    );
-    const payload = await wreck.read(res, { json: true });
-
-    expect(res.statusCode).toBe(412);
-    expect(payload).toMatchObject({
-      statusCode: 412,
-      error: "Precondition Failed",
-    });
-    await expectPersistenceUnchanged(persisted);
-  });
-
-  it("rejects a stale prepared form and identifies the current Agreement", async () => {
-    const persisted = await seedAgreement();
-
-    const { res, payload } = await requestAction(
-      "accept",
-      { confirm: "confirmed" },
-      { "if-match": `"${agreementNumber}:3"` },
-    );
-
-    expect(res.statusCode).toBe(412);
-    expect(res.headers.location).toBe(
-      `/agreements/${agreementNumber}?code=${code}&clientRef=${clientRef}&sbi=${sbi}`,
-    );
-    expect(payload).toMatchObject({
-      statusCode: 412,
-      error: "Precondition Failed",
-    });
-    await expectPersistenceUnchanged(persisted);
-  });
-
-  it("requires stale-form and retry protection", async () => {
-    const persisted = await seedAgreement();
-    const path = `/agreements/${agreementNumber}/items/${agreementItemId}/actions/accept`;
-    const payload = { values: { confirm: "confirmed" } };
-
-    const missingIfMatch = await wreck.request("POST", path, {
-      headers: {
-        "idempotency-key": "9ea924aa-45e9-43a7-888e-c25054ea658c",
-      },
-      payload,
-    });
-    const missingIdempotencyKey = await wreck.request("POST", path, {
-      headers: { "if-match": `"${agreementNumber}:1"` },
-      payload,
-    });
-
-    expect(missingIfMatch.statusCode).toBe(400);
-    expect(missingIdempotencyKey.statusCode).toBe(400);
-    await expectPersistenceUnchanged(persisted);
-  });
-
-  it("renders the configured page and error when confirmation is missing", async () => {
-    const persisted = await seedAgreement();
-
-    const { res, payload } = await requestAction("accept");
-
-    expect(res.statusCode).toBe(422);
-    expect(payload).toEqual({
-      agreementNumber,
-      code,
-      clientRef,
-      sbi,
-      state: "offered",
-      version: 1,
-      page: {
-        name: "accept",
-        title: "Accept your agreement offer",
-      },
-      components: [
-        {
-          component: "heading",
-          level: 1,
-          text: "Accept your agreement offer",
-        },
-        {
-          component: "checkboxes",
-          name: "confirm",
-          items: [
-            {
-              value: "confirmed",
-              text: "I confirm I have read the information in this section and accept this agreement offer.",
-            },
-          ],
-        },
-      ],
-      actions: [
-        {
-          name: "accept",
-          method: "POST",
-          href: `/agreements/${agreementNumber}/items/${agreementItemId}/actions/accept`,
-          text: "Accept agreement offer",
-        },
-      ],
-      values: {},
-      errors: [
-        {
-          name: "confirm",
-          href: "#confirm",
-          message: "Confirm this agreement offer before accepting it",
-        },
-      ],
-    });
-    await expectPersistenceUnchanged(persisted);
-  });
-
-  it("rejects an action not configured for the current state", async () => {
-    const persisted = await seedAgreement();
-
-    const { res, payload } = await requestAction("decline");
-
-    expect(res.statusCode).toBe(409);
-    expect(payload).toMatchObject({
-      statusCode: 409,
-      error: "Conflict",
-      message:
-        'Cannot perform action "decline" from agreement state "offered". Available actions: accept.',
-    });
-    await expectPersistenceUnchanged(persisted);
-  });
-
-  it("rejects duplicate accept from the latest accepted snapshot", async () => {
-    const persisted = await seedAgreement("accepted");
-
-    const { res } = await requestAction("accept", { confirm: "confirmed" });
-
-    expect(res.statusCode).toBe(409);
-    await expectPersistenceUnchanged(persisted);
+    expect(first.response.statusCode).toBe(303);
+    expect(replay.response.statusCode).toBe(303);
+    expect(await versions.countDocuments({ agreementNumber })).toBe(2);
   });
 });

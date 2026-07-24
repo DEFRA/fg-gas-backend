@@ -96,7 +96,7 @@ describe("loadAgreementDefinition", () => {
         identifiers: { sbi: "300000069" },
         payload: {},
         sourceSystem: "GAS",
-      }).items[0].state,
+      }).state,
     ).toBe("offered");
     expect(findAgreementDefinition).toHaveBeenCalledWith({
       code: "test-code",

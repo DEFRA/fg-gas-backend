@@ -1,134 +1,89 @@
 import { describe, expect, it } from "vitest";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
-import { AgreementItem } from "../models/agreement-item.js";
-import { AgreementReference } from "../models/agreement-reference.js";
-import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
-import { CurrentAgreement } from "../models/current-agreement.js";
 import { buildAgreementPageModel } from "./build-agreement-page-model.js";
 
-const reference = new AgreementReference({
-  agreementNumber: "PMF823153883",
-  code: "pigs-might-fly",
-  clientRef: "xnp-rr3-nfa",
-  sbi: "300000069",
-});
-
-const item = new AgreementItem({
-  agreementCode: reference.code,
-  clientRef: reference.clientRef,
-  identifiers: { sbi: reference.sbi },
-  configVersion: "0.0.1",
-  state: "offered",
-});
-
-const snapshot = new Agreement({
-  agreementNumber: reference.agreementNumber,
-  code: reference.code,
-  identifiers: { sbi: reference.sbi },
-  items: [item],
-});
-
-const currentAgreement = new CurrentAgreement({
-  reference,
-  version: new AgreementVersion({
-    agreementNumber: reference.agreementNumber,
-    version: 2,
-    snapshot,
-  }),
-});
-
-const agreementDefinition = new AgreementDefinition({
-  code: reference.code,
-  configVersion: "0.0.1",
-  agreementNumberPrefix: "PMF",
-  create: { target: "offered", effects: [] },
+const definition = new AgreementDefinition({
+  code: "test",
+  configVersion: "1",
+  agreementNumberPrefix: "TST",
+  create: { target: "offered" },
   states: {
-    offered: { page: "offered" },
+    offered: {
+      page: "offer",
+      on: {
+        print: {
+          target: "offered",
+          validation: {
+            page: "document",
+            required: [
+              {
+                name: "confirm",
+                value: "yes",
+                href: "#confirm",
+                message: "Confirm",
+              },
+            ],
+          },
+        },
+      },
+    },
   },
   pages: {
-    offered: {
-      title: "Review your agreement offer",
-      components: [{ component: "heading", text: "Review" }],
-      actions: [
-        {
-          name: "accept",
-          method: "GET",
-          text: "Continue",
-          href: "#confirm",
-        },
-      ],
+    offer: {
+      title: "Offer",
+      components: [{ component: "heading", text: "Agreement offer" }],
+      actions: [],
+    },
+    document: {
+      title: "Document",
+      layout: "document",
+      components: [{ component: "heading", text: "Document" }],
+      actions: [{ name: "accept", method: "GET", text: "Accept", href: "/" }],
     },
   },
 });
+const agreement = {
+  agreementNumber: "TST123",
+  code: "test",
+  clientRef: "client",
+  configVersion: "1",
+  identifiers: { sbi: "300000000" },
+  state: "offered",
+  version: 1,
+};
 
 describe("buildAgreementPageModel", () => {
-  it("builds the configured page model from the Current Agreement", async () => {
+  it("builds presentation from one Agreement", async () => {
     await expect(
       buildAgreementPageModel({
-        currentAgreement,
-        agreementDefinition,
-        page: "offered",
+        agreement,
+        agreementDefinition: definition,
+        page: "offer",
         mode: "view",
       }),
     ).resolves.toEqual({
-      ...reference,
-      state: "offered",
-      version: 2,
-      page: {
-        name: "offered",
-        title: "Review your agreement offer",
+      agreement: {
+        agreementNumber: "TST123",
+        code: "test",
+        clientRef: "client",
+        identifiers: { sbi: "300000000" },
+        state: "offered",
+        version: 1,
       },
-      components: [{ component: "heading", text: "Review" }],
-      actions: [
-        {
-          name: "accept",
-          method: "GET",
-          text: "Continue",
-          href: "#confirm",
-        },
-      ],
+      page: { name: "offer", title: "Offer" },
+      components: [{ component: "heading", text: "Agreement offer" }],
+      actions: [],
     });
   });
 
-  it("returns configured document layout without interactive print actions", async () => {
-    const documentDefinition = new AgreementDefinition({
-      code: reference.code,
-      configVersion: "0.0.1",
-      agreementNumberPrefix: "PMF",
-      create: { target: "offered", effects: [] },
-      states: { offered: { page: "document" } },
-      pages: {
-        document: {
-          title: "Agreement document",
-          layout: "document",
-          components: [{ component: "heading", text: "Agreement" }],
-          actions: [
-            {
-              name: "accept",
-              method: "POST",
-              text: "Accept",
-              href: "/accept",
-            },
-          ],
-        },
-      },
+  it("removes actions in print mode", async () => {
+    const result = await buildAgreementPageModel({
+      agreement,
+      agreementDefinition: definition,
+      page: "document",
+      mode: "print",
     });
-
-    await expect(
-      buildAgreementPageModel({
-        currentAgreement,
-        agreementDefinition: documentDefinition,
-        page: "document",
-        mode: "print",
-      }),
-    ).resolves.toMatchObject({
-      page: {
-        name: "document",
-        title: "Agreement document",
-        layout: "document",
-      },
-      actions: [],
-    });
+    expect(result.page.layout).toBe("document");
+    expect(result.actions).toEqual([]);
   });
 });
