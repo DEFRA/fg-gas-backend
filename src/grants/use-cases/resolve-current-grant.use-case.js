@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { DefinitionSource } from "../../common/definition-source.js";
 import { logger } from "../../common/logger.js";
 import { parseSemver } from "../../common/semver.js";
 import { updateCurrentConfigVersion } from "../repositories/application.repository.js";
@@ -40,7 +41,7 @@ const parseMajor = (version) => {
 const loadDefinition = async (grantCode, resolvedVersion) => {
   const cached = getCachedDefinition(grantCode, resolvedVersion);
   if (cached) {
-    return { grant: cached, definitionSource: "cache" };
+    return { grant: cached, definitionSource: DefinitionSource.Cache };
   }
   const { grant, definitionSource } = await resolveAndFetchGrant(
     grantCode,
@@ -85,7 +86,7 @@ export const resolveCurrentGrantUseCase = async (
     return {
       grant: await findByCode(grantCode),
       resolvedVersion: null,
-      definitionSource: "mongodb",
+      definitionSource: DefinitionSource.MongoDB,
     };
   }
 
