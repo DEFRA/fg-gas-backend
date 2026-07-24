@@ -31,8 +31,7 @@ import { requestAgreementCancellationUseCase } from "../use-cases/request-agreem
 import { requestAgreementTerminationUseCase } from "../use-cases/request-agreement-termination.use-case.js";
 import {
   persistResolvedVersion,
-  pinnedVersionOf,
-  resolveCurrentGrantUseCase,
+  resolveGrantForApplication,
 } from "../use-cases/resolve-current-grant.use-case.js";
 import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "../use-cases/withdraw-application.use-case.js";
@@ -206,10 +205,8 @@ export const applyExternalStateChange = async (command) => {
       );
     }
 
-    const { grant, resolvedVersion } = await resolveCurrentGrantUseCase(
-      application.code,
-      pinnedVersionOf(application),
-    );
+    const { grant, resolvedVersion } =
+      await resolveGrantForApplication(application);
     await persistResolvedVersion(application, resolvedVersion);
 
     if (!grant) {

@@ -40,20 +40,14 @@ const parseMajor = (version) => {
 const loadDefinition = async (grantCode, resolvedVersion) => {
   const cached = getCachedDefinition(grantCode, resolvedVersion);
   if (cached) {
-    return cached;
+    return { grant: cached, definitionSource: "cache" };
   }
-  const { grant } = await resolveAndFetchGrant(grantCode, resolvedVersion);
+  const { grant, definitionSource } = await resolveAndFetchGrant(
+    grantCode,
+    resolvedVersion,
+  );
   setCachedDefinition(grantCode, resolvedVersion, grant);
-  return grant;
-};
-
-const logRollForward = (grantCode, pinnedVersion, resolvedVersion) => {
-  if (resolvedVersion !== pinnedVersion) {
-    // Observability: an application has rolled forward to a newer config version.
-    logger.info(
-      `Config version roll-forward for grant ${grantCode}: ${pinnedVersion} -> ${resolvedVersion}`,
-    );
-  }
+  return { grant, definitionSource };
 };
 
 const resolveRolledForward = async (grantCode, pinnedVersion, major) => {
@@ -64,9 +58,11 @@ const resolveRolledForward = async (grantCode, pinnedVersion, major) => {
     );
   }
   const resolvedVersion = configVersion.version;
-  const grant = await loadDefinition(grantCode, resolvedVersion);
-  logRollForward(grantCode, pinnedVersion, resolvedVersion);
-  return { grant, resolvedVersion };
+  const { grant, definitionSource } = await loadDefinition(
+    grantCode,
+    resolvedVersion,
+  );
+  return { grant, resolvedVersion, definitionSource };
 };
 
 const memoResolve = async (memo, key, produce) => {
@@ -86,7 +82,11 @@ export const resolveCurrentGrantUseCase = async (
   memo,
 ) => {
   if (!pinnedVersion) {
-    return { grant: await findByCode(grantCode), resolvedVersion: null };
+    return {
+      grant: await findByCode(grantCode),
+      resolvedVersion: null,
+      definitionSource: "mongodb",
+    };
   }
 
   const major = parseMajor(pinnedVersion);
@@ -106,6 +106,121 @@ export const persistResolvedVersion = async (application, resolvedVersion) => {
       resolvedVersion,
     );
     application.currentConfigVersion = resolvedVersion;
+  }
+};
+
+const determineResolutionType = (pinnedVersion, resolvedVersion) => {
+  if (!pinnedVersion) {
+    return "legacy";
+  }
+  if (resolvedVersion !== pinnedVersion) {
+    return "roll-forward";
+  }
+  return "version-match";
+};
+
+const logGrantResolved = (application, resolvedVersion, resolution) => {
+  logger.info(
+    {
+      event: { action: "application-grant-resolved", outcome: "success" },
+      application: { clientRef: application.clientRef },
+      grant: {
+        code: application.code,
+        originalConfigVersion: application.originalConfigVersion,
+        resolvedConfigVersion: resolvedVersion,
+        resolutionType: resolution.resolutionType,
+        definitionSource: resolution.definitionSource,
+      },
+    },
+    "Resolved grant configuration for application",
+  );
+};
+
+const logGrantResolutionFailure = (application, requestedVersion, err) => {
+  logger.error(
+    {
+      event: { action: "application-grant-resolved", outcome: "failure" },
+      application: { clientRef: application.clientRef },
+      grant: {
+        code: application.code,
+        originalConfigVersion: application.originalConfigVersion,
+        requestedVersion,
+        resolvedConfigVersion: null,
+      },
+      error: { message: err.message },
+    },
+    "Failed to resolve grant configuration for application",
+  );
+};
+
+// Resolves and logs the grant for an existing application.
+// Wraps resolveCurrentGrantUseCase with structured success/error logging.
+export const resolveGrantForApplication = async (application, memo) => {
+  const pinned = pinnedVersionOf(application);
+  try {
+    const { grant, resolvedVersion, definitionSource } =
+      await resolveCurrentGrantUseCase(application.code, pinned, memo);
+
+    if (!grant) {
+      throw Boom.notFound(`Grant with code "${application.code}" not found`);
+    }
+
+    const resolutionType = determineResolutionType(pinned, resolvedVersion);
+    const result = { grant, resolvedVersion, definitionSource, resolutionType };
+    logGrantResolved(application, resolvedVersion, result);
+    return result;
+  } catch (err) {
+    logGrantResolutionFailure(application, pinned, err);
+    throw err;
+  }
+};
+
+// Resolves and logs the grant at submission time, before the application exists.
+// Uses resolveAndFetchGrant directly since there is no pinned version yet.
+export const resolveGrantForSubmission = async ({
+  code,
+  clientRef,
+  requestedVersion,
+}) => {
+  try {
+    const { grant, resolvedVersion, definitionSource } =
+      await resolveAndFetchGrant(code, requestedVersion);
+
+    const resolutionType =
+      resolvedVersion === requestedVersion ? "version-match" : "roll-forward";
+
+    logger.info(
+      {
+        event: { action: "application-grant-resolved", outcome: "success" },
+        application: { clientRef },
+        grant: {
+          code,
+          originalConfigVersion: requestedVersion,
+          resolvedConfigVersion: resolvedVersion,
+          resolutionType,
+          definitionSource,
+        },
+      },
+      "Resolved grant configuration for application",
+    );
+
+    return { grant, resolvedVersion };
+  } catch (err) {
+    logger.error(
+      {
+        event: { action: "application-grant-resolved", outcome: "failure" },
+        application: { clientRef },
+        grant: {
+          code,
+          originalConfigVersion: requestedVersion,
+          requestedVersion,
+          resolvedConfigVersion: null,
+        },
+        error: { message: err.message },
+      },
+      "Failed to resolve grant configuration for application",
+    );
+    throw err;
   }
 };
 

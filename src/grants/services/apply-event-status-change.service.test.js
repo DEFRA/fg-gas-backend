@@ -14,7 +14,7 @@ import { cancelAgreementUseCase } from "../use-cases/cancel-agreement.use-case.j
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
 import { requestAgreementCancellationUseCase } from "../use-cases/request-agreement-cancellation.use-case.js";
-import { resolveCurrentGrantUseCase } from "../use-cases/resolve-current-grant.use-case.js";
+import { resolveGrantForApplication } from "../use-cases/resolve-current-grant.use-case.js";
 import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "../use-cases/withdraw-application.use-case.js";
 import {
@@ -38,7 +38,7 @@ vi.mock(
     const actual = await importOriginal();
     return {
       ...actual,
-      resolveCurrentGrantUseCase: vi.fn(),
+      resolveGrantForApplication: vi.fn(),
       persistResolvedVersion: vi.fn(),
     };
   },
@@ -219,10 +219,9 @@ describe("applyExternalStateChange", () => {
   describe("when grant is not found", () => {
     it("should throw Boom.notFound error", async () => {
       findByClientRefAndCode.mockResolvedValue(mockApplication);
-      resolveCurrentGrantUseCase.mockResolvedValue({
-        grant: null,
-        resolvedVersion: null,
-      });
+      resolveGrantForApplication.mockRejectedValue(
+        Boom.notFound('Grant with code "test-grant" not found'),
+      );
 
       await expect(
         applyExternalStateChange({
@@ -239,10 +238,7 @@ describe("applyExternalStateChange", () => {
         clientRef: "APP-123",
         code: "foo",
       });
-      expect(resolveCurrentGrantUseCase).toHaveBeenCalledWith(
-        "test-grant",
-        null,
-      );
+      expect(resolveGrantForApplication).toHaveBeenCalledWith(mockApplication);
       expect(update).not.toHaveBeenCalled();
     });
   });
@@ -254,7 +250,7 @@ describe("applyExternalStateChange", () => {
         currentStatus: "RECEIVED",
       });
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: mockGrant,
         resolvedVersion: null,
       });
@@ -286,7 +282,7 @@ describe("applyExternalStateChange", () => {
       });
       createAgreementCommandUseCase.mockResolvedValue(true);
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: mockGrant,
         resolvedVersion: null,
       });
@@ -324,7 +320,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantNoValidFrom,
         resolvedVersion: null,
       });
@@ -344,7 +340,7 @@ describe("applyExternalStateChange", () => {
     it("should not update application", async () => {
       const spy = vi.spyOn(logger, "info");
       findByClientRefAndCode.mockResolvedValue(mockApplication);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: mockGrant,
         resolvedVersion: null,
       });
@@ -371,7 +367,7 @@ describe("applyExternalStateChange", () => {
         currentStatus: "RECEIVED",
       });
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: mockGrant,
         resolvedVersion: null,
       });
@@ -398,7 +394,7 @@ describe("applyExternalStateChange", () => {
     it("should not find mapping and not update application", async () => {
       const spy = vi.spyOn(logger, "info");
       findByClientRefAndCode.mockResolvedValue(mockApplication);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: mockGrant,
         resolvedVersion: null,
       });
@@ -448,7 +444,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithEmptyValidFrom,
         resolvedVersion: null,
       });
@@ -493,7 +489,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithNoValidFrom,
         resolvedVersion: null,
       });
@@ -576,7 +572,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithFullyQualifiedMapping,
         resolvedVersion: null,
       });
@@ -631,7 +627,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithSimpleMapping,
         resolvedVersion: null,
       });
@@ -689,7 +685,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithMultipleProcesses,
         resolvedVersion: null,
       });
@@ -739,7 +735,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithNoProcesses,
         resolvedVersion: null,
       });
@@ -785,7 +781,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithStatusNoValidFrom,
         resolvedVersion: null,
       });
@@ -867,7 +863,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithFQValidFrom,
         resolvedVersion: null,
       });
@@ -920,7 +916,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithSimpleValidFrom,
         resolvedVersion: null,
       });
@@ -957,7 +953,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithNoMapping,
         resolvedVersion: null,
       });
@@ -991,7 +987,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithNoPhases,
         resolvedVersion: null,
       });
@@ -1061,7 +1057,7 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      resolveCurrentGrantUseCase.mockResolvedValue({
+      resolveGrantForApplication.mockResolvedValue({
         grant: grantWithMissingTargetStatus,
         resolvedVersion: null,
       });

@@ -175,7 +175,7 @@ export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
     resolvedVersion,
   );
   if (cached) {
-    return { grant: cached, resolvedVersion };
+    return { grant: cached, resolvedVersion, definitionSource: "mongodb" };
   }
 
   const grant = await fetchAndStoreGrant(
@@ -184,5 +184,5 @@ export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
     resolvedVersion,
   );
 
-  return { grant, resolvedVersion };
+  return { grant, resolvedVersion, definitionSource: "s3" };
 };

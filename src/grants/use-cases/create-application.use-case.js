@@ -6,8 +6,8 @@ import { Application } from "../models/application.js";
 import { Outbox } from "../models/outbox.js";
 import { save } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
-import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 import { validateAnswersAgainstSchema } from "../services/schema-validation.service.js";
+import { resolveGrantForSubmission } from "./resolve-current-grant.use-case.js";
 
 export const createApplicationUseCase = async (
   code,
@@ -26,10 +26,11 @@ export const createApplicationUseCase = async (
     ...extraMetadata
   } = metadata;
 
-  const { grant, resolvedVersion } = await resolveAndFetchGrant(
+  const { grant, resolvedVersion } = await resolveGrantForSubmission({
     code,
-    configVersion,
-  );
+    clientRef,
+    requestedVersion: configVersion,
+  });
 
   const { phase, stage, status } = grant.getInitialState();
 

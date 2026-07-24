@@ -2,8 +2,7 @@ import { logger } from "../../common/logger.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import {
   persistResolvedVersion,
-  pinnedVersionOf,
-  resolveCurrentGrantUseCase,
+  resolveGrantForApplication,
 } from "./resolve-current-grant.use-case.js";
 
 export const getApplicationStatusUseCase = async ({ code, clientRef }) => {
@@ -23,10 +22,7 @@ export const getApplicationStatusUseCase = async ({ code, clientRef }) => {
     originalConfigVersion,
   } = application;
 
-  const { resolvedVersion } = await resolveCurrentGrantUseCase(
-    code,
-    pinnedVersionOf(application),
-  );
+  const { resolvedVersion } = await resolveGrantForApplication(application);
   await persistResolvedVersion(application, resolvedVersion);
 
   logger.info(
