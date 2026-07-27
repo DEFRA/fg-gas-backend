@@ -9,6 +9,7 @@ import {
   findVersionByIdempotencyKey,
   insertAgreementVersion,
   insertCurrentAgreement,
+  replaceCurrentAgreement,
   versionsCollection,
 } from "./agreement.repository.js";
 
@@ -115,6 +116,27 @@ describe("single Agreement repository", () => {
     expect(document).not.toHaveProperty("acceptedAt");
     expect(document).not.toHaveProperty("paymentCalculation");
     expect(document).not.toHaveProperty("supplementaryData");
+  });
+
+  it("replaces the current Agreement only at the expected version", async () => {
+    const replaceOne = vi.fn().mockResolvedValue({ modifiedCount: 1 });
+    db.collection.mockReturnValue({ replaceOne });
+    const nextAgreement = new Agreement({
+      ...agreement,
+      version: 2,
+      state: "accepted",
+      updatedAt: "2026-07-18T09:15:00.000Z",
+    });
+    const session = {};
+
+    await replaceCurrentAgreement(nextAgreement, 1, session);
+
+    expect(db.collection).toHaveBeenCalledWith(agreementsCollection);
+    expect(replaceOne).toHaveBeenCalledWith(
+      { _id: agreement.agreementNumber, version: 1 },
+      { _id: agreement.agreementNumber, ...structuredClone(nextAgreement) },
+      { session },
+    );
   });
 
   it("stores the complete immutable Version snapshot without a domain id", async () => {

@@ -140,4 +140,70 @@ describe("single Agreement actions", () => {
     expect(replay.response.statusCode).toBe(303);
     expect(await versions.countDocuments({ agreementNumber })).toBe(2);
   });
+
+  it("allows only one concurrent acceptance to commit", async () => {
+    const submissions = await Promise.all([
+      requestAction({
+        key: "2f7e85ea-7d49-4e1f-a3e4-9e60ddf6220c",
+      }),
+      requestAction({
+        key: "16ab6e34-bbe7-46b8-804e-94f35f454bd1",
+      }),
+    ]);
+
+    expect(
+      submissions.map(({ response }) => response.statusCode).sort(),
+    ).toEqual([303, 412]);
+    expect(await versions.countDocuments({ agreementNumber })).toBe(2);
+    expect(
+      await outbox.countDocuments({
+        "event.data.agreementNumber": agreementNumber,
+      }),
+    ).toBe(1);
+  });
+
+  it("rolls back acceptance when its publication cannot be recorded", async () => {
+    const indexName = "reject-duplicate-agreement-publication";
+    const blockingEventId = "blocking-outbound-event";
+    await outbox.createIndex(
+      { "event.data.agreementNumber": 1 },
+      {
+        name: indexName,
+        unique: true,
+        partialFilterExpression: {
+          "event.data.agreementNumber": agreementNumber,
+        },
+      },
+    );
+    await outbox.insertOne({
+      _id: blockingEventId,
+      event: { data: { agreementNumber } },
+      status: "DEAD_LETTER",
+    });
+
+    try {
+      const { response } = await requestAction();
+
+      expect(response.statusCode).toBe(500);
+      expect(await agreements.findOne({ agreementNumber })).toMatchObject({
+        agreementNumber,
+        version: 1,
+        state: "offered",
+      });
+      expect(await versions.countDocuments({ agreementNumber })).toBe(1);
+      await expect(versions).toHaveRecord({
+        agreementNumber,
+        version: 1,
+        "snapshot.state": "offered",
+      });
+      expect(
+        await outbox.countDocuments({
+          "event.data.agreementNumber": agreementNumber,
+        }),
+      ).toBe(1);
+    } finally {
+      await outbox.deleteOne({ _id: blockingEventId });
+      await outbox.dropIndex(indexName);
+    }
+  });
 });
