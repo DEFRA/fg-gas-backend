@@ -1,5 +1,4 @@
 import Boom from "@hapi/boom";
-import { AgreementItem } from "../agreement-item.js";
 import { AgreementLifecycle } from "../agreement-lifecycle.js";
 import { generateAgreementNumber } from "../agreement-number.js";
 import { Agreement } from "../agreement.js";
@@ -13,24 +12,17 @@ export class AgreementDefinition {
     this.#definition = validateAgreementDefinition(definition);
   }
 
-  createAgreement({ clientRef, identifiers, payload, sourceSystem }) {
-    const item = AgreementItem.create({
-      agreementCode: this.#definition.code,
-      clientRef,
-      sourceSystem,
-      configVersion: this.#definition.configVersion,
-      identifiers,
-      payload,
-      state: this.#definition.create.target,
-    });
-
-    return Agreement.new({
+  createAgreement({ clientRef, identifiers, payload }) {
+    return Agreement.create({
       agreementNumber: generateAgreementNumber({
         prefix: this.#definition.agreementNumberPrefix,
       }),
       code: this.#definition.code,
+      clientRef,
+      configVersion: this.#definition.configVersion,
       identifiers,
-      items: [item],
+      payload,
+      state: this.#definition.create.target,
     });
   }
 

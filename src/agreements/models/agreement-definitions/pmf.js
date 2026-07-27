@@ -101,7 +101,7 @@ export const pmfAgreementDefinition = {
         {
           component: "table",
           head: [{ text: "Pig Type" }, { text: "Amount" }],
-          rowsRef: "$.item.supplementaryData.fundingCalculation.items",
+          rowsRef: "$.agreement.supplementaryData.fundingCalculation.items",
           rows: [
             { text: "$.description" },
             { text: "$.total", format: "poundsNoDecimals" },
@@ -113,11 +113,9 @@ export const pmfAgreementDefinition = {
           name: "accept",
           method: "GET",
           href: {
-            urlTemplate:
-              "/agreements/{agreementNumber}/items/{agreementItemId}/actions/{name}",
+            urlTemplate: "/agreements/{agreementNumber}/actions/{name}",
             params: {
               agreementNumber: "$.agreement.agreementNumber",
-              agreementItemId: "$.item.agreementItemId",
               name: "accept",
             },
           },
@@ -145,11 +143,9 @@ export const pmfAgreementDefinition = {
           name: "accept",
           method: "POST",
           href: {
-            urlTemplate:
-              "/agreements/{agreementNumber}/items/{agreementItemId}/actions/{name}",
+            urlTemplate: "/agreements/{agreementNumber}/actions/{name}",
             params: {
               agreementNumber: "$.agreement.agreementNumber",
-              agreementItemId: "$.item.agreementItemId",
               name: "accept",
             },
           },

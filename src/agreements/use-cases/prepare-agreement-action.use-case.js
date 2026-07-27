@@ -5,26 +5,19 @@ import { loadCurrentAgreementActionContext } from "./load-current-agreement-acti
 export const prepareAgreementActionUseCase = async ({
   actionName,
   agreementNumber,
-  agreementItemId,
 }) => {
-  const { action, currentAgreement, agreementDefinition } =
-    await loadCurrentAgreementActionContext({
-      actionName,
-      agreementNumber,
-      agreementItemId,
-    });
-  const page = action.preparationPage;
-
-  if (!page) {
+  const { action, agreement, agreementDefinition } =
+    await loadCurrentAgreementActionContext({ actionName, agreementNumber });
+  if (!action.preparationPage) {
     throw Boom.badImplementation(
       `Agreement action "${actionName}" has no configured preparation page`,
     );
   }
 
   return buildAgreementPageModel({
-    currentAgreement,
+    agreement,
     agreementDefinition,
-    page,
+    page: action.preparationPage,
     mode: "view",
   });
 };
