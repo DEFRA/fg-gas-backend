@@ -33,6 +33,7 @@ describe("Current Agreement route", () => {
     });
 
     expect(response.statusCode).toBe(200);
+    expect(response.headers.etag).toBe('"PMF123:1"');
     expect(response.result).toEqual(pageModel);
     expect(getCurrentAgreementPageModelUseCase).toHaveBeenCalledWith({
       code: "pigs-might-fly",

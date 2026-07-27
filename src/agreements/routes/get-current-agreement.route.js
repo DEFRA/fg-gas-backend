@@ -1,5 +1,6 @@
 import { getCurrentAgreementQuerySchema } from "../schemas/requests/get-current-agreement-query.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
+import { toEtag } from "../use-cases/agreement-etag.js";
 import { getCurrentAgreementPageModelUseCase } from "../use-cases/get-current-agreement-page-model.use-case.js";
 
 export const getCurrentAgreementRoute = {
@@ -12,15 +13,15 @@ export const getCurrentAgreementRoute = {
     validate: { query: getCurrentAgreementQuerySchema },
     response: { schema: agreementPageModelResponseSchema },
   },
-  async handler(request, _h) {
+  async handler(request, h) {
     const { code, clientRef, sbi, mode } = request.query;
-    const { pageModel } = await getCurrentAgreementPageModelUseCase({
+    const { agreement, pageModel } = await getCurrentAgreementPageModelUseCase({
       code,
       clientRef,
       sbi,
       mode,
     });
 
-    return pageModel;
+    return h.response(pageModel).header("ETag", toEtag(agreement));
   },
 };
