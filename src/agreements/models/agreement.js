@@ -75,8 +75,11 @@ export class Agreement {
 const cloneOptional = (value) =>
   value === undefined ? undefined : structuredClone(value);
 
+const preserveAcceptedAt = (agreement, changes) =>
+  agreement.acceptedAt ?? changes.acceptedAt;
+
 const resolveTransitionChanges = (agreement, changes) => ({
-  acceptedAt: agreement.acceptedAt ?? changes.acceptedAt,
+  acceptedAt: preserveAcceptedAt(agreement, changes),
   paymentCalculation:
     changes.paymentCalculation ?? agreement.paymentCalculation,
   supplementaryData: changes.supplementaryData ?? agreement.supplementaryData,

@@ -16,11 +16,6 @@ export const up = async (db) => {
   const agreements = db.collection(agreementsCollection);
   await dropCollection(agreements);
   await agreements.createIndex({ code: 1, clientRef: 1 }, { unique: true });
-  await agreements.createIndex({
-    code: 1,
-    clientRef: 1,
-    "identifiers.sbi": 1,
-  });
 
   const versions = db.collection(versionsCollection);
   await dropCollection(versions);

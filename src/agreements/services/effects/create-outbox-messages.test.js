@@ -31,4 +31,10 @@ describe("createOutboxMessages", () => {
       },
     });
   });
+
+  it("rejects an unsupported outbox message type with a clear error", () => {
+    expect(() => createOutboxMessages(["unknown"], {})).toThrow(
+      'Unsupported Agreement outbox message type: "unknown"',
+    );
+  });
 });

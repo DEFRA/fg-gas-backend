@@ -29,7 +29,11 @@ export const getCurrentAgreementPageModelUseCase = async ({
   });
 
   logger.info(
-    `Rendered Agreement ${agreement.agreementNumber} version ${agreement.version}`,
+    {
+      agreementNumber: agreement.agreementNumber,
+      version: agreement.version,
+    },
+    "Rendered current agreement page model",
   );
   return { agreement, pageModel };
 };

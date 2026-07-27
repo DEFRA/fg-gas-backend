@@ -2,6 +2,7 @@ import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { Agreement } from "../models/agreement.js";
 import {
   findAgreementByNumber,
   findVersionByIdempotencyKey,
@@ -27,7 +28,7 @@ const options = {
   ifMatch: '"PMF823153883:1"',
   idempotencyKey: "9ea924aa-45e9-43a7-888e-c25054ea658c",
 };
-const agreement = {
+const agreement = new Agreement({
   agreementNumber: options.agreementNumber,
   version: 1,
   code: "pigs-might-fly",
@@ -39,7 +40,7 @@ const agreement = {
   state: "offered",
   createdAt: "2026-07-17T10:00:00.000Z",
   updatedAt: "2026-07-17T10:00:00.000Z",
-};
+});
 const action = {
   effects: [
     {
@@ -189,5 +190,17 @@ describe("executeAgreementActionUseCase", () => {
       output: { statusCode: 412 },
     });
     expect(insertAgreementVersion).not.toHaveBeenCalled();
+  });
+
+  it("returns not found when the Agreement disappears during conflict resolution", async () => {
+    replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 0 });
+    findAgreementByNumber.mockResolvedValue(null);
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toMatchObject({
+      output: {
+        statusCode: 404,
+        payload: { message: "Agreement not found" },
+      },
+    });
   });
 });

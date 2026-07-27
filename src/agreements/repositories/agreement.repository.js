@@ -5,15 +5,21 @@ import { Agreement } from "../models/agreement.js";
 export const agreementsCollection = "agreements__agreements";
 export const versionsCollection = "agreements__versions";
 
-const toCurrentDocument = (agreement) => ({
-  _id: agreement.agreementNumber,
-  ...structuredClone(agreement),
-});
+const omitUndefinedProperties = (value) =>
+  Object.fromEntries(
+    Object.entries(value).filter(([, property]) => property !== undefined),
+  );
+
+const toCurrentDocument = (agreement) =>
+  omitUndefinedProperties({
+    _id: agreement.agreementNumber,
+    ...structuredClone(agreement),
+  });
 
 const toVersionDocument = (agreementVersion) => ({
   agreementNumber: agreementVersion.agreementNumber,
   version: agreementVersion.version,
-  snapshot: structuredClone(agreementVersion.snapshot),
+  snapshot: omitUndefinedProperties(structuredClone(agreementVersion.snapshot)),
   versionedAt: agreementVersion.versionedAt,
   ...(agreementVersion.actionExecution
     ? { actionExecution: agreementVersion.actionExecution }

@@ -54,10 +54,14 @@ describe("single Agreement repository", () => {
 
     await insertCurrentAgreement(agreement, session);
 
+    const [document] = insertOne.mock.calls[0];
     expect(insertOne).toHaveBeenCalledWith(
       { _id: agreement.agreementNumber, ...structuredClone(agreement) },
       { session },
     );
+    expect(document).not.toHaveProperty("acceptedAt");
+    expect(document).not.toHaveProperty("paymentCalculation");
+    expect(document).not.toHaveProperty("supplementaryData");
   });
 
   it("stores the complete immutable Version snapshot without a domain id", async () => {
@@ -70,6 +74,7 @@ describe("single Agreement repository", () => {
 
     await insertAgreementVersion(version);
 
+    const [document] = insertOne.mock.calls[0];
     expect(db.collection).toHaveBeenCalledWith(versionsCollection);
     expect(insertOne).toHaveBeenCalledWith(
       {
@@ -80,5 +85,8 @@ describe("single Agreement repository", () => {
       },
       { session: undefined },
     );
+    expect(document.snapshot).not.toHaveProperty("acceptedAt");
+    expect(document.snapshot).not.toHaveProperty("paymentCalculation");
+    expect(document.snapshot).not.toHaveProperty("supplementaryData");
   });
 });

@@ -22,5 +22,13 @@ const outboxMessageCreators = {
   },
 };
 
+const createOutboxMessage = (type, agreement) => {
+  const createMessage = outboxMessageCreators[type];
+  if (!createMessage) {
+    throw new Error(`Unsupported Agreement outbox message type: "${type}"`);
+  }
+  return createMessage(agreement);
+};
+
 export const createOutboxMessages = (messageTypes, agreement) =>
-  messageTypes.map((type) => outboxMessageCreators[type](agreement));
+  messageTypes.map((type) => createOutboxMessage(type, agreement));

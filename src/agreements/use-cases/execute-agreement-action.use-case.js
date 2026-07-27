@@ -3,7 +3,6 @@ import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
 import {
   findAgreementByNumber,
   findVersionByIdempotencyKey,
@@ -57,13 +56,9 @@ const runAction = async ({
     endpoints: agreementDefinition.getEndpoints(),
     executedAt,
     target: action.transition.target,
-    version: agreement.version + 1,
   });
 
-  const currentAgreement =
-    agreement instanceof Agreement ? agreement : new Agreement(agreement);
-
-  const nextAgreement = currentAgreement.transition({
+  const nextAgreement = agreement.transition({
     target: action.transition.target,
     transitionedAt: executedAt,
     changes: context.agreement,
@@ -138,6 +133,9 @@ const resolveConcurrentUpdate = async (options) => {
   }
 
   const agreement = await findAgreementByNumber(options.agreementNumber);
+  if (!agreement) {
+    throw Boom.notFound("Agreement not found");
+  }
   throw staleError(agreement);
 };
 
