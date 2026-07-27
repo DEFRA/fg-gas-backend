@@ -57,7 +57,7 @@ describe("PMF Agreement creation", () => {
   const clearScenarioData = () =>
     Promise.all([
       applications.deleteMany({ clientRef, code }),
-      agreements.deleteMany({ "items.clientRef": clientRef }),
+      agreements.deleteMany({ clientRef, code }),
       grants.deleteMany({ code }),
       outbox.deleteMany({
         $or: [
@@ -66,7 +66,7 @@ describe("PMF Agreement creation", () => {
           { "event.audit.details.clientRef": clientRef },
         ],
       }),
-      versions.deleteMany({ "snapshot.items.clientRef": clientRef }),
+      versions.deleteMany({ "snapshot.clientRef": clientRef }),
     ]);
 
   beforeAll(async () => {
@@ -106,18 +106,17 @@ describe("PMF Agreement creation", () => {
 
     await expect(agreements).toHaveRecord({
       code,
-      "items.clientRef": clientRef,
-      "items.state": "offered",
+      clientRef,
+      state: "offered",
+      version: 1,
     });
-    const agreement = await agreements.findOne({
-      "items.clientRef": clientRef,
-    });
+    const agreement = await agreements.findOne({ clientRef, code });
 
     await expect(versions).toHaveRecord({
       agreementNumber: agreement.agreementNumber,
       version: 1,
-      "snapshot.items.state": "offered",
-      "snapshot.items.supplementaryData.fundingCalculation.items.0.total": 32000,
+      "snapshot.state": "offered",
+      "snapshot.supplementaryData.fundingCalculation.items.0.total": 32000,
     });
     await expect(applications).toHaveRecord({
       clientRef,

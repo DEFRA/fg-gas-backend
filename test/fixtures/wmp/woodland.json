@@ -5,7 +5,9 @@
     "startDate": "2100-01-01T00:00:00.000Z"
   },
   "actions": [],
-  "amendablePositions": [],
+  "amendablePositions": [
+    "PHASE_PRE_AWARD:STAGE_APPLICATION_AMENDMENT:STATUS_RETURNED_TO_CUSTOMER"
+  ],
   "phases": [
     {
       "code": "PHASE_PRE_AWARD",

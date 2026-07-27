@@ -1,6 +1,7 @@
-import { getCurrentAgreementQuerySchema } from "../schemas/requests/get-current-agreement-query.schema.js";
+import { agreementPresentationQuerySchema } from "../schemas/requests/get-current-agreement-query.schema.js";
 import { agreementNumberParamsSchema } from "../schemas/requests/invoke-agreement-action-request.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
+import { toEtag } from "../use-cases/agreement-etag.js";
 import { getCurrentAgreementPageModelUseCase } from "../use-cases/get-current-agreement-page-model.use-case.js";
 
 export const getAgreementByNumberRoute = {
@@ -11,19 +12,16 @@ export const getAgreementByNumberRoute = {
     tags: ["api"],
     validate: {
       params: agreementNumberParamsSchema,
-      query: getCurrentAgreementQuerySchema,
+      query: agreementPresentationQuerySchema,
     },
-    response: {
-      schema: agreementPageModelResponseSchema,
-    },
+    response: { schema: agreementPageModelResponseSchema },
   },
-  async handler(request, _h) {
-    return getCurrentAgreementPageModelUseCase({
+  async handler(request, h) {
+    const { agreement, pageModel } = await getCurrentAgreementPageModelUseCase({
       agreementNumber: request.params.agreementNumber,
-      code: request.query.code,
-      clientRef: request.query.clientRef,
-      sbi: request.query.sbi,
       mode: request.query.mode,
     });
+
+    return h.response(pageModel).header("ETag", toEtag(agreement));
   },
 };
