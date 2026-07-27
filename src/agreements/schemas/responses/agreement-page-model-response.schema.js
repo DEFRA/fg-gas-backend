@@ -19,7 +19,7 @@ export const agreementPageModelResponseSchema = Joi.object({
     agreementNumber: Joi.string().required(),
     code: code.required(),
     clientRef: clientRef.required(),
-    identifiers: Joi.object({ sbi: sbi.required() }).unknown(true).required(),
+    identifiers: Joi.object({ sbi: sbi.required() }).required(),
     state: Joi.string().required(),
     version: Joi.number().integer().min(1).required(),
   }).required(),

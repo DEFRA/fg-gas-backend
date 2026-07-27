@@ -17,14 +17,14 @@ const toAgreementSummary = ({
   agreementNumber,
   code,
   clientRef,
-  identifiers,
+  identifiers: { sbi },
   state,
   version,
 }) => ({
   agreementNumber,
   code,
   clientRef,
-  identifiers,
+  identifiers: { sbi },
   state,
   version,
 });

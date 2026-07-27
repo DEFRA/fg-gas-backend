@@ -47,7 +47,11 @@ const agreement = {
   code: "test",
   clientRef: "client",
   configVersion: "1",
-  identifiers: { sbi: "300000000" },
+  identifiers: {
+    sbi: "300000000",
+    frn: "1000000000",
+    crn: "1100000000",
+  },
   state: "offered",
   version: 1,
 };
