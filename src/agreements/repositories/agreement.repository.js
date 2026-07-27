@@ -5,6 +5,11 @@ import { Agreement } from "../models/agreement.js";
 export const agreementsCollection = "agreements__agreements";
 export const versionsCollection = "agreements__versions";
 
+const primaryReadOptions = (session) => ({
+  session,
+  readPreference: "primary",
+});
+
 const omitUndefinedProperties = (value) =>
   Object.fromEntries(
     Object.entries(value).filter(([, property]) => property !== undefined),
@@ -29,7 +34,7 @@ const toVersionDocument = (agreementVersion) => ({
 export const findAgreementByNumber = async (agreementNumber, session) => {
   const document = await db
     .collection(agreementsCollection)
-    .findOne({ _id: agreementNumber }, { session });
+    .findOne({ _id: agreementNumber }, primaryReadOptions(session));
 
   return document ? new Agreement(document) : null;
 };
@@ -78,7 +83,7 @@ export const findVersionByIdempotencyKey = async (
       agreementNumber,
       "actionExecution.idempotencyKey": idempotencyKey,
     },
-    { session },
+    primaryReadOptions(session),
   );
 
   return document ? new AgreementVersion(document) : null;

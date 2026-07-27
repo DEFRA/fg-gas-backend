@@ -4,7 +4,9 @@ import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
 import {
   agreementsCollection,
+  findAgreementByNumber,
   findAgreementBySourceIdentity,
+  findVersionByIdempotencyKey,
   insertAgreementVersion,
   insertCurrentAgreement,
   versionsCollection,
@@ -27,6 +29,57 @@ const agreement = new Agreement({
 });
 
 describe("single Agreement repository", () => {
+  it("reads the current Agreement by number from the primary", async () => {
+    const findOne = vi.fn().mockResolvedValue({
+      _id: agreement.agreementNumber,
+      ...structuredClone(agreement),
+    });
+    db.collection.mockReturnValue({ findOne });
+    const session = {};
+
+    const result = await findAgreementByNumber(
+      agreement.agreementNumber,
+      session,
+    );
+
+    expect(db.collection).toHaveBeenCalledWith(agreementsCollection);
+    expect(findOne).toHaveBeenCalledWith(
+      { _id: agreement.agreementNumber },
+      { session, readPreference: "primary" },
+    );
+    expect(result).toEqual(agreement);
+  });
+
+  it("reads an idempotent action result from the primary", async () => {
+    const idempotencyKey = "9ea924aa-45e9-43a7-888e-c25054ea658c";
+    const version = new AgreementVersion({
+      agreementNumber: agreement.agreementNumber,
+      version: 2,
+      snapshot: new Agreement({ ...agreement, version: 2 }),
+      versionedAt: "2026-07-18T09:15:00.000Z",
+      actionExecution: { name: "accept", idempotencyKey },
+    });
+    const findOne = vi.fn().mockResolvedValue(structuredClone(version));
+    db.collection.mockReturnValue({ findOne });
+    const session = {};
+
+    const result = await findVersionByIdempotencyKey(
+      agreement.agreementNumber,
+      idempotencyKey,
+      session,
+    );
+
+    expect(db.collection).toHaveBeenCalledWith(versionsCollection);
+    expect(findOne).toHaveBeenCalledWith(
+      {
+        agreementNumber: agreement.agreementNumber,
+        "actionExecution.idempotencyKey": idempotencyKey,
+      },
+      { session, readPreference: "primary" },
+    );
+    expect(result).toEqual(version);
+  });
+
   it("finds the current Agreement by code and client reference", async () => {
     const findOne = vi.fn().mockResolvedValue({
       _id: agreement.agreementNumber,
