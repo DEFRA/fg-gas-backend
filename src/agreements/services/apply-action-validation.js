@@ -5,13 +5,18 @@ const isSubmitted = (submittedValue, configuredValue) =>
     ? submittedValue.includes(configuredValue)
     : submittedValue === configuredValue;
 
+const applyCheckboxItem = (item, submittedValue) =>
+  Object.hasOwn(item, "value") && item.value !== undefined
+    ? { ...item, checked: isSubmitted(submittedValue, item.value) }
+    : item;
+
 const applyCheckboxValues = (component, submittedValue) => ({
   ...component,
-  items: component.items.map((item) => ({
-    ...item,
-    checked: isSubmitted(submittedValue, item.value),
-  })),
+  items: component.items.map((item) => applyCheckboxItem(item, submittedValue)),
 });
+
+const isNamedComponent = (component) =>
+  typeof component.component === "string" && typeof component.name === "string";
 
 const applySubmittedValue = (component, values) => {
   if (component.component === "checkboxes") {
@@ -24,6 +29,10 @@ const applySubmittedValue = (component, values) => {
 };
 
 const applyComponentState = (component, values, errorsByName) => {
+  if (!isNamedComponent(component)) {
+    return component;
+  }
+
   const withValues = applySubmittedValue(component, values);
   const error = errorsByName.get(component.name);
 

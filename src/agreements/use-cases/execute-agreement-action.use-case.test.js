@@ -159,7 +159,7 @@ describe("executeAgreementActionUseCase", () => {
         {
           component: "checkboxes",
           name: "declaration",
-          items: [{ value: "agreed", text: "I agree" }],
+          items: [{ value: "agreed", text: "I agree" }, { divider: "or" }],
         },
       ],
       actions: [],
@@ -175,7 +175,10 @@ describe("executeAgreementActionUseCase", () => {
           component: "checkboxes",
           name: "declaration",
           errorMessage: { text: "Agree to the declaration" },
-          items: [{ value: "agreed", text: "I agree", checked: false }],
+          items: [
+            { value: "agreed", text: "I agree", checked: false },
+            { divider: "or" },
+          ],
         },
       ],
       actions: [],
@@ -283,6 +286,8 @@ describe("executeAgreementActionUseCase", () => {
       components: [
         {
           component: "fieldset",
+          metadata: { name: "terms", value: "configured-metadata" },
+          attributes: { value: "configured-attribute" },
           content: [
             {
               component: "checkboxes",
@@ -297,9 +302,19 @@ describe("executeAgreementActionUseCase", () => {
 
     const result = await executeAgreementActionUseCase({
       ...options,
-      values: { terms: "accepted" },
+      values: {
+        terms: "accepted",
+        undefined: "submitted-undefined",
+      },
     });
 
+    expect(result.components[0].metadata).toEqual({
+      name: "terms",
+      value: "configured-metadata",
+    });
+    expect(result.components[0].attributes).toEqual({
+      value: "configured-attribute",
+    });
     expect(result.components[0].content[0]).toEqual({
       component: "checkboxes",
       name: "terms",
