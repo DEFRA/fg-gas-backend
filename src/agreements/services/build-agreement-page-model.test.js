@@ -131,4 +131,76 @@ describe("buildAgreementPageModel", () => {
       actions: [],
     });
   });
+
+  it("resolves a template from the definition against the agreement", async () => {
+    const templateDefinition = new AgreementDefinition({
+      code: reference.code,
+      configVersion: "0.0.1",
+      agreementNumberPrefix: "PMF",
+      create: { target: "offered", effects: [] },
+      states: { offered: { page: "offered" } },
+      templates: {
+        stateSummary: {
+          offered: {
+            content: [{ component: "status", text: "Draft agreement" }],
+          },
+        },
+      },
+      pages: {
+        offered: {
+          title: "Review your agreement offer",
+          components: [
+            {
+              component: "template",
+              templateRef: "$.definition.templates.stateSummary",
+              templateKey: "$.agreement.items[0].state",
+            },
+          ],
+        },
+      },
+    });
+
+    await expect(
+      buildAgreementPageModel({
+        currentAgreement,
+        agreementDefinition: templateDefinition,
+        page: "offered",
+        mode: "view",
+      }),
+    ).resolves.toMatchObject({
+      components: [{ component: "status", text: "Draft agreement" }],
+    });
+  });
+
+  it("returns a controlled internal error, naming the page and agreement but not agreement data, when a valid definition cannot be resolved", async () => {
+    const unresolvableDefinition = new AgreementDefinition({
+      code: reference.code,
+      configVersion: "0.0.1",
+      agreementNumberPrefix: "PMF",
+      create: { target: "offered", effects: [] },
+      states: { offered: { page: "offered" } },
+      pages: {
+        offered: {
+          title: "Review your agreement offer",
+          components: [
+            { component: "paragraph", text: "$.agreement.doesNotExist" },
+          ],
+        },
+      },
+    });
+
+    const error = await buildAgreementPageModel({
+      currentAgreement,
+      agreementDefinition: unresolvableDefinition,
+      page: "offered",
+      mode: "view",
+    }).catch((thrown) => thrown);
+
+    expect(error.isBoom).toBe(true);
+    expect(error.output.statusCode).toBe(500);
+    expect(error.message).toBe(
+      'Unable to build page model "offered" for agreement "PMF823153883"',
+    );
+    expect(error.message).not.toContain(reference.sbi);
+  });
 });

@@ -55,11 +55,87 @@ const states = Joi.object()
   .required()
   .label("States");
 
-const component = Joi.object({
+const nestedComponents = Joi.array().items(Joi.link("#component")).min(1);
+
+// Conditions and data references must be a reference or a JSONata expression
+const reference = Joi.string().pattern(/^(jsonata:|\$\.|@\.)/, {
+  name: "reference or jsonata: expression",
+});
+
+// A branch may be a single component or several
+const branch = Joi.alternatives().try(
+  Joi.link("#component"),
+  Joi.array().items(Joi.link("#component")).min(1),
+);
+
+const genericComponent = Joi.object({
   component: Joi.string().required(),
+  condition: reference.optional(),
 })
   .unknown(true)
   .label("Component");
+
+const conditionalComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.required(),
+  whenTrue: branch.optional(),
+  whenFalse: branch.optional(),
+}).or("whenTrue", "whenFalse");
+
+const repeatComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  itemsRef: reference.required(),
+  items: nestedComponents.required(),
+  beforeContent: nestedComponents.optional(),
+  emptyContent: nestedComponents.optional(),
+});
+
+const templateComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  templateRef: reference.required(),
+  templateKey: Joi.string().required(),
+  dataRef: reference.optional(),
+});
+
+const containerComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  content: nestedComponents.required(),
+});
+
+const tableComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  rowsRef: reference.required(),
+  rows: Joi.array().items(Joi.object()).min(1).required(),
+}).unknown(true);
+
+const component = Joi.alternatives()
+  .conditional(".component", {
+    switch: [
+      { is: "conditional", then: conditionalComponent },
+      { is: "repeat", then: repeatComponent },
+      { is: "template", then: templateComponent },
+      { is: "component-container", then: containerComponent },
+      { is: "table", then: tableComponent },
+    ],
+    otherwise: genericComponent,
+  })
+  .id("component");
+
+const templateContent = Joi.object({
+  content: Joi.array().items(component).min(1).required(),
+}).unknown(true);
+
+const templates = Joi.object()
+  .pattern(
+    Joi.string(),
+    Joi.object().pattern(Joi.string(), templateContent).min(1),
+  )
+  .optional()
+  .label("Templates");
 
 const pageHref = Joi.alternatives()
   .try(
@@ -114,6 +190,7 @@ export const agreementDefinitionSchema = Joi.object({
   create,
   states,
   pages,
+  templates,
 })
   .required()
   .label("AgreementDefinition");

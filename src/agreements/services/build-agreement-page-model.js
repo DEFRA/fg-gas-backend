@@ -47,6 +47,7 @@ export const buildAgreementPageModel = async ({
     agreement: currentAgreement.snapshot,
     snapshot: currentAgreement.snapshot,
     item: currentAgreement.item,
+    definition: { templates: agreementDefinition.getTemplates() },
   };
   const { components, actions } = await resolvePageModel(
     pageDefinition,

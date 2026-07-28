@@ -162,3 +162,182 @@ describe("agreementDefinitionSchema", () => {
     expect(error).toBeUndefined();
   });
 });
+
+describe("agreementDefinitionSchema resolver instructions", () => {
+  const withComponents = (components, templates) => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.pages.offered.components = components;
+
+    if (templates) {
+      definition.templates = templates;
+    }
+
+    return definition;
+  };
+
+  const messagesFor = (definition) => {
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+
+    return error.details.map((detail) => detail.message).join(", ");
+  };
+
+  it("validates conditional, repeat, template and container entries, including nested ones", () => {
+    const definition = withComponents(
+      [
+        {
+          component: "notification-banner",
+          condition: "jsonata:$.agreement.state = 'offered'",
+          title: "Draft agreement",
+        },
+        {
+          component: "conditional",
+          condition: "jsonata:$.agreement.state = 'accepted'",
+          whenTrue: { component: "status", text: "Accepted" },
+          whenFalse: { component: "status", text: "Draft" },
+        },
+        {
+          component: "repeat",
+          itemsRef: "$.agreement.payload.answers.parcels",
+          beforeContent: [{ component: "heading", level: 2, text: "Parcels" }],
+          items: [
+            {
+              component: "component-container",
+              content: [{ component: "paragraph", text: "Parcel @.sheetId" }],
+            },
+          ],
+          emptyContent: [{ component: "paragraph", text: "None" }],
+        },
+        {
+          component: "template",
+          templateRef: "$.definition.templates.paymentSummary",
+          templateKey: "$.agreement.paymentScheme",
+          dataRef: "$.agreement.paymentCalculation",
+        },
+      ],
+      {
+        paymentSummary: {
+          annual: { content: [{ component: "paragraph", text: "Annual" }] },
+        },
+      },
+    );
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
+  it.each([
+    [
+      "a repeat with no items",
+      [{ component: "repeat", itemsRef: "$.agreement.parcels" }],
+      /"pages\.offered\.components\[0\]\.items" is required/,
+    ],
+    [
+      "a repeat whose itemsRef is not a reference string",
+      [
+        {
+          component: "repeat",
+          itemsRef: 5,
+          items: [{ component: "paragraph", text: "x" }],
+        },
+      ],
+      /"pages\.offered\.components\[0\]\.itemsRef" must be a string/,
+    ],
+    [
+      "a conditional with no branches",
+      [{ component: "conditional", condition: "jsonata:$.agreement.state" }],
+      /"pages\.offered\.components\[0\]" must contain at least one of \[whenTrue, whenFalse\]/,
+    ],
+    [
+      "a conditional with no condition",
+      [{ component: "conditional", whenTrue: { component: "status" } }],
+      /"pages\.offered\.components\[0\]\.condition" is required/,
+    ],
+    [
+      "a template with no templateKey",
+      [{ component: "template", templateRef: "$.definition.templates.x" }],
+      /"pages\.offered\.components\[0\]\.templateKey" is required/,
+    ],
+    [
+      "a container with no content",
+      [{ component: "component-container" }],
+      /"pages\.offered\.components\[0\]\.content" is required/,
+    ],
+    [
+      "a table with no rowsRef",
+      [{ component: "table", rows: [{ text: "@.description" }] }],
+      /"pages\.offered\.components\[0\]\.rowsRef" is required/,
+    ],
+  ])("fails, identifying the entry, for %s", (_name, components, expected) => {
+    expect(messagesFor(withComponents(components))).toMatch(expected);
+  });
+
+  // A condition is a string either way, so without this a typo would validate
+  // and then quietly evaluate to false, removing content from the page.
+  it("fails when a condition is not a reference or a jsonata: expression", () => {
+    const components = [
+      { component: "notification-banner", condition: "alwyas", title: "Draft" },
+    ];
+
+    expect(messagesFor(withComponents(components))).toMatch(
+      /"pages\.offered\.components\[0\]\.condition" with value "alwyas" fails to match the reference or jsonata: expression pattern/,
+    );
+  });
+
+  it("fails when a data reference is not a reference", () => {
+    const components = [
+      {
+        component: "repeat",
+        itemsRef: "parcels",
+        items: [{ component: "paragraph", text: "x" }],
+      },
+    ];
+
+    expect(messagesFor(withComponents(components))).toMatch(
+      /"pages\.offered\.components\[0\]\.itemsRef".*fails to match/,
+    );
+  });
+
+  it("accepts a conditional branch holding several components", () => {
+    const definition = withComponents([
+      {
+        component: "conditional",
+        condition: "jsonata:$.agreement.state = 'accepted'",
+        whenTrue: [
+          { component: "heading", level: 2, text: "Accepted" },
+          { component: "paragraph", text: "Done" },
+        ],
+      },
+    ]);
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
+  it("identifies a malformed entry nested inside another instruction", () => {
+    const components = [
+      {
+        component: "repeat",
+        itemsRef: "$.agreement.parcels",
+        items: [{ component: "component-container" }],
+      },
+    ];
+
+    expect(messagesFor(withComponents(components))).toMatch(
+      /"pages\.offered\.components\[0\]\.items\[0\]\.content" is required/,
+    );
+  });
+
+  it("fails when a template's content is malformed", () => {
+    const definition = withComponents([{ component: "paragraph", text: "x" }], {
+      paymentSummary: { annual: { content: "not-an-array" } },
+    });
+
+    expect(messagesFor(definition)).toMatch(
+      /"templates\.paymentSummary\.annual\.content" must be an array/,
+    );
+  });
+});

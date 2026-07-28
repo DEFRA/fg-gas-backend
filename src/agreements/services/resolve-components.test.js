@@ -146,4 +146,441 @@ describe("resolveComponents", () => {
       'A "table" component must configure both "rowsRef" and "rows"',
     );
   });
+
+  it("resolves a table's rows against the item using @. as well as $.", async () => {
+    const components = [
+      {
+        component: "table",
+        rowsRef: "$.agreement.paymentCalculation.items",
+        rows: [
+          { text: "@.description" },
+          { text: "@.annualPaymentPence", format: "poundsNoDecimals" },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: {
+        paymentCalculation: {
+          items: [{ description: "Hedgerow", annualPaymentPence: 125000 }],
+        },
+      },
+    });
+
+    expect(result).toEqual([
+      {
+        component: "table",
+        rows: [[{ text: "Hedgerow" }, { text: "£125,000" }]],
+      },
+    ]);
+  });
+});
+
+describe("resolveComponents display conditions", () => {
+  const banner = {
+    component: "notification-banner",
+    condition: "jsonata:$.agreement.state = 'offered'",
+    title: "Draft agreement",
+    text: "This is a draft version of your agreement.",
+  };
+
+  it("includes a component whose condition is true, without the condition itself", async () => {
+    const result = await resolveComponents([banner], {
+      agreement: { state: "offered" },
+    });
+
+    expect(result).toEqual([
+      {
+        component: "notification-banner",
+        title: "Draft agreement",
+        text: "This is a draft version of your agreement.",
+      },
+    ]);
+  });
+
+  it("leaves out a component whose condition is false, keeping the order of the rest", async () => {
+    const components = [
+      { component: "heading", level: 1, text: "Your agreement" },
+      banner,
+      { component: "paragraph", text: "Accepted" },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { state: "accepted" },
+    });
+
+    expect(result).toEqual([
+      { component: "heading", level: 1, text: "Your agreement" },
+      { component: "paragraph", text: "Accepted" },
+    ]);
+  });
+});
+
+describe("resolveComponents conditional components", () => {
+  const conditional = {
+    component: "conditional",
+    condition: "jsonata:$.agreement.state = 'accepted'",
+    whenTrue: {
+      component: "status",
+      text: "Accepted",
+      classes: "govuk-tag--green",
+    },
+    whenFalse: {
+      component: "status",
+      text: "Draft",
+      classes: "govuk-tag--blue",
+    },
+  };
+
+  it.each([
+    ["accepted", "Accepted", "govuk-tag--green"],
+    ["offered", "Draft", "govuk-tag--blue"],
+  ])("selects the %s branch", async (state, text, classes) => {
+    const result = await resolveComponents([conditional], {
+      agreement: { state },
+    });
+
+    expect(result).toEqual([{ component: "status", text, classes }]);
+  });
+
+  it("leaves out the component entirely when the selected branch is not configured", async () => {
+    const components = [
+      { component: "heading", level: 1, text: "Your agreement" },
+      {
+        component: "conditional",
+        condition: "jsonata:$.agreement.state = 'accepted'",
+        whenTrue: { component: "status", text: "Accepted" },
+      },
+      { component: "paragraph", text: "Offered" },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { state: "offered" },
+    });
+
+    expect(result).toEqual([
+      { component: "heading", level: 1, text: "Your agreement" },
+      { component: "paragraph", text: "Offered" },
+    ]);
+  });
+});
+
+describe("resolveComponents repeated content", () => {
+  const parcels = {
+    component: "repeat",
+    itemsRef: "$.agreement.payload.answers.parcels",
+    beforeContent: [{ component: "heading", level: 2, text: "Land parcels" }],
+    items: [
+      { component: "heading", level: 3, text: "Parcel @.sheetId @.parcelId" },
+      { component: "paragraph", text: "Area: @.area.quantity hectares" },
+    ],
+    emptyContent: [
+      { component: "paragraph", text: "No land parcels are recorded." },
+    ],
+  };
+
+  const withParcels = (list) => ({
+    agreement: { payload: { answers: { parcels: list } } },
+  });
+
+  it("resolves the configured content once per item, in source order", async () => {
+    const result = await resolveComponents(
+      [parcels],
+      withParcels([
+        { sheetId: "SX0679", parcelId: "9238", area: { quantity: 1.25 } },
+        { sheetId: "SX0680", parcelId: "1104", area: { quantity: 0.5 } },
+      ]),
+    );
+
+    expect(result).toEqual([
+      { component: "heading", level: 2, text: "Land parcels" },
+      { component: "heading", level: 3, text: "Parcel SX0679 9238" },
+      { component: "paragraph", text: "Area: 1.25 hectares" },
+      { component: "heading", level: 3, text: "Parcel SX0680 1104" },
+      { component: "paragraph", text: "Area: 0.5 hectares" },
+    ]);
+  });
+
+  it("uses the empty content, and not the introduction, for an empty array", async () => {
+    const result = await resolveComponents([parcels], withParcels([]));
+
+    expect(result).toEqual([
+      { component: "paragraph", text: "No land parcels are recorded." },
+    ]);
+  });
+
+  it("resolves to nothing for an empty array with no empty content configured", async () => {
+    const { emptyContent, ...withoutEmptyContent } = parcels;
+
+    const result = await resolveComponents(
+      [withoutEmptyContent, { component: "paragraph", text: "After" }],
+      withParcels([]),
+    );
+
+    expect(result).toEqual([{ component: "paragraph", text: "After" }]);
+  });
+
+  it("reaches agreement-level data from inside repeated content", async () => {
+    const components = [
+      {
+        component: "repeat",
+        itemsRef: "$.agreement.parcels",
+        items: [
+          { component: "paragraph", text: "@.sheetId on $.agreement.sbi" },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { sbi: "106284736", parcels: [{ sheetId: "SX0679" }] },
+    });
+
+    expect(result).toEqual([
+      { component: "paragraph", text: "SX0679 on 106284736" },
+    ]);
+  });
+
+  it("applies formatting inside repeated content", async () => {
+    const components = [
+      {
+        component: "repeat",
+        itemsRef: "$.agreement.actions",
+        items: [
+          {
+            component: "paragraph",
+            text: "@.annualPaymentPence",
+            format: "poundsNoDecimals",
+          },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { actions: [{ annualPaymentPence: 125000 }] },
+    });
+
+    expect(result).toEqual([{ component: "paragraph", text: "£125,000" }]);
+  });
+
+  it("fails when the items reference is missing rather than silently showing nothing", async () => {
+    await expect(
+      resolveComponents([parcels], { agreement: {} }),
+    ).rejects.toThrow(
+      'Unresolved reference "$.agreement.payload.answers.parcels"',
+    );
+  });
+
+  it("fails when the items reference does not resolve to an array", async () => {
+    await expect(
+      resolveComponents([parcels], withParcels({ sheetId: "SX0679" })),
+    ).rejects.toThrow(
+      'A "repeat" component\'s "itemsRef" ("$.agreement.payload.answers.parcels") must resolve to an array',
+    );
+  });
+
+  it("honours a condition on the repeat itself", async () => {
+    const result = await resolveComponents(
+      [{ ...parcels, condition: "jsonata:$.agreement.state = 'accepted'" }],
+      {
+        ...withParcels([{ sheetId: "SX0679", parcelId: "9238" }]),
+        agreement: {
+          state: "offered",
+          payload: { answers: { parcels: [{ sheetId: "SX0679" }] } },
+        },
+      },
+    );
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe("resolveComponents containers and templates", () => {
+  it("flattens a container's content into its parent", async () => {
+    const components = [
+      {
+        component: "component-container",
+        content: [
+          { component: "heading", level: 2, text: "Payments" },
+          { component: "paragraph", text: "$.agreement.summary" },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { summary: "Annual" },
+    });
+
+    expect(result).toEqual([
+      { component: "heading", level: 2, text: "Payments" },
+      { component: "paragraph", text: "Annual" },
+    ]);
+  });
+
+  it("hides a whole group of content with one condition on the container", async () => {
+    const components = [
+      {
+        component: "component-container",
+        condition: "jsonata:$.agreement.state = 'accepted'",
+        content: [
+          { component: "heading", level: 2, text: "Payments" },
+          { component: "paragraph", text: "Annual" },
+        ],
+      },
+      { component: "paragraph", text: "After" },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { state: "offered" },
+    });
+
+    expect(result).toEqual([{ component: "paragraph", text: "After" }]);
+  });
+
+  it("supports containers nested inside containers", async () => {
+    const components = [
+      {
+        component: "component-container",
+        content: [
+          {
+            component: "component-container",
+            content: [{ component: "paragraph", text: "$.agreement.summary" }],
+          },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { summary: "Annual" },
+    });
+
+    expect(result).toEqual([{ component: "paragraph", text: "Annual" }]);
+  });
+
+  const templates = {
+    paymentSummary: {
+      annual: {
+        content: [
+          { component: "heading", level: 2, text: "Annual payment" },
+          {
+            component: "paragraph",
+            text: "@.annualPaymentPence",
+            format: "poundsNoDecimals",
+          },
+        ],
+      },
+      quarterly: {
+        content: [
+          { component: "heading", level: 2, text: "Quarterly payment" },
+        ],
+      },
+    },
+  };
+
+  const templateComponent = {
+    component: "template",
+    templateRef: "$.definition.templates.paymentSummary",
+    templateKey: "$.agreement.paymentScheme",
+    dataRef: "$.agreement.paymentCalculation",
+  };
+
+  it("resolves the template selected by agreement data, against the data it configures", async () => {
+    const result = await resolveComponents([templateComponent], {
+      definition: { templates },
+      agreement: {
+        paymentScheme: "annual",
+        paymentCalculation: { annualPaymentPence: 125000 },
+      },
+    });
+
+    expect(result).toEqual([
+      { component: "heading", level: 2, text: "Annual payment" },
+      { component: "paragraph", text: "£125,000" },
+    ]);
+  });
+
+  it("selects a different template for a different agreement", async () => {
+    const result = await resolveComponents([templateComponent], {
+      definition: { templates },
+      agreement: { paymentScheme: "quarterly", paymentCalculation: {} },
+    });
+
+    expect(result).toEqual([
+      { component: "heading", level: 2, text: "Quarterly payment" },
+    ]);
+  });
+
+  it("uses the repeated item as the template's data when no dataRef is configured", async () => {
+    const components = [
+      {
+        component: "repeat",
+        itemsRef: "$.agreement.payments",
+        items: [
+          {
+            component: "template",
+            templateRef: "$.definition.templates.paymentSummary",
+            templateKey: "@.scheme",
+          },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      definition: { templates },
+      agreement: {
+        payments: [{ scheme: "annual", annualPaymentPence: 60000 }],
+      },
+    });
+
+    expect(result).toEqual([
+      { component: "heading", level: 2, text: "Annual payment" },
+      { component: "paragraph", text: "£60,000" },
+    ]);
+  });
+
+  // The key comes from Agreement data, so an inherited property name must not
+  // be mistaken for a configured template.
+  it.each(["constructor", "__proto__", "toString"])(
+    "fails clearly when agreement data selects the inherited property %s",
+    async (paymentScheme) => {
+      await expect(
+        resolveComponents([templateComponent], {
+          definition: { templates },
+          agreement: { paymentScheme, paymentCalculation: {} },
+        }),
+      ).rejects.toThrow(/has no template/);
+    },
+  );
+
+  it("resolves a conditional branch holding several components", async () => {
+    const components = [
+      {
+        component: "conditional",
+        condition: "jsonata:$.agreement.state = 'accepted'",
+        whenTrue: [
+          { component: "heading", level: 2, text: "Accepted" },
+          { component: "paragraph", text: "$.agreement.acceptedAt" },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { state: "accepted", acceptedAt: "2026-07-27" },
+    });
+
+    expect(result).toEqual([
+      { component: "heading", level: 2, text: "Accepted" },
+      { component: "paragraph", text: "2026-07-27" },
+    ]);
+  });
+
+  it("fails when the selected template does not exist", async () => {
+    await expect(
+      resolveComponents([templateComponent], {
+        definition: { templates },
+        agreement: { paymentScheme: "monthly", paymentCalculation: {} },
+      }),
+    ).rejects.toThrow(
+      'A "template" component references "$.definition.templates.paymentSummary" which has no template "monthly"',
+    );
+  });
 });
