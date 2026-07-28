@@ -1,13 +1,13 @@
-const toErrorSummary = ({ href, message }) => ({ href, text: message });
+import { matchesConfiguredValue } from "../../common/matches-configured-value.js";
 
-const isSubmitted = (submittedValue, configuredValue) =>
-  Array.isArray(submittedValue)
-    ? submittedValue.includes(configuredValue)
-    : submittedValue === configuredValue;
+const toErrorSummary = ({ href, message }) => ({ href, text: message });
 
 const applyCheckboxItem = (item, submittedValue) =>
   Object.hasOwn(item, "value") && item.value !== undefined
-    ? { ...item, checked: isSubmitted(submittedValue, item.value) }
+    ? {
+        ...item,
+        checked: matchesConfiguredValue(submittedValue, item.value),
+      }
     : item;
 
 const applyCheckboxValues = (component, submittedValue) => ({
