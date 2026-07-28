@@ -41,8 +41,8 @@ describe("invokeAgreementActionRoute", () => {
     });
   });
 
-  it("returns configured validation as 422", async () => {
-    executeAgreementActionUseCase.mockResolvedValue({
+  it("returns a render-ready validation page as 422", async () => {
+    const validationPage = {
       agreement: {
         agreementNumber: "PMF123",
         code: "pigs-might-fly",
@@ -52,18 +52,30 @@ describe("invokeAgreementActionRoute", () => {
         version: 1,
       },
       page: { name: "accept", title: "Accept" },
-      components: [],
+      components: [
+        {
+          component: "checkboxes",
+          name: "confirmation",
+          errorMessage: { text: "Confirm" },
+          items: [{ value: "confirmed", checked: false }],
+        },
+      ],
       actions: [],
       values: {},
-      errors: [{ name: "confirm", href: "#confirm", message: "Confirm" }],
-    });
+      errors: [{ href: "#confirmation", text: "Confirm" }],
+    };
+    executeAgreementActionUseCase.mockResolvedValue(validationPage);
+
     const response = await server.inject({
       method: "POST",
       url,
       headers,
       payload: { values: {} },
     });
+
     expect(response.statusCode).toBe(422);
+    expect(response.headers.etag).toBe('"PMF123:1"');
+    expect(response.result).toEqual(validationPage);
   });
 
   it("passes action conflicts through", async () => {

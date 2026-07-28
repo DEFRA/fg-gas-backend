@@ -117,12 +117,44 @@ describe("single Agreement actions", () => {
     });
   });
 
-  it("returns configured validation without changing the Agreement", async () => {
+  it("returns a render-ready validation page without changing the Agreement", async () => {
     const { response, payload } = await requestAction({ values: {} });
 
     expect(response.statusCode).toBe(422);
-    expect(payload.errors[0].name).toBe("confirm");
+    expect(response.headers.etag).toBe(`"${agreementNumber}:1"`);
+    expect(payload).toMatchObject({
+      page: { name: "accept", title: "Accept your agreement offer" },
+      components: [
+        { component: "heading", text: "Accept your agreement offer" },
+        {
+          component: "checkboxes",
+          name: "confirm",
+          errorMessage: {
+            text: "Confirm this agreement offer before accepting it",
+          },
+          items: [
+            {
+              value: "confirmed",
+              checked: false,
+            },
+          ],
+        },
+      ],
+      errors: [
+        {
+          href: "#confirm",
+          text: "Confirm this agreement offer before accepting it",
+        },
+      ],
+      values: {},
+    });
     await expect(agreements).toHaveRecord({ agreementNumber, version: 1 });
+    expect(await versions.countDocuments({ agreementNumber })).toBe(1);
+    expect(
+      await outbox.countDocuments({
+        "event.data.agreementNumber": agreementNumber,
+      }),
+    ).toBe(0);
   });
 
   it("rejects a stale expected version", async () => {
