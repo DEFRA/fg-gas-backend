@@ -7,61 +7,68 @@ import { resolveActions } from "./resolve-page-href.js";
 const resolvePageActions = (pageDefinition, context, mode) =>
   mode === "print" ? [] : resolveActions(context, pageDefinition.actions);
 
-const resolvePageModel = async (
-  pageDefinition,
-  context,
-  { page, agreementNumber, mode },
-) => {
-  try {
-    const [components, actions] = await Promise.all([
-      resolveComponents(pageDefinition.components, context),
-      resolvePageActions(pageDefinition, context, mode),
-    ]);
+const resolvePageContent = async (pageDefinition, context, mode) =>
+  Promise.all([
+    resolveComponents(pageDefinition.components, context),
+    resolvePageActions(pageDefinition, context, mode),
+  ]);
 
-    return { components, actions };
-  } catch (error) {
-    logger.error(
-      error,
-      `Failed to build page model "${page}" for agreement "${agreementNumber}"`,
-    );
-    throw Boom.badImplementation(
-      `Unable to build page model "${page}" for agreement "${agreementNumber}"`,
-    );
-  }
-};
+const toAgreementSummary = ({
+  agreementNumber,
+  code,
+  clientRef,
+  identifiers: { sbi },
+  state,
+  version,
+}) => ({
+  agreementNumber,
+  code,
+  clientRef,
+  identifiers: { sbi },
+  state,
+  version,
+});
 
 export const buildAgreementPageModel = async ({
-  currentAgreement,
+  agreement,
   agreementDefinition,
   page,
   mode,
 }) => {
   assertSupportedAgreementPageMode(mode);
   const pageDefinition = agreementDefinition.resolvePage(page);
-  agreementDefinition.assertPageAllowed({
-    page,
-    state: currentAgreement.state,
-  });
-
+  agreementDefinition.assertPageAllowed({ page, state: agreement.state });
+  // "definition.templates" is exposed so page content can address template
+  // content as "$.definition.templates.*" without the whole definition
+  // entering the resolve context.
   const context = {
-    agreement: currentAgreement.snapshot,
-    snapshot: currentAgreement.snapshot,
-    item: currentAgreement.item,
+    agreement,
     definition: { templates: agreementDefinition.getTemplates() },
   };
-  const { components, actions } = await resolvePageModel(
-    pageDefinition,
-    context,
-    { page, agreementNumber: currentAgreement.agreementNumber, mode },
-  );
-  const layout = pageDefinition.layout ? { layout: pageDefinition.layout } : {};
 
-  return {
-    ...currentAgreement.reference,
-    state: currentAgreement.state,
-    version: currentAgreement.versionNumber,
-    page: { name: page, title: pageDefinition.title, ...layout },
-    components,
-    actions,
-  };
+  try {
+    const [components, actions] = await resolvePageContent(
+      pageDefinition,
+      context,
+      mode,
+    );
+    const layout = pageDefinition.layout
+      ? { layout: pageDefinition.layout }
+      : {};
+
+    return {
+      agreement: toAgreementSummary(agreement),
+      page: { name: page, title: pageDefinition.title, ...layout },
+      components,
+      actions,
+    };
+  } catch (error) {
+    logger.error(
+      error,
+      `Failed to build page model "${page}" for agreement "${agreement.agreementNumber}"`,
+    );
+    throw Boom.badImplementation(
+      `Unable to build page model "${page}" for agreement "${agreement.agreementNumber}"`,
+    );
+  }
 };
