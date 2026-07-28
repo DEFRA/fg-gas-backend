@@ -55,7 +55,11 @@ const states = Joi.object()
   .required()
   .label("States");
 
-const nestedComponents = Joi.array().items(Joi.link("#component")).min(1);
+// Resolved at validation time against the "component" id below, so components
+// can nest inside each other without the schema referencing itself too early.
+const componentLink = Joi.link("#component");
+
+const nestedComponents = Joi.array().items(componentLink).min(1);
 
 // Conditions and data references must be a reference or a JSONata expression
 const reference = Joi.string().pattern(/^(jsonata:|\$\.|@\.)/, {
@@ -63,10 +67,7 @@ const reference = Joi.string().pattern(/^(jsonata:|\$\.|@\.)/, {
 });
 
 // A branch may be a single component or several
-const branch = Joi.alternatives().try(
-  Joi.link("#component"),
-  Joi.array().items(Joi.link("#component")).min(1),
-);
+const branch = Joi.alternatives().try(componentLink, nestedComponents);
 
 const genericComponent = Joi.object({
   component: Joi.string().required(),
