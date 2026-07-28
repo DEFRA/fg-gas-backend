@@ -63,11 +63,13 @@ const nestedComponents = Joi.array().items(componentLink).min(1);
 
 // Conditions and data references must be a lone reference or a JSONata
 // expression. Anything in between, such as "$.price * $.quantity", is rejected
-// here rather than left to resolve as interpolated text at render time.
-const reference = Joi.string().pattern(
-  /^(?:jsonata:[\s\S]+|[$@]\.[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[\d+\])*)$/,
-  { name: "reference or jsonata: expression" },
-);
+// here rather than left to resolve as interpolated text at render time. A lone
+// reference is checked by its characters rather than its grammar: an operator
+// or a space is what separates an expression from a reference, and resolving
+// is what parses the reference properly.
+const reference = Joi.string().pattern(/^(?:jsonata:.+|[$@]\.[\w$.[\]]+)$/s, {
+  name: "reference or jsonata: expression",
+});
 
 // A branch may be a single component or several
 const branch = Joi.alternatives().try(componentLink, nestedComponents);
