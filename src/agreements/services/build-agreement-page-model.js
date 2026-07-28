@@ -38,7 +38,13 @@ export const buildAgreementPageModel = async ({
   assertSupportedAgreementPageMode(mode);
   const pageDefinition = agreementDefinition.resolvePage(page);
   agreementDefinition.assertPageAllowed({ page, state: agreement.state });
-  const context = { agreement };
+  // "definition.templates" is exposed so page content can address template
+  // content as "$.definition.templates.*" without the whole definition
+  // entering the resolve context.
+  const context = {
+    agreement,
+    definition: { templates: agreementDefinition.getTemplates() },
+  };
 
   try {
     const [components, actions] = await resolvePageContent(
