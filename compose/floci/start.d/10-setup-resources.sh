@@ -2,6 +2,11 @@
 
 set -e
 
+# How many times a message may be received before it is moved to the DLQ.
+# Defaults to 1 (a single failed receive dead-letters).
+# Set MAX_READS=2 in aws.env when you want to peek at the queues.
+MAX_READS="${MAX_READS:-1}"
+
 function create_topic() {
   local topic_name=$1
   local topic_arn=$(awslocal sns create-topic \
@@ -23,11 +28,13 @@ function create_standard_topic() {
 
 function create_queue() {
   local queue_name=$1
-  local base="${queue_name%%_fifo.fifo}"
-  # Create the DLQ
+  local base="${queue_name%%.fifo}"
+  # Create the DLQ. A FIFO source queue requires a FIFO dead-letter queue -
+  # the two types must match.
   local dlq_url=$(
     awslocal sqs create-queue \
-      --queue-name "$base-dead-letter-queue" \
+      --queue-name "$base-dead-letter-queue.fifo" \
+      --attributes '{ "FifoQueue":"true", "ContentBasedDeduplication":"true" }' \
       --query "QueueUrl" --output text
   )
 
@@ -43,7 +50,7 @@ function create_queue() {
   local queue_url=$(
     awslocal sqs create-queue \
       --queue-name $queue_name \
-      --attributes '{ "FifoQueue":"true", "ContentBasedDeduplication":"true", "RedrivePolicy": "{\"deadLetterTargetArn\":\"'$dlq_arn'\",\"maxReceiveCount\":\"1\"}" }' \
+      --attributes '{ "FifoQueue":"true", "ContentBasedDeduplication":"true", "RedrivePolicy": "{\"deadLetterTargetArn\":\"'$dlq_arn'\",\"maxReceiveCount\":\"'$MAX_READS'\"}" }' \
       --query "QueueUrl" \
       --output text
   )
@@ -95,5 +102,3 @@ wait
 
 
 echo "SNS/SQS ready"
-
-echo READY > /tmp/READY

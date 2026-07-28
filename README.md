@@ -9,6 +9,7 @@ Grant Application Service defines and manages farming grants and applications. I
   - [Node.js](#nodejs)
 - [Local development](#local-development)
   - [Setup](#setup)
+  - [AWS emulation (floci)](#aws-emulation-floci)
   - [Development](#development)
   - [Testing](#testing)
     - [Unit tests](#unit-tests)
@@ -104,40 +105,49 @@ Create a `.env` file in the root of the project. You can use the `.env.example` 
 cp .env.example .env
 ```
 
-## SNS/SQS Message retrieval for local development
+### AWS emulation (floci)
 
-To verify an SNS message has been queued locally you will need the aws cli installed and some basic configuration.
+SQS and SNS are emulated by [floci](https://floci.io) on `localhost:4566`,
+replacing LocalStack. The rest of the stack (`fg-grants-core`, `fg-cw-backend`)
+uses the same emulator.
 
-### Install Aws Cli
+Queues, topics and subscriptions are created by init scripts mounted into the
+`floci` container. They run in lexical order **by filename**, pooled across every
+repo that mounts one in:
 
-Install aws cli (https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+| Script                  | Mounted by                                 |
+| ----------------------- | ------------------------------------------ |
+| `10-setup-resources.sh` | this repo (`compose/floci/start.d/`)       |
+| `99-ready.sh`           | this repo — writes the `/tmp/READY` marker |
 
-### Configure your floci with aws config
+The container's healthcheck waits on `/tmp/READY` rather than on the gateway
+responding, because floci starts serving HTTP before the init scripts have
+finished. Services that `depends_on` floci with `condition: service_healthy`
+therefore never start before their queues exist. If you add a script, give it a
+numeric prefix below `99`.
 
-Add the following floci profile to your `~/.aws/config`
+When gas is pulled into another stack that already runs floci, only
+`10-setup-resources.sh` is mounted and the host stack owns the marker — see
+`compose/ext/compose.gas-ext.example.yml`.
+
+State is in-memory: every `compose up` recreates the resources from scratch.
+
+#### Inspecting queues and topics
+
+The compat image ships the AWS CLI, so the quickest route needs nothing
+installed on the host:
 
 ```bash
-[profile floci]
-region=eu-west-2
-output=json
-endpoint_url=http://localhost:4566
+docker compose exec floci awslocal sqs list-queues
+docker compose exec floci awslocal sns list-topics
+docker compose exec floci awslocal sqs receive-message \
+  --queue-url $(docker compose exec -T floci awslocal sqs get-queue-url \
+    --queue-name gas__sqs__update_status_fifo.fifo --output text)
 ```
 
-Add the following config to your `~/.aws/credentials`
-
-```bash
-[floci]
-aws_access_key_id=test
-aws_secret_access_key=test
-```
-
-### Query floci
-
-Then run the following to fetch messages in the queue. The queue-url should match the output from local stack in your console environment
-
-```bash
-aws sqs receive-message --queue-url http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant_application_created --profile floci
-```
+Note that queues dead-letter after a single failed receive by default, so
+peeking at a queue can consume the message. Set `MAX_READS=2` in
+`compose/aws.env` and recreate the stack if you need headroom.
 
 ### Development
 
