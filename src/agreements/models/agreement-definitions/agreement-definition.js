@@ -34,6 +34,10 @@ export class AgreementDefinition {
     return structuredClone(this.#definition.endpoints ?? []);
   }
 
+  getTemplates() {
+    return structuredClone(this.#definition.templates ?? {});
+  }
+
   resolveAction({ state, action }) {
     return new AgreementLifecycle(this.#definition).resolveAction(
       state,

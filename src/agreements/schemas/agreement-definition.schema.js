@@ -55,11 +55,93 @@ const states = Joi.object()
   .required()
   .label("States");
 
-const component = Joi.object({
+// Resolved at validation time against the "component" id below, so components
+// can nest inside each other without the schema referencing itself too early.
+const componentLink = Joi.link("#component");
+
+const nestedComponents = Joi.array().items(componentLink).min(1);
+
+// Conditions and data references must be a lone reference or a JSONata
+// expression. Anything in between, such as "$.price * $.quantity", is rejected
+// here rather than left to resolve as interpolated text at render time. A lone
+// reference is checked by its characters rather than its grammar: an operator
+// or a space is what separates an expression from a reference, and resolving
+// is what parses the reference properly.
+const reference = Joi.string().pattern(/^(?:jsonata:.+|[$@]\.[\w$.[\]]+)$/s, {
+  name: "reference or jsonata: expression",
+});
+
+// A branch may be a single component or several
+const branch = Joi.alternatives().try(componentLink, nestedComponents);
+
+const genericComponent = Joi.object({
   component: Joi.string().required(),
+  condition: reference.optional(),
 })
   .unknown(true)
   .label("Component");
+
+const conditionalComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.required(),
+  whenTrue: branch.optional(),
+  whenFalse: branch.optional(),
+}).or("whenTrue", "whenFalse");
+
+const repeatComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  itemsRef: reference.required(),
+  items: nestedComponents.required(),
+  beforeContent: nestedComponents.optional(),
+  emptyContent: nestedComponents.optional(),
+});
+
+const templateComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  templateRef: reference.required(),
+  templateKey: Joi.string().required(),
+  dataRef: reference.optional(),
+});
+
+const containerComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  content: nestedComponents.required(),
+});
+
+const tableComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  rowsRef: reference.required(),
+  rows: Joi.array().items(Joi.object()).min(1).required(),
+}).unknown(true);
+
+const component = Joi.alternatives()
+  .conditional(".component", {
+    switch: [
+      { is: "conditional", then: conditionalComponent },
+      { is: "repeat", then: repeatComponent },
+      { is: "template", then: templateComponent },
+      { is: "component-container", then: containerComponent },
+      { is: "table", then: tableComponent },
+    ],
+    otherwise: genericComponent,
+  })
+  .id("component");
+
+const templateContent = Joi.object({
+  content: Joi.array().items(component).min(1).required(),
+}).unknown(true);
+
+const templates = Joi.object()
+  .pattern(
+    Joi.string(),
+    Joi.object().pattern(Joi.string(), templateContent).min(1),
+  )
+  .optional()
+  .label("Templates");
 
 const pageHref = Joi.alternatives()
   .try(
@@ -114,6 +196,7 @@ export const agreementDefinitionSchema = Joi.object({
   create,
   states,
   pages,
+  templates,
 })
   .required()
   .label("AgreementDefinition");
