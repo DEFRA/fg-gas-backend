@@ -14,9 +14,11 @@ const findRefs = (value) => value.match(refPattern) ?? [];
 
 const isJsonataExpression = (value) => value.startsWith(JSONATA_PREFIX);
 
-const isValueRef = (value, refs) =>
-  (refs.length === 1 && refs[0] === value) ||
-  (value.startsWith(refs[0]) && value.includes("??"));
+// A lone reference is the value it points at, keeping its type. Anything more
+// than that — arithmetic, a "??" fallback, a comparison — has to say so with
+// the "jsonata:" prefix, because a string like "$.price * $.quantity" is
+// otherwise indistinguishable from prose that mentions two references.
+const isValueRef = (value, refs) => refs.length === 1 && refs[0] === value;
 
 // Only a "@." that opens a term is a row reference. One inside a string literal
 // ("a@.b") belongs to the literal and is left alone.

@@ -61,10 +61,13 @@ const componentLink = Joi.link("#component");
 
 const nestedComponents = Joi.array().items(componentLink).min(1);
 
-// Conditions and data references must be a reference or a JSONata expression
-const reference = Joi.string().pattern(/^(jsonata:|\$\.|@\.)/, {
-  name: "reference or jsonata: expression",
-});
+// Conditions and data references must be a lone reference or a JSONata
+// expression. Anything in between, such as "$.price * $.quantity", is rejected
+// here rather than left to resolve as interpolated text at render time.
+const reference = Joi.string().pattern(
+  /^(?:jsonata:[\s\S]+|[$@]\.[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*|\[\d+\])*)$/,
+  { name: "reference or jsonata: expression" },
+);
 
 // A branch may be a single component or several
 const branch = Joi.alternatives().try(componentLink, nestedComponents);

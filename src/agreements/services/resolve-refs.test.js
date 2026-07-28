@@ -87,8 +87,29 @@ describe("resolveRefs", () => {
     ).rejects.toThrow(/^Unresolved reference "\$\.agreement\.missing"$/);
   });
 
+  it("calculates across several references in a jsonata: expression", async () => {
+    const result = await resolveRefs(
+      "jsonata:$.price * $.quantity",
+      scope({ price: 2, quantity: 3 }),
+    );
+
+    expect(result).toBe(6);
+  });
+
+  it("interpolates the same calculation without the prefix, since it is text not an expression", async () => {
+    const result = await resolveRefs(
+      "$.price * $.quantity",
+      scope({ price: 2, quantity: 3 }),
+    );
+
+    expect(result).toBe("2 * 3");
+  });
+
   it("uses a ?? fallback instead of throwing, so a definition can say a value is optional", async () => {
-    const result = await resolveRefs("$.agreement.missing ?? 0", scope({}));
+    const result = await resolveRefs(
+      "jsonata:$.agreement.missing ?? 0",
+      scope({}),
+    );
 
     expect(result).toBe(0);
   });

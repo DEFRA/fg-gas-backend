@@ -286,6 +286,22 @@ describe("agreementDefinitionSchema resolver instructions", () => {
     );
   });
 
+  // Without the prefix this would interpolate to the text "2 * 3" instead of
+  // calculating, so it is caught at definition time rather than on the page.
+  it("fails when an expression over several references omits the jsonata: prefix", () => {
+    const components = [
+      {
+        component: "notification-banner",
+        condition: "$.price * $.quantity",
+        title: "Draft",
+      },
+    ];
+
+    expect(messagesFor(withComponents(components))).toMatch(
+      /"pages\.offered\.components\[0\]\.condition" with value "\$\.price \* \$\.quantity" fails to match the reference or jsonata: expression pattern/,
+    );
+  });
+
   it("fails when a data reference is not a reference", () => {
     const components = [
       {
