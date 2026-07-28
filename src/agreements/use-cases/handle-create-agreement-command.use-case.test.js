@@ -41,7 +41,7 @@ const command = {
     clientRef: "xnp-rr3-nfa",
     code: "pigs-might-fly",
     identifiers: { sbi: "300000069", frn: "1000000000" },
-    metadata: { configVersion: "1.0.1", ignored: "legacy metadata" },
+    metadata: { configVersion: "3.0.0", ignored: "legacy metadata" },
     answers: { whitePigsCount: 5 },
   },
 };
@@ -70,7 +70,7 @@ describe("handleCreateAgreementCommandUseCase", () => {
     });
     expect(loadAgreementDefinition).toHaveBeenCalledWith({
       code: "pigs-might-fly",
-      configVersion: "1.0.1",
+      configVersion: "3.0.0",
     });
     expect(agreement).toMatchObject({
       agreementNumber: "PMF823153883",
