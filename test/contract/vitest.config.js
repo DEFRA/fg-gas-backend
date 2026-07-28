@@ -28,7 +28,6 @@ export default defineConfig({
       AWS_ACCESS_KEY_ID: "test",
       AWS_SECRET_ACCESS_KEY: "test",
       FIFO_LOCK_TTL_MS: 5000,
-      GRANT_APPLICATION_CREATED_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${FLOCI_PORT}/000000000000/gas__sqs__handle_grant_application_created_fifo.fifo`,
       CASE_STAGE_UPDATES_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${FLOCI_PORT}/000000000000/case_stage_updated_fifo.fifo`,
       CREATE_NEW_CASE_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${FLOCI_PORT}/000000000000/cw__sqs__create_new_case_fifo.fifo`,
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:

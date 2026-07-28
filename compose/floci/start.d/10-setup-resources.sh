@@ -86,19 +86,33 @@ function create_topic_and_queue() {
 }
 
 
-create_topic_and_queue "cw__sns__case_status_updated_fifo.fifo" "gas__sqs__update_status_fifo.fifo" &
-create_topic_and_queue "gas__sns__update_agreement_status_fifo.fifo" "update_agreement_status_fifo.fifo" &
-create_topic_and_queue "agreement_status_updated_fifo.fifo" "gas__sqs__update_agreement_status_fifo.fifo" &
-create_topic_and_queue "gas__sns__grant_application_created_fifo.fifo" "gas__sqs__grant_application_created_fifo.fifo" &
-create_topic_and_queue "gas__sns__application_status_updated_fifo.fifo" "gas__sqs__application_status_updated_fifo.fifo" &
-create_topic_and_queue "gas__sns__create_new_case_fifo.fifo" "cw__sqs__create_new_case_fifo.fifo" &
-create_topic_and_queue "gas__sns__update_case_status_fifo.fifo" "cw__sqs__update_status_fifo.fifo" &
-create_topic_and_queue "gas__sns__create_agreement_fifo.fifo" "create_agreement_fifo.fifo" &
+# Every job is backgrounded to create resources in parallel, and each PID is
+# collected so failures can be waited on individually. A bare `wait` always
+# returns 0 regardless of what the jobs did, so `set -e` would not catch a
+# failed create and this script would exit 0 with resources missing. Floci
+# aborts startup and shuts down when an init script exits non-zero, so
+# propagating the failure turns a silently half-built emulator into a container
+# that refuses to start and says why.
+pids=()
 
-create_standard_topic "gas__sns__audit_topic_arn" &
-create_topic "gas__sns__update_agreement_status_fifo.fifo" &
+create_topic_and_queue "cw__sns__case_status_updated_fifo.fifo" "gas__sqs__update_status_fifo.fifo" & pids+=($!)
+create_topic_and_queue "gas__sns__update_agreement_status_fifo.fifo" "update_agreement_status_fifo.fifo" & pids+=($!)
+create_topic_and_queue "agreement_status_updated_fifo.fifo" "gas__sqs__update_agreement_status_fifo.fifo" & pids+=($!)
+create_topic_and_queue "gas__sns__grant_application_created_fifo.fifo" "gas__sqs__grant_application_created_fifo.fifo" & pids+=($!)
+create_topic_and_queue "gas__sns__application_status_updated_fifo.fifo" "gas__sqs__application_status_updated_fifo.fifo" & pids+=($!)
+create_topic_and_queue "gas__sns__create_new_case_fifo.fifo" "cw__sqs__create_new_case_fifo.fifo" & pids+=($!)
+create_topic_and_queue "gas__sns__update_case_status_fifo.fifo" "cw__sqs__update_status_fifo.fifo" & pids+=($!)
+create_topic_and_queue "gas__sns__create_agreement_fifo.fifo" "create_agreement_fifo.fifo" & pids+=($!)
 
-wait
+create_standard_topic "gas__sns__audit_topic_arn" & pids+=($!)
+create_topic "gas__sns__update_agreement_status_fifo.fifo" & pids+=($!)
+
+for pid in "${pids[@]}"; do
+  if ! wait "$pid"; then
+    echo "SNS/SQS setup failed (pid $pid)" >&2
+    exit 1
+  fi
+done
 
 
 echo "SNS/SQS ready"
