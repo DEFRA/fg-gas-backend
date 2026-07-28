@@ -50,7 +50,7 @@ export const setup = async ({ globalConfig }) => {
       .withEnvironment({
         GAS_PORT: env.GAS_PORT,
         MONGO_PORT: env.MONGO_PORT,
-        LOCALSTACK_PORT: env.LOCALSTACK_PORT,
+        FLOCI_PORT: env.FLOCI_PORT,
         OUTBOX_POLL_MS: env.OUTBOX_POLL_MS,
         INBOX_POLL_MS: env.INBOX_POLL_MS,
         GRANT_FUNDING_CALCULATOR_URL: fundingCalculatorUrl,
