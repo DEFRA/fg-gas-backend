@@ -140,17 +140,187 @@ describe("executeAgreementActionUseCase", () => {
     });
   });
 
-  it("returns configured validation without committing", async () => {
-    const errors = [{ name: "confirm", href: "#confirm", message: "Confirm" }];
-    action.validate.mockReturnValue({ valid: false, page: "accept", errors });
+  it("returns field errors applied to the configured validation page", async () => {
+    action.validate.mockReturnValue({
+      valid: false,
+      page: "review",
+      errors: [
+        {
+          name: "declaration",
+          href: "#declaration",
+          message: "Agree to the declaration",
+        },
+      ],
+    });
     buildAgreementPageModel.mockResolvedValue({
-      agreement: { agreementNumber: "PMF823153883" },
+      agreement: { agreementNumber: options.agreementNumber, version: 1 },
+      page: { name: "review", title: "Review" },
+      components: [
+        {
+          component: "checkboxes",
+          name: "declaration",
+          items: [{ value: "agreed", text: "I agree" }, { divider: "or" }],
+        },
+      ],
+      actions: [],
     });
 
     await expect(
       executeAgreementActionUseCase({ ...options, values: {} }),
-    ).resolves.toMatchObject({ values: {}, errors });
+    ).resolves.toEqual({
+      agreement: { agreementNumber: options.agreementNumber, version: 1 },
+      page: { name: "review", title: "Review" },
+      components: [
+        {
+          component: "checkboxes",
+          name: "declaration",
+          errorMessage: { text: "Agree to the declaration" },
+          items: [
+            { value: "agreed", text: "I agree", checked: false },
+            { divider: "or" },
+          ],
+        },
+      ],
+      actions: [],
+      values: {},
+      errors: [{ href: "#declaration", text: "Agree to the declaration" }],
+    });
+    expect(runAgreementEffects).not.toHaveBeenCalled();
     expect(withTransaction).not.toHaveBeenCalled();
+  });
+
+  it("preserves array-valued checkbox selections by configured value", async () => {
+    action.validate.mockReturnValue({
+      valid: false,
+      page: "preferences",
+      errors: [
+        {
+          name: "contactMethods",
+          href: "#contact-methods",
+          message: "Choose the required contact method",
+        },
+      ],
+    });
+    buildAgreementPageModel.mockResolvedValue({
+      agreement: { agreementNumber: options.agreementNumber, version: 1 },
+      page: { name: "preferences", title: "Preferences" },
+      components: [
+        {
+          component: "checkboxes",
+          name: "contactMethods",
+          items: [
+            { value: "email", text: "Email" },
+            { value: "post", text: "Post" },
+            { value: "sms", text: "Text message" },
+          ],
+        },
+      ],
+      actions: [],
+    });
+
+    const result = await executeAgreementActionUseCase({
+      ...options,
+      values: { contactMethods: ["email", "sms"] },
+    });
+
+    expect(result.components[0].items).toEqual([
+      { value: "email", text: "Email", checked: true },
+      { value: "post", text: "Post", checked: false },
+      { value: "sms", text: "Text message", checked: true },
+    ]);
+  });
+
+  it("applies submitted values to matching form components", async () => {
+    action.validate.mockReturnValue({
+      valid: false,
+      page: "details",
+      errors: [
+        {
+          name: "reference",
+          href: "#reference",
+          message: "Enter a valid reference",
+        },
+      ],
+    });
+    buildAgreementPageModel.mockResolvedValue({
+      agreement: { agreementNumber: options.agreementNumber, version: 1 },
+      page: { name: "details", title: "Details" },
+      components: [
+        { component: "text-input", name: "reference" },
+        { component: "text-input", name: "unsubmitted" },
+      ],
+      actions: [],
+    });
+
+    const result = await executeAgreementActionUseCase({
+      ...options,
+      values: { reference: "submitted-reference" },
+    });
+
+    expect(result.components).toEqual([
+      {
+        component: "text-input",
+        name: "reference",
+        value: "submitted-reference",
+        errorMessage: { text: "Enter a valid reference" },
+      },
+      { component: "text-input", name: "unsubmitted" },
+    ]);
+  });
+
+  it("applies submitted state and errors within the resolved component tree", async () => {
+    action.validate.mockReturnValue({
+      valid: false,
+      page: "review",
+      errors: [
+        {
+          name: "terms",
+          href: "#terms",
+          message: "Accept the terms",
+        },
+      ],
+    });
+    buildAgreementPageModel.mockResolvedValue({
+      agreement: { agreementNumber: options.agreementNumber, version: 1 },
+      page: { name: "review", title: "Review" },
+      components: [
+        {
+          component: "fieldset",
+          metadata: { name: "terms", value: "configured-metadata" },
+          attributes: { value: "configured-attribute" },
+          content: [
+            {
+              component: "checkboxes",
+              name: "terms",
+              items: [{ value: "accepted", text: "Accept" }],
+            },
+          ],
+        },
+      ],
+      actions: [],
+    });
+
+    const result = await executeAgreementActionUseCase({
+      ...options,
+      values: {
+        terms: "accepted",
+        undefined: "submitted-undefined",
+      },
+    });
+
+    expect(result.components[0].metadata).toEqual({
+      name: "terms",
+      value: "configured-metadata",
+    });
+    expect(result.components[0].attributes).toEqual({
+      value: "configured-attribute",
+    });
+    expect(result.components[0].content[0]).toEqual({
+      component: "checkboxes",
+      name: "terms",
+      errorMessage: { text: "Accept the terms" },
+      items: [{ value: "accepted", text: "Accept", checked: true }],
+    });
   });
 
   it("returns an idempotent result when the same action completes concurrently", async () => {
