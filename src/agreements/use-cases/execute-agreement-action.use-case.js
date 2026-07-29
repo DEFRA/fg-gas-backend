@@ -9,6 +9,7 @@ import {
   insertAgreementVersion,
   replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
+import { applyActionValidation } from "../services/apply-action-validation.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
@@ -183,7 +184,11 @@ export const executeAgreementActionUseCase = async (options) => {
       page: validation.page,
       mode: "view",
     });
-    return { ...pageModel, values: options.values, errors: validation.errors };
+    return applyActionValidation({
+      pageModel,
+      values: options.values,
+      errors: validation.errors,
+    });
   }
 
   const next = await runAction({
