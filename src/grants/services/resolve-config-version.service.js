@@ -99,7 +99,7 @@ const saveOrFallback = async (grantDefinition, grantCode, resolvedVersion) => {
       // process crashed before updating the status; otherwise the row stays
       // pending and every request re-fetches from S3.
       await updateFetchStatus(grantCode, resolvedVersion, FetchStatus.Fetched);
-      return await findByCode(grantCode, resolvedVersion);
+      return findByCode(grantCode, resolvedVersion);
     }
     throw err;
   }

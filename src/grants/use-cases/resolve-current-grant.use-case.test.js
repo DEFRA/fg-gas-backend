@@ -4,7 +4,7 @@ import { findLatestForMajor } from "../repositories/config-version.repository.js
 import { findByCode } from "../repositories/grant.repository.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 import {
-  __clearGrantDefinitionCache,
+  _clearGrantDefinitionCache,
   pinnedVersionOf,
   resolveCurrentGrantUseCase,
   resolveGrantForApplication,
@@ -37,7 +37,7 @@ const anApplication = (overrides = {}) => ({
 describe("resolveCurrentGrantUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    __clearGrantDefinitionCache();
+    _clearGrantDefinitionCache();
   });
 
   it("uses legacy findByCode when there is no pinned version", async () => {
@@ -142,7 +142,7 @@ describe("resolveCurrentGrantUseCase", () => {
     });
 
     await resolveCurrentGrantUseCase("pigs-might-fly", "1.0.0");
-    __clearGrantDefinitionCache();
+    _clearGrantDefinitionCache();
 
     findLatestForMajor.mockResolvedValue({ version: "1.0.0" });
     resolveAndFetchGrant.mockResolvedValue({
@@ -159,7 +159,7 @@ describe("resolveCurrentGrantUseCase", () => {
 describe("resolveGrantForApplication", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    __clearGrantDefinitionCache();
+    _clearGrantDefinitionCache();
   });
 
   it("logs version-match when resolved version equals pinned version", async () => {
@@ -327,7 +327,7 @@ describe("resolveGrantForApplication", () => {
 describe("resolveGrantForSubmission", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    __clearGrantDefinitionCache();
+    _clearGrantDefinitionCache();
   });
 
   it("logs version-match when resolved equals requested", async () => {
