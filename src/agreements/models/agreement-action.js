@@ -1,5 +1,4 @@
-const matchesConfiguredValue = (actual, expected) =>
-  Array.isArray(actual) ? actual.includes(expected) : actual === expected;
+import { matchesConfiguredValue } from "../../common/matches-configured-value.js";
 
 const toValidationError = ({ name, href, message }) => ({
   name,

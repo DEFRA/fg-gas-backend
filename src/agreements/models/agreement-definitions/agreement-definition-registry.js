@@ -16,10 +16,10 @@ export const agreementDefinitions = [
   ...agreementDefinitionsByCode.values(),
 ].flatMap(({ definitionsByVersion }) => [...definitionsByVersion.values()]);
 
-export const findAgreementDefinition = ({ code, configVersion }) => {
+export const findAgreementDefinition = ({ code }) => {
   const registeredDefinitions = agreementDefinitionsByCode.get(code);
-  const resolvedVersion =
-    configVersion ?? registeredDefinitions?.defaultVersion;
 
-  return registeredDefinitions?.definitionsByVersion.get(resolvedVersion);
+  return registeredDefinitions?.definitionsByVersion.get(
+    registeredDefinitions.defaultVersion,
+  );
 };

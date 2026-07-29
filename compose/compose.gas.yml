@@ -5,16 +5,12 @@ services:
       - cdp-tenant
     ports:
       - "${GAS_PORT:-3102}:3102"
-    links:
-      - "localstack:localstack"
-      - "mongodb:mongodb"
-      - "mongo-ready:mongo-ready"
     env_file:
       - .env
     environment:
       PORT: 3102
       MONGO_URI: mongodb://mongodb:27017/?replicaSet=mongoRepl
-      AWS_ENDPOINT_URL: "http://localstack:4566"
+      AWS_ENDPOINT_URL: "http://floci:4566"
       OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
       INBOX_POLL_MS: "${INBOX_POLL_MS}"
       GRANT_FUNDING_CALCULATOR_URL: "${GRANT_FUNDING_CALCULATOR_URL}"
@@ -23,7 +19,7 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
-      localstack:
+      floci:
         condition: service_healthy
     develop:
       watch:
