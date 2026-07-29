@@ -51,7 +51,7 @@ const loadDefinition = async (grantCode, resolvedVersion) => {
   return { grant, definitionSource };
 };
 
-const resolveRolledForward = async (grantCode, pinnedVersion, major) => {
+const resolveRolledForward = async (grantCode, major) => {
   const configVersion = await findLatestForMajor(grantCode, major);
   if (!configVersion) {
     throw Boom.notFound(
@@ -92,7 +92,7 @@ export const resolveCurrentGrantUseCase = async (
 
   const major = parseMajor(pinnedVersion);
   return memoResolve(memo, cacheKey(grantCode, major), () =>
-    resolveRolledForward(grantCode, pinnedVersion, major),
+    resolveRolledForward(grantCode, major),
   );
 };
 
@@ -230,4 +230,4 @@ export const resolveGrantForSubmission = async ({
 };
 
 // Exposed for tests.
-export const __clearGrantDefinitionCache = () => definitionCache.clear();
+export const _clearGrantDefinitionCache = () => definitionCache.clear();
