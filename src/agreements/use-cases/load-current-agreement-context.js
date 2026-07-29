@@ -1,28 +1,23 @@
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import {
   loadCurrentAgreement,
-  loadCurrentAgreementByItem,
+  loadCurrentAgreementByNumber,
 } from "./load-current-agreement.js";
 
 export const loadCurrentAgreementContext = async ({
   agreementNumber,
-  agreementItemId,
   code,
   clientRef,
   sbi,
   session,
 }) => {
-  const currentAgreement = agreementItemId
-    ? await loadCurrentAgreementByItem({
-        agreementNumber,
-        agreementItemId,
-        session,
-      })
+  const agreement = agreementNumber
+    ? await loadCurrentAgreementByNumber({ agreementNumber, session })
     : await loadCurrentAgreement({ code, clientRef, sbi, session });
   const agreementDefinition = await loadAgreementDefinition({
-    code: currentAgreement.code,
-    configVersion: currentAgreement.configVersion,
+    code: agreement.code,
+    configVersion: agreement.configVersion,
   });
 
-  return { currentAgreement, agreementDefinition };
+  return { agreement, agreementDefinition };
 };

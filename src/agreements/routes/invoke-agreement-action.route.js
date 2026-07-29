@@ -4,6 +4,7 @@ import {
   invokeAgreementActionPayloadSchema,
 } from "../schemas/requests/invoke-agreement-action-request.schema.js";
 import { invokeAgreementActionResponseSchema } from "../schemas/responses/invoke-agreement-action-response.schema.js";
+import { toEtag } from "../use-cases/agreement-etag.js";
 import { executeAgreementActionUseCase } from "../use-cases/execute-agreement-action.use-case.js";
 
 const SEE_OTHER_STATUS_CODE = 303;
@@ -11,7 +12,7 @@ const UNPROCESSABLE_CONTENT_STATUS_CODE = 422;
 
 export const invokeAgreementActionRoute = {
   method: "POST",
-  path: "/agreements/{agreementNumber}/items/{agreementItemId}/actions/{actionName}",
+  path: "/agreements/{agreementNumber}/actions/{actionName}",
   options: {
     description: "Execute an Agreement lifecycle action",
     tags: ["api"],
@@ -31,14 +32,16 @@ export const invokeAgreementActionRoute = {
     const result = await executeAgreementActionUseCase({
       actionName: request.params.actionName,
       agreementNumber: request.params.agreementNumber,
-      agreementItemId: request.params.agreementItemId,
       values: request.payload.values,
       ifMatch: request.headers["if-match"],
       idempotencyKey: request.headers["idempotency-key"],
     });
 
     if (result.errors) {
-      return h.response(result).code(UNPROCESSABLE_CONTENT_STATUS_CODE);
+      return h
+        .response(result)
+        .code(UNPROCESSABLE_CONTENT_STATUS_CODE)
+        .header("etag", toEtag(result.agreement));
     }
 
     return h.redirect(result.location).code(SEE_OTHER_STATUS_CODE);

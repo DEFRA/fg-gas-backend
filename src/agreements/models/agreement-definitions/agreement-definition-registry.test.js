@@ -3,11 +3,11 @@ import { findAgreementDefinition } from "./agreement-definition-registry.js";
 import { pmfAgreementDefinition } from "./pmf.js";
 
 describe("findAgreementDefinition", () => {
-  it("returns the exact configured config version", () => {
+  it("returns the code-specific default when another version is requested", () => {
     expect(
       findAgreementDefinition({
         code: "pigs-might-fly",
-        configVersion: "1.0.1",
+        configVersion: "3.0.0",
       }),
     ).toBe(pmfAgreementDefinition);
   });
@@ -27,12 +27,12 @@ describe("findAgreementDefinition", () => {
     ).toBeUndefined();
   });
 
-  it("returns undefined when the version is unavailable", () => {
+  it("ignores an unavailable version", () => {
     expect(
       findAgreementDefinition({
         code: "pigs-might-fly",
         configVersion: "0.0.0",
       }),
-    ).toBeUndefined();
+    ).toBe(pmfAgreementDefinition);
   });
 });
