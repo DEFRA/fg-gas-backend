@@ -9,14 +9,20 @@ MAX_READS="${MAX_READS:-1}"
 
 function create_topic() {
   local topic_name=$1
-  # Declare first, assign second: `local topic_arn=$(...)` would return the exit
-  # status of `local` (always 0) and mask an awslocal failure from `set -e`.
+  # Two masking hazards, so every command-substitution assignment carries an
+  # explicit `|| return`:
+  #   1. `local topic_arn=$(...)` returns the status of `local` (always 0).
+  #   2. This function is also called from within $(...) (see create_topic_and_queue),
+  #      and bash runs a function body with `set -e` disabled when the function
+  #      executes in a context where -e is ignored - so the inner awslocal failure
+  #      would otherwise fall through to the final `echo`, which returns 0.
+  #      `|| return` propagates the failure in every calling context.
   local topic_arn
   topic_arn=$(awslocal sns create-topic \
 	  --name $topic_name \
 	  --attributes '{ "FifoTopic":"true","ContentBasedDeduplication":"true"}' \
 	  --query "TopicArn" \
-	  --output text)
+	  --output text) || return
   echo $topic_arn
 }
 
@@ -26,7 +32,7 @@ function create_standard_topic() {
   topic_arn=$(awslocal sns create-topic \
 	  --name $topic_name \
 	  --query "TopicArn" \
-	  --output text)
+	  --output text) || return
   echo $topic_arn
 }
 
@@ -41,7 +47,7 @@ function create_queue() {
       --queue-name "$base-dead-letter-queue.fifo" \
       --attributes '{ "FifoQueue":"true", "ContentBasedDeduplication":"true" }' \
       --query "QueueUrl" --output text
-  )
+  ) || return
 
   local dlq_arn
   dlq_arn=$(
@@ -50,7 +56,7 @@ function create_queue() {
       --attribute-name "QueueArn" \
       --query "Attributes.QueueArn" \
       --output text
-  )
+  ) || return
 
   # Create the queue with DLQ attached
   local queue_url
@@ -60,7 +66,7 @@ function create_queue() {
       --attributes '{ "FifoQueue":"true", "ContentBasedDeduplication":"true", "RedrivePolicy": "{\"deadLetterTargetArn\":\"'$dlq_arn'\",\"maxReceiveCount\":\"'$MAX_READS'\"}" }' \
       --query "QueueUrl" \
       --output text
-  )
+  ) || return
 
   local queue_arn
   queue_arn=$(
@@ -69,7 +75,7 @@ function create_queue() {
       --attribute-name "QueueArn" \
       --query "Attributes.QueueArn" \
       --output text
-  )
+  ) || return
 
   echo $queue_arn
 }
@@ -88,9 +94,9 @@ function create_topic_and_queue() {
   echo "$topic_name $queue_name"
 
   local topic_arn
-  topic_arn=$(create_topic $topic_name)
+  topic_arn=$(create_topic $topic_name) || return
   local queue_arn
-  queue_arn=$(create_queue $queue_name)
+  queue_arn=$(create_queue $queue_name) || return
 
   subscribe_queue_to_topic $topic_arn $queue_arn
 }
