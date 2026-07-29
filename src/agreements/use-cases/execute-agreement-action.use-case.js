@@ -9,11 +9,18 @@ import {
   insertAgreementVersion,
   replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
+import {
+  allocateNextSequence,
+  ClaimIdCounter,
+} from "../repositories/counter.repository.js";
+import { insertPayable } from "../repositories/payable.repository.js";
 import { applyActionValidation } from "../services/apply-action-validation.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
+import { formatClaimId } from "../services/payables/claim-id.js";
 import { toEtag } from "./agreement-etag.js";
+import { buildPayable } from "./build-payable.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 
 const toLocation = (agreementNumber) => `/agreements/${agreementNumber}`;
@@ -71,7 +78,26 @@ const runAction = async ({
       context.outboxMessageTypes ?? [],
       nextAgreement,
     ),
+    payableRequest: context.payableRequest,
   };
+};
+
+// Allocating the claim ID and inserting the Payable happen here so they commit
+// with the Agreement, its Version and the lifecycle event, and roll back
+// together when anything before the commit fails.
+const createPayableForVersion = async (
+  { agreement, payableRequest },
+  session,
+) => {
+  const sequence = await allocateNextSequence(ClaimIdCounter, session);
+
+  const payable = buildPayable({
+    agreement,
+    paymentHubClaimId: formatClaimId(sequence),
+    ...payableRequest,
+  });
+
+  await insertPayable(payable, session);
 };
 
 const concurrentUpdate = Symbol("concurrentUpdate");
@@ -84,10 +110,17 @@ const hasActionConflictIndex = (keyPattern) =>
 const hasAgreementNumberIndex = (keyPattern) =>
   Boolean(keyPattern?.agreementNumber);
 
+// A raced acceptance normally loses the optimistic version check, but the
+// Payable's unique source index is the backstop that guarantees one Payable per
+// accepted Version even if it does not.
+const hasPayableSourceIndex = (keyPattern) =>
+  Boolean(keyPattern?.["source.agreementNumber"]);
+
 const isConcurrentActionConflict = (error) =>
   isMongoDuplicateKeyError(error) &&
-  hasAgreementNumberIndex(error.keyPattern) &&
-  hasActionConflictIndex(error.keyPattern);
+  ((hasAgreementNumberIndex(error.keyPattern) &&
+    hasActionConflictIndex(error.keyPattern)) ||
+    hasPayableSourceIndex(error.keyPattern));
 
 const commitActionTransaction = async (
   { actionName, current, idempotencyKey, next },
@@ -124,6 +157,11 @@ const commitActionTransaction = async (
     session,
   );
   await saveOutboxEvents(next.events, session);
+
+  if (next.payableRequest) {
+    await createPayableForVersion(next, session);
+  }
+
   return { location: toLocation(current.agreementNumber) };
 };
 

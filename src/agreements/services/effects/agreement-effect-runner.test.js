@@ -121,6 +121,62 @@ describe("handlers", () => {
       },
     });
   });
+
+  describe("createPayable", () => {
+    const mapping = {
+      scheme: "SFI",
+      sourceSystem: "FPTT",
+      deliveryBody: "RP00",
+      fesCode: "FALS_FPTT",
+      ledger: "AP",
+      currency: "GBP",
+      invoiceLine: {
+        schemeCode: "CMOR1",
+        accountCode: "SOS710",
+        fundCode: "DRD10",
+      },
+    };
+    const payment = {
+      agreementTotalPence: 3800,
+      payments: [{ dueDate: "2026-11-06", totalAmountPence: 3800 }],
+    };
+
+    it("stages the resolved calculation and mapping on the context", async () => {
+      const result = await handlers.createPayable(
+        {
+          agreement: { agreementNumber: "PMF123" },
+          outputs: { paymentCalculation: { payment } },
+        },
+        {
+          params: {
+            paymentCalculation: "$.outputs.paymentCalculation.payment",
+            mapping,
+          },
+        },
+      );
+
+      expect(result).toEqual({
+        context: { payableRequest: { paymentCalculation: payment, mapping } },
+      });
+    });
+
+    it("produces no output so nothing is written before the transaction", async () => {
+      const result = await handlers.createPayable(
+        {
+          agreement: { agreementNumber: "PMF123" },
+          outputs: { paymentCalculation: { payment } },
+        },
+        {
+          params: {
+            paymentCalculation: "$.outputs.paymentCalculation.payment",
+            mapping,
+          },
+        },
+      );
+
+      expect(result.output).toBeUndefined();
+    });
+  });
 });
 
 afterEach(() => {
