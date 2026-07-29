@@ -104,7 +104,7 @@ describe("replaceGrantUseCase", () => {
             entityid: "test-grant",
           },
         ],
-        messageGroupId: "replace-grant-test-grant",
+        segregationRef: "replace-grant-test-grant",
         security: undefined,
         status: "SUCCESS",
       }),
@@ -237,9 +237,9 @@ describe("replaceGrantAuditBuilder", () => {
     expect(event.details).toEqual({ newGrantCommand: command });
   });
 
-  it("sets messageGroupId to replace-grant-{code}", () => {
+  it("sets segregationRef to replace-grant-{code}", () => {
     const event = replaceGrantAuditBuilder(args);
 
-    expect(event.messageGroupId).toBe("replace-grant-test-grant");
+    expect(event.segregationRef).toBe("replace-grant-test-grant");
   });
 });
