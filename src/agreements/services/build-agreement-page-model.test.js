@@ -90,4 +90,78 @@ describe("buildAgreementPageModel", () => {
     expect(result.page.layout).toBe("document");
     expect(result.actions).toEqual([]);
   });
+
+  it("resolves a template from the definition against the agreement", async () => {
+    const templateDefinition = new AgreementDefinition({
+      code: "test",
+      configVersion: "1",
+      agreementNumberPrefix: "TST",
+      create: { target: "offered" },
+      states: { offered: { page: "offer" } },
+      templates: {
+        stateSummary: {
+          offered: {
+            content: [{ component: "status", text: "Draft agreement" }],
+          },
+        },
+      },
+      pages: {
+        offer: {
+          title: "Offer",
+          components: [
+            {
+              component: "template",
+              templateRef: "$.definition.templates.stateSummary",
+              templateKey: "$.agreement.state",
+            },
+          ],
+          actions: [],
+        },
+      },
+    });
+
+    await expect(
+      buildAgreementPageModel({
+        agreement,
+        agreementDefinition: templateDefinition,
+        page: "offer",
+        mode: "view",
+      }),
+    ).resolves.toMatchObject({
+      components: [{ component: "status", text: "Draft agreement" }],
+    });
+  });
+
+  it("returns a controlled internal error, naming the page and agreement but not agreement data, when a valid definition cannot be resolved", async () => {
+    const unresolvableDefinition = new AgreementDefinition({
+      code: "test",
+      configVersion: "1",
+      agreementNumberPrefix: "TST",
+      create: { target: "offered" },
+      states: { offered: { page: "offer" } },
+      pages: {
+        offer: {
+          title: "Offer",
+          components: [
+            { component: "paragraph", text: "$.agreement.doesNotExist" },
+          ],
+          actions: [],
+        },
+      },
+    });
+
+    const error = await buildAgreementPageModel({
+      agreement,
+      agreementDefinition: unresolvableDefinition,
+      page: "offer",
+      mode: "view",
+    }).catch((thrown) => thrown);
+
+    expect(error.isBoom).toBe(true);
+    expect(error.output.statusCode).toBe(500);
+    expect(error.message).toBe(
+      'Unable to build page model "offer" for agreement "TST123"',
+    );
+    expect(error.message).not.toContain(agreement.identifiers.sbi);
+  });
 });
