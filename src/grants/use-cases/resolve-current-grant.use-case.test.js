@@ -178,14 +178,18 @@ describe("resolveGrantForApplication", () => {
     expect(result.definitionSource).toBe("cache");
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: { action: "application-grant-resolved", outcome: "success" },
-        grant: expect.objectContaining({
-          resolutionType: "version-match",
-          resolvedConfigVersion: "1.0.0",
+        event: expect.objectContaining({
+          action: "application-grant-resolved",
+          outcome: "success",
+          reason: "version-match",
         }),
       }),
-      "Resolved grant configuration for application",
+      expect.stringContaining("Resolved grant configuration for application"),
     );
+
+    const message = logger.info.mock.calls[0][1];
+    expect(message).toContain("resolvedConfigVersion=1.0.0");
+    expect(message).toContain("resolutionType=version-match");
   });
 
   it("logs roll-forward when resolved version differs from pinned", async () => {
@@ -203,14 +207,19 @@ describe("resolveGrantForApplication", () => {
     expect(result.resolutionType).toBe("roll-forward");
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({
-        grant: expect.objectContaining({
-          originalConfigVersion: "1.0.0",
-          resolvedConfigVersion: "1.2.3",
-          resolutionType: "roll-forward",
+        event: expect.objectContaining({
+          action: "application-grant-resolved",
+          outcome: "success",
+          reason: "roll-forward",
         }),
       }),
-      "Resolved grant configuration for application",
+      expect.stringContaining("Resolved grant configuration for application"),
     );
+
+    const message = logger.info.mock.calls[0][1];
+    expect(message).toContain("originalConfigVersion=1.0.0");
+    expect(message).toContain("resolvedConfigVersion=1.2.3");
+    expect(message).toContain("resolutionType=roll-forward");
   });
 
   it("logs legacy when application has no pinned version", async () => {
@@ -227,13 +236,18 @@ describe("resolveGrantForApplication", () => {
     expect(result.definitionSource).toBe("mongodb");
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({
-        grant: expect.objectContaining({
-          resolutionType: "legacy",
-          definitionSource: "mongodb",
+        event: expect.objectContaining({
+          action: "application-grant-resolved",
+          outcome: "success",
+          reason: "legacy",
         }),
       }),
-      "Resolved grant configuration for application",
+      expect.stringContaining("Resolved grant configuration for application"),
     );
+
+    const message = logger.info.mock.calls[0][1];
+    expect(message).toContain("resolutionType=legacy");
+    expect(message).toContain("definitionSource=mongodb");
   });
 
   it("throws notFound and logs error when legacy grant is null", async () => {
@@ -251,18 +265,19 @@ describe("resolveGrantForApplication", () => {
 
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: { action: "application-grant-resolved", outcome: "failure" },
-      }),
-      "Failed to resolve grant configuration for application",
-    );
-    expect(logger.info).not.toHaveBeenCalledWith(
-      expect.objectContaining({
         event: expect.objectContaining({
           action: "application-grant-resolved",
+          outcome: "failure",
         }),
       }),
-      expect.any(String),
+      expect.stringContaining(
+        "Failed to resolve grant configuration for application",
+      ),
     );
+    const successCalls = logger.info.mock.calls.filter((call) =>
+      call[1]?.startsWith("Resolved grant configuration for application"),
+    );
+    expect(successCalls).toHaveLength(0);
   });
 
   it("logs error with requestedVersion on resolution failure", async () => {
@@ -274,13 +289,13 @@ describe("resolveGrantForApplication", () => {
 
     await expect(resolveGrantForApplication(application)).rejects.toThrow();
 
-    const errorCall = logger.error.mock.calls.find(
-      (c) => c[1] === "Failed to resolve grant configuration for application",
+    const errorCall = logger.error.mock.calls.find((c) =>
+      c[1]?.startsWith("Failed to resolve grant configuration for application"),
     );
     expect(errorCall).toBeDefined();
     const logObj = errorCall[0];
-    expect(logObj.grant.requestedVersion).toBe("1.2.0");
-    expect(logObj.grant.resolvedConfigVersion).toBeNull();
+    const message = errorCall[1];
+    expect(message).toContain("requestedVersion=1.2.0");
     expect(logObj.error.message).toEqual(expect.any(String));
   });
 
@@ -294,10 +309,13 @@ describe("resolveGrantForApplication", () => {
 
     await expect(resolveGrantForApplication(application)).rejects.toThrow();
 
-    const errorCall = logger.error.mock.calls.find(
-      (c) => c[1] === "Failed to resolve grant configuration for application",
+    const errorCall = logger.error.mock.calls.find((c) =>
+      c[1]?.startsWith("Failed to resolve grant configuration for application"),
     );
     const logObj = errorCall[0];
+    const logMessage = errorCall[1];
+    const logPayload = JSON.stringify(logObj) + logMessage;
+    expect(logPayload).not.toContain("user-99");
     expect(logObj).not.toHaveProperty("answers");
     expect(logObj).not.toHaveProperty("metadata");
     expect(logObj).not.toHaveProperty("userId");
@@ -329,16 +347,21 @@ describe("resolveGrantForSubmission", () => {
     expect(result).toEqual({ grant, resolvedVersion: "1.0.0" });
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: { action: "application-grant-resolved", outcome: "success" },
-        application: { clientRef: "APP-NEW" },
-        grant: expect.objectContaining({
-          resolutionType: "version-match",
-          originalConfigVersion: "1.0.0",
-          resolvedConfigVersion: "1.0.0",
+        event: expect.objectContaining({
+          action: "application-grant-resolved",
+          outcome: "success",
+          reference: "APP-NEW",
+          reason: "version-match",
         }),
       }),
-      "Resolved grant configuration for application",
+      expect.stringContaining("Resolved grant configuration for application"),
     );
+
+    const message = logger.info.mock.calls[0][1];
+    expect(message).toContain("clientRef=APP-NEW");
+    expect(message).toContain("resolutionType=version-match");
+    expect(message).toContain("originalConfigVersion=1.0.0");
+    expect(message).toContain("resolvedConfigVersion=1.0.0");
   });
 
   it("logs roll-forward when resolved differs from requested", async () => {
@@ -358,15 +381,20 @@ describe("resolveGrantForSubmission", () => {
     expect(result).toEqual({ grant, resolvedVersion: "1.2.3" });
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({
-        grant: expect.objectContaining({
-          resolutionType: "roll-forward",
-          originalConfigVersion: "1.0.0",
-          resolvedConfigVersion: "1.2.3",
-          definitionSource: "s3",
+        event: expect.objectContaining({
+          action: "application-grant-resolved",
+          outcome: "success",
+          reason: "roll-forward",
         }),
       }),
-      "Resolved grant configuration for application",
+      expect.stringContaining("Resolved grant configuration for application"),
     );
+
+    const message = logger.info.mock.calls[0][1];
+    expect(message).toContain("resolutionType=roll-forward");
+    expect(message).toContain("originalConfigVersion=1.0.0");
+    expect(message).toContain("resolvedConfigVersion=1.2.3");
+    expect(message).toContain("definitionSource=s3");
   });
 
   it("logs error and rethrows on failure", async () => {
@@ -388,17 +416,22 @@ describe("resolveGrantForSubmission", () => {
 
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: { action: "application-grant-resolved", outcome: "failure" },
-        application: { clientRef: "APP-NEW" },
-        grant: expect.objectContaining({
-          code: "pigs-might-fly",
-          requestedVersion: "2.0.0",
-          resolvedConfigVersion: null,
+        event: expect.objectContaining({
+          action: "application-grant-resolved",
+          outcome: "failure",
+          reference: "APP-NEW",
         }),
         error: { message: expect.any(String) },
       }),
-      "Failed to resolve grant configuration for application",
+      expect.stringContaining(
+        "Failed to resolve grant configuration for application",
+      ),
     );
+
+    const message = logger.error.mock.calls[0][1];
+    expect(message).toContain("clientRef=APP-NEW");
+    expect(message).toContain("grantCode=pigs-might-fly");
+    expect(message).toContain("requestedVersion=2.0.0");
   });
 });
 

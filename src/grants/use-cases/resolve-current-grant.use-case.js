@@ -120,37 +120,59 @@ const determineResolutionType = (pinnedVersion, resolvedVersion) => {
   return "version-match";
 };
 
-const logGrantResolved = (application, resolvedVersion, resolution) => {
+const logGrantResolved = (
+  { clientRef, code, originalConfigVersion },
+  resolvedVersion,
+  resolution,
+) => {
+  const message = [
+    "Resolved grant configuration for application",
+    `clientRef=${clientRef}`,
+    `grantCode=${code}`,
+    `originalConfigVersion=${originalConfigVersion ?? "none"}`,
+    `resolvedConfigVersion=${resolvedVersion ?? "none"}`,
+    `resolutionType=${resolution.resolutionType}`,
+    `definitionSource=${resolution.definitionSource}`,
+  ].join(" ");
+
   logger.info(
     {
-      event: { action: "application-grant-resolved", outcome: "success" },
-      application: { clientRef: application.clientRef },
-      grant: {
-        code: application.code,
-        originalConfigVersion: application.originalConfigVersion,
-        resolvedConfigVersion: resolvedVersion,
-        resolutionType: resolution.resolutionType,
-        definitionSource: resolution.definitionSource,
+      event: {
+        action: "application-grant-resolved",
+        outcome: "success",
+        reference: clientRef,
+        reason: resolution.resolutionType,
       },
     },
-    "Resolved grant configuration for application",
+    message,
   );
 };
 
-const logGrantResolutionFailure = (application, requestedVersion, err) => {
+const logGrantResolutionFailure = (
+  { clientRef, code, originalConfigVersion },
+  requestedVersion,
+  err,
+) => {
+  const message = [
+    "Failed to resolve grant configuration for application",
+    `clientRef=${clientRef}`,
+    `grantCode=${code}`,
+    `originalConfigVersion=${originalConfigVersion ?? "none"}`,
+    `requestedVersion=${requestedVersion ?? "none"}`,
+    `error=${err.message}`,
+  ].join(" ");
+
   logger.error(
     {
-      event: { action: "application-grant-resolved", outcome: "failure" },
-      application: { clientRef: application.clientRef },
-      grant: {
-        code: application.code,
-        originalConfigVersion: application.originalConfigVersion,
-        requestedVersion,
-        resolvedConfigVersion: null,
+      event: {
+        action: "application-grant-resolved",
+        outcome: "failure",
+        reference: clientRef,
+        reason: err.message,
       },
       error: { message: err.message },
     },
-    "Failed to resolve grant configuration for application",
+    message,
   );
 };
 
@@ -183,6 +205,11 @@ export const resolveGrantForSubmission = async ({
   clientRef,
   requestedVersion,
 }) => {
+  const submissionRef = {
+    clientRef,
+    code,
+    originalConfigVersion: requestedVersion,
+  };
   try {
     const { grant, resolvedVersion, definitionSource } =
       await resolveAndFetchGrant(code, requestedVersion);
@@ -190,37 +217,14 @@ export const resolveGrantForSubmission = async ({
     const resolutionType =
       resolvedVersion === requestedVersion ? "version-match" : "roll-forward";
 
-    logger.info(
-      {
-        event: { action: "application-grant-resolved", outcome: "success" },
-        application: { clientRef },
-        grant: {
-          code,
-          originalConfigVersion: requestedVersion,
-          resolvedConfigVersion: resolvedVersion,
-          resolutionType,
-          definitionSource,
-        },
-      },
-      "Resolved grant configuration for application",
-    );
+    logGrantResolved(submissionRef, resolvedVersion, {
+      resolutionType,
+      definitionSource,
+    });
 
     return { grant, resolvedVersion };
   } catch (err) {
-    logger.error(
-      {
-        event: { action: "application-grant-resolved", outcome: "failure" },
-        application: { clientRef },
-        grant: {
-          code,
-          originalConfigVersion: requestedVersion,
-          requestedVersion,
-          resolvedConfigVersion: null,
-        },
-        error: { message: err.message },
-      },
-      "Failed to resolve grant configuration for application",
-    );
+    logGrantResolutionFailure(submissionRef, requestedVersion, err);
     throw err;
   }
 };
