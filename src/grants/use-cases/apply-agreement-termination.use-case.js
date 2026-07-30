@@ -18,7 +18,7 @@ export const auditDataBuilder = (args) => {
       code,
       eventData,
     },
-    messageGroupId: `apply-agreement-termination-${eventData.agreementNumber}`,
+    segregationRef: `apply-agreement-termination-${eventData.agreementNumber}`,
   });
 };
 

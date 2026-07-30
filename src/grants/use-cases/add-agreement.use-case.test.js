@@ -80,6 +80,7 @@ describe("addAgreementUseCase", () => {
     expect(UpdateCaseStatusCommand).toHaveBeenCalledWith({
       caseRef: "test-client-ref",
       workflowCode: "test-code",
+      configVersion: "1.0.0",
       newStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
       phase: "PRE_AWARD",
       stage: "ASSESSMENT",
@@ -110,7 +111,7 @@ describe("addAgreementUseCase", () => {
           code: "test-code",
           agreementDate: "2024-01-01T12:00:00Z",
         },
-        messageGroupId: "add-agreement-agreement-123",
+        segregationRef: "add-agreement-agreement-123",
         status: "SUCCESS",
       }),
       {},
@@ -148,9 +149,9 @@ describe("auditDataBuilder", () => {
     });
   });
 
-  it("sets messageGroupId to add-agreement-{agreementNumber}", () => {
+  it("sets segregationRef to add-agreement-{agreementNumber}", () => {
     const event = auditDataBuilder(args);
 
-    expect(event.messageGroupId).toBe("add-agreement-agreement-123");
+    expect(event.segregationRef).toBe("add-agreement-agreement-123");
   });
 });

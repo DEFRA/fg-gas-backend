@@ -1,3 +1,4 @@
+import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { writeAuditEvent } from "../../common/write-audit-event.js";
@@ -17,6 +18,7 @@ describe("replaceGrantUseCase", () => {
     findByCode.mockResolvedValue(
       new Grant({
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Test Grant Description",
           startDate: "2023-01-01T00:00:00Z",
@@ -56,6 +58,7 @@ describe("replaceGrantUseCase", () => {
     expect(replace).toHaveBeenCalledWith(
       new Grant({
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Updated Test Grant Description",
           startDate: "2023-01-02T00:00:00Z",
@@ -104,17 +107,41 @@ describe("replaceGrantUseCase", () => {
             entityid: "test-grant",
           },
         ],
-        messageGroupId: "replace-grant-test-grant",
+        segregationRef: "replace-grant-test-grant",
         security: undefined,
         status: "SUCCESS",
       }),
     );
   });
 
+  it("throws notFound when grant does not exist at target version", async () => {
+    findByCode.mockResolvedValue(null);
+
+    await expect(
+      replaceGrantUseCase({
+        code: "test-grant",
+        command: {
+          version: "2.0.0",
+          metadata: {
+            description: "Test",
+            startDate: "2023-01-01T00:00:00Z",
+          },
+          actions: [],
+        },
+      }),
+    ).rejects.toThrow(
+      Boom.notFound('Grant with code "test-grant" version "2.0.0" not found'),
+    );
+
+    expect(findByCode).toHaveBeenCalledWith("test-grant", "2.0.0");
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it("replaces the grant with externalStatusMap", async () => {
     findByCode.mockResolvedValue(
       new Grant({
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Test Grant Description",
           startDate: "2023-01-01T00:00:00Z",
@@ -171,6 +198,7 @@ describe("replaceGrantUseCase", () => {
     expect(replace).toHaveBeenCalledWith(
       new Grant({
         code: "test-grant",
+        version: "0.0.0",
         metadata: {
           description: "Updated Test Grant Description",
           startDate: "2023-01-02T00:00:00Z",
@@ -237,9 +265,9 @@ describe("replaceGrantAuditBuilder", () => {
     expect(event.details).toEqual({ newGrantCommand: command });
   });
 
-  it("sets messageGroupId to replace-grant-{code}", () => {
+  it("sets segregationRef to replace-grant-{code}", () => {
     const event = replaceGrantAuditBuilder(args);
 
-    expect(event.messageGroupId).toBe("replace-grant-test-grant");
+    expect(event.segregationRef).toBe("replace-grant-test-grant");
   });
 });
