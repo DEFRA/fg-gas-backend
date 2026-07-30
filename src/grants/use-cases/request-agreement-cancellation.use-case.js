@@ -24,7 +24,7 @@ export const auditDataBuilder = (args, result) => {
       code,
       agreementNumber,
     },
-    messageGroupId: `request-agreement-cancellation-${agreementNumber}`,
+    segregationRef: `request-agreement-cancellation-${agreementNumber}`,
   });
 };
 

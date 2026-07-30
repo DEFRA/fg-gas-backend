@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { grant3 } from "../fixtures/grants.js";
+import { submitApplication } from "../helpers/applications.js";
+import { createGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 let applications;
@@ -973,5 +975,29 @@ describe("POST /grants/{code}/applications", () => {
       message:
         'Application with clientRef "12345" has invalid answers: actionApplications/0/parcelId must match pattern "^\\d+$"',
     });
+  });
+
+  // The audit topic is standard, not FIFO. Asserting the row is merely written
+  // would still pass if the subscriber could not publish it - it would retry
+  // and land in DEAD_LETTER. Wait for it to actually drain.
+  it("publishes the SUBMIT_APPLICATION audit event and marks the outbox row complete", async () => {
+    await createGrant();
+
+    const { clientRef } = await submitApplication();
+
+    await expect(outbox).toHaveRecord({
+      "event.audit.entities.entityid": clientRef,
+      status: "COMPLETED",
+    });
+
+    const completed = await outbox.findOne({
+      "event.audit.entities.entityid": clientRef,
+      status: "COMPLETED",
+    });
+
+    expect(completed.completionDate).toBeDefined();
+    // messageGroupId is an SNS FIFO transport parameter - it must never be
+    // published inside the message body, where it fails the audit schema.
+    expect(completed.event).not.toHaveProperty("messageGroupId");
   });
 });

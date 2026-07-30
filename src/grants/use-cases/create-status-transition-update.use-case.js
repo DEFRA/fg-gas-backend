@@ -42,7 +42,7 @@ export const auditDataBuilder = (args) => {
       toStatus: currentStatus,
       entityIdKey: "clientRef",
     },
-    messageGroupId: `status-transition-${clientRef}`,
+    segregationRef: `status-transition-${clientRef}`,
   });
 };
 
