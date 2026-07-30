@@ -11,7 +11,7 @@ export const replaceGrantAuditBuilder = ([{ code, command }]) =>
     action: auditActions.REPLACE_GRANT,
     entityid: code,
     details: { newGrantCommand: command },
-    messageGroupId: `replace-grant-${code}`,
+    segregationRef: `replace-grant-${code}`,
   });
 
 export const replaceGrant = async ({ code, command }) => {

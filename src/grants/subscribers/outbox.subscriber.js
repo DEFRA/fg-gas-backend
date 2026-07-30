@@ -157,11 +157,10 @@ export class OutboxSubscriber {
         await dispatchInternally(data);
       } else {
         logger.info(`Send outbox event to ${topic}`);
-        await publish(
-          topic,
-          data,
-          this.getMessageGroupId(messageGroupId, data),
-        );
+        const messageGroup = topic.endsWith(".fifo")
+          ? this.getMessageGroupId(messageGroupId, data)
+          : undefined;
+        await publish(topic, data, messageGroup);
       }
       await this.markEventComplete(event);
     } catch (ex) {

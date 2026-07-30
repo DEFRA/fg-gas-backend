@@ -22,7 +22,7 @@ export const auditDataBuilder = (args) => {
       clientRef,
       code,
     },
-    messageGroupId: `withdraw-application-${clientRef}`,
+    segregationRef: `withdraw-application-${clientRef}`,
   });
 };
 

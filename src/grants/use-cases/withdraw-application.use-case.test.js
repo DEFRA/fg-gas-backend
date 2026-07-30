@@ -100,7 +100,7 @@ describe("withdrawApplicationUseCase", () => {
           clientRef: "test-client-ref",
           code: "test-code",
         },
-        messageGroupId: "withdraw-application-test-client-ref",
+        segregationRef: "withdraw-application-test-client-ref",
         status: "SUCCESS",
       }),
       session,
@@ -172,9 +172,9 @@ describe("auditDataBuilder", () => {
     });
   });
 
-  it("sets messageGroupId to withdraw-application-{clientRef}", () => {
+  it("sets segregationRef to withdraw-application-{clientRef}", () => {
     const event = auditDataBuilder(args);
 
-    expect(event.messageGroupId).toBe("withdraw-application-test-client-ref");
+    expect(event.segregationRef).toBe("withdraw-application-test-client-ref");
   });
 });

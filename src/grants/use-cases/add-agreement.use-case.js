@@ -26,7 +26,7 @@ export const auditDataBuilder = (args) => {
       code,
       agreementDate: date,
     },
-    messageGroupId: `add-agreement-${agreementNumber}`,
+    segregationRef: `add-agreement-${agreementNumber}`,
   });
 };
 
