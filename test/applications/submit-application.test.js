@@ -1032,7 +1032,7 @@ describe("POST /grants/{code}/applications", () => {
   it("publishes the SUBMIT_APPLICATION audit event and marks the outbox row complete", async () => {
     await createGrant();
 
-    const { clientRef } = await submitApplication();
+    const { clientRef } = await submitApplication(db);
 
     await expect(outbox).toHaveRecord({
       "event.audit.entities.entityid": clientRef,
