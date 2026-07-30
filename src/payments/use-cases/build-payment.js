@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { randomUUID } from "node:crypto";
 import {
-  InstalmentStatus,
+  DuePaymentStatus,
   Payment,
   PaymentSourceType,
 } from "../models/payment.js";
@@ -39,14 +39,12 @@ const toInvoiceLine = (line, { mapping, marketingYear }) => ({
   marketingYear,
 });
 
-const toInstalment = (payment, context) => ({
-  dueDate: payment.dueDate,
-  totalAmountPence: payment.totalAmountPence,
-  status: InstalmentStatus.PENDING,
+const toDuePayment = (due, context) => ({
+  dueDate: due.dueDate,
+  totalAmountPence: due.totalAmountPence,
+  status: DuePaymentStatus.PENDING,
   correlationId: randomUUID(),
-  invoiceLines: payment.invoiceLines.map((line) =>
-    toInvoiceLine(line, context),
-  ),
+  invoiceLines: due.invoiceLines.map((line) => toInvoiceLine(line, context)),
 });
 
 /**
@@ -54,8 +52,8 @@ const toInstalment = (payment, context) => ({
  *
  * Scheme specific values come from the Agreement Definition mapping; the claim
  * ID is allocated by the caller inside the action transaction, and everything
- * else is generated here. Each payment due in the Payment Calculation becomes
- * one instalment.
+ * else is generated here. Each payment due in the Payment Calculation carries
+ * through to one entry in the Payment's own `payments`.
  */
 export const buildPayment = ({
   agreementNumber,
@@ -95,9 +93,7 @@ export const buildPayment = ({
     totalAmountPence: calculation.agreementTotalPence,
     currency: mapping.currency,
     marketingYear,
-    instalments: calculation.payments.map((payment) =>
-      toInstalment(payment, context),
-    ),
+    payments: calculation.payments.map((due) => toDuePayment(due, context)),
     createdAt,
   });
 };

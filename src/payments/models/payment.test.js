@@ -21,7 +21,7 @@ const props = {
   totalAmountPence: 3800,
   currency: "GBP",
   marketingYear: "2026",
-  instalments: [
+  payments: [
     {
       dueDate: "2026-11-06",
       totalAmountPence: 3800,
@@ -67,7 +67,7 @@ describe("Payment", () => {
       payment.totalAmountPence = 1;
     }).toThrow(TypeError);
     expect(() => {
-      payment.instalments[0].invoiceLines[0].amountPence = 1;
+      payment.payments[0].invoiceLines[0].amountPence = 1;
     }).toThrow(TypeError);
     expect(payment.totalAmountPence).toBe(3800);
   });
@@ -84,8 +84,8 @@ describe("Payment", () => {
     ).toThrow("Invalid Payment");
   });
 
-  it("rejects a Payment with no instalments", () => {
-    expect(() => Payment.create({ ...props, instalments: [] })).toThrow(
+  it("rejects a Payment with no due payments", () => {
+    expect(() => Payment.create({ ...props, payments: [] })).toThrow(
       "Invalid Payment",
     );
   });

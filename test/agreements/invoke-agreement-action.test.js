@@ -146,12 +146,17 @@ describe("single Agreement actions", () => {
       totalAmountPence: 32000,
     });
     expect(payment.invoiceNumber).toBe(`${payment.paymentHubClaimId}-V001QX`);
-    expect(payment.instalments[0]).toMatchObject({
+    // GAS claim IDs are seeded above the legacy service's range so the two can
+    // issue them concurrently without colliding.
+    expect(Number(payment.paymentHubClaimId.slice(1))).toBeGreaterThanOrEqual(
+      10000000,
+    );
+    expect(payment.payments[0]).toMatchObject({
       dueDate: "2026-11-06",
       totalAmountPence: 32000,
       status: "pending",
     });
-    expect(payment.instalments[0].invoiceLines[0]).toMatchObject({
+    expect(payment.payments[0].invoiceLines[0]).toMatchObject({
       schemeCode: "CMOR1",
       description: "Large White Pig",
       amountPence: 32000,

@@ -181,13 +181,13 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
       correlationId: expect.any(String),
     });
     expect(payment.source.agreementNumber).toBe(options.agreementNumber);
-    expect(payment.instalments[0]).toMatchObject({
+    expect(payment.payments[0]).toMatchObject({
       dueDate: "2026-11-06",
       totalAmountPence: 3800,
       status: "pending",
       correlationId: expect.any(String),
     });
-    expect(payment.instalments[0].invoiceLines[0]).toMatchObject({
+    expect(payment.payments[0].invoiceLines[0]).toMatchObject({
       schemeCode: "CMOR1",
       description: "Large White Pig",
       amountPence: 2000,
@@ -203,7 +203,7 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
     const [payment] = insertPayment.mock.calls[0];
 
     expect(payment.totalAmountPence).toBe(3800);
-    expect(payment.instalments[0].invoiceLines[0].amountPence).toBe(2000);
+    expect(payment.payments[0].invoiceLines[0].amountPence).toBe(2000);
   });
 
   it("stores the validated Payment Calculation on the Agreement and Version", async () => {

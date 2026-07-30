@@ -12,7 +12,7 @@ const invoiceLineSchema = Joi.object({
   marketingYear: Joi.string().required(),
 });
 
-const instalmentSchema = Joi.object({
+const duePaymentSchema = Joi.object({
   dueDate: Joi.string().required(),
   totalAmountPence: Joi.number().integer().required(),
   status: Joi.string().required(),
@@ -20,8 +20,8 @@ const instalmentSchema = Joi.object({
   invoiceLines: Joi.array().items(invoiceLineSchema).min(1).required(),
 });
 
-const balancesWithInvoiceLines = (instalments, helpers) => {
-  const unbalanced = instalments.find(
+const balancesWithInvoiceLines = (payments, helpers) => {
+  const unbalanced = payments.find(
     ({ totalAmountPence, invoiceLines }) =>
       totalAmountPence !==
       invoiceLines.reduce((total, line) => total + line.amountPence, 0),
@@ -29,9 +29,9 @@ const balancesWithInvoiceLines = (instalments, helpers) => {
 
   return unbalanced
     ? helpers.message({
-        custom: `instalment due ${unbalanced.dueDate} does not balance with its invoice lines`,
+        custom: `payment due ${unbalanced.dueDate} does not balance with its invoice lines`,
       })
-    : instalments;
+    : payments;
 };
 
 const deepFreeze = (value) => {
@@ -47,13 +47,17 @@ export const PaymentSourceType = {
   AGREEMENT: "agreement",
 };
 
-export const InstalmentStatus = {
+export const DuePaymentStatus = {
   PENDING: "pending",
 };
 
 /**
  * An immutable record of an amount owed against an accepted Agreement Version,
- * split into the instalments that fall due over the Agreement's term.
+ * split into the payments that fall due over the Agreement's term.
+ *
+ * The nested `payments` field keeps the name used by the calculator response,
+ * the legacy Agreements API and the Payment Service contract, so nothing has to
+ * be remapped at those boundaries.
  *
  * A Payment carries everything needed to build the Payment Service message, so
  * publication never has to load the Agreement or its definition. Monetary
@@ -85,22 +89,22 @@ export class Payment {
     totalAmountPence: Joi.number().integer().required(),
     currency: Joi.string().required(),
     marketingYear: Joi.string().required(),
-    instalments: Joi.array()
-      .items(instalmentSchema)
+    payments: Joi.array()
+      .items(duePaymentSchema)
       .min(1)
       .custom(balancesWithInvoiceLines)
       .required(),
     createdAt: Joi.string().required(),
   }).custom((payment, helpers) => {
-    const instalmentTotal = payment.instalments.reduce(
-      (total, instalment) => total + instalment.totalAmountPence,
+    const duePaymentTotal = payment.payments.reduce(
+      (total, due) => total + due.totalAmountPence,
       0,
     );
 
-    return instalmentTotal === payment.totalAmountPence
+    return duePaymentTotal === payment.totalAmountPence
       ? payment
       : helpers.message({
-          custom: "totalAmountPence does not balance with its instalments",
+          custom: "totalAmountPence does not balance with its payments",
         });
   });
 

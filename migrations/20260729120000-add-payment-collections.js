@@ -1,6 +1,9 @@
 const paymentsCollection = "payments__payments";
 const countersCollection = "payments__counters";
 
+// First GAS claim ID is R10000000; the legacy service stays below it.
+const CLAIM_ID_SEED = 9999999;
+
 export const up = async (db) => {
   const payments = db.collection(paymentsCollection);
 
@@ -16,11 +19,15 @@ export const up = async (db) => {
   // upsert it. Two concurrent transactions that both try to insert the same
   // counter _id can fail with a duplicate key error instead of a retryable
   // write conflict; seeding means the counter document always already exists.
+  //
+  // GAS starts at R10000000 (seeded one below, as the $inc returns the value
+  // after the increment) so its claim IDs cannot collide with the legacy
+  // service's while both are issuing them.
   await db
     .collection(countersCollection)
     .updateOne(
       { _id: "claimIds" },
-      { $setOnInsert: { seq: 0 } },
+      { $setOnInsert: { seq: CLAIM_ID_SEED } },
       { upsert: true },
     );
 };

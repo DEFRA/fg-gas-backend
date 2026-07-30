@@ -76,7 +76,7 @@ describe("buildPayment", () => {
       ledger: "AP",
       currency: "GBP",
     });
-    expect(payment.instalments[0].invoiceLines[0]).toMatchObject({
+    expect(payment.payments[0].invoiceLines[0]).toMatchObject({
       schemeCode: "CMOR1",
       accountCode: "SOS710",
       fundCode: "DRD10",
@@ -84,11 +84,11 @@ describe("buildPayment", () => {
     });
   });
 
-  it("turns each payment due into one instalment", () => {
+  it("turns each payment due into one entry in payments", () => {
     const payment = build();
 
-    expect(payment.instalments).toHaveLength(1);
-    expect(payment.instalments[0]).toMatchObject({
+    expect(payment.payments).toHaveLength(1);
+    expect(payment.payments[0]).toMatchObject({
       dueDate: "2026-11-06",
       totalAmountPence: 3800,
     });
@@ -99,14 +99,12 @@ describe("buildPayment", () => {
 
     expect(payment.id).toEqual(expect.any(String));
     expect(payment.correlationId).toEqual(expect.any(String));
-    expect(payment.instalments[0].correlationId).toEqual(expect.any(String));
-    expect(payment.instalments[0].correlationId).not.toBe(
-      payment.correlationId,
-    );
+    expect(payment.payments[0].correlationId).toEqual(expect.any(String));
+    expect(payment.payments[0].correlationId).not.toBe(payment.correlationId);
     expect(payment.paymentRequestNumber).toBe(1);
     expect(payment.invoiceNumber).toBe("R00000001-V001QX");
     expect(payment.originalInvoiceNumber).toBe("");
-    expect(payment.instalments[0].status).toBe("pending");
+    expect(payment.payments[0].status).toBe("pending");
     expect(payment.createdAt).toEqual(expect.any(String));
   });
 
@@ -117,7 +115,7 @@ describe("buildPayment", () => {
     expect(payment.frn).toBe("1101234567");
     expect(payment.totalAmountPence).toBe(3800);
     expect(
-      payment.instalments[0].invoiceLines.map((line) => line.amountPence),
+      payment.payments[0].invoiceLines.map((line) => line.amountPence),
     ).toEqual([2000, 1800]);
   });
 
@@ -125,7 +123,7 @@ describe("buildPayment", () => {
     const payment = build({ marketingYear: undefined });
 
     expect(payment.marketingYear).toBe(new Date().getFullYear().toString());
-    expect(payment.instalments[0].invoiceLines[0].marketingYear).toBe(
+    expect(payment.payments[0].invoiceLines[0].marketingYear).toBe(
       payment.marketingYear,
     );
   });
@@ -150,10 +148,10 @@ describe("buildPayment", () => {
           agreementTotalPence: 9999,
         },
       }),
-    ).toThrow("totalAmountPence does not balance with its instalments");
+    ).toThrow("totalAmountPence does not balance with its payments");
   });
 
-  it("rejects an instalment that does not balance with its invoice lines", () => {
+  it("rejects a due payment that does not balance with its invoice lines", () => {
     expect(() =>
       build({
         paymentCalculation: {
