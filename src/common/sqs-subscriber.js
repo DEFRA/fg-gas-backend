@@ -52,7 +52,9 @@ export class SqsSubscriber {
 
     try {
       const body = JSON.parse(message.Body);
-      await withTraceParent(body.traceparent, () => this.onMessage(body));
+      await withTraceParent(body.traceparent, () =>
+        this.onMessage(body, message.MessageAttributes),
+      );
       await this.deleteMessage(message);
     } catch (err) {
       logger.error(

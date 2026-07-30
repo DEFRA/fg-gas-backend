@@ -7,6 +7,7 @@ const validPayload = {
     sbi: "123456789",
     frn: "1234567890",
     crn: "crn-abc",
+    configVersion: "1.0.0",
   },
   answers: {},
 };
@@ -39,6 +40,7 @@ it("requires metadata.clientRef", () => {
       sbi: "123456789",
       frn: "1234567890",
       crn: "crn-abc",
+      configVersion: "1.0.0",
     },
     answers: {},
   });
@@ -52,6 +54,7 @@ it("requires metadata.sbi", () => {
       clientRef: "ref-1234",
       frn: "1234567890",
       crn: "crn-abc",
+      configVersion: "1.0.0",
     },
     answers: {},
   });
@@ -65,6 +68,7 @@ it("requires metadata.frn", () => {
       clientRef: "ref-1234",
       sbi: "123456789",
       crn: "crn-abc",
+      configVersion: "1.0.0",
     },
     answers: {},
   });
@@ -78,6 +82,7 @@ it("requires metadata.crn", () => {
       clientRef: "ref-1234",
       sbi: "123456789",
       frn: "1234567890",
+      configVersion: "1.0.0",
     },
     answers: {},
   });
@@ -191,31 +196,50 @@ it("strips unknown top-level fields", () => {
   expect(value).not.toHaveProperty("unknownField");
 });
 
-it("allows optional configVersion", () => {
-  const { value, error } = submitApplicationRequestSchema.validate({
-    ...validPayload,
+it("requires metadata.configVersion", () => {
+  const { configVersion: _, ...metadataWithoutConfigVersion } =
+    validPayload.metadata;
+  const { error } = submitApplicationRequestSchema.validate({
+    metadata: metadataWithoutConfigVersion,
+    answers: {},
+  });
+
+  expect(error.message).toEqual('"metadata.configVersion" is required');
+});
+
+it("rejects invalid metadata.configVersion format", () => {
+  const { error } = submitApplicationRequestSchema.validate({
     metadata: {
       ...validPayload.metadata,
-      configVersion: "0.0.1",
+      configVersion: "not-semver",
     },
+    answers: {},
   });
+
+  expect(error.message).toContain(
+    "Config version must be a valid config string (e.g. 1.0.3)",
+  );
+});
+
+it("accepts valid semver metadata.configVersion", () => {
+  const { error } = submitApplicationRequestSchema.validate({
+    metadata: {
+      ...validPayload.metadata,
+      configVersion: "2.3.4",
+    },
+    answers: {},
+  });
+
   expect(error).toBeUndefined();
-  expect(value).toEqual({
-    ...validPayload,
-    metadata: {
-      ...validPayload.metadata,
-      configVersion: "0.0.1",
-    },
-  });
 });
 
 it("metadata.configVersion must not be null", () => {
   const { error } = submitApplicationRequestSchema.validate({
-    ...validPayload,
     metadata: {
       ...validPayload.metadata,
       configVersion: null,
     },
+    answers: {},
   });
 
   expect(error.message).toContain('"metadata.configVersion"');
@@ -226,10 +250,10 @@ it.each([
   ["1.0", "missing patch segment"],
   ["v1.0.0", "v-prefixed"],
   ["1.0.0-alpha", "pre-release suffix"],
-])("rejects invalid configVersion: %s (%s)", (configVersion) => {
+])("rejects invalid metadata.configVersion: %s (%s)", (configVersion) => {
   const { error } = submitApplicationRequestSchema.validate({
-    ...validPayload,
     metadata: { ...validPayload.metadata, configVersion },
+    answers: {},
   });
   expect(error.message).toContain(
     "Config version must be a valid config string (e.g. 1.0.3)",

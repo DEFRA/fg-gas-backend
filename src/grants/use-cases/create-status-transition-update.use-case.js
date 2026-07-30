@@ -7,12 +7,13 @@ import { Outbox } from "../models/outbox.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 
 const writeStatusTransition = async (
-  { clientRef, code, previousStatus, currentStatus },
+  { clientRef, code, previousStatus, currentStatus, currentConfigVersion },
   session,
 ) => {
   const statusEvent = new ApplicationStatusUpdatedEvent({
     clientRef,
     code,
+    currentConfigVersion,
     previousStatus,
     currentStatus,
   });
@@ -57,6 +58,7 @@ export const createStatusTransitionUpdateUseCase =
     newFullyQualifiedStatus,
     clientRef,
     code,
+    configVersion: currentConfigVersion,
   }) =>
   async (session) => {
     logger.info(
@@ -69,6 +71,7 @@ export const createStatusTransitionUpdateUseCase =
           code,
           previousStatus: originalFullyQualifiedStatus,
           currentStatus: newFullyQualifiedStatus,
+          currentConfigVersion,
         },
         session,
       );

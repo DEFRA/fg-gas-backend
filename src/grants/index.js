@@ -15,6 +15,7 @@ import { replaceGrantRoute } from "./routes/replace-grant.route.js";
 import { submitApplicationRoute } from "./routes/submit-application.route.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
+import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
 import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
 import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 import {
@@ -41,6 +42,7 @@ export const grants = {
     server.events.on("start", async () => {
       agreementStatusUpdatedSubscriber.start();
       caseStatusUpdatedSubscriber.start();
+      configVersionUpdatedSubscriber.start();
       outboxSubscriber.start();
       inboxSubscriber.start();
     });
@@ -48,6 +50,7 @@ export const grants = {
     server.events.on("stop", async () => {
       agreementStatusUpdatedSubscriber.stop();
       caseStatusUpdatedSubscriber.stop();
+      configVersionUpdatedSubscriber.stop();
       outboxSubscriber.stop();
       inboxSubscriber.stop();
     });

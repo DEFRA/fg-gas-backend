@@ -3,10 +3,14 @@ import { randomUUID } from "node:crypto";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { grant3 } from "../fixtures/grants.js";
-import { submitApplication } from "../helpers/applications.js";
+import {
+  seedConfigVersion,
+  submitApplication,
+} from "../helpers/applications.js";
 import { createGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
+let db;
 let applications;
 let applicationSeries;
 let client;
@@ -14,9 +18,10 @@ let outbox;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  applications = client.db().collection("applications");
-  applicationSeries = client.db().collection("application_series");
-  outbox = client.db().collection("outbox");
+  db = client.db();
+  applications = db.collection("applications");
+  applicationSeries = db.collection("application_series");
+  outbox = db.collection("outbox");
   applicationSeries.deleteMany({});
 });
 
@@ -58,6 +63,8 @@ describe("POST /grants/{code}/applications", () => {
       },
     });
 
+    await seedConfigVersion(db, "test-code-1");
+
     const submittedAt = new Date();
 
     const clientRef = `cr-12345-${randomUUID()}`;
@@ -74,7 +81,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
-          configVersion: "0.0.1",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "test answer",
@@ -95,6 +102,8 @@ describe("POST /grants/{code}/applications", () => {
         currentStage: "STAGE_1",
         currentStatus: "NEW",
         clientRef,
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         submittedAt,
         code: "test-code-1",
         agreements: {},
@@ -107,7 +116,6 @@ describe("POST /grants/{code}/applications", () => {
         },
         metadata: {
           defraId: "1234567890",
-          configVersion: "0.0.1",
         },
         phases: [
           {
@@ -141,6 +149,7 @@ describe("POST /grants/{code}/applications", () => {
       data: {
         clientRef,
         code: "test-code-1",
+        originalConfigVersion: "1.0.0",
         status: "PHASE_1:STAGE_1:NEW",
       },
       messageGroupId: `${clientRef}-test-code-1`,
@@ -160,6 +169,7 @@ describe("POST /grants/{code}/applications", () => {
         previousCaseRef: null,
         workflowCode: "test-code-1",
         payload: {
+          originalConfigVersion: "1.0.0",
           createdAt: expect.any(String),
           submittedAt: expect.any(String),
           identifiers: {
@@ -169,7 +179,6 @@ describe("POST /grants/{code}/applications", () => {
           },
           metadata: {
             defraId: "1234567890",
-            configVersion: "0.0.1",
           },
           answers: {
             question1: "test answer",
@@ -212,6 +221,8 @@ describe("POST /grants/{code}/applications", () => {
       },
     });
 
+    await seedConfigVersion(db, "test-code-1");
+
     const submittedAt = new Date();
 
     const clientRef = `cr-12345-${randomUUID()}`;
@@ -228,6 +239,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           wubble: "wobble",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "test answer",
@@ -247,6 +259,8 @@ describe("POST /grants/{code}/applications", () => {
         currentStage: "STAGE_1",
         currentStatus: "NEW",
         clientRef,
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         submittedAt,
         code: "test-code-1",
         agreements: {},
@@ -285,6 +299,7 @@ describe("POST /grants/{code}/applications", () => {
         previousCaseRef: null,
         workflowCode: "test-code-1",
         payload: {
+          originalConfigVersion: "1.0.0",
           createdAt: expect.any(String),
           submittedAt: expect.any(String),
           identifiers: {
@@ -337,6 +352,8 @@ describe("POST /grants/{code}/applications", () => {
       },
     });
 
+    await seedConfigVersion(db, "test-code-1");
+
     let response;
     try {
       await wreck.post("/grants/test-code-1/applications", {
@@ -349,6 +366,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             question1: 42, // Invalid type
@@ -407,6 +425,8 @@ describe("POST /grants/{code}/applications", () => {
       },
     });
 
+    await seedConfigVersion(db, "test-code-1");
+
     await wreck.post("/grants/test-code-1/applications", {
       json: true,
       payload: {
@@ -417,6 +437,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "test answer",
@@ -436,6 +457,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             question1: "test answer 2",
@@ -454,6 +476,8 @@ describe("POST /grants/{code}/applications", () => {
       {
         phases: [{ code: "PHASE_1", answers: { question1: "test answer" } }],
         clientRef: "12345",
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         code: "test-code-1",
         identifiers: {
           crn: "1234567890",
@@ -486,6 +510,8 @@ describe("POST /grants/{code}/applications", () => {
       payload: grant3,
     });
 
+    await seedConfigVersion(db, "test-code-3");
+
     let response;
     try {
       await wreck.post("/grants/test-code-3/applications", {
@@ -498,6 +524,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             scheme: "SFI",
@@ -535,6 +562,8 @@ describe("POST /grants/{code}/applications", () => {
       payload: grant3,
     });
 
+    await seedConfigVersion(db, "test-code-3");
+
     let response;
     try {
       await wreck.post("/grants/test-code-3/applications", {
@@ -547,6 +576,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             scheme: "SFI",
@@ -583,6 +613,8 @@ describe("POST /grants/{code}/applications", () => {
       payload: grant3,
     });
 
+    await seedConfigVersion(db, "test-code-3");
+
     let response;
     try {
       await wreck.post("/grants/test-code-3/applications", {
@@ -595,6 +627,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             scheme: "SFI",
@@ -659,6 +692,8 @@ describe("POST /grants/{code}/applications", () => {
       },
     });
 
+    await seedConfigVersion(db, "test-code-1");
+
     const previousClientRef = `cr-prev-${randomUUID()}`;
     const newClientRef = `cr-new-${randomUUID()}`;
     const submittedAt = new Date();
@@ -700,6 +735,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "replacement answer",
@@ -719,6 +755,8 @@ describe("POST /grants/{code}/applications", () => {
         currentStage: "STAGE_1",
         currentStatus: "NEW",
         clientRef: newClientRef,
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         submittedAt,
         code: "test-code-1",
         agreements: {},
@@ -777,6 +815,7 @@ describe("POST /grants/{code}/applications", () => {
       data: {
         clientRef: newClientRef,
         code: "test-code-1",
+        originalConfigVersion: "1.0.0",
         status: "PHASE_1:STAGE_1:NEW",
       },
       messageGroupId: `${newClientRef}-test-code-1`,
@@ -816,6 +855,8 @@ describe("POST /grants/{code}/applications", () => {
       },
     });
 
+    await seedConfigVersion(db, "test-code-2");
+
     const previousClientRef = `cr-prev-${randomUUID()}`;
 
     await wreck.post("/grants/test-code-2/applications", {
@@ -827,6 +868,7 @@ describe("POST /grants/{code}/applications", () => {
           frn: "1234567890",
           crn: "1234567890",
           defraId: "1234567890",
+          configVersion: "1.0.0",
         },
         answers: {
           question1: "original answer",
@@ -847,6 +889,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             question1: "replacement answer",
@@ -897,6 +940,8 @@ describe("POST /grants/{code}/applications", () => {
       },
     });
 
+    await seedConfigVersion(db, "test-code-1");
+
     let response;
     try {
       await wreck.post("/grants/test-code-1/applications", {
@@ -910,6 +955,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             question1: "answer",
@@ -934,6 +980,8 @@ describe("POST /grants/{code}/applications", () => {
       payload: grant3,
     });
 
+    await seedConfigVersion(db, "test-code-3");
+
     let response;
     try {
       await wreck.post("/grants/test-code-3/applications", {
@@ -946,6 +994,7 @@ describe("POST /grants/{code}/applications", () => {
             frn: "1234567890",
             crn: "1234567890",
             defraId: "1234567890",
+            configVersion: "1.0.0",
           },
           answers: {
             scheme: "SFI",
@@ -983,7 +1032,7 @@ describe("POST /grants/{code}/applications", () => {
   it("publishes the SUBMIT_APPLICATION audit event and marks the outbox row complete", async () => {
     await createGrant();
 
-    const { clientRef } = await submitApplication();
+    const { clientRef } = await submitApplication(db);
 
     await expect(outbox).toHaveRecord({
       "event.audit.entities.entityid": clientRef,

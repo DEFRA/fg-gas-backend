@@ -1,14 +1,17 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { seedConfigVersion } from "../../helpers/applications.js";
 import { wreck } from "../../helpers/wreck.js";
 
 let client;
+let db;
 let applications;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  applications = client.db().collection("applications");
+  db = client.db();
+  applications = db.collection("applications");
 });
 
 afterAll(async () => {
@@ -122,6 +125,8 @@ describe("Application Service Integration Tests", () => {
         payload: grantData,
       });
 
+      await seedConfigVersion(db, grantCode);
+
       // Submit comprehensive application
       const applicationData = {
         metadata: {
@@ -131,6 +136,7 @@ describe("Application Service Integration Tests", () => {
           frn: "987654321",
           crn: "555666777",
           defraId: "DEF123456",
+          configVersion: "1.0.0",
         },
         answers: {
           applicantDetails: {
@@ -288,6 +294,8 @@ describe("Application Service Integration Tests", () => {
         payload: grantData,
       });
 
+      await seedConfigVersion(db, grantCode);
+
       // Submit application with complex array data
       const applicationData = {
         metadata: {
@@ -297,6 +305,7 @@ describe("Application Service Integration Tests", () => {
           frn: "123456789",
           crn: "444555666",
           defraId: "DEF789012",
+          configVersion: "1.0.0",
         },
         answers: {
           livestockOperations: [
@@ -415,6 +424,8 @@ describe("Application Service Integration Tests", () => {
         payload: grantData,
       });
 
+      await seedConfigVersion(db, grantCode);
+
       // Test various validation failures
       const invalidApplications = [
         {
@@ -427,6 +438,7 @@ describe("Application Service Integration Tests", () => {
               frn: "987654321",
               crn: "555666777",
               defraId: "DEF123456",
+              configVersion: "1.0.0",
             },
             answers: {
               email: "not-an-email",
@@ -446,6 +458,7 @@ describe("Application Service Integration Tests", () => {
               frn: "987654321",
               crn: "555666777",
               defraId: "DEF123456",
+              configVersion: "1.0.0",
             },
             answers: {
               email: "test@example.com",
@@ -465,6 +478,7 @@ describe("Application Service Integration Tests", () => {
               frn: "987654321",
               crn: "555666777",
               defraId: "DEF123456",
+              configVersion: "1.0.0",
             },
             answers: {
               email: "test@example.com",
@@ -484,6 +498,7 @@ describe("Application Service Integration Tests", () => {
               frn: "987654321",
               crn: "555666777",
               defraId: "DEF123456",
+              configVersion: "1.0.0",
             },
             answers: {
               email: "test@example.com",

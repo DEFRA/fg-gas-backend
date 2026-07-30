@@ -5,6 +5,29 @@ import { Agreement, AgreementHistoryEntry } from "../models/agreement.js";
 import { ApplicationDocument } from "../models/application-document.js";
 import { Application } from "../models/application.js";
 
+const legacyConfigVersion = (doc) => doc.configVersion ?? null;
+
+const configVersionsFromDoc = (doc) => {
+  const legacy = legacyConfigVersion(doc);
+  return {
+    originalConfigVersion: doc.originalConfigVersion ?? legacy,
+    currentConfigVersion: doc.currentConfigVersion ?? legacy,
+  };
+};
+
+const toAgreement = (value) => {
+  const history = value.history.map(
+    (entry) => new AgreementHistoryEntry(entry),
+  );
+  return new Agreement({ ...value, history });
+};
+
+const toAgreements = (agreements) =>
+  Object.entries(agreements ?? {}).reduce((acc, [key, value]) => {
+    acc[key] = toAgreement(value);
+    return acc;
+  }, {});
+
 const toApplication = (doc) =>
   new Application({
     currentPhase: doc.currentPhase,
@@ -12,27 +35,14 @@ const toApplication = (doc) =>
     currentStatus: doc.currentStatus,
     clientRef: doc.clientRef,
     code: doc.code,
+    ...configVersionsFromDoc(doc),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     submittedAt: doc.submittedAt,
     identifiers: doc.identifiers ?? {},
     metadata: doc.metadata ?? {},
     phases: doc.phases,
-    agreements: Object.entries(doc.agreements ?? {}).reduce(
-      (acc, [key, value]) => {
-        const history = value.history.map(
-          (entry) => new AgreementHistoryEntry(entry),
-        );
-
-        acc[key] = new Agreement({
-          ...value,
-          history,
-        });
-
-        return acc;
-      },
-      {},
-    ),
+    agreements: toAgreements(doc.agreements),
   });
 
 export const collection = "applications";
@@ -93,4 +103,13 @@ export const findByClientRef = async (clientRef) => {
   }
 
   return toApplication(doc);
+};
+
+export const updateCurrentConfigVersion = async (clientRef, code, version) => {
+  await db
+    .collection(collection)
+    .updateOne(
+      { clientRef, code },
+      { $set: { currentConfigVersion: version } },
+    );
 };
