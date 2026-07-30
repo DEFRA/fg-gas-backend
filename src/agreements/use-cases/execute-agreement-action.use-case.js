@@ -2,6 +2,7 @@ import Boom from "@hapi/boom";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { createAgreementPaymentUseCase } from "../../payments/use-cases/create-agreement-payment.use-case.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import {
   findAgreementByNumber,
@@ -9,18 +10,11 @@ import {
   insertAgreementVersion,
   replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
-import {
-  allocateNextSequence,
-  ClaimIdCounter,
-} from "../repositories/counter.repository.js";
-import { insertPayable } from "../repositories/payable.repository.js";
 import { applyActionValidation } from "../services/apply-action-validation.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
-import { formatClaimId } from "../services/payables/claim-id.js";
 import { toEtag } from "./agreement-etag.js";
-import { buildPayable } from "./build-payable.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 
 const toLocation = (agreementNumber) => `/agreements/${agreementNumber}`;
@@ -78,27 +72,27 @@ const runAction = async ({
       context.outboxMessageTypes ?? [],
       nextAgreement,
     ),
-    payableRequest: context.payableRequest,
+    paymentRequest: context.paymentRequest,
   };
 };
 
-// Allocating the claim ID and inserting the Payable happen here so they commit
-// with the Agreement, its Version and the lifecycle event, and roll back
-// together when anything before the commit fails.
-const createPayableForVersion = async (
-  { agreement, payableRequest },
+// Payments owns the claim ID and the Payment document; it is handed the action's
+// session so both commit with the Agreement, its Version and the lifecycle
+// event, and roll back together when anything before the commit fails.
+const createPaymentForVersion = async (
+  { agreement, paymentRequest },
   session,
-) => {
-  const sequence = await allocateNextSequence(ClaimIdCounter, session);
-
-  const payable = buildPayable({
-    agreement,
-    paymentHubClaimId: formatClaimId(sequence),
-    ...payableRequest,
-  });
-
-  await insertPayable(payable, session);
-};
+) =>
+  createAgreementPaymentUseCase(
+    {
+      agreementNumber: agreement.agreementNumber,
+      version: agreement.version,
+      sbi: agreement.identifiers?.sbi,
+      frn: agreement.identifiers?.frn,
+      ...paymentRequest,
+    },
+    session,
+  );
 
 const concurrentUpdate = Symbol("concurrentUpdate");
 
@@ -111,16 +105,16 @@ const hasAgreementNumberIndex = (keyPattern) =>
   Boolean(keyPattern?.agreementNumber);
 
 // A raced acceptance normally loses the optimistic version check, but the
-// Payable's unique source index is the backstop that guarantees one Payable per
+// Payment's unique source index is the backstop that guarantees one Payment per
 // accepted Version even if it does not.
-const hasPayableSourceIndex = (keyPattern) =>
+const hasPaymentSourceIndex = (keyPattern) =>
   Boolean(keyPattern?.["source.agreementNumber"]);
 
 const isConcurrentActionConflict = (error) =>
   isMongoDuplicateKeyError(error) &&
   ((hasAgreementNumberIndex(error.keyPattern) &&
     hasActionConflictIndex(error.keyPattern)) ||
-    hasPayableSourceIndex(error.keyPattern));
+    hasPaymentSourceIndex(error.keyPattern));
 
 const commitActionTransaction = async (
   { actionName, current, idempotencyKey, next },
@@ -158,8 +152,8 @@ const commitActionTransaction = async (
   );
   await saveOutboxEvents(next.events, session);
 
-  if (next.payableRequest) {
-    await createPayableForVersion(next, session);
+  if (next.paymentRequest) {
+    await createPaymentForVersion(next, session);
   }
 
   return { location: toLocation(current.agreementNumber) };

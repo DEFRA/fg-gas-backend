@@ -1,6 +1,6 @@
 import { db } from "../../common/mongo-client.js";
 
-export const countersCollection = "agreements__counters";
+export const countersCollection = "payments__counters";
 
 export const ClaimIdCounter = "claimIds";
 

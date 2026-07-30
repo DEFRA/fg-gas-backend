@@ -2,6 +2,8 @@ import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { allocateNextSequence } from "../../payments/repositories/counter.repository.js";
+import { insertPayment } from "../../payments/repositories/payment.repository.js";
 import { Agreement } from "../models/agreement.js";
 import {
   findAgreementByNumber,
@@ -9,8 +11,6 @@ import {
   insertAgreementVersion,
   replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
-import { allocateNextSequence } from "../repositories/counter.repository.js";
-import { insertPayable } from "../repositories/payable.repository.js";
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
@@ -18,11 +18,14 @@ import { loadCurrentAgreementActionContext } from "./load-current-agreement-acti
 vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
-vi.mock("../repositories/counter.repository.js", async (importOriginal) => ({
-  ...(await importOriginal()),
-  allocateNextSequence: vi.fn(),
-}));
-vi.mock("../repositories/payable.repository.js");
+vi.mock(
+  "../../payments/repositories/counter.repository.js",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    allocateNextSequence: vi.fn(),
+  }),
+);
+vi.mock("../../payments/repositories/payment.repository.js");
 vi.mock("../services/effects/agreement-effect-runner.js");
 vi.mock("./load-current-agreement-action-context.js");
 
@@ -86,7 +89,7 @@ const action = {
 const agreementDefinition = { getEndpoints: vi.fn().mockReturnValue([]) };
 const session = {};
 
-describe("executeAgreementActionUseCase with a createPayable effect", () => {
+describe("executeAgreementActionUseCase with a createPayment effect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findAgreementByNumber.mockResolvedValue(agreement);
@@ -104,7 +107,7 @@ describe("executeAgreementActionUseCase with a createPayable effect", () => {
         paymentCalculation,
       },
       outboxMessageTypes: ["lifecycle"],
-      payableRequest: { paymentCalculation, mapping },
+      paymentRequest: { paymentCalculation, mapping },
     }));
     replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 1 });
     withTransaction.mockImplementation((callback) => callback(session));
@@ -112,12 +115,12 @@ describe("executeAgreementActionUseCase with a createPayable effect", () => {
     action.validate.mockReturnValue({ valid: true });
   });
 
-  it("commits the Payable with the Agreement, Version and lifecycle event", async () => {
+  it("commits the Payment with the Agreement, Version and lifecycle event", async () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
       location: "/agreements/PMF823153883",
     });
 
-    expect(insertPayable).toHaveBeenCalledWith(
+    expect(insertPayment).toHaveBeenCalledWith(
       expect.objectContaining({
         source: {
           type: "agreement",
@@ -153,14 +156,14 @@ describe("executeAgreementActionUseCase with a createPayable effect", () => {
     expect(events[0].event.type).toMatch(/agreement\.status\.updated$/);
   });
 
-  it("stores everything a Payment Service message needs on the Payable", async () => {
+  it("stores everything a Payment Service message needs on the Payment", async () => {
     await executeAgreementActionUseCase(options);
 
-    const [payable] = insertPayable.mock.calls[0];
+    const [payment] = insertPayment.mock.calls[0];
 
-    // A follow-up story builds the message from the Payable alone, so none of
+    // A follow-up story builds the message from the Payment alone, so none of
     // these may require loading the Agreement or its definition.
-    expect(payable).toMatchObject({
+    expect(payment).toMatchObject({
       sbi: "106284736",
       frn: "1101234567",
       paymentHubClaimId: "R00000001",
@@ -177,14 +180,14 @@ describe("executeAgreementActionUseCase with a createPayable effect", () => {
       marketingYear: expect.any(String),
       correlationId: expect.any(String),
     });
-    expect(payable.source.agreementNumber).toBe(options.agreementNumber);
-    expect(payable.payments[0]).toMatchObject({
+    expect(payment.source.agreementNumber).toBe(options.agreementNumber);
+    expect(payment.instalments[0]).toMatchObject({
       dueDate: "2026-11-06",
       totalAmountPence: 3800,
       status: "pending",
       correlationId: expect.any(String),
     });
-    expect(payable.payments[0].invoiceLines[0]).toMatchObject({
+    expect(payment.instalments[0].invoiceLines[0]).toMatchObject({
       schemeCode: "CMOR1",
       description: "Large White Pig",
       amountPence: 2000,
@@ -194,13 +197,13 @@ describe("executeAgreementActionUseCase with a createPayable effect", () => {
     });
   });
 
-  it("keeps pence numeric on the Payable", async () => {
+  it("keeps pence numeric on the Payment", async () => {
     await executeAgreementActionUseCase(options);
 
-    const [payable] = insertPayable.mock.calls[0];
+    const [payment] = insertPayment.mock.calls[0];
 
-    expect(payable.totalAmountPence).toBe(3800);
-    expect(payable.payments[0].invoiceLines[0].amountPence).toBe(2000);
+    expect(payment.totalAmountPence).toBe(3800);
+    expect(payment.instalments[0].invoiceLines[0].amountPence).toBe(2000);
   });
 
   it("stores the validated Payment Calculation on the Agreement and Version", async () => {
@@ -234,7 +237,7 @@ describe("executeAgreementActionUseCase with a createPayable effect", () => {
 
   it("does not write to Mongo before the transaction starts", async () => {
     withTransaction.mockImplementation((callback) => {
-      expect(insertPayable).not.toHaveBeenCalled();
+      expect(insertPayment).not.toHaveBeenCalled();
       expect(allocateNextSequence).not.toHaveBeenCalled();
       expect(insertAgreementVersion).not.toHaveBeenCalled();
       return callback(session);
@@ -242,40 +245,40 @@ describe("executeAgreementActionUseCase with a createPayable effect", () => {
 
     await executeAgreementActionUseCase(options);
 
-    expect(insertPayable).toHaveBeenCalled();
+    expect(insertPayment).toHaveBeenCalled();
   });
 
   it("leaves the Agreement offered when the mapping is invalid", async () => {
     runAgreementEffects.mockImplementation(async (_effects, context) => ({
       ...context,
       outboxMessageTypes: ["lifecycle"],
-      payableRequest: { paymentCalculation, mapping: undefined },
+      paymentRequest: { paymentCalculation, mapping: undefined },
     }));
     withTransaction.mockImplementation(async (callback) => callback(session));
 
     await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
-      "createPayable requires a mapping from the Agreement Definition",
+      "createPayment requires a mapping from the Agreement Definition",
     );
-    expect(insertPayable).not.toHaveBeenCalled();
+    expect(insertPayment).not.toHaveBeenCalled();
   });
 
   it("leaves the Agreement offered when the calculation does not balance", async () => {
     runAgreementEffects.mockImplementation(async (_effects, context) => ({
       ...context,
       outboxMessageTypes: ["lifecycle"],
-      payableRequest: {
+      paymentRequest: {
         paymentCalculation: { ...paymentCalculation, agreementTotalPence: 1 },
         mapping,
       },
     }));
 
     await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
-      "Invalid Payable",
+      "Invalid Payment",
     );
-    expect(insertPayable).not.toHaveBeenCalled();
+    expect(insertPayment).not.toHaveBeenCalled();
   });
 
-  it("resolves a duplicate Payable for the same Agreement Version idempotently", async () => {
+  it("resolves a duplicate Payment for the same Agreement Version idempotently", async () => {
     findVersionByIdempotencyKey
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ actionExecution: { name: "accept" } });
@@ -292,7 +295,7 @@ describe("executeAgreementActionUseCase with a createPayable effect", () => {
     });
   });
 
-  it("does not create a Payable when a completed action is replayed", async () => {
+  it("does not create a Payment when a completed action is replayed", async () => {
     findVersionByIdempotencyKey.mockResolvedValue({
       actionExecution: { name: "accept" },
     });
@@ -301,11 +304,11 @@ describe("executeAgreementActionUseCase with a createPayable effect", () => {
       location: "/agreements/PMF823153883",
     });
     expect(runAgreementEffects).not.toHaveBeenCalled();
-    expect(insertPayable).not.toHaveBeenCalled();
+    expect(insertPayment).not.toHaveBeenCalled();
     expect(allocateNextSequence).not.toHaveBeenCalled();
   });
 
-  it("does not create a Payable for an action without the effect", async () => {
+  it("does not create a Payment for an action without the effect", async () => {
     runAgreementEffects.mockImplementation(async (_effects, context) => ({
       ...context,
       outboxMessageTypes: ["lifecycle"],
@@ -313,7 +316,7 @@ describe("executeAgreementActionUseCase with a createPayable effect", () => {
 
     await executeAgreementActionUseCase(options);
 
-    expect(insertPayable).not.toHaveBeenCalled();
+    expect(insertPayment).not.toHaveBeenCalled();
     expect(allocateNextSequence).not.toHaveBeenCalled();
   });
 });

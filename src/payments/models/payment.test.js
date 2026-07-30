@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Payable } from "./payable.js";
+import { Payment } from "./payment.js";
 
 const props = {
   source: {
@@ -21,7 +21,7 @@ const props = {
   totalAmountPence: 3800,
   currency: "GBP",
   marketingYear: "2026",
-  payments: [
+  instalments: [
     {
       dueDate: "2026-11-06",
       totalAmountPence: 3800,
@@ -51,48 +51,48 @@ const props = {
   ],
 };
 
-describe("Payable", () => {
+describe("Payment", () => {
   it("generates an id, correlation ID and timestamp when created", () => {
-    const payable = Payable.create(props);
+    const payment = Payment.create(props);
 
-    expect(payable.id).toEqual(expect.any(String));
-    expect(payable.correlationId).toEqual(expect.any(String));
-    expect(payable.createdAt).toEqual(expect.any(String));
+    expect(payment.id).toEqual(expect.any(String));
+    expect(payment.correlationId).toEqual(expect.any(String));
+    expect(payment.createdAt).toEqual(expect.any(String));
   });
 
   it("is immutable once created", () => {
-    const payable = Payable.create(props);
+    const payment = Payment.create(props);
 
     expect(() => {
-      payable.totalAmountPence = 1;
+      payment.totalAmountPence = 1;
     }).toThrow(TypeError);
     expect(() => {
-      payable.payments[0].invoiceLines[0].amountPence = 1;
+      payment.instalments[0].invoiceLines[0].amountPence = 1;
     }).toThrow(TypeError);
-    expect(payable.totalAmountPence).toBe(3800);
+    expect(payment.totalAmountPence).toBe(3800);
   });
 
   it("rejects non integer pence", () => {
-    expect(() => Payable.create({ ...props, totalAmountPence: 38.5 })).toThrow(
-      "Invalid Payable",
+    expect(() => Payment.create({ ...props, totalAmountPence: 38.5 })).toThrow(
+      "Invalid Payment",
     );
   });
 
-  it("rejects a payable with no claim ID", () => {
+  it("rejects a Payment with no claim ID", () => {
     expect(() =>
-      Payable.create({ ...props, paymentHubClaimId: undefined }),
-    ).toThrow("Invalid Payable");
+      Payment.create({ ...props, paymentHubClaimId: undefined }),
+    ).toThrow("Invalid Payment");
   });
 
-  it("rejects a payable with no payments", () => {
-    expect(() => Payable.create({ ...props, payments: [] })).toThrow(
-      "Invalid Payable",
+  it("rejects a Payment with no instalments", () => {
+    expect(() => Payment.create({ ...props, instalments: [] })).toThrow(
+      "Invalid Payment",
     );
   });
 
   it("strips unknown properties", () => {
-    const payable = Payable.create({ ...props, notAField: "dropped" });
+    const payment = Payment.create({ ...props, notAField: "dropped" });
 
-    expect(payable.notAField).toBeUndefined();
+    expect(payment.notAField).toBeUndefined();
   });
 });

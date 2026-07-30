@@ -121,7 +121,7 @@ export const pmfAgreementDefinition = {
               },
             },
             {
-              name: "createPayable",
+              name: "createPayment",
               params: {
                 paymentCalculation: "$.outputs.paymentCalculation.payment",
                 mapping: {

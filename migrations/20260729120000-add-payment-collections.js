@@ -1,16 +1,16 @@
-const payablesCollection = "agreements__payables";
-const countersCollection = "agreements__counters";
+const paymentsCollection = "payments__payments";
+const countersCollection = "payments__counters";
 
 export const up = async (db) => {
-  const payables = db.collection(payablesCollection);
+  const payments = db.collection(paymentsCollection);
 
-  // One Payable per accepted Agreement Version — this index is what makes a
+  // One Payment per accepted Agreement Version — this index is what makes a
   // replayed or raced acceptance fail rather than pay twice.
-  await payables.createIndex(
+  await payments.createIndex(
     { "source.agreementNumber": 1, "source.version": 1 },
     { unique: true },
   );
-  await payables.createIndex({ paymentHubClaimId: 1 }, { unique: true });
+  await payments.createIndex({ paymentHubClaimId: 1 }, { unique: true });
 
   // Seed the claim ID counter rather than leaving the in-transaction $inc to
   // upsert it. Two concurrent transactions that both try to insert the same

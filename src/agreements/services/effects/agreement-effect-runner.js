@@ -65,10 +65,10 @@ const callEndpointEffectHandler = async (context, { params = {} }) => {
   return { output };
 };
 
-// Stages the Payable rather than writing it. The claim ID is allocated from a
+// Stages the Payment rather than writing it. The claim ID is allocated from a
 // counter and the document inserted inside the action transaction, so this
 // effect must not reach Mongo — it runs before that transaction starts.
-const createPayableEffectHandler = async (context, { params = {} }) => {
+const createPaymentEffectHandler = async (context, { params = {} }) => {
   const { paymentCalculation, mapping } = await resolveEffectParams(
     params,
     context,
@@ -76,7 +76,7 @@ const createPayableEffectHandler = async (context, { params = {} }) => {
 
   return {
     context: {
-      payableRequest: { paymentCalculation, mapping },
+      paymentRequest: { paymentCalculation, mapping },
     },
   };
 };
@@ -96,7 +96,7 @@ const publishEffectHandler = async (context, { params = {} }) => {
 export const handlers = {
   snapshot: snapshotEffectHandler,
   callEndpoint: callEndpointEffectHandler,
-  createPayable: createPayableEffectHandler,
+  createPayment: createPaymentEffectHandler,
   publish: publishEffectHandler,
 };
 

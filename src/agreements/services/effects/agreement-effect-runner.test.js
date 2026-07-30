@@ -122,7 +122,7 @@ describe("handlers", () => {
     });
   });
 
-  describe("createPayable", () => {
+  describe("createPayment", () => {
     const mapping = {
       scheme: "SFI",
       sourceSystem: "FPTT",
@@ -142,7 +142,7 @@ describe("handlers", () => {
     };
 
     it("stages the resolved calculation and mapping on the context", async () => {
-      const result = await handlers.createPayable(
+      const result = await handlers.createPayment(
         {
           agreement: { agreementNumber: "PMF123" },
           outputs: { paymentCalculation: { payment } },
@@ -156,12 +156,12 @@ describe("handlers", () => {
       );
 
       expect(result).toEqual({
-        context: { payableRequest: { paymentCalculation: payment, mapping } },
+        context: { paymentRequest: { paymentCalculation: payment, mapping } },
       });
     });
 
     it("produces no output so nothing is written before the transaction", async () => {
-      const result = await handlers.createPayable(
+      const result = await handlers.createPayment(
         {
           agreement: { agreementNumber: "PMF123" },
           outputs: { paymentCalculation: { payment } },

@@ -49,7 +49,7 @@ describe("single Agreement actions", () => {
   let agreements;
   let versions;
   let outbox;
-  let payables;
+  let payments;
 
   beforeAll(async () => {
     client = await MongoClient.connect(env.MONGO_URI);
@@ -57,7 +57,7 @@ describe("single Agreement actions", () => {
     agreements = database.collection("agreements__agreements");
     versions = database.collection("agreements__versions");
     outbox = database.collection("outbox");
-    payables = database.collection("agreements__payables");
+    payments = database.collection("payments__payments");
   });
 
   beforeEach(async () => {
@@ -65,7 +65,7 @@ describe("single Agreement actions", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
-      payables.deleteMany({ "source.agreementNumber": agreementNumber }),
+      payments.deleteMany({ "source.agreementNumber": agreementNumber }),
     ]);
     const current = agreement();
     await agreements.insertOne(current);
@@ -82,7 +82,7 @@ describe("single Agreement actions", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
-      payables.deleteMany({ "source.agreementNumber": agreementNumber }),
+      payments.deleteMany({ "source.agreementNumber": agreementNumber }),
     ]);
     await client.close();
   });
@@ -121,16 +121,16 @@ describe("single Agreement actions", () => {
     });
   });
 
-  it("commits one Payable with the accepted Version", async () => {
+  it("commits one Payment with the accepted Version", async () => {
     const { response } = await requestAction();
 
     expect(response.statusCode).toBe(303);
 
-    const payable = await payables.findOne({
+    const payment = await payments.findOne({
       "source.agreementNumber": agreementNumber,
     });
 
-    expect(payable).toMatchObject({
+    expect(payment).toMatchObject({
       source: { type: "agreement", agreementNumber, version: 2 },
       sbi: "300000070",
       frn: "1101234567",
@@ -145,13 +145,13 @@ describe("single Agreement actions", () => {
       originalInvoiceNumber: "",
       totalAmountPence: 32000,
     });
-    expect(payable.invoiceNumber).toBe(`${payable.paymentHubClaimId}-V001QX`);
-    expect(payable.payments[0]).toMatchObject({
+    expect(payment.invoiceNumber).toBe(`${payment.paymentHubClaimId}-V001QX`);
+    expect(payment.instalments[0]).toMatchObject({
       dueDate: "2026-11-06",
       totalAmountPence: 32000,
       status: "pending",
     });
-    expect(payable.payments[0].invoiceLines[0]).toMatchObject({
+    expect(payment.instalments[0].invoiceLines[0]).toMatchObject({
       schemeCode: "CMOR1",
       description: "Large White Pig",
       amountPence: 32000,
@@ -227,7 +227,7 @@ describe("single Agreement actions", () => {
     expect(replay.response.statusCode).toBe(303);
     expect(await versions.countDocuments({ agreementNumber })).toBe(2);
     expect(
-      await payables.countDocuments({
+      await payments.countDocuments({
         "source.agreementNumber": agreementNumber,
       }),
     ).toBe(1);
@@ -248,7 +248,7 @@ describe("single Agreement actions", () => {
     ).toEqual([303, 412]);
     expect(await versions.countDocuments({ agreementNumber })).toBe(2);
     expect(
-      await payables.countDocuments({
+      await payments.countDocuments({
         "source.agreementNumber": agreementNumber,
       }),
     ).toBe(1);
@@ -299,7 +299,7 @@ describe("single Agreement actions", () => {
         }),
       ).toBe(1);
       expect(
-        await payables.countDocuments({
+        await payments.countDocuments({
           "source.agreementNumber": agreementNumber,
         }),
       ).toBe(0);
