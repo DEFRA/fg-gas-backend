@@ -63,7 +63,7 @@ export const auditDataBuilder = (args) => {
       frn,
       crn,
     },
-    messageGroupId: `submission-${clientRef}`,
+    segregationRef: `submission-${clientRef}`,
   });
 };
 

@@ -279,9 +279,9 @@ describe("auditDataBuilder", () => {
     });
   });
 
-  it("sets messageGroupId to submission-{clientRef}", () => {
+  it("sets segregationRef to submission-{clientRef}", () => {
     const event = auditDataBuilder(args);
-    expect(event.messageGroupId).toBe(
+    expect(event.segregationRef).toBe(
       `submission-${submission.metadata.clientRef}`,
     );
   });
