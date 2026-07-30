@@ -10,8 +10,8 @@ export const buildAuditEvent = ({
   action,
   entityid,
   details = {},
-  messageGroupId,
   security,
+  segregationRef,
 }) => {
   const { sbi, frn, crn, ...rest } = details;
   return {
@@ -22,7 +22,10 @@ export const buildAuditEvent = ({
       frn,
       crn,
     },
-    messageGroupId: messageGroupId ?? entityid,
+    // Partitions outbox work only - never published. Falling back to entityid
+    // keeps events for one entity on a shared ref so they claim in batches
+    // and the fifo_locks collection stays bounded.
+    segregationRef: segregationRef ?? entityid,
     ...(security && { security }),
   };
 };
@@ -35,8 +38,8 @@ export const buildAuditEvent = ({
  * - entities
  * - accounts
  * - details
- * - messageGroupId
  * - security
+ * - segregationRef
  */
 
 export const withAudit = (f, dataBuilder) =>
@@ -64,7 +67,7 @@ export const withAudit = (f, dataBuilder) =>
               "withAudit: dataBuilder returned no audit data - skipping audit event.",
             );
           } else {
-            const { entities, accounts, details, messageGroupId, security } =
+            const { entities, accounts, details, security, segregationRef } =
               auditData;
 
             await writeAuditEvent(
@@ -72,9 +75,9 @@ export const withAudit = (f, dataBuilder) =>
                 entities,
                 accounts,
                 details,
-                messageGroupId,
                 status,
                 security,
+                segregationRef,
               },
               session,
             );

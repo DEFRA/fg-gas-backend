@@ -84,7 +84,7 @@ export const buildPayload = (
 });
 
 export const writeAuditEvent = async (
-  { entities, accounts, details, messageGroupId, status, security },
+  { entities, accounts, details, status, security, segregationRef },
   session,
 ) => {
   logger.info("Begin write audit event.");
@@ -100,12 +100,14 @@ export const writeAuditEvent = async (
   if (valid === false) {
     logger.warn(errors, "Audit event failed validation - skipping write.");
   } else {
-    const msgGroupId = messageGroupId ?? randomUUID();
-
+    // The audit topic is not FIFO, so segregationRef carries no ordering
+    // meaning here - it only partitions outbox work. Callers group related
+    // events under a shared ref so they claim in batches and the fifo_locks
+    // collection stays bounded; the uuid is a last resort for ungrouped ones.
     const outboxEntry = new Outbox({
-      event: { ...payload, messageGroupId: msgGroupId },
+      event: payload,
       target: config.sns.auditTopicArn,
-      segregationRef: msgGroupId,
+      segregationRef: segregationRef ?? randomUUID(),
     });
 
     await insertMany([outboxEntry], session);

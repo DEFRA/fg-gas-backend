@@ -108,7 +108,7 @@ describe("requestAgreementTerminationUseCase", () => {
           code: "test-code",
           agreementNumber: "agreement-123",
         },
-        messageGroupId: "request-agreement-termination-agreement-123",
+        segregationRef: "request-agreement-termination-agreement-123",
         status: "SUCCESS",
       }),
       session,
@@ -167,10 +167,10 @@ describe("auditDataBuilder", () => {
     });
   });
 
-  it("sets messageGroupId to request-agreement-termination-{agreementNumber}", () => {
+  it("sets segregationRef to request-agreement-termination-{agreementNumber}", () => {
     const event = auditDataBuilder(args, { agreementNumber: "agreement-123" });
 
-    expect(event.messageGroupId).toBe(
+    expect(event.segregationRef).toBe(
       "request-agreement-termination-agreement-123",
     );
   });

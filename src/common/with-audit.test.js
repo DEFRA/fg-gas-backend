@@ -34,14 +34,24 @@ describe("buildAuditEvent", () => {
     expect(result).not.toHaveProperty("security");
   });
 
-  it("falls back to entityid for messageGroupId when messageGroupId is not provided", () => {
-    const result = buildAuditEvent({ ...baseArgs });
-    expect(result.messageGroupId).toBe("app-123");
+  it("uses the provided segregationRef", () => {
+    const result = buildAuditEvent({
+      ...baseArgs,
+      segregationRef: "submission-client-1",
+    });
+    expect(result.segregationRef).toBe("submission-client-1");
   });
 
-  it("uses messageGroupId when provided", () => {
+  it("falls back to entityid when no segregationRef is provided", () => {
+    const result = buildAuditEvent({ ...baseArgs });
+    expect(result.segregationRef).toBe("app-123");
+  });
+
+  // segregationRef partitions outbox work only. messageGroupId is an SNS FIFO
+  // transport parameter and must never reach the published message body.
+  it("never sets a messageGroupId, even when one is passed", () => {
     const result = buildAuditEvent({ ...baseArgs, messageGroupId: "msg-456" });
-    expect(result.messageGroupId).toBe("msg-456");
+    expect(result).not.toHaveProperty("messageGroupId");
   });
 
   it("defaults details to an empty object when not provided", () => {
@@ -107,12 +117,13 @@ describe("withAudit", () => {
       });
     });
 
-    it("writes the audit event with entities, details, messageGroupId and security from dataBuilder", async () => {
+    it("writes the audit event with entities, details and security from dataBuilder", async () => {
       const fn = vi.fn().mockResolvedValue({ id: "123" });
       const dataBuilder = vi.fn().mockReturnValue({
-        entities: [{ type: "APPLICATION", id: "app-1" }],
+        entities: [
+          { entity: "APPLICATION", action: "SUBMIT", entityid: "app-1" },
+        ],
         details: { code: "woodlands" },
-        messageGroupId: "msg-1",
         security: { userId: "user-1" },
       });
 
@@ -120,11 +131,28 @@ describe("withAudit", () => {
 
       expect(writeAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          entities: [{ type: "APPLICATION", id: "app-1" }],
+          entities: [
+            { entity: "APPLICATION", action: "SUBMIT", entityid: "app-1" },
+          ],
           details: { code: "woodlands" },
-          messageGroupId: "msg-1",
           security: { userId: "user-1" },
         }),
+        "my-session",
+      );
+    });
+
+    it("forwards the dataBuilder segregationRef to writeAuditEvent", async () => {
+      const fn = vi.fn().mockResolvedValue({ id: "123" });
+      const dataBuilder = vi.fn().mockReturnValue({
+        entities: [],
+        details: {},
+        segregationRef: "submission-client-1",
+      });
+
+      await withAudit(fn, dataBuilder)("arg0", "my-session");
+
+      expect(writeAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ segregationRef: "submission-client-1" }),
         "my-session",
       );
     });

@@ -63,7 +63,7 @@ describe("create agreement use case", () => {
           clientRef: "client-ref",
           code: "code",
         },
-        messageGroupId: "create-agreement-client-ref",
+        segregationRef: "create-agreement-client-ref",
         status: "SUCCESS",
       }),
       session,
@@ -93,9 +93,9 @@ describe("auditDataBuilder", () => {
     });
   });
 
-  it("sets messageGroupId to create-agreement-{clientRef}", () => {
+  it("sets segregationRef to create-agreement-{clientRef}", () => {
     const event = auditDataBuilder(args);
 
-    expect(event.messageGroupId).toBe("create-agreement-client-ref");
+    expect(event.segregationRef).toBe("create-agreement-client-ref");
   });
 });

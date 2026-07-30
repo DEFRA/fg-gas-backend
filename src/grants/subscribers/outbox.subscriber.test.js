@@ -180,7 +180,8 @@ describe("outbox.subscriber", () => {
   it("should handle messageIds for legacy event types (agreements)", async () => {
     publish.mockResolvedValue(1);
     const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
+      target:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo",
       event: {
         clientRef: "client-ref",
         grantCode: "grant-code",
@@ -196,7 +197,8 @@ describe("outbox.subscriber", () => {
   it("should handle messageIds for legacy event types (case working)", async () => {
     publish.mockResolvedValue(1);
     const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
+      target:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo",
       event: {
         caseRef: "case-ref",
         workflowCode: "workflow-code",
@@ -207,6 +209,27 @@ describe("outbox.subscriber", () => {
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
     expect(publish.mock.calls[0][2]).toBe("case-ref-workflow-code");
+  });
+
+  it("should not derive a message group id for standard topics", async () => {
+    publish.mockResolvedValue(1);
+
+    // An audit payload: no messageGroupId, and nothing to derive one from.
+    const mockEvent = {
+      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn",
+      event: { application: "Grants Platform", audit: {} },
+      markAsComplete: vi.fn(),
+    };
+
+    const outbox = new OutboxSubscriber();
+    await outbox.sendEvent(mockEvent);
+
+    expect(publish).toHaveBeenCalledWith(
+      mockEvent.target,
+      mockEvent.event,
+      undefined,
+    );
+    expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
   it("should not change standard queue types", async () => {

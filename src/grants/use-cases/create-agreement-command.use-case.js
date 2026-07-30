@@ -17,7 +17,7 @@ export const auditDataBuilder = (args) => {
       clientRef,
       code,
     },
-    messageGroupId: `create-agreement-${clientRef}`,
+    segregationRef: `create-agreement-${clientRef}`,
   });
 };
 

@@ -203,7 +203,7 @@ describe("replaceApplicationUseCase", () => {
           frn: testApplication.metadata.frn,
           crn: testApplication.metadata.crn,
         },
-        messageGroupId: "submission-new-client-ref",
+        segregationRef: "submission-new-client-ref",
       }),
       mockSession,
     );
@@ -232,9 +232,9 @@ describe("auditDataBuilder", () => {
     });
   });
 
-  it("sets messageGroupId to submission-{clientRef}", () => {
+  it("sets segregationRef to submission-{clientRef}", () => {
     const event = auditDataBuilder(args, applicationId);
-    expect(event.messageGroupId).toBe(
+    expect(event.segregationRef).toBe(
       `submission-${testApplication.metadata.clientRef}`,
     );
   });

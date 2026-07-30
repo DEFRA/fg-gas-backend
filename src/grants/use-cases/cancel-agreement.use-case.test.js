@@ -94,7 +94,7 @@ describe("cancel agreement use case", () => {
           code: "test-code",
           eventData: command.eventData,
         },
-        messageGroupId: "cancel-agreement-agreement-123",
+        segregationRef: "cancel-agreement-agreement-123",
         status: "SUCCESS",
       }),
       session,
@@ -132,9 +132,9 @@ describe("auditDataBuilder", () => {
     });
   });
 
-  it("sets messageGroupId to cancel-agreement-{agreementNumber}", () => {
+  it("sets segregationRef to cancel-agreement-{agreementNumber}", () => {
     const event = auditDataBuilder(args);
 
-    expect(event.messageGroupId).toBe("cancel-agreement-agreement-123");
+    expect(event.segregationRef).toBe("cancel-agreement-agreement-123");
   });
 });
