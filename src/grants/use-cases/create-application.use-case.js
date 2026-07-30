@@ -7,7 +7,7 @@ import { Outbox } from "../models/outbox.js";
 import { save } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import { validateAnswersAgainstSchema } from "../services/schema-validation.service.js";
-import { findGrantByCodeUseCase } from "./find-grant-by-code.use-case.js";
+import { resolveGrantForSubmission } from "./resolve-current-grant.use-case.js";
 
 export const createApplicationUseCase = async (
   code,
@@ -16,17 +16,30 @@ export const createApplicationUseCase = async (
 ) => {
   logger.info(`Create application with clientRef ${metadata.clientRef}`);
 
-  const grant = await findGrantByCodeUseCase(code);
+  const {
+    configVersion,
+    clientRef,
+    submittedAt,
+    sbi,
+    frn,
+    crn,
+    ...extraMetadata
+  } = metadata;
+
+  const { grant, resolvedVersion } = await resolveGrantForSubmission({
+    code,
+    clientRef,
+    requestedVersion: configVersion,
+  });
 
   const { phase, stage, status } = grant.getInitialState();
-
-  const { clientRef, submittedAt, sbi, frn, crn, ...extraMetadata } = metadata;
 
   const application = Application.new({
     currentPhase: phase.code,
     currentStage: stage.code,
     currentStatus: status.code,
     code,
+    configVersion: resolvedVersion, // Application.new maps this to originalConfigVersion + currentConfigVersion
     clientRef,
     submittedAt,
     identifiers: {
@@ -56,6 +69,7 @@ export const createApplicationUseCase = async (
   const applicationCreatedEvent = new ApplicationCreatedEvent({
     clientRef: application.clientRef,
     code: application.code,
+    originalConfigVersion: application.originalConfigVersion,
     status: application.getFullyQualifiedStatus(),
   });
 

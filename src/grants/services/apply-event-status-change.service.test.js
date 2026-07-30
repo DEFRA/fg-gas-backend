@@ -7,7 +7,6 @@ import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
-import { findByCode } from "../repositories/grant.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import { acceptAgreementUseCase } from "../use-cases/accept-agreement.use-case.js";
 import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
@@ -15,6 +14,7 @@ import { cancelAgreementUseCase } from "../use-cases/cancel-agreement.use-case.j
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
 import { requestAgreementCancellationUseCase } from "../use-cases/request-agreement-cancellation.use-case.js";
+import { resolveGrantForApplication } from "../use-cases/resolve-current-grant.use-case.js";
 import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "../use-cases/withdraw-application.use-case.js";
 import {
@@ -31,8 +31,18 @@ vi.mock("../use-cases/request-agreement-cancellation.use-case.js");
 vi.mock("../use-cases/withdraw-application.use-case.js");
 vi.mock("../use-cases/withdraw-agreement.use-case.js");
 vi.mock("../repositories/application.repository.js");
-vi.mock("../repositories/grant.repository.js");
 vi.mock("../repositories/outbox.repository.js");
+vi.mock(
+  "../use-cases/resolve-current-grant.use-case.js",
+  async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+      ...actual,
+      resolveGrantForApplication: vi.fn(),
+      persistResolvedVersion: vi.fn(),
+    };
+  },
+);
 vi.mock("../../common/with-transaction.js", () => ({
   withTransaction: vi.fn((fn) => fn({})),
 }));
@@ -209,7 +219,9 @@ describe("applyExternalStateChange", () => {
   describe("when grant is not found", () => {
     it("should throw Boom.notFound error", async () => {
       findByClientRefAndCode.mockResolvedValue(mockApplication);
-      findByCode.mockResolvedValue(null);
+      resolveGrantForApplication.mockRejectedValue(
+        Boom.notFound('Grant with code "test-grant" not found'),
+      );
 
       await expect(
         applyExternalStateChange({
@@ -226,7 +238,7 @@ describe("applyExternalStateChange", () => {
         clientRef: "APP-123",
         code: "foo",
       });
-      expect(findByCode).toHaveBeenCalledWith("test-grant");
+      expect(resolveGrantForApplication).toHaveBeenCalledWith(mockApplication);
       expect(update).not.toHaveBeenCalled();
     });
   });
@@ -238,7 +250,10 @@ describe("applyExternalStateChange", () => {
         currentStatus: "RECEIVED",
       });
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(mockGrant);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: mockGrant,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -267,7 +282,10 @@ describe("applyExternalStateChange", () => {
       });
       createAgreementCommandUseCase.mockResolvedValue(true);
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(mockGrant);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: mockGrant,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -302,7 +320,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantNoValidFrom);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantNoValidFrom,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -319,7 +340,10 @@ describe("applyExternalStateChange", () => {
     it("should not update application", async () => {
       const spy = vi.spyOn(logger, "info");
       findByClientRefAndCode.mockResolvedValue(mockApplication);
-      findByCode.mockResolvedValue(mockGrant);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: mockGrant,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -343,7 +367,10 @@ describe("applyExternalStateChange", () => {
         currentStatus: "RECEIVED",
       });
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(mockGrant);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: mockGrant,
+        resolvedVersion: null,
+      });
 
       // Try to go directly from RECEIVED to APPROVED (should only be from IN_PROGRESS)
       await expect(() =>
@@ -367,7 +394,10 @@ describe("applyExternalStateChange", () => {
     it("should not find mapping and not update application", async () => {
       const spy = vi.spyOn(logger, "info");
       findByClientRefAndCode.mockResolvedValue(mockApplication);
-      findByCode.mockResolvedValue(mockGrant);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: mockGrant,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -414,7 +444,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithEmptyValidFrom);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithEmptyValidFrom,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -456,7 +489,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithNoValidFrom);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithNoValidFrom,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -536,7 +572,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithFullyQualifiedMapping);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithFullyQualifiedMapping,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -588,7 +627,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithSimpleMapping);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithSimpleMapping,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -643,7 +685,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithMultipleProcesses);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithMultipleProcesses,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -690,7 +735,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithNoProcesses);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithNoProcesses,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -733,7 +781,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithStatusNoValidFrom);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithStatusNoValidFrom,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -812,7 +863,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithFQValidFrom);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithFQValidFrom,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -862,7 +916,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithSimpleValidFrom);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithSimpleValidFrom,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -896,7 +953,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithNoMapping);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithNoMapping,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -927,7 +987,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithNoPhases);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithNoPhases,
+        resolvedVersion: null,
+      });
 
       await applyExternalStateChange({
         clientRef: "APP-123",
@@ -994,7 +1057,10 @@ describe("applyExternalStateChange", () => {
       });
 
       findByClientRefAndCode.mockResolvedValue(application);
-      findByCode.mockResolvedValue(grantWithMissingTargetStatus);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithMissingTargetStatus,
+        resolvedVersion: null,
+      });
 
       await expect(() =>
         applyExternalStateChange({
