@@ -27,6 +27,10 @@ const agreement = () => ({
   },
 });
 
+const paymentEventQuery = {
+  "event.data.grants.agreementNumber": agreementNumber,
+};
+
 const requestAction = async ({
   values = { confirm: "confirmed" },
   ifMatch = `"${agreementNumber}:1"`,
@@ -65,6 +69,7 @@ describe("single Agreement actions", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
+      outbox.deleteMany(paymentEventQuery),
       payments.deleteMany({ "source.agreementNumber": agreementNumber }),
     ]);
     const current = agreement();
@@ -82,6 +87,7 @@ describe("single Agreement actions", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
+      outbox.deleteMany(paymentEventQuery),
       payments.deleteMany({ "source.agreementNumber": agreementNumber }),
     ]);
     await client.close();
@@ -166,6 +172,79 @@ describe("single Agreement actions", () => {
     });
   });
 
+  it("records the payment event in the outbox with the acceptance", async () => {
+    await requestAction();
+
+    await expect(outbox).toHaveRecord(paymentEventQuery);
+
+    const record = await outbox.findOne(paymentEventQuery);
+    const payment = await payments.findOne({
+      "source.agreementNumber": agreementNumber,
+    });
+
+    expect(record.target).toBe(env.GAS__SNS__CREATE_PAYMENT_TOPIC_ARN);
+    expect(record.segregationRef).toBe(agreementNumber);
+    expect(record.event).toMatchObject({
+      type: "io.onsite.agreement.create-payment",
+      source: "urn:service:agreement",
+      messageGroupId: agreementNumber,
+    });
+    expect(record.event.data.claimId).toBe(payment.paymentHubClaimId);
+  });
+
+  it("publishes the payment event to the Payment Service", async () => {
+    await requestAction();
+
+    const payment = await payments.findOne({
+      "source.agreementNumber": agreementNumber,
+    });
+
+    await expect(env.CREATE_PAYMENT_QUEUE_URL).toHaveReceived({
+      id: expect.any(String),
+      time: expect.any(String),
+      source: "urn:service:agreement",
+      specversion: "1.0",
+      type: "io.onsite.agreement.create-payment",
+      datacontenttype: "application/json",
+      messageGroupId: agreementNumber,
+      data: {
+        sbi: "300000070",
+        frn: "1101234567",
+        claimId: payment.paymentHubClaimId,
+        scheme: "SFI",
+        grants: [
+          {
+            sourceSystem: "FPTT",
+            deliveryBody: "RP00",
+            paymentRequestNumber: 1,
+            correlationId: payment.correlationId,
+            invoiceNumber: payment.invoiceNumber,
+            originalInvoiceNumber: "",
+            agreementNumber,
+            totalAmountPence: "32000",
+            currency: "GBP",
+            marketingYear: payment.marketingYear,
+            payments: [
+              {
+                dueDate: "2026-11-06",
+                totalAmountPence: "32000",
+                status: "pending",
+                correlationId: payment.payments[0].correlationId,
+                invoiceLines: [
+                  {
+                    amountPence: "32000",
+                    description: "Large White Pig",
+                    schemeCode: "CMOR1",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
   it("stores the payment calculation on the Agreement and Version", async () => {
     await requestAction();
 
@@ -236,6 +315,7 @@ describe("single Agreement actions", () => {
         "source.agreementNumber": agreementNumber,
       }),
     ).toBe(1);
+    expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
   });
 
   it("allows only one concurrent acceptance to commit", async () => {
@@ -262,6 +342,7 @@ describe("single Agreement actions", () => {
         "event.data.agreementNumber": agreementNumber,
       }),
     ).toBe(1);
+    expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
   });
 
   it("rolls back acceptance when its publication cannot be recorded", async () => {
@@ -308,6 +389,7 @@ describe("single Agreement actions", () => {
           "source.agreementNumber": agreementNumber,
         }),
       ).toBe(0);
+      expect(await outbox.countDocuments(paymentEventQuery)).toBe(0);
     } finally {
       await outbox.deleteOne({ _id: blockingEventId });
       await outbox.dropIndex(indexName);

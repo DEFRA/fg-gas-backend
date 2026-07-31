@@ -52,7 +52,7 @@ describe("createAgreementPaymentUseCase", () => {
   });
 
   it("allocates the claim ID and inserts the Payment on the caller's session", async () => {
-    const payment = await createAgreementPaymentUseCase(request, session);
+    const { payment } = await createAgreementPaymentUseCase(request, session);
 
     expect(allocateNextSequence).toHaveBeenCalledWith("claimIds", session);
     expect(insertPayment).toHaveBeenCalledWith(payment, session);
@@ -65,6 +65,33 @@ describe("createAgreementPaymentUseCase", () => {
       paymentHubClaimId: "R00000007",
       invoiceNumber: "R00000007-V001QX",
       totalAmountPence: 2000,
+    });
+  });
+
+  it("returns the Payment Service publication for the caller to commit", async () => {
+    const { payment, publication } = await createAgreementPaymentUseCase(
+      request,
+      session,
+    );
+
+    expect(publication).toMatchObject({
+      target:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
+      segregationRef: "PMF123456789",
+      event: {
+        type: "io.onsite.agreement.create-payment",
+        source: "urn:service:agreement",
+        messageGroupId: "PMF123456789",
+        data: {
+          claimId: payment.paymentHubClaimId,
+          grants: [
+            {
+              agreementNumber: "PMF123456789",
+              totalAmountPence: "2000",
+            },
+          ],
+        },
+      },
     });
   });
 

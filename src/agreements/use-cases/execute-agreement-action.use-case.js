@@ -76,14 +76,20 @@ const runAction = async ({
   };
 };
 
-// Payments owns the claim ID and the Payment document; it is handed the action's
-// session so both commit with the Agreement, its Version and the lifecycle
-// event, and roll back together when anything before the commit fails.
-const createPaymentForVersion = async (
+// Payments owns the claim ID, the Payment document and the message that carries
+// it to the Payment Service; it is handed the action's session so all of them
+// commit with the Agreement, its Version and the lifecycle event, and roll back
+// together when anything before the commit fails. The Payment Service
+// publication comes back to be written to the outbox with the rest.
+const createPaymentPublications = async (
   { agreement, paymentRequest },
   session,
-) =>
-  createAgreementPaymentUseCase(
+) => {
+  if (!paymentRequest) {
+    return [];
+  }
+
+  const { publication } = await createAgreementPaymentUseCase(
     {
       agreementNumber: agreement.agreementNumber,
       version: agreement.version,
@@ -93,6 +99,9 @@ const createPaymentForVersion = async (
     },
     session,
   );
+
+  return [publication];
+};
 
 const concurrentUpdate = Symbol("concurrentUpdate");
 
@@ -150,11 +159,8 @@ const commitActionTransaction = async (
     }),
     session,
   );
-  await saveOutboxEvents(next.events, session);
-
-  if (next.paymentRequest) {
-    await createPaymentForVersion(next, session);
-  }
+  const paymentPublications = await createPaymentPublications(next, session);
+  await saveOutboxEvents([...next.events, ...paymentPublications], session);
 
   return { location: toLocation(current.agreementNumber) };
 };
