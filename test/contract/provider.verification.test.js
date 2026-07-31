@@ -31,6 +31,7 @@ vi.mock("../../src/common/mongo-client.js", () => {
               code: "frps-private-beta",
               clientRef: "710-877-8fd",
               currentPhase: "PRE_AWARD",
+              configVersion: "1.0.0",
               currentStage: "REVIEW_APPLICATION",
               currentStatus: "APPLICATION_RECEIVED",
               identifiers: {
@@ -54,6 +55,7 @@ vi.mock("../../src/common/mongo-client.js", () => {
               currentPhase: "PRE_AWARD",
               currentStage: "REVIEW_APPLICATION",
               currentStatus: "APPLICATION_AMEND",
+              configVersion: "1.0.0",
               identifiers: {
                 sbi: "107365747",
                 frn: "1101313269",
