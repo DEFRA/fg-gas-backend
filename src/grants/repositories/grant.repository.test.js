@@ -50,7 +50,6 @@ describe("save", () => {
           description: "test",
           startDate: "2021-01-01T00:00:00.000Z",
         },
-
         actions: [
           {
             method: "GET",
@@ -58,10 +57,6 @@ describe("save", () => {
             url: "http://localhost",
           },
         ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
       }),
     );
   });
@@ -96,7 +91,9 @@ describe("save", () => {
           },
         }),
       ),
-    ).rejects.toThrow(Boom.conflict('Grant with code "1" already exists'));
+    ).rejects.toThrow(
+      Boom.conflict('Grant with code "1" version "0.0.0" already exists'),
+    );
   });
 
   it("throws when an error occurs", async () => {
@@ -182,10 +179,6 @@ describe("replace", () => {
             url: "http://localhost",
           },
         ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
       }),
     );
   });
@@ -301,10 +294,6 @@ describe("findByCode", () => {
           url: "http://localhost",
         },
       ],
-      questions: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-      },
     });
 
     db.collection.mockReturnValue({
@@ -335,10 +324,6 @@ describe("findByCode", () => {
             url: "http://localhost",
           },
         ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
       }),
     );
   });
@@ -376,5 +361,14 @@ describe("findByCode", () => {
         actions: [],
       }),
     );
+  });
+
+  it("returns null when no match found for a given version", async () => {
+    db.collection.mockReturnValue({
+      findOne: vi.fn().mockResolvedValueOnce(null),
+    });
+
+    const result = await findByCode("woodland", "9.9.9");
+    expect(result).toBeNull();
   });
 });

@@ -8,20 +8,27 @@ import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application-series.repository.js";
-import { findByCode } from "../repositories/grant.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import {
   auditDataBuilder,
   replaceApplicationUseCase,
 } from "./replace-application.use-case.js";
+import { resolveGrantForApplication } from "./resolve-current-grant.use-case.js";
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../common/write-audit-event.js");
 vi.mock("./create-application.use-case.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../repositories/application-series.repository.js");
-vi.mock("../repositories/grant.repository.js");
+vi.mock("./resolve-current-grant.use-case.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    resolveGrantForApplication: vi.fn(),
+    persistResolvedVersion: vi.fn(),
+  };
+});
 
 const testApplication = {
   metadata: {
@@ -40,8 +47,11 @@ const testApplication = {
 
 describe("replaceApplicationUseCase", () => {
   beforeEach(() => {
-    findByCode.mockResolvedValue({
-      amendablePositions: ["PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND"],
+    resolveGrantForApplication.mockResolvedValue({
+      grant: {
+        amendablePositions: ["PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND"],
+      },
+      resolvedVersion: null,
     });
     writeAuditEvent.mockResolvedValue(undefined);
   });

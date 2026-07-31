@@ -56,6 +56,8 @@ export default defineConfig({
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_new_case_fifo.fifo",
       GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_agreement_status_fifo.fifo",
+      GAS__SQS__CONFIG_VERSION_QUEUE_URL: `${SQS_URL}/gas__sqs__config_version_updated`,
+      CONFIG_BROKER_S3_BUCKET: "config-broker-local",
       GAS__SNS__AUDIT_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn",
       OUTBOX_MAX_RETRIES: 2,
