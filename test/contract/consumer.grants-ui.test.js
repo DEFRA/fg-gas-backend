@@ -153,6 +153,7 @@ const frpsApplicationBody = {
     crn: "1102760349",
     frn: "2396577132",
     sbi: "121428499",
+    configVersion: "1.0.0",
     submittedAt: "2026-02-12T09:29:00.297Z",
   },
 };
@@ -226,6 +227,7 @@ const woodlandApplicationBody = {
     crn: "1102760349",
     frn: "2396577132",
     sbi: "121428499",
+    configVersion: "1.0.0",
     submittedAt: "2026-02-12T09:29:00.297Z",
   },
 };
@@ -391,6 +393,7 @@ describe("grants-ui Consumer (sends HTTP requests to fg-gas-backend)", () => {
           crn: "1102760349",
           frn: "2396577132",
           sbi: "121428499",
+          configVersion: "1.0.0",
           submittedAt: "2026-02-12T09:29:00.297Z",
         },
       };
