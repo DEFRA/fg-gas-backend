@@ -3,7 +3,10 @@ import { DefinitionSource } from "../../common/definition-source.js";
 import { logger } from "../../common/logger.js";
 import { parseSemver } from "../../common/semver.js";
 import { updateCurrentConfigVersion } from "../repositories/application.repository.js";
-import { findLatestForMajor } from "../repositories/config-version.repository.js";
+import {
+  findLatestActive,
+  findLatestForMajor,
+} from "../repositories/config-version.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 
@@ -75,6 +78,32 @@ const memoResolve = async (memo, key, produce) => {
   return result;
 };
 
+const LEGACY_SENTINEL_VERSION = "0.0.0";
+
+const legacyResolution = async (grantCode) => ({
+  grant: await findByCode(grantCode),
+  resolvedVersion: null,
+  definitionSource: DefinitionSource.MongoDB,
+});
+
+// Legacy sentinel: upgrade once to the highest active version across any
+// major. persistResolvedVersion moves currentConfigVersion off 0.0.0, so this
+// branch never runs again for that application.
+//
+// Why this exists: on a fresh environment the backfill migration
+// (20260716-fix-rolled-back-application-config-versions) runs before the SQS
+// subscriber has ingested config broker versions, so it finds only the seeded
+// 0.0.0 row and skips the update. By the time real versions arrive via SQS the
+// migration has already completed, leaving applications pinned to 0.0.0 with
+// no runtime path to roll forward (normal resolution scopes to the same major).
+const resolveFromSentinel = async (grantCode) => {
+  const latest = await findLatestActive(grantCode);
+  if (!latest) {
+    return legacyResolution(grantCode);
+  }
+  return resolveRolledForward(grantCode, latest.major);
+};
+
 // Resolves the grant definition an application should currently use: the latest
 // active version within the same major as the application's pinned configVersion.
 export const resolveCurrentGrantUseCase = async (
@@ -83,11 +112,13 @@ export const resolveCurrentGrantUseCase = async (
   memo,
 ) => {
   if (!pinnedVersion) {
-    return {
-      grant: await findByCode(grantCode),
-      resolvedVersion: null,
-      definitionSource: DefinitionSource.MongoDB,
-    };
+    return legacyResolution(grantCode);
+  }
+
+  if (pinnedVersion === LEGACY_SENTINEL_VERSION) {
+    return memoResolve(memo, cacheKey(grantCode, "sentinel"), () =>
+      resolveFromSentinel(grantCode),
+    );
   }
 
   const major = parseMajor(pinnedVersion);
