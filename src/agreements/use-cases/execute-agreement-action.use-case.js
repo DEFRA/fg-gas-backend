@@ -81,12 +81,12 @@ const runAction = async ({
 // commit with the Agreement, its Version and the lifecycle event, and roll back
 // together when anything before the commit fails. The Payment Service
 // publication comes back to be written to the outbox with the rest.
-const createPaymentPublications = async (
+const createAgreementPaymentPublication = async (
   { agreement, paymentRequest },
   session,
 ) => {
   if (!paymentRequest) {
-    return [];
+    return null;
   }
 
   const { publication } = await createAgreementPaymentUseCase(
@@ -100,7 +100,7 @@ const createPaymentPublications = async (
     session,
   );
 
-  return [publication];
+  return publication;
 };
 const concurrentUpdate = Symbol("concurrentUpdate");
 
@@ -158,8 +158,14 @@ const commitActionTransaction = async (
     }),
     session,
   );
-  const paymentPublications = await createPaymentPublications(next, session);
-  await saveOutboxEvents([...next.events, ...paymentPublications], session);
+  const paymentPublication = await createAgreementPaymentPublication(
+    next,
+    session,
+  );
+  const publications = paymentPublication
+    ? [...next.events, paymentPublication]
+    : next.events;
+  await saveOutboxEvents(publications, session);
 
   return { location: toLocation(current.agreementNumber) };
 };
