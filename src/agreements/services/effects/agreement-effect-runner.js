@@ -65,6 +65,22 @@ const callEndpointEffectHandler = async (context, { params = {} }) => {
   return { output };
 };
 
+// Stages the Payment rather than writing it. The claim ID is allocated from a
+// counter and the document inserted inside the action transaction, so this
+// effect must not reach Mongo — it runs before that transaction starts.
+const createPaymentEffectHandler = async (context, { params = {} }) => {
+  const { paymentCalculation, mapping } = await resolveEffectParams(
+    params,
+    context,
+  );
+
+  return {
+    context: {
+      paymentRequest: { paymentCalculation, mapping },
+    },
+  };
+};
+
 const publishEffectHandler = async (context, { params = {} }) => {
   if (params.event !== "lifecycle") {
     throw new Error(`Unsupported Agreement publication: "${params.event}"`);
@@ -80,6 +96,7 @@ const publishEffectHandler = async (context, { params = {} }) => {
 export const handlers = {
   snapshot: snapshotEffectHandler,
   callEndpoint: callEndpointEffectHandler,
+  createPayment: createPaymentEffectHandler,
   publish: publishEffectHandler,
 };
 

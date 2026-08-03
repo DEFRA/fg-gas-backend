@@ -2,6 +2,7 @@ import Boom from "@hapi/boom";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { createAgreementPaymentUseCase } from "../../payments/use-cases/create-agreement-payment.use-case.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import {
   findAgreementByNumber,
@@ -71,8 +72,27 @@ const runAction = async ({
       context.outboxMessageTypes ?? [],
       nextAgreement,
     ),
+    paymentRequest: context.paymentRequest,
   };
 };
+
+// Payments owns the claim ID and the Payment document; it is handed the action's
+// session so both commit with the Agreement, its Version and the lifecycle
+// event, and roll back together when anything before the commit fails.
+const createPaymentForVersion = async (
+  { agreement, paymentRequest },
+  session,
+) =>
+  createAgreementPaymentUseCase(
+    {
+      agreementNumber: agreement.agreementNumber,
+      version: agreement.version,
+      sbi: agreement.identifiers?.sbi,
+      frn: agreement.identifiers?.frn,
+      ...paymentRequest,
+    },
+    session,
+  );
 
 const concurrentUpdate = Symbol("concurrentUpdate");
 
@@ -84,10 +104,17 @@ const hasActionConflictIndex = (keyPattern) =>
 const hasAgreementNumberIndex = (keyPattern) =>
   Boolean(keyPattern?.agreementNumber);
 
+// A raced acceptance normally loses the optimistic version check, but the
+// Payment's unique source index is the backstop that guarantees one Payment per
+// accepted Version even if it does not.
+const hasPaymentSourceIndex = (keyPattern) =>
+  Boolean(keyPattern?.["source.agreementNumber"]);
+
 const isConcurrentActionConflict = (error) =>
   isMongoDuplicateKeyError(error) &&
-  hasAgreementNumberIndex(error.keyPattern) &&
-  hasActionConflictIndex(error.keyPattern);
+  ((hasAgreementNumberIndex(error.keyPattern) &&
+    hasActionConflictIndex(error.keyPattern)) ||
+    hasPaymentSourceIndex(error.keyPattern));
 
 const commitActionTransaction = async (
   { actionName, current, idempotencyKey, next },
@@ -124,6 +151,11 @@ const commitActionTransaction = async (
     session,
   );
   await saveOutboxEvents(next.events, session);
+
+  if (next.paymentRequest) {
+    await createPaymentForVersion(next, session);
+  }
+
   return { location: toLocation(current.agreementNumber) };
 };
 

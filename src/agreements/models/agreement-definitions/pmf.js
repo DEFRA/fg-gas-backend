@@ -1,12 +1,18 @@
 export const pmfAgreementDefinition = {
   code: "pigs-might-fly",
-  configVersion: "1.0.1",
+  configVersion: "1.1.0",
   agreementNumberPrefix: "PMF",
   endpoints: [
     {
       code: "calculate-funding",
       method: "POST",
       path: "/grantFundingCalculator",
+      service: "GRANT_FUNDING_CALCULATOR",
+    },
+    {
+      code: "calculate-payment-schedule",
+      method: "POST",
+      path: "/paymentSchedule",
       service: "GRANT_FUNDING_CALCULATOR",
     },
   ],
@@ -74,9 +80,63 @@ export const pmfAgreementDefinition = {
           },
           effects: [
             {
+              name: "callEndpoint",
+              output: "paymentCalculation",
+              params: {
+                endpoint: {
+                  code: "calculate-payment-schedule",
+                  endpointParams: {
+                    BODY: {
+                      agreementStartDate: "$.executedAt",
+                      pigTypes: [
+                        {
+                          pigType: "largeWhite",
+                          quantity: "$.agreement.payload.whitePigsCount ?? 0",
+                        },
+                        {
+                          pigType: "britishLandrace",
+                          quantity:
+                            "$.agreement.payload.britishLandracePigsCount ?? 0",
+                        },
+                        {
+                          pigType: "berkshire",
+                          quantity:
+                            "$.agreement.payload.berkshirePigsCount ?? 0",
+                        },
+                        {
+                          pigType: "other",
+                          quantity: "$.agreement.payload.otherPigsCount ?? 0",
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+            {
               name: "snapshot",
               params: {
                 acceptedAt: "$.executedAt",
+                paymentCalculation: "$.outputs.paymentCalculation.payment",
+              },
+            },
+            {
+              name: "createPayment",
+              params: {
+                paymentCalculation: "$.outputs.paymentCalculation.payment",
+                mapping: {
+                  scheme: "SFI",
+                  sourceSystem: "FPTT",
+                  deliveryBody: "RP00",
+                  fesCode: "FALS_FPTT",
+                  ledger: "AP",
+                  currency: "GBP",
+                  invoiceLine: {
+                    schemeCode: "CMOR1",
+                    accountCode: "SOS710",
+                    fundCode: "DRD10",
+                  },
+                },
               },
             },
             { name: "publish", params: { event: "lifecycle" } },

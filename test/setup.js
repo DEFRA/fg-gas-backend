@@ -7,15 +7,45 @@ import { ensureQueues } from "./helpers/sqs.js";
 let environment;
 let fundingCalculator;
 
+// Stands in for fg-gss-pmf. The two endpoints return different shapes, so the
+// stub has to answer per path rather than returning one body for everything.
+const calculatorResponses = {
+  "/grantFundingCalculator": {
+    items: [{ description: "Large White", total: 32000 }],
+  },
+  "/paymentSchedule": {
+    payment: {
+      agreementStartDate: "2026-08-01",
+      agreementEndDate: "2027-07-31",
+      agreementTotalPence: 32000,
+      payments: [
+        {
+          dueDate: "2026-11-06",
+          totalAmountPence: 32000,
+          invoiceLines: [
+            {
+              pigType: "largeWhite",
+              description: "Large White Pig",
+              quantity: 5,
+              unitPricePence: 6400,
+              amountPence: 32000,
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
 const startFundingCalculator = () =>
   new Promise((resolve, reject) => {
-    fundingCalculator = createServer((_request, response) => {
+    fundingCalculator = createServer((request, response) => {
+      const body =
+        calculatorResponses[request.url] ??
+        calculatorResponses["/grantFundingCalculator"];
+
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(
-        JSON.stringify({
-          items: [{ description: "Large White", total: 32000 }],
-        }),
-      );
+      response.end(JSON.stringify(body));
     });
     fundingCalculator.once("error", reject);
     fundingCalculator.listen(0, "0.0.0.0", () => {
