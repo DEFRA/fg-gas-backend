@@ -127,11 +127,30 @@ export default [
             },
             {
               target: "**/grants/**/!(*.test).js",
-              from: ["**/agreements/**"],
+              from: ["**/agreements/**", "**/payments/**"],
               message:
-                "Grants must not import Agreements domain internals directly. " +
+                "Grants must not import Agreements or Payments domain internals directly. " +
                 "Use HTTP APIs, events, commands, or inbox/outbox records as integration seams. " +
                 "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/payments/**/!(*.test).js",
+              from: ["**/agreements/**", "**/grants/**"],
+              message:
+                "Payments must not import Agreements or Grants domain internals directly. " +
+                "Payments is entered through its own use cases and knows nothing about " +
+                "the modules that source a Payment. See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/agreements/**/!(*.test).js",
+              from: ["**/payments/**"],
+              except: [
+                "**/payments/use-cases/create-agreement-payment.use-case.js",
+              ],
+              message:
+                "Agreements may only enter Payments through " +
+                "payments/use-cases/create-agreement-payment.use-case.js, which shares the " +
+                "action's transaction. See docs/MODULE_BOUNDARIES.md.",
             },
           ],
         },

@@ -15,7 +15,7 @@ const agreement = () => ({
   clientRef: "xnp-rr3-nfb",
   configVersion: "1.0.1",
   correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
-  identifiers: { sbi: "300000070" },
+  identifiers: { sbi: "300000070", frn: "1101234567" },
   payload: { whitePigsCount: 5 },
   state: "offered",
   createdAt,
@@ -49,6 +49,7 @@ describe("single Agreement actions", () => {
   let agreements;
   let versions;
   let outbox;
+  let payments;
 
   beforeAll(async () => {
     client = await MongoClient.connect(env.MONGO_URI);
@@ -56,6 +57,7 @@ describe("single Agreement actions", () => {
     agreements = database.collection("agreements__agreements");
     versions = database.collection("agreements__versions");
     outbox = database.collection("outbox");
+    payments = database.collection("payments__payments");
   });
 
   beforeEach(async () => {
@@ -63,6 +65,7 @@ describe("single Agreement actions", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
+      payments.deleteMany({ "source.agreementNumber": agreementNumber }),
     ]);
     const current = agreement();
     await agreements.insertOne(current);
@@ -79,6 +82,7 @@ describe("single Agreement actions", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
+      payments.deleteMany({ "source.agreementNumber": agreementNumber }),
     ]);
     await client.close();
   });
@@ -115,6 +119,62 @@ describe("single Agreement actions", () => {
       "actionExecution.name": "accept",
       "actionExecution.idempotencyKey": idempotencyKey,
     });
+  });
+
+  it("commits one Payment with the accepted Version", async () => {
+    const { response } = await requestAction();
+
+    expect(response.statusCode).toBe(303);
+
+    const payment = await payments.findOne({
+      "source.agreementNumber": agreementNumber,
+    });
+
+    expect(payment).toMatchObject({
+      source: { type: "agreement", agreementNumber, version: 2 },
+      sbi: "300000070",
+      frn: "1101234567",
+      paymentHubClaimId: expect.stringMatching(/^R\d{8}$/),
+      scheme: "SFI",
+      sourceSystem: "FPTT",
+      deliveryBody: "RP00",
+      fesCode: "FALS_FPTT",
+      ledger: "AP",
+      currency: "GBP",
+      paymentRequestNumber: 1,
+      originalInvoiceNumber: "",
+      totalAmountPence: 32000,
+    });
+    expect(payment.invoiceNumber).toBe(`${payment.paymentHubClaimId}-V001QX`);
+    // GAS claim IDs are seeded above the legacy service's range so the two can
+    // issue them concurrently without colliding.
+    expect(Number(payment.paymentHubClaimId.slice(1))).toBeGreaterThanOrEqual(
+      10000000,
+    );
+    expect(payment.payments[0]).toMatchObject({
+      dueDate: "2026-11-06",
+      totalAmountPence: 32000,
+      status: "pending",
+    });
+    expect(payment.payments[0].invoiceLines[0]).toMatchObject({
+      schemeCode: "CMOR1",
+      description: "Large White Pig",
+      amountPence: 32000,
+      accountCode: "SOS710",
+      fundCode: "DRD10",
+      deliveryBody: "RP00",
+    });
+  });
+
+  it("stores the payment calculation on the Agreement and Version", async () => {
+    await requestAction();
+
+    const accepted = await agreements.findOne({ agreementNumber });
+    const version = await versions.findOne({ agreementNumber, version: 2 });
+
+    expect(accepted.paymentCalculation.agreementTotalPence).toBe(32000);
+    expect(accepted.paymentCalculation.agreementEndDate).toBe("2027-07-31");
+    expect(version.snapshot.paymentCalculation.agreementTotalPence).toBe(32000);
   });
 
   it("returns a render-ready validation page without changing the Agreement", async () => {
@@ -171,6 +231,11 @@ describe("single Agreement actions", () => {
     expect(first.response.statusCode).toBe(303);
     expect(replay.response.statusCode).toBe(303);
     expect(await versions.countDocuments({ agreementNumber })).toBe(2);
+    expect(
+      await payments.countDocuments({
+        "source.agreementNumber": agreementNumber,
+      }),
+    ).toBe(1);
   });
 
   it("allows only one concurrent acceptance to commit", async () => {
@@ -187,6 +252,11 @@ describe("single Agreement actions", () => {
       submissions.map(({ response }) => response.statusCode).sort(),
     ).toEqual([303, 412]);
     expect(await versions.countDocuments({ agreementNumber })).toBe(2);
+    expect(
+      await payments.countDocuments({
+        "source.agreementNumber": agreementNumber,
+      }),
+    ).toBe(1);
     expect(
       await outbox.countDocuments({
         "event.data.agreementNumber": agreementNumber,
@@ -233,6 +303,11 @@ describe("single Agreement actions", () => {
           "event.data.agreementNumber": agreementNumber,
         }),
       ).toBe(1);
+      expect(
+        await payments.countDocuments({
+          "source.agreementNumber": agreementNumber,
+        }),
+      ).toBe(0);
     } finally {
       await outbox.deleteOne({ _id: blockingEventId });
       await outbox.dropIndex(indexName);

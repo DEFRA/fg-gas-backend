@@ -6,12 +6,15 @@
 | ------------ | ----------------- | ----------------------------------------------------------------- |
 | `grants`     | `src/grants/`     | Grants and Application sub-domain (grant lifecycle, applications) |
 | `agreements` | `src/agreements/` | Agreements domain (separate bounded context)                      |
+| `payments`   | `src/payments/`   | Payments domain (Payments, claim IDs, invoice numbering)          |
 | `auth`       | `src/auth/`       | Authentication and authorisation                                  |
 | `common`     | `src/common/`     | Shared infrastructure (logger, database, messaging clients)       |
 
 ## Forbidden Imports
 
-`agreements` and `grants` must not directly import each other's internals (models, repositories, use-cases, services, routes, schemas, etc.). The boundary is enforced in both directions. Direct cross-module imports create hidden coupling that prevents either context from evolving independently.
+`agreements`, `grants` and `payments` must not directly import each other's internals (models, repositories, use-cases, services, routes, schemas, etc.). The boundary is enforced in both directions. Direct cross-module imports create hidden coupling that prevents either context from evolving independently.
+
+`payments` knows nothing about the modules that source a Payment: it never imports `agreements` or `grants`, and it takes the identifiers it needs as plain values.
 
 This is enforced by the `import-x/no-restricted-paths` rule in `eslint.config.js` and runs on every local commit (via lint-staged) and in CI (`npm run lint`).
 
@@ -26,6 +29,16 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 | **Commands**               | Send commands via the message bus; command shapes live in `src/*/commands/`                 |
 | **Inbox / Outbox records** | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox |
 | **Shared infrastructure**  | Import from `src/common/` (logger, DB client, messaging helpers)                            |
+
+### Transactional entry points
+
+Some collaborations have to commit in a single Mongo transaction, which no event, command or HTTP seam can span. Those are allowed as a single named use case in the owning module, and only that file may be imported:
+
+| Caller       | Entry point                                               | Why                                                                                                               |
+| ------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | The Payment for an accepted Agreement Version must commit with the Agreement, its Version and the lifecycle event |
+
+The caller passes its session in; nothing else in `payments` is importable, and the ESLint zone lists the exception explicitly so adding another one is a deliberate, reviewed change.
 
 ## Adding a New Seam
 
