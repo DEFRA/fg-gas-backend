@@ -12,13 +12,23 @@ const CREATE_PAYMENT_SOURCE = "urn:service:agreement";
 // on the Payment and are stringified here, at the boundary, and nowhere else.
 const toPence = (pence) => pence.toString();
 
-// Only the fields the legacy message carries are copied across. The Payment
-// holds more than this (fesCode, ledger, the invoice line's accountCode and
-// fundCode); the Payment Service derives those itself, so sending them would
-// widen a contract this story is not changing.
-const toInvoiceLine = ({ amountPence, description, schemeCode }) => ({
-  amountPence: toPence(amountPence),
+// Copy the complete legacy Payment Service contract. These accounting fields
+// are required by Payment Service even though GAS does not otherwise use them.
+const toInvoiceLine = ({
+  accountCode,
+  amountPence,
+  deliveryBody,
   description,
+  fundCode,
+  marketingYear,
+  schemeCode,
+}) => ({
+  accountCode,
+  amountPence: toPence(amountPence),
+  deliveryBody,
+  description,
+  fundCode,
+  marketingYear,
   schemeCode,
 });
 
@@ -39,9 +49,11 @@ const toDuePayment = ({
 const toGrant = (payment) => ({
   sourceSystem: payment.sourceSystem,
   deliveryBody: payment.deliveryBody,
+  fesCode: payment.fesCode,
   paymentRequestNumber: payment.paymentRequestNumber,
   correlationId: payment.correlationId,
   invoiceNumber: payment.invoiceNumber,
+  ledger: payment.ledger,
   originalInvoiceNumber: payment.originalInvoiceNumber,
   agreementNumber: payment.source.agreementNumber,
   totalAmountPence: toPence(payment.totalAmountPence),

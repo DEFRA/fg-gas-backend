@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-// The fixture is the message the legacy Agreements API published to the Payment
-// Service, taken from its own test for createGrantPaymentFromAgreement. GAS must
-// keep producing it byte for byte.
+// The fixture is the message payload produced by the legacy Agreements API's
+// createGrantPaymentFromAgreement test, wrapped in the CloudEvent fields GAS
+// must preserve. GAS adds messageGroupId for Agreement-level FIFO grouping.
 import legacyCreatePaymentEvent from "../../../test/fixtures/legacy-create-payment-event.json";
 import { Payment } from "../models/payment.js";
 import { createPaymentPublication } from "./create-payment.event.js";
@@ -99,14 +99,20 @@ describe("createPaymentPublication", () => {
     expect(payment.totalAmountPence).toBe(10000);
   });
 
-  it("omits the Payment fields the legacy message does not carry", () => {
+  it("includes the accounting fields required by Payment Service", () => {
     const { event } = createPaymentPublication(payment);
     const [grant] = event.data.grants;
 
-    expect(grant).not.toHaveProperty("fesCode");
-    expect(grant).not.toHaveProperty("ledger");
-    expect(grant.payments[0].invoiceLines[0]).not.toHaveProperty("accountCode");
-    expect(grant.payments[0].invoiceLines[0]).not.toHaveProperty("fundCode");
+    expect(grant).toMatchObject({
+      fesCode: "FALS_FPTT",
+      ledger: "AP",
+    });
+    expect(grant.payments[0].invoiceLines[0]).toMatchObject({
+      accountCode: "SOS710",
+      fundCode: "DRD10",
+      deliveryBody: "RP00",
+      marketingYear: "2026",
+    });
   });
 
   it("builds one grant per Payment", () => {

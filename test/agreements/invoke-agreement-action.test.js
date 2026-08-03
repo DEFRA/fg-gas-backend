@@ -216,9 +216,11 @@ describe("single Agreement actions", () => {
           {
             sourceSystem: "FPTT",
             deliveryBody: "RP00",
+            fesCode: "FALS_FPTT",
             paymentRequestNumber: 1,
             correlationId: payment.correlationId,
             invoiceNumber: payment.invoiceNumber,
+            ledger: "AP",
             originalInvoiceNumber: "",
             agreementNumber,
             totalAmountPence: "32000",
@@ -232,8 +234,13 @@ describe("single Agreement actions", () => {
                 correlationId: payment.payments[0].correlationId,
                 invoiceLines: [
                   {
+                    accountCode: "SOS710",
                     amountPence: "32000",
+                    deliveryBody: "RP00",
                     description: "Large White Pig",
+                    fundCode: "DRD10",
+                    marketingYear:
+                      payment.payments[0].invoiceLines[0].marketingYear,
                     schemeCode: "CMOR1",
                   },
                 ],
