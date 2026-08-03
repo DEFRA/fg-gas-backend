@@ -244,7 +244,6 @@ describe("single Agreement actions", () => {
       },
     });
   });
-
   it("stores the payment calculation on the Agreement and Version", async () => {
     await requestAction();
 

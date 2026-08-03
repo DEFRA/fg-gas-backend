@@ -102,7 +102,6 @@ const createPaymentPublications = async (
 
   return [publication];
 };
-
 const concurrentUpdate = Symbol("concurrentUpdate");
 
 const actionConflictIndexFields = ["version", "actionExecution.idempotencyKey"];

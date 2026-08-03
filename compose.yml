@@ -20,6 +20,9 @@ services:
       # individually instead - see compose/ext/compose.gas-ext.example.yml.
       # Floci runs them ordered by filename, so 99-ready.sh sorts last.
       - ./compose/floci/start.d:/etc/floci/init/start.d:ro
+      # Seed data copied to S3 by 10-setup-resources.sh. Mounted outside
+      # /etc/floci/init so the init runner never treats it as a script dir.
+      - ./compose/seed:/etc/floci/seed:ro
     # The image ships a healthcheck, but it only reports that the gateway is
     # listening - which happens before the init scripts have run. Waiting on the
     # marker 99-ready.sh writes means nothing that depends on floci starts

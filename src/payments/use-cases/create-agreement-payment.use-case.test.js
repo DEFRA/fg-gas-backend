@@ -94,7 +94,6 @@ describe("createAgreementPaymentUseCase", () => {
       },
     });
   });
-
   it("inserts nothing when the request cannot be turned into a Payment", async () => {
     await expect(
       createAgreementPaymentUseCase(

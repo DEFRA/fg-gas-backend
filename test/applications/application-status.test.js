@@ -7,14 +7,18 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../../src/grants/models/application.js";
+import { GrantDocument } from "../../src/grants/models/grant-document.js";
+import { createTestGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 let applications;
+let grants;
 let client;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   applications = client.db().collection("applications");
+  grants = client.db().collection("grants");
 });
 
 afterAll(async () => {
@@ -26,6 +30,10 @@ describe("GET /grants/{code}/applications/{clientRef}/status", () => {
   const code = "grant-1";
 
   it("should get application status", async () => {
+    // The status endpoint resolves the grant definition for the application,
+    // so a legacy (unversioned) grant document must exist for the code.
+    await grants.insertOne(new GrantDocument(createTestGrant({ code })));
+
     await applications.insertOne(
       Application.new({
         clientRef,
@@ -68,6 +76,8 @@ describe("GET /grants/{code}/applications/{clientRef}/status", () => {
       status: ApplicationStage.Assessment,
       grantCode: code,
       clientRef,
+      originalConfigVersion: null,
+      currentConfigVersion: null,
     });
   });
 });
