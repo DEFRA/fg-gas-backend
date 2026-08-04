@@ -1,3 +1,4 @@
+import { createPaymentPublication } from "../events/create-payment.event.js";
 import {
   allocateNextSequence,
   ClaimIdCounter,
@@ -14,6 +15,10 @@ import { buildPayment } from "./build-payment.js";
  * event, and roll back together when anything before the commit fails. See
  * docs/MODULE_BOUNDARIES.md — the in-process call exists because a shared
  * transaction cannot cross an event or HTTP seam.
+ *
+ * Returns the Payment with the outbox publication that sends it to the Payment
+ * Service. The caller writes that publication in the same transaction; Payments
+ * builds the message but never owns the outbox.
  */
 export const createAgreementPaymentUseCase = async (
   {
@@ -42,5 +47,5 @@ export const createAgreementPaymentUseCase = async (
 
   await insertPayment(payment, session);
 
-  return payment;
+  return { payment, publication: createPaymentPublication(payment) };
 };

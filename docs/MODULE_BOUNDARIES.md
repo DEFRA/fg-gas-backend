@@ -40,6 +40,8 @@ Some collaborations have to commit in a single Mongo transaction, which no event
 
 The caller passes its session in; nothing else in `payments` is importable, and the ESLint zone lists the exception explicitly so adding another one is a deliberate, reviewed change.
 
+`payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from that entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.
+
 ## Adding a New Seam
 
 1. Define the event or command shape in the publishing module's `events/` or `commands/` directory.

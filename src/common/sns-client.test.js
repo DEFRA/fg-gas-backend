@@ -43,11 +43,20 @@ describe("publish", () => {
     });
   });
 
-  it("publishes a message to a fifo topic", async () => {
+  it("reuses an explicit fifo deduplication ID", async () => {
     const topicArn = "arn:aws:sns:us-east-1:123456789012:MyTopic.fifo";
-
     const message = {
       key: "value",
+    };
+    const options = {
+      messageGroupId: "mock-message-id",
+      deduplicationId: "mock-event-id",
+    };
+    const expected = {
+      TopicArn: topicArn,
+      Message: '{"key":"value"}',
+      MessageGroupId: "mock-message-id",
+      MessageDeduplicationId: "mock-event-id",
     };
 
     const send = vi.fn();
@@ -62,18 +71,12 @@ describe("publish", () => {
 
     const { publish } = await import("./sns-client.js");
 
-    await publish(topicArn, message, "mock-message-id");
+    await publish(topicArn, message, options);
+    await publish(topicArn, message, options);
 
-    expect(PublishCommand).toHaveBeenCalledWith({
-      TopicArn: topicArn,
-      Message: '{"key":"value"}',
-      MessageGroupId: "mock-message-id",
-    });
-
-    expect(send).toHaveBeenCalledWith({
-      TopicArn: topicArn,
-      Message: '{"key":"value"}',
-      MessageGroupId: "mock-message-id",
-    });
+    expect(PublishCommand).toHaveBeenNthCalledWith(1, expected);
+    expect(PublishCommand).toHaveBeenNthCalledWith(2, expected);
+    expect(send).toHaveBeenNthCalledWith(1, expected);
+    expect(send).toHaveBeenNthCalledWith(2, expected);
   });
 });

@@ -25,6 +25,7 @@ beforeEach(async () => {
     env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL,
     env.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
     env.CREATE_AGREEMENT_QUEUE_URL,
+    env.CREATE_PAYMENT_QUEUE_URL,
   ]);
 });
 

@@ -191,7 +191,9 @@ describe("outbox.subscriber", () => {
 
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
-    expect(publish.mock.calls[0][2]).toBe("client-ref-grant-code");
+    expect(publish.mock.calls[0][2].messageGroupId).toBe(
+      "client-ref-grant-code",
+    );
   });
 
   it("should handle messageIds for legacy event types (case working)", async () => {
@@ -208,7 +210,29 @@ describe("outbox.subscriber", () => {
 
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
-    expect(publish.mock.calls[0][2]).toBe("case-ref-workflow-code");
+    expect(publish.mock.calls[0][2].messageGroupId).toBe(
+      "case-ref-workflow-code",
+    );
+  });
+
+  it("passes the persisted event ID as the fifo deduplication ID", async () => {
+    const mockEvent = {
+      target:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
+      event: {
+        id: "payment-event-id",
+        messageGroupId: "PMF123456789",
+      },
+      markAsComplete: vi.fn(),
+    };
+
+    const outbox = new OutboxSubscriber();
+    await outbox.sendEvent(mockEvent);
+
+    expect(publish).toHaveBeenCalledWith(mockEvent.target, mockEvent.event, {
+      messageGroupId: "PMF123456789",
+      deduplicationId: "payment-event-id",
+    });
   });
 
   it("should not derive a message group id for standard topics", async () => {

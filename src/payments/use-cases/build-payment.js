@@ -11,7 +11,7 @@ const PAYMENT_REQUEST_NUMBER = 1;
 
 const requireMapping = (mapping) => {
   if (!mapping) {
-    throw Boom.badRequest(
+    throw Boom.badImplementation(
       "createPayment requires a mapping from the Agreement Definition",
     );
   }
@@ -21,7 +21,7 @@ const requireMapping = (mapping) => {
 
 const requirePaymentCalculation = (paymentCalculation) => {
   if (!paymentCalculation?.payments?.length) {
-    throw Boom.badRequest(
+    throw Boom.badGateway(
       "createPayment requires a payment calculation with at least one payment",
     );
   }

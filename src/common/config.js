@@ -42,6 +42,7 @@ const schema = Joi.object({
   GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SQS__CONFIG_VERSION_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional(),
+  GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: Joi.string().optional(),
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
 }).options({
   stripUnknown: true,
@@ -100,6 +101,7 @@ export const config = {
     createNewCaseTopicArn: vars.GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN,
     updateCaseStatusTopicArn: vars.GAS__SNS__UPDATE_CASE_STATUS_TOPIC_ARN,
     auditTopicArn: vars.GAS__SNS__AUDIT_TOPIC_ARN,
+    createPaymentTopicArn: vars.GAS__SNS__CREATE_PAYMENT_TOPIC_ARN,
   },
   sqs: {
     updateStatusQueueUrl: vars.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
