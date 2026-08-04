@@ -7,11 +7,17 @@ const snsClient = new SNSClient({
   endpoint: config.awsEndpointUrl,
 });
 
-export const publish = async (topic, data, messageGroupId) => {
+export const publish = async (
+  topic,
+  data,
+  { messageGroupId, deduplicationId } = {},
+) => {
   logger.info(`Publish command ${topic}`);
   const fifoAttributes = topic.endsWith(".fifo") && {
     MessageGroupId: messageGroupId,
-    MessageDeduplicationId: data.id,
+    ...(deduplicationId && {
+      MessageDeduplicationId: deduplicationId,
+    }),
   };
   await snsClient.send(
     new PublishCommand({

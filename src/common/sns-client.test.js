@@ -43,15 +43,18 @@ describe("publish", () => {
     });
   });
 
-  it("reuses the event ID as the fifo deduplication ID", async () => {
+  it("reuses an explicit fifo deduplication ID", async () => {
     const topicArn = "arn:aws:sns:us-east-1:123456789012:MyTopic.fifo";
     const message = {
-      id: "mock-event-id",
       key: "value",
+    };
+    const options = {
+      messageGroupId: "mock-message-id",
+      deduplicationId: "mock-event-id",
     };
     const expected = {
       TopicArn: topicArn,
-      Message: '{"id":"mock-event-id","key":"value"}',
+      Message: '{"key":"value"}',
       MessageGroupId: "mock-message-id",
       MessageDeduplicationId: "mock-event-id",
     };
@@ -68,8 +71,8 @@ describe("publish", () => {
 
     const { publish } = await import("./sns-client.js");
 
-    await publish(topicArn, message, "mock-message-id");
-    await publish(topicArn, message, "mock-message-id");
+    await publish(topicArn, message, options);
+    await publish(topicArn, message, options);
 
     expect(PublishCommand).toHaveBeenNthCalledWith(1, expected);
     expect(PublishCommand).toHaveBeenNthCalledWith(2, expected);
