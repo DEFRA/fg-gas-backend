@@ -56,6 +56,16 @@ const build = (overrides = {}) =>
     ...overrides,
   });
 
+const getBuildError = (overrides) => {
+  try {
+    build(overrides);
+  } catch (error) {
+    return error;
+  }
+
+  throw new Error("Expected buildPayment to throw");
+};
+
 describe("buildPayment", () => {
   it("records the Agreement Number and version as its source", () => {
     expect(build().source).toEqual({
@@ -128,14 +138,22 @@ describe("buildPayment", () => {
     );
   });
 
-  it("rejects a missing mapping", () => {
-    expect(() => build({ mapping: undefined })).toThrow(
+  it("reports a missing definition mapping as a server configuration error", () => {
+    const error = getBuildError({ mapping: undefined });
+
+    expect(error.output.statusCode).toBe(500);
+    expect(error.message).toBe(
       "createPayment requires a mapping from the Agreement Definition",
     );
   });
 
-  it("rejects a calculation with no payments", () => {
-    expect(() => build({ paymentCalculation: { payments: [] } })).toThrow(
+  it("reports a calculation with no payments as an upstream error", () => {
+    const error = getBuildError({
+      paymentCalculation: { payments: [] },
+    });
+
+    expect(error.output.statusCode).toBe(502);
+    expect(error.message).toBe(
       "createPayment requires a payment calculation with at least one payment",
     );
   });

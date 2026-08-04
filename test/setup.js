@@ -87,6 +87,8 @@ export const setup = async ({ globalConfig }) => {
         GAS__SNS__AUDIT_TOPIC_ARN: env.GAS__SNS__AUDIT_TOPIC_ARN,
         GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
           env.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
+        GAS__SNS__CREATE_PAYMENT_TOPIC_ARN:
+          env.GAS__SNS__CREATE_PAYMENT_TOPIC_ARN,
       })
       .withWaitStrategy("gas", Wait.forHttp("/health"))
       .up();
@@ -102,6 +104,7 @@ export const setup = async ({ globalConfig }) => {
     env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL,
     env.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
     env.CREATE_AGREEMENT_QUEUE_URL,
+    env.CREATE_PAYMENT_QUEUE_URL,
   ]);
 
   if (env.PRINT_LOGS) {

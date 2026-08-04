@@ -147,13 +147,53 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
     expect(saveOutboxEvents).toHaveBeenCalledWith(expect.anything(), session);
   });
 
-  it("commits the lifecycle event only, creating no Payment Service event", async () => {
+  it("commits the payment event with the lifecycle event in one write", async () => {
     await executeAgreementActionUseCase(options);
 
-    const [events] = saveOutboxEvents.mock.calls[0];
+    expect(saveOutboxEvents).toHaveBeenCalledTimes(1);
+    const [publications] = saveOutboxEvents.mock.calls[0];
 
-    expect(events).toHaveLength(1);
-    expect(events[0].event.type).toMatch(/agreement\.status\.updated$/);
+    expect(publications).toHaveLength(2);
+    expect(publications[0].event.type).toMatch(/agreement\.status\.updated$/);
+    expect(publications[1].event.type).toBe(
+      "io.onsite.agreement.create-payment",
+    );
+  });
+
+  it("builds the payment event from the committed Payment", async () => {
+    await executeAgreementActionUseCase(options);
+
+    const [publications] = saveOutboxEvents.mock.calls[0];
+    const [payment] = insertPayment.mock.calls[0];
+    const { data } = publications[1].event;
+
+    expect(data.claimId).toBe(payment.paymentHubClaimId);
+    expect(data.grants[0]).toMatchObject({
+      agreementNumber: options.agreementNumber,
+      invoiceNumber: payment.invoiceNumber,
+      correlationId: payment.correlationId,
+      totalAmountPence: "3800",
+    });
+    expect(data.grants[0].payments[0].invoiceLines[0].amountPence).toBe("2000");
+  });
+
+  it("groups the payment event by Agreement Number", async () => {
+    await executeAgreementActionUseCase(options);
+
+    const [publications] = saveOutboxEvents.mock.calls[0];
+
+    expect(publications[1].segregationRef).toBe(options.agreementNumber);
+    expect(publications[1].event.messageGroupId).toBe(options.agreementNumber);
+  });
+
+  it("targets the Payment Service topic", async () => {
+    await executeAgreementActionUseCase(options);
+
+    const [publications] = saveOutboxEvents.mock.calls[0];
+
+    expect(publications[1].target).toBe(
+      "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
+    );
   });
 
   it("stores everything a Payment Service message needs on the Payment", async () => {
@@ -260,6 +300,7 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
       "createPayment requires a mapping from the Agreement Definition",
     );
     expect(insertPayment).not.toHaveBeenCalled();
+    expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
   it("leaves the Agreement offered when the calculation does not balance", async () => {
@@ -276,6 +317,7 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
       "Invalid Payment",
     );
     expect(insertPayment).not.toHaveBeenCalled();
+    expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
   it("resolves a duplicate Payment for the same Agreement Version idempotently", async () => {
@@ -318,5 +360,10 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
 
     expect(insertPayment).not.toHaveBeenCalled();
     expect(allocateNextSequence).not.toHaveBeenCalled();
+
+    const [publications] = saveOutboxEvents.mock.calls[0];
+
+    expect(publications).toHaveLength(1);
+    expect(publications[0].event.type).toMatch(/agreement\.status\.updated$/);
   });
 });
