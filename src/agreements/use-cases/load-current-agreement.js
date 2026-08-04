@@ -30,3 +30,22 @@ export const loadCurrentAgreementByNumber = async ({
   agreementNumber,
   session,
 }) => requireAgreement(await findAgreementByNumber(agreementNumber, session));
+
+export const loadAgreementDocument = async ({
+  agreementNumber,
+  code,
+  clientRef,
+  sbi,
+  session,
+}) => {
+  const agreement = await loadCurrentAgreementByNumber({
+    agreementNumber,
+    session,
+  });
+  const matchesReference =
+    agreement.code === code &&
+    agreement.clientRef === clientRef &&
+    agreement.identifiers.sbi === sbi;
+
+  return requireAgreement(matchesReference ? agreement : undefined);
+};

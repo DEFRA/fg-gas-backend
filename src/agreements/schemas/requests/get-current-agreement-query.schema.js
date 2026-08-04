@@ -3,14 +3,20 @@ import { clientRef } from "../agreement/client-ref.js";
 import { code } from "../agreement/code.js";
 import { sbi } from "../agreement/sbi.js";
 
-export const agreementPresentationQuerySchema = Joi.object({
+const agreementIdentityQueryFields = {
+  code: code.required(),
+  clientRef: clientRef.required(),
+  sbi: sbi.required(),
+};
+
+const agreementPresentationQuerySchema = Joi.object({
   mode: Joi.string().valid("view", "print").default("view"),
 }).label("AgreementPresentationQuery");
 
+export const getAgreementDocumentQuerySchema = Joi.object(
+  agreementIdentityQueryFields,
+).label("GetAgreementDocumentQuery");
+
 export const getCurrentAgreementQuerySchema = agreementPresentationQuerySchema
-  .keys({
-    code: code.required(),
-    clientRef: clientRef.required(),
-    sbi: sbi.required(),
-  })
+  .keys(agreementIdentityQueryFields)
   .label("GetCurrentAgreementQuery");

@@ -110,7 +110,7 @@ describe("single Agreement actions", () => {
     const { response } = await requestAction();
 
     expect(response.statusCode).toBe(303);
-    expect(response.headers.location).toBe(`/agreements/${agreementNumber}`);
+    expect(response.headers.location).toBe("/agreements/current");
     await expect(agreements).toHaveRecord({
       agreementNumber,
       version: 2,

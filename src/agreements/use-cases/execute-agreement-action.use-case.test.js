@@ -77,7 +77,7 @@ describe("executeAgreementActionUseCase", () => {
 
   it("atomically replaces current Agreement, records Version and publications", async () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
     expect(replaceCurrentAgreement).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -121,7 +121,7 @@ describe("executeAgreementActionUseCase", () => {
     });
 
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
     expect(runAgreementEffects).not.toHaveBeenCalled();
   });
@@ -133,7 +133,7 @@ describe("executeAgreementActionUseCase", () => {
       output: {
         statusCode: 412,
         headers: {
-          location: "/agreements/PMF823153883",
+          location: "/agreements/current",
           etag: '"PMF823153883:1"',
         },
       },
@@ -331,7 +331,7 @@ describe("executeAgreementActionUseCase", () => {
     replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 0 });
 
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
     expect(findAgreementByNumber).not.toHaveBeenCalled();
   });
@@ -349,7 +349,7 @@ describe("executeAgreementActionUseCase", () => {
     );
 
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
   });
 

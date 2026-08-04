@@ -149,6 +149,52 @@ export const pmfAgreementDefinition = {
     },
   },
   pages: {
+    document: {
+      title: "Pigs Might Fly agreement document",
+      layout: "document",
+      components: [
+        {
+          component: "notification-banner",
+          condition: "jsonata:$.agreement.state = 'offered'",
+          title: "This is a draft version of your agreement",
+        },
+        {
+          component: "watermark",
+          condition: "jsonata:$.agreement.state = 'offered'",
+          header: "Draft Agreement",
+          text: "DRAFT",
+        },
+        {
+          component: "heading",
+          level: 1,
+          text: "Pigs Might Fly agreement document",
+        },
+        {
+          component: "summary-list",
+          rows: [
+            {
+              label: "Agreement holder",
+              text: "jsonata:$.agreement.payload.businessName ? $.agreement.payload.businessName : ''",
+            },
+            { label: "SBI", text: "$.agreement.identifiers.sbi" },
+            {
+              label: "Agreement number",
+              text: "$.agreement.agreementNumber",
+            },
+          ],
+        },
+        { component: "heading", level: 2, text: "Payments" },
+        {
+          component: "table",
+          head: [{ text: "Pig Type" }, { text: "Amount" }],
+          rowsRef: "$.agreement.supplementaryData.fundingCalculation.items",
+          rows: [
+            { text: "$.description" },
+            { text: "$.total", format: "poundsNoDecimals" },
+          ],
+        },
+      ],
+    },
     offered: {
       title: "Review your agreement offer",
       components: [
@@ -221,6 +267,11 @@ export const pmfAgreementDefinition = {
           component: "heading",
           level: 1,
           text: "Your agreement is now active",
+        },
+        {
+          component: "url",
+          href: "/agreements/$.agreement.agreementNumber/document",
+          text: "View your agreement",
         },
       ],
       actions: [],

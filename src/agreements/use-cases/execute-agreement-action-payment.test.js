@@ -117,7 +117,7 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
 
   it("commits the Payment with the Agreement, Version and lifecycle event", async () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
 
     expect(insertPayment).toHaveBeenCalledWith(
@@ -333,7 +333,7 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
     );
 
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
   });
 
@@ -343,7 +343,7 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
     });
 
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
     expect(runAgreementEffects).not.toHaveBeenCalled();
     expect(insertPayment).not.toHaveBeenCalled();

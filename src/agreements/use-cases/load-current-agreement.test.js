@@ -4,6 +4,7 @@ import {
   findAgreementBySourceIdentity,
 } from "../repositories/agreement.repository.js";
 import {
+  loadAgreementDocument,
   loadCurrentAgreement,
   loadCurrentAgreementByNumber,
 } from "./load-current-agreement.js";
@@ -52,5 +53,31 @@ describe("load current Agreement", () => {
         agreementNumber: agreement.agreementNumber,
       }),
     ).resolves.toBe(agreement);
+  });
+
+  it("loads a document when its trusted case reference matches", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementDocument({
+        agreementNumber: agreement.agreementNumber,
+        code: agreement.code,
+        clientRef: agreement.clientRef,
+        sbi: agreement.identifiers.sbi,
+      }),
+    ).resolves.toBe(agreement);
+  });
+
+  it("does not disclose a document when its case reference does not match", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementDocument({
+        agreementNumber: agreement.agreementNumber,
+        code: agreement.code,
+        clientRef: "another-case",
+        sbi: agreement.identifiers.sbi,
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
   });
 });
