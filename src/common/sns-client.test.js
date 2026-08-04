@@ -1,9 +1,14 @@
 import { PublishCommand, SNSClient } from "@aws-sdk/client-sns";
+import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@aws-sdk/client-sns", () => ({
   SNSClient: vi.fn(),
   PublishCommand: vi.fn(),
+}));
+
+vi.mock("node:crypto", () => ({
+  randomUUID: vi.fn(() => "mock-deduplication-id"),
 }));
 
 describe("publish", () => {
@@ -68,12 +73,15 @@ describe("publish", () => {
       TopicArn: topicArn,
       Message: '{"key":"value"}',
       MessageGroupId: "mock-message-id",
+      MessageDeduplicationId: "mock-deduplication-id",
     });
 
     expect(send).toHaveBeenCalledWith({
       TopicArn: topicArn,
       Message: '{"key":"value"}',
       MessageGroupId: "mock-message-id",
+      MessageDeduplicationId: "mock-deduplication-id",
     });
+    expect(randomUUID).toHaveBeenCalledOnce();
   });
 });

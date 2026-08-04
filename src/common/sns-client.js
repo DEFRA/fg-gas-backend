@@ -1,4 +1,5 @@
 import { PublishCommand, SNSClient } from "@aws-sdk/client-sns";
+import { randomUUID } from "node:crypto";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 
@@ -9,14 +10,15 @@ const snsClient = new SNSClient({
 
 export const publish = async (topic, data, messageGroupId) => {
   logger.info(`Publish command ${topic}`);
-  const messageGroup = topic.endsWith(".fifo") && {
+  const fifoAttributes = topic.endsWith(".fifo") && {
     MessageGroupId: messageGroupId,
+    MessageDeduplicationId: randomUUID(),
   };
   await snsClient.send(
     new PublishCommand({
       TopicArn: topic,
       Message: JSON.stringify(data),
-      ...messageGroup,
+      ...fifoAttributes,
     }),
   );
 };
