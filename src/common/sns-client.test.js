@@ -1,14 +1,9 @@
 import { PublishCommand, SNSClient } from "@aws-sdk/client-sns";
-import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@aws-sdk/client-sns", () => ({
   SNSClient: vi.fn(),
   PublishCommand: vi.fn(),
-}));
-
-vi.mock("node:crypto", () => ({
-  randomUUID: vi.fn(() => "mock-deduplication-id"),
 }));
 
 describe("publish", () => {
@@ -48,11 +43,17 @@ describe("publish", () => {
     });
   });
 
-  it("publishes a message to a fifo topic", async () => {
+  it("reuses the event ID as the fifo deduplication ID", async () => {
     const topicArn = "arn:aws:sns:us-east-1:123456789012:MyTopic.fifo";
-
     const message = {
+      id: "mock-event-id",
       key: "value",
+    };
+    const expected = {
+      TopicArn: topicArn,
+      Message: '{"id":"mock-event-id","key":"value"}',
+      MessageGroupId: "mock-message-id",
+      MessageDeduplicationId: "mock-event-id",
     };
 
     const send = vi.fn();
@@ -68,20 +69,11 @@ describe("publish", () => {
     const { publish } = await import("./sns-client.js");
 
     await publish(topicArn, message, "mock-message-id");
+    await publish(topicArn, message, "mock-message-id");
 
-    expect(PublishCommand).toHaveBeenCalledWith({
-      TopicArn: topicArn,
-      Message: '{"key":"value"}',
-      MessageGroupId: "mock-message-id",
-      MessageDeduplicationId: "mock-deduplication-id",
-    });
-
-    expect(send).toHaveBeenCalledWith({
-      TopicArn: topicArn,
-      Message: '{"key":"value"}',
-      MessageGroupId: "mock-message-id",
-      MessageDeduplicationId: "mock-deduplication-id",
-    });
-    expect(randomUUID).toHaveBeenCalledOnce();
+    expect(PublishCommand).toHaveBeenNthCalledWith(1, expected);
+    expect(PublishCommand).toHaveBeenNthCalledWith(2, expected);
+    expect(send).toHaveBeenNthCalledWith(1, expected);
+    expect(send).toHaveBeenNthCalledWith(2, expected);
   });
 });
