@@ -272,7 +272,10 @@ export const pmfAgreementDefinition = {
         },
         {
           component: "url",
-          href: "/agreements/$.agreement.agreementNumber/document",
+          href: {
+            urlTemplate: "/agreements/{agreementNumber}/document",
+            params: { agreementNumber: AGREEMENT_NUMBER_REF },
+          },
           text: "View your agreement",
         },
       ],

@@ -270,6 +270,17 @@ describe("agreementDefinitionSchema resolver instructions", () => {
       [{ component: "table", rows: [{ text: "@.description" }] }],
       /"pages\.offered\.components\[0\]\.rowsRef" is required/,
     ],
+    [
+      "a url with an incomplete structured href",
+      [
+        {
+          component: "url",
+          href: { params: { agreementNumber: "$.agreement.agreementNumber" } },
+          text: "View agreement",
+        },
+      ],
+      /"pages\.offered\.components\[0\]\.href\.urlTemplate" is required/,
+    ],
   ])("fails, identifying the entry, for %s", (_name, components, expected) => {
     expect(messagesFor(withComponents(components))).toMatch(expected);
   });
