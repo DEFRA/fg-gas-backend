@@ -42,6 +42,34 @@ describe("applyFormat", () => {
     });
   });
 
+  describe("poundsFromPence", () => {
+    it("formats whole pounds without decimal places", () => {
+      expect(applyFormat(32000, "poundsFromPence")).toBe("£320");
+    });
+
+    it("preserves pence when the amount is not a whole pound", () => {
+      expect(applyFormat(32050, "poundsFromPence")).toBe("£320.50");
+    });
+
+    it("throws when the value is not numeric", () => {
+      expect(() => applyFormat("no", "poundsFromPence")).toThrow(
+        'Cannot format "no" as poundsFromPence',
+      );
+    });
+  });
+
+  describe("dateLong", () => {
+    it("formats an ISO date in long form", () => {
+      expect(applyFormat("2026-11-06", "dateLong")).toBe("6 November 2026");
+    });
+
+    it("throws when the value is not a date", () => {
+      expect(() => applyFormat("not-a-date", "dateLong")).toThrow(
+        'Cannot format "not-a-date" as dateLong',
+      );
+    });
+  });
+
   it("throws for an unsupported format name", () => {
     expect(() => applyFormat(1, "unknownFormat")).toThrow(
       'Unsupported format "unknownFormat"',

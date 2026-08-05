@@ -24,6 +24,7 @@ it("returns canonical Agreement presentation with an ETag", async () => {
     },
     page: { name: "document", title: "Document" },
     components: [],
+    sections: [],
     actions: [],
   };
   getAgreementDocumentPageModelUseCase.mockResolvedValue({

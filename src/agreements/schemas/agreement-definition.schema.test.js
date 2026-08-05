@@ -97,6 +97,54 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
+  it("validates document sections, contents, print and watermark", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+    expect(definition.pages.document.contents).toBe(true);
+    expect(definition.pages.document.print).toBe(true);
+    expect(definition.pages.document.sections.length).toBeGreaterThan(0);
+  });
+
+  it("fails when watermark configuration contains UI classes", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.pages.document.watermark.classes = "custom-watermark";
+
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /"pages.document.watermark.classes" is not allowed/,
+    );
+  });
+
+  it("fails when document section ids are duplicated", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.pages.document.sections[1].id =
+      definition.pages.document.sections[0].id;
+
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /contains a duplicate value/,
+    );
+  });
+
+  it("fails when a document section id cannot be used as an HTML anchor", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.pages.document.sections[0].id = "Payment schedule";
+
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /fails to match the required pattern/,
+    );
+  });
+
   it("fails when states has no entries", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.states = {};

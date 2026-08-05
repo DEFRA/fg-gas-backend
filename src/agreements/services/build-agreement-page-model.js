@@ -3,6 +3,7 @@ import { logger } from "../../common/logger.js";
 import { assertSupportedAgreementPageMode } from "./assert-supported-agreement-page-mode.js";
 import { resolveComponents } from "./resolve-components.js";
 import { resolveActions } from "./resolve-page-href.js";
+import { resolveCondition, resolveRefs } from "./resolve-refs.js";
 
 const DOCUMENT_PAGE = "document";
 
@@ -18,6 +19,61 @@ const resolvePageContent = async (
     resolveComponents(pageDefinition.components, context),
     resolvePageActions(pageDefinition, context),
   ]);
+
+const resolveConditionalDefinition = async (definition, context, resolve) => {
+  if (definition === undefined) {
+    return undefined;
+  }
+
+  const { condition, ...content } = definition;
+  const scope = { context };
+
+  if (condition !== undefined && !(await resolveCondition(condition, scope))) {
+    return undefined;
+  }
+
+  return resolve(content, scope);
+};
+
+const resolveSection = (section, context) =>
+  resolveConditionalDefinition(section, context, async (content, scope) => {
+    const { id, title, components } = content;
+    const [resolvedTitle, resolvedComponents] = await Promise.all([
+      resolveRefs(title, scope),
+      resolveComponents(components, context),
+    ]);
+
+    return { id, title: resolvedTitle, components: resolvedComponents };
+  });
+
+const resolveSections = async (context, sections = []) => {
+  const resolved = await Promise.all(
+    sections.map((section) => resolveSection(section, context)),
+  );
+
+  return resolved.filter(Boolean);
+};
+
+const resolveWatermark = (watermark, context) =>
+  resolveConditionalDefinition(watermark, context, resolveRefs);
+
+const omitUndefined = (value) =>
+  Object.fromEntries(
+    Object.entries(value).filter(([_key, item]) => item !== undefined),
+  );
+
+const buildPageMetadata = async (page, pageDefinition, context) => {
+  const watermark = await resolveWatermark(pageDefinition.watermark, context);
+
+  return omitUndefined({
+    name: page,
+    title: pageDefinition.title,
+    layout: pageDefinition.layout,
+    contents: pageDefinition.contents,
+    print: pageDefinition.print,
+    watermark,
+  });
+};
 
 const toAgreementSummary = ({
   agreementNumber,
@@ -38,6 +94,7 @@ const toAgreementSummary = ({
 const buildPageModel = async ({
   agreement,
   agreementDefinition,
+  includeSections = false,
   page,
   resolvePageActions,
 }) => {
@@ -51,21 +108,21 @@ const buildPageModel = async ({
   };
 
   try {
-    const [components, actions] = await resolvePageContent(
-      pageDefinition,
-      context,
-      resolvePageActions,
-    );
-    const layout = pageDefinition.layout
-      ? { layout: pageDefinition.layout }
-      : {};
+    const [[components, actions], sections, pageMetadata] = await Promise.all([
+      resolvePageContent(pageDefinition, context, resolvePageActions),
+      includeSections
+        ? resolveSections(context, pageDefinition.sections)
+        : undefined,
+      buildPageMetadata(page, pageDefinition, context),
+    ]);
 
-    return {
+    return omitUndefined({
       agreement: toAgreementSummary(agreement),
-      page: { name: page, title: pageDefinition.title, ...layout },
+      page: pageMetadata,
       components,
+      sections,
       actions,
-    };
+    });
   } catch (error) {
     logger.error(
       error,
@@ -102,6 +159,7 @@ export const buildAgreementDocumentPageModel = async ({
   buildPageModel({
     agreement,
     agreementDefinition,
+    includeSections: true,
     page: DOCUMENT_PAGE,
     resolvePageActions: () => [],
   });
