@@ -20,6 +20,7 @@ describe("Current Agreement route", () => {
       },
       page: { name: "offered", title: "Review your agreement offer" },
       components: [],
+      sections: [],
       actions: [],
     };
     getCurrentAgreementPageModelUseCase.mockResolvedValue({

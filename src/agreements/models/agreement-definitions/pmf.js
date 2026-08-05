@@ -2,7 +2,7 @@ const AGREEMENT_NUMBER_REF = "$.agreement.agreementNumber";
 
 export const pmfAgreementDefinition = {
   code: "pigs-might-fly",
-  configVersion: "1.1.0",
+  configVersion: "1.2.0",
   agreementNumberPrefix: "PMF",
   endpoints: [
     {
@@ -154,17 +154,18 @@ export const pmfAgreementDefinition = {
     document: {
       title: "Pigs Might Fly agreement document",
       layout: "document",
+      contents: true,
+      print: true,
+      watermark: {
+        condition: "jsonata:$.agreement.state = 'offered'",
+        header: "Draft Agreement",
+        text: "DRAFT",
+      },
       components: [
         {
           component: "notification-banner",
           condition: "jsonata:$.agreement.state = 'offered'",
           title: "This is a draft version of your agreement",
-        },
-        {
-          component: "watermark",
-          condition: "jsonata:$.agreement.state = 'offered'",
-          header: "Draft Agreement",
-          text: "DRAFT",
         },
         {
           component: "heading",
@@ -174,10 +175,6 @@ export const pmfAgreementDefinition = {
         {
           component: "summary-list",
           rows: [
-            {
-              label: "Agreement holder",
-              text: "jsonata:$.agreement.payload.businessName ? $.agreement.payload.businessName : ''",
-            },
             { label: "SBI", text: "$.agreement.identifiers.sbi" },
             {
               label: "Agreement number",
@@ -185,14 +182,98 @@ export const pmfAgreementDefinition = {
             },
           ],
         },
-        { component: "heading", level: 2, text: "Payments" },
+      ],
+      sections: [
         {
-          component: "table",
-          head: [{ text: "Pig Type" }, { text: "Amount" }],
-          rowsRef: "$.agreement.supplementaryData.fundingCalculation.items",
-          rows: [
-            { text: "$.description" },
-            { text: "$.total", format: "poundsNoDecimals" },
+          id: "agreement-overview",
+          title: "Agreement overview",
+          components: [
+            {
+              component: "paragraph",
+              text: "This test agreement records the pigs included in your offer, the funding amount and, after acceptance, the payment schedule.",
+            },
+          ],
+        },
+        {
+          id: "pigs-and-funding",
+          title: "Pigs and funding",
+          components: [
+            {
+              component: "table",
+              head: [{ text: "Pig type" }, { text: "Funding amount" }],
+              rowsRef: "$.agreement.supplementaryData.fundingCalculation.items",
+              rows: [
+                { text: "@.description" },
+                { text: "@.total", format: "poundsNoDecimals" },
+              ],
+            },
+          ],
+        },
+        {
+          id: "payment-schedule",
+          title: "Payment schedule",
+          condition: "jsonata:$.agreement.state = 'accepted'",
+          components: [
+            {
+              component: "summary-list",
+              rows: [
+                {
+                  label: "Agreement start date",
+                  text: "$.agreement.paymentCalculation.agreementStartDate",
+                  format: "dateLong",
+                },
+                {
+                  label: "Agreement end date",
+                  text: "$.agreement.paymentCalculation.agreementEndDate",
+                  format: "dateLong",
+                },
+                {
+                  label: "Total payment",
+                  text: "$.agreement.paymentCalculation.agreementTotalPence",
+                  format: "poundsFromPence",
+                },
+              ],
+            },
+            {
+              component: "table",
+              head: [{ text: "Payment date" }, { text: "Amount" }],
+              rowsRef: "$.agreement.paymentCalculation.payments",
+              rows: [
+                { text: "@.dueDate", format: "dateLong" },
+                { text: "@.totalAmountPence", format: "poundsFromPence" },
+              ],
+            },
+          ],
+        },
+        {
+          id: "acceptance",
+          title: "Acceptance",
+          condition: "jsonata:$.agreement.state = 'accepted'",
+          components: [
+            {
+              component: "summary-list",
+              rows: [
+                {
+                  label: "Accepted on",
+                  text: "$.agreement.acceptedAt",
+                  format: "dateLong",
+                },
+              ],
+            },
+            {
+              component: "paragraph",
+              text: "This agreement was accepted electronically.",
+            },
+          ],
+        },
+        {
+          id: "about-this-test-agreement",
+          title: "About this test agreement",
+          components: [
+            {
+              component: "paragraph",
+              text: "Pigs Might Fly is a test grant used to check the agreement service. It is not a real grant agreement.",
+            },
           ],
         },
       ],
@@ -203,17 +284,37 @@ export const pmfAgreementDefinition = {
         { component: "heading", level: 1, text: "Review your agreement offer" },
         {
           component: "paragraph",
-          text: "If you accept this agreement offer, the resulting agreement will be between Defra and:",
+          text: "Check the details of this test agreement before you continue.",
         },
-        { component: "heading", level: 2, text: "Payments" },
+        {
+          component: "summary-list",
+          rows: [
+            { label: "SBI", text: "$.agreement.identifiers.sbi" },
+            { label: "Agreement number", text: AGREEMENT_NUMBER_REF },
+          ],
+        },
+        { component: "heading", level: 2, text: "Pigs and funding" },
         {
           component: "table",
-          head: [{ text: "Pig Type" }, { text: "Amount" }],
+          head: [{ text: "Pig type" }, { text: "Funding amount" }],
           rowsRef: "$.agreement.supplementaryData.fundingCalculation.items",
           rows: [
-            { text: "$.description" },
-            { text: "$.total", format: "poundsNoDecimals" },
+            { text: "@.description" },
+            { text: "@.total", format: "poundsNoDecimals" },
           ],
+        },
+        {
+          component: "paragraph",
+          text: "Your payment schedule and agreement dates will be confirmed when you accept the offer.",
+        },
+        {
+          component: "url",
+          href: {
+            urlTemplate: "/agreements/{agreementNumber}/document",
+            params: { agreementNumber: AGREEMENT_NUMBER_REF },
+          },
+          text: "View the draft agreement",
+          classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
         },
       ],
       actions: [
@@ -235,6 +336,18 @@ export const pmfAgreementDefinition = {
       title: "Accept your agreement offer",
       components: [
         { component: "heading", level: 1, text: "Accept your agreement offer" },
+        {
+          component: "paragraph",
+          text: "By accepting this offer, you confirm that:",
+        },
+        {
+          component: "unordered-list",
+          items: [
+            { text: "the information in the agreement is correct" },
+            { text: "you have authority to accept the agreement" },
+            { text: "you understand this is a test grant" },
+          ],
+        },
         {
           component: "checkboxes",
           name: "confirm",
@@ -261,14 +374,47 @@ export const pmfAgreementDefinition = {
         },
       ],
     },
-    // TODO: placeholder copy - real content covered by a follow-up ticket
     accepted: {
       title: "Your agreement is now active",
       components: [
         {
+          component: "panel",
+          title: "Agreement offer accepted",
+          text: "Agreement number: $.agreement.agreementNumber",
+        },
+        {
           component: "heading",
-          level: 1,
-          text: "Your agreement is now active",
+          level: 2,
+          text: "Payment schedule",
+        },
+        {
+          component: "summary-list",
+          rows: [
+            {
+              label: "Agreement start date",
+              text: "$.agreement.paymentCalculation.agreementStartDate",
+              format: "dateLong",
+            },
+            {
+              label: "Agreement end date",
+              text: "$.agreement.paymentCalculation.agreementEndDate",
+              format: "dateLong",
+            },
+            {
+              label: "Total payment",
+              text: "$.agreement.paymentCalculation.agreementTotalPence",
+              format: "poundsFromPence",
+            },
+          ],
+        },
+        {
+          component: "table",
+          head: [{ text: "Payment date" }, { text: "Amount" }],
+          rowsRef: "$.agreement.paymentCalculation.payments",
+          rows: [
+            { text: "@.dueDate", format: "dateLong" },
+            { text: "@.totalAmountPence", format: "poundsFromPence" },
+          ],
         },
         {
           component: "url",
@@ -276,7 +422,7 @@ export const pmfAgreementDefinition = {
             urlTemplate: "/agreements/{agreementNumber}/document",
             params: { agreementNumber: AGREEMENT_NUMBER_REF },
           },
-          text: "View your agreement",
+          text: "View and print your agreement",
         },
       ],
       actions: [],

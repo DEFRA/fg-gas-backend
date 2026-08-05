@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
+import { pmfAgreementDefinition } from "../models/agreement-definitions/pmf.js";
 import {
   buildAgreementDocumentPageModel,
   buildAgreementPageModel,
@@ -40,7 +41,32 @@ const definition = new AgreementDefinition({
     document: {
       title: "Document",
       layout: "document",
+      contents: true,
+      print: true,
+      watermark: {
+        condition: "jsonata:$.agreement.state = 'offered'",
+        header: "Draft Agreement",
+        text: "DRAFT",
+      },
       components: [{ component: "heading", text: "Document" }],
+      sections: [
+        {
+          id: "agreement-details",
+          title: "Agreement $.agreement.agreementNumber",
+          components: [
+            {
+              component: "paragraph",
+              text: "SBI $.agreement.identifiers.sbi",
+            },
+          ],
+        },
+        {
+          id: "accepted-only",
+          title: "Acceptance",
+          condition: "jsonata:$.agreement.state = 'accepted'",
+          components: [{ component: "paragraph", text: "Accepted" }],
+        },
+      ],
       actions: [{ name: "accept", method: "GET", text: "Accept", href: "/" }],
     },
   },
@@ -79,6 +105,7 @@ describe("buildAgreementPageModel", () => {
       },
       page: { name: "offer", title: "Offer" },
       components: [{ component: "heading", text: "Agreement offer" }],
+      sections: [],
       actions: [],
     });
   });
@@ -104,8 +131,120 @@ describe("buildAgreementPageModel", () => {
       name: "document",
       title: "Document",
       layout: "document",
+      contents: true,
+      print: true,
+      watermark: { header: "Draft Agreement", text: "DRAFT" },
     });
+    expect(result.sections).toEqual([
+      {
+        id: "agreement-details",
+        title: "Agreement TST123",
+        components: [{ component: "paragraph", text: "SBI 300000000" }],
+      },
+    ]);
     expect(result.actions).toEqual([]);
+  });
+
+  it("omits a conditional watermark when its condition is false", async () => {
+    const result = await buildAgreementDocumentPageModel({
+      agreement: { ...agreement, state: "accepted" },
+      agreementDefinition: definition,
+    });
+
+    expect(result.page.watermark).toBeUndefined();
+    expect(result.sections.at(-1)).toEqual({
+      id: "accepted-only",
+      title: "Acceptance",
+      components: [{ component: "paragraph", text: "Accepted" }],
+    });
+  });
+
+  it("builds the accepted PMF payment schedule from the calculator response", async () => {
+    const acceptedAgreement = {
+      ...agreement,
+      code: "pigs-might-fly",
+      configVersion: "1.2.0",
+      state: "accepted",
+      acceptedAt: "2026-07-31T15:30:00.000Z",
+      supplementaryData: {
+        fundingCalculation: {
+          items: [{ description: "Large White Pig", total: 320 }],
+        },
+      },
+      paymentCalculation: {
+        agreementStartDate: "2026-08-01",
+        agreementEndDate: "2027-07-31",
+        agreementTotalPence: 32000,
+        payments: [{ dueDate: "2026-11-06", totalAmountPence: 32000 }],
+      },
+    };
+    const pmfDefinition = new AgreementDefinition(pmfAgreementDefinition);
+
+    const [documentModel, acceptedModel] = await Promise.all([
+      buildAgreementDocumentPageModel({
+        agreement: acceptedAgreement,
+        agreementDefinition: pmfDefinition,
+      }),
+      buildAgreementPageModel({
+        agreement: acceptedAgreement,
+        agreementDefinition: pmfDefinition,
+        page: "accepted",
+        mode: "view",
+      }),
+    ]);
+
+    expect(documentModel.page.watermark).toBeUndefined();
+    expect(documentModel.sections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "payment-schedule",
+          components: expect.arrayContaining([
+            expect.objectContaining({
+              component: "table",
+              rows: [[{ text: "6 November 2026" }, { text: "£320" }]],
+            }),
+          ]),
+        }),
+      ]),
+    );
+    expect(acceptedModel.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          component: "summary-list",
+          rows: expect.arrayContaining([
+            { label: "Agreement start date", text: "1 August 2026" },
+            { label: "Total payment", text: "£320" },
+          ]),
+        }),
+      ]),
+    );
+  });
+
+  it("separates the PMF draft agreement link from the primary action", async () => {
+    const offeredAgreement = {
+      ...agreement,
+      code: "pigs-might-fly",
+      supplementaryData: {
+        fundingCalculation: {
+          items: [{ description: "Large White Pig", total: 100 }],
+        },
+      },
+    };
+
+    const model = await buildAgreementPageModel({
+      agreement: offeredAgreement,
+      agreementDefinition: new AgreementDefinition(pmfAgreementDefinition),
+      page: "offered",
+      mode: "view",
+    });
+
+    expect(model.components).toContainEqual(
+      expect.objectContaining({
+        component: "url",
+        text: "View the draft agreement",
+        classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
+      }),
+    );
   });
 
   it("resolves a template from the definition against the agreement", async () => {

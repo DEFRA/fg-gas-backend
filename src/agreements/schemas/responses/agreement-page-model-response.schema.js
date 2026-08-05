@@ -14,6 +14,18 @@ const action = Joi.object({
   href: Joi.string().required(),
 }).label("AgreementPageModelAction");
 
+const section = Joi.object({
+  id: Joi.string().required(),
+  title: Joi.string().required(),
+  components: Joi.array().items(component).required(),
+}).label("AgreementPageModelSection");
+
+const watermark = Joi.object({
+  text: Joi.string().required(),
+  header: Joi.string().optional(),
+  classes: Joi.string().optional(),
+}).label("AgreementPageModelWatermark");
+
 export const agreementPageModelResponseSchema = Joi.object({
   agreement: Joi.object({
     agreementNumber: Joi.string().required(),
@@ -27,8 +39,12 @@ export const agreementPageModelResponseSchema = Joi.object({
     name: Joi.string().required(),
     title: Joi.string().required(),
     layout: Joi.string().valid("document").optional(),
+    contents: Joi.boolean().optional(),
+    print: Joi.boolean().optional(),
+    watermark: watermark.optional(),
   }).required(),
   components: Joi.array().items(component).required(),
+  sections: Joi.array().items(section).required(),
   actions: Joi.array().items(action).required(),
 })
   .options({ presence: "required", stripUnknown: true })

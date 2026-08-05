@@ -170,10 +170,32 @@ const pageAction = Joi.object({
   .unknown(true)
   .label("PageAction");
 
+const sectionId = Joi.string()
+  .pattern(/^[a-z][a-z0-9-]*$/)
+  .label("SectionId");
+
+const documentSection = Joi.object({
+  id: sectionId.required(),
+  title: Joi.string().required(),
+  condition: reference.optional(),
+  components: Joi.array().items(component).min(1).required(),
+}).label("DocumentSection");
+
+const watermark = Joi.object({
+  condition: reference.optional(),
+  text: Joi.string().required(),
+  header: Joi.string().optional(),
+  classes: Joi.string().optional(),
+}).label("Watermark");
+
 const pageDefinition = Joi.object({
   title: Joi.string().required(),
   layout: Joi.string().valid("document").optional(),
+  contents: Joi.boolean().optional(),
+  print: Joi.boolean().optional(),
+  watermark: watermark.optional(),
   components: Joi.array().items(component).min(1).required(),
+  sections: Joi.array().items(documentSection).min(1).unique("id").optional(),
   actions: Joi.array().items(pageAction).optional(),
 })
   .unknown(true)
