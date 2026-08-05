@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
-import { buildAgreementPageModel } from "./build-agreement-page-model.js";
+import {
+  buildAgreementDocumentPageModel,
+  buildAgreementPageModel,
+} from "./build-agreement-page-model.js";
 
 const definition = new AgreementDefinition({
   code: "test",
@@ -88,6 +91,20 @@ describe("buildAgreementPageModel", () => {
       mode: "print",
     });
     expect(result.page.layout).toBe("document");
+    expect(result.actions).toEqual([]);
+  });
+
+  it("builds pages.document without lifecycle actions", async () => {
+    const result = await buildAgreementDocumentPageModel({
+      agreement,
+      agreementDefinition: definition,
+    });
+
+    expect(result.page).toEqual({
+      name: "document",
+      title: "Document",
+      layout: "document",
+    });
     expect(result.actions).toEqual([]);
   });
 

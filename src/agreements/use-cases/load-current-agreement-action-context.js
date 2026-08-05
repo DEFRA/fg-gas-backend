@@ -15,17 +15,19 @@ export const resolveAgreementAction = (agreementDefinition, options) => {
 
 export const loadCurrentAgreementActionContext = async ({
   actionName,
+  agreement,
   agreementNumber,
   session,
 }) => {
-  const { agreement, agreementDefinition } = await loadCurrentAgreementContext({
+  const context = await loadCurrentAgreementContext({
+    agreement,
     agreementNumber,
     session,
   });
-  const action = resolveAgreementAction(agreementDefinition, {
-    state: agreement.state,
+  const action = resolveAgreementAction(context.agreementDefinition, {
+    state: context.agreement.state,
     action: actionName,
   });
 
-  return { action, agreement, agreementDefinition };
+  return { action, ...context };
 };

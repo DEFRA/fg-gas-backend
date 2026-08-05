@@ -1,3 +1,4 @@
+import { agreementAccessHeadersSchema } from "../schemas/requests/agreement-access-headers.schema.js";
 import { invokeAgreementActionParamsSchema } from "../schemas/requests/invoke-agreement-action-request.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
 import { toEtag } from "../use-cases/agreement-etag.js";
@@ -10,6 +11,7 @@ export const prepareAgreementActionRoute = {
     description: "Prepare an Agreement lifecycle action",
     tags: ["api"],
     validate: {
+      headers: agreementAccessHeadersSchema,
       params: invokeAgreementActionParamsSchema,
     },
     response: {
@@ -20,6 +22,11 @@ export const prepareAgreementActionRoute = {
     const pageModel = await prepareAgreementActionUseCase({
       actionName: request.params.actionName,
       agreementNumber: request.params.agreementNumber,
+      access: {
+        source: request.headers["x-agreement-source"],
+        code: request.headers["x-agreement-code"],
+        sbi: request.headers["x-agreement-sbi"],
+      },
     });
     const agreement = pageModel.agreement;
 

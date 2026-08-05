@@ -1,3 +1,5 @@
+const AGREEMENT_NUMBER_REF = "$.agreement.agreementNumber";
+
 export const pmfAgreementDefinition = {
   code: "pigs-might-fly",
   configVersion: "1.1.0",
@@ -149,6 +151,52 @@ export const pmfAgreementDefinition = {
     },
   },
   pages: {
+    document: {
+      title: "Pigs Might Fly agreement document",
+      layout: "document",
+      components: [
+        {
+          component: "notification-banner",
+          condition: "jsonata:$.agreement.state = 'offered'",
+          title: "This is a draft version of your agreement",
+        },
+        {
+          component: "watermark",
+          condition: "jsonata:$.agreement.state = 'offered'",
+          header: "Draft Agreement",
+          text: "DRAFT",
+        },
+        {
+          component: "heading",
+          level: 1,
+          text: "Pigs Might Fly agreement document",
+        },
+        {
+          component: "summary-list",
+          rows: [
+            {
+              label: "Agreement holder",
+              text: "jsonata:$.agreement.payload.businessName ? $.agreement.payload.businessName : ''",
+            },
+            { label: "SBI", text: "$.agreement.identifiers.sbi" },
+            {
+              label: "Agreement number",
+              text: AGREEMENT_NUMBER_REF,
+            },
+          ],
+        },
+        { component: "heading", level: 2, text: "Payments" },
+        {
+          component: "table",
+          head: [{ text: "Pig Type" }, { text: "Amount" }],
+          rowsRef: "$.agreement.supplementaryData.fundingCalculation.items",
+          rows: [
+            { text: "$.description" },
+            { text: "$.total", format: "poundsNoDecimals" },
+          ],
+        },
+      ],
+    },
     offered: {
       title: "Review your agreement offer",
       components: [
@@ -175,7 +223,7 @@ export const pmfAgreementDefinition = {
           href: {
             urlTemplate: "/agreements/{agreementNumber}/actions/{name}",
             params: {
-              agreementNumber: "$.agreement.agreementNumber",
+              agreementNumber: AGREEMENT_NUMBER_REF,
               name: "accept",
             },
           },
@@ -205,7 +253,7 @@ export const pmfAgreementDefinition = {
           href: {
             urlTemplate: "/agreements/{agreementNumber}/actions/{name}",
             params: {
-              agreementNumber: "$.agreement.agreementNumber",
+              agreementNumber: AGREEMENT_NUMBER_REF,
               name: "accept",
             },
           },
@@ -221,6 +269,14 @@ export const pmfAgreementDefinition = {
           component: "heading",
           level: 1,
           text: "Your agreement is now active",
+        },
+        {
+          component: "url",
+          href: {
+            urlTemplate: "/agreements/{agreementNumber}/document",
+            params: { agreementNumber: AGREEMENT_NUMBER_REF },
+          },
+          text: "View your agreement",
         },
       ],
       actions: [],

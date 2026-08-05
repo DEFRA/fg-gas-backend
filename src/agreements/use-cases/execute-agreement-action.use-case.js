@@ -16,12 +16,13 @@ import { runAgreementEffects } from "../services/effects/agreement-effect-runner
 import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
 import { toEtag } from "./agreement-etag.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
+import { loadAgreementForAction } from "./load-current-agreement.js";
 
-const toLocation = (agreementNumber) => `/agreements/${agreementNumber}`;
+const currentAgreementLocation = "/agreements/current";
 
 const staleError = (agreement) => {
   const error = Boom.preconditionFailed("Agreement version is stale");
-  error.output.headers.location = toLocation(agreement.agreementNumber);
+  error.output.headers.location = currentAgreementLocation;
   error.output.headers.etag = toEtag(agreement);
   return error;
 };
@@ -41,7 +42,7 @@ const findCompleted = async (
   if (version.actionExecution.name !== actionName) {
     throw Boom.conflict("Idempotency key has already been used");
   }
-  return { location: toLocation(agreementNumber) };
+  return { location: currentAgreementLocation };
 };
 
 const runAction = async ({
@@ -167,7 +168,7 @@ const commitActionTransaction = async (
     : next.events;
   await saveOutboxEvents(publications, session);
 
-  return { location: toLocation(current.agreementNumber) };
+  return { location: currentAgreementLocation };
 };
 
 const resolveConcurrentUpdate = async (options) => {
@@ -209,13 +210,17 @@ const commitAction = async (options) => {
 };
 
 export const executeAgreementActionUseCase = async (options) => {
+  const authorisedAgreement = await loadAgreementForAction(options);
   const completed = await findCompleted(options);
   if (completed) {
     return completed;
   }
 
   const { action, agreement, agreementDefinition } =
-    await loadCurrentAgreementActionContext(options);
+    await loadCurrentAgreementActionContext({
+      ...options,
+      agreement: authorisedAgreement,
+    });
   if (options.ifMatch !== toEtag(agreement)) {
     throw staleError(agreement);
   }

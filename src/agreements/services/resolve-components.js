@@ -1,4 +1,5 @@
 import { applyFormat } from "./format.js";
+import { resolvePageHref } from "./resolve-page-href.js";
 import { resolveCondition, resolveRefs } from "./resolve-refs.js";
 
 const applyFormatsToObject = (value) => {
@@ -132,11 +133,23 @@ const resolveTemplate = async (component, scope) => {
 const resolveContainer = (component, scope) =>
   resolveComponentList(component.content, scope);
 
+const resolveUrl = async ({ href, ...component }, scope) => {
+  const [resolvedComponent, resolvedHref] = await Promise.all([
+    resolveRefs(component, scope),
+    typeof href === "string"
+      ? resolveRefs(href, scope)
+      : resolvePageHref(href, scope.context),
+  ]);
+
+  return [applyFormats({ ...resolvedComponent, href: resolvedHref })];
+};
+
 const resolvers = {
   conditional: resolveConditional,
   repeat: resolveRepeat,
   table: resolveTable,
   template: resolveTemplate,
+  url: resolveUrl,
   "component-container": resolveContainer,
 };
 

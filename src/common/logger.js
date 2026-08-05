@@ -24,7 +24,13 @@ export const logger = pino({
   redact: {
     paths:
       config.env === "production"
-        ? ["req.headers.authorization", "req.headers.cookie", "res.headers"]
+        ? [
+            "req.headers.authorization",
+            "req.headers.cookie",
+            'req.headers["x-agreement-client-ref"]',
+            'req.headers["x-agreement-sbi"]',
+            "res.headers",
+          ]
         : ["req", "res", "responseTime"],
     remove: true,
   },

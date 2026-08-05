@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { agreementAccessHeadersSchema } from "./agreement-access-headers.schema.js";
 
 export const agreementNumberParamsSchema = Joi.object({
   agreementNumber: Joi.string().required(),
@@ -10,11 +11,11 @@ export const invokeAgreementActionParamsSchema = agreementNumberParamsSchema
   })
   .label("InvokeAgreementActionParams");
 
-export const invokeAgreementActionHeadersSchema = Joi.object({
-  "if-match": Joi.string().required(),
-  "idempotency-key": Joi.string().guid({ version: "uuidv4" }).required(),
-})
-  .unknown(true)
+export const invokeAgreementActionHeadersSchema = agreementAccessHeadersSchema
+  .keys({
+    "if-match": Joi.string().required(),
+    "idempotency-key": Joi.string().guid({ version: "uuidv4" }).required(),
+  })
   .label("InvokeAgreementActionHeaders");
 
 const actionValues = Joi.object()

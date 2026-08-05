@@ -74,6 +74,16 @@ const reference = Joi.string().pattern(/^(?:jsonata:.+|[$@]\.[\w$.[\]]+)$/s, {
 // A branch may be a single component or several
 const branch = Joi.alternatives().try(componentLink, nestedComponents);
 
+const pageHref = Joi.alternatives()
+  .try(
+    Joi.string(),
+    Joi.object({
+      urlTemplate: Joi.string().required(),
+      params: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
+    }),
+  )
+  .label("PageHref");
+
 const genericComponent = Joi.object({
   component: Joi.string().required(),
   condition: reference.optional(),
@@ -118,6 +128,13 @@ const tableComponent = Joi.object({
   rows: Joi.array().items(Joi.object()).min(1).required(),
 }).unknown(true);
 
+const urlComponent = Joi.object({
+  component: Joi.string().valid("url").required(),
+  condition: reference.optional(),
+  href: pageHref.required(),
+  text: Joi.string().required(),
+}).unknown(true);
+
 const component = Joi.alternatives()
   .conditional(".component", {
     switch: [
@@ -126,6 +143,7 @@ const component = Joi.alternatives()
       { is: "template", then: templateComponent },
       { is: "component-container", then: containerComponent },
       { is: "table", then: tableComponent },
+      { is: "url", then: urlComponent },
     ],
     otherwise: genericComponent,
   })
@@ -142,16 +160,6 @@ const templates = Joi.object()
   )
   .optional()
   .label("Templates");
-
-const pageHref = Joi.alternatives()
-  .try(
-    Joi.string(),
-    Joi.object({
-      urlTemplate: Joi.string().required(),
-      params: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
-    }),
-  )
-  .label("PageHref");
 
 const pageAction = Joi.object({
   name: Joi.string().required(),
