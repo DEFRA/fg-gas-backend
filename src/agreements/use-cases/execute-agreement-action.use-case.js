@@ -16,6 +16,7 @@ import { runAgreementEffects } from "../services/effects/agreement-effect-runner
 import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
 import { toEtag } from "./agreement-etag.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
+import { loadAgreementForAction } from "./load-current-agreement.js";
 
 const currentAgreementLocation = "/agreements/current";
 
@@ -209,13 +210,17 @@ const commitAction = async (options) => {
 };
 
 export const executeAgreementActionUseCase = async (options) => {
+  const authorisedAgreement = await loadAgreementForAction(options);
   const completed = await findCompleted(options);
   if (completed) {
     return completed;
   }
 
   const { action, agreement, agreementDefinition } =
-    await loadCurrentAgreementActionContext(options);
+    await loadCurrentAgreementActionContext({
+      ...options,
+      agreement: authorisedAgreement,
+    });
   if (options.ifMatch !== toEtag(agreement)) {
     throw staleError(agreement);
   }

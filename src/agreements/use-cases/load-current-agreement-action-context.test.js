@@ -18,11 +18,13 @@ describe("loadCurrentAgreementActionContext", () => {
 
     await expect(
       loadCurrentAgreementActionContext({
+        agreement,
         agreementNumber: "PMF123",
         actionName: "accept",
       }),
     ).resolves.toEqual({ agreement, agreementDefinition, action });
     expect(loadCurrentAgreementContext).toHaveBeenCalledWith({
+      agreement,
       agreementNumber: "PMF123",
       session: undefined,
     });

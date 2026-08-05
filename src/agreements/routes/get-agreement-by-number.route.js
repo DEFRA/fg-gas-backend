@@ -1,3 +1,4 @@
+import { agreementAccessHeadersSchema } from "../schemas/requests/agreement-access-headers.schema.js";
 import { getAgreementDocumentQuerySchema } from "../schemas/requests/get-current-agreement-query.schema.js";
 import { agreementNumberParamsSchema } from "../schemas/requests/invoke-agreement-action-request.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
@@ -11,19 +12,21 @@ export const getAgreementByNumberRoute = {
     description: "Get the canonical document for an Agreement number",
     tags: ["api"],
     validate: {
+      headers: agreementAccessHeadersSchema,
       params: agreementNumberParamsSchema,
       query: getAgreementDocumentQuerySchema,
     },
     response: { schema: agreementPageModelResponseSchema },
   },
   async handler(request, h) {
-    const { code, clientRef, sbi } = request.query;
     const { agreement, pageModel } = await getAgreementDocumentPageModelUseCase(
       {
         agreementNumber: request.params.agreementNumber,
-        code,
-        clientRef,
-        sbi,
+        access: {
+          source: request.headers["x-agreement-source"],
+          code: request.headers["x-agreement-code"],
+          sbi: request.headers["x-agreement-sbi"],
+        },
       },
     );
 

@@ -29,6 +29,15 @@ const agreement = {
   },
 };
 
+const documentHeaders = {
+  "x-agreement-source": "defra",
+  "x-agreement-code": code,
+  "x-agreement-sbi": sbi,
+};
+
+const getAgreementDocument = (headers = documentHeaders) =>
+  wreck.request("GET", `/agreements/${agreementNumber}/document`, { headers });
+
 describe("read-only Agreement document", () => {
   let agreements;
   let client;
@@ -49,10 +58,7 @@ describe("read-only Agreement document", () => {
   });
 
   it("returns the configured document without applicant actions", async () => {
-    const response = await wreck.request(
-      "GET",
-      `/agreements/${agreementNumber}/document?code=${code}&clientRef=${clientRef}&sbi=${sbi}`,
-    );
+    const response = await getAgreementDocument();
     const payload = await wreck.read(response, { json: true });
 
     expect(response.statusCode).toBe(200);
@@ -65,28 +71,56 @@ describe("read-only Agreement document", () => {
       },
       actions: [],
     });
+    expect(payload.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          component: "notification-banner",
+          title: "This is a draft version of your agreement",
+        }),
+        expect.objectContaining({ component: "watermark", text: "DRAFT" }),
+      ]),
+    );
   });
 
-  it("does not disclose a document when its case reference does not match", async () => {
-    const response = await wreck.request(
-      "GET",
-      `/agreements/${agreementNumber}/document?code=${code}&clientRef=another-case&sbi=${sbi}`,
+  it("removes draft marking from an accepted Agreement document", async () => {
+    await agreements.updateOne(
+      { agreementNumber },
+      { $set: { state: "accepted" } },
     );
+
+    const response = await getAgreementDocument();
+    const payload = await wreck.read(response, { json: true });
+
+    expect(response.statusCode).toBe(200);
+    expect(payload.agreement.state).toBe("accepted");
+    expect(payload.actions).toEqual([]);
+    expect(payload.components).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ component: "notification-banner" }),
+      ]),
+    );
+    expect(payload.components).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ component: "watermark" }),
+      ]),
+    );
+  });
+
+  it("does not disclose the document to another SBI account", async () => {
+    const response = await getAgreementDocument({
+      ...documentHeaders,
+      "x-agreement-sbi": "999999999",
+    });
 
     expect(response.statusCode).toBe(404);
   });
 
-  it("keeps the applicant current Agreement interactive", async () => {
-    const response = await wreck.request(
-      "GET",
-      `/agreements/current?code=${code}&clientRef=${clientRef}&sbi=${sbi}`,
-    );
-    const payload = await wreck.read(response, { json: true });
+  it("allows Caseworking to read the matching grant document", async () => {
+    const response = await getAgreementDocument({
+      "x-agreement-source": "entra",
+      "x-agreement-code": code,
+    });
 
     expect(response.statusCode).toBe(200);
-    expect(payload).toMatchObject({
-      page: { name: "offered", title: "Review your agreement offer" },
-      actions: [{ name: "accept", text: "Continue", method: "GET" }],
-    });
   });
 });

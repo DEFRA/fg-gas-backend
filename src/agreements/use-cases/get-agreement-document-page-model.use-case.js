@@ -5,17 +5,10 @@ import { loadAgreementDocument } from "./load-current-agreement.js";
 
 export const getAgreementDocumentPageModelUseCase = async ({
   agreementNumber,
-  code,
-  clientRef,
-  sbi,
+  access,
 }) => {
-  logger.info({ code }, "Getting read-only agreement document");
-  const agreement = await loadAgreementDocument({
-    agreementNumber,
-    code,
-    clientRef,
-    sbi,
-  });
+  logger.info({ agreementNumber }, "Getting read-only agreement document");
+  const agreement = await loadAgreementDocument({ agreementNumber, access });
   const agreementDefinition = await loadAgreementDefinition({
     code: agreement.code,
     configVersion: agreement.configVersion,

@@ -6,6 +6,11 @@ import { wreck } from "../helpers/wreck.js";
 const agreementNumber = "PMF823153884";
 const idempotencyKey = "9ea924aa-45e9-43a7-888e-c25054ea658c";
 const createdAt = "2026-07-15T12:00:00.000Z";
+const agreementAccessHeaders = {
+  "x-agreement-source": "defra",
+  "x-agreement-code": "pigs-might-fly",
+  "x-agreement-sbi": "300000070",
+};
 
 const agreement = () => ({
   _id: agreementNumber,
@@ -40,7 +45,11 @@ const requestAction = async ({
     "POST",
     `/agreements/${agreementNumber}/actions/accept`,
     {
-      headers: { "if-match": ifMatch, "idempotency-key": key },
+      headers: {
+        ...agreementAccessHeaders,
+        "if-match": ifMatch,
+        "idempotency-key": key,
+      },
       payload: { values },
     },
   );
@@ -97,6 +106,7 @@ describe("single Agreement actions", () => {
     const response = await wreck.request(
       "GET",
       `/agreements/${agreementNumber}/actions/accept`,
+      { headers: agreementAccessHeaders },
     );
     const payload = await wreck.read(response, { json: true });
 
@@ -104,6 +114,36 @@ describe("single Agreement actions", () => {
     expect(response.headers.etag).toBe(`"${agreementNumber}:1"`);
     expect(payload.agreement.agreementNumber).toBe(agreementNumber);
     expect(JSON.stringify(payload)).not.toContain("agreementItem");
+  });
+
+  it("does not prepare an action for another SBI account", async () => {
+    const response = await wreck.request(
+      "GET",
+      `/agreements/${agreementNumber}/actions/accept`,
+      {
+        headers: {
+          ...agreementAccessHeaders,
+          "x-agreement-sbi": "999999999",
+        },
+      },
+    );
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("does not expose actions to Caseworking", async () => {
+    const response = await wreck.request(
+      "GET",
+      `/agreements/${agreementNumber}/actions/accept`,
+      {
+        headers: {
+          "x-agreement-source": "entra",
+          "x-agreement-code": "pigs-might-fly",
+        },
+      },
+    );
+
+    expect(response.statusCode).toBe(404);
   });
 
   it("accepts and atomically records current Agreement, Version and event", async () => {

@@ -31,21 +31,34 @@ export const loadCurrentAgreementByNumber = async ({
   session,
 }) => requireAgreement(await findAgreementByNumber(agreementNumber, session));
 
-export const loadAgreementDocument = async ({
-  agreementNumber,
-  code,
-  clientRef,
-  sbi,
-  session,
-}) => {
-  const agreement = await loadCurrentAgreementByNumber({
-    agreementNumber,
-    session,
-  });
-  const matchesReference =
-    agreement.code === code &&
-    agreement.clientRef === clientRef &&
-    agreement.identifiers.sbi === sbi;
+const isMatchingDocumentAccess = (agreement, access) =>
+  agreement.code === access.code &&
+  (access.source === "entra" ||
+    (access.source === "defra" && agreement.identifiers.sbi === access.sbi));
 
-  return requireAgreement(matchesReference ? agreement : undefined);
-};
+const assertDocumentAccess = (agreement, access) =>
+  requireAgreement(isMatchingDocumentAccess(agreement, access) && agreement);
+
+const assertActionAccess = (agreement, access) =>
+  requireAgreement(
+    access.source === "defra" &&
+      isMatchingDocumentAccess(agreement, access) &&
+      agreement,
+  );
+
+const loadAgreementWithAccess = async ({
+  agreementNumber,
+  access,
+  assertAccess,
+  session,
+}) =>
+  assertAccess(
+    await loadCurrentAgreementByNumber({ agreementNumber, session }),
+    access,
+  );
+
+export const loadAgreementDocument = async (options) =>
+  loadAgreementWithAccess({ ...options, assertAccess: assertDocumentAccess });
+
+export const loadAgreementForAction = async (options) =>
+  loadAgreementWithAccess({ ...options, assertAccess: assertActionAccess });

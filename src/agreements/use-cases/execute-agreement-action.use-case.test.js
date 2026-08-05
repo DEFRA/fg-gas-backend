@@ -13,6 +13,7 @@ import { buildAgreementPageModel } from "../services/build-agreement-page-model.
 import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
+import { loadAgreementForAction } from "./load-current-agreement.js";
 
 vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
@@ -20,6 +21,7 @@ vi.mock("../repositories/agreement.repository.js");
 vi.mock("../services/build-agreement-page-model.js");
 vi.mock("../services/effects/agreement-effect-runner.js");
 vi.mock("./load-current-agreement-action-context.js");
+vi.mock("./load-current-agreement.js");
 
 const options = {
   actionName: "accept",
@@ -27,6 +29,11 @@ const options = {
   values: { confirm: "confirmed" },
   ifMatch: '"PMF823153883:1"',
   idempotencyKey: "9ea924aa-45e9-43a7-888e-c25054ea658c",
+  access: {
+    source: "defra",
+    code: "pigs-might-fly",
+    sbi: "300000069",
+  },
 };
 const agreement = new Agreement({
   agreementNumber: options.agreementNumber,
@@ -59,6 +66,7 @@ describe("executeAgreementActionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findAgreementByNumber.mockResolvedValue(agreement);
+    loadAgreementForAction.mockResolvedValue(agreement);
     findVersionByIdempotencyKey.mockResolvedValue(null);
     loadCurrentAgreementActionContext.mockResolvedValue({
       action,

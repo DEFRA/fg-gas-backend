@@ -35,6 +35,11 @@ export const invokeAgreementActionRoute = {
       values: request.payload.values,
       ifMatch: request.headers["if-match"],
       idempotencyKey: request.headers["idempotency-key"],
+      access: {
+        source: request.headers["x-agreement-source"],
+        code: request.headers["x-agreement-code"],
+        sbi: request.headers["x-agreement-sbi"],
+      },
     });
 
     if (result.errors) {

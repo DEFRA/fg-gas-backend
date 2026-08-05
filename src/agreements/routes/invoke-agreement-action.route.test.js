@@ -10,6 +10,9 @@ const url = "/agreements/PMF123/actions/accept";
 const headers = {
   "if-match": '"PMF123:1"',
   "idempotency-key": "9ea924aa-45e9-43a7-888e-c25054ea658c",
+  "x-agreement-source": "defra",
+  "x-agreement-code": "pigs-might-fly",
+  "x-agreement-sbi": "300000000",
 };
 
 describe("invokeAgreementActionRoute", () => {
@@ -38,6 +41,11 @@ describe("invokeAgreementActionRoute", () => {
       values: { confirm: "confirmed" },
       ifMatch: '"PMF123:1"',
       idempotencyKey: headers["idempotency-key"],
+      access: {
+        source: "defra",
+        code: "pigs-might-fly",
+        sbi: "300000000",
+      },
     });
   });
 
