@@ -139,6 +139,7 @@ describe("single Agreement actions", () => {
         headers: {
           "x-agreement-source": "entra",
           "x-agreement-code": "pigs-might-fly",
+          "x-agreement-sbi": "300000070",
         },
       },
     );
