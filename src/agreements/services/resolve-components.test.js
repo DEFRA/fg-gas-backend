@@ -18,6 +18,43 @@ describe("resolveComponents", () => {
     ]);
   });
 
+  it("resolves string and structured hrefs for url components", async () => {
+    const components = [
+      {
+        component: "url",
+        href: "/agreements/$.agreement.agreementNumber/document",
+        text: "View using a string href",
+      },
+      {
+        component: "url",
+        href: {
+          urlTemplate: "/agreements/{agreementNumber}/document",
+          params: {
+            agreementNumber: "$.agreement.agreementNumber",
+          },
+        },
+        text: "View using a structured href",
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { agreementNumber: "PMF823153883" },
+    });
+
+    expect(result).toEqual([
+      {
+        component: "url",
+        href: "/agreements/PMF823153883/document",
+        text: "View using a string href",
+      },
+      {
+        component: "url",
+        href: "/agreements/PMF823153883/document",
+        text: "View using a structured href",
+      },
+    ]);
+  });
+
   it("applies format outside of a table, on any resolved component", async () => {
     const components = [
       {

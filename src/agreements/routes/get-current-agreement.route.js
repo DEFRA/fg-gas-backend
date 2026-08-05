@@ -1,3 +1,4 @@
+import { agreementIdentityHeadersSchema } from "../schemas/requests/agreement-access-headers.schema.js";
 import { getCurrentAgreementQuerySchema } from "../schemas/requests/get-current-agreement-query.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
 import { toEtag } from "../use-cases/agreement-etag.js";
@@ -10,11 +11,19 @@ export const getCurrentAgreementRoute = {
     description:
       "Get the current Agreement page model by source identity and SBI account",
     tags: ["api"],
-    validate: { query: getCurrentAgreementQuerySchema },
+    validate: {
+      headers: agreementIdentityHeadersSchema,
+      query: getCurrentAgreementQuerySchema,
+    },
     response: { schema: agreementPageModelResponseSchema },
   },
   async handler(request, h) {
-    const { code, clientRef, sbi, mode } = request.query;
+    const { mode } = request.query;
+    const {
+      "x-agreement-code": code,
+      "x-agreement-client-ref": clientRef,
+      "x-agreement-sbi": sbi,
+    } = request.headers;
     const { agreement, pageModel } = await getCurrentAgreementPageModelUseCase({
       code,
       clientRef,

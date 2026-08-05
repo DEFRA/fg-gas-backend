@@ -4,13 +4,19 @@ import { assertSupportedAgreementPageMode } from "./assert-supported-agreement-p
 import { resolveComponents } from "./resolve-components.js";
 import { resolveActions } from "./resolve-page-href.js";
 
-const resolvePageActions = (pageDefinition, context, mode) =>
+const DOCUMENT_PAGE = "document";
+
+const resolveLifecyclePageActions = (pageDefinition, context, mode) =>
   mode === "print" ? [] : resolveActions(context, pageDefinition.actions);
 
-const resolvePageContent = async (pageDefinition, context, mode) =>
+const resolvePageContent = async (
+  pageDefinition,
+  context,
+  resolvePageActions,
+) =>
   Promise.all([
     resolveComponents(pageDefinition.components, context),
-    resolvePageActions(pageDefinition, context, mode),
+    resolvePageActions(pageDefinition, context),
   ]);
 
 const toAgreementSummary = ({
@@ -29,15 +35,13 @@ const toAgreementSummary = ({
   version,
 });
 
-export const buildAgreementPageModel = async ({
+const buildPageModel = async ({
   agreement,
   agreementDefinition,
   page,
-  mode,
+  resolvePageActions,
 }) => {
-  assertSupportedAgreementPageMode(mode);
   const pageDefinition = agreementDefinition.resolvePage(page);
-  agreementDefinition.assertPageAllowed({ page, state: agreement.state });
   // "definition.templates" is exposed so page content can address template
   // content as "$.definition.templates.*" without the whole definition
   // entering the resolve context.
@@ -50,7 +54,7 @@ export const buildAgreementPageModel = async ({
     const [components, actions] = await resolvePageContent(
       pageDefinition,
       context,
-      mode,
+      resolvePageActions,
     );
     const layout = pageDefinition.layout
       ? { layout: pageDefinition.layout }
@@ -72,3 +76,32 @@ export const buildAgreementPageModel = async ({
     );
   }
 };
+
+export const buildAgreementPageModel = async ({
+  agreement,
+  agreementDefinition,
+  page,
+  mode,
+}) => {
+  assertSupportedAgreementPageMode(mode);
+  agreementDefinition.assertPageAllowed({ page, state: agreement.state });
+
+  return buildPageModel({
+    agreement,
+    agreementDefinition,
+    page,
+    resolvePageActions: (pageDefinition, context) =>
+      resolveLifecyclePageActions(pageDefinition, context, mode),
+  });
+};
+
+export const buildAgreementDocumentPageModel = async ({
+  agreement,
+  agreementDefinition,
+}) =>
+  buildPageModel({
+    agreement,
+    agreementDefinition,
+    page: DOCUMENT_PAGE,
+    resolvePageActions: () => [],
+  });

@@ -29,7 +29,10 @@ describe("agreements", () => {
     expect(routes).toEqual(
       expect.arrayContaining([
         { method: "get", path: "/agreements/current" },
-        { method: "get", path: "/agreements/{agreementNumber}" },
+        {
+          method: "get",
+          path: "/agreements/{agreementNumber}/document",
+        },
         {
           method: "get",
           path: "/agreements/{agreementNumber}/actions/{actionName}",

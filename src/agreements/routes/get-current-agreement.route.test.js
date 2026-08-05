@@ -29,7 +29,12 @@ describe("Current Agreement route", () => {
 
     const response = await server.inject({
       method: "GET",
-      url: "/agreements/current?code=pigs-might-fly&clientRef=client&sbi=300000000&mode=print",
+      url: "/agreements/current?mode=print",
+      headers: {
+        "x-agreement-code": "pigs-might-fly",
+        "x-agreement-client-ref": "client",
+        "x-agreement-sbi": "300000000",
+      },
     });
 
     expect(response.statusCode).toBe(200);
@@ -43,13 +48,11 @@ describe("Current Agreement route", () => {
     });
   });
 
-  it("requires code, client reference and SBI", async () => {
+  it("requires the Agreement identity headers", async () => {
     const server = hapi.server();
     server.route(getCurrentAgreementRoute);
 
-    const response = await server.inject(
-      "/agreements/current?code=pigs-might-fly",
-    );
+    const response = await server.inject("/agreements/current");
 
     expect(response.statusCode).toBe(400);
   });
