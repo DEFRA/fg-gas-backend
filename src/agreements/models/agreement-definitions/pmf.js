@@ -1,3 +1,5 @@
+const AGREEMENT_NUMBER_REF = "$.agreement.agreementNumber";
+
 export const pmfAgreementDefinition = {
   code: "pigs-might-fly",
   configVersion: "1.1.0",
@@ -179,7 +181,7 @@ export const pmfAgreementDefinition = {
             { label: "SBI", text: "$.agreement.identifiers.sbi" },
             {
               label: "Agreement number",
-              text: "$.agreement.agreementNumber",
+              text: AGREEMENT_NUMBER_REF,
             },
           ],
         },
@@ -221,7 +223,7 @@ export const pmfAgreementDefinition = {
           href: {
             urlTemplate: "/agreements/{agreementNumber}/actions/{name}",
             params: {
-              agreementNumber: "$.agreement.agreementNumber",
+              agreementNumber: AGREEMENT_NUMBER_REF,
               name: "accept",
             },
           },
@@ -251,7 +253,7 @@ export const pmfAgreementDefinition = {
           href: {
             urlTemplate: "/agreements/{agreementNumber}/actions/{name}",
             params: {
-              agreementNumber: "$.agreement.agreementNumber",
+              agreementNumber: AGREEMENT_NUMBER_REF,
               name: "accept",
             },
           },
