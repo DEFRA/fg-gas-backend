@@ -68,6 +68,9 @@ describe("read-only Agreement document", () => {
         name: "document",
         title: "Pigs Might Fly agreement document",
         layout: "document",
+        contents: true,
+        print: true,
+        watermark: { text: "DRAFT" },
       },
       actions: [],
     });
@@ -77,15 +80,49 @@ describe("read-only Agreement document", () => {
           component: "notification-banner",
           title: "This is a draft version of your agreement",
         }),
-        expect.objectContaining({ component: "watermark", text: "DRAFT" }),
       ]),
     );
+    expect(payload.sections.map(({ id }) => id)).toEqual([
+      "agreement-overview",
+      "pigs-and-funding",
+      "about-this-test-agreement",
+    ]);
+    expect(
+      payload.sections.find(({ id }) => id === "pigs-and-funding"),
+    ).toEqual({
+      id: "pigs-and-funding",
+      title: "Pigs and funding",
+      components: [
+        {
+          component: "table",
+          head: [{ text: "Pig type" }, { text: "Funding amount" }],
+          rows: [[{ text: "Large White Pig" }, { text: "£100" }]],
+        },
+      ],
+    });
   });
 
-  it("removes draft marking from an accepted Agreement document", async () => {
+  it("returns the payment schedule without draft marking for an accepted Agreement document", async () => {
     await agreements.updateOne(
       { agreementNumber },
-      { $set: { state: "accepted" } },
+      {
+        $set: {
+          state: "accepted",
+          acceptedAt: "2026-07-31T15:30:00.000Z",
+          paymentCalculation: {
+            agreementStartDate: "2026-08-01",
+            agreementEndDate: "2027-07-31",
+            agreementTotalPence: 32000,
+            payments: [
+              {
+                dueDate: "2026-11-06",
+                totalAmountPence: 32000,
+                invoiceLines: [],
+              },
+            ],
+          },
+        },
+      },
     );
 
     const response = await getAgreementDocument();
@@ -93,15 +130,24 @@ describe("read-only Agreement document", () => {
 
     expect(response.statusCode).toBe(200);
     expect(payload.agreement.state).toBe("accepted");
+    expect(payload.page.watermark).toBeUndefined();
     expect(payload.actions).toEqual([]);
     expect(payload.components).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ component: "notification-banner" }),
       ]),
     );
-    expect(payload.components).not.toEqual(
+    expect(payload.sections).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ component: "watermark" }),
+        expect.objectContaining({
+          id: "payment-schedule",
+          components: expect.arrayContaining([
+            expect.objectContaining({
+              component: "table",
+              rows: [[{ text: "6 November 2026" }, { text: "£320" }]],
+            }),
+          ]),
+        }),
       ]),
     );
   });

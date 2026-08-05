@@ -313,6 +313,18 @@ describe("single Agreement actions", () => {
       components: [
         { component: "heading", text: "Accept your agreement offer" },
         {
+          component: "paragraph",
+          text: "By accepting this offer, you confirm that:",
+        },
+        {
+          component: "unordered-list",
+          items: [
+            { text: "the information in the agreement is correct" },
+            { text: "you have authority to accept the agreement" },
+            { text: "you understand this is a test grant" },
+          ],
+        },
+        {
           component: "checkboxes",
           name: "confirm",
           errorMessage: {
