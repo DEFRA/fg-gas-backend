@@ -21,7 +21,6 @@ describe("prepareAgreementActionRoute", () => {
       },
       page: { name: "accept", title: "Accept" },
       components: [],
-      sections: [],
       actions: [],
     });
   });

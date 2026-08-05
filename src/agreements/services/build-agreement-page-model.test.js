@@ -83,6 +83,9 @@ const agreement = {
   state: "offered",
   version: 1,
 };
+const fundingCalculation = {
+  items: [{ description: "Large White Pig", total: 32000 }],
+};
 
 describe("buildAgreementPageModel", () => {
   it("builds presentation from one Agreement", async () => {
@@ -104,7 +107,6 @@ describe("buildAgreementPageModel", () => {
       },
       page: { name: "offer", title: "Offer" },
       components: [{ component: "heading", text: "Agreement offer" }],
-      sections: [],
       actions: [],
     });
   });
@@ -117,6 +119,7 @@ describe("buildAgreementPageModel", () => {
       mode: "print",
     });
     expect(result.page.layout).toBe("document");
+    expect(result).not.toHaveProperty("sections");
     expect(result.actions).toEqual([]);
   });
 
@@ -165,11 +168,7 @@ describe("buildAgreementPageModel", () => {
       configVersion: "1.2.0",
       state: "accepted",
       acceptedAt: "2026-07-31T15:30:00.000Z",
-      supplementaryData: {
-        fundingCalculation: {
-          items: [{ description: "Large White Pig", total: 320 }],
-        },
-      },
+      supplementaryData: { fundingCalculation },
       paymentCalculation: {
         agreementStartDate: "2026-08-01",
         agreementEndDate: "2027-07-31",
@@ -193,6 +192,19 @@ describe("buildAgreementPageModel", () => {
     ]);
 
     expect(documentModel.page.watermark).toBeUndefined();
+    expect(
+      documentModel.sections.find(({ id }) => id === "pigs-and-funding"),
+    ).toEqual({
+      id: "pigs-and-funding",
+      title: "Pigs and funding",
+      components: [
+        {
+          component: "table",
+          head: [{ text: "Pig type" }, { text: "Funding amount" }],
+          rows: [[{ text: "Large White Pig" }, { text: "£320" }]],
+        },
+      ],
+    });
     expect(documentModel.sections).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -223,11 +235,7 @@ describe("buildAgreementPageModel", () => {
     const offeredAgreement = {
       ...agreement,
       code: "pigs-might-fly",
-      supplementaryData: {
-        fundingCalculation: {
-          items: [{ description: "Large White Pig", total: 100 }],
-        },
-      },
+      supplementaryData: { fundingCalculation },
     };
 
     const model = await buildAgreementPageModel({
@@ -237,6 +245,13 @@ describe("buildAgreementPageModel", () => {
       mode: "view",
     });
 
+    expect(
+      model.components.find(({ component }) => component === "table"),
+    ).toEqual({
+      component: "table",
+      head: [{ text: "Pig type" }, { text: "Funding amount" }],
+      rows: [[{ text: "Large White Pig" }, { text: "£320" }]],
+    });
     expect(model.components).toContainEqual(
       expect.objectContaining({
         component: "url",

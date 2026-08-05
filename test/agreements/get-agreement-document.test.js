@@ -87,6 +87,19 @@ describe("read-only Agreement document", () => {
       "pigs-and-funding",
       "about-this-test-agreement",
     ]);
+    expect(
+      payload.sections.find(({ id }) => id === "pigs-and-funding"),
+    ).toEqual({
+      id: "pigs-and-funding",
+      title: "Pigs and funding",
+      components: [
+        {
+          component: "table",
+          head: [{ text: "Pig type" }, { text: "Funding amount" }],
+          rows: [[{ text: "Large White Pig" }, { text: "£100" }]],
+        },
+      ],
+    });
   });
 
   it("returns the payment schedule without draft marking for an accepted Agreement document", async () => {

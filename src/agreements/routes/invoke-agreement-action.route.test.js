@@ -68,7 +68,6 @@ describe("invokeAgreementActionRoute", () => {
           items: [{ value: "confirmed", checked: false }],
         },
       ],
-      sections: [],
       actions: [],
       values: {},
       errors: [{ href: "#confirmation", text: "Confirm" }],

@@ -9,7 +9,7 @@ const PIGS_AND_FUNDING_TABLE = {
   rowsRef: "$.agreement.supplementaryData.fundingCalculation.items",
   rows: [
     { text: "@.description" },
-    { text: "@.total", format: "poundsNoDecimals" },
+    { text: "@.total", format: POUNDS_FROM_PENCE_FORMAT },
   ],
 };
 

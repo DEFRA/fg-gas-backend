@@ -42,7 +42,7 @@ export const agreementPageModelResponseSchema = Joi.object({
     watermark: watermark.optional(),
   }).required(),
   components: Joi.array().items(component).required(),
-  sections: Joi.array().items(section).required(),
+  sections: Joi.array().items(section).optional(),
   actions: Joi.array().items(action).required(),
 })
   .options({ presence: "required", stripUnknown: true })
