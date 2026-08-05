@@ -1,6 +1,7 @@
 const AGREEMENT_NUMBER_REF = "$.agreement.agreementNumber";
 const DATE_LONG_FORMAT = "dateLong";
 const POUNDS_FROM_PENCE_FORMAT = "poundsFromPence";
+const SUMMARY_LIST_COMPONENT = "summary-list";
 
 const PIGS_AND_FUNDING_TABLE = {
   component: "table",
@@ -14,7 +15,7 @@ const PIGS_AND_FUNDING_TABLE = {
 
 const PAYMENT_SCHEDULE_COMPONENTS = [
   {
-    component: "summary-list",
+    component: SUMMARY_LIST_COMPONENT,
     rows: [
       {
         label: "Agreement start date",
@@ -216,7 +217,7 @@ export const pmfAgreementDefinition = {
           text: "Pigs Might Fly agreement document",
         },
         {
-          component: "summary-list",
+          component: SUMMARY_LIST_COMPONENT,
           rows: [
             { label: "SBI", text: "$.agreement.identifiers.sbi" },
             {
@@ -254,7 +255,7 @@ export const pmfAgreementDefinition = {
           condition: "jsonata:$.agreement.state = 'accepted'",
           components: [
             {
-              component: "summary-list",
+              component: SUMMARY_LIST_COMPONENT,
               rows: [
                 {
                   label: "Accepted on",
@@ -290,7 +291,7 @@ export const pmfAgreementDefinition = {
           text: "Check the details of this test agreement before you continue.",
         },
         {
-          component: "summary-list",
+          component: SUMMARY_LIST_COMPONENT,
           rows: [
             { label: "SBI", text: "$.agreement.identifiers.sbi" },
             { label: "Agreement number", text: AGREEMENT_NUMBER_REF },
