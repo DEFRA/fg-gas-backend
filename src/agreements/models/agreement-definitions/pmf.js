@@ -1,4 +1,48 @@
 const AGREEMENT_NUMBER_REF = "$.agreement.agreementNumber";
+const DATE_LONG_FORMAT = "dateLong";
+const POUNDS_FROM_PENCE_FORMAT = "poundsFromPence";
+
+const PIGS_AND_FUNDING_TABLE = {
+  component: "table",
+  head: [{ text: "Pig type" }, { text: "Funding amount" }],
+  rowsRef: "$.agreement.supplementaryData.fundingCalculation.items",
+  rows: [
+    { text: "@.description" },
+    { text: "@.total", format: "poundsNoDecimals" },
+  ],
+};
+
+const PAYMENT_SCHEDULE_COMPONENTS = [
+  {
+    component: "summary-list",
+    rows: [
+      {
+        label: "Agreement start date",
+        text: "$.agreement.paymentCalculation.agreementStartDate",
+        format: DATE_LONG_FORMAT,
+      },
+      {
+        label: "Agreement end date",
+        text: "$.agreement.paymentCalculation.agreementEndDate",
+        format: DATE_LONG_FORMAT,
+      },
+      {
+        label: "Total payment",
+        text: "$.agreement.paymentCalculation.agreementTotalPence",
+        format: POUNDS_FROM_PENCE_FORMAT,
+      },
+    ],
+  },
+  {
+    component: "table",
+    head: [{ text: "Payment date" }, { text: "Amount" }],
+    rowsRef: "$.agreement.paymentCalculation.payments",
+    rows: [
+      { text: "@.dueDate", format: DATE_LONG_FORMAT },
+      { text: "@.totalAmountPence", format: POUNDS_FROM_PENCE_FORMAT },
+    ],
+  },
+];
 
 export const pmfAgreementDefinition = {
   code: "pigs-might-fly",
@@ -158,7 +202,6 @@ export const pmfAgreementDefinition = {
       print: true,
       watermark: {
         condition: "jsonata:$.agreement.state = 'offered'",
-        header: "Draft Agreement",
         text: "DRAFT",
       },
       components: [
@@ -197,53 +240,13 @@ export const pmfAgreementDefinition = {
         {
           id: "pigs-and-funding",
           title: "Pigs and funding",
-          components: [
-            {
-              component: "table",
-              head: [{ text: "Pig type" }, { text: "Funding amount" }],
-              rowsRef: "$.agreement.supplementaryData.fundingCalculation.items",
-              rows: [
-                { text: "@.description" },
-                { text: "@.total", format: "poundsNoDecimals" },
-              ],
-            },
-          ],
+          components: [PIGS_AND_FUNDING_TABLE],
         },
         {
           id: "payment-schedule",
           title: "Payment schedule",
           condition: "jsonata:$.agreement.state = 'accepted'",
-          components: [
-            {
-              component: "summary-list",
-              rows: [
-                {
-                  label: "Agreement start date",
-                  text: "$.agreement.paymentCalculation.agreementStartDate",
-                  format: "dateLong",
-                },
-                {
-                  label: "Agreement end date",
-                  text: "$.agreement.paymentCalculation.agreementEndDate",
-                  format: "dateLong",
-                },
-                {
-                  label: "Total payment",
-                  text: "$.agreement.paymentCalculation.agreementTotalPence",
-                  format: "poundsFromPence",
-                },
-              ],
-            },
-            {
-              component: "table",
-              head: [{ text: "Payment date" }, { text: "Amount" }],
-              rowsRef: "$.agreement.paymentCalculation.payments",
-              rows: [
-                { text: "@.dueDate", format: "dateLong" },
-                { text: "@.totalAmountPence", format: "poundsFromPence" },
-              ],
-            },
-          ],
+          components: PAYMENT_SCHEDULE_COMPONENTS,
         },
         {
           id: "acceptance",
@@ -256,7 +259,7 @@ export const pmfAgreementDefinition = {
                 {
                   label: "Accepted on",
                   text: "$.agreement.acceptedAt",
-                  format: "dateLong",
+                  format: DATE_LONG_FORMAT,
                 },
               ],
             },
@@ -294,15 +297,7 @@ export const pmfAgreementDefinition = {
           ],
         },
         { component: "heading", level: 2, text: "Pigs and funding" },
-        {
-          component: "table",
-          head: [{ text: "Pig type" }, { text: "Funding amount" }],
-          rowsRef: "$.agreement.supplementaryData.fundingCalculation.items",
-          rows: [
-            { text: "@.description" },
-            { text: "@.total", format: "poundsNoDecimals" },
-          ],
-        },
+        PIGS_AND_FUNDING_TABLE,
         {
           component: "paragraph",
           text: "Your payment schedule and agreement dates will be confirmed when you accept the offer.",
@@ -387,35 +382,7 @@ export const pmfAgreementDefinition = {
           level: 2,
           text: "Payment schedule",
         },
-        {
-          component: "summary-list",
-          rows: [
-            {
-              label: "Agreement start date",
-              text: "$.agreement.paymentCalculation.agreementStartDate",
-              format: "dateLong",
-            },
-            {
-              label: "Agreement end date",
-              text: "$.agreement.paymentCalculation.agreementEndDate",
-              format: "dateLong",
-            },
-            {
-              label: "Total payment",
-              text: "$.agreement.paymentCalculation.agreementTotalPence",
-              format: "poundsFromPence",
-            },
-          ],
-        },
-        {
-          component: "table",
-          head: [{ text: "Payment date" }, { text: "Amount" }],
-          rowsRef: "$.agreement.paymentCalculation.payments",
-          rows: [
-            { text: "@.dueDate", format: "dateLong" },
-            { text: "@.totalAmountPence", format: "poundsFromPence" },
-          ],
-        },
+        ...PAYMENT_SCHEDULE_COMPONENTS,
         {
           component: "url",
           href: {

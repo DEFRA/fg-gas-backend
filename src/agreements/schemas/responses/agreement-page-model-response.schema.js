@@ -22,8 +22,6 @@ const section = Joi.object({
 
 const watermark = Joi.object({
   text: Joi.string().required(),
-  header: Joi.string().optional(),
-  classes: Joi.string().optional(),
 }).label("AgreementPageModelWatermark");
 
 export const agreementPageModelResponseSchema = Joi.object({

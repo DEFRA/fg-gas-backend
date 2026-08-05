@@ -184,8 +184,6 @@ const documentSection = Joi.object({
 const watermark = Joi.object({
   condition: reference.optional(),
   text: Joi.string().required(),
-  header: Joi.string().optional(),
-  classes: Joi.string().optional(),
 }).label("Watermark");
 
 const pageDefinition = Joi.object({

@@ -70,7 +70,7 @@ describe("read-only Agreement document", () => {
         layout: "document",
         contents: true,
         print: true,
-        watermark: { header: "Draft Agreement", text: "DRAFT" },
+        watermark: { text: "DRAFT" },
       },
       actions: [],
     });

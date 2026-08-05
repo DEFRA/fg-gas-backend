@@ -45,7 +45,6 @@ const definition = new AgreementDefinition({
       print: true,
       watermark: {
         condition: "jsonata:$.agreement.state = 'offered'",
-        header: "Draft Agreement",
         text: "DRAFT",
       },
       components: [{ component: "heading", text: "Document" }],
@@ -133,7 +132,7 @@ describe("buildAgreementPageModel", () => {
       layout: "document",
       contents: true,
       print: true,
-      watermark: { header: "Draft Agreement", text: "DRAFT" },
+      watermark: { text: "DRAFT" },
     });
     expect(result.sections).toEqual([
       {

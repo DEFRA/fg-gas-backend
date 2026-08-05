@@ -21,7 +21,7 @@ const resolvePageContent = async (
   ]);
 
 const resolveSection = async (section, context) => {
-  const scope = { context, row: undefined };
+  const scope = { context };
 
   if (
     section.condition !== undefined &&
@@ -38,7 +38,7 @@ const resolveSection = async (section, context) => {
   return { id: section.id, title, components };
 };
 
-const resolveSections = async (sections = [], context) => {
+const resolveSections = async (context, sections = []) => {
   const resolved = await Promise.all(
     sections.map((section) => resolveSection(section, context)),
   );
@@ -51,18 +51,14 @@ const resolveWatermark = async (watermark, context) => {
     return undefined;
   }
 
-  const [resolved] = await resolveComponents(
-    [{ component: "watermark", ...watermark }],
-    context,
-  );
+  const { condition, ...properties } = watermark;
+  const scope = { context };
 
-  if (resolved === undefined) {
+  if (condition !== undefined && !(await resolveCondition(condition, scope))) {
     return undefined;
   }
 
-  const { component: _component, ...properties } = resolved;
-
-  return properties;
+  return resolveRefs(properties, scope);
 };
 
 const omitUndefined = (value) =>
@@ -117,7 +113,7 @@ const buildPageModel = async ({
   try {
     const [[components, actions], sections, pageMetadata] = await Promise.all([
       resolvePageContent(pageDefinition, context, resolvePageActions),
-      resolveSections(pageDefinition.sections, context),
+      resolveSections(context, pageDefinition.sections),
       buildPageMetadata(page, pageDefinition, context),
     ]);
 

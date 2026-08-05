@@ -108,6 +108,18 @@ describe("agreementDefinitionSchema", () => {
     expect(definition.pages.document.sections.length).toBeGreaterThan(0);
   });
 
+  it("fails when watermark configuration contains UI classes", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.pages.document.watermark.classes = "custom-watermark";
+
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /"pages.document.watermark.classes" is not allowed/,
+    );
+  });
+
   it("fails when document section ids are duplicated", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.pages.document.sections[1].id =
