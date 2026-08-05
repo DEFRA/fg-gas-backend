@@ -32,9 +32,9 @@ export const loadCurrentAgreementByNumber = async ({
 }) => requireAgreement(await findAgreementByNumber(agreementNumber, session));
 
 const isMatchingDocumentAccess = (agreement, access) =>
+  ["defra", "entra"].includes(access.source) &&
   agreement.code === access.code &&
-  (access.source === "entra" ||
-    (access.source === "defra" && agreement.identifiers.sbi === access.sbi));
+  agreement.identifiers.sbi === access.sbi;
 
 const assertDocumentAccess = (agreement, access) =>
   requireAgreement(isMatchingDocumentAccess(agreement, access) && agreement);

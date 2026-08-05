@@ -86,15 +86,49 @@ describe("load current Agreement", () => {
     ).rejects.toMatchObject({ output: { statusCode: 404 } });
   });
 
-  it("allows Caseworking to read a document for the matching grant", async () => {
+  it("allows Caseworking to read a document when the grant and SBI match", async () => {
     findAgreementByNumber.mockResolvedValue(agreement);
 
     await expect(
       loadAgreementDocument({
         agreementNumber: agreement.agreementNumber,
-        access: { source: "entra", code: agreement.code },
+        access: {
+          source: "entra",
+          code: agreement.code,
+          sbi: agreement.identifiers.sbi,
+        },
       }),
     ).resolves.toBe(agreement);
+  });
+
+  it("does not disclose a document to Caseworking for another SBI", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementDocument({
+        agreementNumber: agreement.agreementNumber,
+        access: {
+          source: "entra",
+          code: agreement.code,
+          sbi: "999999999",
+        },
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+  });
+
+  it("does not allow an unsupported document access source", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementDocument({
+        agreementNumber: agreement.agreementNumber,
+        access: {
+          source: "unknown",
+          code: agreement.code,
+          sbi: agreement.identifiers.sbi,
+        },
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
   });
 
   it("does not disclose a numbered document from another grant", async () => {
@@ -133,7 +167,11 @@ describe("load current Agreement", () => {
     await expect(
       loadAgreementForAction({
         agreementNumber: agreement.agreementNumber,
-        access: { source: "entra", code: agreement.code },
+        access: {
+          source: "entra",
+          code: agreement.code,
+          sbi: agreement.identifiers.sbi,
+        },
       }),
     ).rejects.toMatchObject({ output: { statusCode: 404 } });
   });

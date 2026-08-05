@@ -63,6 +63,22 @@ it("requires trusted Agreement access headers", async () => {
   expect(getAgreementDocumentPageModelUseCase).not.toHaveBeenCalled();
 });
 
+it("requires Caseworking to provide an SBI", async () => {
+  const server = hapi.server();
+  server.route(getAgreementByNumberRoute);
+
+  const response = await server.inject({
+    url: "/agreements/PMF123/document",
+    headers: {
+      "x-agreement-source": "entra",
+      "x-agreement-code": "pigs-might-fly",
+    },
+  });
+
+  expect(response.statusCode).toBe(400);
+  expect(getAgreementDocumentPageModelUseCase).not.toHaveBeenCalled();
+});
+
 it("does not accept presentation modes for the canonical Agreement document", async () => {
   const server = hapi.server();
   server.route(getAgreementByNumberRoute);

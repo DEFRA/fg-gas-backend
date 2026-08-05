@@ -115,12 +115,32 @@ describe("read-only Agreement document", () => {
     expect(response.statusCode).toBe(404);
   });
 
-  it("allows Caseworking to read the matching grant document", async () => {
+  it("allows Caseworking to read a document when the grant and SBI match", async () => {
+    const response = await getAgreementDocument({
+      "x-agreement-source": "entra",
+      "x-agreement-code": code,
+      "x-agreement-sbi": sbi,
+    });
+
+    expect(response.statusCode).toBe(200);
+  });
+
+  it("requires Caseworking to provide an SBI", async () => {
     const response = await getAgreementDocument({
       "x-agreement-source": "entra",
       "x-agreement-code": code,
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("does not disclose a document to Caseworking for another SBI", async () => {
+    const response = await getAgreementDocument({
+      "x-agreement-source": "entra",
+      "x-agreement-code": code,
+      "x-agreement-sbi": "999999999",
+    });
+
+    expect(response.statusCode).toBe(404);
   });
 });
