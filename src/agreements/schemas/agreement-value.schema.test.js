@@ -44,7 +44,7 @@ const fpttAgreementValues = {
         id: "instalment:1",
         dueDate: "2026-11-15",
         totalAmountPence: 6810,
-        allocations: [
+        lineItems: [
           { actionId: "action:1", amountPence: 10 },
           { actionId: "action:2", amountPence: 6800 },
         ],
@@ -84,7 +84,7 @@ const pmfAgreementValues = {
         id: "instalment:1",
         dueDate: "2026-11-06",
         totalAmountPence: 32000,
-        allocations: [{ actionId: "action:1", amountPence: 32000 }],
+        lineItems: [{ actionId: "action:1", amountPence: 32000 }],
       },
     ],
   },
@@ -362,13 +362,38 @@ describe("agreementValueSchema", () => {
   });
 
   it.each([
+    ["Action", fpttAgreementValues],
+    [
+      "Item",
+      {
+        application: {},
+        actions: [],
+        items: [{ id: "item:1", code: "CAP1", totalAmountPence: 1000 }],
+        totalAmountPence: 1000,
+        paymentSchedule: {
+          instalments: [
+            {
+              id: "instalment:1",
+              dueDate: "2029-09-01",
+              totalAmountPence: 1000,
+              lineItems: [{ itemId: "item:1", amountPence: 1000 }],
+            },
+          ],
+        },
+      },
+    ],
+  ])("accepts a valid %s line-item reference", (_entryType, value) => {
+    expect(validate(value).error).toBeUndefined();
+  });
+
+  it.each([
     ["neither", {}],
     ["both", { actionId: "action:1", itemId: "item:1" }],
   ])(
-    "rejects a Payment Schedule allocation with %s reference type",
+    "rejects a Payment Schedule line item with %s reference type",
     (_referenceTypes, references) => {
       const value = structuredClone(fpttAgreementValues);
-      value.paymentSchedule.instalments[0].allocations[0] = {
+      value.paymentSchedule.instalments[0].lineItems[0] = {
         ...references,
         amountPence: 10,
       };
@@ -382,15 +407,54 @@ describe("agreementValueSchema", () => {
   it.each([
     ["actionId", "action:99"],
     ["itemId", "item:99"],
-  ])("rejects a dangling allocation %s", (referenceType, reference) => {
+  ])("rejects a dangling line-item %s", (referenceType, reference) => {
     const value = structuredClone(fpttAgreementValues);
-    value.paymentSchedule.instalments[0].allocations[0] = {
+    value.paymentSchedule.instalments[0].lineItems[0] = {
       [referenceType]: reference,
       amountPence: 10,
     };
 
     expect(validate(value).error?.message).toContain(
-      `allocation ${referenceType} references unknown entry "${reference}"`,
+      `line item ${referenceType} references unknown entry "${reference}"`,
+    );
+  });
+
+  it("accepts a balanced Instalment", () => {
+    expect(validate(fpttAgreementValues).error).toBeUndefined();
+  });
+
+  it("rejects an unbalanced Instalment", () => {
+    const value = structuredClone(fpttAgreementValues);
+    value.paymentSchedule.instalments[0].totalAmountPence = 6809;
+
+    expect(validate(value).error?.message).toContain(
+      "totalAmountPence must equal the sum of lineItems amountPence",
+    );
+  });
+
+  it("accepts empty lineItems when the Instalment total is zero", () => {
+    const value = structuredClone(fpttAgreementValues);
+    value.paymentSchedule.instalments[0].totalAmountPence = 0;
+    value.paymentSchedule.instalments[0].lineItems = [];
+
+    expect(validate(value).error).toBeUndefined();
+  });
+
+  it("rejects empty lineItems when the Instalment total is non-zero", () => {
+    const value = structuredClone(fpttAgreementValues);
+    value.paymentSchedule.instalments[0].lineItems = [];
+
+    expect(validate(value).error?.message).toContain(
+      "totalAmountPence must equal the sum of lineItems amountPence",
+    );
+  });
+
+  it("rejects the unknown allocations field", () => {
+    const value = structuredClone(fpttAgreementValues);
+    value.paymentSchedule.instalments[0].allocations = [];
+
+    expect(validate(value).error?.message).toContain(
+      '"paymentSchedule.instalments[0].allocations" is not allowed',
     );
   });
 
@@ -414,7 +478,7 @@ describe("agreementValueSchema", () => {
       if (field === "totalAmountPence") {
         instalment[field] = 1.5;
       } else {
-        instalment.allocations[0][field] = 1.5;
+        instalment.lineItems[0][field] = 1.5;
       }
 
       expect(validate(value).error?.message).toContain("must be an integer");
@@ -441,9 +505,9 @@ describe("agreementValueSchema", () => {
         (value.paymentSchedule.instalments[0].paymentDate = "2026-01-01"),
     ],
     [
-      "allocation",
+      "line item",
       (value) =>
-        (value.paymentSchedule.instalments[0].allocations[0].amountPennies = 10),
+        (value.paymentSchedule.instalments[0].lineItems[0].amountPennies = 10),
     ],
   ])("rejects an unknown normalised %s field", (_label, addUnknownField) => {
     const value = structuredClone(fpttAgreementValues);

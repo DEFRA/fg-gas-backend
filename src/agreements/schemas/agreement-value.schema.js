@@ -81,7 +81,7 @@ export const capitalItemSchema = Joi.object({
   .and("quantity", "unit")
   .label("CapitalItem");
 
-export const paymentScheduleAllocationSchema = Joi.object({
+export const paymentScheduleLineItemSchema = Joi.object({
   actionId: Joi.string().optional(),
   itemId: Joi.string().optional(),
   amountPence: penceSchema.required(),
@@ -93,14 +93,31 @@ export const paymentScheduleAllocationSchema = Joi.object({
     "object.xor":
       "{{#label}} must contain exclusively one of [actionId, itemId]",
   })
-  .label("PaymentScheduleAllocation");
+  .label("PaymentScheduleLineItem");
+
+const validateInstalmentTotal = (value, helpers) => {
+  const lineItemsTotal = value.lineItems.reduce(
+    (total, lineItem) => total + BigInt(lineItem.amountPence),
+    0n,
+  );
+
+  return BigInt(value.totalAmountPence) === lineItemsTotal
+    ? value
+    : helpers.error("instalment.lineItemsTotal");
+};
 
 export const paymentScheduleInstalmentSchema = Joi.object({
   id: Joi.string().required(),
   dueDate: agreementDateSchema.required(),
   totalAmountPence: penceSchema.required(),
-  allocations: Joi.array().items(paymentScheduleAllocationSchema).required(),
-}).label("PaymentScheduleInstalment");
+  lineItems: Joi.array().items(paymentScheduleLineItemSchema).required(),
+})
+  .custom(validateInstalmentTotal)
+  .messages({
+    "instalment.lineItemsTotal":
+      "{{#label}} totalAmountPence must equal the sum of lineItems amountPence",
+  })
+  .label("PaymentScheduleInstalment");
 
 export const paymentScheduleSchema = Joi.object({
   frequency: Joi.string().optional(),
@@ -193,19 +210,23 @@ const findParcelViolation = (agreement) => {
   );
 };
 
-const findAllocationViolation = ({ actions, items, paymentSchedule }) => {
+const findLineItemReferenceViolation = ({
+  actions,
+  items,
+  paymentSchedule,
+}) => {
   const referencedIds = {
     actionId: new Set(actions.map(({ id }) => id)),
     itemId: new Set(items.map(({ id }) => id)),
   };
   const references = (paymentSchedule?.instalments ?? []).flatMap(
     (instalment, instalmentIndex) =>
-      instalment.allocations.flatMap((allocation, allocationIndex) =>
+      instalment.lineItems.flatMap((lineItem, lineItemIndex) =>
         Object.entries(referencedIds).map(([field, ids]) => ({
           field,
           ids,
-          reference: allocation[field],
-          path: `paymentSchedule.instalments[${instalmentIndex}].allocations[${allocationIndex}]`,
+          reference: lineItem[field],
+          path: `paymentSchedule.instalments[${instalmentIndex}].lineItems[${lineItemIndex}]`,
         })),
       ),
   );
@@ -215,7 +236,7 @@ const findAllocationViolation = ({ actions, items, paymentSchedule }) => {
 
   return (
     dangling && {
-      code: "allocation.reference",
+      code: "lineItem.reference",
       field: dangling.field,
       path: dangling.path,
       reference: dangling.reference,
@@ -227,7 +248,7 @@ const validateAgreementInvariants = (value, helpers) => {
   const violation =
     findDateViolation(value) ??
     findParcelViolation(value) ??
-    findAllocationViolation(value);
+    findLineItemReferenceViolation(value);
 
   return violation ? helpers.error(violation.code, violation) : value;
 };
@@ -253,7 +274,7 @@ export const agreementValueSchema = Joi.object({
       '{{#path}}.parcel references unknown Parcel "{{#parcel}}"',
     "entry.parcelArea":
       '{{#path}}.quantity must not exceed Parcel "{{#parcel}}" area',
-    "allocation.reference":
-      '{{#path}} allocation {{#field}} references unknown entry "{{#reference}}"',
+    "lineItem.reference":
+      '{{#path}} line item {{#field}} references unknown entry "{{#reference}}"',
   })
   .label("AgreementValue");
