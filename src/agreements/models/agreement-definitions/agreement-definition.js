@@ -3,15 +3,18 @@ import { AgreementLifecycle } from "../agreement-lifecycle.js";
 import { generateAgreementNumber } from "../agreement-number.js";
 import { Agreement } from "../agreement.js";
 import { requirePersistedAgreementState } from "../require-persisted-agreement-state.js";
+import { compileApplicationMapping } from "./compile-application-mapping.js";
 import { compileAgreementProcesses } from "./processes/agreement-process-runtime.js";
 import { validateAgreementDefinition } from "./validate.js";
 
 export class AgreementDefinition {
   #definition;
+  #resolveApplication;
   #runProcesses;
 
   constructor(definition, dependencies) {
     this.#definition = validateAgreementDefinition(definition);
+    this.#resolveApplication = compileApplicationMapping(this.#definition);
     this.#runProcesses = compileAgreementProcesses(
       this.#definition,
       dependencies,
@@ -46,6 +49,10 @@ export class AgreementDefinition {
 
   async runProcesses(options) {
     return this.#runProcesses(options);
+  }
+
+  async resolveApplication(input) {
+    return this.#resolveApplication(input);
   }
 
   resolveAction({ state, action }) {
