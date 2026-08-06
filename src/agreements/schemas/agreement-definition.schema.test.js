@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { pmfAgreementDefinition } from "../models/agreement-definitions/pmf.js";
+import { agreementDefinitions } from "../models/agreement-definitions/agreement-definition-registry.js";
 import { agreementDefinitionSchema } from "./agreement-definition.schema.js";
+
+const pmfAgreementDefinition = agreementDefinitions.find(
+  ({ code }) => code === "pigs-might-fly",
+);
 
 const validate = (definition) =>
   agreementDefinitionSchema.validate(definition, { abortEarly: false });

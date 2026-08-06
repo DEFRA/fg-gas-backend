@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { findAgreementDefinition } from "./agreement-definition-registry.js";
-import { pmfAgreementDefinition } from "./pmf.js";
+import {
+  agreementDefinitions,
+  findAgreementDefinition,
+} from "./agreement-definition-registry.js";
+
+const pmfAgreementDefinition = agreementDefinitions.find(
+  ({ code }) => code === "pigs-might-fly",
+);
 
 describe("findAgreementDefinition", () => {
   it("returns the code-specific default when another version is requested", () => {
