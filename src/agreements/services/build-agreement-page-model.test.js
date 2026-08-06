@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { agreementDefinitions } from "../models/agreement-definitions/agreement-definition-registry.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
-import { pmfAgreementDefinition } from "../models/agreement-definitions/pmf.js";
 import {
   buildAgreementDocumentPageModel,
   buildAgreementPageModel,
 } from "./build-agreement-page-model.js";
+
+const pmfAgreementDefinition = agreementDefinitions.find(
+  ({ code }) => code === "pigs-might-fly",
+);
 
 const definition = new AgreementDefinition({
   code: "test",

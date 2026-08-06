@@ -1,4 +1,8 @@
-import { pmfAgreementDefinition } from "./pmf.js";
+import { readFileSync } from "node:fs";
+
+const pmfAgreementDefinition = JSON.parse(
+  readFileSync(new URL("./pmf.json", import.meta.url), "utf8"),
+);
 
 const agreementDefinitionsByCode = new Map([
   [
