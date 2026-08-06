@@ -29,6 +29,16 @@ describe("resolveProcessMapping", () => {
     expect(result).toBe(8750);
   });
 
+  it("does not expose context values when JSONata evaluation fails", async () => {
+    const context = { agreement: { sbi: "106284736-secret" } };
+
+    await expect(
+      resolveProcessMapping("jsonata:$number($.agreement.sbi)", context),
+    ).rejects.toThrow(
+      /^Failed to evaluate process mapping "jsonata:\$number\(\$\.agreement\.sbi\)"$/,
+    );
+  });
+
   it("leaves an unprefixed expression as a literal string", async () => {
     const result = await resolveProcessMapping("$.pricePence * $.quantity", {
       pricePence: 3500,
@@ -123,13 +133,41 @@ describe("resolveProcessMapping", () => {
     expect(result).toEqual([{ code: "largeWhite", quantity: 2 }]);
   });
 
-  it("returns an empty collection when a JSONata filter matches nothing", async () => {
+  it("rejects a missing expression-based collection", async () => {
+    await expect(
+      resolveProcessMapping(
+        {
+          itemsRef: "jsonata:$.response.missing",
+          items: { code: "@.type" },
+        },
+        { response: {} },
+      ),
+    ).rejects.toThrow(
+      /^Unresolved process mapping "jsonata:\$\.response\.missing"$/,
+    );
+  });
+
+  it("rejects a null expression-based collection", async () => {
+    await expect(
+      resolveProcessMapping(
+        {
+          itemsRef: "jsonata:$.response.items",
+          items: { code: "@.type" },
+        },
+        { response: { items: null } },
+      ),
+    ).rejects.toThrow(
+      /^Unresolved process mapping "jsonata:\$\.response\.items"$/,
+    );
+  });
+
+  it("allows an explicit empty fallback for a collection", async () => {
     const result = await resolveProcessMapping(
       {
-        itemsRef: "jsonata:$.response.items[quantity > 0]",
+        itemsRef: "jsonata:$.response.missing ?? []",
         items: { code: "@.type" },
       },
-      { response: { items: [{ type: "berkshire", quantity: 0 }] } },
+      { response: {} },
     );
 
     expect(result).toEqual([]);

@@ -28,13 +28,17 @@ const requireResolved = (resolved, mapping) => {
 };
 
 const evaluate = async (mapping, { context, row }) => {
-  const expression = jsonata(toExpression(mapping));
+  try {
+    const expression = jsonata(toExpression(mapping));
 
-  if (row !== undefined) {
-    expression.assign("row", row);
+    if (row !== undefined) {
+      expression.assign("row", row);
+    }
+
+    return await expression.evaluate(context);
+  } catch {
+    throw new Error(`Failed to evaluate process mapping "${mapping}"`);
   }
-
-  return expression.evaluate(context);
 };
 
 const resolveString = async (mapping, scope) => {
@@ -79,17 +83,22 @@ const requireArray = (value, reference) => {
   return value;
 };
 
-const toExpressionRows = (value) => {
+const requireCollectionResolved = (value, reference) => {
   if (value === undefined || value === null) {
-    return [];
+    throw new Error(`Unresolved process mapping "${reference}"`);
   }
 
-  return Array.isArray(value) ? [...value] : [value];
+  return value;
 };
+
+const toExpressionRows = (value) =>
+  Array.isArray(value) ? [...value] : [value];
 
 const resolveCollectionRows = async (reference, scope) =>
   isExpression(reference)
-    ? toExpressionRows(await evaluate(reference, scope))
+    ? toExpressionRows(
+        requireCollectionResolved(await evaluate(reference, scope), reference),
+      )
     : requireArray(await resolveString(reference, scope), reference);
 
 const resolveCollection = async (mapping, scope) => {
