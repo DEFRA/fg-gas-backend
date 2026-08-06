@@ -53,6 +53,43 @@ const fpttAgreementValues = {
   },
 };
 
+const pmfAgreementValues = {
+  application: {
+    isPigFarmer: true,
+    totalPigs: 5,
+    pigBreeds: ["largeWhite"],
+    whitePigsCount: 5,
+    britishLandracePigsCount: 0,
+    berkshirePigsCount: 0,
+    otherPigsCount: 0,
+  },
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+      quantity: 5,
+      unit: "head",
+      ratePence: 6400,
+      totalAmountPence: 32000,
+    },
+  ],
+  items: [],
+  totalAmountPence: 32000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 32000,
+        allocations: [{ actionId: "action:1", amountPence: 32000 }],
+      },
+    ],
+  },
+};
+
 const wmpAgreementValues = {
   application: {
     schemeData: { oldWoodlandAreaHa: 12.5, newWoodlandAreaHa: 3.25 },
@@ -89,6 +126,7 @@ const wmpAgreementValues = {
 describe("agreementValueSchema", () => {
   it.each([
     ["FPTT", fpttAgreementValues],
+    ["PMF", pmfAgreementValues],
     ["WMP", wmpAgreementValues],
   ])("accepts a valid %s-like Agreement value", (_grant, value) => {
     expect(validate(value).error).toBeUndefined();
