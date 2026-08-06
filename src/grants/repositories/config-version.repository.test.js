@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigVersion, FetchStatus } from "../models/config-version.js";
 import {
   findByGrantCodeAndVersion,
-  findLatestActive,
   findLatestForMajor,
   updateFetchStatus,
   upsert,
@@ -97,49 +96,6 @@ describe("config-version.repository", () => {
       mockCollection.findOne.mockResolvedValue(null);
 
       const result = await findLatestForMajor("woodland", 9);
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("findLatestActive", () => {
-    it("should query for the latest active version across majors excluding 0.0.0", async () => {
-      const doc = {
-        grantCode: "woodland",
-        version: "2.1.0",
-        major: 2,
-        minor: 1,
-        patch: 0,
-        status: "active",
-        s3Key: "woodland/2.1.0/grant-definition.json",
-        s3Bucket: "bucket",
-        fetchStatus: FetchStatus.Fetched,
-        fetchAttempts: 0,
-        receivedAt: "2026-01-01T00:00:00Z",
-        fetchedAt: null,
-        fetchError: null,
-        lastFetchAttemptAt: null,
-      };
-      mockCollection.findOne.mockResolvedValue(doc);
-
-      const result = await findLatestActive("woodland");
-
-      expect(mockCollection.findOne).toHaveBeenCalledWith(
-        {
-          grantCode: "woodland",
-          status: "active",
-          version: { $ne: "0.0.0" },
-          fetchStatus: { $ne: FetchStatus.PermanentError },
-        },
-        { sort: { major: -1, minor: -1, patch: -1 } },
-      );
-      expect(result).toBeInstanceOf(ConfigVersion);
-      expect(result.version).toBe("2.1.0");
-    });
-
-    it("should return null when only the 0.0.0 sentinel exists", async () => {
-      mockCollection.findOne.mockResolvedValue(null);
-
-      const result = await findLatestActive("woodland");
       expect(result).toBeNull();
     });
   });
