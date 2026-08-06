@@ -1,12 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { pmfAgreementDefinition } from "./pmf.js";
+import { agreementDefinitions } from "./agreement-definition-registry.js";
 import { validateAgreementDefinition } from "./validate.js";
+
+const pmfAgreementDefinition = agreementDefinitions.find(
+  ({ code }) => code === "pigs-might-fly",
+);
 
 describe("validateAgreementDefinition", () => {
   it("returns the validated definition when it is valid", () => {
     expect(validateAgreementDefinition(pmfAgreementDefinition)).toMatchObject({
       code: "pigs-might-fly",
     });
+  });
+
+  it("is entirely JSON serialisable", () => {
+    expect(JSON.parse(JSON.stringify(pmfAgreementDefinition))).toEqual(
+      pmfAgreementDefinition,
+    );
   });
 
   it("throws an actionable error when the definition is missing required fields", () => {
