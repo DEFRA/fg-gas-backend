@@ -39,7 +39,19 @@ const agreement = () => ({
     },
   ],
   items: [],
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
   totalAmountPence: 5000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 5000,
+        lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+      },
+    ],
+  },
   state: "offered",
   createdAt,
   updatedAt: createdAt,
@@ -203,7 +215,7 @@ describe("single Agreement actions", () => {
       currency: "GBP",
       paymentRequestNumber: 1,
       originalInvoiceNumber: "",
-      totalAmountPence: 32000,
+      totalAmountPence: 5000,
     });
     expect(payment.invoiceNumber).toBe(`${payment.paymentHubClaimId}-V001QX`);
     // GAS claim IDs are seeded above the legacy service's range so the two can
@@ -213,13 +225,13 @@ describe("single Agreement actions", () => {
     );
     expect(payment.payments[0]).toMatchObject({
       dueDate: "2026-11-06",
-      totalAmountPence: 32000,
+      totalAmountPence: 5000,
       status: "pending",
     });
     expect(payment.payments[0].invoiceLines[0]).toMatchObject({
       schemeCode: "CMOR1",
       description: "Large White Pig",
-      amountPence: 32000,
+      amountPence: 5000,
       accountCode: "SOS710",
       fundCode: "DRD10",
       deliveryBody: "RP00",
@@ -277,19 +289,19 @@ describe("single Agreement actions", () => {
             ledger: "AP",
             originalInvoiceNumber: "",
             agreementNumber,
-            totalAmountPence: "32000",
+            totalAmountPence: "5000",
             currency: "GBP",
             marketingYear: payment.marketingYear,
             payments: [
               {
                 dueDate: "2026-11-06",
-                totalAmountPence: "32000",
+                totalAmountPence: "5000",
                 status: "pending",
                 correlationId: payment.payments[0].correlationId,
                 invoiceLines: [
                   {
                     accountCode: "SOS710",
-                    amountPence: "32000",
+                    amountPence: "5000",
                     deliveryBody: "RP00",
                     description: "Large White Pig",
                     fundCode: "DRD10",
@@ -311,9 +323,9 @@ describe("single Agreement actions", () => {
     const accepted = await agreements.findOne({ agreementNumber });
     const version = await versions.findOne({ agreementNumber, version: 2 });
 
-    expect(accepted.paymentCalculation.agreementTotalPence).toBe(32000);
+    expect(accepted.paymentCalculation.agreementTotalPence).toBe(5000);
     expect(accepted.paymentCalculation.agreementEndDate).toBe("2027-07-31");
-    expect(version.snapshot.paymentCalculation.agreementTotalPence).toBe(32000);
+    expect(version.snapshot.paymentCalculation.agreementTotalPence).toBe(5000);
   });
 
   it("returns a render-ready validation page without changing the Agreement", async () => {
@@ -323,34 +335,36 @@ describe("single Agreement actions", () => {
     expect(response.headers.etag).toBe(`"${agreementNumber}:1"`);
     expect(payload).toMatchObject({
       page: { name: "accept", title: "Accept your agreement offer" },
-      components: [
-        { component: "heading", text: "Accept your agreement offer" },
-        {
-          component: "paragraph",
-          text: "By accepting this offer, you confirm that:",
-        },
-        {
-          component: "unordered-list",
-          items: [
-            { text: "the information in the agreement is correct" },
-            { text: "you have authority to accept the agreement" },
-            { text: "you understand this is a test grant" },
-          ],
-        },
-        {
+      components: expect.arrayContaining([
+        expect.objectContaining({
+          component: "heading",
+          text: "Accept your agreement offer",
+        }),
+        expect.objectContaining({
+          component: "summary-list",
+          rows: expect.arrayContaining([
+            { label: "Agreement start date", text: "1 August 2026" },
+            { label: "Total funding", text: "£50" },
+          ]),
+        }),
+        expect.objectContaining({
+          component: "table",
+          rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
+        }),
+        expect.objectContaining({
           component: "checkboxes",
           name: "confirm",
           errorMessage: {
             text: "Confirm this agreement offer before accepting it",
           },
-          items: [
-            {
+          items: expect.arrayContaining([
+            expect.objectContaining({
               value: "confirmed",
               checked: false,
-            },
-          ],
-        },
-      ],
+            }),
+          ]),
+        }),
+      ]),
       errors: [
         {
           href: "#confirm",

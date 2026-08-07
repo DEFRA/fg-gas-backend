@@ -1,6 +1,6 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
@@ -23,6 +23,7 @@ vi.mock("../repositories/agreement.repository.js");
 const pmfDefinitionData = agreementDefinitions.find(
   ({ code }) => code === "pigs-might-fly",
 );
+const executedAt = "2026-08-06T12:00:00.000Z";
 const command = {
   data: {
     clientRef: "xnp-rr3-nfa",
@@ -38,30 +39,33 @@ const command = {
     sourceContext: { retainedOnlyInCreationInput: true },
   },
 };
+const largeWhiteLine = {
+  pigType: "largeWhite",
+  description: "Large White Pig",
+  quantity: 5,
+  unitPricePence: 1000,
+  amountPence: 5000,
+};
 const calculatorResult = {
-  items: [
-    {
-      type: "largeWhite",
-      description: "Large White Pig",
-      value: 10,
-      quantity: 5,
-      total: 50,
-    },
-    {
-      type: "britishLandrace",
-      description: "British Landrace",
-      value: 15,
-      quantity: 0,
-      total: 0,
-    },
-  ],
-  grandTotal: 50,
+  payment: {
+    agreementStartDate: "2026-08-06",
+    agreementEndDate: "2027-08-05",
+    agreementTotalPence: 5000,
+    payments: [
+      {
+        dueDate: "2026-11-11",
+        totalAmountPence: 5000,
+        invoiceLines: [largeWhiteLine],
+      },
+    ],
+  },
 };
 const session = { fake: "session" };
 
 const createDefinition = (
   callEndpoint = vi.fn().mockResolvedValue(calculatorResult),
-) => new AgreementDefinition(pmfDefinitionData, { callEndpoint });
+  definitionData = pmfDefinitionData,
+) => new AgreementDefinition(definitionData, { callEndpoint });
 
 const expectNoPersistence = () => {
   expect(withTransaction).not.toHaveBeenCalled();
@@ -70,8 +74,24 @@ const expectNoPersistence = () => {
   expect(saveOutboxEvents).not.toHaveBeenCalled();
 };
 
+const withInvoiceLines = (invoiceLines, totalAmountPence) => ({
+  payment: {
+    ...calculatorResult.payment,
+    agreementTotalPence: totalAmountPence,
+    payments: [
+      {
+        ...calculatorResult.payment.payments[0],
+        totalAmountPence,
+        invoiceLines,
+      },
+    ],
+  },
+});
+
 describe("handleCreateAgreementCommandUseCase", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(executedAt);
     vi.clearAllMocks();
     withTransaction.mockImplementation(async (callback) => callback(session));
     findAgreementBySourceIdentity.mockResolvedValue(null);
@@ -79,7 +99,11 @@ describe("handleCreateAgreementCommandUseCase", () => {
     generateAgreementNumber.mockReturnValue("PMF823153883");
   });
 
-  it("maps the complete unchanged Creation Input into an offered Agreement before persisting", async () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("builds the complete offered Agreement from one configured Payment Schedule call before persisting", async () => {
     const callOrder = [];
     const callEndpoint = vi.fn().mockImplementation(async () => {
       callOrder.push("endpoint");
@@ -98,15 +122,17 @@ describe("handleCreateAgreementCommandUseCase", () => {
 
     expect(resolveApplication).toHaveBeenCalledWith(command.data);
     expect(command.data).toEqual(originalInput);
+    expect(callEndpoint).toHaveBeenCalledOnce();
     expect(callEndpoint).toHaveBeenCalledWith(
       {
         code: "calculate-offer",
         method: "POST",
-        path: "/grantFundingCalculator",
+        path: "/paymentSchedule",
         service: "GRANT_FUNDING_CALCULATOR",
       },
       {
         BODY: {
+          agreementStartDate: executedAt,
           pigTypes: [
             { pigType: "largeWhite", quantity: 5 },
             { pigType: "britishLandrace", quantity: 0 },
@@ -125,6 +151,8 @@ describe("handleCreateAgreementCommandUseCase", () => {
       configVersion: "1.2.0",
       identifiers: command.data.identifiers,
       application: command.data.answers,
+      startDate: "2026-08-06",
+      endDate: "2027-08-05",
       actions: [
         {
           id: "action:1",
@@ -138,11 +166,24 @@ describe("handleCreateAgreementCommandUseCase", () => {
       ],
       items: [],
       totalAmountPence: 5000,
+      paymentSchedule: {
+        instalments: [
+          {
+            id: "instalment:1",
+            dueDate: "2026-11-11",
+            totalAmountPence: 5000,
+            lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+          },
+        ],
+      },
       state: "offered",
     });
     expect(agreement).not.toHaveProperty("payload");
     expect(agreement).not.toHaveProperty("supplementaryData");
-    expect(JSON.stringify(agreement)).not.toContain("grandTotal");
+    expect(JSON.stringify(agreement)).not.toContain("paymentCalculation");
+    expect(JSON.stringify(agreement)).not.toContain("pigType");
+    expect(JSON.stringify(agreement)).not.toContain('"ref"');
+    expect(JSON.stringify(agreement)).not.toContain("actionRef");
     expect(insertCurrentAgreement).toHaveBeenCalledWith(agreement, session);
     expect(insertAgreementVersion).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -169,33 +210,37 @@ describe("handleCreateAgreementCommandUseCase", () => {
     );
   });
 
-  it("allocates stable identities in each configured output order", async () => {
-    const response = {
-      items: [
-        calculatorResult.items[0],
-        {
-          type: "berkshire",
-          description: "Berkshire",
-          value: 18,
-          quantity: 2,
-          total: 36,
-        },
-      ],
-      grandTotal: 86,
+  it("allocates identities by mapped order and resolves references without relying on Action code uniqueness", async () => {
+    const berkshireLine = {
+      pigType: "berkshire",
+      description: "Berkshire",
+      quantity: 2,
+      unitPricePence: 1800,
+      amountPence: 3600,
     };
+    const response = withInvoiceLines([largeWhiteLine, berkshireLine], 8600);
+    const definitionData = structuredClone(pmfDefinitionData);
+    definitionData.processDefinitions[
+      "calculate-offer"
+    ].output.actions.items.code = "DUPLICATE-CODE";
     loadAgreementDefinition.mockResolvedValue(
-      createDefinition(vi.fn().mockResolvedValue(response)),
+      createDefinition(vi.fn().mockResolvedValue(response), definitionData),
     );
 
     const agreement = await handleCreateAgreementCommandUseCase(command);
 
-    expect(agreement.actions.map(({ id }) => id)).toEqual([
-      "action:1",
-      "action:2",
+    expect(agreement.actions).toEqual([
+      expect.objectContaining({ id: "action:1", code: "DUPLICATE-CODE" }),
+      expect.objectContaining({ id: "action:2", code: "DUPLICATE-CODE" }),
     ]);
-    expect(agreement.actions.map(({ code }) => code)).toEqual([
-      "largeWhite",
-      "berkshire",
+    expect(agreement.paymentSchedule.instalments).toEqual([
+      expect.objectContaining({
+        id: "instalment:1",
+        lineItems: [
+          { actionId: "action:1", amountPence: 5000 },
+          { actionId: "action:2", amountPence: 3600 },
+        ],
+      }),
     ]);
   });
 
@@ -208,22 +253,68 @@ describe("handleCreateAgreementCommandUseCase", () => {
       "mapped candidate validation",
       () =>
         createDefinition(
-          vi.fn().mockResolvedValue({
-            ...calculatorResult,
-            items: [{ ...calculatorResult.items[0], value: "secret" }],
-          }),
+          vi
+            .fn()
+            .mockResolvedValue(
+              withInvoiceLines(
+                [{ ...largeWhiteLine, unitPricePence: "secret" }],
+                5000,
+              ),
+            ),
         ),
     ],
     [
-      "complete Agreement value validation",
+      "ambiguous candidate references",
+      () =>
+        createDefinition(
+          vi
+            .fn()
+            .mockResolvedValue(
+              withInvoiceLines([largeWhiteLine, largeWhiteLine], 10000),
+            ),
+        ),
+    ],
+    [
+      "unknown candidate references",
       () => {
-        const invalidDefinition = structuredClone(pmfDefinitionData);
-        delete invalidDefinition.processDefinitions["calculate-offer"].output
-          .items;
-        return new AgreementDefinition(invalidDefinition, {
-          callEndpoint: vi.fn().mockResolvedValue(calculatorResult),
-        });
+        const definitionData = structuredClone(pmfDefinitionData);
+        definitionData.processDefinitions[
+          "calculate-offer"
+        ].output.actions.itemsRef =
+          "jsonata:$.response.payment.payments[0].invoiceLines[0]";
+        const berkshireLine = {
+          pigType: "berkshire",
+          description: "Berkshire",
+          quantity: 1,
+          unitPricePence: 1800,
+          amountPence: 1800,
+        };
+        return createDefinition(
+          vi
+            .fn()
+            .mockResolvedValue(
+              withInvoiceLines([largeWhiteLine, berkshireLine], 6800),
+            ),
+          definitionData,
+        );
       },
+    ],
+    [
+      "complete Agreement value validation",
+      () =>
+        createDefinition(
+          vi.fn().mockResolvedValue({
+            payment: {
+              ...calculatorResult.payment,
+              payments: [
+                {
+                  ...calculatorResult.payment.payments[0],
+                  totalAmountPence: 1,
+                },
+              ],
+            },
+          }),
+        ),
     ],
   ])("persists nothing when %s fails", async (_failure, definitionFactory) => {
     loadAgreementDefinition.mockResolvedValue(definitionFactory());

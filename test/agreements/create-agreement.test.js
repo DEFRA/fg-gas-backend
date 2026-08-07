@@ -120,7 +120,11 @@ describe("PMF Agreement creation", () => {
       "snapshot.actions.0.id": "action:1",
       "snapshot.actions.0.code": "largeWhite",
       "snapshot.actions.0.totalAmountPence": 5000,
+      "snapshot.startDate": "2026-08-01",
+      "snapshot.endDate": "2027-07-31",
       "snapshot.totalAmountPence": 5000,
+      "snapshot.paymentSchedule.instalments.0.id": "instalment:1",
+      "snapshot.paymentSchedule.instalments.0.lineItems.0.actionId": "action:1",
     });
     expect(agreement).toMatchObject({
       application: createApplication().phases[0].answers,
@@ -136,10 +140,24 @@ describe("PMF Agreement creation", () => {
         },
       ],
       items: [],
+      startDate: "2026-08-01",
+      endDate: "2027-07-31",
       totalAmountPence: 5000,
+      paymentSchedule: {
+        instalments: [
+          {
+            id: "instalment:1",
+            dueDate: "2026-11-06",
+            totalAmountPence: 5000,
+            lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+          },
+        ],
+      },
     });
     expect(agreement).not.toHaveProperty("payload");
     expect(agreement).not.toHaveProperty("supplementaryData");
+    expect(agreement).not.toHaveProperty("paymentCalculation");
+    expect(JSON.stringify(agreement)).not.toContain("pigType");
     const version = await versions.findOne({
       agreementNumber: agreement.agreementNumber,
       version: 1,

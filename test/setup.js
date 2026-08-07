@@ -7,44 +7,25 @@ import { ensureQueues } from "./helpers/sqs.js";
 let environment;
 let fundingCalculator;
 
-// Stands in for fg-gss-pmf. The two endpoints return different shapes, so the
-// stub has to answer per path rather than returning one body for everything.
+// Stands in for fg-gss-pmf and deliberately exposes only the retained PMF
+// Payment Schedule contract. A grant-funding call fails with 404.
 const calculatorResponses = {
-  "/grantFundingCalculator": {
-    items: [
-      {
-        type: "largeWhite",
-        description: "Large White Pig",
-        value: 10,
-        quantity: 5,
-        total: 50,
-      },
-      {
-        type: "britishLandrace",
-        description: "British Landrace",
-        value: 15,
-        quantity: 0,
-        total: 0,
-      },
-    ],
-    grandTotal: 50,
-  },
   "/paymentSchedule": {
     payment: {
       agreementStartDate: "2026-08-01",
       agreementEndDate: "2027-07-31",
-      agreementTotalPence: 32000,
+      agreementTotalPence: 5000,
       payments: [
         {
           dueDate: "2026-11-06",
-          totalAmountPence: 32000,
+          totalAmountPence: 5000,
           invoiceLines: [
             {
               pigType: "largeWhite",
               description: "Large White Pig",
               quantity: 5,
-              unitPricePence: 6400,
-              amountPence: 32000,
+              unitPricePence: 1000,
+              amountPence: 5000,
             },
           ],
         },
@@ -56,12 +37,12 @@ const calculatorResponses = {
 const startFundingCalculator = () =>
   new Promise((resolve, reject) => {
     fundingCalculator = createServer((request, response) => {
-      const body =
-        calculatorResponses[request.url] ??
-        calculatorResponses["/grantFundingCalculator"];
+      const body = calculatorResponses[request.url];
 
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify(body));
+      response.writeHead(body ? 200 : 404, {
+        "content-type": "application/json",
+      });
+      response.end(JSON.stringify(body ?? { message: "Not found" }));
     });
     fundingCalculator.once("error", reject);
     fundingCalculator.listen(0, "0.0.0.0", () => {

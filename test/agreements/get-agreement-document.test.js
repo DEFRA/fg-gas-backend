@@ -31,7 +31,19 @@ const agreement = {
     },
   ],
   items: [],
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
   totalAmountPence: 5000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 5000,
+        lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+      },
+    ],
+  },
   state: "offered",
   createdAt,
   updatedAt: createdAt,
@@ -93,6 +105,7 @@ describe("read-only Agreement document", () => {
     expect(payload.sections.map(({ id }) => id)).toEqual([
       "agreement-overview",
       "pigs-and-funding",
+      "payment-schedule",
       "about-this-test-agreement",
     ]);
     expect(
@@ -103,8 +116,12 @@ describe("read-only Agreement document", () => {
       components: [
         {
           component: "table",
-          head: [{ text: "Pig type" }, { text: "Funding amount" }],
-          rows: [[{ text: "Large White Pig" }, { text: "£50" }]],
+          head: [
+            { text: "Pig type" },
+            { text: "Number of pigs" },
+            { text: "Funding amount" },
+          ],
+          rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
         },
         {
           component: "summary-list",
@@ -112,27 +129,27 @@ describe("read-only Agreement document", () => {
         },
       ],
     });
+    expect(
+      payload.sections.find(({ id }) => id === "payment-schedule"),
+    ).toEqual(
+      expect.objectContaining({
+        components: expect.arrayContaining([
+          expect.objectContaining({
+            component: "table",
+            rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
+          }),
+        ]),
+      }),
+    );
   });
 
-  it("returns the payment schedule without draft marking for an accepted Agreement document", async () => {
+  it("returns the stored payment schedule without draft marking for an accepted Agreement document", async () => {
     await agreements.updateOne(
       { agreementNumber },
       {
         $set: {
           state: "accepted",
           acceptedAt: "2026-07-31T15:30:00.000Z",
-          paymentCalculation: {
-            agreementStartDate: "2026-08-01",
-            agreementEndDate: "2027-07-31",
-            agreementTotalPence: 32000,
-            payments: [
-              {
-                dueDate: "2026-11-06",
-                totalAmountPence: 32000,
-                invoiceLines: [],
-              },
-            ],
-          },
         },
       },
     );
@@ -156,7 +173,7 @@ describe("read-only Agreement document", () => {
           components: expect.arrayContaining([
             expect.objectContaining({
               component: "table",
-              rows: [[{ text: "6 November 2026" }, { text: "£320" }]],
+              rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
             }),
           ]),
         }),

@@ -178,10 +178,19 @@ describe("AgreementDefinition Process runtime", () => {
     );
     definitionData.states.accepted = { page: "offered" };
 
+    const candidatePaymentSchedule = {
+      instalments: [
+        {
+          dueDate: "2026-11-06",
+          totalAmountPence: 32000,
+          lineItems: [{ actionRef: "offer-line-1", amountPence: 32000 }],
+        },
+      ],
+    };
     const calls = [];
     const callEndpoint = vi.fn().mockImplementation(async () => {
       calls.push("calculate-payment");
-      return { paymentSchedule };
+      return { paymentSchedule: candidatePaymentSchedule };
     });
     const execute = vi.fn().mockImplementation(() => {
       calls.push("record-payment");
@@ -627,6 +636,53 @@ const compilationCases = [
       return { definition };
     },
     /actions\.id.*unknown/,
+  ],
+  [
+    "persistent Instalment identities",
+    () => {
+      const definition = createDefinition();
+      definition.processDefinitions["calculate-offer"].output = {
+        paymentSchedule: {
+          instalments: {
+            itemsRef: "$.response.payments",
+            items: {
+              id: "@.id",
+              dueDate: "@.dueDate",
+              totalAmountPence: "@.totalAmountPence",
+              lineItems: [],
+            },
+          },
+        },
+      };
+      return { definition };
+    },
+    /instalments\.id.*unknown/,
+  ],
+  [
+    "persistent scheduled Line Item references",
+    () => {
+      const definition = createDefinition();
+      definition.processDefinitions["calculate-offer"].output = {
+        paymentSchedule: {
+          instalments: {
+            itemsRef: "$.response.payments",
+            items: {
+              dueDate: "@.dueDate",
+              totalAmountPence: "@.totalAmountPence",
+              lineItems: {
+                itemsRef: "@.lineItems",
+                items: {
+                  actionId: "@.actionId",
+                  amountPence: "@.amountPence",
+                },
+              },
+            },
+          },
+        },
+      };
+      return { definition };
+    },
+    /lineItems\.actionId.*unknown/,
   ],
   [
     "unknown handler input fields",
