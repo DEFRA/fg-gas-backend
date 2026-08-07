@@ -35,6 +35,33 @@ const options = {
     sbi: "300000069",
   },
 };
+const offeredAgreementValues = {
+  application: { whitePigsCount: 5 },
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
+  parcels: [],
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      quantity: 5,
+      unit: "head",
+      totalAmountPence: 5000,
+    },
+  ],
+  items: [],
+  totalAmountPence: 5000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 5000,
+        lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+      },
+    ],
+  },
+};
 const agreement = new Agreement({
   agreementNumber: options.agreementNumber,
   version: 1,
@@ -43,19 +70,13 @@ const agreement = new Agreement({
   configVersion: "1.0.1",
   correlationId: "correlation",
   identifiers: { sbi: "300000069" },
-  payload: {},
+  ...offeredAgreementValues,
   state: "offered",
   createdAt: "2026-07-17T10:00:00.000Z",
   updatedAt: "2026-07-17T10:00:00.000Z",
 });
 const action = {
-  effects: [
-    {
-      name: "snapshot",
-      params: { acceptedAt: "$.executedAt" },
-    },
-    { name: "publish", params: { event: "lifecycle" } },
-  ],
+  effects: [{ name: "publish", params: { event: "lifecycle" } }],
   transition: { target: "accepted" },
   validate: vi.fn().mockReturnValue({ valid: true }),
 };
@@ -75,7 +96,6 @@ describe("executeAgreementActionUseCase", () => {
     });
     runAgreementEffects.mockImplementation(async (_effects, context) => ({
       ...context,
-      agreement: { ...context.agreement, acceptedAt: context.executedAt },
       outboxMessageTypes: ["lifecycle"],
     }));
     replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 1 });
@@ -121,6 +141,17 @@ describe("executeAgreementActionUseCase", () => {
       ],
       session,
     );
+  });
+
+  it("preserves every offered value in current state and its Version", async () => {
+    await executeAgreementActionUseCase(options);
+
+    const [accepted] = replaceCurrentAgreement.mock.calls[0];
+    const [version] = insertAgreementVersion.mock.calls[0];
+
+    expect(accepted).toMatchObject(offeredAgreementValues);
+    expect(version.snapshot).toMatchObject(offeredAgreementValues);
+    expect(version.snapshot).toEqual(accepted);
   });
 
   it("returns a completed idempotent action before running effects", async () => {

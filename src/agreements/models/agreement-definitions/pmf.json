@@ -2,14 +2,6 @@
   "code": "pigs-might-fly",
   "configVersion": "1.2.0",
   "agreementNumberPrefix": "PMF",
-  "endpoints": [
-    {
-      "code": "calculate-payment-schedule",
-      "method": "POST",
-      "path": "/paymentSchedule",
-      "service": "GRANT_FUNDING_CALCULATOR"
-    }
-  ],
   "processDefinitions": {
     "calculate-offer": {
       "type": "endpoint",
@@ -100,64 +92,6 @@
             ]
           },
           "effects": [
-            {
-              "name": "callEndpoint",
-              "output": "paymentCalculation",
-              "params": {
-                "endpoint": {
-                  "code": "calculate-payment-schedule",
-                  "endpointParams": {
-                    "BODY": {
-                      "agreementStartDate": "$.agreement.startDate",
-                      "pigTypes": [
-                        {
-                          "pigType": "largeWhite",
-                          "quantity": "$.agreement.application.whitePigsCount ?? 0"
-                        },
-                        {
-                          "pigType": "britishLandrace",
-                          "quantity": "$.agreement.application.britishLandracePigsCount ?? 0"
-                        },
-                        {
-                          "pigType": "berkshire",
-                          "quantity": "$.agreement.application.berkshirePigsCount ?? 0"
-                        },
-                        {
-                          "pigType": "other",
-                          "quantity": "$.agreement.application.otherPigsCount ?? 0"
-                        }
-                      ]
-                    }
-                  }
-                }
-              }
-            },
-            {
-              "name": "snapshot",
-              "params": {
-                "acceptedAt": "$.executedAt",
-                "paymentCalculation": "$.outputs.paymentCalculation.payment"
-              }
-            },
-            {
-              "name": "createPayment",
-              "params": {
-                "paymentCalculation": "$.outputs.paymentCalculation.payment",
-                "mapping": {
-                  "scheme": "SFI",
-                  "sourceSystem": "FPTT",
-                  "deliveryBody": "RP00",
-                  "fesCode": "FALS_FPTT",
-                  "ledger": "AP",
-                  "currency": "GBP",
-                  "invoiceLine": {
-                    "schemeCode": "CMOR1",
-                    "accountCode": "SOS710",
-                    "fundCode": "DRD10"
-                  }
-                }
-              }
-            },
             {
               "name": "publish",
               "params": {
