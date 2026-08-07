@@ -1,4 +1,5 @@
 import jsonata from "jsonata";
+import { toProcessExpression } from "../../../../common/agreements/resolve-process-mapping.js";
 
 const jsonataPrefix = "jsonata:";
 
@@ -158,10 +159,7 @@ const inspectString = (value, dependencies) => {
     return;
   }
 
-  const expression = value.startsWith(jsonataPrefix)
-    ? value.slice(jsonataPrefix.length)
-    : value;
-  visitAst(jsonata(expression).ast(), dependencies);
+  visitAst(jsonata(toProcessExpression(value)).ast(), dependencies);
 };
 
 const inspectMapping = (mapping, dependencies) => {

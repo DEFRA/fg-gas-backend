@@ -87,8 +87,33 @@ const agreement = {
   state: "offered",
   version: 1,
 };
-const fundingCalculation = {
-  items: [{ description: "Large White Pig", total: 32000 }],
+const offeredValues = {
+  application: { whitePigsCount: 5 },
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+      quantity: 5,
+      unit: "head",
+      ratePence: 1000,
+      totalAmountPence: 5000,
+    },
+  ],
+  items: [],
+  startDate: "2026-08-06",
+  endDate: "2027-08-05",
+  totalAmountPence: 5000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-11",
+        totalAmountPence: 5000,
+        lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+      },
+    ],
+  },
 };
 
 describe("buildAgreementPageModel", () => {
@@ -165,20 +190,14 @@ describe("buildAgreementPageModel", () => {
     });
   });
 
-  it("builds the accepted PMF payment schedule from the calculator response", async () => {
+  it("builds accepted PMF pages from the stored offered values", async () => {
     const acceptedAgreement = {
       ...agreement,
       code: "pigs-might-fly",
       configVersion: "1.2.0",
       state: "accepted",
       acceptedAt: "2026-07-31T15:30:00.000Z",
-      supplementaryData: { fundingCalculation },
-      paymentCalculation: {
-        agreementStartDate: "2026-08-01",
-        agreementEndDate: "2027-07-31",
-        agreementTotalPence: 32000,
-        payments: [{ dueDate: "2026-11-06", totalAmountPence: 32000 }],
-      },
+      ...offeredValues,
     };
     const pmfDefinition = new AgreementDefinition(pmfAgreementDefinition);
 
@@ -204,8 +223,16 @@ describe("buildAgreementPageModel", () => {
       components: [
         {
           component: "table",
-          head: [{ text: "Pig type" }, { text: "Funding amount" }],
-          rows: [[{ text: "Large White Pig" }, { text: "£320" }]],
+          head: [
+            { text: "Pig type" },
+            { text: "Number of pigs" },
+            { text: "Funding amount" },
+          ],
+          rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
+        },
+        {
+          component: "summary-list",
+          rows: [{ label: "Total funding", text: "£50" }],
         },
       ],
     });
@@ -216,7 +243,7 @@ describe("buildAgreementPageModel", () => {
           components: expect.arrayContaining([
             expect.objectContaining({
               component: "table",
-              rows: [[{ text: "6 November 2026" }, { text: "£320" }]],
+              rows: [[{ text: "11 November 2026" }, { text: "£50" }]],
             }),
           ]),
         }),
@@ -227,8 +254,8 @@ describe("buildAgreementPageModel", () => {
         expect.objectContaining({
           component: "summary-list",
           rows: expect.arrayContaining([
-            { label: "Agreement start date", text: "1 August 2026" },
-            { label: "Total payment", text: "£320" },
+            { label: "Agreement start date", text: "6 August 2026" },
+            { label: "Total payment", text: "£50" },
           ]),
         }),
       ]),
@@ -239,7 +266,7 @@ describe("buildAgreementPageModel", () => {
     const offeredAgreement = {
       ...agreement,
       code: "pigs-might-fly",
-      supplementaryData: { fundingCalculation },
+      ...offeredValues,
     };
 
     const model = await buildAgreementPageModel({
@@ -253,8 +280,25 @@ describe("buildAgreementPageModel", () => {
       model.components.find(({ component }) => component === "table"),
     ).toEqual({
       component: "table",
-      head: [{ text: "Pig type" }, { text: "Funding amount" }],
-      rows: [[{ text: "Large White Pig" }, { text: "£320" }]],
+      head: [
+        { text: "Pig type" },
+        { text: "Number of pigs" },
+        { text: "Funding amount" },
+      ],
+      rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
+    });
+    expect(model.components).toContainEqual({
+      component: "summary-list",
+      rows: [
+        { label: "Agreement start date", text: "6 August 2026" },
+        { label: "Agreement end date", text: "5 August 2027" },
+        { label: "Total funding", text: "£50" },
+      ],
+    });
+    expect(model.components).toContainEqual({
+      component: "table",
+      head: [{ text: "Payment date" }, { text: "Amount" }],
+      rows: [[{ text: "11 November 2026" }, { text: "£50" }]],
     });
     expect(model.components).toContainEqual(
       expect.objectContaining({
@@ -262,6 +306,36 @@ describe("buildAgreementPageModel", () => {
         text: "View the draft agreement",
         classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
       }),
+    );
+  });
+
+  it("builds the PMF acceptance page from the same stored offered values", async () => {
+    const model = await buildAgreementPageModel({
+      agreement: {
+        ...agreement,
+        code: "pigs-might-fly",
+        ...offeredValues,
+      },
+      agreementDefinition: new AgreementDefinition(pmfAgreementDefinition),
+      page: "accept",
+      mode: "view",
+    });
+
+    expect(model.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          component: "summary-list",
+          rows: expect.arrayContaining([
+            { label: "Agreement start date", text: "6 August 2026" },
+            { label: "Total funding", text: "£50" },
+          ]),
+        }),
+        {
+          component: "table",
+          head: [{ text: "Payment date" }, { text: "Amount" }],
+          rows: [[{ text: "11 November 2026" }, { text: "£50" }]],
+        },
+      ]),
     );
   });
 

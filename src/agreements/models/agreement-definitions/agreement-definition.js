@@ -21,7 +21,13 @@ export class AgreementDefinition {
     );
   }
 
-  createAgreement({ clientRef, identifiers, payload }) {
+  createAgreement({
+    clientRef,
+    correlationId,
+    createdAt,
+    identifiers,
+    values,
+  }) {
     return Agreement.create({
       agreementNumber: generateAgreementNumber({
         prefix: this.#definition.agreementNumberPrefix,
@@ -29,8 +35,10 @@ export class AgreementDefinition {
       code: this.#definition.code,
       clientRef,
       configVersion: this.#definition.configVersion,
+      correlationId,
+      createdAt,
       identifiers,
-      payload,
+      values,
       state: this.#definition.create.target,
     });
   }

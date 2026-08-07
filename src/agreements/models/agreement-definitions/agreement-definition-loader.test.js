@@ -94,8 +94,7 @@ describe("loadAgreementDefinition", () => {
       definition.createAgreement({
         clientRef: "xnp-rr3-nfa",
         identifiers: { sbi: "300000069" },
-        payload: {},
-        sourceSystem: "GAS",
+        values: { application: {}, actions: [], items: [] },
       }).state,
     ).toBe("offered");
     expect(findAgreementDefinition).toHaveBeenCalledWith({

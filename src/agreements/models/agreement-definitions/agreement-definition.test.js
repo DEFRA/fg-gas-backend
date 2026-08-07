@@ -52,7 +52,11 @@ describe("AgreementDefinition", () => {
     const agreement = definition.createAgreement({
       clientRef: "xnp-rr3-nfa",
       identifiers: { sbi: "300000069" },
-      payload: { applicant: "Test Farmer" },
+      values: {
+        application: { applicant: "Test Farmer" },
+        actions: [],
+        items: [],
+      },
     });
 
     expect(agreement.agreementNumber).toMatch(/^TST/);
@@ -62,7 +66,9 @@ describe("AgreementDefinition", () => {
       clientRef: "xnp-rr3-nfa",
       configVersion: "0.0.1",
       identifiers: { sbi: "300000069" },
-      payload: { applicant: "Test Farmer" },
+      application: { applicant: "Test Farmer" },
+      actions: [],
+      items: [],
       state: "offered",
       correlationId: expect.any(String),
       createdAt: expect.any(String),

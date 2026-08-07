@@ -4,67 +4,83 @@
   "agreementNumberPrefix": "PMF",
   "endpoints": [
     {
-      "code": "calculate-funding",
-      "method": "POST",
-      "path": "/grantFundingCalculator",
-      "service": "GRANT_FUNDING_CALCULATOR"
-    },
-    {
       "code": "calculate-payment-schedule",
       "method": "POST",
       "path": "/paymentSchedule",
       "service": "GRANT_FUNDING_CALCULATOR"
     }
   ],
-  "create": {
-    "target": "offered",
-    "effects": [
-      {
-        "name": "callEndpoint",
-        "output": "fundingCalculation",
-        "params": {
-          "endpoint": {
-            "code": "calculate-funding",
-            "endpointParams": {
-              "BODY": {
-                "pigTypes": [
-                  {
-                    "pigType": "largeWhite",
-                    "quantity": "$.answers.whitePigsCount ?? 0"
-                  },
-                  {
-                    "pigType": "britishLandrace",
-                    "quantity": "$.answers.britishLandracePigsCount ?? 0"
-                  },
-                  {
-                    "pigType": "berkshire",
-                    "quantity": "$.answers.berkshirePigsCount ?? 0"
-                  },
-                  {
-                    "pigType": "other",
-                    "quantity": "$.answers.otherPigsCount ?? 0"
-                  }
-                ]
+  "processDefinitions": {
+    "calculate-offer": {
+      "type": "endpoint",
+      "endpoint": {
+        "method": "POST",
+        "path": "/paymentSchedule",
+        "service": "GRANT_FUNDING_CALCULATOR"
+      },
+      "request": {
+        "body": {
+          "agreementStartDate": "$.execution.executedAt",
+          "pigTypes": [
+            {
+              "pigType": "largeWhite",
+              "quantity": "jsonata:$.application.whitePigsCount ?? 0"
+            },
+            {
+              "pigType": "britishLandrace",
+              "quantity": "jsonata:$.application.britishLandracePigsCount ?? 0"
+            },
+            {
+              "pigType": "berkshire",
+              "quantity": "jsonata:$.application.berkshirePigsCount ?? 0"
+            },
+            {
+              "pigType": "other",
+              "quantity": "jsonata:$.application.otherPigsCount ?? 0"
+            }
+          ]
+        }
+      },
+      "output": {
+        "startDate": "$.response.payment.agreementStartDate",
+        "endDate": "$.response.payment.agreementEndDate",
+        "actions": {
+          "itemsRef": "jsonata:$.response.payment.payments[0].invoiceLines[quantity > 0]",
+          "items": {
+            "ref": "@.pigType",
+            "code": "@.pigType",
+            "description": "@.description",
+            "quantity": "@.quantity",
+            "unit": "head",
+            "ratePence": "@.unitPricePence",
+            "totalAmountPence": "@.amountPence"
+          }
+        },
+        "items": [],
+        "totalAmountPence": "$.response.payment.agreementTotalPence",
+        "paymentSchedule": {
+          "instalments": {
+            "itemsRef": "$.response.payment.payments",
+            "items": {
+              "dueDate": "@.dueDate",
+              "totalAmountPence": "@.totalAmountPence",
+              "lineItems": {
+                "itemsRef": "@.invoiceLines",
+                "items": {
+                  "actionRef": "@.pigType",
+                  "amountPence": "@.amountPence"
+                }
               }
             }
           }
         }
-      },
-      {
-        "name": "snapshot",
-        "params": {
-          "supplementaryData": {
-            "fundingCalculation": "$.outputs.fundingCalculation"
-          }
-        }
-      },
-      {
-        "name": "publish",
-        "params": {
-          "event": "lifecycle"
-        }
       }
-    ]
+    }
+  },
+  "create": {
+    "target": "offered",
+    "application": "$.input.answers",
+    "processes": ["calculate-offer"]
   },
   "states": {
     "offered": {
@@ -92,23 +108,23 @@
                   "code": "calculate-payment-schedule",
                   "endpointParams": {
                     "BODY": {
-                      "agreementStartDate": "$.executedAt",
+                      "agreementStartDate": "$.agreement.startDate",
                       "pigTypes": [
                         {
                           "pigType": "largeWhite",
-                          "quantity": "$.agreement.payload.whitePigsCount ?? 0"
+                          "quantity": "$.agreement.application.whitePigsCount ?? 0"
                         },
                         {
                           "pigType": "britishLandrace",
-                          "quantity": "$.agreement.payload.britishLandracePigsCount ?? 0"
+                          "quantity": "$.agreement.application.britishLandracePigsCount ?? 0"
                         },
                         {
                           "pigType": "berkshire",
-                          "quantity": "$.agreement.payload.berkshirePigsCount ?? 0"
+                          "quantity": "$.agreement.application.berkshirePigsCount ?? 0"
                         },
                         {
                           "pigType": "other",
-                          "quantity": "$.agreement.payload.otherPigsCount ?? 0"
+                          "quantity": "$.agreement.application.otherPigsCount ?? 0"
                         }
                       ]
                     }
@@ -213,16 +229,32 @@
                   "text": "Pig type"
                 },
                 {
+                  "text": "Number of pigs"
+                },
+                {
                   "text": "Funding amount"
                 }
               ],
-              "rowsRef": "$.agreement.supplementaryData.fundingCalculation.items",
+              "rowsRef": "$.agreement.actions",
               "rows": [
                 {
                   "text": "@.description"
                 },
                 {
-                  "text": "@.total",
+                  "text": "@.quantity"
+                },
+                {
+                  "text": "@.totalAmountPence",
+                  "format": "poundsFromPence"
+                }
+              ]
+            },
+            {
+              "component": "summary-list",
+              "rows": [
+                {
+                  "label": "Total funding",
+                  "text": "$.agreement.totalAmountPence",
                   "format": "poundsFromPence"
                 }
               ]
@@ -232,24 +264,23 @@
         {
           "id": "payment-schedule",
           "title": "Payment schedule",
-          "condition": "jsonata:$.agreement.state = 'accepted'",
           "components": [
             {
               "component": "summary-list",
               "rows": [
                 {
                   "label": "Agreement start date",
-                  "text": "$.agreement.paymentCalculation.agreementStartDate",
+                  "text": "$.agreement.startDate",
                   "format": "dateLong"
                 },
                 {
                   "label": "Agreement end date",
-                  "text": "$.agreement.paymentCalculation.agreementEndDate",
+                  "text": "$.agreement.endDate",
                   "format": "dateLong"
                 },
                 {
                   "label": "Total payment",
-                  "text": "$.agreement.paymentCalculation.agreementTotalPence",
+                  "text": "$.agreement.totalAmountPence",
                   "format": "poundsFromPence"
                 }
               ]
@@ -264,7 +295,7 @@
                   "text": "Amount"
                 }
               ],
-              "rowsRef": "$.agreement.paymentCalculation.payments",
+              "rowsRef": "$.agreement.paymentSchedule.instalments",
               "rows": [
                 {
                   "text": "@.dueDate",
@@ -348,23 +379,72 @@
               "text": "Pig type"
             },
             {
+              "text": "Number of pigs"
+            },
+            {
               "text": "Funding amount"
             }
           ],
-          "rowsRef": "$.agreement.supplementaryData.fundingCalculation.items",
+          "rowsRef": "$.agreement.actions",
           "rows": [
             {
               "text": "@.description"
             },
             {
-              "text": "@.total",
+              "text": "@.quantity"
+            },
+            {
+              "text": "@.totalAmountPence",
               "format": "poundsFromPence"
             }
           ]
         },
         {
-          "component": "paragraph",
-          "text": "Your payment schedule and agreement dates will be confirmed when you accept the offer."
+          "component": "summary-list",
+          "rows": [
+            {
+              "label": "Agreement start date",
+              "text": "$.agreement.startDate",
+              "format": "dateLong"
+            },
+            {
+              "label": "Agreement end date",
+              "text": "$.agreement.endDate",
+              "format": "dateLong"
+            },
+            {
+              "label": "Total funding",
+              "text": "$.agreement.totalAmountPence",
+              "format": "poundsFromPence"
+            }
+          ]
+        },
+        {
+          "component": "heading",
+          "level": 2,
+          "text": "Payment schedule"
+        },
+        {
+          "component": "table",
+          "head": [
+            {
+              "text": "Payment date"
+            },
+            {
+              "text": "Amount"
+            }
+          ],
+          "rowsRef": "$.agreement.paymentSchedule.instalments",
+          "rows": [
+            {
+              "text": "@.dueDate",
+              "format": "dateLong"
+            },
+            {
+              "text": "@.totalAmountPence",
+              "format": "poundsFromPence"
+            }
+          ]
         },
         {
           "component": "url",
@@ -420,6 +500,85 @@
           ]
         },
         {
+          "component": "heading",
+          "level": 2,
+          "text": "Pigs and funding"
+        },
+        {
+          "component": "table",
+          "head": [
+            {
+              "text": "Pig type"
+            },
+            {
+              "text": "Number of pigs"
+            },
+            {
+              "text": "Funding amount"
+            }
+          ],
+          "rowsRef": "$.agreement.actions",
+          "rows": [
+            {
+              "text": "@.description"
+            },
+            {
+              "text": "@.quantity"
+            },
+            {
+              "text": "@.totalAmountPence",
+              "format": "poundsFromPence"
+            }
+          ]
+        },
+        {
+          "component": "summary-list",
+          "rows": [
+            {
+              "label": "Agreement start date",
+              "text": "$.agreement.startDate",
+              "format": "dateLong"
+            },
+            {
+              "label": "Agreement end date",
+              "text": "$.agreement.endDate",
+              "format": "dateLong"
+            },
+            {
+              "label": "Total funding",
+              "text": "$.agreement.totalAmountPence",
+              "format": "poundsFromPence"
+            }
+          ]
+        },
+        {
+          "component": "heading",
+          "level": 2,
+          "text": "Payment schedule"
+        },
+        {
+          "component": "table",
+          "head": [
+            {
+              "text": "Payment date"
+            },
+            {
+              "text": "Amount"
+            }
+          ],
+          "rowsRef": "$.agreement.paymentSchedule.instalments",
+          "rows": [
+            {
+              "text": "@.dueDate",
+              "format": "dateLong"
+            },
+            {
+              "text": "@.totalAmountPence",
+              "format": "poundsFromPence"
+            }
+          ]
+        },
+        {
           "component": "checkboxes",
           "name": "confirm",
           "items": [
@@ -456,6 +615,38 @@
         {
           "component": "heading",
           "level": 2,
+          "text": "Pigs and funding"
+        },
+        {
+          "component": "table",
+          "head": [
+            {
+              "text": "Pig type"
+            },
+            {
+              "text": "Number of pigs"
+            },
+            {
+              "text": "Funding amount"
+            }
+          ],
+          "rowsRef": "$.agreement.actions",
+          "rows": [
+            {
+              "text": "@.description"
+            },
+            {
+              "text": "@.quantity"
+            },
+            {
+              "text": "@.totalAmountPence",
+              "format": "poundsFromPence"
+            }
+          ]
+        },
+        {
+          "component": "heading",
+          "level": 2,
           "text": "Payment schedule"
         },
         {
@@ -463,17 +654,17 @@
           "rows": [
             {
               "label": "Agreement start date",
-              "text": "$.agreement.paymentCalculation.agreementStartDate",
+              "text": "$.agreement.startDate",
               "format": "dateLong"
             },
             {
               "label": "Agreement end date",
-              "text": "$.agreement.paymentCalculation.agreementEndDate",
+              "text": "$.agreement.endDate",
               "format": "dateLong"
             },
             {
               "label": "Total payment",
-              "text": "$.agreement.paymentCalculation.agreementTotalPence",
+              "text": "$.agreement.totalAmountPence",
               "format": "poundsFromPence"
             }
           ]
@@ -488,7 +679,7 @@
               "text": "Amount"
             }
           ],
-          "rowsRef": "$.agreement.paymentCalculation.payments",
+          "rowsRef": "$.agreement.paymentSchedule.instalments",
           "rows": [
             {
               "text": "@.dueDate",

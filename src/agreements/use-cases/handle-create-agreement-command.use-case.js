@@ -1,44 +1,29 @@
+import { randomUUID } from "node:crypto";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
+import { assembleCreationAgreementValues } from "../models/assemble-creation-agreement-values.js";
 import {
   findAgreementBySourceIdentity,
   insertAgreementVersion,
   insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
-import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
 
-const buildInitialAgreement = async (definition, agreement, answers) => {
-  const effectContext = await runAgreementEffects(
-    definition.getCreationEffects(),
-    {
-      agreement,
-      answers,
-      outputs: {},
-      endpoints: definition.getEndpoints(),
-      executedAt: agreement.createdAt,
-      target: agreement.state,
-      version: agreement.version,
-    },
-  );
+const runCreationProcesses = async (definition, input, execution) => {
+  const application = await definition.resolveApplication(input);
+  const { outputs } = await definition.runProcesses({
+    location: { type: "create" },
+    context: { application, execution },
+  });
 
-  const resultingAgreement = new Agreement(effectContext.agreement);
-
-  return {
-    agreement: resultingAgreement,
-    outboundEvents: createOutboxMessages(
-      effectContext.outboxMessageTypes ?? [],
-      resultingAgreement,
-    ),
-  };
+  return assembleCreationAgreementValues({ application, outputs });
 };
 
 const createAgreement = async (event) => {
-  const { clientRef, code, identifiers, metadata, answers } = event.data;
+  const { clientRef, code, identifiers, metadata } = event.data;
   const existingAgreement = await findAgreementBySourceIdentity({
     clientRef,
     code,
@@ -52,20 +37,23 @@ const createAgreement = async (event) => {
     code,
     configVersion: metadata?.configVersion,
   });
-  const initialAgreement = definition.createAgreement({
+  const execution = {
+    correlationId: randomUUID(),
+    executedAt: new Date().toISOString(),
+  };
+  const values = await runCreationProcesses(definition, event.data, execution);
+  const agreement = definition.createAgreement({
     clientRef,
+    correlationId: execution.correlationId,
+    createdAt: execution.executedAt,
     identifiers,
-    payload: answers,
+    values,
   });
-  const { agreement, outboundEvents } = await buildInitialAgreement(
-    definition,
-    initialAgreement,
-    answers,
-  );
   const agreementVersion = AgreementVersion.create({
     agreement,
     versionedAt: agreement.createdAt,
   });
+  const outboundEvents = createOutboxMessages(["lifecycle"], agreement);
 
   return withTransaction(async (session) => {
     await insertCurrentAgreement(agreement, session);
