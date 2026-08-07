@@ -43,10 +43,10 @@ const fpttAgreementValues = {
       {
         id: "instalment:1",
         dueDate: "2026-11-15",
-        totalAmountPence: 6810,
+        totalAmountPence: 32553,
         lineItems: [
           { actionId: "action:1", amountPence: 10 },
-          { actionId: "action:2", amountPence: 6800 },
+          { actionId: "action:2", amountPence: 32543 },
         ],
       },
     ],
@@ -423,6 +423,15 @@ describe("agreementValueSchema", () => {
     expect(validate(fpttAgreementValues).error).toBeUndefined();
   });
 
+  it("rejects a Payment Schedule that does not balance with the Agreement total", () => {
+    const value = structuredClone(pmfAgreementValues);
+    value.totalAmountPence = 999;
+
+    expect(validate(value).error?.message).toContain(
+      "Agreement totalAmountPence must equal the sum of Payment Schedule instalments",
+    );
+  });
+
   it("rejects an unbalanced Instalment", () => {
     const value = structuredClone(fpttAgreementValues);
     value.paymentSchedule.instalments[0].totalAmountPence = 6809;
@@ -432,8 +441,9 @@ describe("agreementValueSchema", () => {
     );
   });
 
-  it("accepts empty lineItems when the Instalment total is zero", () => {
+  it("accepts empty lineItems when the Instalment and Agreement totals are zero", () => {
     const value = structuredClone(fpttAgreementValues);
+    value.totalAmountPence = 0;
     value.paymentSchedule.instalments[0].totalAmountPence = 0;
     value.paymentSchedule.instalments[0].lineItems = [];
 
