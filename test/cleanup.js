@@ -15,6 +15,7 @@ beforeEach(async () => {
     db.collection("applications").deleteMany({}),
     db.collection("application_series").deleteMany({}),
     db.collection("grants").deleteMany({}),
+    db.collection("config_versions").deleteMany({}),
     db.collection("users").deleteMany({}),
     db.collection("fifo_locks").deleteMany({}),
   ]);

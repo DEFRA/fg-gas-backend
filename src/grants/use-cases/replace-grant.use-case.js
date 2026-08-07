@@ -35,6 +35,8 @@ export const replaceGrant = async ({ code, command }) => {
     actions: command.actions,
     phases: command.phases,
     externalStatusMap: command.externalStatusMap,
+    amendablePositions: command.amendablePositions,
+    entitlementTemplates: command.entitlementTemplates,
   });
 
   await replace(grant);
