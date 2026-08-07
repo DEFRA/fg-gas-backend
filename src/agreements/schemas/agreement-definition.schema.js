@@ -12,11 +12,51 @@ const effect = Joi.object({
   .label("Effect");
 
 const effects = Joi.array().items(effect).optional().label("Effects");
+const processes = Joi.array().items(Joi.string()).optional().label("Processes");
+
+const endpointProcessDefinition = Joi.object({
+  type: Joi.string().valid("endpoint").required(),
+  endpoint: Joi.object({
+    method: Joi.string().valid("GET", "POST").required(),
+    path: Joi.string().required(),
+    service: Joi.string().required(),
+  }).required(),
+  request: Joi.object({
+    body: Joi.object().unknown(true).required(),
+  }).required(),
+  output: Joi.object().min(1).unknown(true).required(),
+}).label("EndpointProcessDefinition");
+
+const handlerProcessDefinition = Joi.object({
+  type: Joi.string().valid("handler").required(),
+  input: Joi.object().unknown(true).required(),
+}).label("HandlerProcessDefinition");
+
+const unknownProcessDefinition = Joi.object({
+  type: Joi.string().valid("endpoint", "handler").required(),
+}).unknown(true);
+
+const processDefinition = Joi.alternatives()
+  .conditional(".type", {
+    switch: [
+      { is: "endpoint", then: endpointProcessDefinition },
+      { is: "handler", then: handlerProcessDefinition },
+    ],
+    otherwise: unknownProcessDefinition,
+  })
+  .label("ProcessDefinition");
+
+const processDefinitions = Joi.object()
+  .pattern(Joi.string(), processDefinition)
+  .optional()
+  .label("ProcessDefinitions");
 
 const create = Joi.object({
   target: Joi.string().required(),
   effects,
+  processes,
 })
+  .oxor("effects", "processes")
   .required()
   .label("Create");
 
@@ -40,7 +80,9 @@ const actionTransition = Joi.object({
   target: Joi.string().required(),
   validation: validation.optional(),
   effects,
+  processes,
 })
+  .oxor("effects", "processes")
   .unknown(true)
   .label("ActionTransition");
 
@@ -193,6 +235,7 @@ const pageDefinition = Joi.object({
   print: Joi.boolean().optional(),
   watermark: watermark.optional(),
   components: Joi.array().items(component).min(1).required(),
+  processes,
   sections: Joi.array().items(documentSection).min(1).unique("id").optional(),
   actions: Joi.array().items(pageAction).optional(),
 })
@@ -221,6 +264,7 @@ export const agreementDefinitionSchema = Joi.object({
   configVersion: Joi.string().required(),
   agreementNumberPrefix: Joi.string().required(),
   endpoints,
+  processDefinitions,
   create,
   states,
   pages,
