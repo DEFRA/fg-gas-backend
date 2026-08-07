@@ -19,7 +19,11 @@ const createDefinition = () => ({
       output: { totalAmountPence: "$.response.totalAmountPence" },
     },
   },
-  create: { target: "offered", processes: ["calculate-offer"] },
+  create: {
+    target: "offered",
+    application: "$.input",
+    processes: ["calculate-offer"],
+  },
   states: { offered: { page: "offered" } },
   pages: {
     offered: {
