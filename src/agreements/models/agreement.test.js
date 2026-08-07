@@ -61,6 +61,7 @@ describe("Agreement", () => {
     });
     expect(agreement).not.toHaveProperty("payload");
     expect(agreement).not.toHaveProperty("supplementaryData");
+    expect(agreement).not.toHaveProperty("paymentCalculation");
   });
 
   it("accepts the exact offered values and records acceptance time itself", () => {

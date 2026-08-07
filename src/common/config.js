@@ -43,6 +43,7 @@ const schema = Joi.object({
   GAS__SQS__CONFIG_VERSION_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: Joi.string().optional(),
+  VIEW_AGREEMENT_URI: Joi.string().uri().required(),
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
 }).options({
   stripUnknown: true,
@@ -72,6 +73,7 @@ export const config = {
   mongoUri: vars.MONGO_URI,
   mongoDatabase: vars.MONGO_DATABASE,
   tracingHeader: vars.TRACING_HEADER,
+  viewAgreementUri: vars.VIEW_AGREEMENT_URI,
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
   cdpEnvironment: vars.ENVIRONMENT,

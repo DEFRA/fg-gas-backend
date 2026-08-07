@@ -25,14 +25,12 @@ export class AgreementAction {
   #name;
   #target;
   #validation;
-  #effects;
 
-  constructor({ from, name, target, validation, effects }) {
+  constructor({ from, name, target, validation }) {
     this.#from = from;
     this.#name = name;
     this.#target = target;
     this.#validation = validation;
-    this.#effects = effects;
   }
 
   get transition() {
@@ -45,10 +43,6 @@ export class AgreementAction {
 
   get preparationPage() {
     return this.#validation?.page;
-  }
-
-  get effects() {
-    return structuredClone(this.#effects ?? []);
   }
 
   validate(values) {

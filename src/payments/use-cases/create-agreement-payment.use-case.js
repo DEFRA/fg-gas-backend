@@ -26,9 +26,9 @@ export const createAgreementPaymentUseCase = async (
     version,
     sbi,
     frn,
-    paymentCalculation,
-    mapping,
-    marketingYear,
+    agreementCorrelationId,
+    agreementValues,
+    paymentConfiguration,
   },
   session,
 ) => {
@@ -39,9 +39,9 @@ export const createAgreementPaymentUseCase = async (
     version,
     sbi,
     frn,
-    paymentCalculation,
-    mapping,
-    marketingYear,
+    agreementCorrelationId,
+    agreementValues,
+    paymentConfiguration,
     paymentHubClaimId: formatClaimId(sequence),
   });
 

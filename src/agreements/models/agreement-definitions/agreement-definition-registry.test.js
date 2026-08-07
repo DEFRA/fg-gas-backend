@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   agreementDefinitions,
   findAgreementDefinition,
 } from "./agreement-definition-registry.js";
+import { AgreementDefinition } from "./agreement-definition.js";
 
 const pmfAgreementDefinition = agreementDefinitions.find(
   ({ code }) => code === "pigs-might-fly",
@@ -52,16 +53,102 @@ describe("findAgreementDefinition", () => {
     ).not.toHaveProperty("id");
   });
 
-  it("accepts PMF without recalculation or Payment creation", () => {
+  it("configures acceptance to stage Payment from stored Agreement values", () => {
     const acceptance = pmfAgreementDefinition.states.offered.on.accept;
+    const paymentProcess =
+      pmfAgreementDefinition.processDefinitions["create-agreement-payment"];
 
-    expect(acceptance.effects).toEqual([
-      { name: "publish", params: { event: "lifecycle" } },
-    ]);
+    expect(acceptance.processes).toEqual(["create-agreement-payment"]);
+    expect(acceptance).not.toHaveProperty("effects");
+    expect(paymentProcess).toEqual({
+      type: "handler",
+      input: {
+        agreementValues: {
+          startDate: "$.agreement.startDate",
+          endDate: "$.agreement.endDate",
+          actions: "$.agreement.actions",
+          items: "$.agreement.items",
+          totalAmountPence: "$.agreement.totalAmountPence",
+          paymentSchedule: "$.agreement.paymentSchedule",
+        },
+        payment: {
+          scheme: "SFI",
+          sourceSystem: "FPTT",
+          deliveryBody: "RP00",
+          fesCode: "FALS_FPTT",
+          ledger: "AP",
+          currency: "GBP",
+          marketingYear: "jsonata:$substring($.execution.executedAt, 0, 4)",
+          invoiceLine: {
+            schemeCode: "CMOR1",
+            accountCode: "SOS710",
+            fundCode: "DRD10",
+          },
+        },
+      },
+    });
     expect(JSON.stringify(acceptance)).not.toContain("callEndpoint");
     expect(JSON.stringify(acceptance)).not.toContain("paymentCalculation");
-    expect(JSON.stringify(acceptance)).not.toContain("createPayment");
-    expect(JSON.stringify(acceptance)).not.toContain("snapshot");
+  });
+
+  it("stages acceptance from stored values without calling an endpoint", async () => {
+    const callEndpoint = vi.fn();
+    const definition = new AgreementDefinition(pmfAgreementDefinition, {
+      callEndpoint,
+    });
+    const agreement = {
+      state: "offered",
+      startDate: "2026-08-01",
+      endDate: "2027-07-31",
+      actions: [
+        {
+          id: "action:1",
+          code: "largeWhite",
+          description: "Large White Pig",
+        },
+      ],
+      items: [],
+      totalAmountPence: 5000,
+      paymentSchedule: {
+        instalments: [
+          {
+            id: "instalment:1",
+            dueDate: "2026-11-06",
+            totalAmountPence: 5000,
+            lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+          },
+        ],
+      },
+    };
+
+    const result = await definition.runProcesses({
+      location: {
+        type: "transition",
+        state: "offered",
+        transition: "accept",
+      },
+      context: {
+        agreement,
+        transition: { values: { confirm: "confirmed" } },
+        execution: { executedAt: "2027-01-02T10:00:00.000Z" },
+      },
+    });
+
+    expect(callEndpoint).not.toHaveBeenCalled();
+    expect(result.intents).toEqual([
+      expect.objectContaining({
+        type: "create-agreement-payment",
+        request: expect.objectContaining({
+          agreementValues: expect.objectContaining({
+            actions: agreement.actions,
+            paymentSchedule: agreement.paymentSchedule,
+          }),
+          paymentConfiguration: expect.objectContaining({
+            marketingYear: "2027",
+          }),
+        }),
+      }),
+    ]);
   });
 
   it("binds PMF pages only to stored Agreement values", () => {

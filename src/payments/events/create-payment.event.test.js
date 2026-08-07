@@ -1,10 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // The fixture is the message payload produced by the legacy Agreements API's
 // createGrantPaymentFromAgreement test, wrapped in the CloudEvent fields GAS
 // must preserve. GAS adds messageGroupId for Agreement-level FIFO grouping.
 import legacyCreatePaymentEvent from "../../../test/fixtures/legacy-create-payment-event.json";
 import { Payment } from "../models/payment.js";
 import { createPaymentPublication } from "./create-payment.event.js";
+
+vi.mock("node:crypto", () => ({
+  randomUUID: () => "9c3ff46a-6625-4ba7-81f5-58a7602f91ed",
+}));
+
+const eventTime = "2026-08-01T11:00:00.000Z";
 
 const payment = new Payment({
   id: "d5b4a5f7-6ac0-4a55-9ee7-3f5b6c1f8a41",
@@ -57,13 +63,23 @@ const payment = new Payment({
 });
 
 describe("createPaymentPublication", () => {
-  it("builds the legacy Payment Service message from the Payment alone", () => {
-    const { event } = createPaymentPublication(payment);
-    const { id, time, ...message } = event;
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(eventTime);
+  });
 
-    expect(message).toEqual(legacyCreatePaymentEvent);
-    expect(id).toEqual(expect.any(String));
-    expect(time).toEqual(expect.any(String));
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
+  it("matches the complete captured legacy Payment Service event", () => {
+    const { event } = createPaymentPublication(payment);
+
+    expect(event).toEqual({
+      id: "9c3ff46a-6625-4ba7-81f5-58a7602f91ed",
+      time: eventTime,
+      ...legacyCreatePaymentEvent,
+    });
   });
 
   it("preserves the legacy event type and source", () => {

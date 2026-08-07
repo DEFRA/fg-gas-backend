@@ -1,17 +1,5 @@
 import Joi from "joi";
-import { handlers } from "../services/effects/agreement-effect-runner.js";
 
-const effect = Joi.object({
-  name: Joi.string()
-    .valid(...Object.keys(handlers))
-    .required(),
-  output: Joi.string().optional(),
-  params: Joi.object().optional(),
-})
-  .unknown(true)
-  .label("Effect");
-
-const effects = Joi.array().items(effect).optional().label("Effects");
 const processes = Joi.array().items(Joi.string()).optional().label("Processes");
 
 const endpointProcessDefinition = Joi.object({
@@ -58,10 +46,9 @@ const create = Joi.object({
     then: Joi.any().required(),
     otherwise: Joi.any().optional(),
   }),
-  effects,
+  effects: Joi.forbidden(),
   processes,
 })
-  .oxor("effects", "processes")
   .required()
   .label("Create");
 
@@ -84,10 +71,9 @@ const validation = Joi.object({
 const actionTransition = Joi.object({
   target: Joi.string().required(),
   validation: validation.optional(),
-  effects,
+  effects: Joi.forbidden(),
   processes,
 })
-  .oxor("effects", "processes")
   .unknown(true)
   .label("ActionTransition");
 

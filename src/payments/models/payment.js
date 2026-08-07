@@ -55,9 +55,9 @@ export const DuePaymentStatus = {
  * An immutable record of an amount owed against an accepted Agreement Version,
  * split into the payments that fall due over the Agreement's term.
  *
- * The nested `payments` field keeps the name used by the calculator response,
- * the legacy Agreements API and the Payment Service contract, so nothing has to
- * be remapped at those boundaries.
+ * The nested `payments` field keeps the Payment Service/domain boundary used by
+ * the legacy Agreements API. Agreement Payment Schedule Instalments are mapped
+ * into this shape once, when the immutable Payment is created.
  *
  * A Payment carries everything needed to build the Payment Service message, so
  * publication never has to load the Agreement or its definition. Monetary

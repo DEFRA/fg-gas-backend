@@ -9,66 +9,101 @@ import { formatInvoiceNumber } from "../services/claim-id.js";
 
 const PAYMENT_REQUEST_NUMBER = 1;
 
-const requireMapping = (mapping) => {
-  if (!mapping) {
+const requirePaymentConfiguration = (paymentConfiguration) => {
+  if (!paymentConfiguration) {
     throw Boom.badImplementation(
-      "createPayment requires a mapping from the Agreement Definition",
+      "createPayment requires payment configuration from the Agreement Definition",
     );
   }
 
-  return mapping;
+  return paymentConfiguration;
 };
 
-const requirePaymentCalculation = (paymentCalculation) => {
-  if (!paymentCalculation?.payments?.length) {
-    throw Boom.badGateway(
-      "createPayment requires a payment calculation with at least one payment",
+const requireAgreementCorrelationId = (agreementCorrelationId) => {
+  if (!agreementCorrelationId) {
+    throw Boom.badImplementation(
+      "createPayment requires the Agreement Correlation ID",
     );
   }
 
-  return paymentCalculation;
+  return agreementCorrelationId;
 };
 
-const toInvoiceLine = (line, { mapping, marketingYear }) => ({
-  schemeCode: mapping.invoiceLine.schemeCode,
-  description: line.description,
-  amountPence: line.amountPence,
-  accountCode: mapping.invoiceLine.accountCode,
-  fundCode: mapping.invoiceLine.fundCode,
-  deliveryBody: mapping.deliveryBody,
-  marketingYear,
-});
+const requireInstalments = (agreementValues) => {
+  const instalments = agreementValues?.paymentSchedule?.instalments;
 
-const toDuePayment = (due, context) => ({
-  dueDate: due.dueDate,
-  totalAmountPence: due.totalAmountPence,
+  if (!instalments) {
+    throw Boom.badImplementation(
+      "createPayment requires a stored Agreement Payment Schedule",
+    );
+  }
+
+  return instalments;
+};
+
+const findFundedEntry = (lineItem, agreementValues) => {
+  const entries = lineItem.actionId
+    ? agreementValues.actions
+    : agreementValues.items;
+  const id = lineItem.actionId ?? lineItem.itemId;
+  const entry = entries.find((candidate) => candidate.id === id);
+
+  if (!entry) {
+    throw Boom.badImplementation(
+      `Scheduled Line Item references unknown Agreement entry "${id}"`,
+    );
+  }
+
+  return entry;
+};
+
+const toInvoiceLine = (lineItem, context) => {
+  const entry = findFundedEntry(lineItem, context.agreementValues);
+  const { invoiceLine } = context.paymentConfiguration;
+
+  return {
+    schemeCode: invoiceLine.schemeCode,
+    description: entry.description,
+    amountPence: lineItem.amountPence,
+    accountCode: invoiceLine.accountCode,
+    fundCode: invoiceLine.fundCode,
+    deliveryBody: context.paymentConfiguration.deliveryBody,
+    marketingYear: context.paymentConfiguration.marketingYear,
+  };
+};
+
+const toDuePayment = (instalment, context) => ({
+  dueDate: instalment.dueDate,
+  totalAmountPence: instalment.totalAmountPence,
   status: DuePaymentStatus.PENDING,
   correlationId: randomUUID(),
-  invoiceLines: due.invoiceLines.map((line) => toInvoiceLine(line, context)),
+  invoiceLines: instalment.lineItems.map((lineItem) =>
+    toInvoiceLine(lineItem, context),
+  ),
 });
 
 /**
- * Builds the Payment for an accepted Agreement Version.
+ * Builds the immutable Payment projection for an accepted Agreement Version.
  *
- * Scheme specific values come from the Agreement Definition mapping; the claim
- * ID is allocated by the caller inside the action transaction, and everything
- * else is generated here. Each payment due in the Payment Calculation carries
- * through to one entry in the Payment's own `payments`.
+ * Agreement values supply the promised schedule and referenced funded entries;
+ * the Agreement Definition supplies scheme-specific accounting values. Code
+ * owns identifiers, statuses and invoice numbering.
  */
 export const buildPayment = ({
   agreementNumber,
   version,
   sbi,
   frn,
-  paymentCalculation,
-  mapping,
+  agreementCorrelationId,
+  agreementValues,
+  paymentConfiguration,
   paymentHubClaimId,
-  marketingYear = new Date().getFullYear().toString(),
   createdAt,
 }) => {
-  requireMapping(mapping);
-  const calculation = requirePaymentCalculation(paymentCalculation);
-  const context = { mapping, marketingYear };
+  const configuration = requirePaymentConfiguration(paymentConfiguration);
+  const correlationId = requireAgreementCorrelationId(agreementCorrelationId);
+  const instalments = requireInstalments(agreementValues);
+  const context = { agreementValues, paymentConfiguration: configuration };
 
   return Payment.create({
     source: {
@@ -79,21 +114,24 @@ export const buildPayment = ({
     sbi,
     frn,
     paymentHubClaimId,
-    scheme: mapping.scheme,
-    sourceSystem: mapping.sourceSystem,
-    deliveryBody: mapping.deliveryBody,
-    fesCode: mapping.fesCode,
+    correlationId,
+    scheme: configuration.scheme,
+    sourceSystem: configuration.sourceSystem,
+    deliveryBody: configuration.deliveryBody,
+    fesCode: configuration.fesCode,
     paymentRequestNumber: PAYMENT_REQUEST_NUMBER,
     invoiceNumber: formatInvoiceNumber(
       paymentHubClaimId,
       PAYMENT_REQUEST_NUMBER,
     ),
     originalInvoiceNumber: "",
-    ledger: mapping.ledger,
-    totalAmountPence: calculation.agreementTotalPence,
-    currency: mapping.currency,
-    marketingYear,
-    payments: calculation.payments.map((due) => toDuePayment(due, context)),
+    ledger: configuration.ledger,
+    totalAmountPence: agreementValues.totalAmountPence,
+    currency: configuration.currency,
+    marketingYear: configuration.marketingYear,
+    payments: instalments.map((instalment) =>
+      toDuePayment(instalment, context),
+    ),
     createdAt,
   });
 };

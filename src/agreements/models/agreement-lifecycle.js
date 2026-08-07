@@ -57,14 +57,13 @@ export class AgreementLifecycle {
       });
     }
 
-    const { target, validation, effects } = transitions[actionName];
+    const { target, validation } = transitions[actionName];
 
     return new AgreementAction({
       from: state,
       name: actionName,
       target,
       validation,
-      effects,
     });
   }
 }

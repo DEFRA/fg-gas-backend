@@ -12,7 +12,6 @@ import {
 } from "../repositories/agreement.repository.js";
 import { applyActionValidation } from "../services/apply-action-validation.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
 import { toEtag } from "./agreement-etag.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
@@ -52,28 +51,28 @@ const runAction = async ({
   values,
 }) => {
   const executedAt = new Date().toISOString();
-  const context = await runAgreementEffects(action.effects, {
-    agreement,
-    values,
-    outputs: {},
-    endpoints: agreementDefinition.getEndpoints(),
-    executedAt,
-    target: action.transition.target,
-  });
-
-  const nextAgreement = agreement.transition({
-    target: action.transition.target,
-    transitionedAt: executedAt,
-    changes: context.agreement,
+  const processResult = await agreementDefinition.runProcesses({
+    location: {
+      type: "transition",
+      state: action.transition.from,
+      transition: action.transition.action,
+    },
+    context: {
+      agreement,
+      transition: { values },
+      execution: {
+        executedAt,
+        correlationId: agreement.correlationId,
+      },
+    },
   });
 
   return {
-    agreement: nextAgreement,
-    events: createOutboxMessages(
-      context.outboxMessageTypes ?? [],
-      nextAgreement,
-    ),
-    paymentRequest: context.paymentRequest,
+    agreement: agreement.transition({
+      target: action.transition.target,
+      transitionedAt: executedAt,
+    }),
+    intents: processResult.intents ?? [],
   };
 };
 
@@ -82,27 +81,45 @@ const runAction = async ({
 // commit with the Agreement, its Version and the lifecycle event, and roll back
 // together when anything before the commit fails. The Payment Service
 // publication comes back to be written to the outbox with the rest.
-const createAgreementPaymentPublication = async (
-  { agreement, paymentRequest },
-  session,
-) => {
+const findPaymentRequest = (intents) =>
+  intents.find(({ type }) => type === "create-agreement-payment")?.request;
+
+const createAgreementPayment = async ({ agreement, intents }, session) => {
+  const paymentRequest = findPaymentRequest(intents);
+
   if (!paymentRequest) {
     return null;
   }
 
-  const { publication } = await createAgreementPaymentUseCase(
+  return createAgreementPaymentUseCase(
     {
       agreementNumber: agreement.agreementNumber,
       version: agreement.version,
       sbi: agreement.identifiers?.sbi,
       frn: agreement.identifiers?.frn,
+      agreementCorrelationId: agreement.correlationId,
       ...paymentRequest,
     },
     session,
   );
-
-  return publication;
 };
+const createLifecyclePublications = (current, next, payment) =>
+  current.state === next.state
+    ? []
+    : createOutboxMessages(["lifecycle"], next, payment);
+
+const createActionPublications = (current, next, paymentResult) => {
+  const lifecyclePublications = createLifecyclePublications(
+    current,
+    next,
+    paymentResult?.payment,
+  );
+
+  return paymentResult
+    ? [...lifecyclePublications, paymentResult.publication]
+    : lifecyclePublications;
+};
+
 const concurrentUpdate = Symbol("concurrentUpdate");
 
 const actionConflictIndexFields = ["version", "actionExecution.idempotencyKey"];
@@ -159,14 +176,11 @@ const commitActionTransaction = async (
     }),
     session,
   );
-  const paymentPublication = await createAgreementPaymentPublication(
-    next,
+  const paymentResult = await createAgreementPayment(next, session);
+  await saveOutboxEvents(
+    createActionPublications(current, next.agreement, paymentResult),
     session,
   );
-  const publications = paymentPublication
-    ? [...next.events, paymentPublication]
-    : next.events;
-  await saveOutboxEvents(publications, session);
 
   return { location: currentAgreementLocation };
 };

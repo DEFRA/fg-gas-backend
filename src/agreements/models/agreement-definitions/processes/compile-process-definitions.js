@@ -180,7 +180,10 @@ const compileEndpoint = (processKey, definition, endpointCaller) => {
       body,
     );
 
-    return mapOutput(processKey, definition.output, context, response);
+    return {
+      intents: [],
+      output: await mapOutput(processKey, definition.output, context, response),
+    };
   };
 };
 
@@ -208,6 +211,24 @@ const mapHandlerInput = async (processKey, definition, context) => {
   }
 };
 
+const validateHandlerResult = (processKey, handler, result) => {
+  if (result === undefined) {
+    return { intents: [] };
+  }
+
+  if (!handler.intentSchema) {
+    throw Boom.badImplementation(
+      `Agreement Process handler "${processKey}" returned unsupported intents`,
+    );
+  }
+
+  return validateValue(
+    handler.intentSchema,
+    result,
+    `Agreement Process handler "${processKey}" returned malformed intents`,
+  );
+};
+
 const executeHandler = async (processKey, handler, context, input) => {
   try {
     const result = await handler.execute({
@@ -216,11 +237,7 @@ const executeHandler = async (processKey, handler, context, input) => {
       input,
     });
 
-    if (result !== undefined) {
-      throw Boom.badImplementation(
-        `Agreement Process handler "${processKey}" returned an unsupported output`,
-      );
-    }
+    return validateHandlerResult(processKey, handler, result);
   } catch (error) {
     if (Boom.isBoom(error)) {
       throw error;
@@ -248,9 +265,14 @@ const compileHandler = (processKey, definition, handlers) => {
       mapped,
       `Agreement Process "${processKey}" input failed validation`,
     );
-    await executeHandler(processKey, handler, context, input);
+    const { intents } = await executeHandler(
+      processKey,
+      handler,
+      context,
+      input,
+    );
 
-    return {};
+    return { intents, output: {} };
   };
 };
 

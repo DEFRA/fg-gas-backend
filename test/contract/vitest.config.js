@@ -27,6 +27,7 @@ export default defineConfig({
       AWS_ENDPOINT_URL: `http://localhost:${FLOCI_PORT}`,
       AWS_ACCESS_KEY_ID: "test",
       AWS_SECRET_ACCESS_KEY: "test",
+      VIEW_AGREEMENT_URI: "http://localhost:3000",
       FIFO_LOCK_TTL_MS: 5000,
       CASE_STAGE_UPDATES_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${FLOCI_PORT}/000000000000/case_stage_updated_fifo.fifo`,
       CREATE_NEW_CASE_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${FLOCI_PORT}/000000000000/cw__sqs__create_new_case_fifo.fifo`,

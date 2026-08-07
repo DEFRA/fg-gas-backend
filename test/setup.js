@@ -81,6 +81,7 @@ export const setup = async ({ globalConfig }) => {
         OUTBOX_POLL_MS: env.OUTBOX_POLL_MS,
         INBOX_POLL_MS: env.INBOX_POLL_MS,
         GRANT_FUNDING_CALCULATOR_URL: fundingCalculatorUrl,
+        VIEW_AGREEMENT_URI: env.VIEW_AGREEMENT_URI,
         GAS__SNS__AUDIT_TOPIC_ARN: env.GAS__SNS__AUDIT_TOPIC_ARN,
         GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
           env.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
