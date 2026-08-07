@@ -326,7 +326,12 @@ describe("handleCreateAgreementCommandUseCase", () => {
           vi.fn().mockResolvedValue({
             payment: {
               ...calculatorResult.payment,
-              agreementTotalPence: 1,
+              payments: [
+                {
+                  ...calculatorResult.payment.payments[0],
+                  totalAmountPence: 1,
+                },
+              ],
             },
           }),
         ),

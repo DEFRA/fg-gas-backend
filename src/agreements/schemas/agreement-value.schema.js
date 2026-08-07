@@ -244,32 +244,11 @@ const findLineItemReferenceViolation = ({
   );
 };
 
-const findPaymentScheduleTotalViolation = ({
-  paymentSchedule,
-  totalAmountPence,
-}) => {
-  if (!paymentSchedule || totalAmountPence === undefined) {
-    return undefined;
-  }
-
-  const instalmentsTotal = paymentSchedule.instalments.reduce(
-    (total, instalment) => total + BigInt(instalment.totalAmountPence),
-    0n,
-  );
-
-  return BigInt(totalAmountPence) === instalmentsTotal
-    ? undefined
-    : { code: "paymentSchedule.agreementTotal" };
-};
-
-const findAgreementViolation = (value) =>
-  findDateViolation(value) ??
-  findParcelViolation(value) ??
-  findLineItemReferenceViolation(value) ??
-  findPaymentScheduleTotalViolation(value);
-
 const validateAgreementInvariants = (value, helpers) => {
-  const violation = findAgreementViolation(value);
+  const violation =
+    findDateViolation(value) ??
+    findParcelViolation(value) ??
+    findLineItemReferenceViolation(value);
 
   return violation ? helpers.error(violation.code, violation) : value;
 };
@@ -297,7 +276,5 @@ export const agreementValueSchema = Joi.object({
       '{{#path}}.quantity must not exceed Parcel "{{#parcel}}" area',
     "lineItem.reference":
       '{{#path}} line item {{#field}} references unknown entry "{{#reference}}"',
-    "paymentSchedule.agreementTotal":
-      "Agreement totalAmountPence must equal the sum of Payment Schedule instalments",
   })
   .label("AgreementValue");
