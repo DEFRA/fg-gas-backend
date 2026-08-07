@@ -244,6 +244,26 @@ describe("handleCreateAgreementCommandUseCase", () => {
     ]);
   });
 
+  it("allocates identities for unscheduled entries without candidate references", async () => {
+    const definitionData = structuredClone(pmfDefinitionData);
+    const output = definitionData.processDefinitions["calculate-offer"].output;
+    delete output.actions.items.ref;
+    delete output.paymentSchedule;
+    loadAgreementDefinition.mockResolvedValue(
+      createDefinition(
+        vi.fn().mockResolvedValue(calculatorResult),
+        definitionData,
+      ),
+    );
+
+    const agreement = await handleCreateAgreementCommandUseCase(command);
+
+    expect(agreement.actions).toEqual([
+      expect.objectContaining({ id: "action:1", code: "largeWhite" }),
+    ]);
+    expect(agreement.paymentSchedule).toBeUndefined();
+  });
+
   it.each([
     [
       "endpoint execution",

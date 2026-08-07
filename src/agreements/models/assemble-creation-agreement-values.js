@@ -12,10 +12,22 @@ const invalidCandidateReferences = () =>
     "Agreement creation produced invalid candidate references",
   );
 
-const hasUniqueReferences = (entries) =>
-  Array.isArray(entries) &&
-  entries.every(({ ref }) => typeof ref === "string" && ref.length > 0) &&
-  new Set(entries.map(({ ref }) => ref)).size === entries.length;
+const candidateReferences = (entries) =>
+  entries.flatMap(({ ref }) => (ref === undefined ? [] : [ref]));
+
+const hasUniqueReferences = (entries) => {
+  if (!Array.isArray(entries)) {
+    return false;
+  }
+
+  const references = candidateReferences(entries);
+
+  return (
+    references.every(
+      (reference) => typeof reference === "string" && reference.length > 0,
+    ) && new Set(references).size === references.length
+  );
+};
 
 const allocateEntries = (entries, namespace) => {
   if (!hasUniqueReferences(entries)) {
@@ -26,7 +38,9 @@ const allocateEntries = (entries, namespace) => {
   const values = entries.map((candidate, index) => {
     const id = `${namespace}:${index + 1}`;
     const entry = structuredClone(candidate);
-    references.set(candidate.ref, id);
+    if (candidate.ref !== undefined) {
+      references.set(candidate.ref, id);
+    }
     delete entry.ref;
 
     return { ...entry, id };

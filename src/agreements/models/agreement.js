@@ -51,7 +51,12 @@ export class Agreement {
   }
 
   transition({ target, transitionedAt, changes = {} }) {
-    const transitionChanges = resolveTransitionChanges(this, changes);
+    const transitionChanges = resolveTransitionChanges({
+      agreement: this,
+      changes,
+      target,
+      transitionedAt,
+    });
 
     return new Agreement({
       ...this,
@@ -89,11 +94,11 @@ export class Agreement {
   }
 }
 
-const preserveAcceptedAt = (agreement, changes) =>
-  agreement.acceptedAt ?? changes.acceptedAt;
+const resolveAcceptedAt = ({ agreement, target, transitionedAt }) =>
+  agreement.acceptedAt ?? (target === "accepted" ? transitionedAt : undefined);
 
-const resolveTransitionChanges = (agreement, changes) => ({
-  acceptedAt: preserveAcceptedAt(agreement, changes),
+const resolveTransitionChanges = (options) => ({
+  acceptedAt: resolveAcceptedAt(options),
   paymentCalculation:
-    changes.paymentCalculation ?? agreement.paymentCalculation,
+    options.changes.paymentCalculation ?? options.agreement.paymentCalculation,
 });

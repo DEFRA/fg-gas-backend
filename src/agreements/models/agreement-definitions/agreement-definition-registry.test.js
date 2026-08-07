@@ -16,11 +16,7 @@ describe("findAgreementDefinition", () => {
       processes: ["calculate-offer"],
     });
     expect(pmfAgreementDefinition.create).not.toHaveProperty("effects");
-    expect(pmfAgreementDefinition.endpoints).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ path: "/grantFundingCalculator" }),
-      ]),
-    );
+    expect(pmfAgreementDefinition).not.toHaveProperty("endpoints");
     expect(
       pmfAgreementDefinition.processDefinitions["calculate-offer"],
     ).toMatchObject({
@@ -56,12 +52,16 @@ describe("findAgreementDefinition", () => {
     ).not.toHaveProperty("id");
   });
 
-  it("keeps the temporary non-deployable acceptance bridge on immutable Application", () => {
+  it("accepts PMF without recalculation or Payment creation", () => {
     const acceptance = pmfAgreementDefinition.states.offered.on.accept;
-    const request = acceptance.effects[0].params.endpoint.endpointParams.BODY;
 
-    expect(JSON.stringify(request)).toContain("$.agreement.application");
-    expect(JSON.stringify(request)).not.toContain("agreement.payload");
+    expect(acceptance.effects).toEqual([
+      { name: "publish", params: { event: "lifecycle" } },
+    ]);
+    expect(JSON.stringify(acceptance)).not.toContain("callEndpoint");
+    expect(JSON.stringify(acceptance)).not.toContain("paymentCalculation");
+    expect(JSON.stringify(acceptance)).not.toContain("createPayment");
+    expect(JSON.stringify(acceptance)).not.toContain("snapshot");
   });
 
   it("binds PMF pages only to stored Agreement values", () => {

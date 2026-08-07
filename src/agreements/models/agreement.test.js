@@ -3,9 +3,29 @@ import { Agreement } from "./agreement.js";
 
 const offeredValues = () => ({
   application: { whitePigsCount: 5 },
-  actions: [{ id: "action:1", code: "largeWhite" }],
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
+  parcels: [{ id: "SK0971-7555", sheetId: "SK0971", parcelId: "7555" }],
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      parcel: "SK0971-7555",
+      totalAmountPence: 5000,
+    },
+  ],
   items: [],
   totalAmountPence: 5000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 5000,
+        lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+      },
+    ],
+  },
 });
 
 const createAgreement = (overrides = {}) =>
@@ -43,20 +63,19 @@ describe("Agreement", () => {
     expect(agreement).not.toHaveProperty("supplementaryData");
   });
 
-  it("applies acceptance time produced by configured effects", () => {
+  it("accepts the exact offered values and records acceptance time itself", () => {
     const agreement = createAgreement();
 
     const accepted = agreement.transition({
       target: "accepted",
       transitionedAt: "2026-07-18T09:15:00.000Z",
-      changes: { acceptedAt: "2026-07-18T09:14:00.000Z" },
     });
 
     expect(accepted).toMatchObject({
       state: "accepted",
       version: 2,
       updatedAt: "2026-07-18T09:15:00.000Z",
-      acceptedAt: "2026-07-18T09:14:00.000Z",
+      acceptedAt: "2026-07-18T09:15:00.000Z",
       ...offeredValues(),
     });
     expect(agreement).toMatchObject({

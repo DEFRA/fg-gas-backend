@@ -182,7 +182,7 @@ describe("agreementDefinitionSchema", () => {
 
   it("allows extra keys on effect, required-validation-field, page action and page, so other agreement types can extend them", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.states.offered.on.accept.effects[1].condition = "always";
+    definition.states.offered.on.accept.effects[0].condition = "always";
     definition.states.offered.on.accept.validation.required[0].hint =
       "extra guidance";
     definition.pages.offered.actions[0].style = "secondary";
@@ -195,7 +195,9 @@ describe("agreementDefinitionSchema", () => {
 
   it("fails when an endpoint is missing a required field", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    delete definition.endpoints[0].service;
+    definition.endpoints = [
+      { code: "calculate", method: "POST", path: "/calculate" },
+    ];
 
     const { error } = validate(definition);
 
