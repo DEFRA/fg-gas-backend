@@ -19,7 +19,10 @@ const current = {
   configVersion: "1.0.1",
   correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
   identifiers: { sbi },
-  payload: {},
+  application: { whitePigsCount: 5 },
+  actions: [{ id: "action:1", code: "largeWhite" }],
+  items: [],
+  totalAmountPence: 5000,
   state: "accepted",
   createdAt: "2026-07-15T12:00:00.000Z",
   updatedAt: "2026-07-16T12:00:00.000Z",
@@ -52,7 +55,12 @@ describe("load one current Agreement", () => {
       version: 2,
       state: "accepted",
     });
-    expect(result).not.toHaveProperty("items");
+    expect(result).toMatchObject({
+      application: { whitePigsCount: 5 },
+      actions: [{ id: "action:1", code: "largeWhite" }],
+      items: [],
+      totalAmountPence: 5000,
+    });
   });
 
   it("loads canonical current state by Agreement Number", async () => {

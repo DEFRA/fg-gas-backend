@@ -119,6 +119,33 @@ describe("AgreementDefinition Process runtime", () => {
     );
   });
 
+  it("analyses and resolves JSONata row expressions consistently", async () => {
+    const definitionData = createDefinition();
+    definitionData.processDefinitions["calculate-offer"].output = {
+      actions: {
+        itemsRef: "$.response.actions",
+        items: {
+          code: "@.code",
+          ratePence: "jsonata:$round(@.rate * 100)",
+        },
+      },
+    };
+    const callEndpoint = vi.fn().mockResolvedValue({
+      actions: [{ code: "PMF1", rate: 12.5 }],
+    });
+    const definition = new AgreementDefinition(definitionData, {
+      callEndpoint,
+    });
+
+    await expect(runCreate(definition)).resolves.toEqual({
+      outputs: {
+        "calculate-offer": {
+          actions: [{ code: "PMF1", ratePence: 1250 }],
+        },
+      },
+    });
+  });
+
   it("runs transition Processes sequentially with validated dependencies", async () => {
     const definitionData = createDefinition();
     definitionData.processDefinitions["calculate-payment"] = {
@@ -151,10 +178,19 @@ describe("AgreementDefinition Process runtime", () => {
     );
     definitionData.states.accepted = { page: "offered" };
 
+    const candidatePaymentSchedule = {
+      instalments: [
+        {
+          dueDate: "2026-11-06",
+          totalAmountPence: 32000,
+          lineItems: [{ actionRef: "offer-line-1", amountPence: 32000 }],
+        },
+      ],
+    };
     const calls = [];
     const callEndpoint = vi.fn().mockImplementation(async () => {
       calls.push("calculate-payment");
-      return { paymentSchedule };
+      return { paymentSchedule: candidatePaymentSchedule };
     });
     const execute = vi.fn().mockImplementation(() => {
       calls.push("record-payment");
@@ -253,7 +289,7 @@ describe("AgreementDefinition Process runtime", () => {
     };
     definitionData.pages.offered.processes = ["load-page-data"];
     const callEndpoint = vi.fn().mockResolvedValue({
-      actions: [{ id: "action:1", code: "PMF1", quantity: "5", unit: "head" }],
+      actions: [{ code: "PMF1", quantity: "5", unit: "head" }],
     });
     const definition = new AgreementDefinition(definitionData, {
       callEndpoint,
@@ -267,9 +303,7 @@ describe("AgreementDefinition Process runtime", () => {
     ).resolves.toEqual({
       outputs: {
         "load-page-data": {
-          actions: [
-            { id: "action:1", code: "PMF1", quantity: 5, unit: "head" },
-          ],
+          actions: [{ code: "PMF1", quantity: 5, unit: "head" }],
         },
       },
     });
@@ -582,12 +616,73 @@ const compilationCases = [
       definition.processDefinitions["calculate-offer"].output = {
         actions: {
           itemsRef: "$.response.actions",
-          items: { id: "@.id", code: "@.code", unknown: "@.unknown" },
+          items: { code: "@.code", unknown: "@.unknown" },
         },
       };
       return { definition };
     },
     /actions.*unknown.*unknown/,
+  ],
+  [
+    "persistent output identities",
+    () => {
+      const definition = createDefinition();
+      definition.processDefinitions["calculate-offer"].output = {
+        actions: {
+          itemsRef: "$.response.actions",
+          items: { id: "@.id", code: "@.code" },
+        },
+      };
+      return { definition };
+    },
+    /actions\.id.*unknown/,
+  ],
+  [
+    "persistent Instalment identities",
+    () => {
+      const definition = createDefinition();
+      definition.processDefinitions["calculate-offer"].output = {
+        paymentSchedule: {
+          instalments: {
+            itemsRef: "$.response.payments",
+            items: {
+              id: "@.id",
+              dueDate: "@.dueDate",
+              totalAmountPence: "@.totalAmountPence",
+              lineItems: [],
+            },
+          },
+        },
+      };
+      return { definition };
+    },
+    /instalments\.id.*unknown/,
+  ],
+  [
+    "persistent scheduled Line Item references",
+    () => {
+      const definition = createDefinition();
+      definition.processDefinitions["calculate-offer"].output = {
+        paymentSchedule: {
+          instalments: {
+            itemsRef: "$.response.payments",
+            items: {
+              dueDate: "@.dueDate",
+              totalAmountPence: "@.totalAmountPence",
+              lineItems: {
+                itemsRef: "@.lineItems",
+                items: {
+                  actionId: "@.actionId",
+                  amountPence: "@.amountPence",
+                },
+              },
+            },
+          },
+        },
+      };
+      return { definition };
+    },
+    /lineItems\.actionId.*unknown/,
   ],
   [
     "unknown handler input fields",

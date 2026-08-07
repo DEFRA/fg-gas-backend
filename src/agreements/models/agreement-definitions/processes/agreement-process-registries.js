@@ -5,7 +5,6 @@ import {
   agreementValueSchema,
   capitalItemSchema,
   parcelSchema,
-  paymentScheduleSchema,
   penceSchema,
   revenueActionSchema,
 } from "../../../schemas/agreement-value.schema.js";
@@ -48,15 +47,43 @@ export const agreementProcessHandlers = Object.freeze({
   }),
 });
 
+const withoutPersistentIdentity = (schema) =>
+  schema.fork("id", (idSchema) => idSchema.forbidden());
+
+const candidateEntrySchema = (schema) =>
+  withoutPersistentIdentity(schema).append({ ref: Joi.string().optional() });
+
+const revenueActionCandidateSchema = candidateEntrySchema(revenueActionSchema);
+const capitalItemCandidateSchema = candidateEntrySchema(capitalItemSchema);
+
+const candidateLineItemSchema = Joi.object({
+  actionRef: Joi.string().optional(),
+  itemRef: Joi.string().optional(),
+  amountPence: penceSchema.required(),
+})
+  .xor("actionRef", "itemRef")
+  .label("CandidatePaymentScheduleLineItem");
+
+const candidateInstalmentSchema = Joi.object({
+  dueDate: agreementDateSchema.required(),
+  totalAmountPence: penceSchema.required(),
+  lineItems: Joi.array().items(candidateLineItemSchema).required(),
+}).label("CandidatePaymentScheduleInstalment");
+
+const candidatePaymentScheduleSchema = Joi.object({
+  frequency: Joi.string().optional(),
+  instalments: Joi.array().items(candidateInstalmentSchema).required(),
+}).label("CandidatePaymentSchedule");
+
 const outputSchemas = {
   startDate: agreementDateSchema,
   endDate: agreementDateSchema,
   parcels: Joi.array().items(parcelSchema).unique("id"),
-  actions: Joi.array().items(revenueActionSchema).unique("id"),
-  items: Joi.array().items(capitalItemSchema).unique("id"),
+  actions: Joi.array().items(revenueActionCandidateSchema),
+  items: Joi.array().items(capitalItemCandidateSchema),
   annualAmountPence: penceSchema,
   totalAmountPence: penceSchema,
-  paymentSchedule: paymentScheduleSchema,
+  paymentSchedule: candidatePaymentScheduleSchema,
 };
 
 export const findProcessOutputSchema = (name) =>

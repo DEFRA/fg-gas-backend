@@ -67,13 +67,13 @@ describe("agreementDefinitionSchema", () => {
 
   it("fails when an effect is missing its name", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    delete definition.create.effects[0].name;
+    delete definition.states.offered.on.accept.effects[0].name;
 
     const { error } = validate(definition);
 
     expect(error).toBeDefined();
     expect(error.details.map((d) => d.message).join(", ")).toMatch(
-      /"create.effects\[0\].name" is required/,
+      /"states.offered.on.accept.effects\[0\].name" is required/,
     );
   });
 
@@ -160,13 +160,13 @@ describe("agreementDefinitionSchema", () => {
 
   it("fails when an effect names a handler the effect runner doesn't support", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.create.effects[0].name = "notARealHandler";
+    definition.states.offered.on.accept.effects[0].name = "notARealHandler";
 
     const { error } = validate(definition);
 
     expect(error).toBeDefined();
     expect(error.details.map((d) => d.message).join(", ")).toMatch(
-      /"create.effects\[0\].name" must be one of/,
+      /"states.offered.on.accept.effects\[0\].name" must be one of/,
     );
   });
 
@@ -182,7 +182,7 @@ describe("agreementDefinitionSchema", () => {
 
   it("allows extra keys on effect, required-validation-field, page action and page, so other agreement types can extend them", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.create.effects[1].condition = "always";
+    definition.states.offered.on.accept.effects[1].condition = "always";
     definition.states.offered.on.accept.validation.required[0].hint =
       "extra guidance";
     definition.pages.offered.actions[0].style = "secondary";
