@@ -59,4 +59,5 @@ const outputSchemas = {
   paymentSchedule: paymentScheduleSchema,
 };
 
-export const findProcessOutputSchema = (name) => outputSchemas[name];
+export const findProcessOutputSchema = (name) =>
+  Object.hasOwn(outputSchemas, name) ? outputSchemas[name] : undefined;

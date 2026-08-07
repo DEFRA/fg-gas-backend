@@ -355,7 +355,47 @@ const consumerProcess = (mapping) => ({
 const consumerDependencies = (location = "action") =>
   handlerDependencies("consume", { locations: [location] });
 
+const inheritedRegistryNames = ["toString", "constructor", "__proto__"];
+
+const inheritedProcessReferenceCases = inheritedRegistryNames.map((name) => [
+  `inherited Process reference "${name}"`,
+  () => {
+    const definition = createDefinition();
+    definition.create.processes = [name];
+    return { definition };
+  },
+  new RegExp(`${name}.*not defined`),
+]);
+
+const inheritedHandlerReferenceCases = inheritedRegistryNames.map((name) => [
+  `inherited handler reference "${name}"`,
+  () => {
+    const definition = createDefinition();
+    definition.processDefinitions = Object.fromEntries([
+      ...Object.entries(definition.processDefinitions),
+      [name, { type: "handler", input: {} }],
+    ]);
+    definition.create.processes = [name];
+    return { definition };
+  },
+  new RegExp(`${name}.*(?:no registered handler|not defined)`),
+]);
+
+const inheritedOutputReferenceCases = inheritedRegistryNames.map((name) => [
+  `inherited output reference "${name}"`,
+  () => {
+    const definition = createDefinition();
+    definition.processDefinitions["calculate-offer"].output =
+      Object.fromEntries([[name, "$.response.value"]]);
+    return { definition };
+  },
+  new RegExp(`unknown output.*${name}`),
+]);
+
 const compilationCases = [
+  ...inheritedProcessReferenceCases,
+  ...inheritedHandlerReferenceCases,
+  ...inheritedOutputReferenceCases,
   [
     "unknown Process references",
     () => {
@@ -429,6 +469,18 @@ const compilationCases = [
       return { definition };
     },
     /Dynamic Agreement Process output lookup/,
+  ],
+  [
+    "indirect output root lookups",
+    () => {
+      const definition = createDefinition();
+      definition.processDefinitions["calculate-offer"].request.body = {
+        value:
+          'jsonata:$lookup($lookup($, "outputs"), "calculate-offer").totalAmountPence',
+      };
+      return { definition };
+    },
+    /output lookup must target.*outputs/,
   ],
   [
     "output access hidden in strings",

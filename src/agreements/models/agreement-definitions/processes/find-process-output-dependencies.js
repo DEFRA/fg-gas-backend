@@ -49,6 +49,22 @@ const isLookup = (node) =>
 const lookupNode = (node) =>
   isNodeType(node, "path") ? stepsFor(node)[0] : node;
 
+const isIndirectOutputsLookup = (node) => {
+  const lookup = lookupNode(node);
+
+  if (!isLookup(lookup)) {
+    return false;
+  }
+
+  const args = argumentsFor(lookup);
+
+  return (
+    isRootVariable(args[0]) &&
+    isNodeType(args[1], "string") &&
+    args[1].value === "outputs"
+  );
+};
+
 const outputAfterLookup = (node) => {
   if (!isNodeType(node, "path")) {
     return undefined;
@@ -112,8 +128,15 @@ const rejectHiddenOutputAccess = (node) => {
   }
 };
 
+const rejectIndirectOutputAccess = (node) => {
+  if (isIndirectOutputsLookup(node)) {
+    throw new Error("Agreement Process output lookup must target $.outputs");
+  }
+};
+
 const visitAst = (node, dependencies) => {
   rejectHiddenOutputAccess(node);
+  rejectIndirectOutputAccess(node);
   const dependency = directDependency(node) ?? lookupDependency(node);
 
   if (dependency) {
@@ -130,7 +153,7 @@ const isOutputMapping = (value) =>
   value.startsWith(jsonataPrefix) || /^\$\.outputs(?:\.|\[|$)/.test(value);
 
 const inspectString = (value, dependencies) => {
-  if (!value.includes("$.outputs") || !isOutputMapping(value)) {
+  if (!isOutputMapping(value)) {
     return;
   }
 

@@ -181,7 +181,9 @@ const compileEndpoint = (processKey, definition, endpointCaller) => {
 };
 
 export const findProcessHandler = (processKey, handlers) => {
-  const handler = handlers[processKey];
+  const handler = Object.hasOwn(handlers, processKey)
+    ? handlers[processKey]
+    : undefined;
 
   if (!handler) {
     throw Boom.badImplementation(
@@ -249,6 +251,11 @@ const compileHandler = (processKey, definition, handlers) => {
 };
 
 const compileProcess = (processKey, definition, dependencies) => {
+  const executable =
+    definition.type === "endpoint"
+      ? compileEndpoint(processKey, definition, dependencies.callEndpoint)
+      : compileHandler(processKey, definition, dependencies.handlers);
+
   try {
     findProcessOutputDependencies(definition);
   } catch (error) {
@@ -257,15 +264,15 @@ const compileProcess = (processKey, definition, dependencies) => {
     );
   }
 
-  return definition.type === "endpoint"
-    ? compileEndpoint(processKey, definition, dependencies.callEndpoint)
-    : compileHandler(processKey, definition, dependencies.handlers);
+  return executable;
 };
 
-export const compileProcessDefinitions = (definitions, dependencies) =>
-  Object.fromEntries(
-    Object.entries(definitions).map(([key, definition]) => [
-      key,
-      compileProcess(key, definition, dependencies),
-    ]),
-  );
+export const compileProcessDefinitions = (definitions, dependencies) => {
+  const executableMap = Object.create(null);
+
+  for (const [key, definition] of Object.entries(definitions)) {
+    executableMap[key] = compileProcess(key, definition, dependencies);
+  }
+
+  return executableMap;
+};

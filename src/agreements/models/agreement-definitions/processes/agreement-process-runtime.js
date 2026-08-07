@@ -29,7 +29,9 @@ const collectSequences = (definition) => [
 ];
 
 const requireProcessDefinition = (processKey, sequence, processDefinitions) => {
-  const definition = processDefinitions[processKey];
+  const definition = Object.hasOwn(processDefinitions, processKey)
+    ? processDefinitions[processKey]
+    : undefined;
 
   if (!definition) {
     throw Boom.badImplementation(
@@ -283,9 +285,15 @@ const runSequence = async (location, executableMap, context) => {
   const outputs = {};
 
   for (const processKey of location.processes) {
-    outputs[processKey] = await executableMap[processKey](
+    const output = await executableMap[processKey](
       toProcessContext(context, location, outputs),
     );
+    Object.defineProperty(outputs, processKey, {
+      configurable: true,
+      enumerable: true,
+      value: output,
+      writable: true,
+    });
   }
 
   return { outputs };
