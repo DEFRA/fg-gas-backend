@@ -18,15 +18,23 @@ const agreement = {
   configVersion: "1.0.1",
   correlationId: "7e8c624d-6cf3-4ac5-bb84-a6f6701a6b7d",
   identifiers: { sbi },
-  payload: { businessName: "Gotham City Pigs" },
+  application: { businessName: "Gotham City Pigs" },
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+      quantity: 5,
+      unit: "head",
+      ratePence: 1000,
+      totalAmountPence: 5000,
+    },
+  ],
+  items: [],
+  totalAmountPence: 5000,
   state: "offered",
   createdAt,
   updatedAt: createdAt,
-  supplementaryData: {
-    fundingCalculation: {
-      items: [{ description: "Large White Pig", total: 10000 }],
-    },
-  },
 };
 
 const documentHeaders = {
@@ -96,7 +104,11 @@ describe("read-only Agreement document", () => {
         {
           component: "table",
           head: [{ text: "Pig type" }, { text: "Funding amount" }],
-          rows: [[{ text: "Large White Pig" }, { text: "£100" }]],
+          rows: [[{ text: "Large White Pig" }, { text: "£50" }]],
+        },
+        {
+          component: "summary-list",
+          rows: [{ label: "Total funding", text: "£50" }],
         },
       ],
     });

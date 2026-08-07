@@ -253,7 +253,7 @@ describe("AgreementDefinition Process runtime", () => {
     };
     definitionData.pages.offered.processes = ["load-page-data"];
     const callEndpoint = vi.fn().mockResolvedValue({
-      actions: [{ id: "action:1", code: "PMF1", quantity: "5", unit: "head" }],
+      actions: [{ code: "PMF1", quantity: "5", unit: "head" }],
     });
     const definition = new AgreementDefinition(definitionData, {
       callEndpoint,
@@ -267,9 +267,7 @@ describe("AgreementDefinition Process runtime", () => {
     ).resolves.toEqual({
       outputs: {
         "load-page-data": {
-          actions: [
-            { id: "action:1", code: "PMF1", quantity: 5, unit: "head" },
-          ],
+          actions: [{ code: "PMF1", quantity: 5, unit: "head" }],
         },
       },
     });
@@ -582,12 +580,26 @@ const compilationCases = [
       definition.processDefinitions["calculate-offer"].output = {
         actions: {
           itemsRef: "$.response.actions",
-          items: { id: "@.id", code: "@.code", unknown: "@.unknown" },
+          items: { code: "@.code", unknown: "@.unknown" },
         },
       };
       return { definition };
     },
     /actions.*unknown.*unknown/,
+  ],
+  [
+    "persistent output identities",
+    () => {
+      const definition = createDefinition();
+      definition.processDefinitions["calculate-offer"].output = {
+        actions: {
+          itemsRef: "$.response.actions",
+          items: { id: "@.id", code: "@.code" },
+        },
+      };
+      return { definition };
+    },
+    /actions\.id.*unknown/,
   ],
   [
     "unknown handler input fields",

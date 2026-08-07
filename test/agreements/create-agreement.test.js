@@ -116,8 +116,37 @@ describe("PMF Agreement creation", () => {
       agreementNumber: agreement.agreementNumber,
       version: 1,
       "snapshot.state": "offered",
-      "snapshot.supplementaryData.fundingCalculation.items.0.total": 32000,
+      "snapshot.application.whitePigsCount": 5,
+      "snapshot.actions.0.id": "action:1",
+      "snapshot.actions.0.code": "largeWhite",
+      "snapshot.actions.0.totalAmountPence": 5000,
+      "snapshot.totalAmountPence": 5000,
     });
+    expect(agreement).toMatchObject({
+      application: createApplication().phases[0].answers,
+      actions: [
+        {
+          id: "action:1",
+          code: "largeWhite",
+          description: "Large White Pig",
+          quantity: 5,
+          unit: "head",
+          ratePence: 1000,
+          totalAmountPence: 5000,
+        },
+      ],
+      items: [],
+      totalAmountPence: 5000,
+    });
+    expect(agreement).not.toHaveProperty("payload");
+    expect(agreement).not.toHaveProperty("supplementaryData");
+    const version = await versions.findOne({
+      agreementNumber: agreement.agreementNumber,
+      version: 1,
+    });
+    const currentAgreementValue = structuredClone(agreement);
+    delete currentAgreementValue._id;
+    expect(version.snapshot).toEqual(currentAgreementValue);
     await expect(applications).toHaveRecord({
       clientRef,
       code,

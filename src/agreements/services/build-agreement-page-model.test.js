@@ -87,8 +87,21 @@ const agreement = {
   state: "offered",
   version: 1,
 };
-const fundingCalculation = {
-  items: [{ description: "Large White Pig", total: 32000 }],
+const offeredValues = {
+  application: { whitePigsCount: 5 },
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+      quantity: 5,
+      unit: "head",
+      ratePence: 1000,
+      totalAmountPence: 5000,
+    },
+  ],
+  items: [],
+  totalAmountPence: 5000,
 };
 
 describe("buildAgreementPageModel", () => {
@@ -172,7 +185,7 @@ describe("buildAgreementPageModel", () => {
       configVersion: "1.2.0",
       state: "accepted",
       acceptedAt: "2026-07-31T15:30:00.000Z",
-      supplementaryData: { fundingCalculation },
+      ...offeredValues,
       paymentCalculation: {
         agreementStartDate: "2026-08-01",
         agreementEndDate: "2027-07-31",
@@ -205,7 +218,11 @@ describe("buildAgreementPageModel", () => {
         {
           component: "table",
           head: [{ text: "Pig type" }, { text: "Funding amount" }],
-          rows: [[{ text: "Large White Pig" }, { text: "£320" }]],
+          rows: [[{ text: "Large White Pig" }, { text: "£50" }]],
+        },
+        {
+          component: "summary-list",
+          rows: [{ label: "Total funding", text: "£50" }],
         },
       ],
     });
@@ -239,7 +256,7 @@ describe("buildAgreementPageModel", () => {
     const offeredAgreement = {
       ...agreement,
       code: "pigs-might-fly",
-      supplementaryData: { fundingCalculation },
+      ...offeredValues,
     };
 
     const model = await buildAgreementPageModel({
@@ -254,7 +271,11 @@ describe("buildAgreementPageModel", () => {
     ).toEqual({
       component: "table",
       head: [{ text: "Pig type" }, { text: "Funding amount" }],
-      rows: [[{ text: "Large White Pig" }, { text: "£320" }]],
+      rows: [[{ text: "Large White Pig" }, { text: "£50" }]],
+    });
+    expect(model.components).toContainEqual({
+      component: "summary-list",
+      rows: [{ label: "Total funding", text: "£50" }],
     });
     expect(model.components).toContainEqual(
       expect.objectContaining({

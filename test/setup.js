@@ -11,7 +11,23 @@ let fundingCalculator;
 // stub has to answer per path rather than returning one body for everything.
 const calculatorResponses = {
   "/grantFundingCalculator": {
-    items: [{ description: "Large White", total: 32000 }],
+    items: [
+      {
+        type: "largeWhite",
+        description: "Large White Pig",
+        value: 10,
+        quantity: 5,
+        total: 50,
+      },
+      {
+        type: "britishLandrace",
+        description: "British Landrace",
+        value: 15,
+        quantity: 0,
+        total: 0,
+      },
+    ],
+    grandTotal: 50,
   },
   "/paymentSchedule": {
     payment: {

@@ -21,15 +21,28 @@ const agreement = () => ({
   configVersion: "1.0.1",
   correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
   identifiers: { sbi: "300000070", frn: "1101234567" },
-  payload: { whitePigsCount: 5 },
+  application: {
+    whitePigsCount: 5,
+    britishLandracePigsCount: 0,
+    berkshirePigsCount: 0,
+    otherPigsCount: 0,
+  },
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+      quantity: 5,
+      unit: "head",
+      ratePence: 1000,
+      totalAmountPence: 5000,
+    },
+  ],
+  items: [],
+  totalAmountPence: 5000,
   state: "offered",
   createdAt,
   updatedAt: createdAt,
-  supplementaryData: {
-    fundingCalculation: {
-      items: [{ description: "Large White", total: 32000 }],
-    },
-  },
 });
 
 const paymentEventQuery = {

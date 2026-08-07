@@ -48,12 +48,19 @@ export const agreementProcessHandlers = Object.freeze({
   }),
 });
 
+const withoutPersistentIdentity = (schema) =>
+  schema.fork("id", (idSchema) => idSchema.forbidden());
+
+const revenueActionCandidateSchema =
+  withoutPersistentIdentity(revenueActionSchema);
+const capitalItemCandidateSchema = withoutPersistentIdentity(capitalItemSchema);
+
 const outputSchemas = {
   startDate: agreementDateSchema,
   endDate: agreementDateSchema,
   parcels: Joi.array().items(parcelSchema).unique("id"),
-  actions: Joi.array().items(revenueActionSchema).unique("id"),
-  items: Joi.array().items(capitalItemSchema).unique("id"),
+  actions: Joi.array().items(revenueActionCandidateSchema),
+  items: Joi.array().items(capitalItemCandidateSchema),
   annualAmountPence: penceSchema,
   totalAmountPence: penceSchema,
   paymentSchedule: paymentScheduleSchema,

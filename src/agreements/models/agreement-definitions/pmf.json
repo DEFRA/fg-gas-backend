@@ -4,67 +4,63 @@
   "agreementNumberPrefix": "PMF",
   "endpoints": [
     {
-      "code": "calculate-funding",
-      "method": "POST",
-      "path": "/grantFundingCalculator",
-      "service": "GRANT_FUNDING_CALCULATOR"
-    },
-    {
       "code": "calculate-payment-schedule",
       "method": "POST",
       "path": "/paymentSchedule",
       "service": "GRANT_FUNDING_CALCULATOR"
     }
   ],
+  "processDefinitions": {
+    "calculate-offer": {
+      "type": "endpoint",
+      "endpoint": {
+        "method": "POST",
+        "path": "/grantFundingCalculator",
+        "service": "GRANT_FUNDING_CALCULATOR"
+      },
+      "request": {
+        "body": {
+          "pigTypes": [
+            {
+              "pigType": "largeWhite",
+              "quantity": "jsonata:$.application.whitePigsCount ?? 0"
+            },
+            {
+              "pigType": "britishLandrace",
+              "quantity": "jsonata:$.application.britishLandracePigsCount ?? 0"
+            },
+            {
+              "pigType": "berkshire",
+              "quantity": "jsonata:$.application.berkshirePigsCount ?? 0"
+            },
+            {
+              "pigType": "other",
+              "quantity": "jsonata:$.application.otherPigsCount ?? 0"
+            }
+          ]
+        }
+      },
+      "output": {
+        "actions": {
+          "itemsRef": "jsonata:$.response.items[quantity > 0]",
+          "items": {
+            "code": "@.type",
+            "description": "@.description",
+            "quantity": "@.quantity",
+            "unit": "head",
+            "ratePence": "jsonata:$round(@.value * 100)",
+            "totalAmountPence": "jsonata:$round(@.total * 100)"
+          }
+        },
+        "items": [],
+        "totalAmountPence": "jsonata:$round($.response.grandTotal * 100)"
+      }
+    }
+  },
   "create": {
     "target": "offered",
-    "effects": [
-      {
-        "name": "callEndpoint",
-        "output": "fundingCalculation",
-        "params": {
-          "endpoint": {
-            "code": "calculate-funding",
-            "endpointParams": {
-              "BODY": {
-                "pigTypes": [
-                  {
-                    "pigType": "largeWhite",
-                    "quantity": "$.answers.whitePigsCount ?? 0"
-                  },
-                  {
-                    "pigType": "britishLandrace",
-                    "quantity": "$.answers.britishLandracePigsCount ?? 0"
-                  },
-                  {
-                    "pigType": "berkshire",
-                    "quantity": "$.answers.berkshirePigsCount ?? 0"
-                  },
-                  {
-                    "pigType": "other",
-                    "quantity": "$.answers.otherPigsCount ?? 0"
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
-        "name": "snapshot",
-        "params": {
-          "supplementaryData": {
-            "fundingCalculation": "$.outputs.fundingCalculation"
-          }
-        }
-      },
-      {
-        "name": "publish",
-        "params": {
-          "event": "lifecycle"
-        }
-      }
-    ]
+    "application": "$.input.answers",
+    "processes": ["calculate-offer"]
   },
   "states": {
     "offered": {
@@ -96,19 +92,19 @@
                       "pigTypes": [
                         {
                           "pigType": "largeWhite",
-                          "quantity": "$.agreement.payload.whitePigsCount ?? 0"
+                          "quantity": "$.agreement.application.whitePigsCount ?? 0"
                         },
                         {
                           "pigType": "britishLandrace",
-                          "quantity": "$.agreement.payload.britishLandracePigsCount ?? 0"
+                          "quantity": "$.agreement.application.britishLandracePigsCount ?? 0"
                         },
                         {
                           "pigType": "berkshire",
-                          "quantity": "$.agreement.payload.berkshirePigsCount ?? 0"
+                          "quantity": "$.agreement.application.berkshirePigsCount ?? 0"
                         },
                         {
                           "pigType": "other",
-                          "quantity": "$.agreement.payload.otherPigsCount ?? 0"
+                          "quantity": "$.agreement.application.otherPigsCount ?? 0"
                         }
                       ]
                     }
@@ -216,13 +212,23 @@
                   "text": "Funding amount"
                 }
               ],
-              "rowsRef": "$.agreement.supplementaryData.fundingCalculation.items",
+              "rowsRef": "$.agreement.actions",
               "rows": [
                 {
                   "text": "@.description"
                 },
                 {
-                  "text": "@.total",
+                  "text": "@.totalAmountPence",
+                  "format": "poundsFromPence"
+                }
+              ]
+            },
+            {
+              "component": "summary-list",
+              "rows": [
+                {
+                  "label": "Total funding",
+                  "text": "$.agreement.totalAmountPence",
                   "format": "poundsFromPence"
                 }
               ]
@@ -351,13 +357,23 @@
               "text": "Funding amount"
             }
           ],
-          "rowsRef": "$.agreement.supplementaryData.fundingCalculation.items",
+          "rowsRef": "$.agreement.actions",
           "rows": [
             {
               "text": "@.description"
             },
             {
-              "text": "@.total",
+              "text": "@.totalAmountPence",
+              "format": "poundsFromPence"
+            }
+          ]
+        },
+        {
+          "component": "summary-list",
+          "rows": [
+            {
+              "label": "Total funding",
+              "text": "$.agreement.totalAmountPence",
               "format": "poundsFromPence"
             }
           ]

@@ -23,7 +23,10 @@ const agreement = new Agreement({
   configVersion: "1.0.1",
   correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
   identifiers: { sbi: "300000069" },
-  payload: { whitePigsCount: 5 },
+  application: { whitePigsCount: 5 },
+  actions: [{ id: "action:1", code: "largeWhite" }],
+  items: [],
+  totalAmountPence: 5000,
   state: "offered",
   createdAt: "2026-07-17T11:29:00.000Z",
   updatedAt: "2026-07-17T11:29:00.000Z",
@@ -113,6 +116,12 @@ describe("single Agreement repository", () => {
       { _id: agreement.agreementNumber, ...structuredClone(agreement) },
       { session },
     );
+    expect(document).toMatchObject({
+      application: { whitePigsCount: 5 },
+      actions: [{ id: "action:1", code: "largeWhite" }],
+      items: [],
+      totalAmountPence: 5000,
+    });
     expect(document).not.toHaveProperty("acceptedAt");
     expect(document).not.toHaveProperty("paymentCalculation");
     expect(document).not.toHaveProperty("supplementaryData");
@@ -160,6 +169,12 @@ describe("single Agreement repository", () => {
       },
       { session: undefined },
     );
+    expect(document.snapshot).toMatchObject({
+      application: { whitePigsCount: 5 },
+      actions: [{ id: "action:1", code: "largeWhite" }],
+      items: [],
+      totalAmountPence: 5000,
+    });
     expect(document.snapshot).not.toHaveProperty("acceptedAt");
     expect(document.snapshot).not.toHaveProperty("paymentCalculation");
     expect(document.snapshot).not.toHaveProperty("supplementaryData");
