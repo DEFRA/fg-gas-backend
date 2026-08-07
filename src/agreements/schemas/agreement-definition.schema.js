@@ -53,6 +53,11 @@ const processDefinitions = Joi.object()
 
 const create = Joi.object({
   target: Joi.string().required(),
+  application: Joi.when("processes", {
+    is: Joi.exist(),
+    then: Joi.any().required(),
+    otherwise: Joi.any().optional(),
+  }),
   effects,
   processes,
 })
