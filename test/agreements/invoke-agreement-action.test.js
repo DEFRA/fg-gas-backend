@@ -294,7 +294,8 @@ describe("single Agreement actions", () => {
         {
           component: "url",
           href: `/agreements/${agreementNumber}/document`,
-          text: "View the draft agreement",
+          text: "View the draft agreement (opens in new tab)",
+          target: "_blank",
           classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
         },
         {

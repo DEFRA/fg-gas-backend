@@ -262,7 +262,8 @@ describe("buildAgreementPageModel", () => {
       {
         component: "url",
         href: "/agreements/TST123/document",
-        text: "View and print your agreement",
+        text: "View and print your agreement (opens in new tab)",
+        target: "_blank",
       },
     ]);
   });
@@ -323,7 +324,8 @@ describe("buildAgreementPageModel", () => {
       {
         component: "url",
         href: "/agreements/TST123/document",
-        text: "View the draft agreement",
+        text: "View the draft agreement (opens in new tab)",
+        target: "_blank",
         classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
       },
     ]);
@@ -358,7 +360,8 @@ describe("buildAgreementPageModel", () => {
       {
         component: "url",
         href: "/agreements/TST123/document",
-        text: "View the draft agreement",
+        text: "View the draft agreement (opens in new tab)",
+        target: "_blank",
         classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
       },
       {
