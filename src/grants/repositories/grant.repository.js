@@ -13,6 +13,7 @@ export const toGrant = (doc) =>
     phases: doc.phases,
     externalStatusMap: doc.externalStatusMap,
     amendablePositions: doc.amendablePositions,
+    entitlementTemplates: doc.entitlementTemplates,
   });
 
 export const collection = "grants";

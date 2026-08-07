@@ -38,6 +38,7 @@ describe("POST /grants", () => {
           startDate: Joi.date().validate(grant1.metadata.startDate).value,
         },
         externalStatusMap: null,
+        entitlementTemplates: null,
       },
     ]);
   });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
+import { EntitlementTemplate } from "./entitlement-template.js";
 
 describe("Grant", () => {
   it("can create a Grant model", () => {
@@ -102,6 +103,124 @@ describe("Grant", () => {
           },
         },
       ],
+    });
+  });
+
+  describe("entitlementTemplates", () => {
+    const entitlementTemplates = [
+      {
+        code: "ENT_CS_CAPITAL_PA3",
+        name: "PA3 Woodland Management Plan entitlement",
+        description:
+          "The maximum eligible woodland area that can be claimed under PA3.",
+        appliesTo: { level: "AGREEMENT", itemCode: null },
+        limit: { field: "limitQuantity", unit: "HA" },
+        creation: {
+          availableAt: ["PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"],
+          onCreated: { targetPosition: "PRE_AWARD:ASSESSMENT:IN_REVIEW" },
+          inputSchema: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: { limitQuantity: { type: "number" } },
+          },
+          form: { content: [{ component: "input", field: "limitQuantity" }] },
+        },
+        claim: {
+          availableAt: ["PRE_AWARD:ASSESSMENT:IN_REVIEW"],
+          limits: { maximumClaims: 1, allowsPartialClaims: false },
+          onCreated: { targetPosition: "PRE_AWARD:ASSESSMENT:IN_REVIEW" },
+          payment: {
+            calculationAction: "calculate-capital-claim",
+            trigger: "ON_CLAIM_CREATED",
+          },
+        },
+      },
+    ];
+
+    it("wraps entitlementTemplates passed to the constructor as EntitlementTemplate instances", () => {
+      const grant = createTestGrant({ entitlementTemplates });
+
+      expect(grant.entitlementTemplates).toEqual(entitlementTemplates);
+      expect(grant.entitlementTemplates[0]).toBeInstanceOf(EntitlementTemplate);
+    });
+
+    it("is undefined when entitlementTemplates is not provided", () => {
+      const grant = createTestGrant({ entitlementTemplates: undefined });
+
+      expect(grant.entitlementTemplates).toBeUndefined();
+    });
+
+    it("throws when an entitlement template has an invalid shape", () => {
+      expect(() =>
+        createTestGrant({
+          entitlementTemplates: [{ code: "INVALID" }],
+        }),
+      ).toThrow(/Invalid entitlement template "INVALID"/);
+    });
+
+    it("throws when an entitlement template references a position that does not exist in phases", () => {
+      expect(() =>
+        createTestGrant({
+          entitlementTemplates: [
+            {
+              ...entitlementTemplates[0],
+              creation: {
+                ...entitlementTemplates[0].creation,
+                onCreated: { targetPosition: "PRE_AWARD:ASSESSMENT:UNKNOWN" },
+              },
+            },
+          ],
+        }),
+      ).toThrow(
+        /references position "PRE_AWARD:ASSESSMENT:UNKNOWN" which does not match any phase:stage:status/,
+      );
+    });
+
+    it("throws when two entitlement templates share a code", () => {
+      expect(() =>
+        createTestGrant({
+          entitlementTemplates: [
+            entitlementTemplates[0],
+            { ...entitlementTemplates[0], name: "A duplicate" },
+          ],
+        }),
+      ).toThrow(/Duplicate entitlement template code "ENT_CS_CAPITAL_PA3"/);
+    });
+
+    it("throws when a referenced position is not exactly phase:stage:status", () => {
+      expect(() =>
+        createTestGrant({
+          entitlementTemplates: [
+            {
+              ...entitlementTemplates[0],
+              creation: {
+                ...entitlementTemplates[0].creation,
+                onCreated: {
+                  // Trailing segment: resolves if naively destructured, but
+                  // could never match a real position at lookup time.
+                  targetPosition: "PRE_AWARD:ASSESSMENT:IN_REVIEW:",
+                },
+              },
+            },
+          ],
+        }),
+      ).toThrow(/references position "PRE_AWARD:ASSESSMENT:IN_REVIEW:"/);
+    });
+
+    describe("findEntitlementTemplate", () => {
+      it("returns the entitlement template matching the given code", () => {
+        const grant = createTestGrant({ entitlementTemplates });
+
+        expect(grant.findEntitlementTemplate("ENT_CS_CAPITAL_PA3")).toEqual(
+          entitlementTemplates[0],
+        );
+      });
+
+      it("returns undefined when no entitlement template matches", () => {
+        const grant = createTestGrant({ entitlementTemplates });
+
+        expect(grant.findEntitlementTemplate("UNKNOWN")).toBeUndefined();
+      });
     });
   });
 

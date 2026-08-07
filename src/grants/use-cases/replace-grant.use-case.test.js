@@ -13,6 +13,87 @@ vi.mock("../repositories/grant.repository.js");
 vi.mock("../../common/write-audit-event.js");
 
 describe("replaceGrantUseCase", () => {
+  it("carries entitlementTemplates and amendablePositions through the replacement", async () => {
+    writeAuditEvent.mockResolvedValue(true);
+    findByCode.mockResolvedValue(
+      new Grant({
+        code: "test-grant",
+        version: "0.0.0",
+        metadata: {
+          description: "Test Grant Description",
+          startDate: "2023-01-01T00:00:00Z",
+        },
+        actions: [],
+      }),
+    );
+
+    const phases = [
+      {
+        code: "PRE_AWARD",
+        stages: [
+          {
+            code: "ASSESSMENT",
+            statuses: [{ code: "APPLICATION_RECEIVED", validFrom: [] }],
+          },
+        ],
+      },
+    ];
+    const entitlementTemplates = [
+      {
+        code: "ENT_CS_CAPITAL_PA3",
+        name: "PA3 entitlement",
+        description: "The maximum eligible area that can be claimed.",
+        appliesTo: { level: "AGREEMENT", itemCode: null },
+        limit: { field: "limitQuantity", unit: "HA" },
+        creation: {
+          availableAt: ["PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"],
+          onCreated: {
+            targetPosition: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+          },
+          inputSchema: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: { limitQuantity: { type: "number" } },
+          },
+          form: { content: [{ component: "input", field: "limitQuantity" }] },
+        },
+        claim: {
+          availableAt: ["PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"],
+          limits: { maximumClaims: 1, allowsPartialClaims: false },
+          onCreated: {
+            targetPosition: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+          },
+          payment: {
+            calculationAction: "calculate-capital-claim",
+            trigger: "ON_CLAIM_CREATED",
+          },
+        },
+      },
+    ];
+
+    await replaceGrantUseCase({
+      code: "test-grant",
+      command: {
+        code: "test-grant",
+        metadata: {
+          description: "Updated Test Grant Description",
+          startDate: "2023-01-02T00:00:00Z",
+        },
+        actions: [],
+        phases,
+        amendablePositions: ["PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"],
+        entitlementTemplates,
+      },
+    });
+
+    const [replacedGrant] = replace.mock.calls.at(-1);
+
+    expect(replacedGrant.entitlementTemplates).toEqual(entitlementTemplates);
+    expect(replacedGrant.amendablePositions).toEqual([
+      "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+    ]);
+  });
+
   it("replaces the whole grant and creates an audit event", async () => {
     writeAuditEvent.mockResolvedValue(true);
     findByCode.mockResolvedValue(

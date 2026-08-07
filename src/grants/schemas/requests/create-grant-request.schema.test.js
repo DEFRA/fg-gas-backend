@@ -22,6 +22,37 @@ const validPhases = [
   },
 ];
 
+const validEntitlementTemplate = {
+  code: "ENT_CS_CAPITAL_PA3",
+  name: "PA3 entitlement",
+  description: "The maximum eligible area that can be claimed.",
+  appliesTo: { level: "AGREEMENT", itemCode: null },
+  limit: { field: "limitQuantity", unit: "HA" },
+  creation: {
+    availableAt: ["PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"],
+    onCreated: {
+      targetPosition: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+    },
+    inputSchema: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: { limitQuantity: { type: "number" } },
+    },
+    form: { content: [{ component: "input", field: "limitQuantity" }] },
+  },
+  claim: {
+    availableAt: ["PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"],
+    limits: { maximumClaims: 1, allowsPartialClaims: false },
+    onCreated: {
+      targetPosition: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+    },
+    payment: {
+      calculationAction: "calculate-capital-claim",
+      trigger: "ON_CLAIM_CREATED",
+    },
+  },
+};
+
 it("requires a code", () => {
   const { error } = createGrantRequestSchema.validate({
     phases: validPhases,
@@ -197,6 +228,105 @@ it("validates externalStatusMap structure - requires at least one phase", () => 
   expect(error.message).toEqual(
     '"externalStatusMap.phases" must contain at least 1 items',
   );
+});
+
+it("accepts entitlementTemplates as optional", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    entitlementTemplates: [validEntitlementTemplate],
+  });
+
+  expect(error).toBeUndefined();
+});
+
+it("rejects entitlementTemplates with duplicate codes", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    entitlementTemplates: [validEntitlementTemplate, validEntitlementTemplate],
+  });
+
+  expect(error.message).toContain("contains a duplicate value");
+});
+
+it("requires itemCode when appliesTo.level is AGREEMENT_ITEM", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    entitlementTemplates: [
+      {
+        ...validEntitlementTemplate,
+        appliesTo: { level: "AGREEMENT_ITEM" },
+      },
+    ],
+  });
+
+  expect(error.message).toContain(
+    '"entitlementTemplates[0].appliesTo.itemCode" is required',
+  );
+});
+
+it("rejects an entitlement template whose inputSchema is not valid JSON Schema", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    entitlementTemplates: [
+      {
+        ...validEntitlementTemplate,
+        creation: {
+          ...validEntitlementTemplate.creation,
+          inputSchema: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: { limitQuantity: { type: "not-a-real-type" } },
+          },
+        },
+      },
+    ],
+  });
+
+  expect(error).toBeDefined();
+});
+
+it("validates entitlementTemplates structure - requires code", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    entitlementTemplates: [{}],
+  });
+
+  expect(error.message).toContain('"entitlementTemplates[0].code" is required');
 });
 
 it("validates externalStatusMap structure - requires status code, source, and mappedTo", () => {

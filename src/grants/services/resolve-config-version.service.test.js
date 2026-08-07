@@ -192,6 +192,31 @@ describe("resolveAndFetchGrant", () => {
     );
   });
 
+  it("latches permanent_error when the fetched grant definition is invalid", async () => {
+    const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
+    findLatestForMajor.mockResolvedValue(cv);
+    fetchConfigFile.mockResolvedValue(mockGrantDefinition);
+
+    // Grant/EntitlementTemplate validation failures surface as
+    // Boom.badImplementation, which must not be retried forever.
+    const invalidDefinitionError = Boom.badImplementation(
+      'Entitlement template "ENT" references position "A:B:C" which does not match any phase:stage:status in "phases"',
+    );
+    saveFromDefinition.mockRejectedValue(invalidDefinitionError);
+    updateFetchStatus.mockResolvedValue();
+
+    await expect(resolveAndFetchGrant(GRANT_CODE, VERSION)).rejects.toThrow(
+      invalidDefinitionError,
+    );
+
+    expect(updateFetchStatus).toHaveBeenCalledWith(
+      GRANT_CODE,
+      VERSION,
+      FetchStatus.PermanentError,
+      invalidDefinitionError.message,
+    );
+  });
+
   it("throws badGateway on permanent S3 error (NoSuchKey)", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
     findLatestForMajor.mockResolvedValue(cv);

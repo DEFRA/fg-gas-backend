@@ -4,7 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
-import { findAll, findByCode, replace, save } from "./grant.repository.js";
+import {
+  findAll,
+  findByCode,
+  replace,
+  save,
+  saveFromDefinition,
+} from "./grant.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -370,5 +376,148 @@ describe("findByCode", () => {
 
     const result = await findByCode("woodland", "9.9.9");
     expect(result).toBeNull();
+  });
+});
+
+describe("entitlementTemplates", () => {
+  const phases = [
+    {
+      code: "PHASE_PRE_AWARD",
+      stages: [
+        {
+          code: "STAGE_PREPARE_CLAIM",
+          statuses: [{ code: "STATUS_PREPARING_CLAIM", validFrom: [] }],
+        },
+      ],
+    },
+    {
+      code: "PHASE_CLAIM",
+      stages: [
+        {
+          code: "STAGE_AWAITING_CLAIM",
+          statuses: [{ code: "STATUS_AWAITING_CLAIM", validFrom: [] }],
+        },
+        {
+          code: "STAGE_CLAIM_COMPLETE",
+          statuses: [{ code: "STATUS_CLAIM_COMPLETE", validFrom: [] }],
+        },
+      ],
+    },
+  ];
+
+  const entitlementTemplates = [
+    {
+      code: "ENT_CS_CAPITAL_PA3",
+      name: "PA3 Woodland Management Plan entitlement",
+      description:
+        "The maximum eligible woodland area that can be claimed under PA3.",
+      appliesTo: { level: "AGREEMENT", itemCode: null },
+      limit: { field: "limitQuantity", unit: "HA" },
+      creation: {
+        availableAt: [
+          "PHASE_PRE_AWARD:STAGE_PREPARE_CLAIM:STATUS_PREPARING_CLAIM",
+        ],
+        onCreated: {
+          targetPosition:
+            "PHASE_CLAIM:STAGE_AWAITING_CLAIM:STATUS_AWAITING_CLAIM",
+        },
+        inputSchema: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+          properties: { limitQuantity: { type: "number" } },
+        },
+        form: { content: [{ component: "input", field: "limitQuantity" }] },
+      },
+      claim: {
+        availableAt: ["PHASE_CLAIM:STAGE_AWAITING_CLAIM:STATUS_AWAITING_CLAIM"],
+        limits: { maximumClaims: 1, allowsPartialClaims: false },
+        onCreated: {
+          targetPosition:
+            "PHASE_CLAIM:STAGE_CLAIM_COMPLETE:STATUS_CLAIM_COMPLETE",
+        },
+        payment: {
+          calculationAction: "calculate-capital-claim",
+          trigger: "ON_CLAIM_CREATED",
+        },
+      },
+    },
+  ];
+
+  it("persists entitlementTemplates on the stored document when saving a grant", async () => {
+    const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
+
+    db.collection.mockReturnValue({ insertOne });
+
+    await save(
+      new Grant({
+        code: "woodland",
+        version: "0.0.0",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases,
+        entitlementTemplates,
+      }),
+    );
+
+    expect(insertOne).toHaveBeenCalledWith(
+      new GrantDocument({
+        code: "woodland",
+        version: "0.0.0",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases,
+        entitlementTemplates,
+      }),
+    );
+  });
+
+  it("rehydrates entitlementTemplates from a stored document via findByCode", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce({
+      code: "woodland",
+      version: "0.0.0",
+      metadata: {
+        description: "test",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      phases,
+      entitlementTemplates,
+    });
+
+    db.collection.mockReturnValue({ findOne });
+
+    const result = await findByCode("woodland");
+
+    expect(result.entitlementTemplates).toEqual(entitlementTemplates);
+  });
+
+  it("round-trips entitlementTemplates from a grant definition via saveFromDefinition", async () => {
+    const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
+
+    db.collection.mockReturnValue({ insertOne });
+
+    const grantDefinition = {
+      code: "woodland",
+      metadata: {
+        description: "test",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      phases,
+      entitlementTemplates,
+    };
+
+    const grant = await saveFromDefinition(grantDefinition, "1.0.0");
+
+    expect(grant.entitlementTemplates).toEqual(entitlementTemplates);
+    expect(insertOne).toHaveBeenCalledWith(
+      expect.objectContaining({ entitlementTemplates }),
+    );
   });
 });

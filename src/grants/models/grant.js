@@ -1,3 +1,6 @@
+import Boom from "@hapi/boom";
+import { EntitlementTemplate } from "./entitlement-template.js";
+
 // Constants for fully qualified status path format: "PHASE:STAGE:STATUS"
 const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
 
@@ -10,6 +13,7 @@ export class Grant {
     phases,
     externalStatusMap,
     amendablePositions,
+    entitlementTemplates,
   }) {
     this.code = code;
     this.version = version;
@@ -21,6 +25,67 @@ export class Grant {
     this.phases = phases;
     this.externalStatusMap = externalStatusMap;
     this.amendablePositions = amendablePositions;
+    this.entitlementTemplates = entitlementTemplates?.map(
+      (template) => new EntitlementTemplate(template),
+    );
+
+    this.#assertEntitlementTemplateCodesUnique();
+    this.#assertEntitlementTemplatePositionsExist();
+  }
+
+  findEntitlementTemplate(code) {
+    return this.entitlementTemplates?.find(
+      (template) => template.code === code,
+    );
+  }
+
+  // findEntitlementTemplate returns the first match, so a duplicated code would
+  // silently half-ignore one of the definitions. The array Joi schema enforces
+  // this for the admin API; the S3 ingest path builds each template
+  // individually, so the aggregate has to enforce it too.
+  #assertEntitlementTemplateCodesUnique() {
+    const codes = new Set();
+
+    for (const template of this.entitlementTemplates ?? []) {
+      if (codes.has(template.code)) {
+        throw Boom.badImplementation(
+          `Duplicate entitlement template code "${template.code}"`,
+        );
+      }
+
+      codes.add(template.code);
+    }
+  }
+
+  #assertEntitlementTemplatePositionsExist() {
+    for (const template of this.entitlementTemplates ?? []) {
+      for (const position of template.referencedPositions()) {
+        this.#assertPositionExists(template.code, position);
+      }
+    }
+  }
+
+  #assertPositionExists(templateCode, position) {
+    const parts = position.split(":");
+    // A trailing or extra segment would still destructure to a resolvable
+    // phase/stage/status here, but isAvailableFor*At compares the raw string,
+    // so it could never match a real position - reject it at ingest instead.
+    const [phaseCode, stageCode, statusCode] = parts;
+    const { status } =
+      parts.length === FULLY_QUALIFIED_STATUS_PARTS_COUNT
+        ? this.#findPhaseStageStatus(
+            this.phases,
+            phaseCode,
+            stageCode,
+            statusCode,
+          )
+        : {};
+
+    if (!status) {
+      throw Boom.badImplementation(
+        `Entitlement template "${templateCode}" references position "${position}" which does not match any phase:stage:status in "phases"`,
+      );
+    }
   }
 
   get hasPhases() {
