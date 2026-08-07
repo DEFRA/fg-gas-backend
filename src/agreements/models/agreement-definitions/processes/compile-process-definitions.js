@@ -6,6 +6,7 @@ import {
 import { findProcessOutputSchema } from "./agreement-process-registries.js";
 import { findProcessOutputDependencies } from "./find-process-output-dependencies.js";
 
+const badGatewayStatusCode = 502;
 const validationOptions = {
   abortEarly: false,
   allowUnknown: false,
@@ -120,7 +121,10 @@ const callEndpoint = async (processKey, call, endpoint, body) => {
   try {
     return await call(endpoint, { BODY: body });
   } catch (error) {
-    if (Boom.isBoom(error) && error.output.statusCode === 502) {
+    if (
+      Boom.isBoom(error) &&
+      error.output.statusCode === badGatewayStatusCode
+    ) {
       throw error;
     }
 

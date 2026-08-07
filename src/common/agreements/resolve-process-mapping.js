@@ -75,7 +75,7 @@ const requireCollectionShape = (mapping) => {
 
 const requireArray = (value, reference) => {
   if (!Array.isArray(value)) {
-    throw new Error(
+    throw new TypeError(
       `Process collection mapping "${reference}" must resolve to an array`,
     );
   }

@@ -72,7 +72,7 @@ const assertDependency = (
   assertProducedOutput(dependency, processKey, processDefinitions);
 };
 
-const recordOutputs = (processKey, definition, sequence, produced) => {
+const recordOutputs = (definition, sequence, produced) => {
   for (const outputName of Object.keys(definition.output ?? {})) {
     if (produced.has(outputName)) {
       throw Boom.badImplementation(
@@ -127,7 +127,7 @@ const validateSequence = (sequence, processDefinitions, handlers) => {
       );
     }
 
-    recordOutputs(processKey, definition, sequence, produced);
+    recordOutputs(definition, sequence, produced);
     assertHandlerLocation(processKey, definition, sequence, handlers);
     seen.add(processKey);
   }

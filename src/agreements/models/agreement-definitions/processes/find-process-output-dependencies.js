@@ -32,13 +32,14 @@ const directDependency = (node) => {
   }
 
   const steps = stepsFor(node);
-  const processKey = nodeName(steps[2]);
+  const [, , processStep, outputStep] = steps;
+  const processKey = nodeName(processStep);
 
   if (!processKey || hasComputedProcessKey(steps)) {
     throw new Error("Agreement Process output access must use a static key");
   }
 
-  return { processKey, outputName: nodeName(steps[3]) };
+  return { processKey, outputName: nodeName(outputStep) };
 };
 
 const isLookup = (node) =>
