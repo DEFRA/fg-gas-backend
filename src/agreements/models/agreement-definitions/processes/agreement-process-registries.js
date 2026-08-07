@@ -44,7 +44,7 @@ export const agreementProcessHandlers = Object.freeze({
       payment: paymentConfigurationSchema,
     }).required(),
     execute: executeDeferredPayment,
-    locations: Object.freeze(["action"]),
+    locations: Object.freeze(["transition"]),
   }),
 });
 

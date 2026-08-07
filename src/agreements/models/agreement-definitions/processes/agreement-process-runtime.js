@@ -15,10 +15,10 @@ const collectSequences = (definition) => [
     processes: definition.create.processes ?? [],
   },
   ...Object.entries(definition.states).flatMap(([stateName, state]) =>
-    Object.entries(state.on ?? {}).map(([actionName, action]) => ({
-      location: "action",
-      path: `states.${stateName}.on.${actionName}.processes`,
-      processes: action.processes ?? [],
+    Object.entries(state.on ?? {}).map(([transitionName, transition]) => ({
+      location: "transition",
+      path: `states.${stateName}.on.${transitionName}.processes`,
+      processes: transition.processes ?? [],
     })),
   ),
   ...Object.entries(definition.pages).map(([pageName, page]) => ({
@@ -153,8 +153,8 @@ const contextSchemas = {
     application: Joi.object().unknown(true).required(),
     execution: executionSchema,
   }).required(),
-  action: Joi.object({
-    action: Joi.object({
+  transition: Joi.object({
+    transition: Joi.object({
       values: Joi.object().unknown(true).required(),
     }).required(),
     agreement: agreementSchema,
@@ -185,23 +185,23 @@ const validateContext = (context, location) => {
   return result.value;
 };
 
-const findAction = (definition, location) =>
-  definition.states[location.state]?.on?.[location.action];
+const findTransition = (definition, location) =>
+  definition.states[location.state]?.on?.[location.transition];
 
-const resolveActionLocation = (definition, location) => {
-  const action = findAction(definition, location);
+const resolveTransitionLocation = (definition, location) => {
+  const transition = findTransition(definition, location);
 
-  if (!action) {
+  if (!transition) {
     throw Boom.badImplementation(
-      `Agreement Process location references unknown action "${location.state}.${location.action}"`,
+      `Agreement Process location references unknown transition "${location.state}.${location.transition}"`,
     );
   }
 
   return {
-    actionName: location.action,
-    executionLocation: "action",
-    processes: action.processes ?? [],
-    target: action.target,
+    executionLocation: "transition",
+    processes: transition.processes ?? [],
+    target: transition.target,
+    transitionName: location.transition,
   };
 };
 
@@ -216,7 +216,7 @@ const allowedPages = (definition, state) => {
     [
       stateDefinition.page,
       ...Object.values(stateDefinition.on ?? {}).map(
-        (action) => action.validation?.page,
+        (transition) => transition.validation?.page,
       ),
       definition.pages.document ? "document" : undefined,
     ].filter(Boolean),
@@ -243,7 +243,7 @@ const locationResolvers = {
     processes: definition.create.processes ?? [],
     target: definition.create.target,
   }),
-  action: resolveActionLocation,
+  transition: resolveTransitionLocation,
   page: resolvePageLocation,
 };
 
@@ -261,11 +261,11 @@ const resolveLocation = (definition, location) => {
 
 const locationContext = {
   create: (context) => ({ application: structuredClone(context.application) }),
-  action: (context, location) => ({
+  transition: (context, location) => ({
     agreement: structuredClone(context.agreement),
-    action: {
-      name: location.actionName,
-      values: structuredClone(context.action.values),
+    transition: {
+      name: location.transitionName,
+      values: structuredClone(context.transition.values),
     },
   }),
   page: (context) => ({ agreement: structuredClone(context.agreement) }),

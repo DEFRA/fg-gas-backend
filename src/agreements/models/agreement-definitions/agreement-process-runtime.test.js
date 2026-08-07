@@ -65,7 +65,7 @@ const paymentHandlerInput = {
   },
 };
 
-const addAction = (definition, processes, target = "offered") => {
+const addTransition = (definition, processes, target = "offered") => {
   definition.states.offered.on = {
     accept: { target, processes },
   };
@@ -78,7 +78,7 @@ const handlerDependencies = (name, options = {}) => ({
     [name]: {
       inputSchema: optionOr(options.inputSchema, Joi.object().unknown(true)),
       execute: optionOr(options.execute, vi.fn()),
-      locations: optionOr(options.locations, ["action"]),
+      locations: optionOr(options.locations, ["transition"]),
     },
   },
 });
@@ -115,7 +115,7 @@ describe("AgreementDefinition Process runtime", () => {
     );
   });
 
-  it("runs action Processes sequentially with validated dependencies", async () => {
+  it("runs transition Processes sequentially with validated dependencies", async () => {
     const definitionData = createDefinition();
     definitionData.processDefinitions["calculate-payment"] = {
       type: "endpoint",
@@ -124,7 +124,13 @@ describe("AgreementDefinition Process runtime", () => {
         path: "/payment-schedule",
         service: "CALCULATOR",
       },
-      request: { body: { amount: "$.agreement.totalAmountPence" } },
+      request: {
+        body: {
+          amount: "$.agreement.totalAmountPence",
+          confirmation: "$.transition.values.confirm",
+          transition: "$.transition.name",
+        },
+      },
       output: { paymentSchedule: "$.response.paymentSchedule" },
     };
     definitionData.processDefinitions["record-payment"] = {
@@ -134,7 +140,7 @@ describe("AgreementDefinition Process runtime", () => {
           'jsonata:$lookup($.outputs, "calculate-payment").paymentSchedule',
       },
     };
-    addAction(
+    addTransition(
       definitionData,
       ["calculate-payment", "record-payment"],
       "accepted",
@@ -160,18 +166,32 @@ describe("AgreementDefinition Process runtime", () => {
     });
     const agreement = { state: "offered", totalAmountPence: 32000 };
     const result = await definition.runProcesses({
-      location: { type: "action", state: "offered", action: "accept" },
+      location: {
+        type: "transition",
+        state: "offered",
+        transition: "accept",
+      },
       context: {
         agreement,
-        action: { values: { confirm: "confirmed" } },
+        transition: { values: { confirm: "confirmed" } },
         execution,
       },
     });
 
     expect(calls).toEqual(["calculate-payment", "record-payment"]);
+    expect(callEndpoint).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "calculate-payment" }),
+      {
+        BODY: {
+          amount: 32000,
+          confirmation: "confirmed",
+          transition: "accept",
+        },
+      },
+    );
     expect(execute).toHaveBeenCalledWith({
       agreement,
-      execution: { ...execution, location: "action", target: "accepted" },
+      execution: { ...execution, location: "transition", target: "accepted" },
       input: {
         paymentSchedule: result.outputs["calculate-payment"].paymentSchedule,
       },
@@ -185,7 +205,7 @@ describe("AgreementDefinition Process runtime", () => {
       type: "handler",
       input: { nested: "$.agreement.nested" },
     };
-    addAction(definitionData, ["mutate"]);
+    addTransition(definitionData, ["mutate"]);
     const execute = vi
       .fn()
       .mockImplementation(({ agreement, execution, input }) => {
@@ -203,10 +223,14 @@ describe("AgreementDefinition Process runtime", () => {
     const executionFacts = structuredClone(execution);
 
     await definition.runProcesses({
-      location: { type: "action", state: "offered", action: "accept" },
+      location: {
+        type: "transition",
+        state: "offered",
+        transition: "accept",
+      },
       context: {
         agreement,
-        action: { values: {} },
+        transition: { values: {} },
         execution: executionFacts,
       },
     });
@@ -327,15 +351,19 @@ describe("AgreementDefinition Process runtime", () => {
       type: "handler",
       input: paymentHandlerInput,
     };
-    addAction(definitionData, ["create-agreement-payment"]);
+    addTransition(definitionData, ["create-agreement-payment"]);
     const definition = new AgreementDefinition(definitionData);
 
     await expect(
       definition.runProcesses({
-        location: { type: "action", state: "offered", action: "accept" },
+        location: {
+          type: "transition",
+          state: "offered",
+          transition: "accept",
+        },
         context: {
           agreement: { state: "offered" },
-          action: { values: {} },
+          transition: { values: {} },
           execution,
         },
       }),
@@ -352,7 +380,7 @@ const consumerProcess = (mapping) => ({
   input: { value: mapping },
 });
 
-const consumerDependencies = (location = "action") =>
+const consumerDependencies = (location = "transition") =>
   handlerDependencies("consume", { locations: [location] });
 
 const inheritedRegistryNames = ["toString", "constructor", "__proto__"];
@@ -442,7 +470,7 @@ const compilationCases = [
       definition.processDefinitions.consume = consumerProcess(
         'jsonata:$lookup($.outputs, "calculate-offer").totalAmountPence',
       );
-      addAction(definition, ["consume"]);
+      addTransition(definition, ["consume"]);
       return { definition, dependencies: consumerDependencies() };
     },
     /consume.*calculate-offer.*earlier/,
@@ -509,17 +537,17 @@ const compilationCases = [
     "handlers at unsupported locations",
     () => {
       const definition = createDefinition();
-      definition.processDefinitions["action-only"] = {
+      definition.processDefinitions["transition-only"] = {
         type: "handler",
         input: {},
       };
-      definition.create.processes = ["action-only"];
+      definition.create.processes = ["transition-only"];
       return {
         definition,
-        dependencies: handlerDependencies("action-only"),
+        dependencies: handlerDependencies("transition-only"),
       };
     },
-    /action-only.*not allowed.*create/,
+    /transition-only.*not allowed.*create/,
   ],
   [
     "malformed JSONata",
