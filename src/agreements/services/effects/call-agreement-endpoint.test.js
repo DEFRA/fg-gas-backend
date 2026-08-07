@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { callAgreementEndpoint } from "../../../common/agreements/call-agreement-endpoint.js";
+import { resolveEndpointServiceUrl } from "../../../common/agreements/resolve-endpoint-service-url.js";
 import { wreck } from "../../../common/wreck.js";
-import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
-import { resolveEndpointServiceUrl } from "./resolve-endpoint-service-url.js";
 
+vi.mock("../../../common/agreements/resolve-endpoint-service-url.js");
 vi.mock("../../../common/wreck.js");
-vi.mock("./resolve-endpoint-service-url.js");
 
 const endpointConfig = {
   code: "calculate-funding",

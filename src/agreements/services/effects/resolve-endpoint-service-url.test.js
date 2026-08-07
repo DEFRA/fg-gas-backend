@@ -61,6 +61,23 @@ describe("validateEndpointServiceUrls", () => {
     );
   });
 
+  it("validates services declared by endpoint Process Definitions", () => {
+    expect(() =>
+      validateEndpointServiceUrls([
+        {
+          processDefinitions: {
+            calculate: {
+              type: "endpoint",
+              endpoint: { service: "PROCESS_SERVICE" },
+            },
+          },
+        },
+      ]),
+    ).toThrow(
+      /^Missing required endpoint URL env var\(s\): PROCESS_SERVICE_URL$/,
+    );
+  });
+
   it("treats a definition with no endpoints as having nothing to validate", () => {
     expect(() => validateEndpointServiceUrls([{}])).not.toThrow();
   });
