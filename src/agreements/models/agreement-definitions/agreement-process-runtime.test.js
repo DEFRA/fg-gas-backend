@@ -119,6 +119,33 @@ describe("AgreementDefinition Process runtime", () => {
     );
   });
 
+  it("analyses and resolves JSONata row expressions consistently", async () => {
+    const definitionData = createDefinition();
+    definitionData.processDefinitions["calculate-offer"].output = {
+      actions: {
+        itemsRef: "$.response.actions",
+        items: {
+          code: "@.code",
+          ratePence: "jsonata:$round(@.rate * 100)",
+        },
+      },
+    };
+    const callEndpoint = vi.fn().mockResolvedValue({
+      actions: [{ code: "PMF1", rate: 12.5 }],
+    });
+    const definition = new AgreementDefinition(definitionData, {
+      callEndpoint,
+    });
+
+    await expect(runCreate(definition)).resolves.toEqual({
+      outputs: {
+        "calculate-offer": {
+          actions: [{ code: "PMF1", ratePence: 1250 }],
+        },
+      },
+    });
+  });
+
   it("runs transition Processes sequentially with validated dependencies", async () => {
     const definitionData = createDefinition();
     definitionData.processDefinitions["calculate-payment"] = {

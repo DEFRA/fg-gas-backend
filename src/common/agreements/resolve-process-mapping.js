@@ -11,7 +11,7 @@ const isExpression = (mapping) => mapping.startsWith(jsonataPrefix);
 const isDirectReference = (mapping) =>
   rootReferencePattern.test(mapping) || rowReferencePattern.test(mapping);
 
-const toExpression = (mapping) => {
+export const toProcessExpression = (mapping) => {
   const expression = isExpression(mapping)
     ? mapping.slice(jsonataPrefix.length)
     : mapping;
@@ -29,7 +29,7 @@ const requireResolved = (resolved, mapping) => {
 
 const evaluate = async (mapping, { context, row }) => {
   try {
-    const expression = jsonata(toExpression(mapping));
+    const expression = jsonata(toProcessExpression(mapping));
 
     if (row !== undefined) {
       expression.assign("row", row);
@@ -140,7 +140,7 @@ const resolveMapping = async (mapping, scope) => {
 
 const validateStringMapping = (mapping) => {
   if (isExpression(mapping) || isDirectReference(mapping)) {
-    jsonata(toExpression(mapping));
+    jsonata(toProcessExpression(mapping));
   }
 };
 
