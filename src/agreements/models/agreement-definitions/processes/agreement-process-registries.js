@@ -1,4 +1,3 @@
-import Boom from "@hapi/boom";
 import Joi from "joi";
 import {
   agreementDateSchema,
@@ -16,7 +15,9 @@ const paymentConfigurationSchema = Joi.object({
   fesCode: Joi.string().required(),
   ledger: Joi.string().required(),
   currency: Joi.string().required(),
+  marketingYear: Joi.string().required(),
   invoiceLine: Joi.object({
+    schemeCode: Joi.string().required(),
     accountCode: Joi.string().required(),
     fundCode: Joi.string().required(),
   }).required(),
@@ -30,19 +31,43 @@ const acceptedAgreementValuesSchema = agreementValueSchema
   )
   .required();
 
-const executeDeferredPayment = () => {
-  throw Boom.badImplementation(
-    'Agreement Process handler "create-agreement-payment" is not implemented',
-  );
-};
+const paymentHandlerInputSchema = Joi.object({
+  agreementValues: acceptedAgreementValuesSchema,
+  payment: paymentConfigurationSchema,
+}).required();
+
+const paymentIntentSchema = Joi.object({
+  intents: Joi.array()
+    .items(
+      Joi.object({
+        type: Joi.string().valid("create-agreement-payment").required(),
+        request: Joi.object({
+          agreementValues: acceptedAgreementValuesSchema,
+          paymentConfiguration: paymentConfigurationSchema,
+        }).required(),
+      }).required(),
+    )
+    .length(1)
+    .required(),
+}).required();
+
+const stageAgreementPayment = ({ input }) => ({
+  intents: [
+    {
+      type: "create-agreement-payment",
+      request: {
+        agreementValues: input.agreementValues,
+        paymentConfiguration: input.payment,
+      },
+    },
+  ],
+});
 
 export const agreementProcessHandlers = Object.freeze({
   "create-agreement-payment": Object.freeze({
-    inputSchema: Joi.object({
-      agreementValues: acceptedAgreementValuesSchema,
-      payment: paymentConfigurationSchema,
-    }).required(),
-    execute: executeDeferredPayment,
+    inputSchema: paymentHandlerInputSchema,
+    intentSchema: paymentIntentSchema,
+    execute: stageAgreementPayment,
     locations: Object.freeze(["transition"]),
   }),
 });

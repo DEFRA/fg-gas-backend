@@ -6,10 +6,7 @@ const validDefinition = {
   code: "test-code",
   configVersion: "0.0.1",
   agreementNumberPrefix: "TST",
-  create: {
-    target: "offered",
-    effects: [{ name: "snapshot", params: {} }],
-  },
+  create: { target: "offered" },
   states: {
     offered: {
       page: "offered",
@@ -27,7 +24,6 @@ const validDefinition = {
               },
             ],
           },
-          effects: [{ name: "publish" }],
         },
       },
     },
@@ -74,9 +70,6 @@ describe("AgreementDefinition", () => {
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
     });
-    expect(definition.getCreationEffects()).toEqual(
-      validDefinition.create.effects,
-    );
     expect(definition.getEndpoints()).toEqual([]);
   });
 

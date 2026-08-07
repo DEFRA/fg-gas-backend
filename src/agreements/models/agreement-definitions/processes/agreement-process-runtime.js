@@ -282,21 +282,23 @@ const toProcessContext = (context, location, outputs) => ({
 });
 
 const runSequence = async (location, executableMap, context) => {
+  const intents = [];
   const outputs = {};
 
   for (const processKey of location.processes) {
-    const output = await executableMap[processKey](
+    const result = await executableMap[processKey](
       toProcessContext(context, location, outputs),
     );
     Object.defineProperty(outputs, processKey, {
       configurable: true,
       enumerable: true,
-      value: output,
+      value: result.output,
       writable: true,
     });
+    intents.push(...result.intents);
   }
 
-  return { outputs };
+  return intents.length > 0 ? { outputs, intents } : { outputs };
 };
 
 const resolveDependencies = (dependencies) => ({

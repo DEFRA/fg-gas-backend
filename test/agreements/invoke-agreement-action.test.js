@@ -211,16 +211,67 @@ describe("single Agreement actions", () => {
     expect(version.snapshot).toEqual(persistedAccepted);
   });
 
-  it("does not create a Payment, payment event or payment calculation", async () => {
+  it("creates the immutable Payment and both publications from the stored offer", async () => {
+    const offered = await agreements.findOne({ agreementNumber });
     const { response } = await requestAction();
 
     expect(response.statusCode).toBe(303);
-    expect(
-      await payments.countDocuments({
-        "source.agreementNumber": agreementNumber,
-      }),
-    ).toBe(0);
-    expect(await outbox.countDocuments(paymentEventQuery)).toBe(0);
+    const payment = await payments.findOne({
+      "source.agreementNumber": agreementNumber,
+    });
+    expect(payment).toMatchObject({
+      source: { type: "agreement", agreementNumber, version: 2 },
+      sbi: "300000070",
+      frn: "1101234567",
+      paymentHubClaimId: expect.stringMatching(/^R\d{8}$/),
+      correlationId: offered.correlationId,
+      scheme: "SFI",
+      sourceSystem: "FPTT",
+      deliveryBody: "RP00",
+      fesCode: "FALS_FPTT",
+      ledger: "AP",
+      totalAmountPence: 5000,
+      currency: "GBP",
+      marketingYear: "2026",
+      payments: [
+        expect.objectContaining({
+          dueDate: "2026-11-06",
+          totalAmountPence: 5000,
+          status: "pending",
+          invoiceLines: [
+            {
+              schemeCode: "CMOR1",
+              description: "Large White Pig",
+              amountPence: 5000,
+              accountCode: "SOS710",
+              fundCode: "DRD10",
+              deliveryBody: "RP00",
+              marketingYear: "2026",
+            },
+          ],
+        }),
+      ],
+    });
+    expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
+    const lifecyclePublication = await outbox.findOne({
+      "event.data.agreementNumber": agreementNumber,
+    });
+    expect(lifecyclePublication.event).toMatchObject({
+      type: "io.onsite.agreement.status.updated",
+      data: {
+        agreementNumber,
+        correlationId: offered.correlationId,
+        clientRef: offered.clientRef,
+        code: offered.code,
+        version: 2,
+        status: "accepted",
+        date: expect.any(String),
+        claimId: payment.paymentHubClaimId,
+        startDate: offered.startDate,
+        endDate: offered.endDate,
+        agreementUrl: `http://localhost:3000/${agreementNumber}`,
+      },
+    });
     const accepted = await agreements.findOne({ agreementNumber });
     const version = await versions.findOne({ agreementNumber, version: 2 });
     expect(accepted).not.toHaveProperty("paymentCalculation");
@@ -291,9 +342,12 @@ describe("single Agreement actions", () => {
     expect(await versions.countDocuments({ agreementNumber })).toBe(1);
   });
 
-  it("replays a successful idempotency key without changing Acceptance Time", async () => {
+  it("replays a successful idempotency key without duplicating acceptance", async () => {
     const first = await requestAction();
     const accepted = await agreements.findOne({ agreementNumber });
+    const payment = await payments.findOne({
+      "source.agreementNumber": agreementNumber,
+    });
     const replay = await requestAction();
 
     expect(first.response.statusCode).toBe(303);
@@ -306,8 +360,11 @@ describe("single Agreement actions", () => {
       await payments.countDocuments({
         "source.agreementNumber": agreementNumber,
       }),
-    ).toBe(0);
-    expect(await outbox.countDocuments(paymentEventQuery)).toBe(0);
+    ).toBe(1);
+    expect(
+      await payments.findOne({ "source.agreementNumber": agreementNumber }),
+    ).toEqual(payment);
+    expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
   });
 
   it("allows only one concurrent acceptance to commit", async () => {
@@ -328,13 +385,13 @@ describe("single Agreement actions", () => {
       await payments.countDocuments({
         "source.agreementNumber": agreementNumber,
       }),
-    ).toBe(0);
+    ).toBe(1);
     expect(
       await outbox.countDocuments({
         "event.data.agreementNumber": agreementNumber,
       }),
     ).toBe(1);
-    expect(await outbox.countDocuments(paymentEventQuery)).toBe(0);
+    expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
   });
 
   it("rolls back acceptance when its publication cannot be recorded", async () => {

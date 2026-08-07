@@ -43,10 +43,6 @@ export class AgreementDefinition {
     });
   }
 
-  getCreationEffects() {
-    return structuredClone(this.#definition.create.effects ?? []);
-  }
-
   getEndpoints() {
     return structuredClone(this.#definition.endpoints ?? []);
   }

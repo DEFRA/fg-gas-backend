@@ -25,7 +25,6 @@ export class Agreement {
     createdAt,
     updatedAt,
     acceptedAt,
-    paymentCalculation,
   }) {
     this.agreementNumber = agreementNumber;
     this.version = version;
@@ -47,13 +46,11 @@ export class Agreement {
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.acceptedAt = acceptedAt;
-    this.paymentCalculation = cloneOptional(paymentCalculation);
   }
 
-  transition({ target, transitionedAt, changes = {} }) {
+  transition({ target, transitionedAt }) {
     const transitionChanges = resolveTransitionChanges({
       agreement: this,
-      changes,
       target,
       transitionedAt,
     });
@@ -99,6 +96,4 @@ const resolveAcceptedAt = ({ agreement, target, transitionedAt }) =>
 
 const resolveTransitionChanges = (options) => ({
   acceptedAt: resolveAcceptedAt(options),
-  paymentCalculation:
-    options.changes.paymentCalculation ?? options.agreement.paymentCalculation,
 });
