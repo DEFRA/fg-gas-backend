@@ -11,7 +11,6 @@ import {
   insertAgreementVersion,
   replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
-import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 
@@ -26,7 +25,6 @@ vi.mock(
   }),
 );
 vi.mock("../../payments/repositories/payment.repository.js");
-vi.mock("../services/effects/agreement-effect-runner.js");
 vi.mock("./load-current-agreement-action-context.js");
 
 const options = {
@@ -51,8 +49,37 @@ const agreement = new Agreement({
   correlationId: "correlation",
   identifiers: { sbi: "106284736", frn: "1101234567" },
   application: { whitePigsCount: 2, berkshirePigsCount: 1 },
-  actions: [],
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+      totalAmountPence: 2000,
+    },
+    {
+      id: "action:2",
+      code: "berkshire",
+      description: "Berkshire",
+      totalAmountPence: 1800,
+    },
+  ],
   items: [],
+  totalAmountPence: 3800,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 3800,
+        lineItems: [
+          { actionId: "action:1", amountPence: 2000 },
+          { actionId: "action:2", amountPence: 1800 },
+        ],
+      },
+    ],
+  },
   state: "offered",
   createdAt: "2026-08-01T10:00:00.000Z",
   updatedAt: "2026-08-01T10:00:00.000Z",
@@ -65,6 +92,7 @@ const mapping = {
   fesCode: "FALS_FPTT",
   ledger: "AP",
   currency: "GBP",
+  marketingYear: "2026",
   invoiceLine: {
     schemeCode: "CMOR1",
     accountCode: "SOS710",
@@ -72,31 +100,14 @@ const mapping = {
   },
 };
 
-const paymentCalculation = {
-  agreementStartDate: "2026-08-01",
-  agreementEndDate: "2027-07-31",
-  agreementTotalPence: 3800,
-  payments: [
-    {
-      dueDate: "2026-11-06",
-      totalAmountPence: 3800,
-      invoiceLines: [
-        { description: "Large White Pig", amountPence: 2000 },
-        { description: "Berkshire", amountPence: 1800 },
-      ],
-    },
-  ],
-};
-
 const action = {
-  effects: [],
-  transition: { target: "accepted" },
+  transition: { from: "offered", action: "accept", target: "accepted" },
   validate: vi.fn().mockReturnValue({ valid: true }),
 };
-const agreementDefinition = { getEndpoints: vi.fn().mockReturnValue([]) };
+const agreementDefinition = { runProcesses: vi.fn() };
 const session = {};
 
-describe("executeAgreementActionUseCase with a createPayment effect", () => {
+describe("executeAgreementActionUseCase with a staged Payment intent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findAgreementByNumber.mockResolvedValue(agreement);
@@ -106,20 +117,91 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
       agreement,
       agreementDefinition,
     });
-    runAgreementEffects.mockImplementation(async (_effects, context) => ({
-      ...context,
-      agreement: {
-        ...context.agreement,
-        acceptedAt: context.executedAt,
-        paymentCalculation,
-      },
-      outboxMessageTypes: ["lifecycle"],
-      paymentRequest: { paymentCalculation, mapping },
-    }));
+    agreementDefinition.runProcesses.mockResolvedValue({
+      outputs: { "create-agreement-payment": {} },
+      intents: [
+        {
+          type: "create-agreement-payment",
+          request: {
+            agreementValues: {
+              startDate: agreement.startDate,
+              endDate: agreement.endDate,
+              actions: agreement.actions,
+              items: agreement.items,
+              totalAmountPence: agreement.totalAmountPence,
+              paymentSchedule: agreement.paymentSchedule,
+            },
+            paymentConfiguration: mapping,
+          },
+        },
+      ],
+    });
     replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 1 });
     withTransaction.mockImplementation((callback) => callback(session));
     allocateNextSequence.mockResolvedValue(1);
     action.validate.mockReturnValue({ valid: true });
+  });
+
+  it("runs the configured Process and commits its Payment intent atomically", async () => {
+    await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
+      location: "/agreements/current",
+    });
+
+    expect(agreementDefinition.runProcesses).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location: {
+          type: "transition",
+          state: "offered",
+          transition: "accept",
+        },
+        context: expect.objectContaining({
+          agreement,
+          transition: { values: options.values },
+        }),
+      }),
+    );
+    expect(insertPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: {
+          type: "agreement",
+          agreementNumber: options.agreementNumber,
+          version: 2,
+        },
+        correlationId: agreement.correlationId,
+        totalAmountPence: 3800,
+        payments: [
+          expect.objectContaining({
+            dueDate: "2026-11-06",
+            invoiceLines: [
+              expect.objectContaining({
+                description: "Large White Pig",
+                amountPence: 2000,
+              }),
+              expect.objectContaining({
+                description: "Berkshire",
+                amountPence: 1800,
+              }),
+            ],
+          }),
+        ],
+      }),
+      session,
+    );
+    expect(saveOutboxEvents).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: expect.objectContaining({
+            data: expect.objectContaining({ claimId: "R00000001" }),
+          }),
+        }),
+        expect.objectContaining({
+          event: expect.objectContaining({
+            type: "io.onsite.agreement.create-payment",
+          }),
+        }),
+      ]),
+      session,
+    );
   });
 
   it("commits the Payment with the Agreement, Version and lifecycle event", async () => {
@@ -253,20 +335,15 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
     expect(payment.payments[0].invoiceLines[0].amountPence).toBe(2000);
   });
 
-  it("stores the validated Payment Calculation on the Agreement and Version", async () => {
+  it("does not copy a Calculator Result onto the Agreement or Version", async () => {
     await executeAgreementActionUseCase(options);
 
-    expect(replaceCurrentAgreement).toHaveBeenCalledWith(
-      expect.objectContaining({ paymentCalculation }),
-      1,
-      session,
-    );
-    expect(insertAgreementVersion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        snapshot: expect.objectContaining({ paymentCalculation }),
-      }),
-      session,
-    );
+    const [accepted] = replaceCurrentAgreement.mock.calls[0];
+    const [version] = insertAgreementVersion.mock.calls[0];
+
+    expect(accepted.paymentCalculation).toBeUndefined();
+    expect(version.snapshot.paymentCalculation).toBeUndefined();
+    expect(version.snapshot).toEqual(accepted);
   });
 
   it("allocates the claim ID inside the action transaction", async () => {
@@ -295,30 +372,41 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
     expect(insertPayment).toHaveBeenCalled();
   });
 
-  it("leaves the Agreement offered when the mapping is invalid", async () => {
-    runAgreementEffects.mockImplementation(async (_effects, context) => ({
-      ...context,
-      outboxMessageTypes: ["lifecycle"],
-      paymentRequest: { paymentCalculation, mapping: undefined },
-    }));
+  it("leaves the Agreement offered when the Payment configuration is invalid", async () => {
+    agreementDefinition.runProcesses.mockResolvedValue({
+      outputs: {},
+      intents: [
+        {
+          type: "create-agreement-payment",
+          request: {
+            agreementValues: agreement,
+            paymentConfiguration: undefined,
+          },
+        },
+      ],
+    });
     withTransaction.mockImplementation(async (callback) => callback(session));
 
     await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
-      "createPayment requires a mapping from the Agreement Definition",
+      "createPayment requires payment configuration from the Agreement Definition",
     );
     expect(insertPayment).not.toHaveBeenCalled();
     expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
-  it("leaves the Agreement offered when the calculation does not balance", async () => {
-    runAgreementEffects.mockImplementation(async (_effects, context) => ({
-      ...context,
-      outboxMessageTypes: ["lifecycle"],
-      paymentRequest: {
-        paymentCalculation: { ...paymentCalculation, agreementTotalPence: 1 },
-        mapping,
-      },
-    }));
+  it("leaves the Agreement offered when the stored Payment facts do not balance", async () => {
+    agreementDefinition.runProcesses.mockResolvedValue({
+      outputs: {},
+      intents: [
+        {
+          type: "create-agreement-payment",
+          request: {
+            agreementValues: { ...agreement, totalAmountPence: 1 },
+            paymentConfiguration: mapping,
+          },
+        },
+      ],
+    });
 
     await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
       "Invalid Payment",
@@ -352,16 +440,13 @@ describe("executeAgreementActionUseCase with a createPayment effect", () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
       location: "/agreements/current",
     });
-    expect(runAgreementEffects).not.toHaveBeenCalled();
+    expect(agreementDefinition.runProcesses).not.toHaveBeenCalled();
     expect(insertPayment).not.toHaveBeenCalled();
     expect(allocateNextSequence).not.toHaveBeenCalled();
   });
 
-  it("does not create a Payment for an action without the effect", async () => {
-    runAgreementEffects.mockImplementation(async (_effects, context) => ({
-      ...context,
-      outboxMessageTypes: ["lifecycle"],
-    }));
+  it("does not create a Payment for an action without a Payment intent", async () => {
+    agreementDefinition.runProcesses.mockResolvedValue({ outputs: {} });
 
     await executeAgreementActionUseCase(options);
 

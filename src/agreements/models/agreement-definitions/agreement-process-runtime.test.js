@@ -65,7 +65,12 @@ const paymentHandlerInput = {
     fesCode: "FALS_FPTT",
     ledger: "AP",
     currency: "GBP",
-    invoiceLine: { accountCode: "SOS710", fundCode: "DRD10" },
+    marketingYear: "2026",
+    invoiceLine: {
+      schemeCode: "CMOR1",
+      accountCode: "SOS710",
+      fundCode: "DRD10",
+    },
   },
 };
 
@@ -383,7 +388,7 @@ describe("AgreementDefinition Process runtime", () => {
     });
   });
 
-  it("preserves deliberate Boom errors from handlers", async () => {
+  it("stages a typed Payment intent without writing outside the transaction", async () => {
     const definitionData = createDefinition();
     definitionData.processDefinitions["create-agreement-payment"] = {
       type: "handler",
@@ -405,10 +410,17 @@ describe("AgreementDefinition Process runtime", () => {
           execution,
         },
       }),
-    ).rejects.toMatchObject({
-      message:
-        'Agreement Process handler "create-agreement-payment" is not implemented',
-      output: { statusCode: 500 },
+    ).resolves.toEqual({
+      outputs: { "create-agreement-payment": {} },
+      intents: [
+        {
+          type: "create-agreement-payment",
+          request: {
+            agreementValues: paymentHandlerInput.agreementValues,
+            paymentConfiguration: paymentHandlerInput.payment,
+          },
+        },
+      ],
     });
   });
 });
@@ -478,7 +490,7 @@ const compilationCases = [
       definition.create.effects = [{ name: "snapshot" }];
       return { definition };
     },
-    /conflict between optional exclusive peers/i,
+    /effects.*not allowed/i,
   ],
   [
     "duplicate Processes",

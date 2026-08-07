@@ -76,8 +76,7 @@ describe("resolveComponents", () => {
       {
         component: "table",
         head: [{ text: "Pig Type" }, { text: "Amount" }],
-        rowsRef:
-          "$.snapshot.items[0].supplementaryData.fundingCalculation.items",
+        rowsRef: "$.snapshot.agreement.actions",
         rows: [
           { text: "$.description" },
           { text: "$.total", format: "poundsNoDecimals" },
@@ -87,18 +86,12 @@ describe("resolveComponents", () => {
 
     const context = {
       snapshot: {
-        items: [
-          {
-            supplementaryData: {
-              fundingCalculation: {
-                items: [
-                  { description: "Large White", total: 320 },
-                  { description: "Berkshire", total: 60.5 },
-                ],
-              },
-            },
-          },
-        ],
+        agreement: {
+          actions: [
+            { description: "Large White", total: 320 },
+            { description: "Berkshire", total: 60.5 },
+          ],
+        },
       },
     };
 
@@ -188,19 +181,17 @@ describe("resolveComponents", () => {
     const components = [
       {
         component: "table",
-        rowsRef: "$.agreement.paymentCalculation.items",
+        rowsRef: "$.agreement.actions",
         rows: [
           { text: "@.description" },
-          { text: "@.annualPaymentPence", format: "poundsNoDecimals" },
+          { text: "@.annualAmountPence", format: "poundsNoDecimals" },
         ],
       },
     ];
 
     const result = await resolveComponents(components, {
       agreement: {
-        paymentCalculation: {
-          items: [{ description: "Hedgerow", annualPaymentPence: 125000 }],
-        },
+        actions: [{ description: "Hedgerow", annualAmountPence: 125000 }],
       },
     });
 
@@ -305,7 +296,7 @@ describe("resolveComponents conditional components", () => {
 describe("resolveComponents repeated content", () => {
   const parcels = {
     component: "repeat",
-    itemsRef: "$.agreement.payload.answers.parcels",
+    itemsRef: "$.agreement.parcels",
     beforeContent: [{ component: "heading", level: 2, text: "Land parcels" }],
     items: [
       { component: "heading", level: 3, text: "Parcel @.sheetId @.parcelId" },
@@ -317,7 +308,7 @@ describe("resolveComponents repeated content", () => {
   };
 
   const withParcels = (list) => ({
-    agreement: { payload: { answers: { parcels: list } } },
+    agreement: { parcels: list },
   });
 
   it("resolves the configured content once per item, in source order", async () => {
@@ -402,16 +393,14 @@ describe("resolveComponents repeated content", () => {
   it("fails when the items reference is missing rather than silently showing nothing", async () => {
     await expect(
       resolveComponents([parcels], { agreement: {} }),
-    ).rejects.toThrow(
-      'Unresolved reference "$.agreement.payload.answers.parcels"',
-    );
+    ).rejects.toThrow('Unresolved reference "$.agreement.parcels"');
   });
 
   it("fails when the items reference does not resolve to an array", async () => {
     await expect(
       resolveComponents([parcels], withParcels({ sheetId: "SX0679" })),
     ).rejects.toThrow(
-      'A "repeat" component\'s "itemsRef" ("$.agreement.payload.answers.parcels") must resolve to an array',
+      'A "repeat" component\'s "itemsRef" ("$.agreement.parcels") must resolve to an array',
     );
   });
 
@@ -422,7 +411,7 @@ describe("resolveComponents repeated content", () => {
         ...withParcels([{ sheetId: "SX0679", parcelId: "9238" }]),
         agreement: {
           state: "offered",
-          payload: { answers: { parcels: [{ sheetId: "SX0679" }] } },
+          parcels: [{ sheetId: "SX0679" }],
         },
       },
     );
@@ -517,7 +506,7 @@ describe("resolveComponents containers and templates", () => {
     component: "template",
     templateRef: "$.definition.templates.paymentSummary",
     templateKey: "$.agreement.paymentScheme",
-    dataRef: "$.agreement.paymentCalculation",
+    dataRef: "$.agreement.paymentSummary",
   };
 
   it("resolves the template selected by agreement data, against the data it configures", async () => {
@@ -525,7 +514,7 @@ describe("resolveComponents containers and templates", () => {
       definition: { templates },
       agreement: {
         paymentScheme: "annual",
-        paymentCalculation: { annualPaymentPence: 125000 },
+        paymentSummary: { annualPaymentPence: 125000 },
       },
     });
 
@@ -538,7 +527,7 @@ describe("resolveComponents containers and templates", () => {
   it("selects a different template for a different agreement", async () => {
     const result = await resolveComponents([templateComponent], {
       definition: { templates },
-      agreement: { paymentScheme: "quarterly", paymentCalculation: {} },
+      agreement: { paymentScheme: "quarterly", paymentSummary: {} },
     });
 
     expect(result).toEqual([
@@ -582,7 +571,7 @@ describe("resolveComponents containers and templates", () => {
       await expect(
         resolveComponents([templateComponent], {
           definition: { templates },
-          agreement: { paymentScheme, paymentCalculation: {} },
+          agreement: { paymentScheme, paymentSummary: {} },
         }),
       ).rejects.toThrow(/has no template/);
     },
@@ -614,7 +603,7 @@ describe("resolveComponents containers and templates", () => {
     await expect(
       resolveComponents([templateComponent], {
         definition: { templates },
-        agreement: { paymentScheme: "monthly", paymentCalculation: {} },
+        agreement: { paymentScheme: "monthly", paymentSummary: {} },
       }),
     ).rejects.toThrow(
       'A "template" component references "$.definition.templates.paymentSummary" which has no template "monthly"',

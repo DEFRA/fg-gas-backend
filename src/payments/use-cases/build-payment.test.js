@@ -8,6 +8,7 @@ const mapping = {
   fesCode: "FALS_FPTT",
   ledger: "AP",
   currency: "GBP",
+  marketingYear: "2026",
   invoiceLine: {
     schemeCode: "CMOR1",
     accountCode: "SOS710",
@@ -15,32 +16,34 @@ const mapping = {
   },
 };
 
-const paymentCalculation = {
-  agreementStartDate: "2026-08-01",
-  agreementEndDate: "2027-07-31",
-  agreementTotalPence: 3800,
-  payments: [
+const agreementValues = {
+  actions: [
     {
-      dueDate: "2026-11-06",
-      totalAmountPence: 3800,
-      invoiceLines: [
-        {
-          pigType: "largeWhite",
-          description: "Large White Pig",
-          quantity: 2,
-          unitPricePence: 1000,
-          amountPence: 2000,
-        },
-        {
-          pigType: "berkshire",
-          description: "Berkshire",
-          quantity: 1,
-          unitPricePence: 1800,
-          amountPence: 1800,
-        },
-      ],
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+    },
+    {
+      id: "action:2",
+      code: "berkshire",
+      description: "Berkshire",
     },
   ],
+  items: [],
+  totalAmountPence: 3800,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 3800,
+        lineItems: [
+          { actionId: "action:1", amountPence: 2000 },
+          { actionId: "action:2", amountPence: 1800 },
+        ],
+      },
+    ],
+  },
 };
 
 const build = (overrides = {}) =>
@@ -49,10 +52,10 @@ const build = (overrides = {}) =>
     version: 2,
     sbi: "106284736",
     frn: "1101234567",
-    paymentCalculation,
-    mapping,
+    agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",
+    agreementValues,
+    paymentConfiguration: mapping,
     paymentHubClaimId: "R00000001",
-    marketingYear: "2026",
     ...overrides,
   });
 
@@ -67,6 +70,75 @@ const getBuildError = (overrides) => {
 };
 
 describe("buildPayment", () => {
+  it("maps stored scheduled Line Items through their referenced Agreement entries", () => {
+    const payment = buildPayment({
+      agreementNumber: "PMF123456789",
+      version: 2,
+      sbi: "106284736",
+      frn: "1101234567",
+      agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",
+      agreementValues: {
+        actions: [
+          {
+            id: "action:1",
+            code: "largeWhite",
+            description: "Large White Pig",
+          },
+        ],
+        items: [
+          {
+            id: "item:1",
+            code: "pigArk",
+            description: "Pig ark",
+          },
+        ],
+        totalAmountPence: 3800,
+        paymentSchedule: {
+          instalments: [
+            {
+              id: "instalment:1",
+              dueDate: "2026-11-06",
+              totalAmountPence: 3800,
+              lineItems: [
+                { actionId: "action:1", amountPence: 2000 },
+                { itemId: "item:1", amountPence: 1800 },
+              ],
+            },
+          ],
+        },
+      },
+      paymentConfiguration: mapping,
+      paymentHubClaimId: "R00000001",
+    });
+
+    expect(payment).toMatchObject({
+      correlationId: "123e4567-e89b-12d3-a456-426614174000",
+      totalAmountPence: 3800,
+      payments: [
+        {
+          dueDate: "2026-11-06",
+          totalAmountPence: 3800,
+          invoiceLines: [
+            {
+              schemeCode: "CMOR1",
+              description: "Large White Pig",
+              amountPence: 2000,
+              accountCode: "SOS710",
+              fundCode: "DRD10",
+              deliveryBody: "RP00",
+              marketingYear: "2026",
+            },
+            {
+              schemeCode: "CMOR1",
+              description: "Pig ark",
+              amountPence: 1800,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
   it("records the Agreement Number and version as its source", () => {
     expect(build().source).toEqual({
       type: "agreement",
@@ -129,41 +201,39 @@ describe("buildPayment", () => {
     ).toEqual([2000, 1800]);
   });
 
-  it("defaults the marketing year to the current year", () => {
-    const payment = build({ marketingYear: undefined });
+  it("uses the definition-configured marketing year", () => {
+    const payment = build();
 
-    expect(payment.marketingYear).toBe(new Date().getFullYear().toString());
-    expect(payment.payments[0].invoiceLines[0].marketingYear).toBe(
-      payment.marketingYear,
-    );
+    expect(payment.marketingYear).toBe("2026");
+    expect(payment.payments[0].invoiceLines[0].marketingYear).toBe("2026");
   });
 
   it("reports a missing definition mapping as a server configuration error", () => {
-    const error = getBuildError({ mapping: undefined });
+    const error = getBuildError({ paymentConfiguration: undefined });
 
     expect(error.output.statusCode).toBe(500);
     expect(error.message).toBe(
-      "createPayment requires a mapping from the Agreement Definition",
+      "createPayment requires payment configuration from the Agreement Definition",
     );
   });
 
-  it("reports a calculation with no payments as an upstream error", () => {
-    const error = getBuildError({
-      paymentCalculation: { payments: [] },
-    });
-
-    expect(error.output.statusCode).toBe(502);
-    expect(error.message).toBe(
-      "createPayment requires a payment calculation with at least one payment",
-    );
+  it("rejects an Agreement with no scheduled Instalments", () => {
+    expect(() =>
+      build({
+        agreementValues: {
+          ...agreementValues,
+          paymentSchedule: { instalments: [] },
+        },
+      }),
+    ).toThrow("Invalid Payment");
   });
 
   it("rejects a calculation whose total does not balance", () => {
     expect(() =>
       build({
-        paymentCalculation: {
-          ...paymentCalculation,
-          agreementTotalPence: 9999,
+        agreementValues: {
+          ...agreementValues,
+          totalAmountPence: 9999,
         },
       }),
     ).toThrow("totalAmountPence does not balance with its payments");
@@ -172,12 +242,17 @@ describe("buildPayment", () => {
   it("rejects a due payment that does not balance with its invoice lines", () => {
     expect(() =>
       build({
-        paymentCalculation: {
-          ...paymentCalculation,
-          agreementTotalPence: 9999,
-          payments: [
-            { ...paymentCalculation.payments[0], totalAmountPence: 9999 },
-          ],
+        agreementValues: {
+          ...agreementValues,
+          totalAmountPence: 9999,
+          paymentSchedule: {
+            instalments: [
+              {
+                ...agreementValues.paymentSchedule.instalments[0],
+                totalAmountPence: 9999,
+              },
+            ],
+          },
         },
       }),
     ).toThrow("does not balance with its invoice lines");
@@ -187,5 +262,29 @@ describe("buildPayment", () => {
     expect(() => build({ sbi: undefined, frn: undefined })).toThrow(
       "Invalid Payment",
     );
+  });
+
+  it("requires the Agreement Correlation ID for grant-level correlation", () => {
+    expect(() => build({ agreementCorrelationId: undefined })).toThrow(
+      "Agreement Correlation ID",
+    );
+  });
+
+  it("rejects a scheduled Line Item with no matching Agreement entry", () => {
+    expect(() =>
+      build({
+        agreementValues: {
+          ...agreementValues,
+          paymentSchedule: {
+            instalments: [
+              {
+                ...agreementValues.paymentSchedule.instalments[0],
+                lineItems: [{ actionId: "action:missing", amountPence: 3800 }],
+              },
+            ],
+          },
+        },
+      }),
+    ).toThrow('unknown Agreement entry "action:missing"');
   });
 });
