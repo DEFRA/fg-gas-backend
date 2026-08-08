@@ -14,12 +14,12 @@ describe("findAgreementDefinition", () => {
     expect(pmfAgreementDefinition.create).toEqual({
       target: "offered",
       application: "$.input.answers",
-      processes: ["CALCULATE_OFFER"],
+      processes: ["GENERATE_OFFER"],
     });
     expect(pmfAgreementDefinition.create).not.toHaveProperty("effects");
     expect(pmfAgreementDefinition).not.toHaveProperty("endpoints");
     expect(
-      pmfAgreementDefinition.processDefinitions.CALCULATE_OFFER,
+      pmfAgreementDefinition.processDefinitions.GENERATE_OFFER,
     ).toMatchObject({
       type: "endpoint",
       endpoint: {
@@ -48,7 +48,7 @@ describe("findAgreementDefinition", () => {
       },
     });
     expect(
-      pmfAgreementDefinition.processDefinitions.CALCULATE_OFFER.output.actions
+      pmfAgreementDefinition.processDefinitions.GENERATE_OFFER.output.actions
         .items,
     ).not.toHaveProperty("id");
   });
