@@ -114,13 +114,33 @@ const createPageProcessDefinition = (callEndpoint) =>
       },
       create: { target: "offered" },
       states: {
-        offered: { page: "offer" },
+        offered: {
+          page: "offer",
+          processes: ["CALCULATE_PAYMENT"],
+        },
         accepted: { page: "accepted" },
       },
       pages: {
+        document: {
+          title: "Document",
+          components: [
+            { component: "heading", text: "Document" },
+            {
+              component: "summary-list",
+              condition: "jsonata:$.agreement.state = 'offered'",
+              rows: [
+                {
+                  label: "Total funding",
+                  text: "$.outputs.CALCULATE_PAYMENT.totalAmountPence",
+                  format: "poundsFromPence",
+                },
+              ],
+            },
+          ],
+          actions: [],
+        },
         offer: {
           title: "Offer",
-          processes: ["CALCULATE_PAYMENT"],
           components: [
             {
               component: "summary-list",
@@ -278,20 +298,33 @@ describe("buildAgreementPageModel", () => {
     expect(result.actions).toEqual([]);
   });
 
-  it("does not execute Processes when building an accepted document", async () => {
-    const runProcesses = vi.fn();
-    const documentDefinition = {
-      getTemplates: () => definition.getTemplates(),
-      resolvePage: (page) => definition.resolvePage(page),
-      runProcesses,
-    };
+  it("runs offered-state Processes when building a draft document", async () => {
+    const callEndpoint = vi.fn().mockResolvedValue({ totalAmountPence: 1200 });
 
-    await buildAgreementDocumentPageModel({
-      agreement: { ...agreement, state: "accepted" },
-      agreementDefinition: documentDefinition,
+    const model = await buildAgreementDocumentPageModel({
+      agreement,
+      agreementDefinition: createPageProcessDefinition(callEndpoint),
     });
 
-    expect(runProcesses).not.toHaveBeenCalled();
+    expect(model.components).toContainEqual({
+      component: "summary-list",
+      rows: [{ label: "Total funding", text: "£12" }],
+    });
+    expect(callEndpoint).toHaveBeenCalledOnce();
+  });
+
+  it("does not run offered-state Processes when building an accepted document", async () => {
+    const callEndpoint = vi.fn();
+
+    const model = await buildAgreementDocumentPageModel({
+      agreement: { ...agreement, state: "accepted" },
+      agreementDefinition: createPageProcessDefinition(callEndpoint),
+    });
+
+    expect(model.components).toEqual([
+      { component: "heading", text: "Document" },
+    ]);
+    expect(callEndpoint).not.toHaveBeenCalled();
   });
 
   it("builds pages.document without lifecycle actions", async () => {

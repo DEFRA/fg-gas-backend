@@ -112,15 +112,24 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
-  it("rejects Processes on the read-only document page", () => {
+  it("allows render Processes on lifecycle states", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.pages.document.processes = ["GENERATE_OFFER"];
+    definition.states.offered.processes = ["GENERATE_OFFER"];
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
+  it("rejects render Processes on page definitions", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.pages.offered.processes = ["GENERATE_OFFER"];
 
     const { error } = validate(definition);
 
     expect(error).toBeDefined();
     expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
-      /"pages.document.processes" is not allowed/,
+      /"pages.offered.processes" is not allowed/,
     );
   });
 
