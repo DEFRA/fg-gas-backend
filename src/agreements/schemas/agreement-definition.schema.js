@@ -233,7 +233,11 @@ const pageDefinition = Joi.object({
   .unknown(true)
   .label("Page");
 
-const pages = Joi.object()
+const documentPageDefinition = pageDefinition
+  .keys({ processes: Joi.forbidden() })
+  .label("DocumentPage");
+
+const pages = Joi.object({ document: documentPageDefinition.optional() })
   .pattern(Joi.string(), pageDefinition)
   .min(1)
   .required()
