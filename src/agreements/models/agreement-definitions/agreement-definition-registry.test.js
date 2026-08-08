@@ -14,12 +14,12 @@ describe("findAgreementDefinition", () => {
     expect(pmfAgreementDefinition.create).toEqual({
       target: "offered",
       application: "$.input.answers",
-      processes: ["calculate-offer"],
+      processes: ["CALCULATE_OFFER"],
     });
     expect(pmfAgreementDefinition.create).not.toHaveProperty("effects");
     expect(pmfAgreementDefinition).not.toHaveProperty("endpoints");
     expect(
-      pmfAgreementDefinition.processDefinitions["calculate-offer"],
+      pmfAgreementDefinition.processDefinitions.CALCULATE_OFFER,
     ).toMatchObject({
       type: "endpoint",
       endpoint: {
@@ -48,17 +48,17 @@ describe("findAgreementDefinition", () => {
       },
     });
     expect(
-      pmfAgreementDefinition.processDefinitions["calculate-offer"].output
-        .actions.items,
+      pmfAgreementDefinition.processDefinitions.CALCULATE_OFFER.output.actions
+        .items,
     ).not.toHaveProperty("id");
   });
 
   it("configures acceptance to stage Payment from stored Agreement values", () => {
     const acceptance = pmfAgreementDefinition.states.offered.on.accept;
     const paymentProcess =
-      pmfAgreementDefinition.processDefinitions["create-agreement-payment"];
+      pmfAgreementDefinition.processDefinitions.CREATE_AGREEMENT_PAYMENT;
 
-    expect(acceptance.processes).toEqual(["create-agreement-payment"]);
+    expect(acceptance.processes).toEqual(["CREATE_AGREEMENT_PAYMENT"]);
     expect(acceptance).not.toHaveProperty("effects");
     expect(paymentProcess).toEqual({
       type: "handler",

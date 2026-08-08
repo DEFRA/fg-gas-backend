@@ -125,7 +125,7 @@ describe("handleCreateAgreementCommandUseCase", () => {
     expect(callEndpoint).toHaveBeenCalledOnce();
     expect(callEndpoint).toHaveBeenCalledWith(
       {
-        code: "calculate-offer",
+        code: "CALCULATE_OFFER",
         method: "POST",
         path: "/paymentSchedule",
         service: "GRANT_FUNDING_CALCULATOR",
@@ -220,9 +220,8 @@ describe("handleCreateAgreementCommandUseCase", () => {
     };
     const response = withInvoiceLines([largeWhiteLine, berkshireLine], 8600);
     const definitionData = structuredClone(pmfDefinitionData);
-    definitionData.processDefinitions[
-      "calculate-offer"
-    ].output.actions.items.code = "DUPLICATE-CODE";
+    definitionData.processDefinitions.CALCULATE_OFFER.output.actions.items.code =
+      "DUPLICATE-CODE";
     loadAgreementDefinition.mockResolvedValue(
       createDefinition(vi.fn().mockResolvedValue(response), definitionData),
     );
@@ -246,7 +245,7 @@ describe("handleCreateAgreementCommandUseCase", () => {
 
   it("allocates identities for unscheduled entries without candidate references", async () => {
     const definitionData = structuredClone(pmfDefinitionData);
-    const output = definitionData.processDefinitions["calculate-offer"].output;
+    const output = definitionData.processDefinitions.CALCULATE_OFFER.output;
     delete output.actions.items.ref;
     delete output.paymentSchedule;
     loadAgreementDefinition.mockResolvedValue(
@@ -298,9 +297,7 @@ describe("handleCreateAgreementCommandUseCase", () => {
       "unknown candidate references",
       () => {
         const definitionData = structuredClone(pmfDefinitionData);
-        definitionData.processDefinitions[
-          "calculate-offer"
-        ].output.actions.itemsRef =
+        definitionData.processDefinitions.CALCULATE_OFFER.output.actions.itemsRef =
           "jsonata:$.response.payment.payments[0].invoiceLines[0]";
         const berkshireLine = {
           pigType: "berkshire",

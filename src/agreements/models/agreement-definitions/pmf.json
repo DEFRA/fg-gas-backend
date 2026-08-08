@@ -3,7 +3,7 @@
   "configVersion": "1.2.0",
   "agreementNumberPrefix": "PMF",
   "processDefinitions": {
-    "calculate-offer": {
+    "CALCULATE_OFFER": {
       "type": "endpoint",
       "endpoint": {
         "method": "POST",
@@ -68,7 +68,7 @@
         }
       }
     },
-    "create-agreement-payment": {
+    "CREATE_AGREEMENT_PAYMENT": {
       "type": "handler",
       "input": {
         "agreementValues": {
@@ -99,7 +99,7 @@
   "create": {
     "target": "offered",
     "application": "$.input.answers",
-    "processes": ["calculate-offer"]
+    "processes": ["CALCULATE_OFFER"]
   },
   "states": {
     "offered": {
@@ -118,7 +118,7 @@
               }
             ]
           },
-          "processes": ["create-agreement-payment"]
+          "processes": ["CREATE_AGREEMENT_PAYMENT"]
         }
       }
     },
