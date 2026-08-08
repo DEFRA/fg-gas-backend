@@ -112,6 +112,18 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
+  it("rejects Processes on the read-only document page", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.pages.document.processes = ["GENERATE_OFFER"];
+
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /"pages.document.processes" is not allowed/,
+    );
+  });
+
   it("fails when document section ids are duplicated", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.pages.document.sections[1].id =

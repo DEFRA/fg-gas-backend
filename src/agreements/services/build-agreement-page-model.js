@@ -184,7 +184,7 @@ export const buildAgreementDocumentPageModel = async ({
   agreement,
   agreementDefinition,
 }) =>
-  buildPageWithProcesses({
+  buildPageModel({
     agreement,
     agreementDefinition,
     includeSections: true,

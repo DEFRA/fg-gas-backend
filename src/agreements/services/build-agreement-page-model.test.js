@@ -278,6 +278,22 @@ describe("buildAgreementPageModel", () => {
     expect(result.actions).toEqual([]);
   });
 
+  it("does not execute Processes when building an accepted document", async () => {
+    const runProcesses = vi.fn();
+    const documentDefinition = {
+      getTemplates: () => definition.getTemplates(),
+      resolvePage: (page) => definition.resolvePage(page),
+      runProcesses,
+    };
+
+    await buildAgreementDocumentPageModel({
+      agreement: { ...agreement, state: "accepted" },
+      agreementDefinition: documentDefinition,
+    });
+
+    expect(runProcesses).not.toHaveBeenCalled();
+  });
+
   it("builds pages.document without lifecycle actions", async () => {
     const result = await buildAgreementDocumentPageModel({
       agreement,
