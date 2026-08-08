@@ -95,6 +95,7 @@ const buildPageModel = async ({
   agreement,
   agreementDefinition,
   includeSections = false,
+  outputs,
   page,
   resolvePageActions,
 }) => {
@@ -105,6 +106,7 @@ const buildPageModel = async ({
   const context = {
     agreement,
     definition: { templates: agreementDefinition.getTemplates() },
+    outputs,
   };
 
   try {
@@ -134,6 +136,32 @@ const buildPageModel = async ({
   }
 };
 
+const buildPageWithProcesses = async ({
+  agreement,
+  agreementDefinition,
+  page,
+  ...options
+}) => {
+  const { outputs } = await agreementDefinition.runProcesses({
+    location: { type: "page", state: agreement.state, page },
+    context: {
+      agreement,
+      execution: {
+        correlationId: agreement.correlationId,
+        executedAt: new Date().toISOString(),
+      },
+    },
+  });
+
+  return buildPageModel({
+    agreement,
+    agreementDefinition,
+    outputs,
+    page,
+    ...options,
+  });
+};
+
 export const buildAgreementPageModel = async ({
   agreement,
   agreementDefinition,
@@ -143,7 +171,7 @@ export const buildAgreementPageModel = async ({
   assertSupportedAgreementPageMode(mode);
   agreementDefinition.assertPageAllowed({ page, state: agreement.state });
 
-  return buildPageModel({
+  return buildPageWithProcesses({
     agreement,
     agreementDefinition,
     page,
@@ -156,7 +184,7 @@ export const buildAgreementDocumentPageModel = async ({
   agreement,
   agreementDefinition,
 }) =>
-  buildPageModel({
+  buildPageWithProcesses({
     agreement,
     agreementDefinition,
     includeSections: true,

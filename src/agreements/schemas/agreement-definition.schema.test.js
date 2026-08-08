@@ -112,6 +112,27 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
+  it("allows render Processes on lifecycle states", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.states.offered.processes = ["GENERATE_OFFER"];
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
+  it("rejects render Processes on page definitions", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.pages.offered.processes = ["GENERATE_OFFER"];
+
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /"pages.offered.processes" is not allowed/,
+    );
+  });
+
   it("fails when document section ids are duplicated", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.pages.document.sections[1].id =
