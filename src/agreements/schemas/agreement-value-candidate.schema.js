@@ -45,6 +45,7 @@ const transitionItemCandidatesSchema = Joi.array().items(
 
 const paymentLineItemValueFields = {
   amountPence: penceSchema.required(),
+  description: Joi.string().optional(),
 };
 
 const processPaymentLineItemSchema = Joi.object({
@@ -68,6 +69,7 @@ const transitionPaymentLineItemSchema = Joi.object({
 const paymentInstalmentValueFields = {
   dueDate: agreementDateSchema.required(),
   totalAmountPence: penceSchema.required(),
+  correlationId: Joi.string().optional(),
 };
 
 const processPaymentInstalmentSchema = Joi.object({
