@@ -4,17 +4,20 @@ import { generateAgreementNumber } from "../agreement-number.js";
 import { Agreement } from "../agreement.js";
 import { requirePersistedAgreementState } from "../require-persisted-agreement-state.js";
 import { compileApplicationMapping } from "./compile-application-mapping.js";
+import { compileCreationValueMapping } from "./compile-creation-value-mapping.js";
 import { compileAgreementProcesses } from "./processes/agreement-process-runtime.js";
 import { validateAgreementDefinition } from "./validate.js";
 
 export class AgreementDefinition {
   #definition;
   #resolveApplication;
+  #resolveCreationValues;
   #runProcesses;
 
   constructor(definition, dependencies) {
     this.#definition = validateAgreementDefinition(definition);
     this.#resolveApplication = compileApplicationMapping(this.#definition);
+    this.#resolveCreationValues = compileCreationValueMapping(this.#definition);
     this.#runProcesses = compileAgreementProcesses(
       this.#definition,
       dependencies,
@@ -57,6 +60,10 @@ export class AgreementDefinition {
 
   async resolveApplication(input) {
     return this.#resolveApplication(input);
+  }
+
+  async resolveCreationValues(context) {
+    return this.#resolveCreationValues(context);
   }
 
   resolveAction({ state, action }) {

@@ -39,13 +39,20 @@ const processDefinitions = Joi.object()
   .optional()
   .label("ProcessDefinitions");
 
-const create = Joi.object({
-  target: Joi.string().required(),
-  application: Joi.when("processes", {
+const createApplication = Joi.when("values", {
+  is: Joi.exist(),
+  then: Joi.any().required(),
+  otherwise: Joi.when("processes", {
     is: Joi.exist(),
     then: Joi.any().required(),
     otherwise: Joi.any().optional(),
   }),
+});
+
+const create = Joi.object({
+  target: Joi.string().required(),
+  application: createApplication,
+  values: Joi.object().min(1).unknown(true).optional(),
   effects: Joi.forbidden(),
   processes,
 })

@@ -23,6 +23,15 @@ const agreement = new Agreement({
   configVersion: "1.0.1",
   correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
   identifiers: { sbi: "300000069" },
+  schemeCode: "WMP",
+  name: "Oakridge Estate WMP",
+  applicant: {
+    business: {
+      name: "Oakridge Estate",
+      address: { line1: "Farm House", postalCode: "YO1 1AA" },
+    },
+    customer: { name: { first: "Alex", last: "Farmer" } },
+  },
   application: { whitePigsCount: 5 },
   actions: [{ id: "action:1", code: "largeWhite" }],
   items: [],
@@ -117,6 +126,12 @@ describe("single Agreement repository", () => {
       { session },
     );
     expect(document).toMatchObject({
+      schemeCode: "WMP",
+      name: "Oakridge Estate WMP",
+      applicant: {
+        business: { name: "Oakridge Estate" },
+        customer: { name: { first: "Alex", last: "Farmer" } },
+      },
       application: { whitePigsCount: 5 },
       actions: [{ id: "action:1", code: "largeWhite" }],
       items: [],
@@ -170,6 +185,12 @@ describe("single Agreement repository", () => {
       { session: undefined },
     );
     expect(document.snapshot).toMatchObject({
+      schemeCode: "WMP",
+      name: "Oakridge Estate WMP",
+      applicant: {
+        business: { name: "Oakridge Estate" },
+        customer: { name: { first: "Alex", last: "Farmer" } },
+      },
       application: { whitePigsCount: 5 },
       actions: [{ id: "action:1", code: "largeWhite" }],
       items: [],

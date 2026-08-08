@@ -14,12 +14,20 @@ import { createOutboxMessages } from "../services/effects/create-outbox-messages
 
 const runCreationProcesses = async (definition, input, execution) => {
   const application = await definition.resolveApplication(input);
+  const mappedValues = await definition.resolveCreationValues({
+    application,
+    input,
+  });
   const { outputs } = await definition.runProcesses({
     location: { type: "create" },
     context: { application, execution },
   });
 
-  return assembleCreationAgreementValues({ application, outputs });
+  return assembleCreationAgreementValues({
+    application,
+    mappedValues,
+    outputs,
+  });
 };
 
 const createAgreement = async (event) => {

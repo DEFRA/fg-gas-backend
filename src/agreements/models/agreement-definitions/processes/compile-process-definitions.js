@@ -5,6 +5,7 @@ import {
 } from "../../../../common/agreements/resolve-process-mapping.js";
 import { findProcessOutputSchema } from "./agreement-process-registries.js";
 import { findProcessOutputDependencies } from "./find-process-output-dependencies.js";
+import { findUnknownMappingField } from "./find-unknown-mapping-field.js";
 
 const badGatewayStatusCode = 502;
 const validationOptions = {
@@ -38,55 +39,14 @@ const assertValidMapping = (processKey, path, mapping) => {
   }
 };
 
-const isMappingObject = (value) =>
-  value !== null && !Array.isArray(value) && typeof value === "object";
-
-const arrayItemSchema = (schema) => schema.items?.[0] ?? {};
-
-const assertKnownArrayFields = (mapping, schema, path) => {
-  if (!isMappingObject(mapping)) {
-    return;
-  }
-
-  if (Object.hasOwn(mapping, "items")) {
-    assertKnownMappingFields(mapping.items, arrayItemSchema(schema), path);
-  }
-};
-
-const fieldsFor = (schema) => schema.keys ?? {};
-const allowsUnknownFields = (schema) => schema.flags?.unknown;
-const isUnknownField = (schema) =>
-  !schema || schema.flags?.presence === "forbidden";
-
-const assertKnownObjectFields = (mapping, schema, path) => {
-  if (allowsUnknownFields(schema)) {
-    return;
-  }
-
-  const fields = fieldsFor(schema);
-
-  for (const [key, value] of Object.entries(mapping)) {
-    if (isUnknownField(fields[key])) {
-      throw Boom.badImplementation(
-        `Agreement Process mapping field "${path}.${key}" is unknown`,
-      );
-    }
-
-    assertKnownMappingFields(value, fields[key], `${path}.${key}`);
-  }
-};
-
-const fieldAssertions = {
-  array: assertKnownArrayFields,
-  object: assertKnownObjectFields,
-};
-
 const assertKnownMappingFields = (mapping, schema, path) => {
-  if (!isMappingObject(mapping)) {
-    return;
-  }
+  const unknownPath = findUnknownMappingField(mapping, schema, path);
 
-  fieldAssertions[schema.type]?.(mapping, schema, path);
+  if (unknownPath) {
+    throw Boom.badImplementation(
+      `Agreement Process mapping field "${unknownPath}" is unknown`,
+    );
+  }
 };
 
 const assertKnownOutputMappings = (processKey, output) => {

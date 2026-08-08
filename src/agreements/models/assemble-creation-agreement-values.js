@@ -7,6 +7,21 @@ const collectProcessOutputs = (outputs) =>
     {},
   );
 
+const mergeCreationValues = (mappedValues, outputs) => {
+  const processValues = collectProcessOutputs(outputs);
+  const competingFields = Object.keys(mappedValues).filter((field) =>
+    Object.hasOwn(processValues, field),
+  );
+
+  if (competingFields.length > 0) {
+    throw Boom.badImplementation(
+      `Agreement creation has competing value producers for: ${competingFields.join(", ")}`,
+    );
+  }
+
+  return { ...mappedValues, ...processValues };
+};
+
 const invalidCandidateReferences = () =>
   Boom.badImplementation(
     "Agreement creation produced invalid candidate references",
@@ -132,10 +147,14 @@ const validateAgreementValues = (values) => {
   return structuredClone(result.value);
 };
 
-export const assembleCreationAgreementValues = ({ application, outputs }) =>
+export const assembleCreationAgreementValues = ({
+  application,
+  mappedValues,
+  outputs,
+}) =>
   validateAgreementValues(
     allocatePersistentIdentity({
       application: structuredClone(application),
-      ...collectProcessOutputs(outputs),
+      ...mergeCreationValues(mappedValues, outputs),
     }),
   );

@@ -13,6 +13,7 @@ const collectSequences = (definition) => [
     location: "create",
     path: "create.processes",
     processes: definition.create.processes ?? [],
+    produced: Object.keys(definition.create.values ?? {}),
   },
   ...Object.entries(definition.states).flatMap(([stateName, state]) => [
     {
@@ -102,7 +103,7 @@ const assertHandlerLocation = (processKey, definition, sequence, handlers) => {
 
 const validateSequence = (sequence, processDefinitions, handlers) => {
   const seen = new Set();
-  const produced = new Set();
+  const produced = new Set(sequence.produced);
 
   for (const processKey of sequence.processes) {
     const definition = requireProcessDefinition(
