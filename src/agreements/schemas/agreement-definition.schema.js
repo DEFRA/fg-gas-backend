@@ -79,6 +79,7 @@ const actionTransition = Joi.object({
 
 const state = Joi.object({
   page: Joi.string().optional(),
+  processes,
   on: Joi.object().pattern(Joi.string(), actionTransition).optional(),
 }).label("State");
 
@@ -226,18 +227,14 @@ const pageDefinition = Joi.object({
   print: Joi.boolean().optional(),
   watermark: watermark.optional(),
   components: Joi.array().items(component).min(1).required(),
-  processes,
+  processes: Joi.forbidden(),
   sections: Joi.array().items(documentSection).min(1).unique("id").optional(),
   actions: Joi.array().items(pageAction).optional(),
 })
   .unknown(true)
   .label("Page");
 
-const documentPageDefinition = pageDefinition
-  .keys({ processes: Joi.forbidden() })
-  .label("DocumentPage");
-
-const pages = Joi.object({ document: documentPageDefinition.optional() })
+const pages = Joi.object()
   .pattern(Joi.string(), pageDefinition)
   .min(1)
   .required()

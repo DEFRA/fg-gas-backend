@@ -292,7 +292,7 @@ describe("AgreementDefinition Process runtime", () => {
       request: { body: { state: "$.agreement.state" } },
       output: { actions: "$.response.actions" },
     };
-    definitionData.pages.offered.processes = ["load-page-data"];
+    definitionData.states.offered.processes = ["load-page-data"];
     const callEndpoint = vi.fn().mockResolvedValue({
       actions: [{ code: "PMF1", quantity: "5", unit: "head" }],
     });
@@ -317,10 +317,10 @@ describe("AgreementDefinition Process runtime", () => {
 
   it("checks page access before running a Process", async () => {
     const definitionData = createDefinition();
+    definitionData.states.offered.processes = ["calculate-offer"];
     definitionData.pages.hidden = {
       title: "Hidden",
       components: [{ component: "heading", text: "Hidden" }],
-      processes: ["calculate-offer"],
     };
     const callEndpoint = vi.fn();
     const definition = new AgreementDefinition(definitionData, {
