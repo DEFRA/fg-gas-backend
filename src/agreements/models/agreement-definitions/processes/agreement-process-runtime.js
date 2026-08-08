@@ -218,6 +218,7 @@ const resolveTransitionLocation = (definition, location) => {
   return {
     executionLocation: "transition",
     processes: transition.processes ?? [],
+    stateName: location.state,
     target: transition.target,
     transitionName: location.transition,
   };
@@ -289,8 +290,11 @@ const locationContext = {
   page: (context) => ({ agreement: structuredClone(context.agreement) }),
 };
 
-const toProcessContext = (context, location, outputs) => ({
-  ...locationContext[location.executionLocation](context, location),
+const toProcessContext = (context, location, outputs, agreement) => ({
+  ...locationContext[location.executionLocation](
+    agreement === undefined ? context : { ...context, agreement },
+    location,
+  ),
   execution: {
     ...structuredClone(context.execution),
     location: location.executionLocation,
@@ -299,24 +303,124 @@ const toProcessContext = (context, location, outputs) => ({
   outputs: structuredClone(outputs),
 });
 
-const runSequence = async (location, executableMap, context) => {
-  const intents = [];
-  const outputs = {};
+const isTransitionHandler = (location, definition) =>
+  location.executionLocation === "transition" && definition.type === "handler";
 
-  for (const processKey of location.processes) {
-    const result = await executableMap[processKey](
-      toProcessContext(context, location, outputs),
-    );
-    Object.defineProperty(outputs, processKey, {
-      configurable: true,
-      enumerable: true,
-      value: result.output,
-      writable: true,
-    });
-    intents.push(...result.intents);
+const resolveCandidate = async (
+  location,
+  context,
+  outputs,
+  resolveTransitionValues,
+) => {
+  const agreementValues = await resolveTransitionValues({
+    state: location.stateName,
+    transition: location.transitionName,
+    agreement: context.agreement,
+    outputs,
+  });
+
+  return {
+    agreement: agreementValues
+      ? { ...structuredClone(context.agreement), ...agreementValues }
+      : context.agreement,
+    agreementValues,
+  };
+};
+
+const toSequenceResult = (outputs, intents, agreementValues) => ({
+  outputs,
+  ...(agreementValues === undefined ? {} : { agreementValues }),
+  ...(intents.length === 0 ? {} : { intents }),
+});
+
+const resolveCandidateBeforeHandler = async (
+  candidate,
+  processDefinition,
+  options,
+) => {
+  if (
+    candidate.resolved ||
+    !isTransitionHandler(options.location, processDefinition)
+  ) {
+    return candidate;
   }
 
-  return intents.length > 0 ? { outputs, intents } : { outputs };
+  return {
+    ...(await resolveCandidate(
+      options.location,
+      options.context,
+      options.outputs,
+      options.resolveTransitionValues,
+    )),
+    resolved: true,
+  };
+};
+
+const resolveCandidateAfterProcesses = async (candidate, options) => {
+  if (
+    candidate.resolved ||
+    options.location.executionLocation !== "transition"
+  ) {
+    return candidate;
+  }
+
+  return {
+    ...(await resolveCandidate(
+      options.location,
+      options.context,
+      options.outputs,
+      options.resolveTransitionValues,
+    )),
+    resolved: true,
+  };
+};
+
+const recordProcessResult = (outputs, intents, processKey, result) => {
+  Object.defineProperty(outputs, processKey, {
+    configurable: true,
+    enumerable: true,
+    value: result.output,
+    writable: true,
+  });
+  intents.push(...result.intents);
+};
+
+const runSequence = async (
+  location,
+  executableMap,
+  processDefinitions,
+  context,
+  resolveTransitionValues,
+) => {
+  const intents = [];
+  const outputs = {};
+  const candidateOptions = {
+    context,
+    location,
+    outputs,
+    resolveTransitionValues,
+  };
+  let candidate = {
+    agreement: context.agreement,
+    agreementValues: undefined,
+    resolved: false,
+  };
+
+  for (const processKey of location.processes) {
+    candidate = await resolveCandidateBeforeHandler(
+      candidate,
+      processDefinitions[processKey],
+      candidateOptions,
+    );
+    const result = await executableMap[processKey](
+      toProcessContext(context, location, outputs, candidate.agreement),
+    );
+    recordProcessResult(outputs, intents, processKey, result);
+  }
+
+  candidate = await resolveCandidateAfterProcesses(candidate, candidateOptions);
+
+  return toSequenceResult(outputs, intents, candidate.agreementValues);
 };
 
 const resolveDependencies = (dependencies) => ({
@@ -324,7 +428,11 @@ const resolveDependencies = (dependencies) => ({
   handlers: dependencies.handlers ?? agreementProcessHandlers,
 });
 
-export const compileAgreementProcesses = (definition, dependencies = {}) => {
+export const compileAgreementProcesses = (
+  definition,
+  dependencies = {},
+  resolveTransitionValues = () => undefined,
+) => {
   const resolvedDependencies = resolveDependencies(dependencies);
   const processDefinitions = definition.processDefinitions ?? {};
   const executableMap = compileProcessDefinitions(
@@ -344,6 +452,12 @@ export const compileAgreementProcesses = (definition, dependencies = {}) => {
       resolvedLocation.executionLocation,
     );
 
-    return runSequence(resolvedLocation, executableMap, validatedContext);
+    return runSequence(
+      resolvedLocation,
+      executableMap,
+      processDefinitions,
+      validatedContext,
+      resolveTransitionValues,
+    );
   };
 };

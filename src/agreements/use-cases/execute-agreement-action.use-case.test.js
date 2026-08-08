@@ -163,6 +163,25 @@ describe("executeAgreementActionUseCase", () => {
     expect(version.snapshot).toEqual(accepted);
   });
 
+  it("commits the complete Agreement values materialised by transition Processes", async () => {
+    const agreementValues = {
+      ...offeredAgreementValues,
+      startDate: "2026-09-01",
+      endDate: "2029-08-31",
+    };
+    agreementDefinition.runProcesses.mockResolvedValue({
+      outputs: { CALCULATE_DATES: {} },
+      agreementValues,
+    });
+
+    await executeAgreementActionUseCase(options);
+
+    const [accepted] = replaceCurrentAgreement.mock.calls[0];
+    const [version] = insertAgreementVersion.mock.calls[0];
+    expect(accepted).toMatchObject(agreementValues);
+    expect(version.snapshot).toEqual(accepted);
+  });
+
   it("returns a completed idempotent action before running Processes", async () => {
     findVersionByIdempotencyKey.mockResolvedValue({
       actionExecution: { name: "accept" },
@@ -186,6 +205,20 @@ describe("executeAgreementActionUseCase", () => {
         },
       },
     });
+  });
+
+  it("writes nothing when transition candidate resolution fails", async () => {
+    agreementDefinition.runProcesses.mockRejectedValue(
+      new Error("invalid transition candidate"),
+    );
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
+      "invalid transition candidate",
+    );
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(replaceCurrentAgreement).not.toHaveBeenCalled();
+    expect(insertAgreementVersion).not.toHaveBeenCalled();
+    expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
   it("returns field errors applied to the configured validation page", async () => {

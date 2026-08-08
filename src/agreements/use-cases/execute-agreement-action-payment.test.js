@@ -236,6 +236,74 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
     expect(saveOutboxEvents).toHaveBeenCalledWith(expect.anything(), session);
   });
 
+  it("creates Payment from the exact materialised values committed to the Agreement", async () => {
+    const actions = agreement.actions.map((entry, index) => ({
+      ...entry,
+      totalAmountPence: index === 0 ? 2200 : 1800,
+    }));
+    const paymentSchedule = {
+      instalments: [
+        {
+          id: "instalment:1",
+          dueDate: "2026-12-01",
+          totalAmountPence: 4000,
+          lineItems: [
+            { actionId: "action:1", amountPence: 2200 },
+            { actionId: "action:2", amountPence: 1800 },
+          ],
+        },
+      ],
+    };
+    const agreementValues = {
+      application: agreement.application,
+      startDate: "2026-09-01",
+      endDate: "2027-08-31",
+      actions,
+      items: [],
+      totalAmountPence: 4000,
+      paymentSchedule,
+    };
+    const paymentValues = {
+      startDate: agreementValues.startDate,
+      endDate: agreementValues.endDate,
+      actions,
+      items: [],
+      totalAmountPence: 4000,
+      paymentSchedule,
+    };
+    agreementDefinition.runProcesses.mockResolvedValue({
+      outputs: { CALCULATE_ACCEPTED_VALUES: {} },
+      agreementValues,
+      intents: [
+        {
+          type: "create-agreement-payment",
+          request: {
+            agreementValues: paymentValues,
+            paymentConfiguration: mapping,
+          },
+        },
+      ],
+    });
+
+    await executeAgreementActionUseCase(options);
+
+    const [accepted] = replaceCurrentAgreement.mock.calls[0];
+    const [version] = insertAgreementVersion.mock.calls[0];
+    const [payment] = insertPayment.mock.calls[0];
+    expect(accepted).toMatchObject(agreementValues);
+    expect(version.snapshot).toEqual(accepted);
+    expect(payment).toMatchObject({
+      totalAmountPence: accepted.totalAmountPence,
+      payments: [
+        expect.objectContaining({
+          dueDate: accepted.paymentSchedule.instalments[0].dueDate,
+          totalAmountPence:
+            accepted.paymentSchedule.instalments[0].totalAmountPence,
+        }),
+      ],
+    });
+  });
+
   it("commits the payment event with the lifecycle event in one write", async () => {
     await executeAgreementActionUseCase(options);
 
@@ -372,6 +440,44 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
     expect(insertPayment).toHaveBeenCalled();
   });
 
+  it("rejects a Payment intent whose values differ from the transition candidate", async () => {
+    agreementDefinition.runProcesses.mockResolvedValue({
+      outputs: {},
+      agreementValues: {
+        application: agreement.application,
+        startDate: agreement.startDate,
+        endDate: agreement.endDate,
+        actions: agreement.actions,
+        items: agreement.items,
+        totalAmountPence: 4000,
+        paymentSchedule: agreement.paymentSchedule,
+      },
+      intents: [
+        {
+          type: "create-agreement-payment",
+          request: {
+            agreementValues: {
+              startDate: agreement.startDate,
+              endDate: agreement.endDate,
+              actions: agreement.actions,
+              items: agreement.items,
+              totalAmountPence: 3800,
+              paymentSchedule: agreement.paymentSchedule,
+            },
+            paymentConfiguration: mapping,
+          },
+        },
+      ],
+    });
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
+      "Payment intent must use the materialised Agreement values",
+    );
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(insertPayment).not.toHaveBeenCalled();
+    expect(replaceCurrentAgreement).not.toHaveBeenCalled();
+  });
+
   it("leaves the Agreement offered when the Payment configuration is invalid", async () => {
     agreementDefinition.runProcesses.mockResolvedValue({
       outputs: {},
@@ -379,7 +485,14 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
         {
           type: "create-agreement-payment",
           request: {
-            agreementValues: agreement,
+            agreementValues: {
+              startDate: agreement.startDate,
+              endDate: agreement.endDate,
+              actions: agreement.actions,
+              items: agreement.items,
+              totalAmountPence: agreement.totalAmountPence,
+              paymentSchedule: agreement.paymentSchedule,
+            },
             paymentConfiguration: undefined,
           },
         },
@@ -395,13 +508,25 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
   });
 
   it("leaves the Agreement offered when the stored Payment facts do not balance", async () => {
+    const paymentValues = {
+      startDate: agreement.startDate,
+      endDate: agreement.endDate,
+      actions: agreement.actions,
+      items: agreement.items,
+      totalAmountPence: 1,
+      paymentSchedule: agreement.paymentSchedule,
+    };
     agreementDefinition.runProcesses.mockResolvedValue({
       outputs: {},
+      agreementValues: {
+        application: agreement.application,
+        ...paymentValues,
+      },
       intents: [
         {
           type: "create-agreement-payment",
           request: {
-            agreementValues: { ...agreement, totalAmountPence: 1 },
+            agreementValues: paymentValues,
             paymentConfiguration: mapping,
           },
         },

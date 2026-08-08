@@ -54,7 +54,7 @@ export class Agreement {
     this.acceptedAt = acceptedAt;
   }
 
-  transition({ target, transitionedAt }) {
+  transition({ target, transitionedAt, values }) {
     const transitionChanges = resolveTransitionChanges({
       agreement: this,
       target,
@@ -63,6 +63,7 @@ export class Agreement {
 
     return new Agreement({
       ...this,
+      ...values,
       ...transitionChanges,
       state: target,
       version: this.version + 1,

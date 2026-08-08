@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { isDeepStrictEqual } from "node:util";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
@@ -44,6 +45,39 @@ const findCompleted = async (
   return { location: currentAgreementLocation };
 };
 
+const paymentAgreementValueFields = [
+  "startDate",
+  "endDate",
+  "actions",
+  "items",
+  "totalAmountPence",
+  "paymentSchedule",
+];
+
+const findPaymentRequest = (intents) =>
+  intents.find(({ type }) => type === "create-agreement-payment")?.request;
+
+const selectPaymentAgreementValues = (agreement) =>
+  Object.fromEntries(
+    paymentAgreementValueFields.map((field) => [field, agreement[field]]),
+  );
+
+const assertPaymentIntentMatches = (agreement, intents) => {
+  const paymentRequest = findPaymentRequest(intents);
+
+  if (
+    paymentRequest &&
+    !isDeepStrictEqual(
+      paymentRequest.agreementValues,
+      selectPaymentAgreementValues(agreement),
+    )
+  ) {
+    throw Boom.badImplementation(
+      "Payment intent must use the materialised Agreement values",
+    );
+  }
+};
+
 const runAction = async ({
   action,
   agreement,
@@ -66,14 +100,15 @@ const runAction = async ({
       },
     },
   });
+  const intents = processResult.intents ?? [];
+  const nextAgreement = agreement.transition({
+    target: action.transition.target,
+    transitionedAt: executedAt,
+    values: processResult.agreementValues,
+  });
+  assertPaymentIntentMatches(nextAgreement, intents);
 
-  return {
-    agreement: agreement.transition({
-      target: action.transition.target,
-      transitionedAt: executedAt,
-    }),
-    intents: processResult.intents ?? [],
-  };
+  return { agreement: nextAgreement, intents };
 };
 
 // Payments owns the claim ID, the Payment document and the message that carries
@@ -81,9 +116,6 @@ const runAction = async ({
 // commit with the Agreement, its Version and the lifecycle event, and roll back
 // together when anything before the commit fails. The Payment Service
 // publication comes back to be written to the outbox with the rest.
-const findPaymentRequest = (intents) =>
-  intents.find(({ type }) => type === "create-agreement-payment")?.request;
-
 const createAgreementPayment = async ({ agreement, intents }, session) => {
   const paymentRequest = findPaymentRequest(intents);
 

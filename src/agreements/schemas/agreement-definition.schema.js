@@ -68,6 +68,7 @@ const validation = Joi.object({
 const actionTransition = Joi.object({
   target: Joi.string().required(),
   validation: validation.optional(),
+  values: Joi.object().min(1).unknown(true).optional(),
   effects: Joi.forbidden(),
   processes,
 })
