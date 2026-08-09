@@ -63,14 +63,6 @@ describe("findAgreementDefinition", () => {
     expect(paymentProcess).toEqual({
       type: "handler",
       input: {
-        agreementValues: {
-          startDate: "$.agreement.startDate",
-          endDate: "$.agreement.endDate",
-          actions: "$.agreement.actions",
-          items: "$.agreement.items",
-          totalAmountPence: "$.agreement.totalAmountPence",
-          paymentSchedule: "$.agreement.paymentSchedule",
-        },
         payment: {
           scheme: "SFI",
           sourceSystem: "FPTT",

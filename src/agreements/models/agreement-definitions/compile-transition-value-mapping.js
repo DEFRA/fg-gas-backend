@@ -16,6 +16,7 @@ import {
 } from "../../schemas/agreement-value.schema.js";
 import { findProcessOutputDependencies } from "./processes/find-process-output-dependencies.js";
 import { findUnknownMappingField } from "./processes/find-unknown-mapping-field.js";
+import { reconcileTransitionIdentities } from "./reconcile-transition-identities.js";
 
 const immutableValueFields = ["schemeCode", "name", "applicant", "application"];
 
@@ -208,165 +209,6 @@ const assertImmutableValues = (agreement, candidate) => {
   }
 };
 
-const identityOrdinal = (id, namespace) => {
-  const match = id.match(new RegExp(`^${namespace}:([1-9]\\d*)$`));
-  return match ? Number(match[1]) : 0;
-};
-
-const nextIdentityOrdinal = (entries, namespace) =>
-  Math.max(0, ...entries.map(({ id }) => identityOrdinal(id, namespace))) + 1;
-
-const requireExistingIdentity = (id, existingIds, label) => {
-  if (!existingIds.has(id)) {
-    throw Boom.badImplementation(
-      `Agreement transition cannot select unknown stable ${label} identity "${id}"`,
-    );
-  }
-
-  return id;
-};
-
-const resolveEntryIdentity = (candidate, allocation) => {
-  if (candidate.id) {
-    return requireExistingIdentity(
-      candidate.id,
-      allocation.existingIds,
-      allocation.label,
-    );
-  }
-
-  const id = `${allocation.namespace}:${allocation.nextOrdinal}`;
-  allocation.nextOrdinal += 1;
-  return id;
-};
-
-const recordCandidateReference = (candidate, id, references) => {
-  if (candidate.ref === undefined) {
-    return;
-  }
-
-  if (references.has(candidate.ref)) {
-    throw Boom.badImplementation(
-      `Agreement transition produced duplicate candidate reference "${candidate.ref}"`,
-    );
-  }
-
-  references.set(candidate.ref, id);
-};
-
-const reconcileEntries = (currentEntries, candidates, namespace, label) => {
-  const allocation = {
-    existingIds: new Set(currentEntries.map(({ id }) => id)),
-    label,
-    namespace,
-    nextOrdinal: nextIdentityOrdinal(currentEntries, namespace),
-  };
-  const references = new Map();
-  const values = candidates.map((candidate) => {
-    const id = resolveEntryIdentity(candidate, allocation);
-    recordCandidateReference(candidate, id, references);
-    const value = structuredClone(candidate);
-    delete value.ref;
-
-    return { ...value, id };
-  });
-
-  return { references, values };
-};
-
-const candidateReferenceFields = [
-  { candidateField: "actionRef", persistedField: "actionId", type: "actions" },
-  { candidateField: "itemRef", persistedField: "itemId", type: "items" },
-];
-
-const findCandidateReference = (lineItem) =>
-  candidateReferenceFields.find(({ candidateField }) =>
-    Object.hasOwn(lineItem, candidateField),
-  );
-
-const resolveCandidateLineItem = (lineItem, reconciled) => {
-  const reference = findCandidateReference(lineItem);
-
-  if (!reference) {
-    return structuredClone(lineItem);
-  }
-
-  const id = reconciled[reference.type].references.get(
-    lineItem[reference.candidateField],
-  );
-  if (!id) {
-    throw Boom.badImplementation(
-      `Agreement transition produced unknown candidate reference "${lineItem[reference.candidateField]}"`,
-    );
-  }
-
-  return {
-    [reference.persistedField]: id,
-    amountPence: lineItem.amountPence,
-  };
-};
-
-const reconcileInstalment = (instalment, allocation, reconciled) => {
-  const id = resolveEntryIdentity(instalment, allocation);
-
-  return {
-    ...instalment,
-    id,
-    lineItems: instalment.lineItems.map((lineItem) =>
-      resolveCandidateLineItem(lineItem, reconciled),
-    ),
-  };
-};
-
-const reconcilePaymentSchedule = (current, candidate, reconciled) => {
-  if (!candidate) {
-    return undefined;
-  }
-
-  const currentInstalments = current?.instalments ?? [];
-  const allocation = {
-    existingIds: new Set(currentInstalments.map(({ id }) => id)),
-    label: "Payment Schedule Instalment",
-    namespace: "instalment",
-    nextOrdinal: nextIdentityOrdinal(currentInstalments, "instalment"),
-  };
-
-  return {
-    ...candidate,
-    instalments: candidate.instalments.map((instalment) =>
-      reconcileInstalment(instalment, allocation, reconciled),
-    ),
-  };
-};
-
-const reconcileCandidateIdentities = (agreement, candidate) => {
-  const reconciled = {
-    actions: reconcileEntries(
-      agreement.actions,
-      candidate.actions,
-      "action",
-      "Revenue Action",
-    ),
-    items: reconcileEntries(
-      agreement.items,
-      candidate.items,
-      "item",
-      "Capital Item",
-    ),
-  };
-
-  return {
-    ...candidate,
-    actions: reconciled.actions.values,
-    items: reconciled.items.values,
-    paymentSchedule: reconcilePaymentSchedule(
-      agreement.paymentSchedule,
-      candidate.paymentSchedule,
-      reconciled,
-    ),
-  };
-};
-
 const resolveMapping = async (definition, mapping, { agreement, outputs }) => {
   try {
     const mapped = await resolveProcessMapping(mapping, {
@@ -383,7 +225,7 @@ const resolveMapping = async (definition, mapping, { agreement, outputs }) => {
     return validateWith(
       definition,
       agreementValueSchema,
-      reconcileCandidateIdentities(agreement, candidate),
+      reconcileTransitionIdentities(agreement, candidate),
     );
   } catch (error) {
     if (Boom.isBoom(error)) {

@@ -33,7 +33,6 @@ const acceptedAgreementValuesSchema = agreementValueSchema
   .required();
 
 const paymentHandlerInputSchema = Joi.object({
-  agreementValues: acceptedAgreementValuesSchema,
   payment: paymentConfigurationSchema,
 }).required();
 
@@ -52,12 +51,26 @@ const paymentIntentSchema = Joi.object({
     .required(),
 }).required();
 
-const stageAgreementPayment = ({ input }) => ({
+const paymentAgreementValueFields = [
+  "startDate",
+  "endDate",
+  "actions",
+  "items",
+  "totalAmountPence",
+  "paymentSchedule",
+];
+
+const selectPaymentAgreementValues = (agreement) =>
+  Object.fromEntries(
+    paymentAgreementValueFields.map((field) => [field, agreement[field]]),
+  );
+
+const stageAgreementPayment = ({ agreement, input }) => ({
   intents: [
     {
       type: "create-agreement-payment",
       request: {
-        agreementValues: input.agreementValues,
+        agreementValues: selectPaymentAgreementValues(agreement),
         paymentConfiguration: input.payment,
       },
     },

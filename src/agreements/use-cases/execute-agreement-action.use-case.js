@@ -1,5 +1,4 @@
 import Boom from "@hapi/boom";
-import { isDeepStrictEqual } from "node:util";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
@@ -45,38 +44,8 @@ const findCompleted = async (
   return { location: currentAgreementLocation };
 };
 
-const paymentAgreementValueFields = [
-  "startDate",
-  "endDate",
-  "actions",
-  "items",
-  "totalAmountPence",
-  "paymentSchedule",
-];
-
 const findPaymentRequest = (intents) =>
   intents.find(({ type }) => type === "create-agreement-payment")?.request;
-
-const selectPaymentAgreementValues = (agreement) =>
-  Object.fromEntries(
-    paymentAgreementValueFields.map((field) => [field, agreement[field]]),
-  );
-
-const assertPaymentIntentMatches = (agreement, intents) => {
-  const paymentRequest = findPaymentRequest(intents);
-
-  if (
-    paymentRequest &&
-    !isDeepStrictEqual(
-      paymentRequest.agreementValues,
-      selectPaymentAgreementValues(agreement),
-    )
-  ) {
-    throw Boom.badImplementation(
-      "Payment intent must use the materialised Agreement values",
-    );
-  }
-};
 
 const runAction = async ({
   action,
@@ -106,8 +75,6 @@ const runAction = async ({
     transitionedAt: executedAt,
     values: processResult.agreementValues,
   });
-  assertPaymentIntentMatches(nextAgreement, intents);
-
   return { agreement: nextAgreement, intents };
 };
 

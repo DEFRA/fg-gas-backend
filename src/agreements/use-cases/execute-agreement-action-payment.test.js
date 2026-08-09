@@ -440,44 +440,6 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
     expect(insertPayment).toHaveBeenCalled();
   });
 
-  it("rejects a Payment intent whose values differ from the transition candidate", async () => {
-    agreementDefinition.runProcesses.mockResolvedValue({
-      outputs: {},
-      agreementValues: {
-        application: agreement.application,
-        startDate: agreement.startDate,
-        endDate: agreement.endDate,
-        actions: agreement.actions,
-        items: agreement.items,
-        totalAmountPence: 4000,
-        paymentSchedule: agreement.paymentSchedule,
-      },
-      intents: [
-        {
-          type: "create-agreement-payment",
-          request: {
-            agreementValues: {
-              startDate: agreement.startDate,
-              endDate: agreement.endDate,
-              actions: agreement.actions,
-              items: agreement.items,
-              totalAmountPence: 3800,
-              paymentSchedule: agreement.paymentSchedule,
-            },
-            paymentConfiguration: mapping,
-          },
-        },
-      ],
-    });
-
-    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
-      "Payment intent must use the materialised Agreement values",
-    );
-    expect(withTransaction).not.toHaveBeenCalled();
-    expect(insertPayment).not.toHaveBeenCalled();
-    expect(replaceCurrentAgreement).not.toHaveBeenCalled();
-  });
-
   it("leaves the Agreement offered when the Payment configuration is invalid", async () => {
     agreementDefinition.runProcesses.mockResolvedValue({
       outputs: {},

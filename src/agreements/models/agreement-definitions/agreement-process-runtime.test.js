@@ -51,15 +51,16 @@ const paymentSchedule = {
   ],
 };
 
+const paymentAgreementValues = {
+  startDate: "2026-08-06",
+  endDate: "2027-08-05",
+  actions: [{ id: "action:1", code: "largeWhite" }],
+  items: [],
+  totalAmountPence: 32000,
+  paymentSchedule,
+};
+
 const paymentHandlerInput = {
-  agreementValues: {
-    startDate: "2026-08-06",
-    endDate: "2027-08-05",
-    actions: [{ id: "action:1", code: "largeWhite" }],
-    items: [],
-    totalAmountPence: 32000,
-    paymentSchedule,
-  },
   payment: {
     scheme: "SFI",
     sourceSystem: "FPTT",
@@ -453,7 +454,7 @@ describe("AgreementDefinition Process runtime", () => {
           transition: "accept",
         },
         context: {
-          agreement: { state: "offered" },
+          agreement: { state: "offered", ...paymentAgreementValues },
           transition: { values: {} },
           execution,
         },
@@ -464,7 +465,7 @@ describe("AgreementDefinition Process runtime", () => {
         {
           type: "create-agreement-payment",
           request: {
-            agreementValues: paymentHandlerInput.agreementValues,
+            agreementValues: paymentAgreementValues,
             paymentConfiguration: paymentHandlerInput.payment,
           },
         },
@@ -775,14 +776,14 @@ const compilationCases = [
     () => {
       const definition = createDefinition();
       const input = structuredClone(paymentHandlerInput);
-      input.agreementValues.agreementNumber = "not-configurable";
+      input.agreementValues = { agreementNumber: "not-configurable" };
       definition.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
         type: "handler",
         input,
       };
       return { definition };
     },
-    /agreementValues\.agreementNumber.*unknown/,
+    /input\.agreementValues.*unknown/,
   ],
 ];
 

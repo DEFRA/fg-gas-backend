@@ -303,6 +303,43 @@ describe("AgreementDefinition transition-value mapping", () => {
     );
   });
 
+  it("does not reuse retired Action, Item or Instalment identities", async () => {
+    const candidateAgreement = {
+      ...currentAgreement,
+      identitySequence: { action: 2, item: 2, instalment: 3 },
+      actions: [{ id: "action:1", code: "EXISTING" }],
+    };
+    const values = {
+      ...transitionValues,
+      actions: [
+        { id: "action:1", code: "EXISTING" },
+        { ref: "new-action", code: "NEW-ACTION" },
+      ],
+      items: [currentAgreement.items[0], { ref: "new-item", code: "NEW-ITEM" }],
+      paymentSchedule: {
+        instalments: [
+          {
+            dueDate: "2026-12-01",
+            totalAmountPence: 100,
+            lineItems: [
+              { actionRef: "new-action", amountPence: 50 },
+              { itemRef: "new-item", amountPence: 50 },
+            ],
+          },
+        ],
+      },
+    };
+    const definition = createDefinition({ values });
+
+    const result = await runAcceptance(definition, candidateAgreement);
+
+    expect(result.agreementValues.actions[1].id).toBe("action:3");
+    expect(result.agreementValues.items[1].id).toBe("item:3");
+    expect(result.agreementValues.paymentSchedule.instalments[0].id).toBe(
+      "instalment:4",
+    );
+  });
+
   it.each(["agreementNumber", "state", "version"])(
     "rejects configuration of protected Agreement field %s",
     (field) => {
