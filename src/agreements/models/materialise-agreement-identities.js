@@ -82,16 +82,25 @@ const withMaterialisedIdentity = (candidate, id) => {
   return { ...value, id };
 };
 
-const materialiseCreationEntries = (candidate, type) => {
-  const allocation = { type, nextOrdinal: 1 };
+const materialiseEntries = (entries, resolveIdentity, workflow) => {
   const references = new Map();
-  const values = candidate[type.field].map((entry) => {
-    const id = allocateIdentity(allocation);
-    recordCandidateReference(entry, id, references, "creation");
+  const values = entries.map((entry) => {
+    const id = resolveIdentity(entry);
+    recordCandidateReference(entry, id, references, workflow);
     return withMaterialisedIdentity(entry, id);
   });
 
   return { references, values };
+};
+
+const materialiseCreationEntries = (candidate, type) => {
+  const allocation = { type, nextOrdinal: 1 };
+
+  return materialiseEntries(
+    candidate[type.field],
+    () => allocateIdentity(allocation),
+    "creation",
+  );
 };
 
 const createTransitionAllocation = (entries, type) => ({
@@ -102,17 +111,15 @@ const createTransitionAllocation = (entries, type) => ({
 
 const reconcileTransitionEntries = (agreement, candidate, type) => {
   const allocation = createTransitionAllocation(agreement[type.field], type);
-  const references = new Map();
-  const values = candidate[type.field].map((entry) => {
-    const id = resolveTransitionIdentity(entry, allocation);
-    recordCandidateReference(entry, id, references, "transition");
-    return withMaterialisedIdentity(entry, id);
-  });
+  const materialised = materialiseEntries(
+    candidate[type.field],
+    (entry) => resolveTransitionIdentity(entry, allocation),
+    "transition",
+  );
 
   return {
-    ids: new Set(values.map(({ id }) => id)),
-    references,
-    values,
+    ...materialised,
+    ids: new Set(materialised.values.map(({ id }) => id)),
   };
 };
 
@@ -198,7 +205,7 @@ const entryValues = (entriesByType) =>
 
 const materialisePaymentSchedule = (
   paymentSchedule,
-  allocation,
+  resolveInstalmentIdentity,
   entries,
   resolveLineItem,
 ) => {
@@ -206,13 +213,11 @@ const materialisePaymentSchedule = (
     return undefined;
   }
 
-  const { field } = allocation.type;
-
   return {
     ...paymentSchedule,
-    [field]: paymentSchedule[field].map((instalment) => ({
+    instalments: paymentSchedule.instalments.map((instalment) => ({
       ...instalment,
-      id: allocation.resolveIdentity(instalment, allocation),
+      id: resolveInstalmentIdentity(instalment),
       lineItems: instalment.lineItems.map((lineItem) =>
         resolveLineItem(lineItem, entries),
       ),
@@ -227,9 +232,8 @@ export const materialiseCreationIdentities = (candidate) => {
       materialiseCreationEntries(candidate, type),
     ]),
   );
-  const instalments = {
+  const instalmentAllocation = {
     nextOrdinal: 1,
-    resolveIdentity: (_candidate, allocation) => allocateIdentity(allocation),
     type: identityTypes.instalments,
   };
 
@@ -238,7 +242,7 @@ export const materialiseCreationIdentities = (candidate) => {
     ...entryValues(materialised),
     paymentSchedule: materialisePaymentSchedule(
       candidate.paymentSchedule,
-      instalments,
+      () => allocateIdentity(instalmentAllocation),
       materialised,
       resolveCreationLineItem,
     ),
@@ -255,17 +259,18 @@ export const reconcileTransitionIdentities = (agreement, candidate) => {
   const instalmentType = identityTypes.instalments;
   const currentInstalments =
     agreement.paymentSchedule?.[instalmentType.field] ?? [];
-  const instalments = {
-    ...createTransitionAllocation(currentInstalments, instalmentType),
-    resolveIdentity: resolveTransitionIdentity,
-  };
+  const instalmentAllocation = createTransitionAllocation(
+    currentInstalments,
+    instalmentType,
+  );
 
   return {
     ...candidate,
     ...entryValues(reconciled),
     paymentSchedule: materialisePaymentSchedule(
       candidate.paymentSchedule,
-      instalments,
+      (instalment) =>
+        resolveTransitionIdentity(instalment, instalmentAllocation),
       reconciled,
       resolveTransitionLineItem,
     ),
