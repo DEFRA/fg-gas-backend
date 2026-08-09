@@ -3,7 +3,7 @@ import {
   resolveProcessMapping,
   validateProcessMapping,
 } from "../../../../common/agreements/resolve-process-mapping.js";
-import { findProcessOutputSchema } from "./agreement-process-registries.js";
+import { findAgreementProcessOutputSchema } from "../../../schemas/agreement-value-candidate.schema.js";
 import { findProcessOutputDependencies } from "./find-process-output-dependencies.js";
 import { findUnknownMappingField } from "./find-unknown-mapping-field.js";
 import { validateMappedValue } from "./validate-mapped-value.js";
@@ -32,7 +32,7 @@ const assertKnownMappingFields = (mapping, schema, path) => {
 
 const assertKnownOutputMappings = (processKey, output) => {
   for (const [name, mapping] of Object.entries(output)) {
-    const schema = findProcessOutputSchema(name);
+    const schema = findAgreementProcessOutputSchema(name);
 
     if (!schema) {
       throw Boom.badImplementation(
@@ -83,7 +83,7 @@ const mapOutput = async (processKey, output, context, response) => {
           ...context,
           response: structuredClone(response),
         });
-        const schema = findProcessOutputSchema(name);
+        const schema = findAgreementProcessOutputSchema(name);
         const value = validateMappedValue(
           schema,
           mapped,

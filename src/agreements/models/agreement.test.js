@@ -101,46 +101,6 @@ describe("Agreement", () => {
     });
   });
 
-  it("retains allocated identity ordinals after entries are removed", () => {
-    const agreement = createAgreement({
-      values: {
-        ...offeredValues(),
-        actions: [
-          { id: "action:1", code: "largeWhite" },
-          { id: "action:2", code: "berkshire" },
-        ],
-        items: [{ id: "item:2", code: "pigArk" }],
-        paymentSchedule: {
-          instalments: [
-            {
-              id: "instalment:3",
-              dueDate: "2026-11-06",
-              totalAmountPence: 5000,
-              lineItems: [{ actionId: "action:1", amountPence: 5000 }],
-            },
-          ],
-        },
-      },
-    });
-
-    const accepted = agreement.transition({
-      target: "accepted",
-      transitionedAt: "2026-07-18T09:15:00.000Z",
-      values: {
-        ...offeredValues(),
-        actions: [{ id: "action:1", code: "largeWhite" }],
-        items: [],
-        paymentSchedule: undefined,
-      },
-    });
-
-    expect(accepted.identitySequence).toEqual({
-      action: 2,
-      item: 2,
-      instalment: 3,
-    });
-  });
-
   it("preserves the original acceptance time on later transitions", () => {
     const agreement = new Agreement({
       ...createAgreement(),

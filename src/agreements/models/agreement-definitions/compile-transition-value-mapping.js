@@ -1,68 +1,16 @@
 import Boom from "@hapi/boom";
-import Joi from "joi";
 import { isDeepStrictEqual } from "node:util";
 import {
   resolveProcessMapping,
   validateProcessMapping,
 } from "../../../common/agreements/resolve-process-mapping.js";
-import {
-  agreementDateSchema,
-  agreementValueSchema,
-  applicantSchema,
-  capitalItemSchema,
-  parcelSchema,
-  penceSchema,
-  revenueActionSchema,
-} from "../../schemas/agreement-value.schema.js";
+import { transitionAgreementValueCandidateSchema } from "../../schemas/agreement-value-candidate.schema.js";
+import { agreementValueSchema } from "../../schemas/agreement-value.schema.js";
+import { reconcileTransitionIdentities } from "../materialise-agreement-identities.js";
 import { findProcessOutputDependencies } from "./processes/find-process-output-dependencies.js";
 import { findUnknownMappingField } from "./processes/find-unknown-mapping-field.js";
-import { reconcileTransitionIdentities } from "./reconcile-transition-identities.js";
 
 const immutableValueFields = ["schemeCode", "name", "applicant", "application"];
-
-const transitionCandidateEntrySchema = (schema) =>
-  schema
-    .fork("id", (idSchema) => idSchema.optional())
-    .append({ ref: Joi.string().optional() });
-
-const transitionLineItemSchema = Joi.object({
-  actionId: Joi.string().optional(),
-  itemId: Joi.string().optional(),
-  actionRef: Joi.string().optional(),
-  itemRef: Joi.string().optional(),
-  amountPence: penceSchema.required(),
-}).xor("actionId", "itemId", "actionRef", "itemRef");
-
-const transitionInstalmentSchema = Joi.object({
-  id: Joi.string().optional(),
-  dueDate: agreementDateSchema.required(),
-  totalAmountPence: penceSchema.required(),
-  lineItems: Joi.array().items(transitionLineItemSchema).required(),
-});
-
-const transitionPaymentScheduleSchema = Joi.object({
-  frequency: Joi.string().optional(),
-  instalments: Joi.array().items(transitionInstalmentSchema).required(),
-});
-
-const transitionCandidateSchema = Joi.object({
-  schemeCode: Joi.string().optional(),
-  name: Joi.string().optional(),
-  applicant: applicantSchema.optional(),
-  application: Joi.object().unknown(true).required(),
-  startDate: agreementDateSchema.optional(),
-  endDate: agreementDateSchema.optional(),
-  parcels: Joi.array().items(parcelSchema).optional(),
-  actions: Joi.array()
-    .items(transitionCandidateEntrySchema(revenueActionSchema))
-    .required(),
-  items: Joi.array()
-    .items(transitionCandidateEntrySchema(capitalItemSchema))
-    .required(),
-  annualAmountPence: penceSchema.optional(),
-  totalAmountPence: penceSchema.optional(),
-  paymentSchedule: transitionPaymentScheduleSchema.optional(),
-});
 
 const transitionEntries = (definition) =>
   Object.entries(definition.states).flatMap(([stateName, state]) =>
@@ -90,7 +38,7 @@ const compileMapping = (definition, entry) => {
 
   const unknownPath = findUnknownMappingField(
     entry.transition.values,
-    transitionCandidateSchema.describe(),
+    transitionAgreementValueCandidateSchema.describe(),
     entry.path,
   );
   if (unknownPath) {
@@ -217,7 +165,7 @@ const resolveMapping = async (definition, mapping, { agreement, outputs }) => {
     });
     const candidate = validateWith(
       definition,
-      transitionCandidateSchema,
+      transitionAgreementValueCandidateSchema,
       mapped,
     );
     assertImmutableValues(agreement, candidate);

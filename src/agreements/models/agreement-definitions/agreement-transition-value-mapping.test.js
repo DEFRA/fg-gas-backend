@@ -303,18 +303,29 @@ describe("AgreementDefinition transition-value mapping", () => {
     );
   });
 
-  it("does not reuse retired Action, Item or Instalment identities", async () => {
+  it("allocates new identities after the highest identities in the current Agreement", async () => {
+    const existingAction = { id: "action:1", code: "EXISTING" };
     const candidateAgreement = {
       ...currentAgreement,
-      identitySequence: { action: 2, item: 2, instalment: 3 },
-      actions: [{ id: "action:1", code: "EXISTING" }],
+      actions: [existingAction, { id: "action:3", code: "REMOVED-ACTION" }],
+      items: [
+        currentAgreement.items[0],
+        { id: "item:3", code: "REMOVED-ITEM" },
+      ],
+      paymentSchedule: {
+        instalments: [
+          {
+            id: "instalment:3",
+            dueDate: "2026-11-01",
+            totalAmountPence: 100,
+            lineItems: [{ actionId: "action:1", amountPence: 100 }],
+          },
+        ],
+      },
     };
     const values = {
       ...transitionValues,
-      actions: [
-        { id: "action:1", code: "EXISTING" },
-        { ref: "new-action", code: "NEW-ACTION" },
-      ],
+      actions: [existingAction, { ref: "new-action", code: "NEW-ACTION" }],
       items: [currentAgreement.items[0], { ref: "new-item", code: "NEW-ITEM" }],
       paymentSchedule: {
         instalments: [
@@ -333,8 +344,8 @@ describe("AgreementDefinition transition-value mapping", () => {
 
     const result = await runAcceptance(definition, candidateAgreement);
 
-    expect(result.agreementValues.actions[1].id).toBe("action:3");
-    expect(result.agreementValues.items[1].id).toBe("item:3");
+    expect(result.agreementValues.actions[1].id).toBe("action:4");
+    expect(result.agreementValues.items[1].id).toBe("item:4");
     expect(result.agreementValues.paymentSchedule.instalments[0].id).toBe(
       "instalment:4",
     );

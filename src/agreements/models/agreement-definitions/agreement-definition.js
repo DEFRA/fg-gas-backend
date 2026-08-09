@@ -3,7 +3,6 @@ import { AgreementLifecycle } from "../agreement-lifecycle.js";
 import { generateAgreementNumber } from "../agreement-number.js";
 import { requirePersistedAgreementState } from "../require-persisted-agreement-state.js";
 import { compileAgreementCreation } from "./compile-agreement-creation.js";
-import { compileTransitionValueMappings } from "./compile-transition-value-mapping.js";
 import { compileAgreementProcesses } from "./processes/agreement-process-runtime.js";
 import { validateAgreementDefinition } from "./validate.js";
 
@@ -19,13 +18,9 @@ export class AgreementDefinition {
         agreementNumberGenerator = generateAgreementNumber,
       ...processDependencies
     } = dependencies;
-    const resolveTransitionValues = compileTransitionValueMappings(
-      this.#definition,
-    );
     this.#runProcesses = compileAgreementProcesses(
       this.#definition,
       processDependencies,
-      resolveTransitionValues,
     );
     this.#createAgreement = compileAgreementCreation(this.#definition, {
       generateAgreementNumber: agreementNumberGenerator,

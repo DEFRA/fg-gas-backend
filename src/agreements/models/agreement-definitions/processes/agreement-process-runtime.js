@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
 import { callAgreementEndpoint } from "../../../../common/agreements/call-agreement-endpoint.js";
+import { compileTransitionValueMappings } from "../compile-transition-value-mapping.js";
 import { agreementProcessHandlers } from "./agreement-process-registries.js";
 import {
   compileProcessDefinitions,
@@ -428,11 +429,8 @@ const resolveDependencies = (dependencies) => ({
   handlers: dependencies.handlers ?? agreementProcessHandlers,
 });
 
-export const compileAgreementProcesses = (
-  definition,
-  dependencies = {},
-  resolveTransitionValues = () => undefined,
-) => {
+export const compileAgreementProcesses = (definition, dependencies = {}) => {
+  const resolveTransitionValues = compileTransitionValueMappings(definition);
   const resolvedDependencies = resolveDependencies(dependencies);
   const processDefinitions = definition.processDefinitions ?? {};
   const executableMap = compileProcessDefinitions(

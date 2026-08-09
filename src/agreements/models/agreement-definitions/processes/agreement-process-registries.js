@@ -1,13 +1,5 @@
 import Joi from "joi";
-import {
-  agreementDateSchema,
-  agreementValueSchema,
-  applicantSchema,
-  capitalItemSchema,
-  parcelSchema,
-  penceSchema,
-  revenueActionSchema,
-} from "../../../schemas/agreement-value.schema.js";
+import { agreementValueSchema } from "../../../schemas/agreement-value.schema.js";
 
 const paymentConfigurationSchema = Joi.object({
   scheme: Joi.string().required(),
@@ -85,48 +77,3 @@ export const agreementProcessHandlers = Object.freeze({
     locations: Object.freeze(["transition"]),
   }),
 });
-
-const withoutPersistentIdentity = (schema) =>
-  schema.fork("id", (idSchema) => idSchema.forbidden());
-
-const candidateEntrySchema = (schema) =>
-  withoutPersistentIdentity(schema).append({ ref: Joi.string().optional() });
-
-const revenueActionCandidateSchema = candidateEntrySchema(revenueActionSchema);
-const capitalItemCandidateSchema = candidateEntrySchema(capitalItemSchema);
-
-const candidateLineItemSchema = Joi.object({
-  actionRef: Joi.string().optional(),
-  itemRef: Joi.string().optional(),
-  amountPence: penceSchema.required(),
-})
-  .xor("actionRef", "itemRef")
-  .label("CandidatePaymentScheduleLineItem");
-
-const candidateInstalmentSchema = Joi.object({
-  dueDate: agreementDateSchema.required(),
-  totalAmountPence: penceSchema.required(),
-  lineItems: Joi.array().items(candidateLineItemSchema).required(),
-}).label("CandidatePaymentScheduleInstalment");
-
-const candidatePaymentScheduleSchema = Joi.object({
-  frequency: Joi.string().optional(),
-  instalments: Joi.array().items(candidateInstalmentSchema).required(),
-}).label("CandidatePaymentSchedule");
-
-const outputSchemas = {
-  schemeCode: agreementValueSchema.extract("schemeCode"),
-  name: agreementValueSchema.extract("name"),
-  applicant: applicantSchema,
-  startDate: agreementDateSchema,
-  endDate: agreementDateSchema,
-  parcels: Joi.array().items(parcelSchema).unique("id"),
-  actions: Joi.array().items(revenueActionCandidateSchema),
-  items: Joi.array().items(capitalItemCandidateSchema),
-  annualAmountPence: penceSchema,
-  totalAmountPence: penceSchema,
-  paymentSchedule: candidatePaymentScheduleSchema,
-};
-
-export const findProcessOutputSchema = (name) =>
-  Object.hasOwn(outputSchemas, name) ? outputSchemas[name] : undefined;

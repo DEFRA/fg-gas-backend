@@ -3,7 +3,7 @@ import {
   resolveProcessMapping,
   validateProcessMapping,
 } from "../../../common/agreements/resolve-process-mapping.js";
-import { findProcessOutputSchema } from "./processes/agreement-process-registries.js";
+import { findAgreementProcessOutputSchema } from "../../schemas/agreement-value-candidate.schema.js";
 import { findUnknownMappingField } from "./processes/find-unknown-mapping-field.js";
 import { validateMappedValue } from "./processes/validate-mapped-value.js";
 
@@ -62,7 +62,7 @@ const resolveApplication = async (definition, mapping, input) => {
 
 const assertKnownCreationValueFields = (definition, mapping) => {
   for (const [field, fieldMapping] of Object.entries(mapping)) {
-    const schema = findProcessOutputSchema(field);
+    const schema = findAgreementProcessOutputSchema(field);
     if (!schema) {
       throw Boom.badImplementation(
         `Invalid agreement definition "${definition.code}": "create.values.${field}" is not a supported Agreement value`,
@@ -85,7 +85,7 @@ const assertKnownCreationValueFields = (definition, mapping) => {
 const requiredCreationValues = new Set(["actions", "items"]);
 
 const creationValueSchema = (field) => {
-  const schema = findProcessOutputSchema(field);
+  const schema = findAgreementProcessOutputSchema(field);
 
   return requiredCreationValues.has(field) ? schema.required() : schema;
 };
