@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import Joi from "joi";
 import { randomUUID } from "node:crypto";
 import {
   DuePaymentStatus,
@@ -8,6 +9,13 @@ import {
 import { formatInvoiceNumber } from "../services/claim-id.js";
 
 const PAYMENT_REQUEST_NUMBER = 1;
+
+const paymentScheduleLineItemSchema = Joi.object({
+  actionId: Joi.string().optional(),
+  itemId: Joi.string().optional(),
+  amountPence: Joi.number().integer().strict().required(),
+  description: Joi.string().optional(),
+}).xor("actionId", "itemId");
 
 const requirePaymentConfiguration = (paymentConfiguration) => {
   if (!paymentConfiguration) {
@@ -57,7 +65,24 @@ const findFundedEntry = (lineItem, agreementValues) => {
   return entry;
 };
 
-const toInvoiceLine = (lineItem, context) => {
+const validateScheduleLineItem = (lineItem) => {
+  const { error, value } = paymentScheduleLineItemSchema.validate(lineItem, {
+    abortEarly: false,
+    allowUnknown: false,
+    convert: false,
+  });
+
+  if (error) {
+    throw Boom.badRequest(
+      `Invalid Payment Schedule Line Item: ${error.message}`,
+    );
+  }
+
+  return value;
+};
+
+const toInvoiceLine = (candidate, context) => {
+  const lineItem = validateScheduleLineItem(candidate);
   const entry = findFundedEntry(lineItem, context.agreementValues);
   const { invoiceLine } = context.paymentConfiguration;
 

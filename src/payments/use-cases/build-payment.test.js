@@ -356,7 +356,10 @@ describe("buildPayment", () => {
     ).toThrow("does not balance with its invoice lines");
   });
 
-  it("rejects malformed configured line metadata", () => {
+  it.each([
+    ["an empty description", { description: "" }, '"description"'],
+    ["arbitrary metadata", { schemeCode: "PATCH" }, '"schemeCode"'],
+  ])("rejects %s on scheduled Line Items", (_case, metadata, field) => {
     expect(() =>
       build({
         agreementValues: {
@@ -369,7 +372,7 @@ describe("buildPayment", () => {
                   {
                     actionId: "action:1",
                     amountPence: 2000,
-                    description: "",
+                    ...metadata,
                   },
                   { actionId: "action:2", amountPence: 1800 },
                 ],
@@ -378,7 +381,7 @@ describe("buildPayment", () => {
           },
         },
       }),
-    ).toThrow("Invalid Payment");
+    ).toThrow(`Invalid Payment Schedule Line Item: ${field}`);
   });
 
   it("rejects a source with no identifiers", () => {
