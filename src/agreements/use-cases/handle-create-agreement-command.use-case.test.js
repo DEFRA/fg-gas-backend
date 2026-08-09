@@ -99,6 +99,76 @@ const woodlandCommand = {
     },
   },
 };
+const fpttCommand = {
+  data: {
+    clientRef: "fptt-client-ref",
+    code: "frps-private-beta",
+    identifiers: { sbi: "300000069", frn: "1000000000" },
+    answers: {
+      parcel: [
+        {
+          sheetId: "SD8545",
+          parcelId: "9935",
+          area: { quantity: 0.0321, unit: "ha" },
+        },
+      ],
+      agreement: [],
+      actionApplications: [
+        {
+          code: "CMOR1",
+          version: "2.0.0",
+          sheetId: "SD8545",
+          parcelId: "9935",
+          durationYears: 1,
+          appliedFor: { quantity: 0.0321, unit: "ha" },
+        },
+      ],
+      consentObjects: [],
+    },
+  },
+};
+const fpttDefinitionData = {
+  code: "frps-private-beta",
+  configVersion: "1.0.0",
+  agreementNumberPrefix: "FPTT",
+  create: {
+    target: "offered",
+    application: "$.input.answers",
+    values: {
+      schemeCode: "SFI",
+      parcels: {
+        itemsRef: "$.application.parcel",
+        items: {
+          id: "jsonata:@.sheetId & '-' & @.parcelId",
+          sheetId: "@.sheetId",
+          parcelId: "@.parcelId",
+          area: "@.area",
+        },
+      },
+      actions: {
+        itemsRef: "$.application.actionApplications",
+        items: {
+          ref: "jsonata:@.sheetId & '-' & @.parcelId & ':' & @.code",
+          code: "@.code",
+          version: "@.version",
+          parcel: "jsonata:@.sheetId & '-' & @.parcelId",
+          quantity: "@.appliedFor.quantity",
+          unit: "@.appliedFor.unit",
+          durationYears: "@.durationYears",
+        },
+      },
+      items: [],
+    },
+    processes: [],
+  },
+  states: { offered: { page: "offered" } },
+  pages: {
+    offered: {
+      title: "FPTT offer",
+      components: [{ component: "heading", text: "FPTT offer" }],
+    },
+  },
+};
 const woodlandDefinitionData = {
   code: "woodland",
   configVersion: "1.0.0",
@@ -333,6 +403,45 @@ describe("handleCreateAgreementCommandUseCase", () => {
     });
     expect(withTransaction).toHaveBeenCalledOnce();
     expect(insertCurrentAgreement).toHaveBeenCalledWith(agreement, session);
+  });
+
+  it("creates FPTT-shaped Parcels and Revenue Actions without calculating a Payment Schedule", async () => {
+    const callEndpoint = vi.fn();
+    loadAgreementDefinition.mockResolvedValue(
+      new AgreementDefinition(fpttDefinitionData, { callEndpoint }),
+    );
+    generateAgreementNumber.mockReturnValue("FPTT123456789");
+
+    const agreement = await handleCreateAgreementCommandUseCase(fpttCommand);
+
+    expect(callEndpoint).not.toHaveBeenCalled();
+    expect(agreement).toMatchObject({
+      agreementNumber: "FPTT123456789",
+      schemeCode: "SFI",
+      application: fpttCommand.data.answers,
+      parcels: [
+        {
+          id: "SD8545-9935",
+          sheetId: "SD8545",
+          parcelId: "9935",
+          area: { quantity: 0.0321, unit: "ha" },
+        },
+      ],
+      actions: [
+        {
+          id: "action:1",
+          code: "CMOR1",
+          version: "2.0.0",
+          parcel: "SD8545-9935",
+          quantity: 0.0321,
+          unit: "ha",
+          durationYears: 1,
+        },
+      ],
+      items: [],
+      state: "offered",
+    });
+    expect(agreement.paymentSchedule).toBeUndefined();
   });
 
   it("allocates identities by mapped order and resolves references without relying on Action code uniqueness", async () => {
