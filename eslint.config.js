@@ -1,13 +1,18 @@
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 import neostandard from "neostandard";
 
+const neostandardConfig = neostandard({ env: ["node"] });
+const importXPlugin = neostandardConfig.find((c) => c.plugins?.["import-x"])
+  ?.plugins?.["import-x"];
+
 export default [
-  ...neostandard({
-    env: ["node"],
-  }),
+  ...neostandardConfig,
   eslintConfigPrettier,
   {
     files: ["src/**/*"],
+    plugins: {
+      "import-x": importXPlugin,
+    },
     rules: {
       "func-style": ["error", "expression"],
       "no-console": "error",
