@@ -190,7 +190,7 @@ describe("buildAgreementPageModel", () => {
     });
   });
 
-  it("builds accepted PMF pages from the stored offered values", async () => {
+  it("keeps the complete PMF document and a concise accepted page", async () => {
     const acceptedAgreement = {
       ...agreement,
       code: "pigs-might-fly",
@@ -249,20 +249,26 @@ describe("buildAgreementPageModel", () => {
         }),
       ]),
     );
-    expect(acceptedModel.components).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          component: "summary-list",
-          rows: expect.arrayContaining([
-            { label: "Agreement start date", text: "6 August 2026" },
-            { label: "Total payment", text: "£50" },
-          ]),
-        }),
-      ]),
-    );
+    expect(acceptedModel.components).toEqual([
+      {
+        component: "panel",
+        title: "Agreement offer accepted",
+        text: "Agreement number: TST123",
+      },
+      {
+        component: "summary-list",
+        rows: [{ label: "Agreement start date", text: "6 August 2026" }],
+      },
+      {
+        component: "url",
+        href: "/agreements/TST123/document",
+        text: "View and print your agreement (opens in new tab)",
+        target: "_blank",
+      },
+    ]);
   });
 
-  it("separates the PMF draft agreement link from the primary action", async () => {
+  it("shows the PMF offer summary without duplicating the payment schedule", async () => {
     const offeredAgreement = {
       ...agreement,
       code: "pigs-might-fly",
@@ -276,40 +282,64 @@ describe("buildAgreementPageModel", () => {
       mode: "view",
     });
 
-    expect(
-      model.components.find(({ component }) => component === "table"),
-    ).toEqual({
-      component: "table",
-      head: [
-        { text: "Pig type" },
-        { text: "Number of pigs" },
-        { text: "Funding amount" },
-      ],
-      rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
-    });
-    expect(model.components).toContainEqual({
-      component: "summary-list",
-      rows: [
-        { label: "Agreement start date", text: "6 August 2026" },
-        { label: "Agreement end date", text: "5 August 2027" },
-        { label: "Total funding", text: "£50" },
-      ],
-    });
-    expect(model.components).toContainEqual({
-      component: "table",
-      head: [{ text: "Payment date" }, { text: "Amount" }],
-      rows: [[{ text: "11 November 2026" }, { text: "£50" }]],
-    });
-    expect(model.components).toContainEqual(
-      expect.objectContaining({
+    expect(model.components).toEqual([
+      {
+        component: "heading",
+        level: 1,
+        text: "Review your agreement offer",
+      },
+      {
+        component: "paragraph",
+        text: "Check the details of this test agreement before you continue.",
+      },
+      {
+        component: "summary-list",
+        rows: [
+          { label: "SBI", text: "300000000" },
+          { label: "Agreement number", text: "TST123" },
+        ],
+      },
+      {
+        component: "heading",
+        level: 2,
+        text: "Pigs and funding",
+      },
+      {
+        component: "table",
+        head: [
+          { text: "Pig type" },
+          { text: "Number of pigs" },
+          { text: "Funding amount" },
+        ],
+        rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
+      },
+      {
+        component: "summary-list",
+        rows: [
+          { label: "Agreement start date", text: "6 August 2026" },
+          { label: "Agreement end date", text: "5 August 2027" },
+          { label: "Total funding", text: "£50" },
+        ],
+      },
+      {
         component: "url",
-        text: "View the draft agreement",
+        href: "/agreements/TST123/document",
+        text: "View the draft agreement (opens in new tab)",
+        target: "_blank",
         classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
-      }),
-    );
+      },
+    ]);
+    expect(model.actions).toEqual([
+      {
+        name: "accept",
+        method: "GET",
+        href: "/agreements/TST123/actions/accept",
+        text: "Continue",
+      },
+    ]);
   });
 
-  it("builds the PMF acceptance page from the same stored offered values", async () => {
+  it("focuses the PMF acceptance page on declarations and confirmation", async () => {
     const model = await buildAgreementPageModel({
       agreement: {
         ...agreement,
@@ -321,22 +351,50 @@ describe("buildAgreementPageModel", () => {
       mode: "view",
     });
 
-    expect(model.components).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          component: "summary-list",
-          rows: expect.arrayContaining([
-            { label: "Agreement start date", text: "6 August 2026" },
-            { label: "Total funding", text: "£50" },
-          ]),
-        }),
-        {
-          component: "table",
-          head: [{ text: "Payment date" }, { text: "Amount" }],
-          rows: [[{ text: "11 November 2026" }, { text: "£50" }]],
-        },
-      ]),
-    );
+    expect(model.components).toEqual([
+      {
+        component: "heading",
+        level: 1,
+        text: "Accept your agreement offer",
+      },
+      {
+        component: "url",
+        href: "/agreements/TST123/document",
+        text: "View the draft agreement (opens in new tab)",
+        target: "_blank",
+        classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
+      },
+      {
+        component: "paragraph",
+        text: "By accepting this offer, you confirm that:",
+      },
+      {
+        component: "unordered-list",
+        items: [
+          { text: "the information in the agreement is correct" },
+          { text: "you have authority to accept the agreement" },
+          { text: "you understand this is a test grant" },
+        ],
+      },
+      {
+        component: "checkboxes",
+        name: "confirm",
+        items: [
+          {
+            value: "confirmed",
+            text: "I confirm I have read the information in this section and accept this agreement offer.",
+          },
+        ],
+      },
+    ]);
+    expect(model.actions).toEqual([
+      {
+        name: "accept",
+        method: "POST",
+        href: "/agreements/TST123/actions/accept",
+        text: "Accept agreement offer",
+      },
+    ]);
   });
 
   it("resolves a template from the definition against the agreement", async () => {

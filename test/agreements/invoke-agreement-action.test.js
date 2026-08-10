@@ -285,36 +285,46 @@ describe("single Agreement actions", () => {
     expect(response.headers.etag).toBe(`"${agreementNumber}:1"`);
     expect(payload).toMatchObject({
       page: { name: "accept", title: "Accept your agreement offer" },
-      components: expect.arrayContaining([
-        expect.objectContaining({
+      components: [
+        {
           component: "heading",
+          level: 1,
           text: "Accept your agreement offer",
-        }),
-        expect.objectContaining({
-          component: "summary-list",
-          rows: expect.arrayContaining([
-            { label: "Agreement start date", text: "1 August 2026" },
-            { label: "Total funding", text: "£50" },
-          ]),
-        }),
-        expect.objectContaining({
-          component: "table",
-          rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
-        }),
-        expect.objectContaining({
+        },
+        {
+          component: "url",
+          href: `/agreements/${agreementNumber}/document`,
+          text: "View the draft agreement (opens in new tab)",
+          target: "_blank",
+          classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
+        },
+        {
+          component: "paragraph",
+          text: "By accepting this offer, you confirm that:",
+        },
+        {
+          component: "unordered-list",
+          items: [
+            { text: "the information in the agreement is correct" },
+            { text: "you have authority to accept the agreement" },
+            { text: "you understand this is a test grant" },
+          ],
+        },
+        {
           component: "checkboxes",
           name: "confirm",
           errorMessage: {
             text: "Confirm this agreement offer before accepting it",
           },
-          items: expect.arrayContaining([
-            expect.objectContaining({
+          items: [
+            {
               value: "confirmed",
+              text: "I confirm I have read the information in this section and accept this agreement offer.",
               checked: false,
-            }),
-          ]),
-        }),
-      ]),
+            },
+          ],
+        },
+      ],
       errors: [
         {
           href: "#confirm",
