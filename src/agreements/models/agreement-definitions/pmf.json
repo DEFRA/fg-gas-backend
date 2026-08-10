@@ -3,7 +3,7 @@
   "configVersion": "1.2.0",
   "agreementNumberPrefix": "PMF",
   "processDefinitions": {
-    "calculate-offer": {
+    "GENERATE_OFFER": {
       "type": "endpoint",
       "endpoint": {
         "method": "POST",
@@ -68,7 +68,7 @@
         }
       }
     },
-    "create-agreement-payment": {
+    "CREATE_AGREEMENT_PAYMENT": {
       "type": "handler",
       "input": {
         "agreementValues": {
@@ -99,7 +99,7 @@
   "create": {
     "target": "offered",
     "application": "$.input.answers",
-    "processes": ["calculate-offer"]
+    "processes": ["GENERATE_OFFER"]
   },
   "states": {
     "offered": {
@@ -118,7 +118,7 @@
               }
             ]
           },
-          "processes": ["create-agreement-payment"]
+          "processes": ["CREATE_AGREEMENT_PAYMENT"]
         }
       }
     },
@@ -374,33 +374,6 @@
           ]
         },
         {
-          "component": "heading",
-          "level": 2,
-          "text": "Payment schedule"
-        },
-        {
-          "component": "table",
-          "head": [
-            {
-              "text": "Payment date"
-            },
-            {
-              "text": "Amount"
-            }
-          ],
-          "rowsRef": "$.agreement.paymentSchedule.instalments",
-          "rows": [
-            {
-              "text": "@.dueDate",
-              "format": "dateLong"
-            },
-            {
-              "text": "@.totalAmountPence",
-              "format": "poundsFromPence"
-            }
-          ]
-        },
-        {
           "component": "url",
           "href": {
             "urlTemplate": "/agreements/{agreementNumber}/document",
@@ -408,7 +381,8 @@
               "agreementNumber": "$.agreement.agreementNumber"
             }
           },
-          "text": "View the draft agreement",
+          "text": "View the draft agreement (opens in new tab)",
+          "target": "_blank",
           "classes": "govuk-link govuk-!-display-block govuk-!-margin-bottom-4"
         }
       ],
@@ -436,6 +410,18 @@
           "text": "Accept your agreement offer"
         },
         {
+          "component": "url",
+          "href": {
+            "urlTemplate": "/agreements/{agreementNumber}/document",
+            "params": {
+              "agreementNumber": "$.agreement.agreementNumber"
+            }
+          },
+          "text": "View the draft agreement (opens in new tab)",
+          "target": "_blank",
+          "classes": "govuk-link govuk-!-display-block govuk-!-margin-bottom-4"
+        },
+        {
           "component": "paragraph",
           "text": "By accepting this offer, you confirm that:"
         },
@@ -450,85 +436,6 @@
             },
             {
               "text": "you understand this is a test grant"
-            }
-          ]
-        },
-        {
-          "component": "heading",
-          "level": 2,
-          "text": "Pigs and funding"
-        },
-        {
-          "component": "table",
-          "head": [
-            {
-              "text": "Pig type"
-            },
-            {
-              "text": "Number of pigs"
-            },
-            {
-              "text": "Funding amount"
-            }
-          ],
-          "rowsRef": "$.agreement.actions",
-          "rows": [
-            {
-              "text": "@.description"
-            },
-            {
-              "text": "@.quantity"
-            },
-            {
-              "text": "@.totalAmountPence",
-              "format": "poundsFromPence"
-            }
-          ]
-        },
-        {
-          "component": "summary-list",
-          "rows": [
-            {
-              "label": "Agreement start date",
-              "text": "$.agreement.startDate",
-              "format": "dateLong"
-            },
-            {
-              "label": "Agreement end date",
-              "text": "$.agreement.endDate",
-              "format": "dateLong"
-            },
-            {
-              "label": "Total funding",
-              "text": "$.agreement.totalAmountPence",
-              "format": "poundsFromPence"
-            }
-          ]
-        },
-        {
-          "component": "heading",
-          "level": 2,
-          "text": "Payment schedule"
-        },
-        {
-          "component": "table",
-          "head": [
-            {
-              "text": "Payment date"
-            },
-            {
-              "text": "Amount"
-            }
-          ],
-          "rowsRef": "$.agreement.paymentSchedule.instalments",
-          "rows": [
-            {
-              "text": "@.dueDate",
-              "format": "dateLong"
-            },
-            {
-              "text": "@.totalAmountPence",
-              "format": "poundsFromPence"
             }
           ]
         },
@@ -567,81 +474,12 @@
           "text": "Agreement number: $.agreement.agreementNumber"
         },
         {
-          "component": "heading",
-          "level": 2,
-          "text": "Pigs and funding"
-        },
-        {
-          "component": "table",
-          "head": [
-            {
-              "text": "Pig type"
-            },
-            {
-              "text": "Number of pigs"
-            },
-            {
-              "text": "Funding amount"
-            }
-          ],
-          "rowsRef": "$.agreement.actions",
-          "rows": [
-            {
-              "text": "@.description"
-            },
-            {
-              "text": "@.quantity"
-            },
-            {
-              "text": "@.totalAmountPence",
-              "format": "poundsFromPence"
-            }
-          ]
-        },
-        {
-          "component": "heading",
-          "level": 2,
-          "text": "Payment schedule"
-        },
-        {
           "component": "summary-list",
           "rows": [
             {
               "label": "Agreement start date",
               "text": "$.agreement.startDate",
               "format": "dateLong"
-            },
-            {
-              "label": "Agreement end date",
-              "text": "$.agreement.endDate",
-              "format": "dateLong"
-            },
-            {
-              "label": "Total payment",
-              "text": "$.agreement.totalAmountPence",
-              "format": "poundsFromPence"
-            }
-          ]
-        },
-        {
-          "component": "table",
-          "head": [
-            {
-              "text": "Payment date"
-            },
-            {
-              "text": "Amount"
-            }
-          ],
-          "rowsRef": "$.agreement.paymentSchedule.instalments",
-          "rows": [
-            {
-              "text": "@.dueDate",
-              "format": "dateLong"
-            },
-            {
-              "text": "@.totalAmountPence",
-              "format": "poundsFromPence"
             }
           ]
         },
@@ -653,7 +491,8 @@
               "agreementNumber": "$.agreement.agreementNumber"
             }
           },
-          "text": "View and print your agreement"
+          "text": "View and print your agreement (opens in new tab)",
+          "target": "_blank"
         }
       ],
       "actions": []

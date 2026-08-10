@@ -390,11 +390,11 @@ describe("AgreementDefinition Process runtime", () => {
 
   it("stages a typed Payment intent without writing outside the transaction", async () => {
     const definitionData = createDefinition();
-    definitionData.processDefinitions["create-agreement-payment"] = {
+    definitionData.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
       type: "handler",
       input: paymentHandlerInput,
     };
-    addTransition(definitionData, ["create-agreement-payment"]);
+    addTransition(definitionData, ["CREATE_AGREEMENT_PAYMENT"]);
     const definition = new AgreementDefinition(definitionData);
 
     await expect(
@@ -411,7 +411,7 @@ describe("AgreementDefinition Process runtime", () => {
         },
       }),
     ).resolves.toEqual({
-      outputs: { "create-agreement-payment": {} },
+      outputs: { CREATE_AGREEMENT_PAYMENT: {} },
       intents: [
         {
           type: "create-agreement-payment",
@@ -702,7 +702,7 @@ const compilationCases = [
       const definition = createDefinition();
       const input = structuredClone(paymentHandlerInput);
       input.agreementValues.agreementNumber = "not-configurable";
-      definition.processDefinitions["create-agreement-payment"] = {
+      definition.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
         type: "handler",
         input,
       };

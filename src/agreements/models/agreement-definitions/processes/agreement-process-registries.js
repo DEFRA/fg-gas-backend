@@ -64,7 +64,7 @@ const stageAgreementPayment = ({ input }) => ({
 });
 
 export const agreementProcessHandlers = Object.freeze({
-  "create-agreement-payment": Object.freeze({
+  CREATE_AGREEMENT_PAYMENT: Object.freeze({
     inputSchema: paymentHandlerInputSchema,
     intentSchema: paymentIntentSchema,
     execute: stageAgreementPayment,

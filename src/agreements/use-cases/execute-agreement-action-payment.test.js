@@ -118,7 +118,7 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
       agreementDefinition,
     });
     agreementDefinition.runProcesses.mockResolvedValue({
-      outputs: { "create-agreement-payment": {} },
+      outputs: { CREATE_AGREEMENT_PAYMENT: {} },
       intents: [
         {
           type: "create-agreement-payment",
