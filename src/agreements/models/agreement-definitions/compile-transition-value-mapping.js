@@ -194,12 +194,14 @@ export const compileTransitionValueMappings = (definition) => {
     assertDependenciesBeforeHandlers(definition, entry, mapping);
 
     if (mapping) {
-      mappings.set(`${entry.stateName}\u0000${entry.transitionName}`, mapping);
+      const stateMappings = mappings.get(entry.stateName) ?? new Map();
+      stateMappings.set(entry.transitionName, mapping);
+      mappings.set(entry.stateName, stateMappings);
     }
   }
 
   return ({ state, transition, ...context }) => {
-    const mapping = mappings.get(`${state}\u0000${transition}`);
+    const mapping = mappings.get(state)?.get(transition);
 
     return mapping ? resolveMapping(definition, mapping, context) : undefined;
   };
