@@ -11,6 +11,7 @@
  */
 
 import { logger } from "../common/logger.js";
+import { findLatestActive } from "./repositories/config-version.repository.js";
 import { submitApplicationUseCase } from "./use-cases/submit-application.use-case.js";
 
 const clearCollections = async (db) => {
@@ -168,7 +169,7 @@ const generateWmpAnswers = () => {
   };
 };
 
-const createApplications = async (count) => {
+const createApplications = async (count, configVersion) => {
   logger.info(`📝 Creating ${count} FRPS test applications...`);
 
   const answers = generateMinimalAnswers();
@@ -181,6 +182,7 @@ const createApplications = async (count) => {
       await submitApplicationUseCase("frps-private-beta", {
         metadata: {
           clientRef,
+          configVersion,
           sbi: `${107000000 + i}`,
           frn: `${1100000000 + i}`,
           crn: `${1100000000 + i}`,
@@ -206,7 +208,7 @@ const createApplications = async (count) => {
   );
 };
 
-const createWmpApplications = async (count) => {
+const createWmpApplications = async (count, configVersion) => {
   logger.info(`📝 Creating ${count} WMP test applications...`);
 
   const answers = generateWmpAnswers();
@@ -219,6 +221,7 @@ const createWmpApplications = async (count) => {
       await submitApplicationUseCase("woodland", {
         metadata: {
           clientRef,
+          configVersion,
           code: "woodland",
           submittedAt,
           // SBI/CRN pair must match — matches agreements-credentials.csv for OIDC login
@@ -246,22 +249,20 @@ const createWmpApplications = async (count) => {
   );
 };
 
-export const seedPerfTestData = async (db) => {
-  if (process.env.PERF_TEST_SEED !== "true") {
-    return;
+const resolveConfigVersion = async (grantCode) => {
+  const configVersion = await findLatestActive(grantCode);
+  if (!configVersion) {
+    logger.error(
+      `❌ No active config version found for ${grantCode} — cannot seed. Is the config broker publishing versions?`,
+    );
   }
+  return configVersion;
+};
 
-  const frpsCount = parseInt(process.env.PERF_TEST_COUNT || "100", 10);
-  const wmpCount = parseInt(process.env.PERF_TEST_WMP_COUNT || "100", 10);
-
-  logger.info(`🧹 Starting performance test data seeding...`);
-  logger.info(`   Target FRPS application count: ${frpsCount}`);
-  logger.info(`   Target WMP application count: ${wmpCount}`);
-  logger.info("⚠️  This will CLEAR ALL DATA in test collections");
-
+const runSeeding = async (db, frpsCount, wmpCount, frpsVersion, wmpVersion) => {
   await clearCollections(db);
-  await createApplications(frpsCount);
-  await createWmpApplications(wmpCount);
+  await createApplications(frpsCount, frpsVersion);
+  await createWmpApplications(wmpCount, wmpVersion);
 
   logger.info("✅ Performance test data seeding complete!");
   logger.info(
@@ -269,5 +270,41 @@ export const seedPerfTestData = async (db) => {
   );
   logger.info(
     `   WMP:  ${wmpCount} applications (wmp-perf-test-00000 to wmp-perf-test-${String(wmpCount - 1).padStart(5, "0")})`,
+  );
+};
+
+const getSeedCounts = () => ({
+  frpsCount: parseInt(process.env.PERF_TEST_COUNT || "100", 10),
+  wmpCount: parseInt(process.env.PERF_TEST_WMP_COUNT || "100", 10),
+});
+
+export const seedPerfTestData = async (db) => {
+  if (process.env.PERF_TEST_SEED !== "true") {
+    return;
+  }
+
+  const { frpsCount, wmpCount } = getSeedCounts();
+
+  logger.info(`🧹 Starting performance test data seeding...`);
+  logger.info(`   Target FRPS application count: ${frpsCount}`);
+  logger.info(`   Target WMP application count: ${wmpCount}`);
+  logger.info("⚠️  This will CLEAR ALL DATA in test collections");
+
+  const frpsConfigVersion = await resolveConfigVersion("frps-private-beta");
+  const wmpConfigVersion = await resolveConfigVersion("woodland");
+
+  if (!frpsConfigVersion || !wmpConfigVersion) {
+    return;
+  }
+
+  logger.info(`   Using FRPS config version: ${frpsConfigVersion.version}`);
+  logger.info(`   Using WMP config version: ${wmpConfigVersion.version}`);
+
+  await runSeeding(
+    db,
+    frpsCount,
+    wmpCount,
+    frpsConfigVersion.version,
+    wmpConfigVersion.version,
   );
 };
