@@ -44,38 +44,26 @@ const findCompleted = async (
   return { location: currentAgreementLocation };
 };
 
-const findPaymentRequest = (intents) =>
-  intents.find(({ type }) => type === "create-agreement-payment")?.request;
+const findPaymentRequest = (commitOperations) => {
+  let paymentOperationCount = 0;
+  let paymentRequest;
 
-const runAction = async ({
-  action,
-  agreement,
-  agreementDefinition,
-  values,
-}) => {
-  const executedAt = new Date().toISOString();
-  const processResult = await agreementDefinition.runProcesses({
-    location: {
-      type: "transition",
-      state: action.transition.from,
-      transition: action.transition.action,
-    },
-    context: {
-      agreement,
-      transition: { values },
-      execution: {
-        executedAt,
-        correlationId: agreement.correlationId,
-      },
-    },
-  });
-  const intents = processResult.intents ?? [];
-  const nextAgreement = agreement.transition({
-    target: action.transition.target,
-    transitionedAt: executedAt,
-    values: processResult.agreementValues,
-  });
-  return { agreement: nextAgreement, intents };
+  for (const operation of commitOperations) {
+    if (operation.type !== "create-agreement-payment") {
+      throw Boom.badImplementation(
+        `Unsupported Agreement Action commit operation "${operation.type}"`,
+      );
+    }
+    paymentOperationCount += 1;
+    if (paymentOperationCount > 1) {
+      throw Boom.badImplementation(
+        "Agreement Action cannot create more than one Payment",
+      );
+    }
+    paymentRequest = operation.request;
+  }
+
+  return paymentRequest;
 };
 
 // Payments owns the claim ID, the Payment document and the message that carries
@@ -83,8 +71,11 @@ const runAction = async ({
 // commit with the Agreement, its Version and the lifecycle event, and roll back
 // together when anything before the commit fails. The Payment Service
 // publication comes back to be written to the outbox with the rest.
-const createAgreementPayment = async ({ agreement, intents }, session) => {
-  const paymentRequest = findPaymentRequest(intents);
+const createAgreementPayment = async (
+  { agreement, commitOperations },
+  session,
+) => {
+  const paymentRequest = findPaymentRequest(commitOperations);
 
   if (!paymentRequest) {
     return null;
@@ -252,11 +243,14 @@ export const executeAgreementActionUseCase = async (options) => {
     });
   }
 
-  const next = await runAction({
-    action,
+  const next = await agreementDefinition.executeAction({
     agreement,
-    agreementDefinition,
+    actionName: options.actionName,
     values: options.values,
+    execution: {
+      correlationId: agreement.correlationId,
+      executedAt: new Date().toISOString(),
+    },
   });
   return commitAction({
     actionName: options.actionName,

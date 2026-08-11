@@ -328,10 +328,10 @@ const resolveCandidate = async (
   };
 };
 
-const toSequenceResult = (outputs, intents, agreementValues) => ({
+const toSequenceResult = (outputs, commitOperations, agreementValues) => ({
   outputs,
   ...(agreementValues === undefined ? {} : { agreementValues }),
-  ...(intents.length === 0 ? {} : { intents }),
+  commitOperations,
 });
 
 const resolveCandidateBeforeHandler = async (
@@ -376,14 +376,14 @@ const resolveCandidateAfterProcesses = async (candidate, options) => {
   };
 };
 
-const recordProcessResult = (outputs, intents, processKey, result) => {
+const recordProcessResult = (outputs, commitOperations, processKey, result) => {
   Object.defineProperty(outputs, processKey, {
     configurable: true,
     enumerable: true,
     value: result.output,
     writable: true,
   });
-  intents.push(...result.intents);
+  commitOperations.push(...result.commitOperations);
 };
 
 const runSequence = async (
@@ -393,7 +393,7 @@ const runSequence = async (
   context,
   resolveTransitionValues,
 ) => {
-  const intents = [];
+  const commitOperations = [];
   const outputs = {};
   const candidateOptions = {
     context,
@@ -416,12 +416,12 @@ const runSequence = async (
     const result = await executableMap[processKey](
       toProcessContext(context, location, outputs, candidate.agreement),
     );
-    recordProcessResult(outputs, intents, processKey, result);
+    recordProcessResult(outputs, commitOperations, processKey, result);
   }
 
   candidate = await resolveCandidateAfterProcesses(candidate, candidateOptions);
 
-  return toSequenceResult(outputs, intents, candidate.agreementValues);
+  return toSequenceResult(outputs, commitOperations, candidate.agreementValues);
 };
 
 const resolveDependencies = (dependencies) => ({

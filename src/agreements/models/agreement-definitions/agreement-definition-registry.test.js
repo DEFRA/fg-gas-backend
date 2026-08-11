@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { Agreement } from "../agreement.js";
 import {
   agreementDefinitions,
   findAgreementDefinition,
@@ -88,7 +89,15 @@ describe("findAgreementDefinition", () => {
     const definition = new AgreementDefinition(pmfAgreementDefinition, {
       callEndpoint,
     });
-    const agreement = {
+    const agreement = new Agreement({
+      agreementNumber: "PMF123456789",
+      version: 1,
+      code: "pigs-might-fly",
+      clientRef: "test-client-ref",
+      configVersion: pmfAgreementDefinition.configVersion,
+      correlationId: "agreement-correlation-id",
+      identifiers: { sbi: "300000069" },
+      application: {},
       state: "offered",
       startDate: "2026-08-01",
       endDate: "2027-07-31",
@@ -111,23 +120,22 @@ describe("findAgreementDefinition", () => {
           },
         ],
       },
-    };
+      createdAt: "2026-08-01T10:00:00.000Z",
+      updatedAt: "2026-08-01T10:00:00.000Z",
+    });
 
-    const result = await definition.runProcesses({
-      location: {
-        type: "transition",
-        state: "offered",
-        transition: "accept",
-      },
-      context: {
-        agreement,
-        transition: { values: { confirm: "confirmed" } },
-        execution: { executedAt: "2027-01-02T10:00:00.000Z" },
+    const result = await definition.executeAction({
+      agreement,
+      actionName: "accept",
+      values: { confirm: "confirmed" },
+      execution: {
+        correlationId: agreement.correlationId,
+        executedAt: "2027-01-02T10:00:00.000Z",
       },
     });
 
     expect(callEndpoint).not.toHaveBeenCalled();
-    expect(result.intents).toEqual([
+    expect(result.commitOperations).toEqual([
       expect.objectContaining({
         type: "create-agreement-payment",
         request: expect.objectContaining({

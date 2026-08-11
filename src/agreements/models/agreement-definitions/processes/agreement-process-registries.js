@@ -28,8 +28,8 @@ const paymentHandlerInputSchema = Joi.object({
   payment: paymentConfigurationSchema,
 }).required();
 
-const paymentIntentSchema = Joi.object({
-  intents: Joi.array()
+const paymentCommitOperationsSchema = Joi.object({
+  commitOperations: Joi.array()
     .items(
       Joi.object({
         type: Joi.string().valid("create-agreement-payment").required(),
@@ -58,7 +58,7 @@ const selectPaymentAgreementValues = (agreement) =>
   );
 
 const stageAgreementPayment = ({ agreement, input }) => ({
-  intents: [
+  commitOperations: [
     {
       type: "create-agreement-payment",
       request: {
@@ -72,7 +72,7 @@ const stageAgreementPayment = ({ agreement, input }) => ({
 export const agreementProcessHandlers = Object.freeze({
   CREATE_AGREEMENT_PAYMENT: Object.freeze({
     inputSchema: paymentHandlerInputSchema,
-    intentSchema: paymentIntentSchema,
+    commitOperationsSchema: paymentCommitOperationsSchema,
     execute: stageAgreementPayment,
     locations: Object.freeze(["transition"]),
   }),

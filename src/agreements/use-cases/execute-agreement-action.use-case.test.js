@@ -74,12 +74,18 @@ const agreement = new Agreement({
   updatedAt: "2026-07-17T10:00:00.000Z",
 });
 const action = {
-  transition: { from: "offered", action: "accept", target: "accepted" },
   validate: vi.fn().mockReturnValue({ valid: true }),
 };
 const agreementDefinition = {
-  runProcesses: vi.fn().mockResolvedValue({ outputs: {} }),
+  executeAction: vi.fn(),
 };
+
+const transitionAgreement = (values = undefined, target = "accepted") =>
+  agreement.transition({
+    target,
+    transitionedAt: "2026-08-20T10:00:00.000Z",
+    values,
+  });
 const session = {};
 
 describe("executeAgreementActionUseCase", () => {
@@ -93,14 +99,12 @@ describe("executeAgreementActionUseCase", () => {
       agreement,
       agreementDefinition,
     });
-    agreementDefinition.runProcesses.mockResolvedValue({ outputs: {} });
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(),
+      commitOperations: [],
+    });
     replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 1 });
     withTransaction.mockImplementation((callback) => callback(session));
-    action.transition = {
-      from: "offered",
-      action: "accept",
-      target: "accepted",
-    };
     action.validate.mockReturnValue({ valid: true });
   });
 
@@ -145,7 +149,10 @@ describe("executeAgreementActionUseCase", () => {
   });
 
   it("does not publish lifecycle for a data-only Agreement update", async () => {
-    action.transition.target = "offered";
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(undefined, "offered"),
+      commitOperations: [],
+    });
 
     await executeAgreementActionUseCase(options);
 
@@ -169,9 +176,9 @@ describe("executeAgreementActionUseCase", () => {
       startDate: "2026-09-01",
       endDate: "2029-08-31",
     };
-    agreementDefinition.runProcesses.mockResolvedValue({
-      outputs: { CALCULATE_DATES: {} },
-      agreementValues,
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(agreementValues),
+      commitOperations: [],
     });
 
     await executeAgreementActionUseCase(options);
@@ -190,7 +197,7 @@ describe("executeAgreementActionUseCase", () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
       location: "/agreements/current",
     });
-    expect(agreementDefinition.runProcesses).not.toHaveBeenCalled();
+    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
   });
 
   it("rejects stale ETags", async () => {
@@ -208,7 +215,7 @@ describe("executeAgreementActionUseCase", () => {
   });
 
   it("writes nothing when transition candidate resolution fails", async () => {
-    agreementDefinition.runProcesses.mockRejectedValue(
+    agreementDefinition.executeAction.mockRejectedValue(
       new Error("invalid transition candidate"),
     );
 
@@ -266,7 +273,7 @@ describe("executeAgreementActionUseCase", () => {
       values: {},
       errors: [{ href: "#declaration", text: "Agree to the declaration" }],
     });
-    expect(agreementDefinition.runProcesses).not.toHaveBeenCalled();
+    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
     expect(withTransaction).not.toHaveBeenCalled();
   });
 

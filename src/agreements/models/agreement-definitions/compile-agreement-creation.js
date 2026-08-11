@@ -55,10 +55,10 @@ const assertCorrelationId = (execution) => {
   }
 };
 
-const assertNoCreationIntents = (intents = []) => {
-  if (intents.length > 0) {
+const assertNoCreationCommitOperations = (commitOperations) => {
+  if (commitOperations.length > 0) {
     throw Boom.badImplementation(
-      "Agreement creation Processes produced unsupported intents",
+      "Agreement creation Processes produced unsupported commit operations",
     );
   }
 };
@@ -74,11 +74,11 @@ export const compileAgreementCreation = (
     assertCorrelationId(execution);
 
     const { application, mappedValues } = await resolveCreationMappings(input);
-    const { outputs, intents } = await runProcesses({
+    const { outputs, commitOperations } = await runProcesses({
       location: { type: "create" },
       context: { application, execution },
     });
-    assertNoCreationIntents(intents);
+    assertNoCreationCommitOperations(commitOperations);
 
     const values = assembleAgreementValues({
       application,

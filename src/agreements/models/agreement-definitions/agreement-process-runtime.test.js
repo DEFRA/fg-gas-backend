@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
 import { describe, expect, it, vi } from "vitest";
+import { Agreement } from "../agreement.js";
 import { AgreementDefinition } from "./agreement-definition.js";
 
 const createDefinition = () => ({
@@ -89,7 +90,7 @@ const handlerDependencies = (name, options = {}) => ({
   handlers: {
     [name]: {
       inputSchema: optionOr(options.inputSchema, Joi.object().unknown(true)),
-      intentSchema: options.intentSchema,
+      commitOperationsSchema: options.commitOperationsSchema,
       execute: optionOr(options.execute, vi.fn()),
       locations: optionOr(options.locations, ["transition"]),
     },
@@ -104,6 +105,32 @@ const runCreate = (definition) =>
       identifiers: { sbi: "300000069" },
       quantity: 5,
     },
+    execution,
+  });
+
+const toAgreement = (values = {}) =>
+  new Agreement({
+    agreementNumber: "TST123456789",
+    version: 1,
+    code: "test-processes",
+    clientRef: "test-client-ref",
+    configVersion: "1.0.0",
+    correlationId: "creation-correlation-id",
+    identifiers: { sbi: "300000069" },
+    application: {},
+    actions: [],
+    items: [],
+    state: "offered",
+    createdAt: "2026-08-01T10:00:00.000Z",
+    updatedAt: "2026-08-01T10:00:00.000Z",
+    ...values,
+  });
+
+const executeAction = (definition, agreement, values = {}) =>
+  definition.executeAction({
+    agreement,
+    actionName: "accept",
+    values,
     execution,
   });
 
@@ -216,18 +243,9 @@ describe("AgreementDefinition Process runtime", () => {
         }),
       }),
     });
-    const agreement = { state: "offered", totalAmountPence: 32000 };
-    const result = await definition.runProcesses({
-      location: {
-        type: "transition",
-        state: "offered",
-        transition: "accept",
-      },
-      context: {
-        agreement,
-        transition: { values: { confirm: "confirmed" } },
-        execution,
-      },
+    const agreement = toAgreement({ totalAmountPence: 32000 });
+    const result = await executeAction(definition, agreement, {
+      confirm: "confirmed",
     });
 
     expect(calls).toEqual(["calculate-payment", "record-payment"]);
@@ -244,24 +262,25 @@ describe("AgreementDefinition Process runtime", () => {
     expect(execute).toHaveBeenCalledWith({
       agreement,
       execution: { ...execution, location: "transition", target: "accepted" },
-      input: {
-        paymentSchedule: result.outputs["calculate-payment"].paymentSchedule,
-      },
+      input: { paymentSchedule: candidatePaymentSchedule },
     });
-    expect(result.outputs["record-payment"]).toEqual({});
+    expect(result).toMatchObject({
+      agreement: { state: "accepted", version: 2 },
+      commitOperations: [],
+    });
   });
 
   it("deep-clones values at Process boundaries", async () => {
     const definitionData = createDefinition();
     definitionData.processDefinitions.mutate = {
       type: "handler",
-      input: { nested: "$.agreement.nested" },
+      input: { nested: "$.agreement.application.nested" },
     };
     addTransition(definitionData, ["mutate"]);
     const execute = vi
       .fn()
       .mockImplementation(({ agreement, execution, input }) => {
-        agreement.nested.value = 2;
+        agreement.application.nested.value = 2;
         execution.executedAt = "changed";
         input.nested.value = 3;
       });
@@ -271,23 +290,19 @@ describe("AgreementDefinition Process runtime", () => {
         inputSchema: Joi.object({ nested: Joi.object().required() }),
       }),
     });
-    const agreement = { state: "offered", nested: { value: 1 } };
+    const agreement = toAgreement({
+      application: { nested: { value: 1 } },
+    });
     const executionFacts = structuredClone(execution);
 
-    await definition.runProcesses({
-      location: {
-        type: "transition",
-        state: "offered",
-        transition: "accept",
-      },
-      context: {
-        agreement,
-        transition: { values: {} },
-        execution: executionFacts,
-      },
+    await definition.executeAction({
+      agreement,
+      actionName: "accept",
+      values: {},
+      execution: executionFacts,
     });
 
-    expect(agreement.nested.value).toBe(1);
+    expect(agreement.application.nested.value).toBe(1);
     expect(executionFacts).toEqual(execution);
   });
 
@@ -308,9 +323,10 @@ describe("AgreementDefinition Process runtime", () => {
     });
 
     await expect(
-      definition.runProcesses({
-        location: { type: "page", state: "offered", page: "offered" },
-        context: { agreement: { state: "offered" }, execution },
+      definition.runPageProcesses({
+        agreement: toAgreement(),
+        page: "offered",
+        execution,
       }),
     ).resolves.toEqual({
       outputs: {
@@ -329,16 +345,14 @@ describe("AgreementDefinition Process runtime", () => {
     });
 
     await expect(
-      definition.runProcesses({
-        location: { type: "page", state: "offered", page: "offered" },
-        context: {
-          agreement: { state: "offered" },
-          application: { quantity: 5 },
-          execution,
-        },
+      definition.runPageProcesses({
+        agreement: toAgreement(),
+        page: "offered",
+        execution: { ...execution, application: { quantity: 5 } },
       }),
     ).rejects.toMatchObject({
-      message: "Invalid Agreement Process page context at: application",
+      message:
+        "Invalid Agreement Process page context at: execution.application",
       output: { statusCode: 500 },
     });
     expect(callEndpoint).not.toHaveBeenCalled();
@@ -350,18 +364,49 @@ describe("AgreementDefinition Process runtime", () => {
     const definition = new AgreementDefinition(definitionData);
 
     await expect(
-      definition.runProcesses({
-        location: {
-          type: "transition",
-          state: "offered",
-          transition: "accept",
-        },
-        context: { agreement: { state: "offered" }, execution },
+      definition.executeAction({
+        agreement: toAgreement(),
+        actionName: "accept",
+        execution,
       }),
     ).rejects.toMatchObject({
-      message: "Invalid Agreement Process transition context at: transition",
+      message:
+        "Invalid Agreement Process transition context at: transition.values",
       output: { statusCode: 500 },
     });
+  });
+
+  it("rejects commit operations produced while preparing a page", async () => {
+    const definitionData = createDefinition();
+    definitionData.processDefinitions.stage = {
+      type: "handler",
+      input: {},
+    };
+    definitionData.states.offered.processes = ["stage"];
+    const commitOperationsSchema = Joi.object({
+      commitOperations: Joi.array()
+        .items(Joi.object({ type: Joi.string().required() }))
+        .required(),
+    });
+    const definition = new AgreementDefinition(definitionData, {
+      ...handlerDependencies("stage", {
+        execute: () => ({
+          commitOperations: [{ type: "unsupported" }],
+        }),
+        commitOperationsSchema,
+        locations: ["page"],
+      }),
+    });
+
+    await expect(
+      definition.runPageProcesses({
+        agreement: toAgreement(),
+        page: "offered",
+        execution,
+      }),
+    ).rejects.toThrow(
+      "Agreement page Processes produced unsupported commit operations",
+    );
   });
 
   it("checks page access before running a Process", async () => {
@@ -377,30 +422,19 @@ describe("AgreementDefinition Process runtime", () => {
     });
 
     await expect(
-      definition.runProcesses({
-        location: { type: "page", state: "offered", page: "hidden" },
-        context: { agreement: { state: "offered" }, execution },
+      definition.runPageProcesses({
+        agreement: toAgreement(),
+        page: "hidden",
+        execution,
       }),
     ).rejects.toMatchObject({ output: { statusCode: 403 } });
     expect(callEndpoint).not.toHaveBeenCalled();
   });
 
-  it("keeps creation Process execution private to Agreement creation", async () => {
-    const callEndpoint = vi.fn();
-    const definition = new AgreementDefinition(createDefinition(), {
-      callEndpoint,
-    });
+  it("keeps the generic Process runtime private", () => {
+    const definition = new AgreementDefinition(createDefinition());
 
-    await expect(
-      definition.runProcesses({
-        location: { type: "create" },
-        context: { application: { quantity: 5 }, execution },
-      }),
-    ).rejects.toMatchObject({
-      message: "Agreement creation Processes are private to Agreement creation",
-      output: { statusCode: 500 },
-    });
-    expect(callEndpoint).not.toHaveBeenCalled();
+    expect(definition.runProcesses).toBeUndefined();
   });
 
   it("stops after an endpoint failure", async () => {
@@ -437,7 +471,7 @@ describe("AgreementDefinition Process runtime", () => {
     });
   });
 
-  it("stages a typed Payment intent without writing outside the transaction", async () => {
+  it("stages a typed Payment commit operation without writing", async () => {
     const definitionData = createDefinition();
     definitionData.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
       type: "handler",
@@ -447,21 +481,10 @@ describe("AgreementDefinition Process runtime", () => {
     const definition = new AgreementDefinition(definitionData);
 
     await expect(
-      definition.runProcesses({
-        location: {
-          type: "transition",
-          state: "offered",
-          transition: "accept",
-        },
-        context: {
-          agreement: { state: "offered", ...paymentAgreementValues },
-          transition: { values: {} },
-          execution,
-        },
-      }),
-    ).resolves.toEqual({
-      outputs: { CREATE_AGREEMENT_PAYMENT: {} },
-      intents: [
+      executeAction(definition, toAgreement(paymentAgreementValues)),
+    ).resolves.toMatchObject({
+      agreement: { state: "offered", version: 2 },
+      commitOperations: [
         {
           type: "create-agreement-payment",
           request: {
@@ -473,29 +496,31 @@ describe("AgreementDefinition Process runtime", () => {
     });
   });
 
-  it("rejects intents produced during Agreement creation", async () => {
+  it("rejects commit operations produced during Agreement creation", async () => {
     const definitionData = createDefinition();
     definitionData.processDefinitions.stage = {
       type: "handler",
       input: {},
     };
     definitionData.create.processes = ["stage"];
-    const intentSchema = Joi.object({
-      intents: Joi.array()
+    const commitOperationsSchema = Joi.object({
+      commitOperations: Joi.array()
         .items(Joi.object({ type: Joi.string().required() }))
         .required(),
     });
     const definition = new AgreementDefinition(definitionData, {
       generateAgreementNumber: () => "TST123456789",
       ...handlerDependencies("stage", {
-        execute: () => ({ intents: [{ type: "unsupported" }] }),
-        intentSchema,
+        execute: () => ({
+          commitOperations: [{ type: "unsupported" }],
+        }),
+        commitOperationsSchema,
         locations: ["create"],
       }),
     });
 
     await expect(runCreate(definition)).rejects.toThrow(
-      "Agreement creation Processes produced unsupported intents",
+      "Agreement creation Processes produced unsupported commit operations",
     );
   });
 });

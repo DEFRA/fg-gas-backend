@@ -1,8 +1,9 @@
 import Joi from "joi";
 import { describe, expect, it, vi } from "vitest";
+import { Agreement } from "../agreement.js";
 import { AgreementDefinition } from "./agreement-definition.js";
 
-const currentAgreement = {
+const currentAgreement = new Agreement({
   agreementNumber: "TST123456789",
   version: 1,
   code: "test-transition",
@@ -47,7 +48,7 @@ const currentAgreement = {
   state: "offered",
   createdAt: "2026-08-01T10:00:00.000Z",
   updatedAt: "2026-08-01T10:00:00.000Z",
-};
+});
 
 const transitionValues = {
   schemeCode: "$.agreement.schemeCode",
@@ -96,7 +97,11 @@ const createDefinition = ({
           },
         },
       },
-      create: { target: "offered" },
+      create: {
+        target: "offered",
+        application: {},
+        values: { actions: [], items: [] },
+      },
       states: {
         offered: {
           page: "offered",
@@ -141,16 +146,16 @@ const createDefinition = ({
   );
 
 const runAcceptance = (definition, candidateAgreement = currentAgreement) =>
-  definition.runProcesses({
-    location: {
-      type: "transition",
-      state: "offered",
-      transition: "accept",
-    },
-    context: {
-      agreement: candidateAgreement,
-      transition: { values: { confirm: "confirmed" } },
-      execution: { executedAt: "2026-08-20T10:00:00.000Z" },
+  definition.executeAction({
+    agreement:
+      candidateAgreement instanceof Agreement
+        ? candidateAgreement
+        : new Agreement(candidateAgreement),
+    actionName: "accept",
+    values: { confirm: "confirmed" },
+    execution: {
+      correlationId: currentAgreement.correlationId,
+      executedAt: "2026-08-20T10:00:00.000Z",
     },
   });
 
@@ -161,7 +166,7 @@ describe("AgreementDefinition transition-value mapping", () => {
 
     const result = await runAcceptance(definition);
 
-    expect(result.agreementValues).toEqual({
+    expect(result.agreement).toMatchObject({
       schemeCode: currentAgreement.schemeCode,
       name: currentAgreement.name,
       applicant: currentAgreement.applicant,
@@ -276,14 +281,14 @@ describe("AgreementDefinition transition-value mapping", () => {
 
     const result = await runAcceptance(definition);
 
-    expect(result.agreementValues.actions).toEqual([
+    expect(result.agreement.actions).toEqual([
       {
         id: "action:1",
         code: "TEST1",
         totalAmountPence: 166200,
       },
     ]);
-    expect(result.agreementValues.paymentSchedule).toEqual({
+    expect(result.agreement.paymentSchedule).toEqual({
       instalments: [
         {
           id: "instalment:1",
@@ -296,8 +301,8 @@ describe("AgreementDefinition transition-value mapping", () => {
     expect(execute).toHaveBeenCalledWith(
       expect.objectContaining({
         agreement: expect.objectContaining({
-          actions: result.agreementValues.actions,
-          paymentSchedule: result.agreementValues.paymentSchedule,
+          actions: result.agreement.actions,
+          paymentSchedule: result.agreement.paymentSchedule,
         }),
       }),
     );
@@ -344,9 +349,9 @@ describe("AgreementDefinition transition-value mapping", () => {
 
     const result = await runAcceptance(definition, candidateAgreement);
 
-    expect(result.agreementValues.actions[1].id).toBe("action:4");
-    expect(result.agreementValues.items[1].id).toBe("item:4");
-    expect(result.agreementValues.paymentSchedule.instalments[0].id).toBe(
+    expect(result.agreement.actions[1].id).toBe("action:4");
+    expect(result.agreement.items[1].id).toBe("item:4");
+    expect(result.agreement.paymentSchedule.instalments[0].id).toBe(
       "instalment:4",
     );
   });
@@ -405,7 +410,11 @@ const createDefinitionData = (values) => ({
     },
     STAGE_RESULT: { type: "handler", input: {} },
   },
-  create: { target: "offered" },
+  create: {
+    target: "offered",
+    application: {},
+    values: { actions: [], items: [] },
+  },
   states: {
     offered: {
       page: "offered",

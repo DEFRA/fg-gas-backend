@@ -122,7 +122,7 @@ const compileEndpoint = (processKey, definition, endpointCaller) => {
     );
 
     return {
-      intents: [],
+      commitOperations: [],
       output: await mapOutput(processKey, definition.output, context, response),
     };
   };
@@ -154,19 +154,19 @@ const mapHandlerInput = async (processKey, definition, context) => {
 
 const validateHandlerResult = (processKey, handler, result) => {
   if (result === undefined) {
-    return { intents: [] };
+    return { commitOperations: [] };
   }
 
-  if (!handler.intentSchema) {
+  if (!handler.commitOperationsSchema) {
     throw Boom.badImplementation(
-      `Agreement Process handler "${processKey}" returned unsupported intents`,
+      `Agreement Process handler "${processKey}" returned unsupported commit operations`,
     );
   }
 
   return validateMappedValue(
-    handler.intentSchema,
+    handler.commitOperationsSchema,
     result,
-    `Agreement Process handler "${processKey}" returned malformed intents`,
+    `Agreement Process handler "${processKey}" returned malformed commit operations`,
   );
 };
 
@@ -206,14 +206,14 @@ const compileHandler = (processKey, definition, handlers) => {
       mapped,
       `Agreement Process "${processKey}" input failed validation`,
     );
-    const { intents } = await executeHandler(
+    const { commitOperations } = await executeHandler(
       processKey,
       handler,
       context,
       input,
     );
 
-    return { intents, output: {} };
+    return { commitOperations, output: {} };
   };
 };
 
