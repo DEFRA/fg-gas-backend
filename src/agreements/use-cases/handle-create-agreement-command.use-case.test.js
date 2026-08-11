@@ -6,7 +6,6 @@ import { withTransaction } from "../../common/with-transaction.js";
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { agreementDefinitions } from "../models/agreement-definitions/agreement-definition-registry.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
-import { generateAgreementNumber } from "../models/agreement-number.js";
 import {
   findAgreementBySourceIdentity,
   insertAgreementVersion,
@@ -17,7 +16,6 @@ import { handleCreateAgreementCommandUseCase } from "./handle-create-agreement-c
 vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../models/agreement-definitions/agreement-definition-loader.js");
-vi.mock("../models/agreement-number.js");
 vi.mock("../repositories/agreement.repository.js");
 
 const pmfDefinitionData = agreementDefinitions.find(
@@ -217,7 +215,12 @@ const woodlandDefinitionData = {
 const createDefinition = (
   callEndpoint = vi.fn().mockResolvedValue(calculatorResult),
   definitionData = pmfDefinitionData,
-) => new AgreementDefinition(definitionData, { callEndpoint });
+  agreementNumber = "PMF823153883",
+) =>
+  new AgreementDefinition(definitionData, {
+    callEndpoint,
+    generateAgreementNumber: () => agreementNumber,
+  });
 
 const expectNoPersistence = () => {
   expect(withTransaction).not.toHaveBeenCalled();
@@ -248,7 +251,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
     withTransaction.mockImplementation(async (callback) => callback(session));
     findAgreementBySourceIdentity.mockResolvedValue(null);
     loadAgreementDefinition.mockResolvedValue(createDefinition());
-    generateAgreementNumber.mockReturnValue("PMF823153883");
   });
 
   afterEach(() => {
@@ -262,7 +264,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
       return calculatorResult;
     });
     const definition = createDefinition(callEndpoint);
-    const resolveApplication = vi.spyOn(definition, "resolveApplication");
     loadAgreementDefinition.mockResolvedValue(definition);
     withTransaction.mockImplementation(async (callback) => {
       callOrder.push("transaction");
@@ -272,7 +273,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
 
     const agreement = await handleCreateAgreementCommandUseCase(command);
 
-    expect(resolveApplication).toHaveBeenCalledWith(command.data);
     expect(command.data).toEqual(originalInput);
     expect(callEndpoint).toHaveBeenCalledOnce();
     expect(callEndpoint).toHaveBeenCalledWith(
@@ -365,9 +365,10 @@ describe("handleCreateAgreementCommandUseCase", () => {
   it("creates an Agreement entirely from configured supplied-value mappings", async () => {
     const originalInput = structuredClone(woodlandCommand.data);
     loadAgreementDefinition.mockResolvedValue(
-      new AgreementDefinition(woodlandDefinitionData),
+      new AgreementDefinition(woodlandDefinitionData, {
+        generateAgreementNumber: () => "WMP123456789",
+      }),
     );
-    generateAgreementNumber.mockReturnValue("WMP123456789");
 
     const agreement =
       await handleCreateAgreementCommandUseCase(woodlandCommand);
@@ -408,9 +409,11 @@ describe("handleCreateAgreementCommandUseCase", () => {
   it("creates FPTT-shaped Parcels and Revenue Actions without calculating a Payment Schedule", async () => {
     const callEndpoint = vi.fn();
     loadAgreementDefinition.mockResolvedValue(
-      new AgreementDefinition(fpttDefinitionData, { callEndpoint }),
+      new AgreementDefinition(fpttDefinitionData, {
+        callEndpoint,
+        generateAgreementNumber: () => "FPTT123456789",
+      }),
     );
-    generateAgreementNumber.mockReturnValue("FPTT123456789");
 
     const agreement = await handleCreateAgreementCommandUseCase(fpttCommand);
 

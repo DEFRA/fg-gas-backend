@@ -2,26 +2,42 @@ import { describe, expect, it } from "vitest";
 import { AgreementDefinition } from "./agreement-definition.js";
 
 const createDefinition = (values) =>
-  new AgreementDefinition({
-    code: "woodland",
-    configVersion: "1.0.0",
-    agreementNumberPrefix: "WMP",
-    create: {
-      target: "offered",
-      application: "$.input.answers",
-      values,
-      processes: [],
-    },
-    states: { offered: { page: "offered" } },
-    pages: {
-      offered: {
-        title: "Offer",
-        components: [{ component: "heading", text: "Offer" }],
+  new AgreementDefinition(
+    {
+      code: "woodland",
+      configVersion: "1.0.0",
+      agreementNumberPrefix: "WMP",
+      create: {
+        target: "offered",
+        application: "$.input.answers",
+        values,
+        processes: [],
+      },
+      states: { offered: { page: "offered" } },
+      pages: {
+        offered: {
+          title: "Offer",
+          components: [{ component: "heading", text: "Offer" }],
+        },
       },
     },
-  });
+    {
+      generateAgreementNumber: () => "WMP123456789",
+    },
+  );
+
+const execution = {
+  correlationId: "creation-correlation-id",
+  executedAt: "2026-08-06T12:00:00.000Z",
+};
+
+const createAgreement = (definition, creationInput = input) =>
+  definition.createAgreement({ input: creationInput, execution });
 
 const input = {
+  clientRef: "wmp-client-ref",
+  code: "woodland",
+  identifiers: { sbi: "300000069" },
   scheme: "WMP",
   answers: {
     woodlandName: "Oakridge Estate",
@@ -86,11 +102,10 @@ const creationValues = {
 describe("AgreementDefinition creation-value mapping", () => {
   it("maps supplied input and Application into typed Agreement value candidates", async () => {
     const definition = createDefinition(creationValues);
-    const application = await definition.resolveApplication(input);
 
-    await expect(
-      definition.resolveCreationValues({ input, application }),
-    ).resolves.toEqual({
+    await expect(createAgreement(definition)).resolves.toMatchObject({
+      agreementNumber: "WMP123456789",
+      application: input.answers,
       schemeCode: "WMP",
       name: "Oakridge Estate WMP",
       applicant: input.answers.applicant,
@@ -105,7 +120,7 @@ describe("AgreementDefinition creation-value mapping", () => {
       actions: [],
       items: [
         {
-          ref: "WMP1",
+          id: "item:1",
           code: "WMP1",
           description: "Produce a woodland management plan",
           quantity: 15.75,
@@ -120,23 +135,13 @@ describe("AgreementDefinition creation-value mapping", () => {
   it("isolates Creation Input, Application and resolved values", async () => {
     const mutableInput = structuredClone(input);
     const definition = createDefinition(creationValues);
-    const application = await definition.resolveApplication(mutableInput);
-    const first = await definition.resolveCreationValues({
-      input: mutableInput,
-      application,
-    });
+    const first = await createAgreement(definition, mutableInput);
 
     mutableInput.scheme = "CHANGED";
-    application.woodlandName = "Changed woodland";
+    first.application.woodlandName = "Changed woodland";
     first.applicant.business.name = "Changed business";
 
-    const secondApplication = await definition.resolveApplication(input);
-    await expect(
-      definition.resolveCreationValues({
-        input,
-        application: secondApplication,
-      }),
-    ).resolves.toMatchObject({
+    await expect(createAgreement(definition)).resolves.toMatchObject({
       schemeCode: "WMP",
       name: "Oakridge Estate WMP",
       applicant: { business: { name: "Oakridge Estate" } },
@@ -147,12 +152,11 @@ describe("AgreementDefinition creation-value mapping", () => {
     const values = structuredClone(creationValues);
     values.name = "$.application.secretAgreementName";
     const definition = createDefinition(values);
-    const application = await definition.resolveApplication(input);
 
     await expect(
-      definition.resolveCreationValues({
-        input: { ...input, sensitiveReference: "SENSITIVE" },
-        application,
+      createAgreement(definition, {
+        ...input,
+        sensitiveReference: "SENSITIVE",
       }),
     ).rejects.toMatchObject({
       message:
@@ -165,12 +169,11 @@ describe("AgreementDefinition creation-value mapping", () => {
     const values = structuredClone(creationValues);
     values.totalAmountPence = "$.input.sensitiveTotal";
     const definition = createDefinition(values);
-    const application = await definition.resolveApplication(input);
 
     await expect(
-      definition.resolveCreationValues({
-        input: { ...input, sensitiveTotal: "157500-secret" },
-        application,
+      createAgreement(definition, {
+        ...input,
+        sensitiveTotal: "157500-secret",
       }),
     ).rejects.toMatchObject({
       message:
