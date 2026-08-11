@@ -23,15 +23,26 @@ const mapping = {
   },
 };
 
-const paymentCalculation = {
-  agreementTotalPence: 2000,
-  payments: [
+const agreementValues = {
+  actions: [
     {
-      dueDate: "2026-11-06",
-      totalAmountPence: 2000,
-      invoiceLines: [{ description: "Large White Pig", amountPence: 2000 }],
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
     },
   ],
+  items: [],
+  totalAmountPence: 2000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 2000,
+        lineItems: [{ actionId: "action:1", amountPence: 2000 }],
+      },
+    ],
+  },
 };
 
 const request = {
@@ -39,8 +50,12 @@ const request = {
   version: 2,
   sbi: "106284736",
   frn: "1101234567",
-  paymentCalculation,
-  mapping,
+  agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",
+  agreementValues,
+  paymentConfiguration: {
+    ...mapping,
+    marketingYear: "2026",
+  },
 };
 
 const session = {};
@@ -97,11 +112,11 @@ describe("createAgreementPaymentUseCase", () => {
   it("inserts nothing when the request cannot be turned into a Payment", async () => {
     await expect(
       createAgreementPaymentUseCase(
-        { ...request, mapping: undefined },
+        { ...request, paymentConfiguration: undefined },
         session,
       ),
     ).rejects.toThrow(
-      "createPayment requires a mapping from the Agreement Definition",
+      "createPayment requires payment configuration from the Agreement Definition",
     );
     expect(insertPayment).not.toHaveBeenCalled();
   });

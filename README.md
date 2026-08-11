@@ -105,6 +105,10 @@ Create a `.env` file in the root of the project. You can use the `.env.example` 
 cp .env.example .env
 ```
 
+`VIEW_AGREEMENT_URI` is the Agreements UI base used in accepted Agreement
+lifecycle events. Do not include a trailing slash; the Agreement Number is
+appended when the event is created.
+
 ### AWS emulation (floci)
 
 SQS and SNS are emulated by [floci](https://floci.io) on `localhost:4566`,

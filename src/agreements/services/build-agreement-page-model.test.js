@@ -87,8 +87,33 @@ const agreement = {
   state: "offered",
   version: 1,
 };
-const fundingCalculation = {
-  items: [{ description: "Large White Pig", total: 32000 }],
+const offeredValues = {
+  application: { whitePigsCount: 5 },
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+      quantity: 5,
+      unit: "head",
+      ratePence: 1000,
+      totalAmountPence: 5000,
+    },
+  ],
+  items: [],
+  startDate: "2026-08-06",
+  endDate: "2027-08-05",
+  totalAmountPence: 5000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-11",
+        totalAmountPence: 5000,
+        lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+      },
+    ],
+  },
 };
 
 describe("buildAgreementPageModel", () => {
@@ -165,20 +190,14 @@ describe("buildAgreementPageModel", () => {
     });
   });
 
-  it("builds the accepted PMF payment schedule from the calculator response", async () => {
+  it("keeps the complete PMF document and a concise accepted page", async () => {
     const acceptedAgreement = {
       ...agreement,
       code: "pigs-might-fly",
       configVersion: "1.2.0",
       state: "accepted",
       acceptedAt: "2026-07-31T15:30:00.000Z",
-      supplementaryData: { fundingCalculation },
-      paymentCalculation: {
-        agreementStartDate: "2026-08-01",
-        agreementEndDate: "2027-07-31",
-        agreementTotalPence: 32000,
-        payments: [{ dueDate: "2026-11-06", totalAmountPence: 32000 }],
-      },
+      ...offeredValues,
     };
     const pmfDefinition = new AgreementDefinition(pmfAgreementDefinition);
 
@@ -204,8 +223,16 @@ describe("buildAgreementPageModel", () => {
       components: [
         {
           component: "table",
-          head: [{ text: "Pig type" }, { text: "Funding amount" }],
-          rows: [[{ text: "Large White Pig" }, { text: "£320" }]],
+          head: [
+            { text: "Pig type" },
+            { text: "Number of pigs" },
+            { text: "Funding amount" },
+          ],
+          rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
+        },
+        {
+          component: "summary-list",
+          rows: [{ label: "Total funding", text: "£50" }],
         },
       ],
     });
@@ -216,30 +243,36 @@ describe("buildAgreementPageModel", () => {
           components: expect.arrayContaining([
             expect.objectContaining({
               component: "table",
-              rows: [[{ text: "6 November 2026" }, { text: "£320" }]],
+              rows: [[{ text: "11 November 2026" }, { text: "£50" }]],
             }),
           ]),
         }),
       ]),
     );
-    expect(acceptedModel.components).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          component: "summary-list",
-          rows: expect.arrayContaining([
-            { label: "Agreement start date", text: "1 August 2026" },
-            { label: "Total payment", text: "£320" },
-          ]),
-        }),
-      ]),
-    );
+    expect(acceptedModel.components).toEqual([
+      {
+        component: "panel",
+        title: "Agreement offer accepted",
+        text: "Agreement number: TST123",
+      },
+      {
+        component: "summary-list",
+        rows: [{ label: "Agreement start date", text: "6 August 2026" }],
+      },
+      {
+        component: "url",
+        href: "/agreements/TST123/document",
+        text: "View and print your agreement (opens in new tab)",
+        target: "_blank",
+      },
+    ]);
   });
 
-  it("separates the PMF draft agreement link from the primary action", async () => {
+  it("shows the PMF offer summary without duplicating the payment schedule", async () => {
     const offeredAgreement = {
       ...agreement,
       code: "pigs-might-fly",
-      supplementaryData: { fundingCalculation },
+      ...offeredValues,
     };
 
     const model = await buildAgreementPageModel({
@@ -249,20 +282,119 @@ describe("buildAgreementPageModel", () => {
       mode: "view",
     });
 
-    expect(
-      model.components.find(({ component }) => component === "table"),
-    ).toEqual({
-      component: "table",
-      head: [{ text: "Pig type" }, { text: "Funding amount" }],
-      rows: [[{ text: "Large White Pig" }, { text: "£320" }]],
-    });
-    expect(model.components).toContainEqual(
-      expect.objectContaining({
+    expect(model.components).toEqual([
+      {
+        component: "heading",
+        level: 1,
+        text: "Review your agreement offer",
+      },
+      {
+        component: "paragraph",
+        text: "Check the details of this test agreement before you continue.",
+      },
+      {
+        component: "summary-list",
+        rows: [
+          { label: "SBI", text: "300000000" },
+          { label: "Agreement number", text: "TST123" },
+        ],
+      },
+      {
+        component: "heading",
+        level: 2,
+        text: "Pigs and funding",
+      },
+      {
+        component: "table",
+        head: [
+          { text: "Pig type" },
+          { text: "Number of pigs" },
+          { text: "Funding amount" },
+        ],
+        rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
+      },
+      {
+        component: "summary-list",
+        rows: [
+          { label: "Agreement start date", text: "6 August 2026" },
+          { label: "Agreement end date", text: "5 August 2027" },
+          { label: "Total funding", text: "£50" },
+        ],
+      },
+      {
         component: "url",
-        text: "View the draft agreement",
+        href: "/agreements/TST123/document",
+        text: "View the draft agreement (opens in new tab)",
+        target: "_blank",
         classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
-      }),
-    );
+      },
+    ]);
+    expect(model.actions).toEqual([
+      {
+        name: "accept",
+        method: "GET",
+        href: "/agreements/TST123/actions/accept",
+        text: "Continue",
+      },
+    ]);
+  });
+
+  it("focuses the PMF acceptance page on declarations and confirmation", async () => {
+    const model = await buildAgreementPageModel({
+      agreement: {
+        ...agreement,
+        code: "pigs-might-fly",
+        ...offeredValues,
+      },
+      agreementDefinition: new AgreementDefinition(pmfAgreementDefinition),
+      page: "accept",
+      mode: "view",
+    });
+
+    expect(model.components).toEqual([
+      {
+        component: "heading",
+        level: 1,
+        text: "Accept your agreement offer",
+      },
+      {
+        component: "url",
+        href: "/agreements/TST123/document",
+        text: "View the draft agreement (opens in new tab)",
+        target: "_blank",
+        classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
+      },
+      {
+        component: "paragraph",
+        text: "By accepting this offer, you confirm that:",
+      },
+      {
+        component: "unordered-list",
+        items: [
+          { text: "the information in the agreement is correct" },
+          { text: "you have authority to accept the agreement" },
+          { text: "you understand this is a test grant" },
+        ],
+      },
+      {
+        component: "checkboxes",
+        name: "confirm",
+        items: [
+          {
+            value: "confirmed",
+            text: "I confirm I have read the information in this section and accept this agreement offer.",
+          },
+        ],
+      },
+    ]);
+    expect(model.actions).toEqual([
+      {
+        name: "accept",
+        method: "POST",
+        href: "/agreements/TST123/actions/accept",
+        text: "Accept agreement offer",
+      },
+    ]);
   });
 
   it("resolves a template from the definition against the agreement", async () => {

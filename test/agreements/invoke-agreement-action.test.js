@@ -21,20 +21,57 @@ const agreement = () => ({
   configVersion: "1.0.1",
   correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
   identifiers: { sbi: "300000070", frn: "1101234567" },
-  payload: { whitePigsCount: 5 },
+  application: {
+    whitePigsCount: 5,
+    britishLandracePigsCount: 0,
+    berkshirePigsCount: 0,
+    otherPigsCount: 0,
+  },
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+      quantity: 5,
+      unit: "head",
+      ratePence: 1000,
+      totalAmountPence: 5000,
+    },
+  ],
+  items: [],
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
+  totalAmountPence: 5000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 5000,
+        lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+      },
+    ],
+  },
   state: "offered",
   createdAt,
   updatedAt: createdAt,
-  supplementaryData: {
-    fundingCalculation: {
-      items: [{ description: "Large White", total: 32000 }],
-    },
-  },
 });
 
 const paymentEventQuery = {
   "event.data.grants.agreementNumber": agreementNumber,
 };
+
+const toFundedValues = (value) => ({
+  application: value.application,
+  startDate: value.startDate,
+  endDate: value.endDate,
+  parcels: value.parcels,
+  actions: value.actions,
+  items: value.items,
+  annualAmountPence: value.annualAmountPence,
+  totalAmountPence: value.totalAmountPence,
+  paymentSchedule: value.paymentSchedule,
+});
 
 const requestAction = async ({
   values = { confirm: "confirmed" },
@@ -147,160 +184,98 @@ describe("single Agreement actions", () => {
     expect(response.statusCode).toBe(404);
   });
 
-  it("accepts and atomically records current Agreement, Version and event", async () => {
+  it("accepts the exact stored offer and atomically records its Version and event", async () => {
+    const offered = await agreements.findOne({ agreementNumber });
     const { response } = await requestAction();
 
     expect(response.statusCode).toBe(303);
     expect(response.headers.location).toBe("/agreements/current");
-    await expect(agreements).toHaveRecord({
+    const accepted = await agreements.findOne({ agreementNumber });
+    const version = await versions.findOne({ agreementNumber, version: 2 });
+
+    expect(accepted).toMatchObject({
       agreementNumber,
       version: 2,
       state: "accepted",
+      acceptedAt: expect.any(String),
+      updatedAt: expect.any(String),
     });
-    const accepted = await agreements.findOne({ agreementNumber });
-    expect(accepted.acceptedAt).toEqual(expect.any(String));
-    await expect(versions).toHaveRecord({
+    expect(toFundedValues(accepted)).toEqual(toFundedValues(offered));
+    expect(version).toMatchObject({
       agreementNumber,
       version: 2,
-      "snapshot.state": "accepted",
-      "actionExecution.name": "accept",
-      "actionExecution.idempotencyKey": idempotencyKey,
+      actionExecution: { name: "accept", idempotencyKey },
     });
+    const persistedAccepted = structuredClone(accepted);
+    delete persistedAccepted._id;
+    expect(version.snapshot).toEqual(persistedAccepted);
   });
 
-  it("commits one Payment with the accepted Version", async () => {
+  it("creates the immutable Payment and both publications from the stored offer", async () => {
+    const offered = await agreements.findOne({ agreementNumber });
     const { response } = await requestAction();
 
     expect(response.statusCode).toBe(303);
-
     const payment = await payments.findOne({
       "source.agreementNumber": agreementNumber,
     });
-
     expect(payment).toMatchObject({
       source: { type: "agreement", agreementNumber, version: 2 },
       sbi: "300000070",
       frn: "1101234567",
       paymentHubClaimId: expect.stringMatching(/^R\d{8}$/),
+      correlationId: offered.correlationId,
       scheme: "SFI",
       sourceSystem: "FPTT",
       deliveryBody: "RP00",
       fesCode: "FALS_FPTT",
       ledger: "AP",
+      totalAmountPence: 5000,
       currency: "GBP",
-      paymentRequestNumber: 1,
-      originalInvoiceNumber: "",
-      totalAmountPence: 32000,
+      marketingYear: "2026",
+      payments: [
+        expect.objectContaining({
+          dueDate: "2026-11-06",
+          totalAmountPence: 5000,
+          status: "pending",
+          invoiceLines: [
+            {
+              schemeCode: "CMOR1",
+              description: "Large White Pig",
+              amountPence: 5000,
+              accountCode: "SOS710",
+              fundCode: "DRD10",
+              deliveryBody: "RP00",
+              marketingYear: "2026",
+            },
+          ],
+        }),
+      ],
     });
-    expect(payment.invoiceNumber).toBe(`${payment.paymentHubClaimId}-V001QX`);
-    // GAS claim IDs are seeded above the legacy service's range so the two can
-    // issue them concurrently without colliding.
-    expect(Number(payment.paymentHubClaimId.slice(1))).toBeGreaterThanOrEqual(
-      10000000,
-    );
-    expect(payment.payments[0]).toMatchObject({
-      dueDate: "2026-11-06",
-      totalAmountPence: 32000,
-      status: "pending",
+    expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
+    const lifecyclePublication = await outbox.findOne({
+      "event.data.agreementNumber": agreementNumber,
     });
-    expect(payment.payments[0].invoiceLines[0]).toMatchObject({
-      schemeCode: "CMOR1",
-      description: "Large White Pig",
-      amountPence: 32000,
-      accountCode: "SOS710",
-      fundCode: "DRD10",
-      deliveryBody: "RP00",
-    });
-  });
-
-  it("records the payment event in the outbox with the acceptance", async () => {
-    await requestAction();
-
-    await expect(outbox).toHaveRecord(paymentEventQuery);
-
-    const record = await outbox.findOne(paymentEventQuery);
-    const payment = await payments.findOne({
-      "source.agreementNumber": agreementNumber,
-    });
-
-    expect(record.target).toBe(env.GAS__SNS__CREATE_PAYMENT_TOPIC_ARN);
-    expect(record.segregationRef).toBe(agreementNumber);
-    expect(record.event).toMatchObject({
-      type: "io.onsite.agreement.create-payment",
-      source: "urn:service:agreement",
-      messageGroupId: agreementNumber,
-    });
-    expect(record.event.data.claimId).toBe(payment.paymentHubClaimId);
-  });
-
-  it("publishes the payment event to the Payment Service", async () => {
-    await requestAction();
-
-    const payment = await payments.findOne({
-      "source.agreementNumber": agreementNumber,
-    });
-
-    await expect(env.CREATE_PAYMENT_QUEUE_URL).toHaveReceived({
-      id: expect.any(String),
-      time: expect.any(String),
-      source: "urn:service:agreement",
-      specversion: "1.0",
-      type: "io.onsite.agreement.create-payment",
-      datacontenttype: "application/json",
-      messageGroupId: agreementNumber,
+    expect(lifecyclePublication.event).toMatchObject({
+      type: "io.onsite.agreement.status.updated",
       data: {
-        sbi: "300000070",
-        frn: "1101234567",
+        agreementNumber,
+        correlationId: offered.correlationId,
+        clientRef: offered.clientRef,
+        code: offered.code,
+        version: 2,
+        status: "accepted",
+        date: expect.any(String),
         claimId: payment.paymentHubClaimId,
-        scheme: "SFI",
-        grants: [
-          {
-            sourceSystem: "FPTT",
-            deliveryBody: "RP00",
-            fesCode: "FALS_FPTT",
-            paymentRequestNumber: 1,
-            correlationId: payment.correlationId,
-            invoiceNumber: payment.invoiceNumber,
-            ledger: "AP",
-            originalInvoiceNumber: "",
-            agreementNumber,
-            totalAmountPence: "32000",
-            currency: "GBP",
-            marketingYear: payment.marketingYear,
-            payments: [
-              {
-                dueDate: "2026-11-06",
-                totalAmountPence: "32000",
-                status: "pending",
-                correlationId: payment.payments[0].correlationId,
-                invoiceLines: [
-                  {
-                    accountCode: "SOS710",
-                    amountPence: "32000",
-                    deliveryBody: "RP00",
-                    description: "Large White Pig",
-                    fundCode: "DRD10",
-                    marketingYear:
-                      payment.payments[0].invoiceLines[0].marketingYear,
-                    schemeCode: "CMOR1",
-                  },
-                ],
-              },
-            ],
-          },
-        ],
+        startDate: offered.startDate,
+        endDate: offered.endDate,
+        agreementUrl: `http://localhost:3000/${agreementNumber}`,
       },
     });
-  });
-  it("stores the payment calculation on the Agreement and Version", async () => {
-    await requestAction();
-
     const accepted = await agreements.findOne({ agreementNumber });
     const version = await versions.findOne({ agreementNumber, version: 2 });
-
-    expect(accepted.paymentCalculation.agreementTotalPence).toBe(32000);
-    expect(accepted.paymentCalculation.agreementEndDate).toBe("2027-07-31");
-    expect(version.snapshot.paymentCalculation.agreementTotalPence).toBe(32000);
+    expect(accepted).not.toHaveProperty("paymentCalculation");
+    expect(version.snapshot).not.toHaveProperty("paymentCalculation");
   });
 
   it("returns a render-ready validation page without changing the Agreement", async () => {
@@ -311,7 +286,18 @@ describe("single Agreement actions", () => {
     expect(payload).toMatchObject({
       page: { name: "accept", title: "Accept your agreement offer" },
       components: [
-        { component: "heading", text: "Accept your agreement offer" },
+        {
+          component: "heading",
+          level: 1,
+          text: "Accept your agreement offer",
+        },
+        {
+          component: "url",
+          href: `/agreements/${agreementNumber}/document`,
+          text: "View the draft agreement (opens in new tab)",
+          target: "_blank",
+          classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
+        },
         {
           component: "paragraph",
           text: "By accepting this offer, you confirm that:",
@@ -333,6 +319,7 @@ describe("single Agreement actions", () => {
           items: [
             {
               value: "confirmed",
+              text: "I confirm I have read the information in this section and accept this agreement offer.",
               checked: false,
             },
           ],
@@ -355,25 +342,38 @@ describe("single Agreement actions", () => {
     ).toBe(0);
   });
 
-  it("rejects a stale expected version", async () => {
+  it("rejects a stale expected version without changing the offer", async () => {
+    const offered = await agreements.findOne({ agreementNumber });
     const { response } = await requestAction({ ifMatch: '"PMF823153884:0"' });
 
     expect(response.statusCode).toBe(412);
     expect(response.headers.etag).toBe(`"${agreementNumber}:1"`);
+    expect(await agreements.findOne({ agreementNumber })).toEqual(offered);
+    expect(await versions.countDocuments({ agreementNumber })).toBe(1);
   });
 
-  it("replays a successful idempotency key without another Version", async () => {
+  it("replays a successful idempotency key without duplicating acceptance", async () => {
     const first = await requestAction();
+    const accepted = await agreements.findOne({ agreementNumber });
+    const payment = await payments.findOne({
+      "source.agreementNumber": agreementNumber,
+    });
     const replay = await requestAction();
 
     expect(first.response.statusCode).toBe(303);
     expect(replay.response.statusCode).toBe(303);
     expect(await versions.countDocuments({ agreementNumber })).toBe(2);
+    expect((await agreements.findOne({ agreementNumber })).acceptedAt).toBe(
+      accepted.acceptedAt,
+    );
     expect(
       await payments.countDocuments({
         "source.agreementNumber": agreementNumber,
       }),
     ).toBe(1);
+    expect(
+      await payments.findOne({ "source.agreementNumber": agreementNumber }),
+    ).toEqual(payment);
     expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
   });
 
@@ -424,14 +424,11 @@ describe("single Agreement actions", () => {
     });
 
     try {
+      const offered = await agreements.findOne({ agreementNumber });
       const { response } = await requestAction();
 
       expect(response.statusCode).toBe(500);
-      expect(await agreements.findOne({ agreementNumber })).toMatchObject({
-        agreementNumber,
-        version: 1,
-        state: "offered",
-      });
+      expect(await agreements.findOne({ agreementNumber })).toEqual(offered);
       expect(await versions.countDocuments({ agreementNumber })).toBe(1);
       await expect(versions).toHaveRecord({
         agreementNumber,

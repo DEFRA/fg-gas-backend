@@ -6,10 +6,7 @@ const validDefinition = {
   code: "test-code",
   configVersion: "0.0.1",
   agreementNumberPrefix: "TST",
-  create: {
-    target: "offered",
-    effects: [{ name: "snapshot", params: {} }],
-  },
+  create: { target: "offered" },
   states: {
     offered: {
       page: "offered",
@@ -27,7 +24,6 @@ const validDefinition = {
               },
             ],
           },
-          effects: [{ name: "publish" }],
         },
       },
     },
@@ -52,7 +48,11 @@ describe("AgreementDefinition", () => {
     const agreement = definition.createAgreement({
       clientRef: "xnp-rr3-nfa",
       identifiers: { sbi: "300000069" },
-      payload: { applicant: "Test Farmer" },
+      values: {
+        application: { applicant: "Test Farmer" },
+        actions: [],
+        items: [],
+      },
     });
 
     expect(agreement.agreementNumber).toMatch(/^TST/);
@@ -62,15 +62,14 @@ describe("AgreementDefinition", () => {
       clientRef: "xnp-rr3-nfa",
       configVersion: "0.0.1",
       identifiers: { sbi: "300000069" },
-      payload: { applicant: "Test Farmer" },
+      application: { applicant: "Test Farmer" },
+      actions: [],
+      items: [],
       state: "offered",
       correlationId: expect.any(String),
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
     });
-    expect(definition.getCreationEffects()).toEqual(
-      validDefinition.create.effects,
-    );
     expect(definition.getEndpoints()).toEqual([]);
   });
 

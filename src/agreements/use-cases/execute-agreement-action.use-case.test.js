@@ -10,7 +10,6 @@ import {
   replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 import { loadAgreementForAction } from "./load-current-agreement.js";
@@ -19,7 +18,6 @@ vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("../services/build-agreement-page-model.js");
-vi.mock("../services/effects/agreement-effect-runner.js");
 vi.mock("./load-current-agreement-action-context.js");
 vi.mock("./load-current-agreement.js");
 
@@ -35,6 +33,33 @@ const options = {
     sbi: "300000069",
   },
 };
+const offeredAgreementValues = {
+  application: { whitePigsCount: 5 },
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
+  parcels: [],
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      quantity: 5,
+      unit: "head",
+      totalAmountPence: 5000,
+    },
+  ],
+  items: [],
+  totalAmountPence: 5000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 5000,
+        lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+      },
+    ],
+  },
+};
 const agreement = new Agreement({
   agreementNumber: options.agreementNumber,
   version: 1,
@@ -43,23 +68,18 @@ const agreement = new Agreement({
   configVersion: "1.0.1",
   correlationId: "correlation",
   identifiers: { sbi: "300000069" },
-  payload: {},
+  ...offeredAgreementValues,
   state: "offered",
   createdAt: "2026-07-17T10:00:00.000Z",
   updatedAt: "2026-07-17T10:00:00.000Z",
 });
 const action = {
-  effects: [
-    {
-      name: "snapshot",
-      params: { acceptedAt: "$.executedAt" },
-    },
-    { name: "publish", params: { event: "lifecycle" } },
-  ],
-  transition: { target: "accepted" },
+  transition: { from: "offered", action: "accept", target: "accepted" },
   validate: vi.fn().mockReturnValue({ valid: true }),
 };
-const agreementDefinition = { getEndpoints: vi.fn().mockReturnValue([]) };
+const agreementDefinition = {
+  runProcesses: vi.fn().mockResolvedValue({ outputs: {} }),
+};
 const session = {};
 
 describe("executeAgreementActionUseCase", () => {
@@ -73,13 +93,14 @@ describe("executeAgreementActionUseCase", () => {
       agreement,
       agreementDefinition,
     });
-    runAgreementEffects.mockImplementation(async (_effects, context) => ({
-      ...context,
-      agreement: { ...context.agreement, acceptedAt: context.executedAt },
-      outboxMessageTypes: ["lifecycle"],
-    }));
+    agreementDefinition.runProcesses.mockResolvedValue({ outputs: {} });
     replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 1 });
     withTransaction.mockImplementation((callback) => callback(session));
+    action.transition = {
+      from: "offered",
+      action: "accept",
+      target: "accepted",
+    };
     action.validate.mockReturnValue({ valid: true });
   });
 
@@ -123,7 +144,26 @@ describe("executeAgreementActionUseCase", () => {
     );
   });
 
-  it("returns a completed idempotent action before running effects", async () => {
+  it("does not publish lifecycle for a data-only Agreement update", async () => {
+    action.transition.target = "offered";
+
+    await executeAgreementActionUseCase(options);
+
+    expect(saveOutboxEvents).toHaveBeenCalledWith([], session);
+  });
+
+  it("preserves every offered value in current state and its Version", async () => {
+    await executeAgreementActionUseCase(options);
+
+    const [accepted] = replaceCurrentAgreement.mock.calls[0];
+    const [version] = insertAgreementVersion.mock.calls[0];
+
+    expect(accepted).toMatchObject(offeredAgreementValues);
+    expect(version.snapshot).toMatchObject(offeredAgreementValues);
+    expect(version.snapshot).toEqual(accepted);
+  });
+
+  it("returns a completed idempotent action before running Processes", async () => {
     findVersionByIdempotencyKey.mockResolvedValue({
       actionExecution: { name: "accept" },
     });
@@ -131,7 +171,7 @@ describe("executeAgreementActionUseCase", () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
       location: "/agreements/current",
     });
-    expect(runAgreementEffects).not.toHaveBeenCalled();
+    expect(agreementDefinition.runProcesses).not.toHaveBeenCalled();
   });
 
   it("rejects stale ETags", async () => {
@@ -193,7 +233,7 @@ describe("executeAgreementActionUseCase", () => {
       values: {},
       errors: [{ href: "#declaration", text: "Agree to the declaration" }],
     });
-    expect(runAgreementEffects).not.toHaveBeenCalled();
+    expect(agreementDefinition.runProcesses).not.toHaveBeenCalled();
     expect(withTransaction).not.toHaveBeenCalled();
   });
 

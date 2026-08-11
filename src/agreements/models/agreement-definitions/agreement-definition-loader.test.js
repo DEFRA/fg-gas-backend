@@ -8,10 +8,7 @@ const validDefinition = {
   code: "test-code",
   configVersion: "0.0.1",
   agreementNumberPrefix: "TST",
-  create: {
-    target: "offered",
-    effects: [{ name: "snapshot", params: {} }],
-  },
+  create: { target: "offered" },
   states: {
     offered: {
       page: "offered",
@@ -29,7 +26,6 @@ const validDefinition = {
               },
             ],
           },
-          effects: [{ name: "publish" }],
         },
       },
     },
@@ -94,8 +90,7 @@ describe("loadAgreementDefinition", () => {
       definition.createAgreement({
         clientRef: "xnp-rr3-nfa",
         identifiers: { sbi: "300000069" },
-        payload: {},
-        sourceSystem: "GAS",
+        values: { application: {}, actions: [], items: [] },
       }).state,
     ).toBe("offered");
     expect(findAgreementDefinition).toHaveBeenCalledWith({

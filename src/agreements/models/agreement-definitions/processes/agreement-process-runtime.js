@@ -1,0 +1,331 @@
+import Boom from "@hapi/boom";
+import Joi from "joi";
+import { callAgreementEndpoint } from "../../../../common/agreements/call-agreement-endpoint.js";
+import { agreementProcessHandlers } from "./agreement-process-registries.js";
+import {
+  compileProcessDefinitions,
+  findProcessHandler,
+} from "./compile-process-definitions.js";
+import { findProcessOutputDependencies } from "./find-process-output-dependencies.js";
+
+const collectSequences = (definition) => [
+  {
+    location: "create",
+    path: "create.processes",
+    processes: definition.create.processes ?? [],
+  },
+  ...Object.entries(definition.states).flatMap(([stateName, state]) =>
+    Object.entries(state.on ?? {}).map(([transitionName, transition]) => ({
+      location: "transition",
+      path: `states.${stateName}.on.${transitionName}.processes`,
+      processes: transition.processes ?? [],
+    })),
+  ),
+  ...Object.entries(definition.pages).map(([pageName, page]) => ({
+    location: "page",
+    path: `pages.${pageName}.processes`,
+    processes: page.processes ?? [],
+  })),
+];
+
+const requireProcessDefinition = (processKey, sequence, processDefinitions) => {
+  const definition = Object.hasOwn(processDefinitions, processKey)
+    ? processDefinitions[processKey]
+    : undefined;
+
+  if (!definition) {
+    throw Boom.badImplementation(
+      `Agreement Process reference "${sequence.path}" names "${processKey}", which is not defined`,
+    );
+  }
+
+  return definition;
+};
+
+const assertProducedOutput = (dependency, processKey, processDefinitions) => {
+  if (!dependency.outputName) {
+    return;
+  }
+
+  const outputs = processDefinitions[dependency.processKey].output ?? {};
+
+  if (!Object.hasOwn(outputs, dependency.outputName)) {
+    throw Boom.badImplementation(
+      `Agreement Process "${dependency.processKey}" does not produce output "${dependency.outputName}" required by "${processKey}"`,
+    );
+  }
+};
+
+const assertDependency = (
+  dependency,
+  processKey,
+  sequence,
+  seen,
+  processDefinitions,
+) => {
+  if (!seen.has(dependency.processKey)) {
+    throw Boom.badImplementation(
+      `Agreement Process "${processKey}" depends on "${dependency.processKey}", which must occur earlier in "${sequence.path}"`,
+    );
+  }
+
+  assertProducedOutput(dependency, processKey, processDefinitions);
+};
+
+const recordOutputs = (definition, sequence, produced) => {
+  for (const outputName of Object.keys(definition.output ?? {})) {
+    if (produced.has(outputName)) {
+      throw Boom.badImplementation(
+        `Agreement Process sequence "${sequence.path}" output "${outputName}" has competing producers`,
+      );
+    }
+
+    produced.add(outputName);
+  }
+};
+
+const assertHandlerLocation = (processKey, definition, sequence, handlers) => {
+  if (definition.type !== "handler") {
+    return;
+  }
+
+  if (
+    !findProcessHandler(processKey, handlers).locations.includes(
+      sequence.location,
+    )
+  ) {
+    throw Boom.badImplementation(
+      `Agreement Process handler "${processKey}" is not allowed at location "${sequence.location}"`,
+    );
+  }
+};
+
+const validateSequence = (sequence, processDefinitions, handlers) => {
+  const seen = new Set();
+  const produced = new Set();
+
+  for (const processKey of sequence.processes) {
+    const definition = requireProcessDefinition(
+      processKey,
+      sequence,
+      processDefinitions,
+    );
+
+    if (seen.has(processKey)) {
+      throw Boom.badImplementation(
+        `Agreement Process sequence "${sequence.path}" contains "${processKey}" more than once`,
+      );
+    }
+
+    for (const dependency of findProcessOutputDependencies(definition)) {
+      assertDependency(
+        dependency,
+        processKey,
+        sequence,
+        seen,
+        processDefinitions,
+      );
+    }
+
+    recordOutputs(definition, sequence, produced);
+    assertHandlerLocation(processKey, definition, sequence, handlers);
+    seen.add(processKey);
+  }
+};
+
+const validateSequences = (definition, processDefinitions, handlers) => {
+  for (const sequence of collectSequences(definition)) {
+    validateSequence(sequence, processDefinitions, handlers);
+  }
+};
+
+const executionSchema = Joi.object({
+  executedAt: Joi.string().isoDate().required(),
+  executionId: Joi.string().optional(),
+  correlationId: Joi.string().optional(),
+  idempotencyKey: Joi.string().optional(),
+  idempotency: Joi.object().unknown(true).optional(),
+}).required();
+
+const agreementSchema = Joi.object().unknown(true).required();
+const contextSchemas = {
+  create: Joi.object({
+    application: Joi.object().unknown(true).required(),
+    execution: executionSchema,
+  }).required(),
+  transition: Joi.object({
+    transition: Joi.object({
+      values: Joi.object().unknown(true).required(),
+    }).required(),
+    agreement: agreementSchema,
+    execution: executionSchema,
+  }).required(),
+  page: Joi.object({
+    agreement: agreementSchema,
+    execution: executionSchema,
+  }).required(),
+};
+
+const validateContext = (context, location) => {
+  const result = contextSchemas[location].validate(context, {
+    abortEarly: false,
+    allowUnknown: false,
+    convert: false,
+  });
+
+  if (result.error) {
+    const paths = result.error.details
+      .map(({ path }) => path.join(".") || "context")
+      .join(", ");
+    throw Boom.badImplementation(
+      `Invalid Agreement Process ${location} context at: ${paths}`,
+    );
+  }
+
+  return result.value;
+};
+
+const findTransition = (definition, location) =>
+  definition.states[location.state]?.on?.[location.transition];
+
+const resolveTransitionLocation = (definition, location) => {
+  const transition = findTransition(definition, location);
+
+  if (!transition) {
+    throw Boom.badImplementation(
+      `Agreement Process location references unknown transition "${location.state}.${location.transition}"`,
+    );
+  }
+
+  return {
+    executionLocation: "transition",
+    processes: transition.processes ?? [],
+    target: transition.target,
+    transitionName: location.transition,
+  };
+};
+
+const allowedPages = (definition, state) => {
+  const stateDefinition = definition.states[state];
+
+  if (!stateDefinition) {
+    return new Set();
+  }
+
+  return new Set(
+    [
+      stateDefinition.page,
+      ...Object.values(stateDefinition.on ?? {}).map(
+        (transition) => transition.validation?.page,
+      ),
+      definition.pages.document ? "document" : undefined,
+    ].filter(Boolean),
+  );
+};
+
+const resolvePageLocation = (definition, location) => {
+  if (!allowedPages(definition, location.state).has(location.page)) {
+    throw Boom.forbidden(
+      `Page "${location.page}" is not valid for agreement code "${definition.code}" in state "${location.state}"`,
+    );
+  }
+
+  return {
+    executionLocation: "page",
+    processes: definition.pages[location.page].processes ?? [],
+    target: location.state,
+  };
+};
+
+const locationResolvers = {
+  create: (definition) => ({
+    executionLocation: "create",
+    processes: definition.create.processes ?? [],
+    target: definition.create.target,
+  }),
+  transition: resolveTransitionLocation,
+  page: resolvePageLocation,
+};
+
+const resolveLocation = (definition, location) => {
+  const resolve = locationResolvers[location?.type];
+
+  if (!resolve) {
+    throw Boom.badImplementation(
+      `Unknown Agreement Process location "${location?.type}"`,
+    );
+  }
+
+  return resolve(definition, location);
+};
+
+const locationContext = {
+  create: (context) => ({ application: structuredClone(context.application) }),
+  transition: (context, location) => ({
+    agreement: structuredClone(context.agreement),
+    transition: {
+      name: location.transitionName,
+      values: structuredClone(context.transition.values),
+    },
+  }),
+  page: (context) => ({ agreement: structuredClone(context.agreement) }),
+};
+
+const toProcessContext = (context, location, outputs) => ({
+  ...locationContext[location.executionLocation](context, location),
+  execution: {
+    ...structuredClone(context.execution),
+    location: location.executionLocation,
+    target: location.target,
+  },
+  outputs: structuredClone(outputs),
+});
+
+const runSequence = async (location, executableMap, context) => {
+  const intents = [];
+  const outputs = {};
+
+  for (const processKey of location.processes) {
+    const result = await executableMap[processKey](
+      toProcessContext(context, location, outputs),
+    );
+    Object.defineProperty(outputs, processKey, {
+      configurable: true,
+      enumerable: true,
+      value: result.output,
+      writable: true,
+    });
+    intents.push(...result.intents);
+  }
+
+  return intents.length > 0 ? { outputs, intents } : { outputs };
+};
+
+const resolveDependencies = (dependencies) => ({
+  callEndpoint: dependencies.callEndpoint ?? callAgreementEndpoint,
+  handlers: dependencies.handlers ?? agreementProcessHandlers,
+});
+
+export const compileAgreementProcesses = (definition, dependencies = {}) => {
+  const resolvedDependencies = resolveDependencies(dependencies);
+  const processDefinitions = definition.processDefinitions ?? {};
+  const executableMap = compileProcessDefinitions(
+    processDefinitions,
+    resolvedDependencies,
+  );
+  validateSequences(
+    definition,
+    processDefinitions,
+    resolvedDependencies.handlers,
+  );
+
+  return async ({ location, context }) => {
+    const resolvedLocation = resolveLocation(definition, location);
+    const validatedContext = validateContext(
+      context,
+      resolvedLocation.executionLocation,
+    );
+
+    return runSequence(resolvedLocation, executableMap, validatedContext);
+  };
+};

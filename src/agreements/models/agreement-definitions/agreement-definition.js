@@ -3,16 +3,31 @@ import { AgreementLifecycle } from "../agreement-lifecycle.js";
 import { generateAgreementNumber } from "../agreement-number.js";
 import { Agreement } from "../agreement.js";
 import { requirePersistedAgreementState } from "../require-persisted-agreement-state.js";
+import { compileApplicationMapping } from "./compile-application-mapping.js";
+import { compileAgreementProcesses } from "./processes/agreement-process-runtime.js";
 import { validateAgreementDefinition } from "./validate.js";
 
 export class AgreementDefinition {
   #definition;
+  #resolveApplication;
+  #runProcesses;
 
-  constructor(definition) {
+  constructor(definition, dependencies) {
     this.#definition = validateAgreementDefinition(definition);
+    this.#resolveApplication = compileApplicationMapping(this.#definition);
+    this.#runProcesses = compileAgreementProcesses(
+      this.#definition,
+      dependencies,
+    );
   }
 
-  createAgreement({ clientRef, identifiers, payload }) {
+  createAgreement({
+    clientRef,
+    correlationId,
+    createdAt,
+    identifiers,
+    values,
+  }) {
     return Agreement.create({
       agreementNumber: generateAgreementNumber({
         prefix: this.#definition.agreementNumberPrefix,
@@ -20,14 +35,12 @@ export class AgreementDefinition {
       code: this.#definition.code,
       clientRef,
       configVersion: this.#definition.configVersion,
+      correlationId,
+      createdAt,
       identifiers,
-      payload,
+      values,
       state: this.#definition.create.target,
     });
-  }
-
-  getCreationEffects() {
-    return structuredClone(this.#definition.create.effects ?? []);
   }
 
   getEndpoints() {
@@ -36,6 +49,14 @@ export class AgreementDefinition {
 
   getTemplates() {
     return structuredClone(this.#definition.templates ?? {});
+  }
+
+  async runProcesses(options) {
+    return this.#runProcesses(options);
+  }
+
+  async resolveApplication(input) {
+    return this.#resolveApplication(input);
   }
 
   resolveAction({ state, action }) {

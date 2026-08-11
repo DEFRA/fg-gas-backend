@@ -65,18 +65,6 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
-  it("fails when an effect is missing its name", () => {
-    const definition = structuredClone(pmfAgreementDefinition);
-    delete definition.create.effects[0].name;
-
-    const { error } = validate(definition);
-
-    expect(error).toBeDefined();
-    expect(error.details.map((d) => d.message).join(", ")).toMatch(
-      /"create.effects\[0\].name" is required/,
-    );
-  });
-
   it("fails when a page is missing its title", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     delete definition.pages.offered.title;
@@ -158,15 +146,15 @@ describe("agreementDefinitionSchema", () => {
     expect(error).toBeDefined();
   });
 
-  it("fails when an effect names a handler the effect runner doesn't support", () => {
+  it("rejects obsolete Effects", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.create.effects[0].name = "notARealHandler";
+    definition.states.offered.on.accept.effects = [{ name: "publish" }];
 
     const { error } = validate(definition);
 
     expect(error).toBeDefined();
-    expect(error.details.map((d) => d.message).join(", ")).toMatch(
-      /"create.effects\[0\].name" must be one of/,
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /"states.offered.on.accept.effects" is not allowed/,
     );
   });
 
@@ -180,9 +168,8 @@ describe("agreementDefinitionSchema", () => {
     expect(error).toBeUndefined();
   });
 
-  it("allows extra keys on effect, required-validation-field, page action and page, so other agreement types can extend them", () => {
+  it("allows extra keys on required-validation-field, page action and page, so other agreement types can extend them", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.create.effects[1].condition = "always";
     definition.states.offered.on.accept.validation.required[0].hint =
       "extra guidance";
     definition.pages.offered.actions[0].style = "secondary";
@@ -195,7 +182,9 @@ describe("agreementDefinitionSchema", () => {
 
   it("fails when an endpoint is missing a required field", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    delete definition.endpoints[0].service;
+    definition.endpoints = [
+      { code: "calculate", method: "POST", path: "/calculate" },
+    ];
 
     const { error } = validate(definition);
 
@@ -251,7 +240,7 @@ describe("agreementDefinitionSchema resolver instructions", () => {
         },
         {
           component: "repeat",
-          itemsRef: "$.agreement.payload.answers.parcels",
+          itemsRef: "$.agreement.parcels",
           beforeContent: [{ component: "heading", level: 2, text: "Parcels" }],
           items: [
             {
@@ -265,7 +254,7 @@ describe("agreementDefinitionSchema resolver instructions", () => {
           component: "template",
           templateRef: "$.definition.templates.paymentSummary",
           templateKey: "$.agreement.paymentScheme",
-          dataRef: "$.agreement.paymentCalculation",
+          dataRef: "$.agreement.paymentSchedule",
         },
       ],
       {
