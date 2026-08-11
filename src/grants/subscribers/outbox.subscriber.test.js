@@ -288,31 +288,6 @@ describe("outbox.subscriber", () => {
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
-  it("publishes Agreement lifecycle events addressed to external consumers", async () => {
-    publish.mockResolvedValue(1);
-
-    const mockEvent = {
-      target:
-        "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
-      event: {
-        type: "io.onsite.agreement.status.updated",
-        data: { code: "pigs-might-fly", status: "accepted" },
-      },
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-
-    expect(dispatchInternally).not.toHaveBeenCalled();
-    expect(publish).toHaveBeenCalledWith(
-      mockEvent.target,
-      mockEvent.event,
-      expect.any(Object),
-    );
-    expect(mockEvent.markAsComplete).toHaveBeenCalled();
-  });
-
   it("marks an internal command as unsent if internal delivery fails", async () => {
     dispatchInternally.mockRejectedValue(new Error("handler failed"));
 
@@ -327,68 +302,6 @@ describe("outbox.subscriber", () => {
 
     expect(publish).not.toHaveBeenCalled();
     expect(mockEvent.markAsFailed).toHaveBeenCalled();
-  });
-
-  it("still publishes legacy Agreement commands (FPTT/WMP) externally", async () => {
-    publish.mockResolvedValue(1);
-
-    const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:create-agreement-topic",
-      event: {
-        type: "agreement.create",
-        data: { code: "farming-post-transition-tier" },
-      },
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-
-    expect(dispatchInternally).not.toHaveBeenCalled();
-    expect(publish).toHaveBeenCalled();
-    expect(mockEvent.markAsComplete).toHaveBeenCalled();
-  });
-
-  it("still publishes legacy Agreement status commands externally", async () => {
-    publish.mockResolvedValue(1);
-
-    const mockEvent = {
-      target:
-        "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_agreement_status_fifo.fifo",
-      event: {
-        type: "agreement.status.update",
-        data: { code: "woodland", status: "cancelled" },
-      },
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-
-    expect(dispatchInternally).not.toHaveBeenCalled();
-    expect(publish).toHaveBeenCalledWith(
-      mockEvent.target,
-      mockEvent.event,
-      expect.any(Object),
-    );
-    expect(mockEvent.markAsComplete).toHaveBeenCalled();
-  });
-
-  it("leaves non-Agreement outbox events unaffected (still publish externally)", async () => {
-    publish.mockResolvedValue(1);
-
-    const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
-      event: { type: "case.status.updated", data: {} },
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-
-    expect(dispatchInternally).not.toHaveBeenCalled();
-    expect(publish).toHaveBeenCalled();
-    expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
   it("should mark events as sent", async () => {

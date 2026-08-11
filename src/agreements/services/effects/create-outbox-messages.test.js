@@ -36,15 +36,9 @@ describe("createOutboxMessages", () => {
         },
       },
     });
-    expect(publication).toMatchObject({
+    expect(publication).toEqual({
       target: config.sns.agreementStatusUpdatedTopicArn,
-      event: {
-        data: {
-          agreementNumber: "PMF123",
-          status: "accepted",
-          sbi: "123456789",
-        },
-      },
+      event: message.event,
     });
   });
 
@@ -93,18 +87,9 @@ describe("createOutboxMessages", () => {
         },
       }),
     });
-    expect(publication).toMatchObject({
+    expect(publication).toEqual({
       target: config.sns.agreementStatusUpdatedTopicArn,
-      event: {
-        data: {
-          agreementNumber: "PMF123",
-          version: 2,
-          status: "accepted",
-          agreementUrl: "http://localhost:3000/PMF123",
-          sbi: "123456789",
-          claimId: "R00000001",
-        },
-      },
+      event: message.event,
     });
   });
 

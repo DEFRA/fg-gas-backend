@@ -35,48 +35,36 @@ describe("create agreement use case", () => {
     clearInternalCommandHandlers();
   });
 
-  it("targets the internal message bus for a configured Agreement definition", async () => {
+  it.each([
+    [
+      "internal message bus for a configured Agreement definition",
+      "pigs-might-fly",
+      internalOutboxTargets.MESSAGE_BUS,
+    ],
+    [
+      "legacy Agreements topic when no Agreement definition is configured",
+      "woodland",
+      config.sns.createAgreementTopicArn,
+    ],
+  ])("targets the %s", async (_description, code, target) => {
     const session = {};
     const application = Application.new({
       currentPhase: "PRE_AWARD",
       currentStage: "AWARD",
       currentStatus: "REVIEW",
       clientRef: "1234",
-      code: "pigs-might-fly",
+      code,
       phases: [],
     });
     findByClientRefAndCode.mockResolvedValue(application);
 
     await createAgreementCommandUseCase(
-      { clientRef: "client-ref", code: "pigs-might-fly", eventData: {} },
+      { clientRef: "client-ref", code, eventData: {} },
       session,
     );
 
     expect(insertMany).toHaveBeenCalledWith(
-      [expect.objectContaining({ target: internalOutboxTargets.MESSAGE_BUS })],
-      session,
-    );
-  });
-
-  it("targets the legacy Agreements topic when no Agreement definition is configured", async () => {
-    const session = {};
-    const application = Application.new({
-      currentPhase: "PRE_AWARD",
-      currentStage: "AWARD",
-      currentStatus: "REVIEW",
-      clientRef: "1234",
-      code: "woodland",
-      phases: [],
-    });
-    findByClientRefAndCode.mockResolvedValue(application);
-
-    await createAgreementCommandUseCase(
-      { clientRef: "client-ref", code: "woodland", eventData: {} },
-      session,
-    );
-
-    expect(insertMany).toHaveBeenCalledWith(
-      [expect.objectContaining({ target: config.sns.createAgreementTopicArn })],
+      [expect.objectContaining({ target })],
       session,
     );
   });
