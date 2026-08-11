@@ -12,6 +12,7 @@ export const up = async (db) => {
         grantCode,
         status: "active",
         version: { $ne: "0.0.0" },
+        fetchStatus: { $ne: "permanent_error" },
       })
       .sort({ major: -1, minor: -1, patch: -1 })
       .limit(1)
