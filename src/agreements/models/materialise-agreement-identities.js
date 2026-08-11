@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { nextAgreementIdentityOrdinal } from "./agreement-identity-sequence.js";
 
 const identityTypes = Object.freeze({
   actions: {
@@ -23,14 +24,6 @@ const identityTypes = Object.freeze({
 });
 
 const fundedIdentityTypes = [identityTypes.actions, identityTypes.items];
-
-const identityOrdinal = (id, namespace) => {
-  const match = id?.match(new RegExp(`^${namespace}:([1-9]\\d*)$`));
-  return match ? Number(match[1]) : 0;
-};
-
-const nextOrdinal = (entries, namespace) =>
-  Math.max(0, ...entries.map(({ id }) => identityOrdinal(id, namespace))) + 1;
 
 const allocateIdentity = (allocation) => {
   const id = `${allocation.type.namespace}:${allocation.nextOrdinal}`;
@@ -103,14 +96,18 @@ const materialiseCreationEntries = (candidate, type) => {
   );
 };
 
-const createTransitionAllocation = (entries, type) => ({
+const createTransitionAllocation = (agreement, entries, type) => ({
   existingIds: new Set(entries.map(({ id }) => id)),
-  nextOrdinal: nextOrdinal(entries, type.namespace),
+  nextOrdinal: nextAgreementIdentityOrdinal(agreement, type.namespace),
   type,
 });
 
 const reconcileTransitionEntries = (agreement, candidate, type) => {
-  const allocation = createTransitionAllocation(agreement[type.field], type);
+  const allocation = createTransitionAllocation(
+    agreement,
+    agreement[type.field],
+    type,
+  );
   const materialised = materialiseEntries(
     candidate[type.field],
     (entry) => resolveTransitionIdentity(entry, allocation),
@@ -260,6 +257,7 @@ export const reconcileTransitionIdentities = (agreement, candidate) => {
   const currentInstalments =
     agreement.paymentSchedule?.[instalmentType.field] ?? [];
   const instalmentAllocation = createTransitionAllocation(
+    agreement,
     currentInstalments,
     instalmentType,
   );

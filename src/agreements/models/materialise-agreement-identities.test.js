@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { agreementValueSchema } from "../schemas/agreement-value.schema.js";
+import { Agreement } from "./agreement.js";
 import {
   materialiseCreationIdentities,
   reconcileTransitionIdentities,
@@ -184,28 +185,32 @@ describe("Agreement identity materialisation", () => {
     ).toBeUndefined();
   });
 
-  it("forgets identities removed by an earlier transition", () => {
-    const withoutHighestIdentity = reconcileTransitionIdentities(
-      currentAgreement(),
-      {
+  it("does not reuse identities removed by an earlier transition", () => {
+    const agreement = new Agreement({
+      ...currentAgreement(),
+      state: "offered",
+      version: 1,
+    });
+    const withoutIdentities = agreement.transition({
+      target: "offered",
+      transitionedAt: "2026-11-01T00:00:00.000Z",
+      values: reconcileTransitionIdentities(agreement, {
         application: {},
-        actions: [{ id: "action:1", code: "CSAM1" }],
-        items: [{ id: "item:2", code: "PA3" }],
-      },
-    );
-    const withNewAction = reconcileTransitionIdentities(
-      withoutHighestIdentity,
-      {
-        application: {},
-        actions: [
-          { id: "action:1", code: "CSAM1" },
-          { ref: "replacement-action", code: "CSAM2" },
-        ],
-        items: [{ id: "item:2", code: "PA3" }],
-      },
+        actions: [],
+        items: [],
+      }),
+    });
+    const reloadedAgreement = new Agreement(structuredClone(withoutIdentities));
+    const withNewIdentities = reconcileTransitionIdentities(
+      reloadedAgreement,
+      creationCandidate(),
     );
 
-    expect(withNewAction.actions[1].id).toBe("action:2");
+    expect(withNewIdentities.actions[0].id).toBe("action:4");
+    expect(withNewIdentities.items[0].id).toBe("item:3");
+    expect(withNewIdentities.paymentSchedule.instalments[0].id).toBe(
+      "instalment:6",
+    );
   });
 
   it.each(unknownExistingIdentityCases)(
