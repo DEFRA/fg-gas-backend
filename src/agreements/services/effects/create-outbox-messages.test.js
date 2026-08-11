@@ -11,10 +11,14 @@ describe("createOutboxMessages", () => {
       code: "pigs-might-fly",
       version: 2,
       state: "accepted",
+      identifiers: { sbi: "123456789" },
       updatedAt: "2026-07-17T11:29:00.000Z",
     };
 
-    const [message] = createOutboxMessages(["lifecycle"], agreement);
+    const [message, publication] = createOutboxMessages(
+      ["lifecycle"],
+      agreement,
+    );
 
     expect(message).toMatchObject({
       target: config.sns.updateAgreementStatusTopicArn,
@@ -27,6 +31,17 @@ describe("createOutboxMessages", () => {
           version: 2,
           status: "accepted",
           date: "2026-07-17T11:29:00.000Z",
+          sbi: "123456789",
+        },
+      },
+    });
+    expect(publication).toMatchObject({
+      target: config.sns.agreementStatusUpdatedTopicArn,
+      event: {
+        data: {
+          agreementNumber: "PMF123",
+          status: "accepted",
+          sbi: "123456789",
         },
       },
     });
@@ -40,13 +55,18 @@ describe("createOutboxMessages", () => {
       code: "pigs-might-fly",
       version: 2,
       state: "accepted",
+      identifiers: { sbi: "123456789" },
       startDate: "2026-08-01",
       endDate: "2027-07-31",
       updatedAt: "2026-07-17T11:29:00.000Z",
     };
     const payment = { paymentHubClaimId: "R00000001" };
 
-    const [message] = createOutboxMessages(["lifecycle"], agreement, payment);
+    const [message, publication] = createOutboxMessages(
+      ["lifecycle"],
+      agreement,
+      payment,
+    );
 
     expect(message).toEqual({
       target: config.sns.updateAgreementStatusTopicArn,
@@ -65,11 +85,25 @@ describe("createOutboxMessages", () => {
           status: "accepted",
           date: "2026-07-17T11:29:00.000Z",
           agreementUrl: "http://localhost:3000/PMF123",
+          sbi: "123456789",
           startDate: "2026-08-01",
           endDate: "2027-07-31",
           claimId: "R00000001",
         },
       }),
+    });
+    expect(publication).toMatchObject({
+      target: config.sns.agreementStatusUpdatedTopicArn,
+      event: {
+        data: {
+          agreementNumber: "PMF123",
+          version: 2,
+          status: "accepted",
+          agreementUrl: "http://localhost:3000/PMF123",
+          sbi: "123456789",
+          claimId: "R00000001",
+        },
+      },
     });
   });
 

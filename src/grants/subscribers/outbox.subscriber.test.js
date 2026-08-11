@@ -289,6 +289,32 @@ describe("outbox.subscriber", () => {
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
+  it("publishes Agreement lifecycle events addressed to external consumers", async () => {
+    isInternalAgreementCommand.mockReturnValue(true);
+    publish.mockResolvedValue(1);
+
+    const mockEvent = {
+      target:
+        "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
+      event: {
+        type: "io.onsite.agreement.status.updated",
+        data: { code: "pigs-might-fly", status: "accepted" },
+      },
+      markAsComplete: vi.fn(),
+    };
+
+    const outbox = new OutboxSubscriber();
+    await outbox.sendEvent(mockEvent);
+
+    expect(dispatchInternally).not.toHaveBeenCalled();
+    expect(publish).toHaveBeenCalledWith(
+      mockEvent.target,
+      mockEvent.event,
+      expect.any(Object),
+    );
+    expect(mockEvent.markAsComplete).toHaveBeenCalled();
+  });
+
   it("marks an internal command as unsent if internal delivery fails", async () => {
     isInternalAgreementCommand.mockReturnValue(true);
     dispatchInternally.mockRejectedValue(new Error("handler failed"));

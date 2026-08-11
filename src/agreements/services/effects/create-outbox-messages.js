@@ -6,6 +6,7 @@ const LIFECYCLE_SOURCE = "urn:service:agreement";
 
 const acceptedLifecycleData = (agreement, payment) => ({
   agreementUrl: `${config.viewAgreementUri.replace(/\/$/, "")}/${agreement.agreementNumber}`,
+  sbi: agreement.identifiers.sbi,
   startDate: agreement.startDate,
   endDate: agreement.endDate,
   ...(payment ? { claimId: payment.paymentHubClaimId } : {}),
@@ -35,20 +36,34 @@ const createLifecycleEvent = (agreement, payment) => ({
   data: lifecycleData(agreement, payment),
 });
 
-const outboxMessageCreators = {
-  lifecycle: (agreement, payment) => ({
-    event: createLifecycleEvent(agreement, payment),
-    target: config.sns.updateAgreementStatusTopicArn,
-  }),
+const createLifecycleMessages = (agreement, payment) => {
+  const event = createLifecycleEvent(agreement, payment);
+
+  return [
+    {
+      event,
+      target: config.sns.updateAgreementStatusTopicArn,
+    },
+    {
+      event,
+      target: config.sns.agreementStatusUpdatedTopicArn,
+    },
+  ];
 };
 
-const createOutboxMessage = (type, agreement, payment) => {
-  const createMessage = outboxMessageCreators[type];
-  if (!createMessage) {
+const outboxMessageCreators = {
+  lifecycle: createLifecycleMessages,
+};
+
+const createOutboxMessagesForType = (type, agreement, payment) => {
+  const createMessages = outboxMessageCreators[type];
+  if (!createMessages) {
     throw new Error(`Unsupported Agreement outbox message type: "${type}"`);
   }
-  return createMessage(agreement, payment);
+  return createMessages(agreement, payment);
 };
 
 export const createOutboxMessages = (messageTypes, agreement, payment) =>
-  messageTypes.map((type) => createOutboxMessage(type, agreement, payment));
+  messageTypes.flatMap((type) =>
+    createOutboxMessagesForType(type, agreement, payment),
+  );

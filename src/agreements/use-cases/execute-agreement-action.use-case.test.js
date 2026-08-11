@@ -129,7 +129,7 @@ describe("executeAgreementActionUseCase", () => {
       session,
     );
     expect(saveOutboxEvents).toHaveBeenCalledWith(
-      [
+      expect.arrayContaining([
         expect.objectContaining({
           event: expect.objectContaining({
             data: expect.objectContaining({
@@ -139,7 +139,7 @@ describe("executeAgreementActionUseCase", () => {
             }),
           }),
         }),
-      ],
+      ]),
       session,
     );
   });
