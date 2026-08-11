@@ -41,11 +41,8 @@ const processDefinitions = Joi.object()
 
 const create = Joi.object({
   target: Joi.string().required(),
-  application: Joi.when("processes", {
-    is: Joi.exist(),
-    then: Joi.any().required(),
-    otherwise: Joi.any().optional(),
-  }),
+  application: Joi.any().required(),
+  values: Joi.object().min(1).unknown(true).optional(),
   effects: Joi.forbidden(),
   processes,
 })
@@ -79,6 +76,7 @@ const actionTransition = Joi.object({
 
 const state = Joi.object({
   page: Joi.string().optional(),
+  processes,
   on: Joi.object().pattern(Joi.string(), actionTransition).optional(),
 }).label("State");
 
@@ -226,7 +224,7 @@ const pageDefinition = Joi.object({
   print: Joi.boolean().optional(),
   watermark: watermark.optional(),
   components: Joi.array().items(component).min(1).required(),
-  processes,
+  processes: Joi.forbidden(),
   sections: Joi.array().items(documentSection).min(1).unique("id").optional(),
   actions: Joi.array().items(pageAction).optional(),
 })

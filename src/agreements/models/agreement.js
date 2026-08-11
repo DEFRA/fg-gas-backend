@@ -12,6 +12,9 @@ export class Agreement {
     configVersion,
     correlationId,
     identifiers,
+    schemeCode,
+    name,
+    applicant,
     application,
     startDate,
     endDate,
@@ -33,6 +36,9 @@ export class Agreement {
     this.configVersion = configVersion;
     this.correlationId = correlationId;
     this.identifiers = structuredClone(identifiers);
+    this.schemeCode = schemeCode;
+    this.name = name;
+    this.applicant = cloneOptional(applicant);
     this.application = cloneOptional(application);
     this.startDate = startDate;
     this.endDate = endDate;

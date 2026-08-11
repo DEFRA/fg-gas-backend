@@ -13,19 +13,20 @@ const collectSequences = (definition) => [
     location: "create",
     path: "create.processes",
     processes: definition.create.processes ?? [],
+    produced: Object.keys(definition.create.values ?? {}),
   },
-  ...Object.entries(definition.states).flatMap(([stateName, state]) =>
-    Object.entries(state.on ?? {}).map(([transitionName, transition]) => ({
+  ...Object.entries(definition.states).flatMap(([stateName, state]) => [
+    {
+      location: "page",
+      path: `states.${stateName}.processes`,
+      processes: state.processes ?? [],
+    },
+    ...Object.entries(state.on ?? {}).map(([transitionName, transition]) => ({
       location: "transition",
       path: `states.${stateName}.on.${transitionName}.processes`,
       processes: transition.processes ?? [],
     })),
-  ),
-  ...Object.entries(definition.pages).map(([pageName, page]) => ({
-    location: "page",
-    path: `pages.${pageName}.processes`,
-    processes: page.processes ?? [],
-  })),
+  ]),
 ];
 
 const requireProcessDefinition = (processKey, sequence, processDefinitions) => {
@@ -100,9 +101,24 @@ const assertHandlerLocation = (processKey, definition, sequence, handlers) => {
   }
 };
 
+const requiredCreationValues = ["actions", "items"];
+
+const assertRequiredCreationValues = (sequence, produced) => {
+  if (sequence.location !== "create") {
+    return;
+  }
+
+  const missing = requiredCreationValues.find((field) => !produced.has(field));
+  if (missing) {
+    throw Boom.badImplementation(
+      `Agreement Process sequence "${sequence.path}" has no producer for required Agreement value "${missing}"`,
+    );
+  }
+};
+
 const validateSequence = (sequence, processDefinitions, handlers) => {
   const seen = new Set();
-  const produced = new Set();
+  const produced = new Set(sequence.produced);
 
   for (const processKey of sequence.processes) {
     const definition = requireProcessDefinition(
@@ -131,6 +147,8 @@ const validateSequence = (sequence, processDefinitions, handlers) => {
     assertHandlerLocation(processKey, definition, sequence, handlers);
     seen.add(processKey);
   }
+
+  assertRequiredCreationValues(sequence, produced);
 };
 
 const validateSequences = (definition, processDefinitions, handlers) => {
@@ -232,7 +250,7 @@ const resolvePageLocation = (definition, location) => {
 
   return {
     executionLocation: "page",
-    processes: definition.pages[location.page].processes ?? [],
+    processes: definition.states[location.state].processes ?? [],
     target: location.state,
   };
 };

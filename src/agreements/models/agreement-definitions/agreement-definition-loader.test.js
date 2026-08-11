@@ -8,7 +8,11 @@ const validDefinition = {
   code: "test-code",
   configVersion: "0.0.1",
   agreementNumberPrefix: "TST",
-  create: { target: "offered" },
+  create: {
+    target: "offered",
+    application: "$.input.application",
+    values: { actions: [], items: [] },
+  },
   states: {
     offered: {
       page: "offered",
@@ -86,13 +90,20 @@ describe("loadAgreementDefinition", () => {
       code: "test-code",
     });
 
-    expect(
+    await expect(
       definition.createAgreement({
-        clientRef: "xnp-rr3-nfa",
-        identifiers: { sbi: "300000069" },
-        values: { application: {}, actions: [], items: [] },
-      }).state,
-    ).toBe("offered");
+        input: {
+          code: "test-code",
+          clientRef: "xnp-rr3-nfa",
+          identifiers: { sbi: "300000069" },
+          application: {},
+        },
+        execution: {
+          correlationId: "creation-correlation-id",
+          executedAt: "2026-08-06T12:00:00.000Z",
+        },
+      }),
+    ).resolves.toMatchObject({ state: "offered" });
     expect(findAgreementDefinition).toHaveBeenCalledWith({
       code: "test-code",
       configVersion: undefined,
