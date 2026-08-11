@@ -1,9 +1,6 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  findLatestActive,
-  findLatestForMajor,
-} from "../repositories/config-version.repository.js";
+import { findLatestForMajor } from "../repositories/config-version.repository.js";
 import { findByCode } from "../repositories/grant.repository.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 import {
@@ -116,61 +113,6 @@ describe("resolveCurrentGrantUseCase", () => {
     await resolveCurrentGrantUseCase("pigs-might-fly", "1.0.0");
 
     expect(resolveAndFetchGrant).toHaveBeenCalledTimes(1);
-  });
-
-  it("upgrades the 0.0.0 sentinel to the latest active version across majors", async () => {
-    const grant = aGrant();
-    findLatestActive.mockResolvedValue({ version: "1.6.0", major: 1 });
-    findLatestForMajor.mockResolvedValue({ version: "1.6.0" });
-    resolveAndFetchGrant.mockResolvedValue({
-      grant,
-      resolvedVersion: "1.6.0",
-      definitionSource: "s3",
-    });
-
-    const result = await resolveCurrentGrantUseCase("pigs-might-fly", "0.0.0");
-
-    expect(result).toEqual({
-      grant,
-      resolvedVersion: "1.6.0",
-      definitionSource: "s3",
-    });
-    expect(findLatestActive).toHaveBeenCalledWith("pigs-might-fly");
-    expect(findLatestForMajor).toHaveBeenCalledWith("pigs-might-fly", 1);
-    expect(findByCode).not.toHaveBeenCalled();
-  });
-
-  it("keeps the legacy 0.0.0 grant when no real version exists", async () => {
-    const grant = aGrant();
-    findLatestActive.mockResolvedValue(null);
-    findByCode.mockResolvedValue(grant);
-
-    const result = await resolveCurrentGrantUseCase("pigs-might-fly", "0.0.0");
-
-    expect(result).toEqual({
-      grant,
-      resolvedVersion: null,
-      definitionSource: "mongodb",
-    });
-    expect(findByCode).toHaveBeenCalledWith("pigs-might-fly");
-    expect(resolveAndFetchGrant).not.toHaveBeenCalled();
-  });
-
-  it("resolves the 0.0.0 sentinel once per grant when a request memo is supplied", async () => {
-    const grant = aGrant();
-    findLatestActive.mockResolvedValue({ version: "1.6.0", major: 1 });
-    findLatestForMajor.mockResolvedValue({ version: "1.6.0" });
-    resolveAndFetchGrant.mockResolvedValue({
-      grant,
-      resolvedVersion: "1.6.0",
-      definitionSource: "s3",
-    });
-    const memo = new Map();
-
-    await resolveCurrentGrantUseCase("pigs-might-fly", "0.0.0", memo);
-    await resolveCurrentGrantUseCase("pigs-might-fly", "0.0.0", memo);
-
-    expect(findLatestActive).toHaveBeenCalledTimes(1);
   });
 
   it("resolves once per major when a request memo is supplied", async () => {

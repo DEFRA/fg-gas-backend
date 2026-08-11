@@ -48,22 +48,6 @@ export const findLatestForMajor = async (grantCode, major) => {
   return ConfigVersion.fromDocument(doc);
 };
 
-// Resolves the highest active version across all majors, excluding the legacy
-// 0.0.0 sentinel. Used to upgrade applications still pinned to 0.0.0.
-export const findLatestActive = async (grantCode) => {
-  const doc = await db.collection(collection).findOne(
-    {
-      grantCode,
-      status: "active",
-      version: { $ne: "0.0.0" },
-      fetchStatus: { $ne: FetchStatus.PermanentError },
-    },
-    { sort: { major: -1, minor: -1, patch: -1 } },
-  );
-
-  return ConfigVersion.fromDocument(doc);
-};
-
 export const updateFetchStatus = async (
   grantCode,
   version,
