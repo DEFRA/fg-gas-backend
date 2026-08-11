@@ -12,12 +12,7 @@ import { validateEndpointServiceUrls } from "./services/effects/resolve-endpoint
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 
 const canHandleCreateAgreementCommand = ({ data }) =>
-  Boolean(
-    findAgreementDefinition({
-      code: data.code,
-      configVersion: data.currentConfigVersion,
-    }),
-  );
+  Boolean(findAgreementDefinition({ code: data.code }));
 
 export const agreements = {
   name: "agreements",

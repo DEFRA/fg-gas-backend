@@ -1,8 +1,10 @@
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { config } from "../../common/config.js";
-import { canHandleInternalCommand } from "../../common/internal-command-bus.js";
+import {
+  canHandleInternalCommand,
+  internalMessageBusTarget,
+} from "../../common/internal-command-bus.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
-import { internalOutboxTargets } from "../../common/internal-outbox-targets.js";
 import { logger } from "../../common/logger.js";
 import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
 import { CreateAgreementCommand } from "../events/create-agreement.command.js";
@@ -26,7 +28,7 @@ export const auditDataBuilder = (args) => {
 
 const resolveAgreementCommandTarget = (command) =>
   canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, command)
-    ? internalOutboxTargets.MESSAGE_BUS
+    ? internalMessageBusTarget
     : config.sns.createAgreementTopicArn;
 
 const createAgreementCommand = async ({ clientRef, code }, session) => {

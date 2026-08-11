@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { config } from "../../../common/config.js";
-import { internalOutboxTargets } from "../../../common/internal-outbox-targets.js";
+import { internalMessageBusTarget } from "../../../common/internal-command-bus.js";
 
 const LIFECYCLE_TYPE = "io.onsite.agreement.status.updated";
 const LIFECYCLE_SOURCE = "urn:service:agreement";
@@ -43,7 +43,7 @@ const createLifecycleMessages = (agreement, payment) => {
   return [
     {
       event,
-      target: internalOutboxTargets.MESSAGE_BUS,
+      target: internalMessageBusTarget,
     },
     {
       event,
@@ -52,19 +52,10 @@ const createLifecycleMessages = (agreement, payment) => {
   ];
 };
 
-const outboxMessageCreators = {
-  lifecycle: createLifecycleMessages,
-};
-
-const createOutboxMessagesForType = (type, agreement, payment) => {
-  const createMessages = outboxMessageCreators[type];
-  if (!createMessages) {
-    throw new Error(`Unsupported Agreement outbox message type: "${type}"`);
-  }
-  return createMessages(agreement, payment);
-};
-
 export const createOutboxMessages = (messageTypes, agreement, payment) =>
-  messageTypes.flatMap((type) =>
-    createOutboxMessagesForType(type, agreement, payment),
-  );
+  messageTypes.flatMap((type) => {
+    if (type !== "lifecycle") {
+      throw new Error(`Unsupported Agreement outbox message type: "${type}"`);
+    }
+    return createLifecycleMessages(agreement, payment);
+  });

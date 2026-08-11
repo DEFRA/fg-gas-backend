@@ -9,7 +9,10 @@ import {
   it,
   vi,
 } from "vitest";
-import { internalOutboxTargets } from "../../common/internal-outbox-targets.js";
+import {
+  dispatchInternally,
+  internalMessageBusTarget,
+} from "../../common/internal-command-bus.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import { Outbox } from "../models/outbox.js";
@@ -28,14 +31,13 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
-import { dispatchInternally } from "../services/outbox-dispatch.service.js";
 import { OutboxSubscriber } from "./outbox.subscriber.js";
 
+vi.mock("../../common/internal-command-bus.js");
 vi.mock("../../common/sns-client.js");
 
 vi.mock("../repositories/fifo-lock.repository.js");
 vi.mock("../repositories/outbox.repository.js");
-vi.mock("../services/outbox-dispatch.service.js");
 
 const createOutbox = (doc) =>
   new Outbox({
@@ -272,7 +274,7 @@ describe("outbox.subscriber", () => {
     dispatchInternally.mockResolvedValue();
 
     const mockEvent = {
-      target: internalOutboxTargets.MESSAGE_BUS,
+      target: internalMessageBusTarget,
       event: {
         type: "io.onsite.agreement.status.updated",
         data: { code: "pigs-might-fly", status: "accepted" },
@@ -292,7 +294,7 @@ describe("outbox.subscriber", () => {
     dispatchInternally.mockRejectedValue(new Error("handler failed"));
 
     const mockEvent = {
-      target: internalOutboxTargets.MESSAGE_BUS,
+      target: internalMessageBusTarget,
       event: { type: "agreement.create", data: { code: "pigs-might-fly" } },
       markAsFailed: vi.fn(),
     };

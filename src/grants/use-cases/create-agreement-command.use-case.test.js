@@ -3,10 +3,10 @@ import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { config } from "../../common/config.js";
 import {
   clearInternalCommandHandlers,
+  internalMessageBusTarget,
   registerInternalCommandHandler,
 } from "../../common/internal-command-bus.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
-import { internalOutboxTargets } from "../../common/internal-outbox-targets.js";
 import { writeAuditEvent } from "../../common/write-audit-event.js";
 import { Application } from "../models/application.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
@@ -39,7 +39,7 @@ describe("create agreement use case", () => {
     [
       "internal message bus for a configured Agreement definition",
       "pigs-might-fly",
-      internalOutboxTargets.MESSAGE_BUS,
+      internalMessageBusTarget,
     ],
     [
       "legacy Agreements topic when no Agreement definition is configured",

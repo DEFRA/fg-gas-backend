@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { config } from "../../../common/config.js";
-import { internalOutboxTargets } from "../../../common/internal-outbox-targets.js";
+import { internalMessageBusTarget } from "../../../common/internal-command-bus.js";
 import { createOutboxMessages } from "./create-outbox-messages.js";
 
 describe("createOutboxMessages", () => {
@@ -22,7 +22,7 @@ describe("createOutboxMessages", () => {
     );
 
     expect(message).toMatchObject({
-      target: internalOutboxTargets.MESSAGE_BUS,
+      target: internalMessageBusTarget,
       event: {
         data: {
           agreementNumber: "PMF123",
@@ -64,7 +64,7 @@ describe("createOutboxMessages", () => {
     );
 
     expect(message).toEqual({
-      target: internalOutboxTargets.MESSAGE_BUS,
+      target: internalMessageBusTarget,
       event: expect.objectContaining({
         source: "urn:service:agreement",
         specversion: "1.0",
