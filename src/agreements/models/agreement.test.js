@@ -2,6 +2,21 @@ import { describe, expect, it } from "vitest";
 import { Agreement } from "./agreement.js";
 
 const offeredValues = () => ({
+  schemeCode: "WMP",
+  name: "Oakridge Estate WMP",
+  applicant: {
+    business: {
+      name: "Oakridge Estate",
+      address: {
+        line1: "Farm House",
+        city: "York",
+        postalCode: "YO1 1AA",
+      },
+    },
+    customer: {
+      name: { title: "Ms", first: "Alex", last: "Farmer" },
+    },
+  },
   application: { whitePigsCount: 5 },
   startDate: "2026-08-01",
   endDate: "2027-07-31",
@@ -110,10 +125,12 @@ describe("Agreement", () => {
     const agreement = createAgreement({ identifiers, values });
 
     identifiers.sbi = "999999999";
+    values.applicant.business.name = "Changed business";
     values.application.whitePigsCount = 99;
     values.actions[0].code = "changed";
 
     expect(agreement.identifiers.sbi).toBe("300000069");
+    expect(agreement.applicant.business.name).toBe("Oakridge Estate");
     expect(agreement.application.whitePigsCount).toBe(5);
     expect(agreement.actions[0].code).toBe("largeWhite");
   });

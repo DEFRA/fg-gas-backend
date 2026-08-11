@@ -9,6 +9,7 @@ const createDefinition = (application) => ({
     target: "offered",
     processes: [],
     application,
+    values: { actions: [], items: [] },
   },
   states: { offered: { page: "offered" } },
   pages: {
@@ -19,54 +20,71 @@ const createDefinition = (application) => ({
   },
 });
 
+const execution = {
+  correlationId: "creation-correlation-id",
+  executedAt: "2026-08-06T12:00:00.000Z",
+};
+
 const constructDefinition = (application) =>
-  new AgreementDefinition(createDefinition(application));
+  new AgreementDefinition(createDefinition(application), {
+    generateAgreementNumber: () => "TST123456789",
+  });
+
+const createAgreement = (definition, input = {}) =>
+  definition.createAgreement({
+    input: {
+      code: "test-application",
+      clientRef: "test-client-ref",
+      identifiers: { sbi: "300000069" },
+      ...input,
+    },
+    execution,
+  });
 
 describe("AgreementDefinition Application mapping", () => {
   it("selects a source-shaped Application from the complete Creation Input", async () => {
-    const definition = new AgreementDefinition(
-      createDefinition("$.input.answers"),
-    );
+    const definition = constructDefinition("$.input.answers");
 
-    await expect(
-      definition.resolveApplication({
-        answers: { applicant: "Test Farmer", quantity: 4 },
-        delivery: { source: "ignored" },
-      }),
-    ).resolves.toEqual({ applicant: "Test Farmer", quantity: 4 });
+    const agreement = await createAgreement(definition, {
+      answers: { applicant: "Test Farmer", quantity: 4 },
+      delivery: { source: "ignored" },
+    });
+
+    expect(agreement.application).toEqual({
+      applicant: "Test Farmer",
+      quantity: 4,
+    });
   });
 
   it("can select a differently named source subtree", async () => {
-    const definition = new AgreementDefinition(
-      createDefinition("$.input.payload"),
-    );
+    const definition = constructDefinition("$.input.payload");
 
-    await expect(
-      definition.resolveApplication({ payload: { parcelCount: 2 } }),
-    ).resolves.toEqual({ parcelCount: 2 });
+    const agreement = await createAgreement(definition, {
+      payload: { parcelCount: 2 },
+    });
+
+    expect(agreement.application).toEqual({ parcelCount: 2 });
   });
 
   it("assembles Application while preserving nested value types", async () => {
-    const definition = new AgreementDefinition(
-      createDefinition({
-        applicant: "$.input.registration.applicant",
-        eligible: "jsonata:$.input.answers.quantity > 0",
-        facts: [
-          "$.input.answers.quantity",
-          { registered: "$.input.registration.registered" },
-        ],
-        quantities: "$.input.answers.quantities",
-        source: { clientRef: "$.input.clientRef" },
-      }),
-    );
+    const definition = constructDefinition({
+      applicant: "$.input.registration.applicant",
+      eligible: "jsonata:$.input.answers.quantity > 0",
+      facts: [
+        "$.input.answers.quantity",
+        { registered: "$.input.registration.registered" },
+      ],
+      quantities: "$.input.answers.quantities",
+      source: { clientRef: "$.input.clientRef" },
+    });
 
-    await expect(
-      definition.resolveApplication({
-        answers: { quantity: 3, quantities: [1, 2, 3] },
-        clientRef: "client-123",
-        registration: { applicant: "Test Farmer", registered: true },
-      }),
-    ).resolves.toEqual({
+    const agreement = await createAgreement(definition, {
+      answers: { quantity: 3, quantities: [1, 2, 3] },
+      clientRef: "client-123",
+      registration: { applicant: "Test Farmer", registered: true },
+    });
+
+    expect(agreement.application).toEqual({
       applicant: "Test Farmer",
       eligible: true,
       facts: [3, { registered: true }],
@@ -79,39 +97,39 @@ describe("AgreementDefinition Application mapping", () => {
     const configuration = createDefinition({
       source: { label: "Configured label" },
     });
-    const definition = new AgreementDefinition(configuration);
+    const definition = new AgreementDefinition(configuration, {
+      generateAgreementNumber: () => "TST123456789",
+    });
 
     configuration.create.application.source.label = "Changed label";
-    const application = await definition.resolveApplication({});
-    application.source.label = "Changed result";
+    const firstAgreement = await createAgreement(definition);
+    firstAgreement.application.source.label = "Changed result";
 
-    await expect(definition.resolveApplication({})).resolves.toEqual({
+    const secondAgreement = await createAgreement(definition);
+
+    expect(secondAgreement.application).toEqual({
       source: { label: "Configured label" },
     });
   });
 
   it("isolates the Creation Input and every resolved Application", async () => {
     const input = { source: { applicant: "Test Farmer" } };
-    const definition = new AgreementDefinition(
-      createDefinition("$.input.source"),
-    );
+    const definition = constructDefinition("$.input.source");
 
-    const firstApplication = await definition.resolveApplication(input);
-    firstApplication.applicant = "Changed";
-    const secondApplication = await definition.resolveApplication(input);
+    const firstAgreement = await createAgreement(definition, input);
+    firstAgreement.application.applicant = "Changed";
+    const secondAgreement = await createAgreement(definition, input);
 
     expect(input).toEqual({ source: { applicant: "Test Farmer" } });
-    expect(secondApplication).toEqual({ applicant: "Test Farmer" });
-    expect(secondApplication).not.toBe(firstApplication);
+    expect(secondAgreement.application).toEqual({ applicant: "Test Farmer" });
+    expect(secondAgreement.application).not.toBe(firstAgreement.application);
   });
 
   it("rejects a resolved value that is not a source-shaped object", async () => {
-    const definition = new AgreementDefinition(
-      createDefinition("$.input.application"),
-    );
+    const definition = constructDefinition("$.input.application");
 
     await expect(
-      definition.resolveApplication({ application: "Sensitive value" }),
+      createAgreement(definition, { application: "Sensitive value" }),
     ).rejects.toMatchObject({
       message:
         'Agreement definition "test-application" resolved an invalid Application',
@@ -120,12 +138,10 @@ describe("AgreementDefinition Application mapping", () => {
   });
 
   it("redacts unresolved Application mappings", async () => {
-    const definition = new AgreementDefinition(
-      createDefinition("$.input.missing"),
-    );
+    const definition = constructDefinition("$.input.missing");
 
     try {
-      await definition.resolveApplication({
+      await createAgreement(definition, {
         customerName: "Sensitive Customer",
       });
       expect.unreachable("expected Application resolution to fail");
@@ -139,8 +155,12 @@ describe("AgreementDefinition Application mapping", () => {
     }
   });
 
-  it("requires Process-based creation to configure Application mapping", () => {
-    expect(() => constructDefinition(undefined)).toThrow(
+  it("requires every Agreement creation to configure Application mapping", () => {
+    const configuration = createDefinition(undefined);
+    delete configuration.create.processes;
+    delete configuration.create.values;
+
+    expect(() => new AgreementDefinition(configuration)).toThrow(
       'Invalid agreement definition "test-application": "create.application" is required',
     );
   });

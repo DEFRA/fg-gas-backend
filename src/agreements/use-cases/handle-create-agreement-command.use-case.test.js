@@ -6,7 +6,6 @@ import { withTransaction } from "../../common/with-transaction.js";
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { agreementDefinitions } from "../models/agreement-definitions/agreement-definition-registry.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
-import { generateAgreementNumber } from "../models/agreement-number.js";
 import {
   findAgreementBySourceIdentity,
   insertAgreementVersion,
@@ -17,7 +16,6 @@ import { handleCreateAgreementCommandUseCase } from "./handle-create-agreement-c
 vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../models/agreement-definitions/agreement-definition-loader.js");
-vi.mock("../models/agreement-number.js");
 vi.mock("../repositories/agreement.repository.js");
 
 const pmfDefinitionData = agreementDefinitions.find(
@@ -61,11 +59,168 @@ const calculatorResult = {
   },
 };
 const session = { fake: "session" };
+const woodlandCommand = {
+  data: {
+    clientRef: "wmp-client-ref",
+    code: "woodland",
+    scheme: "WMP",
+    identifiers: { sbi: "300000069", frn: "1000000000" },
+    answers: {
+      woodlandName: "Oakridge Estate",
+      applicant: {
+        business: {
+          name: "Oakridge Estate",
+          address: { line1: "Farm House", postalCode: "YO1 1AA" },
+        },
+        customer: { name: { first: "Alex", last: "Farmer" } },
+      },
+      landParcels: [
+        {
+          id: "SK0971-7555",
+          sheetId: "SK0971",
+          parcelId: "7555",
+          areaHa: 5.2182,
+        },
+      ],
+      payments: {
+        agreement: [
+          {
+            code: "WMP1",
+            description: "Produce a woodland management plan",
+            quantity: 15.75,
+            unit: "ha",
+            agreementTotalPence: 157500,
+          },
+        ],
+      },
+      totalAgreementPaymentPence: 157500,
+    },
+  },
+};
+const fpttCommand = {
+  data: {
+    clientRef: "fptt-client-ref",
+    code: "frps-private-beta",
+    identifiers: { sbi: "300000069", frn: "1000000000" },
+    answers: {
+      parcel: [
+        {
+          sheetId: "SD8545",
+          parcelId: "9935",
+          area: { quantity: 0.0321, unit: "ha" },
+        },
+      ],
+      agreement: [],
+      actionApplications: [
+        {
+          code: "CMOR1",
+          version: "2.0.0",
+          sheetId: "SD8545",
+          parcelId: "9935",
+          durationYears: 1,
+          appliedFor: { quantity: 0.0321, unit: "ha" },
+        },
+      ],
+      consentObjects: [],
+    },
+  },
+};
+const fpttDefinitionData = {
+  code: "frps-private-beta",
+  configVersion: "1.0.0",
+  agreementNumberPrefix: "FPTT",
+  create: {
+    target: "offered",
+    application: "$.input.answers",
+    values: {
+      schemeCode: "SFI",
+      parcels: {
+        itemsRef: "$.application.parcel",
+        items: {
+          id: "jsonata:@.sheetId & '-' & @.parcelId",
+          sheetId: "@.sheetId",
+          parcelId: "@.parcelId",
+          area: "@.area",
+        },
+      },
+      actions: {
+        itemsRef: "$.application.actionApplications",
+        items: {
+          ref: "jsonata:@.sheetId & '-' & @.parcelId & ':' & @.code",
+          code: "@.code",
+          version: "@.version",
+          parcel: "jsonata:@.sheetId & '-' & @.parcelId",
+          quantity: "@.appliedFor.quantity",
+          unit: "@.appliedFor.unit",
+          durationYears: "@.durationYears",
+        },
+      },
+      items: [],
+    },
+    processes: [],
+  },
+  states: { offered: { page: "offered" } },
+  pages: {
+    offered: {
+      title: "FPTT offer",
+      components: [{ component: "heading", text: "FPTT offer" }],
+    },
+  },
+};
+const woodlandDefinitionData = {
+  code: "woodland",
+  configVersion: "1.0.0",
+  agreementNumberPrefix: "WMP",
+  create: {
+    target: "offered",
+    application: "$.input.answers",
+    values: {
+      schemeCode: "$.input.scheme",
+      name: "jsonata:$.application.woodlandName & ' WMP'",
+      applicant: "$.application.applicant",
+      parcels: {
+        itemsRef: "$.application.landParcels",
+        items: {
+          id: "@.id",
+          sheetId: "@.sheetId",
+          parcelId: "@.parcelId",
+          area: { quantity: "@.areaHa", unit: "ha" },
+        },
+      },
+      actions: [],
+      items: {
+        itemsRef: "$.application.payments.agreement",
+        items: {
+          ref: "@.code",
+          code: "@.code",
+          description: "@.description",
+          quantity: "@.quantity",
+          unit: "@.unit",
+          totalAmountPence: "@.agreementTotalPence",
+        },
+      },
+      totalAmountPence: "$.application.totalAgreementPaymentPence",
+    },
+    processes: [],
+  },
+  states: { offered: { page: "offered" } },
+  pages: {
+    offered: {
+      title: "Woodland offer",
+      components: [{ component: "heading", text: "Woodland offer" }],
+    },
+  },
+};
 
 const createDefinition = (
   callEndpoint = vi.fn().mockResolvedValue(calculatorResult),
   definitionData = pmfDefinitionData,
-) => new AgreementDefinition(definitionData, { callEndpoint });
+  agreementNumber = "PMF823153883",
+) =>
+  new AgreementDefinition(definitionData, {
+    callEndpoint,
+    generateAgreementNumber: () => agreementNumber,
+  });
 
 const expectNoPersistence = () => {
   expect(withTransaction).not.toHaveBeenCalled();
@@ -96,7 +251,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
     withTransaction.mockImplementation(async (callback) => callback(session));
     findAgreementBySourceIdentity.mockResolvedValue(null);
     loadAgreementDefinition.mockResolvedValue(createDefinition());
-    generateAgreementNumber.mockReturnValue("PMF823153883");
   });
 
   afterEach(() => {
@@ -110,7 +264,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
       return calculatorResult;
     });
     const definition = createDefinition(callEndpoint);
-    const resolveApplication = vi.spyOn(definition, "resolveApplication");
     loadAgreementDefinition.mockResolvedValue(definition);
     withTransaction.mockImplementation(async (callback) => {
       callOrder.push("transaction");
@@ -120,7 +273,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
 
     const agreement = await handleCreateAgreementCommandUseCase(command);
 
-    expect(resolveApplication).toHaveBeenCalledWith(command.data);
     expect(command.data).toEqual(originalInput);
     expect(callEndpoint).toHaveBeenCalledOnce();
     expect(callEndpoint).toHaveBeenCalledWith(
@@ -208,6 +360,91 @@ describe("handleCreateAgreementCommandUseCase", () => {
       ],
       session,
     );
+  });
+
+  it("creates an Agreement entirely from configured supplied-value mappings", async () => {
+    const originalInput = structuredClone(woodlandCommand.data);
+    loadAgreementDefinition.mockResolvedValue(
+      new AgreementDefinition(woodlandDefinitionData, {
+        generateAgreementNumber: () => "WMP123456789",
+      }),
+    );
+
+    const agreement =
+      await handleCreateAgreementCommandUseCase(woodlandCommand);
+
+    expect(woodlandCommand.data).toEqual(originalInput);
+    expect(agreement).toMatchObject({
+      agreementNumber: "WMP123456789",
+      schemeCode: "WMP",
+      name: "Oakridge Estate WMP",
+      applicant: woodlandCommand.data.answers.applicant,
+      application: woodlandCommand.data.answers,
+      parcels: [
+        {
+          id: "SK0971-7555",
+          sheetId: "SK0971",
+          parcelId: "7555",
+          area: { quantity: 5.2182, unit: "ha" },
+        },
+      ],
+      actions: [],
+      items: [
+        {
+          id: "item:1",
+          code: "WMP1",
+          description: "Produce a woodland management plan",
+          quantity: 15.75,
+          unit: "ha",
+          totalAmountPence: 157500,
+        },
+      ],
+      totalAmountPence: 157500,
+      state: "offered",
+    });
+    expect(withTransaction).toHaveBeenCalledOnce();
+    expect(insertCurrentAgreement).toHaveBeenCalledWith(agreement, session);
+  });
+
+  it("creates FPTT-shaped Parcels and Revenue Actions without calculating a Payment Schedule", async () => {
+    const callEndpoint = vi.fn();
+    loadAgreementDefinition.mockResolvedValue(
+      new AgreementDefinition(fpttDefinitionData, {
+        callEndpoint,
+        generateAgreementNumber: () => "FPTT123456789",
+      }),
+    );
+
+    const agreement = await handleCreateAgreementCommandUseCase(fpttCommand);
+
+    expect(callEndpoint).not.toHaveBeenCalled();
+    expect(agreement).toMatchObject({
+      agreementNumber: "FPTT123456789",
+      schemeCode: "SFI",
+      application: fpttCommand.data.answers,
+      parcels: [
+        {
+          id: "SD8545-9935",
+          sheetId: "SD8545",
+          parcelId: "9935",
+          area: { quantity: 0.0321, unit: "ha" },
+        },
+      ],
+      actions: [
+        {
+          id: "action:1",
+          code: "CMOR1",
+          version: "2.0.0",
+          parcel: "SD8545-9935",
+          quantity: 0.0321,
+          unit: "ha",
+          durationYears: 1,
+        },
+      ],
+      items: [],
+      state: "offered",
+    });
+    expect(agreement.paymentSchedule).toBeUndefined();
   });
 
   it("allocates identities by mapped order and resolves references without relying on Action code uniqueness", async () => {

@@ -13,6 +13,7 @@ const collectSequences = (definition) => [
     location: "create",
     path: "create.processes",
     processes: definition.create.processes ?? [],
+    produced: Object.keys(definition.create.values ?? {}),
   },
   ...Object.entries(definition.states).flatMap(([stateName, state]) => [
     {
@@ -100,9 +101,24 @@ const assertHandlerLocation = (processKey, definition, sequence, handlers) => {
   }
 };
 
+const requiredCreationValues = ["actions", "items"];
+
+const assertRequiredCreationValues = (sequence, produced) => {
+  if (sequence.location !== "create") {
+    return;
+  }
+
+  const missing = requiredCreationValues.find((field) => !produced.has(field));
+  if (missing) {
+    throw Boom.badImplementation(
+      `Agreement Process sequence "${sequence.path}" has no producer for required Agreement value "${missing}"`,
+    );
+  }
+};
+
 const validateSequence = (sequence, processDefinitions, handlers) => {
   const seen = new Set();
-  const produced = new Set();
+  const produced = new Set(sequence.produced);
 
   for (const processKey of sequence.processes) {
     const definition = requireProcessDefinition(
@@ -131,6 +147,8 @@ const validateSequence = (sequence, processDefinitions, handlers) => {
     assertHandlerLocation(processKey, definition, sequence, handlers);
     seen.add(processKey);
   }
+
+  assertRequiredCreationValues(sequence, produced);
 };
 
 const validateSequences = (definition, processDefinitions, handlers) => {
