@@ -22,15 +22,7 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
-import {
-  dispatchInternally,
-  isInternalAgreementCommand,
-} from "../services/outbox-dispatch.service.js";
-
-const shouldDispatchInternally = (event, topic) =>
-  topic === internalOutboxTargets.AGREEMENTS ||
-  (isInternalAgreementCommand(event) &&
-    topic !== config.sns.agreementStatusUpdatedTopicArn);
+import { dispatchInternally } from "../services/outbox-dispatch.service.js";
 
 export class OutboxSubscriber {
   static ACTOR = "OUTBOX";
@@ -153,23 +145,23 @@ export class OutboxSubscriber {
 
   async sendEvent(event) {
     const {
-      target: topic,
+      target,
       event: data,
       event: { messageGroupId },
     } = event;
     try {
-      if (shouldDispatchInternally(data, topic)) {
+      if (target === internalOutboxTargets.AGREEMENTS) {
         logger.info("Deliver outbox event internally to Agreements module");
         await dispatchInternally(data);
       } else {
-        logger.info(`Send outbox event to ${topic}`);
-        const fifoOptions = topic.endsWith(".fifo")
+        logger.info(`Send outbox event to ${target}`);
+        const fifoOptions = target.endsWith(".fifo")
           ? {
               messageGroupId: this.getMessageGroupId(messageGroupId, data),
               deduplicationId: data.id,
             }
           : undefined;
-        await publish(topic, data, fifoOptions);
+        await publish(target, data, fifoOptions);
       }
       await this.markEventComplete(event);
     } catch (ex) {

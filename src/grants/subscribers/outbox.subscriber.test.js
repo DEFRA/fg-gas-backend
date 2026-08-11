@@ -28,10 +28,7 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
-import {
-  dispatchInternally,
-  isInternalAgreementCommand,
-} from "../services/outbox-dispatch.service.js";
+import { dispatchInternally } from "../services/outbox-dispatch.service.js";
 import { OutboxSubscriber } from "./outbox.subscriber.js";
 
 vi.mock("../../common/sns-client.js");
@@ -57,7 +54,6 @@ describe("outbox.subscriber", () => {
     updateFailedEvents.mockResolvedValue({ modifiedCount: 1 });
     publish.mockResolvedValue(1);
     claimEvents.mockResolvedValue([]);
-    isInternalAgreementCommand.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -272,26 +268,7 @@ describe("outbox.subscriber", () => {
     );
   });
 
-  it("delivers a configured internal Agreement command to the Agreements module and does not publish to SNS/SQS", async () => {
-    isInternalAgreementCommand.mockReturnValue(true);
-    dispatchInternally.mockResolvedValue();
-
-    const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:create-agreement-topic",
-      event: { type: "agreement.create", data: { code: "pigs-might-fly" } },
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-
-    expect(dispatchInternally).toHaveBeenCalledWith(mockEvent.event);
-    expect(publish).not.toHaveBeenCalled();
-    expect(mockEvent.markAsComplete).toHaveBeenCalled();
-  });
-
   it("delivers events addressed to the internal Agreements target without publishing", async () => {
-    isInternalAgreementCommand.mockReturnValue(false);
     dispatchInternally.mockResolvedValue();
 
     const mockEvent = {
@@ -312,7 +289,6 @@ describe("outbox.subscriber", () => {
   });
 
   it("publishes Agreement lifecycle events addressed to external consumers", async () => {
-    isInternalAgreementCommand.mockReturnValue(true);
     publish.mockResolvedValue(1);
 
     const mockEvent = {
@@ -338,11 +314,10 @@ describe("outbox.subscriber", () => {
   });
 
   it("marks an internal command as unsent if internal delivery fails", async () => {
-    isInternalAgreementCommand.mockReturnValue(true);
     dispatchInternally.mockRejectedValue(new Error("handler failed"));
 
     const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:create-agreement-topic",
+      target: internalOutboxTargets.AGREEMENTS,
       event: { type: "agreement.create", data: { code: "pigs-might-fly" } },
       markAsFailed: vi.fn(),
     };
@@ -355,7 +330,6 @@ describe("outbox.subscriber", () => {
   });
 
   it("still publishes legacy Agreement commands (FPTT/WMP) externally", async () => {
-    isInternalAgreementCommand.mockReturnValue(false);
     publish.mockResolvedValue(1);
 
     const mockEvent = {
@@ -376,7 +350,6 @@ describe("outbox.subscriber", () => {
   });
 
   it("still publishes legacy Agreement status commands externally", async () => {
-    isInternalAgreementCommand.mockReturnValue(false);
     publish.mockResolvedValue(1);
 
     const mockEvent = {
@@ -402,7 +375,6 @@ describe("outbox.subscriber", () => {
   });
 
   it("leaves non-Agreement outbox events unaffected (still publish externally)", async () => {
-    isInternalAgreementCommand.mockReturnValue(false);
     publish.mockResolvedValue(1);
 
     const mockEvent = {

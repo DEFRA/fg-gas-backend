@@ -1,8 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { config } from "../../common/config.js";
+import {
+  clearInternalCommandHandlers,
+  registerInternalCommandHandler,
+} from "../../common/internal-command-bus.js";
+import { internalCommandTypes } from "../../common/internal-command-types.js";
+import { internalOutboxTargets } from "../../common/internal-outbox-targets.js";
 import { writeAuditEvent } from "../../common/write-audit-event.js";
 import { Application } from "../models/application.js";
-import { Outbox } from "../models/outbox.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
 import {
@@ -15,22 +21,64 @@ vi.mock("../repositories/application.repository.js");
 vi.mock("../../common/write-audit-event.js");
 
 describe("create agreement use case", () => {
-  it("should create outbox publication", async () => {
+  beforeEach(() => {
+    registerInternalCommandHandler(
+      internalCommandTypes.AGREEMENT_CREATE,
+      vi.fn(),
+      {
+        canHandle: (command) => command.data.code === "pigs-might-fly",
+      },
+    );
+  });
+
+  afterEach(() => {
+    clearInternalCommandHandlers();
+  });
+
+  it("targets the Agreements module for a configured Agreement definition", async () => {
     const session = {};
     const application = Application.new({
       currentPhase: "PRE_AWARD",
       currentStage: "AWARD",
       currentStatus: "REVIEW",
       clientRef: "1234",
-      code: "frps-beta",
+      code: "pigs-might-fly",
       phases: [],
     });
     findByClientRefAndCode.mockResolvedValue(application);
+
     await createAgreementCommandUseCase(
-      { clientRef: "client-ref", code: "code", eventData: {} },
+      { clientRef: "client-ref", code: "pigs-might-fly", eventData: {} },
       session,
     );
-    expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], session);
+
+    expect(insertMany).toHaveBeenCalledWith(
+      [expect.objectContaining({ target: internalOutboxTargets.AGREEMENTS })],
+      session,
+    );
+  });
+
+  it("targets the legacy Agreements topic when no Agreement definition is configured", async () => {
+    const session = {};
+    const application = Application.new({
+      currentPhase: "PRE_AWARD",
+      currentStage: "AWARD",
+      currentStatus: "REVIEW",
+      clientRef: "1234",
+      code: "woodland",
+      phases: [],
+    });
+    findByClientRefAndCode.mockResolvedValue(application);
+
+    await createAgreementCommandUseCase(
+      { clientRef: "client-ref", code: "woodland", eventData: {} },
+      session,
+    );
+
+    expect(insertMany).toHaveBeenCalledWith(
+      [expect.objectContaining({ target: config.sns.createAgreementTopicArn })],
+      session,
+    );
   });
 
   it("writes a CREATE_AGREEMENT audit event", async () => {
