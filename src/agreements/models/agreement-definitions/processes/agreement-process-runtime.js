@@ -14,18 +14,18 @@ const collectSequences = (definition) => [
     path: "create.processes",
     processes: definition.create.processes ?? [],
   },
-  ...Object.entries(definition.states).flatMap(([stateName, state]) =>
-    Object.entries(state.on ?? {}).map(([transitionName, transition]) => ({
+  ...Object.entries(definition.states).flatMap(([stateName, state]) => [
+    {
+      location: "page",
+      path: `states.${stateName}.processes`,
+      processes: state.processes ?? [],
+    },
+    ...Object.entries(state.on ?? {}).map(([transitionName, transition]) => ({
       location: "transition",
       path: `states.${stateName}.on.${transitionName}.processes`,
       processes: transition.processes ?? [],
     })),
-  ),
-  ...Object.entries(definition.pages).map(([pageName, page]) => ({
-    location: "page",
-    path: `pages.${pageName}.processes`,
-    processes: page.processes ?? [],
-  })),
+  ]),
 ];
 
 const requireProcessDefinition = (processKey, sequence, processDefinitions) => {
@@ -232,7 +232,7 @@ const resolvePageLocation = (definition, location) => {
 
   return {
     executionLocation: "page",
-    processes: definition.pages[location.page].processes ?? [],
+    processes: definition.states[location.state].processes ?? [],
     target: location.state,
   };
 };

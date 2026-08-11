@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { agreementDefinitions } from "../models/agreement-definitions/agreement-definition-registry.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import {
@@ -16,6 +16,7 @@ const definition = new AgreementDefinition({
   agreementNumberPrefix: "TST",
   create: { target: "offered" },
   states: {
+    accepted: { page: "offer" },
     offered: {
       page: "offer",
       on: {
@@ -87,6 +88,83 @@ const agreement = {
   state: "offered",
   version: 1,
 };
+const createPageProcessDefinition = (callEndpoint) =>
+  new AgreementDefinition(
+    {
+      code: "test",
+      configVersion: "1",
+      agreementNumberPrefix: "TST",
+      processDefinitions: {
+        CALCULATE_PAYMENT: {
+          type: "endpoint",
+          endpoint: {
+            method: "POST",
+            path: "/payment-schedule",
+            service: "LAND_GRANTS",
+          },
+          request: {
+            body: {
+              agreementNumber: "$.agreement.agreementNumber",
+            },
+          },
+          output: {
+            totalAmountPence: "$.response.totalAmountPence",
+          },
+        },
+      },
+      create: { target: "offered" },
+      states: {
+        offered: {
+          page: "offer",
+          processes: ["CALCULATE_PAYMENT"],
+        },
+        accepted: { page: "accepted" },
+      },
+      pages: {
+        document: {
+          title: "Document",
+          components: [
+            { component: "heading", text: "Document" },
+            {
+              component: "summary-list",
+              condition: "jsonata:$.agreement.state = 'offered'",
+              rows: [
+                {
+                  label: "Total funding",
+                  text: "$.outputs.CALCULATE_PAYMENT.totalAmountPence",
+                  format: "poundsFromPence",
+                },
+              ],
+            },
+          ],
+          actions: [],
+        },
+        offer: {
+          title: "Offer",
+          components: [
+            {
+              component: "summary-list",
+              rows: [
+                {
+                  label: "Total funding",
+                  text: "$.outputs.CALCULATE_PAYMENT.totalAmountPence",
+                  format: "poundsFromPence",
+                },
+              ],
+            },
+          ],
+          actions: [],
+        },
+        accepted: {
+          title: "Accepted",
+          components: [{ component: "heading", text: "Accepted" }],
+          actions: [],
+        },
+      },
+    },
+    { callEndpoint },
+  );
+
 const offeredValues = {
   application: { whitePigsCount: 5 },
   actions: [
@@ -117,6 +195,74 @@ const offeredValues = {
 };
 
 describe("buildAgreementPageModel", () => {
+  it("runs configured page Processes on every render and exposes their ephemeral outputs", async () => {
+    const callEndpoint = vi
+      .fn()
+      .mockResolvedValueOnce({ totalAmountPence: 1200 })
+      .mockResolvedValueOnce({ totalAmountPence: 3400 });
+    const agreementDefinition = createPageProcessDefinition(callEndpoint);
+    const render = () =>
+      buildAgreementPageModel({
+        agreement,
+        agreementDefinition,
+        page: "offer",
+        mode: "view",
+      });
+
+    const first = await render();
+    const second = await render();
+
+    expect(first.components).toEqual([
+      {
+        component: "summary-list",
+        rows: [{ label: "Total funding", text: "£12" }],
+      },
+    ]);
+    expect(second.components).toEqual([
+      {
+        component: "summary-list",
+        rows: [{ label: "Total funding", text: "£34" }],
+      },
+    ]);
+    expect(callEndpoint).toHaveBeenCalledTimes(2);
+    expect(callEndpoint).toHaveBeenCalledWith(
+      {
+        code: "CALCULATE_PAYMENT",
+        method: "POST",
+        path: "/payment-schedule",
+        service: "LAND_GRANTS",
+      },
+      { BODY: { agreementNumber: "TST123" } },
+    );
+    expect(agreement).not.toHaveProperty("totalAmountPence");
+  });
+
+  it("does not run offered-page Processes after acceptance", async () => {
+    const callEndpoint = vi.fn();
+
+    await buildAgreementPageModel({
+      agreement: { ...agreement, state: "accepted" },
+      agreementDefinition: createPageProcessDefinition(callEndpoint),
+      page: "accepted",
+      mode: "view",
+    });
+
+    expect(callEndpoint).not.toHaveBeenCalled();
+  });
+
+  it("fails the page request when a page Process fails", async () => {
+    const callEndpoint = vi.fn().mockRejectedValue(new Error("unavailable"));
+
+    await expect(
+      buildAgreementPageModel({
+        agreement,
+        agreementDefinition: createPageProcessDefinition(callEndpoint),
+        page: "offer",
+        mode: "view",
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 502 } });
+  });
+
   it("builds presentation from one Agreement", async () => {
     await expect(
       buildAgreementPageModel({
@@ -150,6 +296,35 @@ describe("buildAgreementPageModel", () => {
     expect(result.page.layout).toBe("document");
     expect(result).not.toHaveProperty("sections");
     expect(result.actions).toEqual([]);
+  });
+
+  it("runs offered-state Processes when building a draft document", async () => {
+    const callEndpoint = vi.fn().mockResolvedValue({ totalAmountPence: 1200 });
+
+    const model = await buildAgreementDocumentPageModel({
+      agreement,
+      agreementDefinition: createPageProcessDefinition(callEndpoint),
+    });
+
+    expect(model.components).toContainEqual({
+      component: "summary-list",
+      rows: [{ label: "Total funding", text: "£12" }],
+    });
+    expect(callEndpoint).toHaveBeenCalledOnce();
+  });
+
+  it("does not run offered-state Processes when building an accepted document", async () => {
+    const callEndpoint = vi.fn();
+
+    const model = await buildAgreementDocumentPageModel({
+      agreement: { ...agreement, state: "accepted" },
+      agreementDefinition: createPageProcessDefinition(callEndpoint),
+    });
+
+    expect(model.components).toEqual([
+      { component: "heading", text: "Document" },
+    ]);
+    expect(callEndpoint).not.toHaveBeenCalled();
   });
 
   it("builds pages.document without lifecycle actions", async () => {
