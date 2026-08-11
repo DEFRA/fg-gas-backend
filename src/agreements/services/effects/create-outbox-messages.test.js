@@ -22,7 +22,7 @@ describe("createOutboxMessages", () => {
     );
 
     expect(message).toMatchObject({
-      target: internalOutboxTargets.AGREEMENTS,
+      target: internalOutboxTargets.MESSAGE_BUS,
       event: {
         data: {
           agreementNumber: "PMF123",
@@ -70,7 +70,7 @@ describe("createOutboxMessages", () => {
     );
 
     expect(message).toEqual({
-      target: internalOutboxTargets.AGREEMENTS,
+      target: internalOutboxTargets.MESSAGE_BUS,
       event: expect.objectContaining({
         source: "urn:service:agreement",
         specversion: "1.0",

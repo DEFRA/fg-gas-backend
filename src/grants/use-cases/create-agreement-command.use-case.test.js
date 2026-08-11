@@ -35,7 +35,7 @@ describe("create agreement use case", () => {
     clearInternalCommandHandlers();
   });
 
-  it("targets the Agreements module for a configured Agreement definition", async () => {
+  it("targets the internal message bus for a configured Agreement definition", async () => {
     const session = {};
     const application = Application.new({
       currentPhase: "PRE_AWARD",
@@ -53,7 +53,7 @@ describe("create agreement use case", () => {
     );
 
     expect(insertMany).toHaveBeenCalledWith(
-      [expect.objectContaining({ target: internalOutboxTargets.AGREEMENTS })],
+      [expect.objectContaining({ target: internalOutboxTargets.MESSAGE_BUS })],
       session,
     );
   });

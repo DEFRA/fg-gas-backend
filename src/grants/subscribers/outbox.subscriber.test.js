@@ -268,11 +268,11 @@ describe("outbox.subscriber", () => {
     );
   });
 
-  it("delivers events addressed to the internal Agreements target without publishing", async () => {
+  it("delivers events addressed to the internal message bus without publishing", async () => {
     dispatchInternally.mockResolvedValue();
 
     const mockEvent = {
-      target: internalOutboxTargets.AGREEMENTS,
+      target: internalOutboxTargets.MESSAGE_BUS,
       event: {
         type: "io.onsite.agreement.status.updated",
         data: { code: "pigs-might-fly", status: "accepted" },
@@ -317,7 +317,7 @@ describe("outbox.subscriber", () => {
     dispatchInternally.mockRejectedValue(new Error("handler failed"));
 
     const mockEvent = {
-      target: internalOutboxTargets.AGREEMENTS,
+      target: internalOutboxTargets.MESSAGE_BUS,
       event: { type: "agreement.create", data: { code: "pigs-might-fly" } },
       markAsFailed: vi.fn(),
     };

@@ -26,7 +26,7 @@ export const auditDataBuilder = (args) => {
 
 const resolveAgreementCommandTarget = (command) =>
   canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, command)
-    ? internalOutboxTargets.AGREEMENTS
+    ? internalOutboxTargets.MESSAGE_BUS
     : config.sns.createAgreementTopicArn;
 
 const createAgreementCommand = async ({ clientRef, code }, session) => {

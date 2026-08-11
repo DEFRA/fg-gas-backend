@@ -1,3 +1,3 @@
 export const internalOutboxTargets = {
-  AGREEMENTS: "internal:agreements",
+  MESSAGE_BUS: "internal:message-bus",
 };

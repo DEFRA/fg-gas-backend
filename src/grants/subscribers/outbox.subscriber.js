@@ -150,8 +150,8 @@ export class OutboxSubscriber {
       event: { messageGroupId },
     } = event;
     try {
-      if (target === internalOutboxTargets.AGREEMENTS) {
-        logger.info("Deliver outbox event internally to Agreements module");
+      if (target === internalOutboxTargets.MESSAGE_BUS) {
+        logger.info("Deliver outbox event to the internal message bus");
         await dispatchInternally(data);
       } else {
         logger.info(`Send outbox event to ${target}`);

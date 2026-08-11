@@ -43,7 +43,7 @@ const createLifecycleMessages = (agreement, payment) => {
   return [
     {
       event,
-      target: internalOutboxTargets.AGREEMENTS,
+      target: internalOutboxTargets.MESSAGE_BUS,
     },
     {
       event,
