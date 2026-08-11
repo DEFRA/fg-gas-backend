@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { config } from "../../common/config.js";
 import { getMessageGroupId } from "../../common/get-message-group-id.js";
+import { internalOutboxTargets } from "../../common/internal-outbox-targets.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import {
@@ -27,8 +28,9 @@ import {
 } from "../services/outbox-dispatch.service.js";
 
 const shouldDispatchInternally = (event, topic) =>
-  isInternalAgreementCommand(event) &&
-  topic !== config.sns.agreementStatusUpdatedTopicArn;
+  topic === internalOutboxTargets.AGREEMENTS ||
+  (isInternalAgreementCommand(event) &&
+    topic !== config.sns.agreementStatusUpdatedTopicArn);
 
 export class OutboxSubscriber {
   static ACTOR = "OUTBOX";

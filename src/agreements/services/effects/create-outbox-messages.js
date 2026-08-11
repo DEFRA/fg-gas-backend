@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { config } from "../../../common/config.js";
+import { internalOutboxTargets } from "../../../common/internal-outbox-targets.js";
 
 const LIFECYCLE_TYPE = "io.onsite.agreement.status.updated";
 const LIFECYCLE_SOURCE = "urn:service:agreement";
@@ -42,7 +43,7 @@ const createLifecycleMessages = (agreement, payment) => {
   return [
     {
       event,
-      target: config.sns.updateAgreementStatusTopicArn,
+      target: internalOutboxTargets.AGREEMENTS,
     },
     {
       event,

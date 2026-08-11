@@ -9,6 +9,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { internalOutboxTargets } from "../../common/internal-outbox-targets.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import { Outbox } from "../models/outbox.js";
@@ -289,6 +290,27 @@ describe("outbox.subscriber", () => {
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
+  it("delivers events addressed to the internal Agreements target without publishing", async () => {
+    isInternalAgreementCommand.mockReturnValue(false);
+    dispatchInternally.mockResolvedValue();
+
+    const mockEvent = {
+      target: internalOutboxTargets.AGREEMENTS,
+      event: {
+        type: "io.onsite.agreement.status.updated",
+        data: { code: "pigs-might-fly", status: "accepted" },
+      },
+      markAsComplete: vi.fn(),
+    };
+
+    const outbox = new OutboxSubscriber();
+    await outbox.sendEvent(mockEvent);
+
+    expect(dispatchInternally).toHaveBeenCalledWith(mockEvent.event);
+    expect(publish).not.toHaveBeenCalled();
+    expect(mockEvent.markAsComplete).toHaveBeenCalled();
+  });
+
   it("publishes Agreement lifecycle events addressed to external consumers", async () => {
     isInternalAgreementCommand.mockReturnValue(true);
     publish.mockResolvedValue(1);
@@ -350,6 +372,32 @@ describe("outbox.subscriber", () => {
 
     expect(dispatchInternally).not.toHaveBeenCalled();
     expect(publish).toHaveBeenCalled();
+    expect(mockEvent.markAsComplete).toHaveBeenCalled();
+  });
+
+  it("still publishes legacy Agreement status commands externally", async () => {
+    isInternalAgreementCommand.mockReturnValue(false);
+    publish.mockResolvedValue(1);
+
+    const mockEvent = {
+      target:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_agreement_status_fifo.fifo",
+      event: {
+        type: "agreement.status.update",
+        data: { code: "woodland", status: "cancelled" },
+      },
+      markAsComplete: vi.fn(),
+    };
+
+    const outbox = new OutboxSubscriber();
+    await outbox.sendEvent(mockEvent);
+
+    expect(dispatchInternally).not.toHaveBeenCalled();
+    expect(publish).toHaveBeenCalledWith(
+      mockEvent.target,
+      mockEvent.event,
+      expect.any(Object),
+    );
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
