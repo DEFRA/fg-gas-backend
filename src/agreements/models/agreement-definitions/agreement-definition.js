@@ -1,46 +1,35 @@
 import Boom from "@hapi/boom";
 import { AgreementLifecycle } from "../agreement-lifecycle.js";
 import { generateAgreementNumber } from "../agreement-number.js";
-import { Agreement } from "../agreement.js";
 import { requirePersistedAgreementState } from "../require-persisted-agreement-state.js";
-import { compileApplicationMapping } from "./compile-application-mapping.js";
+import { compileAgreementCreation } from "./compile-agreement-creation.js";
 import { compileAgreementProcesses } from "./processes/agreement-process-runtime.js";
 import { validateAgreementDefinition } from "./validate.js";
 
 export class AgreementDefinition {
+  #createAgreement;
   #definition;
-  #resolveApplication;
   #runProcesses;
 
-  constructor(definition, dependencies) {
+  constructor(definition, dependencies = {}) {
     this.#definition = validateAgreementDefinition(definition);
-    this.#resolveApplication = compileApplicationMapping(this.#definition);
+    const {
+      generateAgreementNumber:
+        agreementNumberGenerator = generateAgreementNumber,
+      ...processDependencies
+    } = dependencies;
     this.#runProcesses = compileAgreementProcesses(
       this.#definition,
-      dependencies,
+      processDependencies,
     );
+    this.#createAgreement = compileAgreementCreation(this.#definition, {
+      generateAgreementNumber: agreementNumberGenerator,
+      runProcesses: this.#runProcesses,
+    });
   }
 
-  createAgreement({
-    clientRef,
-    correlationId,
-    createdAt,
-    identifiers,
-    values,
-  }) {
-    return Agreement.create({
-      agreementNumber: generateAgreementNumber({
-        prefix: this.#definition.agreementNumberPrefix,
-      }),
-      code: this.#definition.code,
-      clientRef,
-      configVersion: this.#definition.configVersion,
-      correlationId,
-      createdAt,
-      identifiers,
-      values,
-      state: this.#definition.create.target,
-    });
+  async createAgreement(options) {
+    return this.#createAgreement(options);
   }
 
   getEndpoints() {
@@ -52,11 +41,13 @@ export class AgreementDefinition {
   }
 
   async runProcesses(options) {
-    return this.#runProcesses(options);
-  }
+    if (options.location?.type === "create") {
+      throw Boom.badImplementation(
+        "Agreement creation Processes are private to Agreement creation",
+      );
+    }
 
-  async resolveApplication(input) {
-    return this.#resolveApplication(input);
+    return this.#runProcesses(options);
   }
 
   resolveAction({ state, action }) {

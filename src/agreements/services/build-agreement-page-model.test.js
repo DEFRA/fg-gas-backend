@@ -9,12 +9,17 @@ import {
 const pmfAgreementDefinition = agreementDefinitions.find(
   ({ code }) => code === "pigs-might-fly",
 );
+const creationDefinition = {
+  target: "offered",
+  application: {},
+  values: { actions: [], items: [] },
+};
 
 const definition = new AgreementDefinition({
   code: "test",
   configVersion: "1",
   agreementNumberPrefix: "TST",
-  create: { target: "offered" },
+  create: creationDefinition,
   states: {
     accepted: { page: "offer" },
     offered: {
@@ -112,7 +117,7 @@ const createPageProcessDefinition = (callEndpoint) =>
           },
         },
       },
-      create: { target: "offered" },
+      create: creationDefinition,
       states: {
         offered: {
           page: "offer",
@@ -577,7 +582,7 @@ describe("buildAgreementPageModel", () => {
       code: "test",
       configVersion: "1",
       agreementNumberPrefix: "TST",
-      create: { target: "offered" },
+      create: creationDefinition,
       states: { offered: { page: "offer" } },
       templates: {
         stateSummary: {
@@ -618,7 +623,7 @@ describe("buildAgreementPageModel", () => {
       code: "test",
       configVersion: "1",
       agreementNumberPrefix: "TST",
-      create: { target: "offered" },
+      create: creationDefinition,
       states: { offered: { page: "offer" } },
       pages: {
         offer: {

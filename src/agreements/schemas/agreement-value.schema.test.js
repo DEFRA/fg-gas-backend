@@ -132,6 +132,42 @@ describe("agreementValueSchema", () => {
     expect(validate(value).error).toBeUndefined();
   });
 
+  it("accepts frozen Agreement party, name and scheme facts", () => {
+    const value = structuredClone(wmpAgreementValues);
+    value.schemeCode = "WMP";
+    value.name = "Oakridge Estate WMP";
+    value.applicant = {
+      business: {
+        name: "Oakridge Estate",
+        address: {
+          line1: "Farm House",
+          city: "York",
+          postalCode: "YO1 1AA",
+        },
+      },
+      customer: {
+        name: { title: "Ms", first: "Alex", last: "Farmer" },
+      },
+    };
+
+    expect(validate(value).error).toBeUndefined();
+  });
+
+  it("rejects unknown fields inside the frozen Applicant", () => {
+    const value = structuredClone(wmpAgreementValues);
+    value.applicant = {
+      business: {
+        name: "Oakridge Estate",
+        address: { postalCode: "YO1 1AA", secretReference: "hidden" },
+      },
+      customer: { name: { first: "Alex", last: "Farmer" } },
+    };
+
+    expect(validate(value).error?.message).toContain(
+      '"applicant.business.address.secretReference" is not allowed',
+    );
+  });
+
   it.each([
     ["actions", "action:1"],
     ["items", "item:1"],

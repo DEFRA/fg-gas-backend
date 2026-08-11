@@ -4,7 +4,6 @@ import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { AgreementVersion } from "../models/agreement-version.js";
-import { assembleCreationAgreementValues } from "../models/assemble-creation-agreement-values.js";
 import {
   findAgreementBySourceIdentity,
   insertAgreementVersion,
@@ -12,18 +11,8 @@ import {
 } from "../repositories/agreement.repository.js";
 import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
 
-const runCreationProcesses = async (definition, input, execution) => {
-  const application = await definition.resolveApplication(input);
-  const { outputs } = await definition.runProcesses({
-    location: { type: "create" },
-    context: { application, execution },
-  });
-
-  return assembleCreationAgreementValues({ application, outputs });
-};
-
 const createAgreement = async (event) => {
-  const { clientRef, code, identifiers, metadata } = event.data;
+  const { clientRef, code, metadata } = event.data;
   const existingAgreement = await findAgreementBySourceIdentity({
     clientRef,
     code,
@@ -41,13 +30,9 @@ const createAgreement = async (event) => {
     correlationId: randomUUID(),
     executedAt: new Date().toISOString(),
   };
-  const values = await runCreationProcesses(definition, event.data, execution);
-  const agreement = definition.createAgreement({
-    clientRef,
-    correlationId: execution.correlationId,
-    createdAt: execution.executedAt,
-    identifiers,
-    values,
+  const agreement = await definition.createAgreement({
+    input: event.data,
+    execution,
   });
   const agreementVersion = AgreementVersion.create({
     agreement,

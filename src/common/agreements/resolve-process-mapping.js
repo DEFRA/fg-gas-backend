@@ -19,8 +19,8 @@ export const toProcessExpression = (mapping) => {
   return expression.replace(rowTermPattern, (_, prefix) => `${prefix}$row.`);
 };
 
-const requireResolved = (resolved, mapping) => {
-  if (resolved === undefined) {
+const resolveEvaluatedValue = (resolved, mapping, allowUnresolved) => {
+  if (resolved === undefined && !allowUnresolved) {
     throw new Error(`Unresolved process mapping "${mapping}"`);
   }
 
@@ -46,7 +46,11 @@ const resolveString = async (mapping, scope) => {
     return mapping;
   }
 
-  return requireResolved(await evaluate(mapping, scope), mapping);
+  return resolveEvaluatedValue(
+    await evaluate(mapping, scope),
+    mapping,
+    scope.allowUnresolved,
+  );
 };
 
 const resolveArray = (mapping, scope) =>
@@ -94,16 +98,31 @@ const requireCollectionResolved = (value, reference) => {
 const toExpressionRows = (value) =>
   Array.isArray(value) ? [...value] : [value];
 
-const resolveCollectionRows = async (reference, scope) =>
+const evaluateCollectionReference = (reference, scope) =>
   isExpression(reference)
-    ? toExpressionRows(
-        requireCollectionResolved(await evaluate(reference, scope), reference),
-      )
-    : requireArray(await resolveString(reference, scope), reference);
+    ? evaluate(reference, scope)
+    : resolveString(reference, scope);
+
+const requireCollectionRows = (resolved, reference) =>
+  isExpression(reference)
+    ? toExpressionRows(requireCollectionResolved(resolved, reference))
+    : requireArray(resolved, reference);
+
+const resolveCollectionRows = async (reference, scope) => {
+  const resolved = await evaluateCollectionReference(reference, scope);
+
+  return resolved === undefined && scope.allowUnresolved
+    ? undefined
+    : requireCollectionRows(resolved, reference);
+};
 
 const resolveCollection = async (mapping, scope) => {
   requireCollectionShape(mapping);
   const rows = await resolveCollectionRows(mapping.itemsRef, scope);
+
+  if (rows === undefined) {
+    return undefined;
+  }
 
   return Promise.all(
     rows.map((row) => resolveMapping(mapping.items, { ...scope, row })),
@@ -118,7 +137,11 @@ const resolveObjectEntries = async (mapping, scope) => {
     ]),
   );
 
-  return Object.fromEntries(entries);
+  return Object.fromEntries(
+    scope.allowUnresolved
+      ? entries.filter(([, value]) => value !== undefined)
+      : entries,
+  );
 };
 
 const resolveObject = (mapping, scope) =>
@@ -190,5 +213,8 @@ const validateMapping = (mapping) => {
 
 export const validateProcessMapping = (mapping) => validateMapping(mapping);
 
-export const resolveProcessMapping = async (mapping, context) =>
-  resolveMapping(mapping, { context });
+export const resolveProcessMapping = async (
+  mapping,
+  context,
+  { allowUnresolved = false } = {},
+) => resolveMapping(mapping, { allowUnresolved, context });

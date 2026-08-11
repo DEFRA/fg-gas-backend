@@ -27,6 +27,32 @@ export const parcelAreaSchema = Joi.object({
   unit: Joi.string().required(),
 }).label("ParcelArea");
 
+const optionalSourceString = Joi.string().allow("", null).optional();
+
+export const applicantSchema = Joi.object({
+  business: Joi.object({
+    name: Joi.string().required(),
+    address: Joi.object({
+      line1: optionalSourceString,
+      line2: optionalSourceString,
+      line3: optionalSourceString,
+      line4: optionalSourceString,
+      line5: optionalSourceString,
+      street: optionalSourceString,
+      city: optionalSourceString,
+      postalCode: optionalSourceString,
+    }).required(),
+  }).required(),
+  customer: Joi.object({
+    name: Joi.object({
+      title: optionalSourceString,
+      first: Joi.string().required(),
+      middle: optionalSourceString,
+      last: Joi.string().required(),
+    }).required(),
+  }).required(),
+}).label("Applicant");
+
 const canonicalParcelId = Joi.string()
   .custom((value, helpers) => {
     const { sheetId, parcelId } = helpers.state.ancestors[0];
@@ -254,6 +280,9 @@ const validateAgreementInvariants = (value, helpers) => {
 };
 
 export const agreementValueSchema = Joi.object({
+  schemeCode: Joi.string().optional(),
+  name: Joi.string().optional(),
+  applicant: applicantSchema.optional(),
   application: Joi.object().unknown(true).required(),
   startDate: agreementDateSchema.optional(),
   endDate: agreementDateSchema.optional(),

@@ -2,6 +2,7 @@ import Joi from "joi";
 import {
   agreementDateSchema,
   agreementValueSchema,
+  applicantSchema,
   capitalItemSchema,
   parcelSchema,
   penceSchema,
@@ -101,6 +102,9 @@ const candidatePaymentScheduleSchema = Joi.object({
 }).label("CandidatePaymentSchedule");
 
 const outputSchemas = {
+  schemeCode: agreementValueSchema.extract("schemeCode"),
+  name: agreementValueSchema.extract("name"),
+  applicant: applicantSchema,
   startDate: agreementDateSchema,
   endDate: agreementDateSchema,
   parcels: Joi.array().items(parcelSchema).unique("id"),
