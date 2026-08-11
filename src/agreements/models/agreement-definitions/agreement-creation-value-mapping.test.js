@@ -132,6 +132,23 @@ describe("AgreementDefinition creation-value mapping", () => {
     });
   });
 
+  it("coerces mapped values through the Agreement Process output contract", async () => {
+    const values = structuredClone(creationValues);
+    values.actions = [
+      {
+        code: "WMP2",
+        quantity: "5",
+        unit: "ha",
+      },
+    ];
+
+    await expect(
+      createAgreement(createDefinition(values)),
+    ).resolves.toMatchObject({
+      actions: [{ id: "action:1", code: "WMP2", quantity: 5, unit: "ha" }],
+    });
+  });
+
   it("isolates Creation Input, Application and resolved values", async () => {
     const mutableInput = structuredClone(input);
     const definition = createDefinition(creationValues);
@@ -148,9 +165,31 @@ describe("AgreementDefinition creation-value mapping", () => {
     });
   });
 
-  it("redacts unresolved creation-value mappings", async () => {
+  it("omits unresolved optional Agreement values", async () => {
     const values = structuredClone(creationValues);
-    values.name = "$.application.secretAgreementName";
+    values.name = "$.application.optionalName";
+    const creationInput = structuredClone(input);
+    delete creationInput.answers.payments.agreement[0].description;
+    const agreement = await createAgreement(
+      createDefinition(values),
+      creationInput,
+    );
+
+    expect(agreement.name).toBeUndefined();
+    expect(agreement.items).toEqual([
+      {
+        id: "item:1",
+        code: "WMP1",
+        quantity: 15.75,
+        unit: "ha",
+        totalAmountPence: 157500,
+      },
+    ]);
+  });
+
+  it("redacts unresolved required creation-value mappings", async () => {
+    const values = structuredClone(creationValues);
+    values.actions = "$.application.secretAgreementActions";
     const definition = createDefinition(values);
 
     await expect(
@@ -160,7 +199,7 @@ describe("AgreementDefinition creation-value mapping", () => {
       }),
     ).rejects.toMatchObject({
       message:
-        'Agreement definition "woodland" could not resolve creation values',
+        'Agreement definition "woodland" produced invalid creation value "actions" at: value',
       output: { statusCode: 500 },
     });
   });
@@ -203,6 +242,12 @@ describe("AgreementDefinition creation-value mapping", () => {
     );
   });
 
+  it("requires producers for Actions and Items when compiling the Definition", () => {
+    expect(() => createDefinition({ actions: [] })).toThrow(
+      'create.processes" has no producer for required Agreement value "items"',
+    );
+  });
+
   it("rejects a field produced by both creation mapping and a Process", () => {
     expect(
       () =>
@@ -242,6 +287,15 @@ describe("AgreementDefinition creation-value mapping", () => {
         }),
     ).toThrow(
       'sequence "create.processes" output "totalAmountPence" has competing producers',
+    );
+  });
+
+  it("rejects unknown fields in literal arrays when compiling the Definition", () => {
+    const values = structuredClone(creationValues);
+    values.actions = [{ code: "WMP2", itemCode: "UNKNOWN" }];
+
+    expect(() => createDefinition(values)).toThrow(
+      'create.values.actions[0].itemCode" is unknown',
     );
   });
 

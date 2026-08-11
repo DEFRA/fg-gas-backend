@@ -45,22 +45,25 @@ describe("AgreementDefinition Application mapping", () => {
   it("selects a source-shaped Application from the complete Creation Input", async () => {
     const definition = constructDefinition("$.input.answers");
 
-    await expect(
-      createAgreement(definition, {
-        answers: { applicant: "Test Farmer", quantity: 4 },
-        delivery: { source: "ignored" },
-      }),
-    ).resolves.toMatchObject({
-      application: { applicant: "Test Farmer", quantity: 4 },
+    const agreement = await createAgreement(definition, {
+      answers: { applicant: "Test Farmer", quantity: 4 },
+      delivery: { source: "ignored" },
+    });
+
+    expect(agreement.application).toEqual({
+      applicant: "Test Farmer",
+      quantity: 4,
     });
   });
 
   it("can select a differently named source subtree", async () => {
     const definition = constructDefinition("$.input.payload");
 
-    await expect(
-      createAgreement(definition, { payload: { parcelCount: 2 } }),
-    ).resolves.toMatchObject({ application: { parcelCount: 2 } });
+    const agreement = await createAgreement(definition, {
+      payload: { parcelCount: 2 },
+    });
+
+    expect(agreement.application).toEqual({ parcelCount: 2 });
   });
 
   it("assembles Application while preserving nested value types", async () => {
@@ -75,20 +78,18 @@ describe("AgreementDefinition Application mapping", () => {
       source: { clientRef: "$.input.clientRef" },
     });
 
-    await expect(
-      createAgreement(definition, {
-        answers: { quantity: 3, quantities: [1, 2, 3] },
-        clientRef: "client-123",
-        registration: { applicant: "Test Farmer", registered: true },
-      }),
-    ).resolves.toMatchObject({
-      application: {
-        applicant: "Test Farmer",
-        eligible: true,
-        facts: [3, { registered: true }],
-        quantities: [1, 2, 3],
-        source: { clientRef: "client-123" },
-      },
+    const agreement = await createAgreement(definition, {
+      answers: { quantity: 3, quantities: [1, 2, 3] },
+      clientRef: "client-123",
+      registration: { applicant: "Test Farmer", registered: true },
+    });
+
+    expect(agreement.application).toEqual({
+      applicant: "Test Farmer",
+      eligible: true,
+      facts: [3, { registered: true }],
+      quantities: [1, 2, 3],
+      source: { clientRef: "client-123" },
     });
   });
 
@@ -104,8 +105,10 @@ describe("AgreementDefinition Application mapping", () => {
     const firstAgreement = await createAgreement(definition);
     firstAgreement.application.source.label = "Changed result";
 
-    await expect(createAgreement(definition)).resolves.toMatchObject({
-      application: { source: { label: "Configured label" } },
+    const secondAgreement = await createAgreement(definition);
+
+    expect(secondAgreement.application).toEqual({
+      source: { label: "Configured label" },
     });
   });
 
@@ -152,8 +155,12 @@ describe("AgreementDefinition Application mapping", () => {
     }
   });
 
-  it("requires Process-based creation to configure Application mapping", () => {
-    expect(() => constructDefinition(undefined)).toThrow(
+  it("requires every Agreement creation to configure Application mapping", () => {
+    const configuration = createDefinition(undefined);
+    delete configuration.create.processes;
+    delete configuration.create.values;
+
+    expect(() => new AgreementDefinition(configuration)).toThrow(
       'Invalid agreement definition "test-application": "create.application" is required',
     );
   });

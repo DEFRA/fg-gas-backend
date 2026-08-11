@@ -6,28 +6,9 @@ import {
 import { findProcessOutputSchema } from "./agreement-process-registries.js";
 import { findProcessOutputDependencies } from "./find-process-output-dependencies.js";
 import { findUnknownMappingField } from "./find-unknown-mapping-field.js";
+import { validateMappedValue } from "./validate-mapped-value.js";
 
 const badGatewayStatusCode = 502;
-const validationOptions = {
-  abortEarly: false,
-  allowUnknown: false,
-  convert: true,
-};
-
-const validationPaths = (error) =>
-  error.details.map(({ path }) => path.join(".") || "value").join(", ");
-
-const validateValue = (schema, value, message) => {
-  const result = schema.validate(value, validationOptions);
-
-  if (result.error) {
-    throw Boom.badImplementation(
-      `${message} at: ${validationPaths(result.error)}`,
-    );
-  }
-
-  return structuredClone(result.value);
-};
 
 const assertValidMapping = (processKey, path, mapping) => {
   try {
@@ -103,7 +84,7 @@ const mapOutput = async (processKey, output, context, response) => {
           response: structuredClone(response),
         });
         const schema = findProcessOutputSchema(name);
-        const value = validateValue(
+        const value = validateMappedValue(
           schema,
           mapped,
           `Agreement Process "${processKey}" returned malformed output "${name}"`,
@@ -182,7 +163,7 @@ const validateHandlerResult = (processKey, handler, result) => {
     );
   }
 
-  return validateValue(
+  return validateMappedValue(
     handler.intentSchema,
     result,
     `Agreement Process handler "${processKey}" returned malformed intents`,
@@ -220,7 +201,7 @@ const compileHandler = (processKey, definition, handlers) => {
 
   return async (context) => {
     const mapped = await mapHandlerInput(processKey, definition, context);
-    const input = validateValue(
+    const input = validateMappedValue(
       handler.inputSchema,
       mapped,
       `Agreement Process "${processKey}" input failed validation`,

@@ -102,8 +102,8 @@ const candidatePaymentScheduleSchema = Joi.object({
 }).label("CandidatePaymentSchedule");
 
 const outputSchemas = {
-  schemeCode: Joi.string(),
-  name: Joi.string(),
+  schemeCode: agreementValueSchema.extract("schemeCode"),
+  name: agreementValueSchema.extract("name"),
   applicant: applicantSchema,
   startDate: agreementDateSchema,
   endDate: agreementDateSchema,

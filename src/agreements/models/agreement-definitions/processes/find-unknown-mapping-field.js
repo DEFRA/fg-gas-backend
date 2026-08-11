@@ -7,10 +7,30 @@ const allowsUnknownFields = (schema) => schema.flags?.unknown;
 const isUnknownField = (schema) =>
   !schema || schema.flags?.presence === "forbidden";
 
-const findInArray = (mapping, schema, path) =>
-  Object.hasOwn(mapping, "items")
+const findInLiteralArray = (mapping, schema, path) => {
+  for (const [index, value] of mapping.entries()) {
+    const unknown = findUnknownMappingField(
+      value,
+      arrayItemSchema(schema),
+      `${path}[${index}]`,
+    );
+    if (unknown) {
+      return unknown;
+    }
+  }
+
+  return undefined;
+};
+
+const findInArray = (mapping, schema, path) => {
+  if (Array.isArray(mapping)) {
+    return findInLiteralArray(mapping, schema, path);
+  }
+
+  return Object.hasOwn(mapping, "items")
     ? findUnknownMappingField(mapping.items, arrayItemSchema(schema), path)
     : undefined;
+};
 
 const findInField = (value, schema, path) =>
   isUnknownField(schema) ? path : findUnknownMappingField(value, schema, path);
@@ -39,7 +59,7 @@ const fieldFinders = {
 };
 
 export const findUnknownMappingField = (mapping, schema, path) => {
-  if (!isMappingObject(mapping)) {
+  if (!isMappingObject(mapping) && !Array.isArray(mapping)) {
     return undefined;
   }
 

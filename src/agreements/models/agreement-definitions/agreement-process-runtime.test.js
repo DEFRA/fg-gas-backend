@@ -321,6 +321,48 @@ describe("AgreementDefinition Process runtime", () => {
     expect(callEndpoint).toHaveBeenCalledOnce();
   });
 
+  it("rejects values outside the page Process context", async () => {
+    const callEndpoint = vi.fn();
+    const definition = new AgreementDefinition(createDefinition(), {
+      callEndpoint,
+    });
+
+    await expect(
+      definition.runProcesses({
+        location: { type: "page", state: "offered", page: "offered" },
+        context: {
+          agreement: { state: "offered" },
+          application: { quantity: 5 },
+          execution,
+        },
+      }),
+    ).rejects.toMatchObject({
+      message: "Invalid Agreement Process page context at: application",
+      output: { statusCode: 500 },
+    });
+    expect(callEndpoint).not.toHaveBeenCalled();
+  });
+
+  it("rejects a transition Process context missing transition values", async () => {
+    const definitionData = createDefinition();
+    addTransition(definitionData, []);
+    const definition = new AgreementDefinition(definitionData);
+
+    await expect(
+      definition.runProcesses({
+        location: {
+          type: "transition",
+          state: "offered",
+          transition: "accept",
+        },
+        context: { agreement: { state: "offered" }, execution },
+      }),
+    ).rejects.toMatchObject({
+      message: "Invalid Agreement Process transition context at: transition",
+      output: { statusCode: 500 },
+    });
+  });
+
   it("checks page access before running a Process", async () => {
     const definitionData = createDefinition();
     definitionData.states.offered.processes = ["calculate-offer"];

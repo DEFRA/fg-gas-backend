@@ -1,8 +1,7 @@
 import Boom from "@hapi/boom";
 import { agreementValueSchema } from "../../schemas/agreement-value.schema.js";
 import { Agreement } from "../agreement.js";
-import { compileApplicationMapping } from "./compile-application-mapping.js";
-import { compileCreationValueMapping } from "./compile-creation-value-mapping.js";
+import { compileCreationMappings } from "./compile-creation-mappings.js";
 
 const collectProcessOutputs = (outputs) =>
   Object.values(outputs).reduce(
@@ -10,20 +9,10 @@ const collectProcessOutputs = (outputs) =>
     {},
   );
 
-const mergeCreationValues = (mappedValues, outputs) => {
-  const processValues = collectProcessOutputs(outputs);
-  const competingFields = Object.keys(mappedValues).filter((field) =>
-    Object.hasOwn(processValues, field),
-  );
-
-  if (competingFields.length > 0) {
-    throw Boom.badImplementation(
-      `Agreement creation has competing value producers for: ${competingFields.join(", ")}`,
-    );
-  }
-
-  return { ...mappedValues, ...processValues };
-};
+const mergeCreationValues = (mappedValues, outputs) => ({
+  ...mappedValues,
+  ...collectProcessOutputs(outputs),
+});
 
 const invalidCandidateReferences = () =>
   Boom.badImplementation(
@@ -186,15 +175,13 @@ export const compileAgreementCreation = (
   definition,
   { generateAgreementNumber, runProcesses },
 ) => {
-  const resolveApplication = compileApplicationMapping(definition);
-  const resolveCreationValues = compileCreationValueMapping(definition);
+  const resolveCreationMappings = compileCreationMappings(definition);
 
   return async ({ input, execution }) => {
     assertDefinitionMatchesInput(definition, input);
     assertCorrelationId(execution);
 
-    const application = await resolveApplication(input);
-    const mappedValues = await resolveCreationValues({ application, input });
+    const { application, mappedValues } = await resolveCreationMappings(input);
     const { outputs, intents } = await runProcesses({
       location: { type: "create" },
       context: { application, execution },
