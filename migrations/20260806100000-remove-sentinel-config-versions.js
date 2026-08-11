@@ -21,9 +21,19 @@ export const up = async (db) => {
       continue;
     }
 
-    await applications.updateMany(
+    const { modifiedCount } = await applications.updateMany(
       { code: grantCode, currentConfigVersion: "0.0.0" },
       { $set: { currentConfigVersion: highest.version } },
     );
+
+    console.log(
+      `Updated ${modifiedCount} applications for ${grantCode} to ${highest.version}`,
+    );
   }
+
+  const remainingCount = await applications.countDocuments({
+    currentConfigVersion: "0.0.0",
+  });
+
+  console.log(`${remainingCount} applications remain on the legacy version`);
 };
