@@ -106,13 +106,19 @@ const mapping = {
 };
 
 const action = {
-  transition: { from: "offered", action: "accept", target: "accepted" },
   validate: vi.fn().mockReturnValue({ valid: true }),
 };
-const agreementDefinition = { runProcesses: vi.fn() };
+const agreementDefinition = { executeAction: vi.fn() };
+
+const transitionAgreement = (values = undefined) =>
+  agreement.transition({
+    target: "accepted",
+    transitionedAt: "2026-08-20T10:00:00.000Z",
+    values,
+  });
 const session = {};
 
-describe("executeAgreementActionUseCase with a staged Payment intent", () => {
+describe("executeAgreementActionUseCase with a Payment commit operation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findAgreementByNumber.mockResolvedValue(agreement);
@@ -122,9 +128,9 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
       agreement,
       agreementDefinition,
     });
-    agreementDefinition.runProcesses.mockResolvedValue({
-      outputs: { CREATE_AGREEMENT_PAYMENT: {} },
-      intents: [
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(),
+      commitOperations: [
         {
           type: "create-agreement-payment",
           request: {
@@ -147,24 +153,20 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
     action.validate.mockReturnValue({ valid: true });
   });
 
-  it("runs the configured Process and commits its Payment intent atomically", async () => {
+  it("commits the configured Payment operation atomically", async () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
       location: "/agreements/current",
     });
 
-    expect(agreementDefinition.runProcesses).toHaveBeenCalledWith(
-      expect.objectContaining({
-        location: {
-          type: "transition",
-          state: "offered",
-          transition: "accept",
-        },
-        context: expect.objectContaining({
-          agreement,
-          transition: { values: options.values },
-        }),
-      }),
-    );
+    expect(agreementDefinition.executeAction).toHaveBeenCalledWith({
+      agreement,
+      actionName: "accept",
+      values: options.values,
+      execution: {
+        correlationId: agreement.correlationId,
+        executedAt: expect.any(String),
+      },
+    });
     expect(insertPayment).toHaveBeenCalledWith(
       expect.objectContaining({
         source: {
@@ -239,6 +241,73 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
       session,
     );
     expect(saveOutboxEvents).toHaveBeenCalledWith(expect.anything(), session);
+  });
+
+  it("creates Payment from the exact materialised values committed to the Agreement", async () => {
+    const actions = agreement.actions.map((entry, index) => ({
+      ...entry,
+      totalAmountPence: index === 0 ? 2200 : 1800,
+    }));
+    const paymentSchedule = {
+      instalments: [
+        {
+          id: "instalment:1",
+          dueDate: "2026-12-01",
+          totalAmountPence: 4000,
+          lineItems: [
+            { actionId: "action:1", amountPence: 2200 },
+            { actionId: "action:2", amountPence: 1800 },
+          ],
+        },
+      ],
+    };
+    const agreementValues = {
+      application: agreement.application,
+      startDate: "2026-09-01",
+      endDate: "2027-08-31",
+      actions,
+      items: [],
+      totalAmountPence: 4000,
+      paymentSchedule,
+    };
+    const paymentValues = {
+      startDate: agreementValues.startDate,
+      endDate: agreementValues.endDate,
+      actions,
+      items: [],
+      totalAmountPence: 4000,
+      paymentSchedule,
+    };
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(agreementValues),
+      commitOperations: [
+        {
+          type: "create-agreement-payment",
+          request: {
+            agreementValues: paymentValues,
+            paymentConfiguration: mapping,
+          },
+        },
+      ],
+    });
+
+    await executeAgreementActionUseCase(options);
+
+    const [accepted] = replaceCurrentAgreement.mock.calls[0];
+    const [version] = insertAgreementVersion.mock.calls[0];
+    const [payment] = insertPayment.mock.calls[0];
+    expect(accepted).toMatchObject(agreementValues);
+    expect(version.snapshot).toEqual(accepted);
+    expect(payment).toMatchObject({
+      totalAmountPence: accepted.totalAmountPence,
+      payments: [
+        expect.objectContaining({
+          dueDate: accepted.paymentSchedule.instalments[0].dueDate,
+          totalAmountPence:
+            accepted.paymentSchedule.instalments[0].totalAmountPence,
+        }),
+      ],
+    });
   });
 
   it("commits the payment event with the lifecycle event in one write", async () => {
@@ -384,13 +453,20 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
   });
 
   it("leaves the Agreement offered when the Payment configuration is invalid", async () => {
-    agreementDefinition.runProcesses.mockResolvedValue({
-      outputs: {},
-      intents: [
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(),
+      commitOperations: [
         {
           type: "create-agreement-payment",
           request: {
-            agreementValues: agreement,
+            agreementValues: {
+              startDate: agreement.startDate,
+              endDate: agreement.endDate,
+              actions: agreement.actions,
+              items: agreement.items,
+              totalAmountPence: agreement.totalAmountPence,
+              paymentSchedule: agreement.paymentSchedule,
+            },
             paymentConfiguration: undefined,
           },
         },
@@ -405,14 +481,57 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
     expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
+  it("leaves the Agreement offered when invoice-line metadata cannot be resolved", async () => {
+    const actions = agreement.actions.map(({ description, ...entry }) => entry);
+    const paymentConfiguration = structuredClone(mapping);
+    delete paymentConfiguration.invoiceLine.schemeCode;
+    const paymentValues = {
+      startDate: agreement.startDate,
+      endDate: agreement.endDate,
+      actions,
+      items: agreement.items,
+      totalAmountPence: agreement.totalAmountPence,
+      paymentSchedule: agreement.paymentSchedule,
+    };
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement({
+        application: agreement.application,
+        ...paymentValues,
+      }),
+      commitOperations: [
+        {
+          type: "create-agreement-payment",
+          request: { agreementValues: paymentValues, paymentConfiguration },
+        },
+      ],
+    });
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
+      "Invalid Payment",
+    );
+    expect(insertPayment).not.toHaveBeenCalled();
+    expect(saveOutboxEvents).not.toHaveBeenCalled();
+  });
+
   it("leaves the Agreement offered when the stored Payment facts do not balance", async () => {
-    agreementDefinition.runProcesses.mockResolvedValue({
-      outputs: {},
-      intents: [
+    const paymentValues = {
+      startDate: agreement.startDate,
+      endDate: agreement.endDate,
+      actions: agreement.actions,
+      items: agreement.items,
+      totalAmountPence: 1,
+      paymentSchedule: agreement.paymentSchedule,
+    };
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement({
+        application: agreement.application,
+        ...paymentValues,
+      }),
+      commitOperations: [
         {
           type: "create-agreement-payment",
           request: {
-            agreementValues: { ...agreement, totalAmountPence: 1 },
+            agreementValues: paymentValues,
             paymentConfiguration: mapping,
           },
         },
@@ -451,13 +570,16 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
       location: "/agreements/current",
     });
-    expect(agreementDefinition.runProcesses).not.toHaveBeenCalled();
+    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
     expect(insertPayment).not.toHaveBeenCalled();
     expect(allocateNextSequence).not.toHaveBeenCalled();
   });
 
-  it("does not create a Payment for an action without a Payment intent", async () => {
-    agreementDefinition.runProcesses.mockResolvedValue({ outputs: {} });
+  it("does not create a Payment without a Payment commit operation", async () => {
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(),
+      commitOperations: [],
+    });
 
     await executeAgreementActionUseCase(options);
 
@@ -472,5 +594,34 @@ describe("executeAgreementActionUseCase with a staged Payment intent", () => {
         event.type.endsWith("agreement.status.updated"),
       ),
     ).toBe(true);
+  });
+
+  it("rejects an unsupported commit operation", async () => {
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(),
+      commitOperations: [{ type: "unsupported" }],
+    });
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
+      'Unsupported Agreement Action commit operation "unsupported"',
+    );
+    expect(insertPayment).not.toHaveBeenCalled();
+    expect(saveOutboxEvents).not.toHaveBeenCalled();
+  });
+
+  it("rejects more than one Payment commit operation", async () => {
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(),
+      commitOperations: [
+        { type: "create-agreement-payment", request: {} },
+        { type: "create-agreement-payment", request: {} },
+      ],
+    });
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
+      "Agreement Action cannot create more than one Payment",
+    );
+    expect(insertPayment).not.toHaveBeenCalled();
+    expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 });

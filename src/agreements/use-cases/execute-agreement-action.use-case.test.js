@@ -74,12 +74,18 @@ const agreement = new Agreement({
   updatedAt: "2026-07-17T10:00:00.000Z",
 });
 const action = {
-  transition: { from: "offered", action: "accept", target: "accepted" },
   validate: vi.fn().mockReturnValue({ valid: true }),
 };
 const agreementDefinition = {
-  runProcesses: vi.fn().mockResolvedValue({ outputs: {} }),
+  executeAction: vi.fn(),
 };
+
+const transitionAgreement = (values = undefined, target = "accepted") =>
+  agreement.transition({
+    target,
+    transitionedAt: "2026-08-20T10:00:00.000Z",
+    values,
+  });
 const session = {};
 
 describe("executeAgreementActionUseCase", () => {
@@ -93,14 +99,12 @@ describe("executeAgreementActionUseCase", () => {
       agreement,
       agreementDefinition,
     });
-    agreementDefinition.runProcesses.mockResolvedValue({ outputs: {} });
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(),
+      commitOperations: [],
+    });
     replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 1 });
     withTransaction.mockImplementation((callback) => callback(session));
-    action.transition = {
-      from: "offered",
-      action: "accept",
-      target: "accepted",
-    };
     action.validate.mockReturnValue({ valid: true });
   });
 
@@ -145,7 +149,10 @@ describe("executeAgreementActionUseCase", () => {
   });
 
   it("does not publish lifecycle for a data-only Agreement update", async () => {
-    action.transition.target = "offered";
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(undefined, "offered"),
+      commitOperations: [],
+    });
 
     await executeAgreementActionUseCase(options);
 
@@ -163,6 +170,25 @@ describe("executeAgreementActionUseCase", () => {
     expect(version.snapshot).toEqual(accepted);
   });
 
+  it("commits the complete Agreement values materialised by transition Processes", async () => {
+    const agreementValues = {
+      ...offeredAgreementValues,
+      startDate: "2026-09-01",
+      endDate: "2029-08-31",
+    };
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(agreementValues),
+      commitOperations: [],
+    });
+
+    await executeAgreementActionUseCase(options);
+
+    const [accepted] = replaceCurrentAgreement.mock.calls[0];
+    const [version] = insertAgreementVersion.mock.calls[0];
+    expect(accepted).toMatchObject(agreementValues);
+    expect(version.snapshot).toEqual(accepted);
+  });
+
   it("returns a completed idempotent action before running Processes", async () => {
     findVersionByIdempotencyKey.mockResolvedValue({
       actionExecution: { name: "accept" },
@@ -171,7 +197,7 @@ describe("executeAgreementActionUseCase", () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
       location: "/agreements/current",
     });
-    expect(agreementDefinition.runProcesses).not.toHaveBeenCalled();
+    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
   });
 
   it("rejects stale ETags", async () => {
@@ -186,6 +212,20 @@ describe("executeAgreementActionUseCase", () => {
         },
       },
     });
+  });
+
+  it("writes nothing when transition candidate resolution fails", async () => {
+    agreementDefinition.executeAction.mockRejectedValue(
+      new Error("invalid transition candidate"),
+    );
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
+      "invalid transition candidate",
+    );
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(replaceCurrentAgreement).not.toHaveBeenCalled();
+    expect(insertAgreementVersion).not.toHaveBeenCalled();
+    expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
   it("returns field errors applied to the configured validation page", async () => {
@@ -233,7 +273,7 @@ describe("executeAgreementActionUseCase", () => {
       values: {},
       errors: [{ href: "#declaration", text: "Agree to the declaration" }],
     });
-    expect(agreementDefinition.runProcesses).not.toHaveBeenCalled();
+    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
     expect(withTransaction).not.toHaveBeenCalled();
   });
 

@@ -139,6 +139,104 @@ describe("buildPayment", () => {
     });
   });
 
+  it("derives line scheme codes and uses configured schedule descriptions", () => {
+    const payment = build({
+      agreementValues: {
+        actions: [
+          {
+            id: "action:1",
+            code: "CODE-P1",
+            description: "Shared funded action",
+            parcel: "SD8545-9935",
+          },
+          {
+            id: "action:2",
+            code: "CODE-A1",
+            description: "Shared funded action",
+          },
+        ],
+        items: [],
+        totalAmountPence: 10000,
+        paymentSchedule: {
+          instalments: [
+            {
+              id: "instalment:1",
+              dueDate: "2024-05-01",
+              totalAmountPence: 10000,
+              correlationId: "324b1946-7c0f-4be0-8573-020e482c9a8d",
+              lineItems: [
+                {
+                  actionId: "action:1",
+                  amountPence: 6000,
+                  description:
+                    "2024-05-01: Parcel: P1: Parcel Item Description",
+                },
+                {
+                  actionId: "action:2",
+                  amountPence: 4000,
+                  description:
+                    "2024-05-01: One-off payment per agreement per year for Agreement Level Description",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      paymentConfiguration: {
+        ...mapping,
+        invoiceLine: {
+          accountCode: "SOS710",
+          fundCode: "DRD10",
+        },
+      },
+    });
+
+    expect(payment.payments[0].correlationId).toBe(
+      "324b1946-7c0f-4be0-8573-020e482c9a8d",
+    );
+    expect(payment.payments[0].invoiceLines).toMatchObject([
+      {
+        schemeCode: "CODE-P1",
+        description: "2024-05-01: Parcel: P1: Parcel Item Description",
+      },
+      {
+        schemeCode: "CODE-A1",
+        description:
+          "2024-05-01: One-off payment per agreement per year for Agreement Level Description",
+      },
+    ]);
+  });
+
+  it("keeps distinct descriptions for scoped entries that share a code", () => {
+    const sharedCodeValues = structuredClone(agreementValues);
+    sharedCodeValues.actions[0].code = "SHARED";
+    sharedCodeValues.actions[0].parcel = "P1";
+    sharedCodeValues.actions[1].code = "SHARED";
+    sharedCodeValues.paymentSchedule.instalments[0].lineItems[0].description =
+      "2026-11-06: Parcel: P1: Shared action";
+    sharedCodeValues.paymentSchedule.instalments[0].lineItems[1].description =
+      "2026-11-06: One-off payment per agreement per year for Shared action";
+    const paymentConfiguration = structuredClone(mapping);
+    delete paymentConfiguration.invoiceLine.schemeCode;
+
+    const payment = build({
+      agreementValues: sharedCodeValues,
+      paymentConfiguration,
+    });
+
+    expect(payment.payments[0].invoiceLines).toMatchObject([
+      {
+        schemeCode: "SHARED",
+        description: "2026-11-06: Parcel: P1: Shared action",
+      },
+      {
+        schemeCode: "SHARED",
+        description:
+          "2026-11-06: One-off payment per agreement per year for Shared action",
+      },
+    ]);
+  });
+
   it("records the Agreement Number and version as its source", () => {
     expect(build().source).toEqual({
       type: "agreement",
@@ -256,6 +354,34 @@ describe("buildPayment", () => {
         },
       }),
     ).toThrow("does not balance with its invoice lines");
+  });
+
+  it.each([
+    ["an empty description", { description: "" }, '"description"'],
+    ["arbitrary metadata", { schemeCode: "PATCH" }, '"schemeCode"'],
+  ])("rejects %s on scheduled Line Items", (_case, metadata, field) => {
+    expect(() =>
+      build({
+        agreementValues: {
+          ...agreementValues,
+          paymentSchedule: {
+            instalments: [
+              {
+                ...agreementValues.paymentSchedule.instalments[0],
+                lineItems: [
+                  {
+                    actionId: "action:1",
+                    amountPence: 2000,
+                    ...metadata,
+                  },
+                  { actionId: "action:2", amountPence: 1800 },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    ).toThrow(`Invalid Payment Schedule Line Item: ${field}`);
   });
 
   it("rejects a source with no identifiers", () => {
