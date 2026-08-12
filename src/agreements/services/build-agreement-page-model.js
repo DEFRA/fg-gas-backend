@@ -142,14 +142,12 @@ const buildPageWithProcesses = async ({
   page,
   ...options
 }) => {
-  const { outputs } = await agreementDefinition.runProcesses({
-    location: { type: "page", state: agreement.state, page },
-    context: {
-      agreement,
-      execution: {
-        correlationId: agreement.correlationId,
-        executedAt: new Date().toISOString(),
-      },
+  const { outputs } = await agreementDefinition.runPageProcesses({
+    agreement,
+    page,
+    execution: {
+      correlationId: agreement.correlationId,
+      executedAt: new Date().toISOString(),
     },
   });
 
