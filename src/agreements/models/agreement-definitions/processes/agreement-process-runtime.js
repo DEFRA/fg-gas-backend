@@ -334,47 +334,11 @@ const toSequenceResult = (outputs, commitOperations, agreementValues) => ({
   commitOperations,
 });
 
-const resolveCandidateBeforeHandler = async (
-  candidate,
-  processDefinition,
-  options,
-) => {
-  if (
-    candidate.resolved ||
-    !isTransitionHandler(options.location, processDefinition)
-  ) {
-    return candidate;
-  }
-
-  return {
-    ...(await resolveCandidate(
-      options.location,
-      options.context,
-      options.outputs,
-      options.resolveTransitionValues,
-    )),
-    resolved: true,
-  };
-};
-
-const resolveCandidateAfterProcesses = async (candidate, options) => {
-  if (
-    candidate.resolved ||
-    options.location.executionLocation !== "transition"
-  ) {
-    return candidate;
-  }
-
-  return {
-    ...(await resolveCandidate(
-      options.location,
-      options.context,
-      options.outputs,
-      options.resolveTransitionValues,
-    )),
-    resolved: true,
-  };
-};
+// Transition values resolve at most once per sequence: immediately before the
+// first staged handler so it sees them, or after the last Process when the
+// sequence stages none.
+const resolveWhenPending = async (candidate, pending, resolve) =>
+  candidate ?? (pending ? resolve() : undefined);
 
 const recordProcessResult = (outputs, commitOperations, processKey, result) => {
   Object.defineProperty(outputs, processKey, {
@@ -395,33 +359,33 @@ const runSequence = async (
 ) => {
   const commitOperations = [];
   const outputs = {};
-  const candidateOptions = {
-    context,
-    location,
-    outputs,
-    resolveTransitionValues,
-  };
-  let candidate = {
-    agreement: context.agreement,
-    agreementValues: undefined,
-    resolved: false,
-  };
+  const resolve = () =>
+    resolveCandidate(location, context, outputs, resolveTransitionValues);
+  let candidate;
 
   for (const processKey of location.processes) {
-    candidate = await resolveCandidateBeforeHandler(
+    candidate = await resolveWhenPending(
       candidate,
-      processDefinitions[processKey],
-      candidateOptions,
+      isTransitionHandler(location, processDefinitions[processKey]),
+      resolve,
     );
     const result = await executableMap[processKey](
-      toProcessContext(context, location, outputs, candidate.agreement),
+      toProcessContext(context, location, outputs, candidate?.agreement),
     );
     recordProcessResult(outputs, commitOperations, processKey, result);
   }
 
-  candidate = await resolveCandidateAfterProcesses(candidate, candidateOptions);
+  candidate = await resolveWhenPending(
+    candidate,
+    location.executionLocation === "transition",
+    resolve,
+  );
 
-  return toSequenceResult(outputs, commitOperations, candidate.agreementValues);
+  return toSequenceResult(
+    outputs,
+    commitOperations,
+    candidate?.agreementValues,
+  );
 };
 
 const resolveDependencies = (dependencies) => ({

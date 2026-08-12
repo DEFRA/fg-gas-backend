@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { validateEndpointServiceUrls } from "../../common/agreements/resolve-endpoint-service-url.js";
 import {
   findConfigDefinition,
   findLatestUsableDefinition,
@@ -15,7 +16,6 @@ import {
   findAgreementDefinition as findStoredDefinition,
   insertAgreementDefinition,
 } from "../repositories/agreement-definition.repository.js";
-import { validateEndpointServiceUrls } from "../services/effects/resolve-endpoint-service-url.js";
 
 const definitionType = "agreement";
 const MAX_FETCH_ATTEMPTS = 5;

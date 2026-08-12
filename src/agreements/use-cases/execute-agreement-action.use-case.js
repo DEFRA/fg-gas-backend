@@ -12,7 +12,7 @@ import {
 } from "../repositories/agreement.repository.js";
 import { applyActionValidation } from "../services/apply-action-validation.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
+import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 import { loadAgreementForAction } from "./load-current-agreement.js";
@@ -45,25 +45,23 @@ const findCompleted = async (
 };
 
 const findPaymentRequest = (commitOperations) => {
-  let paymentOperationCount = 0;
-  let paymentRequest;
+  const unsupported = commitOperations.find(
+    ({ type }) => type !== "create-agreement-payment",
+  );
 
-  for (const operation of commitOperations) {
-    if (operation.type !== "create-agreement-payment") {
-      throw Boom.badImplementation(
-        `Unsupported Agreement Action commit operation "${operation.type}"`,
-      );
-    }
-    paymentOperationCount += 1;
-    if (paymentOperationCount > 1) {
-      throw Boom.badImplementation(
-        "Agreement Action cannot create more than one Payment",
-      );
-    }
-    paymentRequest = operation.request;
+  if (unsupported) {
+    throw Boom.badImplementation(
+      `Unsupported Agreement Action commit operation "${unsupported.type}"`,
+    );
   }
 
-  return paymentRequest;
+  if (commitOperations.length > 1) {
+    throw Boom.badImplementation(
+      "Agreement Action cannot create more than one Payment",
+    );
+  }
+
+  return commitOperations[0]?.request;
 };
 
 // Payments owns the claim ID, the Payment document and the message that carries

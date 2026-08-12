@@ -8,7 +8,7 @@ import {
   insertAgreementVersion,
   insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
-import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
+import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
 import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
 const createAgreement = async (event) => {
