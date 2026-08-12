@@ -19,6 +19,7 @@ import { validateEndpointServiceUrls } from "../services/effects/resolve-endpoin
 
 const definitionType = "agreement";
 const MAX_FETCH_ATTEMPTS = 5;
+const MAX_RESOLUTION_ATTEMPTS = 3;
 const compiledDefinitions = new Map();
 const loadsInFlight = new Map();
 
@@ -228,9 +229,39 @@ const loadCompiled = (target) => {
   return loading;
 };
 
+// Only creation and same-major may step back to an older version. exact is the
+// accepted-Agreement pin: there is no other version it is allowed to resolve
+// to, so a failure there has to surface.
+const fallbackResolutions = new Set(["creation", "same-major"]);
+
+// A permanent failure has just excluded this version from resolution, so
+// re-resolving yields the next usable one. Transient failures leave it
+// selectable and must surface as the service fault they are rather than
+// silently downgrading the Agreement to older config.
+const shouldFallBack = (resolution, error) =>
+  fallbackResolutions.has(resolution) &&
+  classifyFailure(error) === FetchStatus.PermanentError;
+
 export const loadAgreementDefinition = async (options) => {
-  const target = await resolveTarget(options);
-  return loadCompiled(target);
+  let lastError;
+
+  for (let attempt = 0; attempt < MAX_RESOLUTION_ATTEMPTS; attempt += 1) {
+    const target = await resolveTarget(options);
+
+    try {
+      return await loadCompiled(target);
+    } catch (error) {
+      lastError = error;
+      if (!shouldFallBack(options.resolution, error)) {
+        throw error;
+      }
+      logger.warn(
+        `Agreement definition ${target.grantCode}@${target.version} is unusable, falling back to an older version`,
+      );
+    }
+  }
+
+  throw lastError;
 };
 
 // Once accepted, an Agreement is pinned to the definition it was accepted

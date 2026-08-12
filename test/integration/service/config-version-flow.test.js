@@ -9,7 +9,10 @@ import {
   expect,
   it,
 } from "vitest";
-import { updateDefinitionFetchStatus } from "../../../src/common/config-broker/config-catalog.repository.js";
+import {
+  updateDefinitionFetchStatus,
+  upsertDefinitionLocation,
+} from "../../../src/common/config-broker/config-catalog.repository.js";
 import { FetchStatus } from "../../../src/grants/models/config-version.js";
 import { processConfigVersionUseCase } from "../../../src/grants/use-cases/process-config-version.use-case.js";
 
@@ -115,6 +118,24 @@ describe("config broker message flow", () => {
       fetchAttempts: 0,
       s3Key: "woodland/1.2.5/gas/agreement.json",
     });
+  });
+
+  // Proves the guarantee at the database rather than the call: a definition
+  // location for a version that was never ingested must write nothing at all.
+  it("does not create a config version record when the parent is missing", async () => {
+    await upsertDefinitionLocation({
+      grantCode: "never-ingested",
+      version: "9.9.9",
+      definitionType: "agreement",
+      s3Key: "never-ingested/9.9.9/gas/agreement.json",
+    });
+
+    await expect(
+      configVersionsCol.findOne({
+        grantCode: "never-ingested",
+        version: "9.9.9",
+      }),
+    ).resolves.toBeNull();
   });
 
   // The broker republishes an aliased release under the alias but leaves the

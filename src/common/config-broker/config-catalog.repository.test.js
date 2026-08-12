@@ -137,8 +137,21 @@ describe("config catalog repository", () => {
           },
         },
       ],
-      { upsert: true },
     );
+  });
+
+  // Upserting here would create a record with no major or status, which every
+  // read filters on, leaving it invisible to all queries.
+  it("is not an upsert, so it cannot create a config version record", async () => {
+    await upsertDefinitionLocation({
+      grantCode: "woodland",
+      version: "1.2.3",
+      definitionType: "agreement",
+      s3Key: "woodland/1.2.3/gas/agreement.json",
+    });
+
+    const [, , options] = collection.updateOne.mock.calls[0];
+    expect(options?.upsert).toBeFalsy();
   });
 
   it("updates only the selected definition fetch state", async () => {

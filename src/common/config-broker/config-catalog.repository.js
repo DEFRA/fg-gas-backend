@@ -69,15 +69,13 @@ export const findLatestUsableDefinition = async ({
 // to decide whether a command can be handled locally or belongs to the
 // external service.
 export const hasConfigDefinition = async ({ grantCode, definitionType }) => {
-  const doc = await db
-    .collection(collection)
-    .findOne(
-      {
-        grantCode,
-        [`${definitionPath(definitionType)}.s3Key`]: { $exists: true },
-      },
-      { projection: { _id: 1 }, readPreference: "primary" },
-    );
+  const doc = await db.collection(collection).findOne(
+    {
+      grantCode,
+      [`${definitionPath(definitionType)}.s3Key`]: { $exists: true },
+    },
+    { projection: { _id: 1 }, readPreference: "primary" },
+  );
 
   return Boolean(doc);
 };
@@ -97,19 +95,18 @@ export const upsertDefinitionLocation = async ({
     lastFetchAttemptAt: null,
   };
 
-  return db.collection(collection).updateOne(
-    { grantCode, version },
-    [
-      {
-        $set: {
-          [path]: {
-            $mergeObjects: [defaults, { $ifNull: [`$${path}`, {}] }, { s3Key }],
-          },
+  // Deliberately not an upsert: the config version record is written first and
+  // carries the fields every read filters on (major, status). Creating a
+  // document here would produce one without them, invisible to every query.
+  return db.collection(collection).updateOne({ grantCode, version }, [
+    {
+      $set: {
+        [path]: {
+          $mergeObjects: [defaults, { $ifNull: [`$${path}`, {}] }, { s3Key }],
         },
       },
-    ],
-    { upsert: true },
-  );
+    },
+  ]);
 };
 
 export const updateDefinitionFetchStatus = async ({
