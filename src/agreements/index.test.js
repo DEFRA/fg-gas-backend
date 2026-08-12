@@ -1,6 +1,7 @@
 import hapi from "@hapi/hapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  canHandleInternalCommand,
   clearInternalCommandHandlers,
   getInternalCommandHandler,
 } from "../common/internal-command-bus.js";
@@ -49,13 +50,23 @@ describe("agreements", () => {
     });
   });
 
-  it("registers the internal handler for agreement.create commands", async () => {
+  it("registers the internal handler for configured agreement.create commands", async () => {
     const server = hapi.server();
     await server.register(agreements);
 
     expect(
       getInternalCommandHandler(internalCommandTypes.AGREEMENT_CREATE),
     ).toBe(handleCreateAgreementCommandUseCase);
+    expect(
+      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
+        data: { code: "pigs-might-fly" },
+      }),
+    ).toBe(true);
+    expect(
+      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
+        data: { code: "woodland" },
+      }),
+    ).toBe(false);
   });
 
   it("fails to register when a registered agreement definition's endpoint has no URL configured", async () => {
