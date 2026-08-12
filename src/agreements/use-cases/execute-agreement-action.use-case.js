@@ -12,7 +12,7 @@ import {
 } from "../repositories/agreement.repository.js";
 import { applyActionValidation } from "../services/apply-action-validation.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
+import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
 import { toEtag } from "./agreement-etag.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 import { loadAgreementForAction } from "./load-current-agreement.js";
