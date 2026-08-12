@@ -249,9 +249,11 @@ const endpoint = Joi.object({
 
 const endpoints = Joi.array().items(endpoint).optional().label("Endpoints");
 
+// configVersion is deliberately absent: it is platform-owned, applied from the
+// config catalog after validation. Unknown keys are rejected, so a published
+// definition carrying one still fails here.
 export const agreementDefinitionSchema = Joi.object({
   code: Joi.string().required(),
-  configVersion: Joi.any().forbidden(),
   agreementNumberPrefix: Joi.string().required(),
   endpoints,
   processDefinitions,
