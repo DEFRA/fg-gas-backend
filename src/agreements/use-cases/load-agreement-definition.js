@@ -21,8 +21,10 @@ import {
 } from "../repositories/agreement-definition.repository.js";
 
 const definitionType = "agreement";
-const MAX_FETCH_ATTEMPTS = 5;
-const MAX_RESOLUTION_ATTEMPTS = 3;
+// A safety net, not the normal terminator: each unusable version is marked a
+// permanent error and so drops out of the next resolve, which is what actually
+// ends the walk back through versions.
+const MAX_RESOLUTION_ATTEMPTS = 10;
 const compiledDefinitions = new Map();
 const loadsInFlight = new Map();
 
@@ -73,21 +75,27 @@ const resolveCreation = async ({ code, configVersion }) => {
   });
 };
 
-const resolvers = {
-  creation: resolveCreation,
-  "same-major": resolveSameMajor,
-  exact: resolveExact,
+// One entry per resolution, holding both choices it implies: how it finds a
+// target, and whether it may step back to an older version when that target
+// turns out to be unusable. exact is the accepted-Agreement pin, which has no
+// other version it is allowed to resolve to, so a failure there has to surface.
+// Keeping the two together means adding a resolution cannot silently inherit a
+// fallback answer nobody chose.
+const resolutions = {
+  creation: { resolve: resolveCreation, canFallBack: true },
+  "same-major": { resolve: resolveSameMajor, canFallBack: true },
+  exact: { resolve: resolveExact, canFallBack: false },
 };
 
 const findTarget = async (options) => {
-  const resolve = resolvers[options.resolution];
-  if (!resolve) {
+  const resolution = resolutions[options.resolution];
+  if (!resolution) {
     throw Boom.badImplementation(
       `Unknown Agreement definition resolution "${options.resolution}"`,
     );
   }
 
-  return resolve(options);
+  return resolution.resolve(options);
 };
 
 const resolveTarget = async (options) => {
@@ -107,20 +115,13 @@ const updateStatus = (target, fetchStatus, fetchError = null) =>
     fetchError,
   });
 
-const guardFetchStatus = async (target) => {
+// A version is unusable only when something permanent made it so. Counting
+// attempts here condemned versions that were fine: fetchAttempts is shared
+// across the fleet, so a few seconds of S3 trouble exhausted it, and the state
+// it wrote was unrecoverable. The case it was meant to stop — a dead or
+// forbidden S3 key — already classifies as permanent on the first attempt.
+const guardFetchStatus = (target) => {
   if (target.fetchStatus === FetchStatus.PermanentError) {
-    throw unavailable(target.grantCode, target.version);
-  }
-
-  if (
-    target.fetchStatus !== FetchStatus.Fetched &&
-    target.fetchAttempts >= MAX_FETCH_ATTEMPTS
-  ) {
-    await updateStatus(
-      target,
-      FetchStatus.PermanentError,
-      `Exceeded ${MAX_FETCH_ATTEMPTS} fetch attempts`,
-    );
     throw unavailable(target.grantCode, target.version);
   }
 };
@@ -212,7 +213,7 @@ const compileAndCache = async (target, stored, cacheKey) => {
 };
 
 const load = async (target, cacheKey) => {
-  await guardFetchStatus(target);
+  guardFetchStatus(target);
   const stored = await loadStored(target);
 
   try {
@@ -262,48 +263,67 @@ const loadCompiled = (target) => {
   return loading;
 };
 
-// Only creation and same-major may step back to an older version. exact is the
-// accepted-Agreement pin: there is no other version it is allowed to resolve
-// to, so a failure there has to surface.
-const fallbackResolutions = new Set(["creation", "same-major"]);
-
 // A permanent failure has just excluded this version from resolution, so
 // re-resolving yields the next usable one. Transient failures leave it
 // selectable and must surface as the service fault they are rather than
 // silently downgrading the Agreement to older config.
 const shouldFallBack = (resolution, error) =>
-  fallbackResolutions.has(resolution) &&
+  resolutions[resolution].canFallBack &&
   classifyFailure(error) === FetchStatus.PermanentError;
 
-const reportUnusable = (target, attempt) => {
-  if (attempt < MAX_RESOLUTION_ATTEMPTS) {
-    logger.warn(
-      `Agreement definition ${target.grantCode}@${target.version} is unusable, falling back to an older version`,
-    );
-    return;
-  }
-
-  logger.error(
-    `Agreement definition for ${target.grantCode} still unusable after ${MAX_RESOLUTION_ATTEMPTS} attempts`,
+const reportUnusable = (target) =>
+  logger.warn(
+    `Agreement definition ${target.grantCode}@${target.version} is unusable, falling back to an older version`,
   );
+
+const reportExhausted = (options) =>
+  logger.error(
+    { event: { action: "agreement-definition-unavailable" } },
+    `No usable Agreement definition for ${options.code} at or below ${options.configVersion}`,
+  );
+
+// Null rather than a throw when the version was unusable and this resolution is
+// allowed to step back to an older one, so the walk below reads as a loop over
+// candidates instead of control flow through a catch.
+const tryLoad = async (target, options) => {
+  try {
+    return await loadCompiled(target);
+  } catch (error) {
+    if (!shouldFallBack(options.resolution, error)) {
+      throw error;
+    }
+    reportUnusable(target);
+    return null;
+  }
 };
 
 export const loadAgreementDefinition = async (options) => {
+  // Keep stepping back for as long as resolution offers a version not already
+  // tried here, rather than counting to a fixed number of releases: three
+  // consecutive broken ones used to end the walk while an older usable version
+  // was still sitting there.
+  const attempted = new Set();
+
   for (let attempt = 1; attempt <= MAX_RESOLUTION_ATTEMPTS; attempt += 1) {
     const target = await resolveTarget(options);
+    const key = `${target.grantCode}@${target.version}`;
 
-    try {
-      return await loadCompiled(target);
-    } catch (error) {
-      if (!shouldFallBack(options.resolution, error)) {
-        throw error;
-      }
-      reportUnusable(target, attempt);
+    // The same version twice means the walk has stopped making progress, so
+    // there is nothing older left to step to.
+    if (attempted.has(key)) {
+      break;
+    }
+    attempted.add(key);
+
+    const definition = await tryLoad(target, options);
+    if (definition) {
+      return definition;
     }
   }
 
   // Exhausting the fallbacks is the same outcome as never finding a usable
   // version, so it surfaces the same error rather than the last raw failure.
+  reportExhausted(options);
   throw unavailable(options.code, options.configVersion);
 };
 

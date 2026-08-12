@@ -82,7 +82,7 @@ describe("config catalog repository", () => {
         grantCode: "woodland",
         major: 1,
         status: "active",
-        "definitions.agreement.s3Key": { $exists: true },
+        "definitions.agreement.s3Key": { $ne: null },
         "definitions.agreement.fetchStatus": {
           $ne: FetchStatus.PermanentError,
         },
@@ -173,5 +173,20 @@ describe("config catalog repository", () => {
         $inc: { "definitions.agreement.fetchAttempts": 1 },
       },
     );
+  });
+
+  // Otherwise the counter measures every failure the version has ever had, and
+  // old ones combine with a much later blip to condemn it.
+  it("clears the attempt counter once a fetch succeeds", async () => {
+    await updateDefinitionFetchStatus({
+      grantCode: "woodland",
+      version: "1.2.3",
+      definitionType: "agreement",
+      fetchStatus: FetchStatus.Fetched,
+    });
+
+    const [, update] = collection.updateOne.mock.calls[0];
+    expect(update.$set["definitions.agreement.fetchAttempts"]).toBe(0);
+    expect(update.$inc).toBeUndefined();
   });
 });

@@ -55,7 +55,10 @@ export const findLatestUsableDefinition = async ({
       grantCode,
       major,
       status: "active",
-      [`${path}.s3Key`]: { $exists: true },
+      // $ne rather than $exists: s3Key is nullable, and legacy rows carry an
+      // explicit null that $exists would accept as a usable location. $ne: null
+      // excludes both the null and the missing field.
+      [`${path}.s3Key`]: { $ne: null },
       [`${path}.fetchStatus`]: { $ne: FetchStatus.PermanentError },
       ...upperBound,
     },
@@ -111,6 +114,10 @@ export const updateDefinitionFetchStatus = async ({
 
   if (fetchStatus === FetchStatus.Fetched) {
     update[`${path}.fetchedAt`] = now;
+    // Clear the counter on success so it measures consecutive failures rather
+    // than every failure the version has ever had. Otherwise old failures sit
+    // there and combine with a much later blip.
+    update[`${path}.fetchAttempts`] = 0;
   }
 
   const mongoUpdate = { $set: update };

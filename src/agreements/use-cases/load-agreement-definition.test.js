@@ -197,6 +197,28 @@ describe("loadAgreementDefinition", () => {
       );
     });
 
+    // fetchAttempts is shared across the fleet, so a short S3 outage runs it up
+    // on a version that is perfectly good. It must not be treated as evidence
+    // that the version itself is broken.
+    it("still loads a version that has accumulated failed fetch attempts", async () => {
+      findConfigDefinition.mockResolvedValue({
+        ...target("1.0.1"),
+        fetchStatus: FetchStatus.TransientError,
+        fetchAttempts: 99,
+      });
+
+      const definition = await loadAgreementDefinition({
+        code: "test-code",
+        configVersion: "1.0.1",
+        resolution: "exact",
+      });
+
+      expect(definition.configVersion).toBe("1.0.1");
+      expect(updateDefinitionFetchStatus).not.toHaveBeenCalledWith(
+        expect.objectContaining({ fetchStatus: FetchStatus.PermanentError }),
+      );
+    });
+
     it("falls back at creation when the newest usable version is invalid", async () => {
       findConfigDefinition.mockResolvedValue(null);
       findLatestUsableDefinition
@@ -245,8 +267,10 @@ describe("loadAgreementDefinition", () => {
       expect(findLatestUsableDefinition).not.toHaveBeenCalled();
     });
 
-    // Exhausting the cap is the same outcome as finding nothing, so it must
-    // surface the normal unavailable error, not the last validation failure.
+    // Running out of versions is the same outcome as finding nothing, so it must
+    // surface the normal unavailable error, not the last validation failure. The
+    // walk ends when resolution repeats a version rather than after a fixed
+    // number of releases, so the last one is resolved twice.
     it("reports unavailable once every attempt is invalid", async () => {
       findLatestUsableDefinition
         .mockResolvedValueOnce(target("1.0.3"))
@@ -264,13 +288,39 @@ describe("loadAgreementDefinition", () => {
         output: { statusCode: 500 },
         message: expect.stringContaining("is unavailable"),
       });
-      expect(findLatestUsableDefinition).toHaveBeenCalledTimes(3);
+      expect(findLatestUsableDefinition).toHaveBeenCalledTimes(4);
       expect(updateDefinitionFetchStatus).toHaveBeenCalledWith(
         expect.objectContaining({
           version: "1.0.1",
           fetchStatus: FetchStatus.PermanentError,
         }),
       );
+    });
+
+    // The walk is bounded by the versions on offer, not by a release count: four
+    // consecutive broken releases used to exhaust it while a usable fifth was
+    // still there to be found.
+    it("keeps falling back past more than three invalid versions", async () => {
+      findLatestUsableDefinition
+        .mockResolvedValueOnce(target("1.0.5"))
+        .mockResolvedValueOnce(target("1.0.4"))
+        .mockResolvedValueOnce(target("1.0.3"))
+        .mockResolvedValueOnce(target("1.0.2"))
+        .mockResolvedValue(target("1.0.1"));
+      fetchConfigFile
+        .mockResolvedValueOnce(invalidDefinition)
+        .mockResolvedValueOnce(invalidDefinition)
+        .mockResolvedValueOnce(invalidDefinition)
+        .mockResolvedValueOnce(invalidDefinition)
+        .mockResolvedValue(validDefinition);
+
+      const definition = await loadAgreementDefinition({
+        code: "test-code",
+        configVersion: "1.0.5",
+        resolution: "same-major",
+      });
+
+      expect(definition.configVersion).toBe("1.0.1");
     });
 
     it("gives up once no usable version remains", async () => {
