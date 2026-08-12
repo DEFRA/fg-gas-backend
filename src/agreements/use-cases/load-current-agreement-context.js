@@ -1,5 +1,5 @@
 import { toEtag } from "./agreement-etag.js";
-import { loadAgreementDefinition } from "./load-agreement-definition.js";
+import { loadDefinitionForAgreement } from "./load-agreement-definition.js";
 import {
   loadCurrentAgreement,
   loadCurrentAgreementByNumber,
@@ -18,11 +18,7 @@ export const loadCurrentAgreementContext = async ({
     (agreementNumber
       ? await loadCurrentAgreementByNumber({ agreementNumber, session })
       : await loadCurrentAgreement({ code, clientRef, sbi, session }));
-  const agreementDefinition = await loadAgreementDefinition({
-    code: agreement.code,
-    configVersion: agreement.configVersion,
-    resolution: agreement.state === "accepted" ? "exact" : "same-major",
-  });
+  const agreementDefinition = await loadDefinitionForAgreement(agreement);
 
   return {
     agreement,

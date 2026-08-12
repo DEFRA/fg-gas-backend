@@ -221,3 +221,13 @@ export const loadAgreementDefinition = async (options) => {
   const target = await resolveTarget(options);
   return loadCompiled(target);
 };
+
+// An accepted Agreement is pinned to the definition it was accepted under, so
+// what the holder agreed to never changes underneath them. Anything still
+// offered follows the latest compatible version in its major.
+export const loadDefinitionForAgreement = (agreement) =>
+  loadAgreementDefinition({
+    code: agreement.code,
+    configVersion: agreement.configVersion,
+    resolution: agreement.state === "accepted" ? "exact" : "same-major",
+  });

@@ -10,7 +10,10 @@ import {
   findAgreementDefinition,
   insertAgreementDefinition,
 } from "../repositories/agreement-definition.repository.js";
-import { loadAgreementDefinition } from "./load-agreement-definition.js";
+import {
+  loadAgreementDefinition,
+  loadDefinitionForAgreement,
+} from "./load-agreement-definition.js";
 
 vi.mock("../../common/config-broker/config-catalog.repository.js");
 vi.mock("../../common/s3-client.js");
@@ -162,5 +165,42 @@ describe("loadAgreementDefinition", () => {
         resolution: "exact",
       }),
     ).rejects.toMatchObject({ output: { statusCode: 500 } });
+  });
+
+  describe("loadDefinitionForAgreement", () => {
+    const agreement = (state) => ({
+      code: "test-code",
+      configVersion: "1.0.1",
+      state,
+    });
+
+    it("pins an accepted Agreement to the version it was accepted under", async () => {
+      findConfigDefinition.mockResolvedValue(target("1.0.1"));
+
+      const definition = await loadDefinitionForAgreement(
+        agreement("accepted"),
+      );
+
+      expect(definition.configVersion).toBe("1.0.1");
+      expect(findConfigDefinition).toHaveBeenCalledWith({
+        grantCode: "test-code",
+        version: "1.0.1",
+        definitionType: "agreement",
+      });
+      expect(findLatestUsableDefinition).not.toHaveBeenCalled();
+    });
+
+    it("moves an offered Agreement to the latest compatible version", async () => {
+      findLatestUsableDefinition.mockResolvedValue(target("1.0.2"));
+
+      const definition = await loadDefinitionForAgreement(agreement("offered"));
+
+      expect(definition.configVersion).toBe("1.0.2");
+      expect(findLatestUsableDefinition).toHaveBeenCalledWith({
+        grantCode: "test-code",
+        major: 1,
+        definitionType: "agreement",
+      });
+    });
   });
 });
