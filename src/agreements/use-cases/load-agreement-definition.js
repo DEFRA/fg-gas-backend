@@ -20,6 +20,7 @@ import { validateEndpointServiceUrls } from "../services/effects/resolve-endpoin
 const definitionType = "agreement";
 const MAX_FETCH_ATTEMPTS = 5;
 const compiledDefinitions = new Map();
+const loadsInFlight = new Map();
 
 const unavailable = (code, version) =>
   Boom.badImplementation(
@@ -190,13 +191,7 @@ const compileAndCache = async (target, stored, cacheKey) => {
   return compiled;
 };
 
-const loadCompiled = async (target) => {
-  const cacheKey = `${target.grantCode}@${target.version}`;
-  const cached = compiledDefinitions.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
+const load = async (target, cacheKey) => {
   await guardFetchStatus(target);
   const stored = await loadStored(target);
 
@@ -212,17 +207,42 @@ const loadCompiled = async (target) => {
   }
 };
 
+const loadCompiled = (target) => {
+  const cacheKey = `${target.grantCode}@${target.version}`;
+  const cached = compiledDefinitions.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  // Share one load per version so concurrent callers do not each fetch from S3
+  // and, on failure, each burn one of the fetch attempts.
+  const existing = loadsInFlight.get(cacheKey);
+  if (existing) {
+    return existing;
+  }
+
+  const loading = load(target, cacheKey).finally(() =>
+    loadsInFlight.delete(cacheKey),
+  );
+  loadsInFlight.set(cacheKey, loading);
+  return loading;
+};
+
 export const loadAgreementDefinition = async (options) => {
   const target = await resolveTarget(options);
   return loadCompiled(target);
 };
 
-// An accepted Agreement is pinned to the definition it was accepted under, so
-// what the holder agreed to never changes underneath them. Anything still
-// offered follows the latest compatible version in its major.
+// Once accepted, an Agreement is pinned to the definition it was accepted
+// under, so what the holder agreed to never changes underneath them. This keys
+// off acceptedAt rather than the current state because the pin has to survive
+// later transitions: an accepted Agreement can go on to be terminated, and it
+// must still render against the version it was accepted under. States reached
+// without acceptance (offered, withdrawn, cancelled) have no acceptedAt and
+// follow the latest compatible version in their major.
 export const loadDefinitionForAgreement = (agreement) =>
   loadAgreementDefinition({
     code: agreement.code,
     configVersion: agreement.configVersion,
-    resolution: agreement.state === "accepted" ? "exact" : "same-major",
+    resolution: agreement.acceptedAt ? "exact" : "same-major",
   });

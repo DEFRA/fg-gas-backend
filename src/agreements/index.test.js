@@ -1,5 +1,6 @@
 import hapi from "@hapi/hapi";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { hasConfigDefinition } from "../common/config-broker/config-catalog.repository.js";
 import {
   canHandleInternalCommand,
   clearInternalCommandHandlers,
@@ -8,6 +9,8 @@ import {
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { agreements } from "./index.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
+
+vi.mock("../common/config-broker/config-catalog.repository.js");
 
 describe("agreements", () => {
   afterEach(() => {
@@ -56,15 +59,30 @@ describe("agreements", () => {
     expect(
       getInternalCommandHandler(internalCommandTypes.AGREEMENT_CREATE),
     ).toBe(handleCreateAgreementCommandUseCase);
-    expect(
+  });
+
+  // Grants that publish no Agreement definition must keep routing to the
+  // external Agreements service rather than failing in the loader.
+  it("only handles agreement.create for grants with a published definition", async () => {
+    const server = hapi.server();
+    await server.register(agreements);
+
+    hasConfigDefinition.mockResolvedValue(true);
+    await expect(
       canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
         data: { code: "pigs-might-fly" },
       }),
-    ).toBe(true);
-    expect(
+    ).resolves.toBe(true);
+    expect(hasConfigDefinition).toHaveBeenCalledWith({
+      grantCode: "pigs-might-fly",
+      definitionType: "agreement",
+    });
+
+    hasConfigDefinition.mockResolvedValue(false);
+    await expect(
       canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
         data: { code: "woodland" },
       }),
-    ).toBe(true);
+    ).resolves.toBe(false);
   });
 });

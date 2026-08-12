@@ -168,17 +168,17 @@ describe("loadAgreementDefinition", () => {
   });
 
   describe("loadDefinitionForAgreement", () => {
-    const agreement = (state) => ({
+    const agreement = (acceptedAt) => ({
       code: "test-code",
       configVersion: "1.0.1",
-      state,
+      acceptedAt,
     });
 
     it("pins an accepted Agreement to the version it was accepted under", async () => {
       findConfigDefinition.mockResolvedValue(target("1.0.1"));
 
       const definition = await loadDefinitionForAgreement(
-        agreement("accepted"),
+        agreement("2026-08-01T00:00:00.000Z"),
       );
 
       expect(definition.configVersion).toBe("1.0.1");
@@ -190,10 +190,23 @@ describe("loadAgreementDefinition", () => {
       expect(findLatestUsableDefinition).not.toHaveBeenCalled();
     });
 
+    // The pin has to outlive the accepted state itself.
+    it("keeps the pin after an accepted Agreement is terminated", async () => {
+      findConfigDefinition.mockResolvedValue(target("1.0.1"));
+
+      const definition = await loadDefinitionForAgreement({
+        ...agreement("2026-08-01T00:00:00.000Z"),
+        state: "terminated",
+      });
+
+      expect(definition.configVersion).toBe("1.0.1");
+      expect(findLatestUsableDefinition).not.toHaveBeenCalled();
+    });
+
     it("moves an offered Agreement to the latest compatible version", async () => {
       findLatestUsableDefinition.mockResolvedValue(target("1.0.2"));
 
-      const definition = await loadDefinitionForAgreement(agreement("offered"));
+      const definition = await loadDefinitionForAgreement(agreement(undefined));
 
       expect(definition.configVersion).toBe("1.0.2");
       expect(findLatestUsableDefinition).toHaveBeenCalledWith({
