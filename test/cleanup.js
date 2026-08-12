@@ -27,6 +27,7 @@ beforeEach(async () => {
         minor: 0,
         patch: 1,
         status: "active",
+        fetchStatus: "fetched",
         s3Key: "pigs-might-fly/1.0.0/gas/gas.json",
         s3Bucket: "config-broker-local",
         definitions: {

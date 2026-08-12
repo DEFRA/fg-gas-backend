@@ -83,7 +83,10 @@ describe("PMF Agreement creation", () => {
 
   beforeEach(async () => {
     await clearScenarioData();
-    await grants.insertOne(structuredClone(pmfGrantDefinition));
+    await grants.insertOne({
+      ...structuredClone(pmfGrantDefinition),
+      version: "1.0.1",
+    });
     await applications.insertOne(createApplication());
   });
 
