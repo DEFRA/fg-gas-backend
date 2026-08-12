@@ -226,8 +226,18 @@ const load = async (target, cacheKey) => {
     if (!(error instanceof EndpointServiceUrlError)) {
       await updateStatus(target, classifyFailure(error), error.message);
     }
+    // ecsFormat serialises the error to type/message/stack_trace only, so
+    // anything worth querying or alerting on has to be lifted to its own field
+    // rather than left on the error.
     logger.error(
-      error,
+      {
+        // "error", not "err": the logger sets errorKey to match the ECS error
+        // fields, and any other key serialises as a plain object.
+        error,
+        grantCode: target.grantCode,
+        configVersion: target.version,
+        missingServices: error.missingServices,
+      },
       `Agreement definition load failed for ${target.grantCode}@${target.version}`,
     );
     throw error;
