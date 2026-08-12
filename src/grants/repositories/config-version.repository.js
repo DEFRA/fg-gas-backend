@@ -65,6 +65,13 @@ export const findLatestForMajor = async (grantCode, major) => {
   return ConfigVersion.fromDocument(doc);
 };
 
+// Writes the Grant fetch state twice, top-level and under definitions.grant,
+// because writes have moved to the nested shape while findLatestForMajor above
+// still reads the top-level one. The duplication with
+// updateDefinitionFetchStatus in config-catalog.repository.js is deliberate and
+// temporary: when FGP-1352 moves the Grant reads across, the top-level half goes
+// away and this collapses into a call to that function with a "grant"
+// definitionType. Until then both halves have to stay in step.
 export const updateFetchStatus = async (
   grantCode,
   version,
