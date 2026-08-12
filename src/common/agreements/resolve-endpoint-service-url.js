@@ -1,10 +1,23 @@
+// A deployment gap, not a defect in the published definition: the same config
+// is fine on an instance that has the env var. Typed so the loader can tell it
+// apart from config that is genuinely broken and must never record it against
+// the shared config version.
+export class EndpointServiceUrlError extends Error {
+  constructor(message, missingServices) {
+    super(message);
+    this.name = "EndpointServiceUrlError";
+    this.missingServices = missingServices;
+  }
+}
+
 export const resolveEndpointServiceUrl = (service) => {
   const envVar = `${service}_URL`;
   const url = process.env[envVar];
 
   if (!url) {
-    throw new Error(
+    throw new EndpointServiceUrlError(
       `No URL configured for service "${service}" (expected env var ${envVar})`,
+      [service],
     );
   }
 
@@ -39,8 +52,9 @@ export const validateEndpointServiceUrls = (definitions) => {
       .map((service) => `${service}_URL`)
       .join(", ");
 
-    throw new Error(
+    throw new EndpointServiceUrlError(
       `Missing required endpoint URL env var(s): ${missingServicesUrls}`,
+      missing,
     );
   }
 };

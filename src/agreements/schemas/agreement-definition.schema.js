@@ -250,8 +250,9 @@ const endpoint = Joi.object({
 const endpoints = Joi.array().items(endpoint).optional().label("Endpoints");
 
 // configVersion is deliberately absent: it is platform-owned, applied from the
-// config catalog after validation. Unknown keys are rejected, so a published
-// definition carrying one still fails here.
+// config catalog after validation. It cannot be rejected here, because this
+// schema also validates definitions that already carry the applied value; the
+// loader rejects a published one at the point it reads raw producer JSON.
 export const agreementDefinitionSchema = Joi.object({
   code: Joi.string().required(),
   agreementNumberPrefix: Joi.string().required(),

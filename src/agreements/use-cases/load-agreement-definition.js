@@ -1,5 +1,8 @@
 import Boom from "@hapi/boom";
-import { validateEndpointServiceUrls } from "../../common/agreements/resolve-endpoint-service-url.js";
+import {
+  EndpointServiceUrlError,
+  validateEndpointServiceUrls,
+} from "../../common/agreements/resolve-endpoint-service-url.js";
 import {
   findConfigDefinition,
   findLatestUsableDefinition,
@@ -129,6 +132,16 @@ const compileDefinition = (rawDefinition, code, version) => {
     );
   }
 
+  // The only place raw producer JSON enters, so the only place that can tell a
+  // published configVersion from the platform-applied one below. Validation
+  // cannot: it also runs on definitions that legitimately carry the applied
+  // value.
+  if (rawDefinition.configVersion !== undefined) {
+    throw Boom.badImplementation(
+      `Agreement definition "${code}" must not declare configVersion; it is applied from the config catalog`,
+    );
+  }
+
   // Validate once, here: AgreementDefinition memoises validation by reference,
   // so the constructor below reuses this result instead of re-running Joi.
   const definition = { ...rawDefinition, configVersion: version };
@@ -156,8 +169,10 @@ const store = async (target, definition) => {
   }
 };
 
-const isPermanentDefinitionError = (error) =>
-  error.isBoom || error.message.startsWith("Missing required endpoint URL");
+// Only a Boom error is a defect in the published definition. Anything else is a
+// fault in this process or its environment, which leaves the version selectable
+// so the next attempt can succeed once the fault is fixed.
+const isPermanentDefinitionError = (error) => error.isBoom;
 
 const classifyS3Failure = (error) =>
   error.isPermanent || error.isParseError
@@ -203,7 +218,14 @@ const load = async (target, cacheKey) => {
   try {
     return await compileAndCache(target, stored, cacheKey);
   } catch (error) {
-    await updateStatus(target, classifyFailure(error), error.message);
+    // An env var this instance is missing says nothing about the published
+    // definition, so it must not be recorded against the shared config version:
+    // that would mark it unusable for every instance, and re-publishing the same
+    // version would not clear it. It also must not burn a fetch attempt, which
+    // would promote the version to a permanent error after MAX_FETCH_ATTEMPTS.
+    if (!(error instanceof EndpointServiceUrlError)) {
+      await updateStatus(target, classifyFailure(error), error.message);
+    }
     logger.error(
       error,
       `Agreement definition load failed for ${target.grantCode}@${target.version}`,
@@ -281,9 +303,15 @@ export const loadAgreementDefinition = async (options) => {
 // Routing asks the loader the question it will actually be asked at creation,
 // so a grant is only claimed locally when a usable definition exists for that
 // application's config version. Anything else belongs to the external service.
+//
+// This loads rather than just resolving: routing is decided once and written to
+// the outbox, so a version that resolves but cannot be fetched or compiled would
+// be claimed here and then throw on every redelivery, never reaching the
+// external service. The compiled result is cached, so creation reuses it.
 export const canLoadDefinitionForCreation = async (options) => {
   try {
-    return Boolean(await findTarget({ ...options, resolution: "creation" }));
+    await loadAgreementDefinition({ ...options, resolution: "creation" });
+    return true;
   } catch (error) {
     // No usable or parseable version is a routing answer; anything else is a
     // fault that must not quietly divert the command to the external service.
