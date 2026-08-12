@@ -470,6 +470,38 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
+  it("leaves the Agreement offered when invoice-line metadata cannot be resolved", async () => {
+    const actions = agreement.actions.map(({ description, ...entry }) => entry);
+    const paymentConfiguration = structuredClone(mapping);
+    delete paymentConfiguration.invoiceLine.schemeCode;
+    const paymentValues = {
+      startDate: agreement.startDate,
+      endDate: agreement.endDate,
+      actions,
+      items: agreement.items,
+      totalAmountPence: agreement.totalAmountPence,
+      paymentSchedule: agreement.paymentSchedule,
+    };
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement({
+        application: agreement.application,
+        ...paymentValues,
+      }),
+      commitOperations: [
+        {
+          type: "create-agreement-payment",
+          request: { agreementValues: paymentValues, paymentConfiguration },
+        },
+      ],
+    });
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
+      "Invalid Payment",
+    );
+    expect(insertPayment).not.toHaveBeenCalled();
+    expect(saveOutboxEvents).not.toHaveBeenCalled();
+  });
+
   it("leaves the Agreement offered when the stored Payment facts do not balance", async () => {
     const paymentValues = {
       startDate: agreement.startDate,

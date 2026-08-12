@@ -7,6 +7,7 @@ import {
 import { transitionAgreementValueCandidateSchema } from "../../schemas/agreement-value-candidate.schema.js";
 import { agreementValueSchema } from "../../schemas/agreement-value.schema.js";
 import { reconcileTransitionIdentities } from "../materialise-agreement-identities.js";
+import { formatValidationErrorPaths } from "./format-validation-error-paths.js";
 import { findProcessOutputDependencies } from "./processes/find-process-output-dependencies.js";
 import { findUnknownMappingField } from "./processes/find-unknown-mapping-field.js";
 
@@ -128,9 +129,6 @@ const assertDependenciesBeforeHandlers = (definition, entry, mapping) => {
   }
 };
 
-const validationPaths = (error) =>
-  error.details.map(({ path }) => path.join(".") || "value").join(", ");
-
 const validateWith = (definition, schema, candidate) => {
   const result = schema.validate(candidate, {
     abortEarly: false,
@@ -140,7 +138,7 @@ const validateWith = (definition, schema, candidate) => {
 
   if (result.error) {
     throw Boom.badImplementation(
-      `Agreement definition "${definition.code}" produced invalid transition values at: ${validationPaths(result.error)}`,
+      `Agreement definition "${definition.code}" produced invalid transition values at: ${formatValidationErrorPaths(result.error)}`,
     );
   }
 

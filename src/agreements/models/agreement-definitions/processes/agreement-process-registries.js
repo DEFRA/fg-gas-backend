@@ -10,7 +10,7 @@ const paymentConfigurationSchema = Joi.object({
   currency: Joi.string().required(),
   marketingYear: Joi.string().required(),
   invoiceLine: Joi.object({
-    schemeCode: Joi.string().required(),
+    schemeCode: Joi.string().optional(),
     accountCode: Joi.string().required(),
     fundCode: Joi.string().required(),
   }).required(),

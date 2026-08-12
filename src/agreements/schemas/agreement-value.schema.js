@@ -107,10 +107,14 @@ export const capitalItemSchema = Joi.object({
   .and("quantity", "unit")
   .label("CapitalItem");
 
+// A schedule line may freeze contextual Payment wording that cannot be
+// recovered from its funded entry alone. Scheme code is deliberately absent:
+// buildPayment derives it from the entry unless configuration fixes one code.
 export const paymentScheduleLineItemSchema = Joi.object({
   actionId: Joi.string().optional(),
   itemId: Joi.string().optional(),
   amountPence: penceSchema.required(),
+  description: Joi.string().optional(),
 })
   .xor("actionId", "itemId")
   .messages({
@@ -136,6 +140,7 @@ export const paymentScheduleInstalmentSchema = Joi.object({
   id: Joi.string().required(),
   dueDate: agreementDateSchema.required(),
   totalAmountPence: penceSchema.required(),
+  correlationId: Joi.string().optional(),
   lineItems: Joi.array().items(paymentScheduleLineItemSchema).required(),
 })
   .custom(validateInstalmentTotal)

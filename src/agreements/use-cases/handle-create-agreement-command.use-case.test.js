@@ -459,6 +459,12 @@ describe("handleCreateAgreementCommandUseCase", () => {
     const definitionData = structuredClone(pmfDefinitionData);
     definitionData.processDefinitions.GENERATE_OFFER.output.actions.items.code =
       "DUPLICATE-CODE";
+    const instalmentMapping =
+      definitionData.processDefinitions.GENERATE_OFFER.output.paymentSchedule
+        .instalments.items;
+    instalmentMapping.correlationId = "configured-payment-correlation";
+    instalmentMapping.lineItems.items.description =
+      "Configured Payment description";
     loadAgreementDefinition.mockResolvedValue(
       createDefinition(vi.fn().mockResolvedValue(response), definitionData),
     );
@@ -472,9 +478,18 @@ describe("handleCreateAgreementCommandUseCase", () => {
     expect(agreement.paymentSchedule.instalments).toEqual([
       expect.objectContaining({
         id: "instalment:1",
+        correlationId: "configured-payment-correlation",
         lineItems: [
-          { actionId: "action:1", amountPence: 5000 },
-          { actionId: "action:2", amountPence: 3600 },
+          {
+            actionId: "action:1",
+            amountPence: 5000,
+            description: "Configured Payment description",
+          },
+          {
+            actionId: "action:2",
+            amountPence: 3600,
+            description: "Configured Payment description",
+          },
         ],
       }),
     ]);

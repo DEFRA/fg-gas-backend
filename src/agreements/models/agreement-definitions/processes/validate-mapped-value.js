@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { formatValidationErrorPaths } from "../format-validation-error-paths.js";
 
 const validationOptions = {
   abortEarly: false,
@@ -6,15 +7,12 @@ const validationOptions = {
   convert: true,
 };
 
-const validationPaths = (error) =>
-  error.details.map(({ path }) => path.join(".") || "value").join(", ");
-
 export const validateMappedValue = (schema, value, message) => {
   const result = schema.validate(value, validationOptions);
 
   if (result.error) {
     throw Boom.badImplementation(
-      `${message} at: ${validationPaths(result.error)}`,
+      `${message} at: ${formatValidationErrorPaths(result.error)}`,
     );
   }
 
