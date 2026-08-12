@@ -95,7 +95,7 @@ const resolveString = async (value, scope) => {
     : interpolate(value, scope);
 };
 
-const isPlainObject = (value) => value !== null && typeof value === "object";
+const isObject = (value) => value !== null && typeof value === "object";
 
 const resolveObject = async (value, scope) => {
   const entries = await Promise.all(
@@ -117,7 +117,7 @@ export const resolveRefs = async (value, scope) => {
     return Promise.all(value.map((item) => resolveRefs(item, scope)));
   }
 
-  if (isPlainObject(value)) {
+  if (isObject(value)) {
     return resolveObject(value, scope);
   }
 

@@ -9,7 +9,7 @@ import {
   insertAgreementVersion,
   insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
-import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
+import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
 
 const createAgreement = async (event) => {
   const { clientRef, code, metadata } = event.data;

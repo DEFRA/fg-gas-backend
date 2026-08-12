@@ -22,7 +22,7 @@ export const agreementDateSchema = Joi.string()
   )
   .messages({ "date.calendar": "{{#label}} must be a valid calendar date" });
 
-export const parcelAreaSchema = Joi.object({
+const parcelAreaSchema = Joi.object({
   quantity: Joi.number().required(),
   unit: Joi.string().required(),
 }).label("ParcelArea");
@@ -136,7 +136,7 @@ const validateInstalmentTotal = (value, helpers) => {
     : helpers.error("instalment.lineItemsTotal");
 };
 
-export const paymentScheduleInstalmentSchema = Joi.object({
+const paymentScheduleInstalmentSchema = Joi.object({
   id: Joi.string().required(),
   dueDate: agreementDateSchema.required(),
   totalAmountPence: penceSchema.required(),
@@ -150,7 +150,7 @@ export const paymentScheduleInstalmentSchema = Joi.object({
   })
   .label("PaymentScheduleInstalment");
 
-export const paymentScheduleSchema = Joi.object({
+const paymentScheduleSchema = Joi.object({
   frequency: Joi.string().optional(),
   instalments: Joi.array()
     .items(paymentScheduleInstalmentSchema)

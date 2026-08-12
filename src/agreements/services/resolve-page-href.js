@@ -1,4 +1,4 @@
-import { resolveEffectParams } from "./effects/resolve-effect-params.js";
+import { resolveEffectParams } from "./integrations/resolve-effect-params.js";
 
 const applyTemplate = (urlTemplate, params) =>
   urlTemplate.replace(/{(\w+)}/g, (_match, key) => {
