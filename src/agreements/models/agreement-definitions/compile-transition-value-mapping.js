@@ -57,7 +57,7 @@ const findProcessDefinition = (definition, processKey) =>
 const hasDeclaredOutput = (processDefinition, outputName) =>
   !outputName || Object.hasOwn(processDefinition.output ?? {}, outputName);
 
-const assertDependencyOutput = (definition, dependency, entry) => {
+const assertDependencyOutput = (definition, entry, dependency) => {
   const processDefinition = findProcessDefinition(
     definition,
     dependency.processKey,
@@ -76,13 +76,9 @@ const assertDependencyOutput = (definition, dependency, entry) => {
   }
 };
 
-const findFirstHandlerIndex = (definition, processes) =>
-  processes.findIndex(
-    (processKey) =>
-      findProcessDefinition(definition, processKey)?.type === "handler",
-  );
-
-const requireProducerIndex = (entry, processKey) => {
+// A staged handler reads the resolved transition values, so every Process the
+// mapping depends on must run before the first one in the sequence.
+const assertProducerBeforeHandlers = (entry, processKey, firstHandlerIndex) => {
   const producerIndex = entry.processes.indexOf(processKey);
 
   if (producerIndex === -1) {
@@ -91,23 +87,11 @@ const requireProducerIndex = (entry, processKey) => {
     );
   }
 
-  return producerIndex;
-};
-
-const assertDependencyBeforeHandler = (
-  entry,
-  dependency,
-  producerIndex,
-  firstHandlerIndex,
-) => {
-  if (firstHandlerIndex === -1 || producerIndex < firstHandlerIndex) {
-    return;
+  if (firstHandlerIndex !== -1 && producerIndex >= firstHandlerIndex) {
+    throw Boom.badImplementation(
+      `Agreement transition values require "${processKey}" before staged handler "${entry.processes[firstHandlerIndex]}"`,
+    );
   }
-
-  const handler = entry.processes[firstHandlerIndex];
-  throw Boom.badImplementation(
-    `Agreement transition values require "${dependency.processKey}" before staged handler "${handler}"`,
-  );
 };
 
 const assertDependenciesBeforeHandlers = (definition, entry, mapping) => {
@@ -115,15 +99,16 @@ const assertDependenciesBeforeHandlers = (definition, entry, mapping) => {
     return;
   }
 
-  const firstHandlerIndex = findFirstHandlerIndex(definition, entry.processes);
+  const firstHandlerIndex = entry.processes.findIndex(
+    (processKey) =>
+      findProcessDefinition(definition, processKey)?.type === "handler",
+  );
 
   for (const dependency of findProcessOutputDependencies({ input: mapping })) {
-    assertDependencyOutput(definition, dependency, entry);
-    const producerIndex = requireProducerIndex(entry, dependency.processKey);
-    assertDependencyBeforeHandler(
+    assertDependencyOutput(definition, entry, dependency);
+    assertProducerBeforeHandlers(
       entry,
-      dependency,
-      producerIndex,
+      dependency.processKey,
       firstHandlerIndex,
     );
   }
