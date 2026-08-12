@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
-export const resolveAgreementAction = (agreementDefinition, options) => {
+const resolveAgreementAction = (agreementDefinition, options) => {
   try {
     return agreementDefinition.resolveAction(options);
   } catch (error) {

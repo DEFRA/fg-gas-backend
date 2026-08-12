@@ -4,17 +4,6 @@ import { Agreement } from "../agreement.js";
 import { materialiseCreationIdentities } from "../materialise-agreement-identities.js";
 import { compileCreationMappings } from "./compile-creation-mappings.js";
 
-const collectProcessOutputs = (outputs) =>
-  Object.values(outputs).reduce(
-    (agreementValues, output) => ({ ...agreementValues, ...output }),
-    {},
-  );
-
-const mergeCreationValues = (mappedValues, outputs) => ({
-  ...mappedValues,
-  ...collectProcessOutputs(outputs),
-});
-
 const validateAgreementValues = (values) => {
   const result = agreementValueSchema.validate(values, {
     abortEarly: false,
@@ -35,7 +24,8 @@ const assembleAgreementValues = ({ application, mappedValues, outputs }) =>
   validateAgreementValues(
     materialiseCreationIdentities({
       application: structuredClone(application),
-      ...mergeCreationValues(mappedValues, outputs),
+      ...mappedValues,
+      ...Object.assign({}, ...Object.values(outputs)),
     }),
   );
 
