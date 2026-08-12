@@ -1,8 +1,8 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
 import { describe, expect, it, vi } from "vitest";
-import { Agreement } from "../agreement.js";
-import { AgreementDefinition } from "./agreement-definition.js";
+import { Agreement } from "../../agreement.js";
+import { AgreementDefinition } from "../agreement-definition.js";
 
 const createDefinition = () => ({
   code: "test-processes",
