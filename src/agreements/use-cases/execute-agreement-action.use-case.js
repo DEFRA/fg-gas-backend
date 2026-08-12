@@ -45,25 +45,23 @@ const findCompleted = async (
 };
 
 const findPaymentRequest = (commitOperations) => {
-  let paymentOperationCount = 0;
-  let paymentRequest;
+  const unsupported = commitOperations.find(
+    ({ type }) => type !== "create-agreement-payment",
+  );
 
-  for (const operation of commitOperations) {
-    if (operation.type !== "create-agreement-payment") {
-      throw Boom.badImplementation(
-        `Unsupported Agreement Action commit operation "${operation.type}"`,
-      );
-    }
-    paymentOperationCount += 1;
-    if (paymentOperationCount > 1) {
-      throw Boom.badImplementation(
-        "Agreement Action cannot create more than one Payment",
-      );
-    }
-    paymentRequest = operation.request;
+  if (unsupported) {
+    throw Boom.badImplementation(
+      `Unsupported Agreement Action commit operation "${unsupported.type}"`,
+    );
   }
 
-  return paymentRequest;
+  if (commitOperations.length > 1) {
+    throw Boom.badImplementation(
+      "Agreement Action cannot create more than one Payment",
+    );
+  }
+
+  return commitOperations[0]?.request;
 };
 
 // Payments owns the claim ID, the Payment document and the message that carries
