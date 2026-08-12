@@ -34,19 +34,23 @@ export class S3FetchError extends Error {
   }
 }
 
+// The key is taken from the manifest rather than rebuilt from the grant code:
+// an aliased release (farm-payments publishing again as frps-private-beta)
+// carries the alias on the message but keeps the original grant's paths in the
+// manifest, and the objects really do live under those paths.
 export const findS3KeyInManifest = (
   manifest,
-  { grantCode, version, dir, file, required = true },
+  { dir, file, required = true },
 ) => {
-  const expectedPath = `${grantCode}/${version}/${dir}/${file}`;
+  const match = manifest.find((path) => path.endsWith(`/${dir}/${file}`));
 
-  if (manifest.includes(expectedPath)) {
-    return expectedPath;
+  if (match) {
+    return match;
   }
 
   if (required) {
     throw new Error(
-      `Manifest does not contain required config file ${expectedPath}`,
+      `Manifest does not contain required config file ${dir}/${file} (manifest: ${manifest.join(", ")})`,
     );
   }
 

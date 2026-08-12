@@ -49,12 +49,7 @@ describe("s3-client", () => {
         "woodland/1.2.3/metadata.json",
       ];
       expect(
-        findS3KeyInManifest(manifest, {
-          grantCode: "woodland",
-          version: "1.2.3",
-          dir: "gas",
-          file: "gas.json",
-        }),
+        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
       ).toBe("woodland/1.2.3/gas/gas.json");
     });
 
@@ -66,30 +61,41 @@ describe("s3-client", () => {
         "frps-private-beta/2.0.0/metadata.json",
       ];
       expect(
-        findS3KeyInManifest(manifest, {
-          grantCode: "frps-private-beta",
-          version: "2.0.0",
-          dir: "gas",
-          file: "gas.json",
-        }),
+        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
       ).toBe("frps-private-beta/2.0.0/gas/gas.json");
     });
 
     it("returns null for a missing optional exact path", () => {
-      const manifest = [
-        "woodland/1.2.3/gas/gas.json",
-        "other/1.2.3/gas/agreement.json",
-      ];
+      const manifest = ["woodland/1.2.3/gas/gas.json"];
 
       expect(
         findS3KeyInManifest(manifest, {
-          grantCode: "woodland",
-          version: "1.2.3",
           dir: "gas",
           file: "agreement.json",
           required: false,
         }),
       ).toBeNull();
+    });
+
+    // An aliased release keeps the original grant's paths in the manifest while
+    // the message carries the alias, so the key cannot be rebuilt from the code.
+    it("resolves an aliased release against the publishing grant's paths", () => {
+      const manifest = [
+        "farm-payments/1.2.3/gas/gas.json",
+        "farm-payments/1.2.3/gas/agreement.json",
+        "farm-payments/1.2.3/metadata.json",
+      ];
+
+      expect(
+        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
+      ).toBe("farm-payments/1.2.3/gas/gas.json");
+      expect(
+        findS3KeyInManifest(manifest, {
+          dir: "gas",
+          file: "agreement.json",
+          required: false,
+        }),
+      ).toBe("farm-payments/1.2.3/gas/agreement.json");
     });
 
     it("should throw when the manifest does not contain a matching path", () => {
@@ -98,12 +104,7 @@ describe("s3-client", () => {
         "woodland/1.2.3/metadata.json",
       ];
       expect(() =>
-        findS3KeyInManifest(manifest, {
-          grantCode: "woodland",
-          version: "1.2.3",
-          dir: "gas",
-          file: "gas.json",
-        }),
+        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
       ).toThrow("Manifest does not contain required config file");
     });
   });

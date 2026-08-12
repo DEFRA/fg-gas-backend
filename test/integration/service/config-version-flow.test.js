@@ -117,22 +117,30 @@ describe("config broker message flow", () => {
     });
   });
 
-  it("ignores an Agreement path for a different grant or version", async () => {
+  // The broker republishes an aliased release under the alias but leaves the
+  // publishing grant's paths in the manifest, so the stored keys must follow
+  // the manifest rather than the grant code on the message.
+  it("stores the publishing grant's paths for an aliased release", async () => {
     await processConfigVersionUseCase({
-      grantCode: "woodland",
+      grantCode: "frps-private-beta",
       version: "1.2.6",
       status: "active",
       manifest: [
-        "woodland/1.2.6/gas/gas.json",
-        "other/9.9.9/gas/agreement.json",
+        "farm-payments/1.2.6/gas/gas.json",
+        "farm-payments/1.2.6/gas/agreement.json",
+        "farm-payments/1.2.6/metadata.json",
       ],
     });
 
     const doc = await configVersionsCol.findOne({
-      grantCode: "woodland",
+      grantCode: "frps-private-beta",
       version: "1.2.6",
     });
-    expect(doc.definitions.agreement).toBeUndefined();
+    expect(doc.s3Key).toBe("farm-payments/1.2.6/gas/gas.json");
+    expect(doc.definitions.agreement).toMatchObject({
+      s3Key: "farm-payments/1.2.6/gas/agreement.json",
+      fetchStatus: FetchStatus.Pending,
+    });
   });
 
   it("should reject a config version with invalid semver and create no record", async () => {
