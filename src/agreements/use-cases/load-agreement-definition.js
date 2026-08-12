@@ -117,11 +117,6 @@ const guardFetchStatus = async (target) => {
 };
 
 const compileDefinition = (rawDefinition, code, version) => {
-  if (Object.hasOwn(rawDefinition, "configVersion")) {
-    throw Boom.badImplementation(
-      `Agreement definition "${code}" must not contain configVersion`,
-    );
-  }
   if (rawDefinition.code !== code) {
     throw Boom.badImplementation(
       `Agreement definition code "${rawDefinition.code}" does not match "${code}"`,
