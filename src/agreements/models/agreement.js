@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolveAgreementIdentitySequence } from "./agreement-identity-sequence.js";
 
 const cloneOptional = (value) =>
   value === undefined ? undefined : structuredClone(value);
@@ -24,6 +25,7 @@ export class Agreement {
     annualAmountPence,
     totalAmountPence,
     paymentSchedule,
+    identitySequence,
     state,
     createdAt,
     updatedAt,
@@ -48,13 +50,19 @@ export class Agreement {
     this.annualAmountPence = annualAmountPence;
     this.totalAmountPence = totalAmountPence;
     this.paymentSchedule = cloneOptional(paymentSchedule);
+    this.identitySequence = resolveAgreementIdentitySequence({
+      actions,
+      identitySequence,
+      items,
+      paymentSchedule,
+    });
     this.state = state;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.acceptedAt = acceptedAt;
   }
 
-  transition({ target, transitionedAt }) {
+  transition({ target, transitionedAt, values }) {
     const transitionChanges = resolveTransitionChanges({
       agreement: this,
       target,
@@ -63,6 +71,7 @@ export class Agreement {
 
     return new Agreement({
       ...this,
+      ...values,
       ...transitionChanges,
       state: target,
       version: this.version + 1,

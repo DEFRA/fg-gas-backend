@@ -2,6 +2,7 @@ import Boom from "@hapi/boom";
 import { AgreementLifecycle } from "../agreement-lifecycle.js";
 import { generateAgreementNumber } from "../agreement-number.js";
 import { requirePersistedAgreementState } from "../require-persisted-agreement-state.js";
+import { compileAgreementActionExecution } from "./compile-agreement-action-execution.js";
 import { compileAgreementCreation } from "./compile-agreement-creation.js";
 import { compileAgreementProcesses } from "./processes/agreement-process-runtime.js";
 import { validateAgreementDefinition } from "./validate.js";
@@ -9,6 +10,7 @@ import { validateAgreementDefinition } from "./validate.js";
 export class AgreementDefinition {
   #createAgreement;
   #definition;
+  #executeAction;
   #runProcesses;
 
   constructor(definition, dependencies = {}) {
@@ -26,10 +28,17 @@ export class AgreementDefinition {
       generateAgreementNumber: agreementNumberGenerator,
       runProcesses: this.#runProcesses,
     });
+    this.#executeAction = compileAgreementActionExecution(this.#definition, {
+      runProcesses: this.#runProcesses,
+    });
   }
 
   async createAgreement(options) {
     return this.#createAgreement(options);
+  }
+
+  async executeAction(options) {
+    return this.#executeAction(options);
   }
 
   getEndpoints() {
@@ -40,14 +49,19 @@ export class AgreementDefinition {
     return structuredClone(this.#definition.templates ?? {});
   }
 
-  async runProcesses(options) {
-    if (options.location?.type === "create") {
+  async runPageProcesses({ agreement, page, execution }) {
+    const { outputs, commitOperations } = await this.#runProcesses({
+      location: { type: "page", state: agreement.state, page },
+      context: { agreement, execution },
+    });
+
+    if (commitOperations.length > 0) {
       throw Boom.badImplementation(
-        "Agreement creation Processes are private to Agreement creation",
+        "Agreement page Processes produced unsupported commit operations",
       );
     }
 
-    return this.#runProcesses(options);
+    return { outputs };
   }
 
   resolveAction({ state, action }) {
