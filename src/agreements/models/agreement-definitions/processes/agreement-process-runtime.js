@@ -244,8 +244,6 @@ const allowedPages = (definition, state) => {
 };
 
 const resolvePageLocation = (definition, location) => {
-  // Currently unused: pmf.json, the only live definition, has no state processes.
-  // Check live definitions before removing.
   if (!allowedPages(definition, location.state).has(location.page)) {
     throw Boom.forbidden(
       `Page "${location.page}" is not valid for agreement code "${definition.code}" in state "${location.state}"`,

@@ -49,8 +49,6 @@ export class AgreementDefinition {
     return structuredClone(this.#definition.templates ?? {});
   }
 
-  // Currently unused: pmf.json, the only live definition, has no state processes.
-  // Check live definitions before removing.
   async runPageProcesses({ agreement, page, execution }) {
     const { outputs, commitOperations } = await this.#runProcesses({
       location: { type: "page", state: agreement.state, page },
