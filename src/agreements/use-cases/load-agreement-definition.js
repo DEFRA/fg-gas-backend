@@ -226,18 +226,15 @@ const load = async (target, cacheKey) => {
     if (!(error instanceof EndpointServiceUrlError)) {
       await updateStatus(target, classifyFailure(error), error.message);
     }
-    // ecsFormat serialises the error to type/message/stack_trace only, so
-    // anything worth querying or alerting on has to be lifted to its own field
-    // rather than left on the error.
+    // CDP indexes a curated subset of ECS, so only fields in that subset are
+    // searchable: event.action to find these at all, and error.type to pick out
+    // the missing-env-var case, whose message names the variables. Arbitrary
+    // top-level fields are not indexed, so the detail stays on the error rather
+    // than being lifted alongside it. "error", not "err": the logger sets
+    // errorKey to match the ECS error fields, and any other key serialises the
+    // error as a plain object.
     logger.error(
-      {
-        // "error", not "err": the logger sets errorKey to match the ECS error
-        // fields, and any other key serialises as a plain object.
-        error,
-        grantCode: target.grantCode,
-        configVersion: target.version,
-        missingServices: error.missingServices,
-      },
+      { error, event: { action: "agreement-definition-load-failed" } },
       `Agreement definition load failed for ${target.grantCode}@${target.version}`,
     );
     throw error;
