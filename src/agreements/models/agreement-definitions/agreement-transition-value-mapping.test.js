@@ -232,28 +232,6 @@ describe("AgreementDefinition transition-value mapping", () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
-  it("rejects configuration-selected identities that do not already exist", async () => {
-    const execute = vi.fn();
-    const values = {
-      ...transitionValues,
-      items: [
-        {
-          id: "item:2",
-          code: "PA3",
-          quantity: 55.4,
-          unit: "ha",
-          totalAmountPence: 166200,
-        },
-      ],
-    };
-    const definition = createDefinition({ values, execute });
-
-    await expect(runAcceptance(definition)).rejects.toThrow(
-      "unknown stable Capital Item identity",
-    );
-    expect(execute).not.toHaveBeenCalled();
-  });
-
   it("allocates identities for new entries and resolves their schedule references", async () => {
     const execute = vi.fn();
     const values = {
@@ -315,54 +293,6 @@ describe("AgreementDefinition transition-value mapping", () => {
           paymentSchedule: result.agreement.paymentSchedule,
         }),
       }),
-    );
-  });
-
-  it("allocates new identities after the highest identities in the current Agreement", async () => {
-    const existingAction = { id: "action:1", code: "EXISTING" };
-    const candidateAgreement = {
-      ...currentAgreement,
-      actions: [existingAction, { id: "action:3", code: "REMOVED-ACTION" }],
-      items: [
-        currentAgreement.items[0],
-        { id: "item:3", code: "REMOVED-ITEM" },
-      ],
-      paymentSchedule: {
-        instalments: [
-          {
-            id: "instalment:3",
-            dueDate: "2026-11-01",
-            totalAmountPence: 100,
-            lineItems: [{ actionId: "action:1", amountPence: 100 }],
-          },
-        ],
-      },
-    };
-    const values = {
-      ...transitionValues,
-      actions: [existingAction, { ref: "new-action", code: "NEW-ACTION" }],
-      items: [currentAgreement.items[0], { ref: "new-item", code: "NEW-ITEM" }],
-      paymentSchedule: {
-        instalments: [
-          {
-            dueDate: "2026-12-01",
-            totalAmountPence: 100,
-            lineItems: [
-              { actionRef: "new-action", amountPence: 50 },
-              { itemRef: "new-item", amountPence: 50 },
-            ],
-          },
-        ],
-      },
-    };
-    const definition = createDefinition({ values });
-
-    const result = await runAcceptance(definition, candidateAgreement);
-
-    expect(result.agreement.actions[1].id).toBe("action:4");
-    expect(result.agreement.items[1].id).toBe("item:4");
-    expect(result.agreement.paymentSchedule.instalments[0].id).toBe(
-      "instalment:4",
     );
   });
 

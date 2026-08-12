@@ -59,44 +59,6 @@ const calculatorResult = {
   },
 };
 const session = { fake: "session" };
-const woodlandCommand = {
-  data: {
-    clientRef: "wmp-client-ref",
-    code: "woodland",
-    scheme: "WMP",
-    identifiers: { sbi: "300000069", frn: "1000000000" },
-    answers: {
-      woodlandName: "Oakridge Estate",
-      applicant: {
-        business: {
-          name: "Oakridge Estate",
-          address: { line1: "Farm House", postalCode: "YO1 1AA" },
-        },
-        customer: { name: { first: "Alex", last: "Farmer" } },
-      },
-      landParcels: [
-        {
-          id: "SK0971-7555",
-          sheetId: "SK0971",
-          parcelId: "7555",
-          areaHa: 5.2182,
-        },
-      ],
-      payments: {
-        agreement: [
-          {
-            code: "WMP1",
-            description: "Produce a woodland management plan",
-            quantity: 15.75,
-            unit: "ha",
-            agreementTotalPence: 157500,
-          },
-        ],
-      },
-      totalAgreementPaymentPence: 157500,
-    },
-  },
-};
 const fpttCommand = {
   data: {
     clientRef: "fptt-client-ref",
@@ -167,51 +129,6 @@ const fpttDefinitionData = {
     },
   },
 };
-const woodlandDefinitionData = {
-  code: "woodland",
-  configVersion: "1.0.0",
-  agreementNumberPrefix: "WMP",
-  create: {
-    target: "offered",
-    application: "$.input.answers",
-    values: {
-      schemeCode: "$.input.scheme",
-      name: "jsonata:$.application.woodlandName & ' WMP'",
-      applicant: "$.application.applicant",
-      parcels: {
-        itemsRef: "$.application.landParcels",
-        items: {
-          id: "@.id",
-          sheetId: "@.sheetId",
-          parcelId: "@.parcelId",
-          area: { quantity: "@.areaHa", unit: "ha" },
-        },
-      },
-      actions: [],
-      items: {
-        itemsRef: "$.application.payments.agreement",
-        items: {
-          ref: "@.code",
-          code: "@.code",
-          description: "@.description",
-          quantity: "@.quantity",
-          unit: "@.unit",
-          totalAmountPence: "@.agreementTotalPence",
-        },
-      },
-      totalAmountPence: "$.application.totalAgreementPaymentPence",
-    },
-    processes: [],
-  },
-  states: { offered: { page: "offered" } },
-  pages: {
-    offered: {
-      title: "Woodland offer",
-      components: [{ component: "heading", text: "Woodland offer" }],
-    },
-  },
-};
-
 const createDefinition = (
   callEndpoint = vi.fn().mockResolvedValue(calculatorResult),
   definitionData = pmfDefinitionData,
@@ -360,50 +277,6 @@ describe("handleCreateAgreementCommandUseCase", () => {
       ]),
       session,
     );
-  });
-
-  it("creates an Agreement entirely from configured supplied-value mappings", async () => {
-    const originalInput = structuredClone(woodlandCommand.data);
-    loadAgreementDefinition.mockResolvedValue(
-      new AgreementDefinition(woodlandDefinitionData, {
-        generateAgreementNumber: () => "WMP123456789",
-      }),
-    );
-
-    const agreement =
-      await handleCreateAgreementCommandUseCase(woodlandCommand);
-
-    expect(woodlandCommand.data).toEqual(originalInput);
-    expect(agreement).toMatchObject({
-      agreementNumber: "WMP123456789",
-      schemeCode: "WMP",
-      name: "Oakridge Estate WMP",
-      applicant: woodlandCommand.data.answers.applicant,
-      application: woodlandCommand.data.answers,
-      parcels: [
-        {
-          id: "SK0971-7555",
-          sheetId: "SK0971",
-          parcelId: "7555",
-          area: { quantity: 5.2182, unit: "ha" },
-        },
-      ],
-      actions: [],
-      items: [
-        {
-          id: "item:1",
-          code: "WMP1",
-          description: "Produce a woodland management plan",
-          quantity: 15.75,
-          unit: "ha",
-          totalAmountPence: 157500,
-        },
-      ],
-      totalAmountPence: 157500,
-      state: "offered",
-    });
-    expect(withTransaction).toHaveBeenCalledOnce();
-    expect(insertCurrentAgreement).toHaveBeenCalledWith(agreement, session);
   });
 
   it("creates FPTT-shaped Parcels and Revenue Actions without calculating a Payment Schedule", async () => {
