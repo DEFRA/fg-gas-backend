@@ -251,7 +251,7 @@ const endpoints = Joi.array().items(endpoint).optional().label("Endpoints");
 
 export const agreementDefinitionSchema = Joi.object({
   code: Joi.string().required(),
-  configVersion: Joi.string().required(),
+  configVersion: Joi.any().forbidden(),
   agreementNumberPrefix: Joi.string().required(),
   endpoints,
   processDefinitions,

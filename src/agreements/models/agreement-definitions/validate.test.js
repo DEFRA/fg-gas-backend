@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { agreementDefinitions } from "./agreement-definition-registry.js";
+import { pmfAgreementDefinitionFixture } from "../../../../test/fixtures/pmf-agreement-definition.js";
 import { validateAgreementDefinition } from "./validate.js";
 
-const pmfAgreementDefinition = agreementDefinitions.find(
-  ({ code }) => code === "pigs-might-fly",
-);
+const pmfAgreementDefinition = structuredClone(pmfAgreementDefinitionFixture);
 
 describe("validateAgreementDefinition", () => {
   it("returns the validated definition when it is valid", () => {

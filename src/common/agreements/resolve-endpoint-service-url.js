@@ -21,8 +21,8 @@ const endpointsFor = (definition) => [
   ...processEndpointsFor(definition),
 ];
 
-// Every Agreement definition endpoint service must resolve to a real
-// {SERVICE}_URL at startup.
+// Every loaded Agreement definition endpoint service must resolve to a real
+// {SERVICE}_URL before the definition is cached.
 export const validateEndpointServiceUrls = (definitions) => {
   const services = new Set(
     definitions

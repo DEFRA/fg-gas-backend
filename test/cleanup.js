@@ -19,6 +19,30 @@ beforeEach(async () => {
     db.collection("fifo_locks").deleteMany({}),
   ]);
 
+  await db.collection("config_versions").updateOne(
+    { grantCode: "pigs-might-fly", version: "1.0.1" },
+    {
+      $set: {
+        major: 1,
+        minor: 0,
+        patch: 1,
+        status: "active",
+        s3Bucket: "config-broker-local",
+        definitions: {
+          agreement: {
+            s3Key: "pigs-might-fly/1.0.0/gas/agreement.json",
+            fetchStatus: "pending",
+            fetchAttempts: 0,
+            fetchError: null,
+            fetchedAt: null,
+            lastFetchAttemptAt: null,
+          },
+        },
+      },
+    },
+    { upsert: true },
+  );
+
   await purgeQueues([
     env.GAS__SQS__GRANT_APPLICATION_CREATED_QUEUE_URL,
     env.GAS__SQS__GRANT_APPLICATION_STATUS_UPDATED_QUEUE_URL,

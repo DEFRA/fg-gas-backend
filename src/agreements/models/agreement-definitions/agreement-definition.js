@@ -33,6 +33,10 @@ export class AgreementDefinition {
     });
   }
 
+  get configVersion() {
+    return this.#definition.configVersion;
+  }
+
   async createAgreement(options) {
     return this.#createAgreement(options);
   }

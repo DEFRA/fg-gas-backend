@@ -36,7 +36,7 @@ const options = {
   actionName: "accept",
   agreementNumber: "PMF823153883",
   values: { confirm: "confirmed" },
-  ifMatch: '"PMF823153883:1"',
+  ifMatch: '"PMF823153883:1:1.1.0"',
   idempotencyKey: "9ea924aa-45e9-43a7-888e-c25054ea658c",
   access: {
     source: "defra",
@@ -127,6 +127,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       action,
       agreement,
       agreementDefinition,
+      etag: `"${agreement.agreementNumber}:${agreement.version}:${agreement.configVersion}"`,
     });
     agreementDefinition.executeAction.mockResolvedValue({
       agreement: transitionAgreement(),

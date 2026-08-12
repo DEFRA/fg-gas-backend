@@ -1,4 +1,5 @@
-import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
+import { toEtag } from "./agreement-etag.js";
+import { loadAgreementDefinition } from "./load-agreement-definition.js";
 import {
   loadCurrentAgreement,
   loadCurrentAgreementByNumber,
@@ -20,7 +21,12 @@ export const loadCurrentAgreementContext = async ({
   const agreementDefinition = await loadAgreementDefinition({
     code: agreement.code,
     configVersion: agreement.configVersion,
+    resolution: agreement.state === "accepted" ? "exact" : "same-major",
   });
 
-  return { agreement, agreementDefinition };
+  return {
+    agreement,
+    agreementDefinition,
+    etag: toEtag(agreement, agreementDefinition.configVersion),
+  };
 };
