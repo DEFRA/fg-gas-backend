@@ -9,6 +9,10 @@ import {
   it,
   vi,
 } from "vitest";
+import {
+  dispatchInternally,
+  internalMessageBusTarget,
+} from "../../common/internal-command-bus.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import { Outbox } from "../models/outbox.js";
@@ -27,17 +31,13 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
-import {
-  dispatchInternally,
-  isInternalAgreementCommand,
-} from "../services/outbox-dispatch.service.js";
 import { OutboxSubscriber } from "./outbox.subscriber.js";
 
+vi.mock("../../common/internal-command-bus.js");
 vi.mock("../../common/sns-client.js");
 
 vi.mock("../repositories/fifo-lock.repository.js");
 vi.mock("../repositories/outbox.repository.js");
-vi.mock("../services/outbox-dispatch.service.js");
 
 const createOutbox = (doc) =>
   new Outbox({
@@ -56,7 +56,6 @@ describe("outbox.subscriber", () => {
     updateFailedEvents.mockResolvedValue({ modifiedCount: 1 });
     publish.mockResolvedValue(1);
     claimEvents.mockResolvedValue([]);
-    isInternalAgreementCommand.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -271,13 +270,15 @@ describe("outbox.subscriber", () => {
     );
   });
 
-  it("delivers a configured internal Agreement command to the Agreements module and does not publish to SNS/SQS", async () => {
-    isInternalAgreementCommand.mockReturnValue(true);
+  it("delivers events addressed to the internal message bus without publishing", async () => {
     dispatchInternally.mockResolvedValue();
 
     const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:create-agreement-topic",
-      event: { type: "agreement.create", data: { code: "pigs-might-fly" } },
+      target: internalMessageBusTarget,
+      event: {
+        type: "io.onsite.agreement.status.updated",
+        data: { code: "pigs-might-fly", status: "accepted" },
+      },
       markAsComplete: vi.fn(),
     };
 
@@ -290,11 +291,10 @@ describe("outbox.subscriber", () => {
   });
 
   it("marks an internal command as unsent if internal delivery fails", async () => {
-    isInternalAgreementCommand.mockReturnValue(true);
     dispatchInternally.mockRejectedValue(new Error("handler failed"));
 
     const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:create-agreement-topic",
+      target: internalMessageBusTarget,
       event: { type: "agreement.create", data: { code: "pigs-might-fly" } },
       markAsFailed: vi.fn(),
     };
@@ -304,45 +304,6 @@ describe("outbox.subscriber", () => {
 
     expect(publish).not.toHaveBeenCalled();
     expect(mockEvent.markAsFailed).toHaveBeenCalled();
-  });
-
-  it("still publishes legacy Agreement commands (FPTT/WMP) externally", async () => {
-    isInternalAgreementCommand.mockReturnValue(false);
-    publish.mockResolvedValue(1);
-
-    const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:create-agreement-topic",
-      event: {
-        type: "agreement.create",
-        data: { code: "farming-post-transition-tier" },
-      },
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-
-    expect(dispatchInternally).not.toHaveBeenCalled();
-    expect(publish).toHaveBeenCalled();
-    expect(mockEvent.markAsComplete).toHaveBeenCalled();
-  });
-
-  it("leaves non-Agreement outbox events unaffected (still publish externally)", async () => {
-    isInternalAgreementCommand.mockReturnValue(false);
-    publish.mockResolvedValue(1);
-
-    const mockEvent = {
-      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status",
-      event: { type: "case.status.updated", data: {} },
-      markAsComplete: vi.fn(),
-    };
-
-    const outbox = new OutboxSubscriber();
-    await outbox.sendEvent(mockEvent);
-
-    expect(dispatchInternally).not.toHaveBeenCalled();
-    expect(publish).toHaveBeenCalled();
-    expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
   it("should mark events as sent", async () => {

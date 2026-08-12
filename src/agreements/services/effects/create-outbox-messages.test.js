@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { config } from "../../../common/config.js";
+import { internalMessageBusTarget } from "../../../common/internal-command-bus.js";
 import { createOutboxMessages } from "./create-outbox-messages.js";
 
 describe("createOutboxMessages", () => {
@@ -11,13 +12,17 @@ describe("createOutboxMessages", () => {
       code: "pigs-might-fly",
       version: 2,
       state: "accepted",
+      identifiers: { sbi: "123456789" },
       updatedAt: "2026-07-17T11:29:00.000Z",
     };
 
-    const [message] = createOutboxMessages(["lifecycle"], agreement);
+    const [message, publication] = createOutboxMessages(
+      ["lifecycle"],
+      agreement,
+    );
 
     expect(message).toMatchObject({
-      target: config.sns.updateAgreementStatusTopicArn,
+      target: internalMessageBusTarget,
       event: {
         data: {
           agreementNumber: "PMF123",
@@ -27,8 +32,13 @@ describe("createOutboxMessages", () => {
           version: 2,
           status: "accepted",
           date: "2026-07-17T11:29:00.000Z",
+          sbi: "123456789",
         },
       },
+    });
+    expect(publication).toEqual({
+      target: config.sns.agreementStatusUpdatedTopicArn,
+      event: message.event,
     });
   });
 
@@ -40,16 +50,21 @@ describe("createOutboxMessages", () => {
       code: "pigs-might-fly",
       version: 2,
       state: "accepted",
+      identifiers: { sbi: "123456789" },
       startDate: "2026-08-01",
       endDate: "2027-07-31",
       updatedAt: "2026-07-17T11:29:00.000Z",
     };
     const payment = { paymentHubClaimId: "R00000001" };
 
-    const [message] = createOutboxMessages(["lifecycle"], agreement, payment);
+    const [message, publication] = createOutboxMessages(
+      ["lifecycle"],
+      agreement,
+      payment,
+    );
 
     expect(message).toEqual({
-      target: config.sns.updateAgreementStatusTopicArn,
+      target: internalMessageBusTarget,
       event: expect.objectContaining({
         source: "urn:service:agreement",
         specversion: "1.0",
@@ -65,11 +80,16 @@ describe("createOutboxMessages", () => {
           status: "accepted",
           date: "2026-07-17T11:29:00.000Z",
           agreementUrl: "http://localhost:3000/PMF123",
+          sbi: "123456789",
           startDate: "2026-08-01",
           endDate: "2027-07-31",
           claimId: "R00000001",
         },
       }),
+    });
+    expect(publication).toEqual({
+      target: config.sns.agreementStatusUpdatedTopicArn,
+      event: message.event,
     });
   });
 

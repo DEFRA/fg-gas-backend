@@ -27,6 +27,11 @@ vi.mock(
 vi.mock("../../payments/repositories/payment.repository.js");
 vi.mock("./load-current-agreement-action-context.js");
 
+const findPaymentPublication = (publications) =>
+  publications.find(
+    ({ event }) => event.type === "io.onsite.agreement.create-payment",
+  );
+
 const options = {
   actionName: "accept",
   agreementNumber: "PMF823153883",
@@ -311,11 +316,13 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     expect(saveOutboxEvents).toHaveBeenCalledTimes(1);
     const [publications] = saveOutboxEvents.mock.calls[0];
 
-    expect(publications).toHaveLength(2);
-    expect(publications[0].event.type).toMatch(/agreement\.status\.updated$/);
-    expect(publications[1].event.type).toBe(
-      "io.onsite.agreement.create-payment",
-    );
+    expect(publications).toHaveLength(3);
+    expect(
+      publications.filter(({ event }) =>
+        event.type.endsWith("agreement.status.updated"),
+      ),
+    ).toHaveLength(2);
+    expect(findPaymentPublication(publications)).toBeDefined();
   });
 
   it("builds the payment event from the committed Payment", async () => {
@@ -323,7 +330,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
 
     const [publications] = saveOutboxEvents.mock.calls[0];
     const [payment] = insertPayment.mock.calls[0];
-    const { data } = publications[1].event;
+    const { data } = findPaymentPublication(publications).event;
 
     expect(data.claimId).toBe(payment.paymentHubClaimId);
     expect(data.grants[0]).toMatchObject({
@@ -340,8 +347,12 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
 
     const [publications] = saveOutboxEvents.mock.calls[0];
 
-    expect(publications[1].segregationRef).toBe(options.agreementNumber);
-    expect(publications[1].event.messageGroupId).toBe(options.agreementNumber);
+    const paymentPublication = findPaymentPublication(publications);
+
+    expect(paymentPublication.segregationRef).toBe(options.agreementNumber);
+    expect(paymentPublication.event.messageGroupId).toBe(
+      options.agreementNumber,
+    );
   });
 
   it("targets the Payment Service topic", async () => {
@@ -349,7 +360,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
 
     const [publications] = saveOutboxEvents.mock.calls[0];
 
-    expect(publications[1].target).toBe(
+    expect(findPaymentPublication(publications).target).toBe(
       "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
     );
   });
@@ -577,8 +588,12 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
 
     const [publications] = saveOutboxEvents.mock.calls[0];
 
-    expect(publications).toHaveLength(1);
-    expect(publications[0].event.type).toMatch(/agreement\.status\.updated$/);
+    expect(publications).toHaveLength(2);
+    expect(
+      publications.every(({ event }) =>
+        event.type.endsWith("agreement.status.updated"),
+      ),
+    ).toBe(true);
   });
 
   it("rejects an unsupported commit operation", async () => {
