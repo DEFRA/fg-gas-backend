@@ -271,7 +271,11 @@ describe("AgreementDefinition transition-value mapping", () => {
             dueDate: "2026-12-01",
             totalAmountPence: 166200,
             lineItems: [
-              { actionRef: "calculated-action", amountPence: 166200 },
+              {
+                actionRef: "calculated-action",
+                amountPence: 166200,
+                description: "2026-12-01: Parcel: SD7560-9193: Test action",
+              },
             ],
           },
         ],
@@ -294,7 +298,13 @@ describe("AgreementDefinition transition-value mapping", () => {
           id: "instalment:1",
           dueDate: "2026-12-01",
           totalAmountPence: 166200,
-          lineItems: [{ actionId: "action:1", amountPence: 166200 }],
+          lineItems: [
+            {
+              actionId: "action:1",
+              amountPence: 166200,
+              description: "2026-12-01: Parcel: SD7560-9193: Test action",
+            },
+          ],
         },
       ],
     });

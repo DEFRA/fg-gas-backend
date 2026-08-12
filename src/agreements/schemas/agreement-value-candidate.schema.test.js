@@ -53,6 +53,8 @@ const sharedFieldCases = [
 
 const paymentScheduleValues = {
   amountPence: 100,
+  correlationId: "payment-1",
+  description: "Test payment",
   dueDate: "2026-12-01",
   frequency: "annual",
   totalAmountPence: 100,
@@ -67,10 +69,12 @@ const paymentSchedule = (overrides = {}) => {
       {
         dueDate: values.dueDate,
         totalAmountPence: values.totalAmountPence,
+        correlationId: values.correlationId,
         lineItems: [
           {
             actionRef: "action-1",
             amountPence: values.amountPence,
+            description: values.description,
           },
         ],
       },
@@ -82,7 +86,9 @@ const sharedPaymentFieldCases = [
   ["frequency", { frequency: 12 }],
   ["due date", { dueDate: "2026-12-32" }],
   ["total amount", { totalAmountPence: 100.5 }],
+  ["correlation ID", { correlationId: 123 }],
   ["line amount", { amountPence: "100" }],
+  ["line description", { description: null }],
 ];
 
 const persistentIdentityCases = [

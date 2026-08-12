@@ -455,6 +455,46 @@ describe("agreementValueSchema", () => {
     );
   });
 
+  it("accepts a closed Payment publication description on each schedule line", () => {
+    const value = structuredClone(fpttAgreementValues);
+    value.paymentSchedule.instalments[0].lineItems[0].description =
+      "2026-11-15: Parcel: SD8545-9935: Winter cover";
+    value.paymentSchedule.instalments[0].lineItems[1].description =
+      "2026-11-15: One-off payment per agreement per year for Farm review";
+
+    expect(validate(value).error).toBeUndefined();
+  });
+
+  it.each(["", 42])(
+    "rejects malformed schedule-line publication description %j",
+    (description) => {
+      const value = structuredClone(fpttAgreementValues);
+      value.paymentSchedule.instalments[0].lineItems[0].description =
+        description;
+
+      expect(validate(value).error?.message).toContain(
+        '"paymentSchedule.instalments[0].lineItems[0].description"',
+      );
+    },
+  );
+
+  it("rejects arbitrary schedule-line Payment metadata", () => {
+    const value = structuredClone(fpttAgreementValues);
+    value.paymentSchedule.instalments[0].lineItems[0].schemeCode = "PATCH";
+
+    expect(validate(value).error?.message).toContain(
+      '"paymentSchedule.instalments[0].lineItems[0].schemeCode" is not allowed',
+    );
+  });
+
+  it("accepts an existing due-payment correlation ID on an Instalment", () => {
+    const value = structuredClone(fpttAgreementValues);
+    value.paymentSchedule.instalments[0].correlationId =
+      "324b1946-7c0f-4be0-8573-020e482c9a8d";
+
+    expect(validate(value).error).toBeUndefined();
+  });
+
   it("accepts a balanced Instalment", () => {
     expect(validate(fpttAgreementValues).error).toBeUndefined();
   });
