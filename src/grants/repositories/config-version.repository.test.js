@@ -39,19 +39,24 @@ describe("config-version.repository", () => {
 
       expect(mockCollection.updateOne).toHaveBeenCalledWith(
         { grantCode: "woodland", version: "1.2.3" },
-        expect.objectContaining({
-          $set: expect.objectContaining({
-            major: 1,
-            minor: 2,
-            patch: 3,
-            status: "active",
-          }),
-          $setOnInsert: expect.objectContaining({
-            receivedAt: expect.any(String),
-            fetchStatus: FetchStatus.Pending,
-            fetchAttempts: 0,
-          }),
-        }),
+        [
+          {
+            $set: expect.objectContaining({
+              major: 1,
+              minor: 2,
+              patch: 3,
+              status: "active",
+              "definitions.grant": expect.objectContaining({
+                $mergeObjects: expect.arrayContaining([
+                  expect.objectContaining({
+                    fetchStatus: FetchStatus.Pending,
+                    fetchAttempts: 0,
+                  }),
+                ]),
+              }),
+            }),
+          },
+        ],
         { upsert: true },
       );
     });
@@ -118,7 +123,10 @@ describe("config-version.repository", () => {
             fetchStatus: FetchStatus.TransientError,
             fetchError: "S3 timeout",
           }),
-          $inc: { fetchAttempts: 1 },
+          $inc: {
+            fetchAttempts: 1,
+            "definitions.grant.fetchAttempts": 1,
+          },
         },
       );
     });

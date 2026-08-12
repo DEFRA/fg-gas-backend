@@ -48,9 +48,14 @@ describe("s3-client", () => {
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/metadata.json",
       ];
-      expect(findS3KeyInManifest(manifest, "gas")).toBe(
-        "woodland/1.2.3/gas/gas.json",
-      );
+      expect(
+        findS3KeyInManifest(manifest, {
+          grantCode: "woodland",
+          version: "1.2.3",
+          dir: "gas",
+          file: "gas.json",
+        }),
+      ).toBe("woodland/1.2.3/gas/gas.json");
     });
 
     it("should handle manifests with many entries", () => {
@@ -60,9 +65,31 @@ describe("s3-client", () => {
         "frps-private-beta/2.0.0/grants-ui/allowlist.yaml",
         "frps-private-beta/2.0.0/metadata.json",
       ];
-      expect(findS3KeyInManifest(manifest, "gas")).toBe(
-        "frps-private-beta/2.0.0/gas/gas.json",
-      );
+      expect(
+        findS3KeyInManifest(manifest, {
+          grantCode: "frps-private-beta",
+          version: "2.0.0",
+          dir: "gas",
+          file: "gas.json",
+        }),
+      ).toBe("frps-private-beta/2.0.0/gas/gas.json");
+    });
+
+    it("returns null for a missing optional exact path", () => {
+      const manifest = [
+        "woodland/1.2.3/gas/gas.json",
+        "other/1.2.3/gas/agreement.json",
+      ];
+
+      expect(
+        findS3KeyInManifest(manifest, {
+          grantCode: "woodland",
+          version: "1.2.3",
+          dir: "gas",
+          file: "agreement.json",
+          required: false,
+        }),
+      ).toBeNull();
     });
 
     it("should throw when the manifest does not contain a matching path", () => {
@@ -70,9 +97,14 @@ describe("s3-client", () => {
         "woodland/1.2.3/cw/cw.json",
         "woodland/1.2.3/metadata.json",
       ];
-      expect(() => findS3KeyInManifest(manifest, "gas")).toThrow(
-        "Manifest does not contain a gas config file",
-      );
+      expect(() =>
+        findS3KeyInManifest(manifest, {
+          grantCode: "woodland",
+          version: "1.2.3",
+          dir: "gas",
+          file: "gas.json",
+        }),
+      ).toThrow("Manifest does not contain required config file");
     });
   });
 

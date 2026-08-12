@@ -9,6 +9,7 @@ import {
   expect,
   it,
 } from "vitest";
+import { updateDefinitionFetchStatus } from "../../../src/common/config-broker/config-catalog.repository.js";
 import { FetchStatus } from "../../../src/grants/models/config-version.js";
 import { processConfigVersionUseCase } from "../../../src/grants/use-cases/process-config-version.use-case.js";
 
@@ -55,6 +56,83 @@ describe("config broker message flow", () => {
     expect(cvDoc.patch).toBe(3);
     expect(cvDoc.fetchStatus).toBe(FetchStatus.Pending);
     expect(cvDoc.s3Key).toBe("woodland/1.2.3/gas/gas.json");
+    expect(cvDoc.definitions.grant).toMatchObject({
+      s3Key: cvDoc.s3Key,
+      fetchStatus: FetchStatus.Pending,
+      fetchAttempts: 0,
+    });
+    expect(cvDoc.definitions.agreement).toBeUndefined();
+  });
+
+  it("records an optional Agreement definition independently", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.4",
+      status: "active",
+      manifest: [
+        "woodland/1.2.4/gas/gas.json",
+        "woodland/1.2.4/gas/agreement.json",
+      ],
+    });
+
+    const doc = await configVersionsCol.findOne({
+      grantCode: "woodland",
+      version: "1.2.4",
+    });
+    expect(doc.definitions.agreement).toMatchObject({
+      s3Key: "woodland/1.2.4/gas/agreement.json",
+      fetchStatus: FetchStatus.Pending,
+      fetchAttempts: 0,
+    });
+  });
+
+  it("does not reset Agreement fetch state on a duplicate message", async () => {
+    const event = {
+      grantCode: "woodland",
+      version: "1.2.5",
+      status: "active",
+      manifest: [
+        "woodland/1.2.5/gas/gas.json",
+        "woodland/1.2.5/gas/agreement.json",
+      ],
+    };
+    await processConfigVersionUseCase(event);
+    await updateDefinitionFetchStatus({
+      grantCode: "woodland",
+      version: "1.2.5",
+      definitionType: "agreement",
+      fetchStatus: FetchStatus.Fetched,
+    });
+
+    await processConfigVersionUseCase(event);
+
+    const doc = await configVersionsCol.findOne({
+      grantCode: "woodland",
+      version: "1.2.5",
+    });
+    expect(doc.definitions.agreement).toMatchObject({
+      fetchStatus: FetchStatus.Fetched,
+      fetchAttempts: 0,
+      s3Key: "woodland/1.2.5/gas/agreement.json",
+    });
+  });
+
+  it("ignores an Agreement path for a different grant or version", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.6",
+      status: "active",
+      manifest: [
+        "woodland/1.2.6/gas/gas.json",
+        "other/9.9.9/gas/agreement.json",
+      ],
+    });
+
+    const doc = await configVersionsCol.findOne({
+      grantCode: "woodland",
+      version: "1.2.6",
+    });
+    expect(doc.definitions.agreement).toBeUndefined();
   });
 
   it("should reject a config version with invalid semver and create no record", async () => {
