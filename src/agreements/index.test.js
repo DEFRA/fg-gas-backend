@@ -1,6 +1,5 @@
 import hapi from "@hapi/hapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { hasConfigDefinition } from "../common/config-broker/config-catalog.repository.js";
 import {
   canHandleInternalCommand,
   clearInternalCommandHandlers,
@@ -9,8 +8,9 @@ import {
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { agreements } from "./index.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
+import { canLoadDefinitionForCreation } from "./use-cases/load-agreement-definition.js";
 
-vi.mock("../common/config-broker/config-catalog.repository.js");
+vi.mock("./use-cases/load-agreement-definition.js");
 
 describe("agreements", () => {
   afterEach(() => {
@@ -61,27 +61,28 @@ describe("agreements", () => {
     ).toBe(handleCreateAgreementCommandUseCase);
   });
 
-  // Grants that publish no Agreement definition must keep routing to the
-  // external Agreements service rather than failing in the loader.
-  it("only handles agreement.create for grants with a published definition", async () => {
+  // Applications whose config version has no usable definition must keep
+  // routing to the external Agreements service rather than failing in the
+  // loader, so routing asks exactly what creation will resolve.
+  it("only handles agreement.create when the config version resolves", async () => {
     const server = hapi.server();
     await server.register(agreements);
 
-    hasConfigDefinition.mockResolvedValue(true);
+    canLoadDefinitionForCreation.mockResolvedValue(true);
     await expect(
       canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
-        data: { code: "pigs-might-fly" },
+        data: { code: "pigs-might-fly", currentConfigVersion: "1.0.1" },
       }),
     ).resolves.toBe(true);
-    expect(hasConfigDefinition).toHaveBeenCalledWith({
-      grantCode: "pigs-might-fly",
-      definitionType: "agreement",
+    expect(canLoadDefinitionForCreation).toHaveBeenCalledWith({
+      code: "pigs-might-fly",
+      configVersion: "1.0.1",
     });
 
-    hasConfigDefinition.mockResolvedValue(false);
+    canLoadDefinitionForCreation.mockResolvedValue(false);
     await expect(
       canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
-        data: { code: "woodland" },
+        data: { code: "woodland", currentConfigVersion: "1.2.3" },
       }),
     ).resolves.toBe(false);
   });

@@ -11,6 +11,8 @@ import {
   insertAgreementDefinition,
 } from "../repositories/agreement-definition.repository.js";
 import {
+  canLoadDefinitionForCreation,
+  clearAgreementDefinitionCaches,
   loadAgreementDefinition,
   loadDefinitionForAgreement,
 } from "./load-agreement-definition.js";
@@ -58,6 +60,7 @@ const target = (version) => ({
 describe("loadAgreementDefinition", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearAgreementDefinitionCaches();
     findAgreementDefinition.mockResolvedValue(null);
     fetchConfigFile.mockResolvedValue(validDefinition);
     insertAgreementDefinition.mockResolvedValue({ insertedId: "definition" });
@@ -167,15 +170,13 @@ describe("loadAgreementDefinition", () => {
     ).rejects.toMatchObject({ output: { statusCode: 500 } });
   });
 
-  // compiledDefinitions is module scoped and survives between tests, so each
-  // case below uses versions no other test loads.
   describe("fallback after an unusable definition", () => {
     const invalidDefinition = { ...validDefinition, code: "other-code" };
 
     it("falls back to an older version when the newest is invalid", async () => {
       findLatestUsableDefinition
-        .mockResolvedValueOnce(target("1.0.21"))
-        .mockResolvedValue(target("1.0.20"));
+        .mockResolvedValueOnce(target("1.0.2"))
+        .mockResolvedValue(target("1.0.1"));
       fetchConfigFile
         .mockResolvedValueOnce(invalidDefinition)
         .mockResolvedValue(validDefinition);
@@ -186,11 +187,11 @@ describe("loadAgreementDefinition", () => {
         resolution: "same-major",
       });
 
-      expect(definition.configVersion).toBe("1.0.20");
+      expect(definition.configVersion).toBe("1.0.1");
       expect(findLatestUsableDefinition).toHaveBeenCalledTimes(2);
       expect(updateDefinitionFetchStatus).toHaveBeenCalledWith(
         expect.objectContaining({
-          version: "1.0.21",
+          version: "1.0.2",
           fetchStatus: FetchStatus.PermanentError,
         }),
       );
@@ -199,24 +200,24 @@ describe("loadAgreementDefinition", () => {
     it("falls back at creation when the newest usable version is invalid", async () => {
       findConfigDefinition.mockResolvedValue(null);
       findLatestUsableDefinition
-        .mockResolvedValueOnce(target("1.0.31"))
-        .mockResolvedValue(target("1.0.30"));
+        .mockResolvedValueOnce(target("1.0.3"))
+        .mockResolvedValue(target("1.0.2"));
       fetchConfigFile
         .mockResolvedValueOnce(invalidDefinition)
         .mockResolvedValue(validDefinition);
 
       const definition = await loadAgreementDefinition({
         code: "test-code",
-        configVersion: "1.0.40",
+        configVersion: "1.0.4",
         resolution: "creation",
       });
 
-      expect(definition.configVersion).toBe("1.0.30");
+      expect(definition.configVersion).toBe("1.0.2");
     });
 
     // A service fault must not be laundered into a silent config downgrade.
     it("rethrows a transient failure without falling back", async () => {
-      findLatestUsableDefinition.mockResolvedValue(target("1.0.41"));
+      findLatestUsableDefinition.mockResolvedValue(target("1.0.2"));
       insertAgreementDefinition.mockRejectedValue(new Error("Mongo down"));
 
       await expect(
@@ -230,13 +231,13 @@ describe("loadAgreementDefinition", () => {
     });
 
     it("never falls back for an exact resolution", async () => {
-      findConfigDefinition.mockResolvedValue(target("1.0.51"));
+      findConfigDefinition.mockResolvedValue(target("1.0.5"));
       fetchConfigFile.mockResolvedValue(invalidDefinition);
 
       await expect(
         loadAgreementDefinition({
           code: "test-code",
-          configVersion: "1.0.51",
+          configVersion: "1.0.5",
           resolution: "exact",
         }),
       ).rejects.toThrow('does not match "test-code"');
@@ -244,9 +245,37 @@ describe("loadAgreementDefinition", () => {
       expect(findLatestUsableDefinition).not.toHaveBeenCalled();
     });
 
+    // Exhausting the cap is the same outcome as finding nothing, so it must
+    // surface the normal unavailable error, not the last validation failure.
+    it("reports unavailable once every attempt is invalid", async () => {
+      findLatestUsableDefinition
+        .mockResolvedValueOnce(target("1.0.3"))
+        .mockResolvedValueOnce(target("1.0.2"))
+        .mockResolvedValue(target("1.0.1"));
+      fetchConfigFile.mockResolvedValue(invalidDefinition);
+
+      await expect(
+        loadAgreementDefinition({
+          code: "test-code",
+          configVersion: "1.0.0",
+          resolution: "same-major",
+        }),
+      ).rejects.toMatchObject({
+        output: { statusCode: 500 },
+        message: expect.stringContaining("is unavailable"),
+      });
+      expect(findLatestUsableDefinition).toHaveBeenCalledTimes(3);
+      expect(updateDefinitionFetchStatus).toHaveBeenCalledWith(
+        expect.objectContaining({
+          version: "1.0.1",
+          fetchStatus: FetchStatus.PermanentError,
+        }),
+      );
+    });
+
     it("gives up once no usable version remains", async () => {
       findLatestUsableDefinition
-        .mockResolvedValueOnce(target("1.0.61"))
+        .mockResolvedValueOnce(target("1.0.2"))
         .mockResolvedValue(null);
       fetchConfigFile.mockResolvedValue(invalidDefinition);
 
@@ -257,6 +286,54 @@ describe("loadAgreementDefinition", () => {
           resolution: "same-major",
         }),
       ).rejects.toMatchObject({ output: { statusCode: 500 } });
+    });
+  });
+
+  // Routing must not claim a grant on the strength of a definition the
+  // application's config version could never resolve to.
+  describe("canLoadDefinitionForCreation", () => {
+    it("is true when the config version resolves to a usable definition", async () => {
+      findConfigDefinition.mockResolvedValue(target("1.0.1"));
+
+      await expect(
+        canLoadDefinitionForCreation({
+          code: "test-code",
+          configVersion: "1.0.1",
+        }),
+      ).resolves.toBe(true);
+    });
+
+    it("is false when only an incompatible version publishes a definition", async () => {
+      findConfigDefinition.mockResolvedValue(null);
+      findLatestUsableDefinition.mockResolvedValue(null);
+
+      await expect(
+        canLoadDefinitionForCreation({
+          code: "test-code",
+          configVersion: "1.0.2",
+        }),
+      ).resolves.toBe(false);
+    });
+
+    it("is false for an unparseable config version", async () => {
+      await expect(
+        canLoadDefinitionForCreation({
+          code: "test-code",
+          configVersion: null,
+        }),
+      ).resolves.toBe(false);
+    });
+
+    // A database fault must fail the command, not silently divert it.
+    it("rethrows a non-Boom failure rather than routing externally", async () => {
+      findConfigDefinition.mockRejectedValue(new Error("Mongo down"));
+
+      await expect(
+        canLoadDefinitionForCreation({
+          code: "test-code",
+          configVersion: "1.0.3",
+        }),
+      ).rejects.toThrow("Mongo down");
     });
   });
 

@@ -3,7 +3,7 @@ import { processConfigVersionUseCase } from "./process-config-version.use-case.j
 
 const mockUpsertDefinitionLocation = vi.fn();
 vi.mock("../../common/config-broker/config-catalog.repository.js", () => ({
-  upsertDefinitionLocation: (...args) => mockUpsertDefinitionLocation(...args),
+  updateDefinitionLocation: (...args) => mockUpsertDefinitionLocation(...args),
 }));
 
 vi.mock("../../common/config.js", () => ({

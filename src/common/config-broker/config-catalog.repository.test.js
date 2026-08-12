@@ -4,7 +4,7 @@ import {
   findConfigDefinition,
   findLatestUsableDefinition,
   updateDefinitionFetchStatus,
-  upsertDefinitionLocation,
+  updateDefinitionLocation,
 } from "./config-catalog.repository.js";
 
 const collection = {
@@ -112,7 +112,7 @@ describe("config catalog repository", () => {
   });
 
   it("upserts location without resetting existing fetch state", async () => {
-    await upsertDefinitionLocation({
+    await updateDefinitionLocation({
       grantCode: "woodland",
       version: "1.2.3",
       definitionType: "agreement",
@@ -143,7 +143,7 @@ describe("config catalog repository", () => {
   // Upserting here would create a record with no major or status, which every
   // read filters on, leaving it invisible to all queries.
   it("is not an upsert, so it cannot create a config version record", async () => {
-    await upsertDefinitionLocation({
+    await updateDefinitionLocation({
       grantCode: "woodland",
       version: "1.2.3",
       definitionType: "agreement",

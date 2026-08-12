@@ -11,7 +11,7 @@ import {
 } from "vitest";
 import {
   updateDefinitionFetchStatus,
-  upsertDefinitionLocation,
+  updateDefinitionLocation,
 } from "../../../src/common/config-broker/config-catalog.repository.js";
 import { FetchStatus } from "../../../src/grants/models/config-version.js";
 import { processConfigVersionUseCase } from "../../../src/grants/use-cases/process-config-version.use-case.js";
@@ -123,7 +123,7 @@ describe("config broker message flow", () => {
   // Proves the guarantee at the database rather than the call: a definition
   // location for a version that was never ingested must write nothing at all.
   it("does not create a config version record when the parent is missing", async () => {
-    await upsertDefinitionLocation({
+    await updateDefinitionLocation({
       grantCode: "never-ingested",
       version: "9.9.9",
       definitionType: "agreement",

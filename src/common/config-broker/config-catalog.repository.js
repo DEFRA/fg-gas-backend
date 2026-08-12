@@ -65,22 +65,7 @@ export const findLatestUsableDefinition = async ({
   return toDefinition(doc, definitionType);
 };
 
-// Whether a grant publishes this definition type at all, in any version. Used
-// to decide whether a command can be handled locally or belongs to the
-// external service.
-export const hasConfigDefinition = async ({ grantCode, definitionType }) => {
-  const doc = await db.collection(collection).findOne(
-    {
-      grantCode,
-      [`${definitionPath(definitionType)}.s3Key`]: { $exists: true },
-    },
-    { projection: { _id: 1 }, readPreference: "primary" },
-  );
-
-  return Boolean(doc);
-};
-
-export const upsertDefinitionLocation = async ({
+export const updateDefinitionLocation = async ({
   grantCode,
   version,
   definitionType,

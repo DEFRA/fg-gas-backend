@@ -1,5 +1,5 @@
 import Boom from "@hapi/boom";
-import { upsertDefinitionLocation } from "../../common/config-broker/config-catalog.repository.js";
+import { updateDefinitionLocation } from "../../common/config-broker/config-catalog.repository.js";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { findS3KeyInManifest } from "../../common/s3-client.js";
@@ -61,7 +61,7 @@ export const processConfigVersionUseCase = async (eventData) => {
   await upsert(configVersion);
 
   if (agreementS3Key) {
-    await upsertDefinitionLocation({
+    await updateDefinitionLocation({
       grantCode,
       version,
       definitionType: "agreement",

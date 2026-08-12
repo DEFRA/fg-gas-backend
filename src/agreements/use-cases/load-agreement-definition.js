@@ -76,7 +76,7 @@ const resolvers = {
   exact: resolveExact,
 };
 
-const resolveTarget = async (options) => {
+const findTarget = async (options) => {
   const resolve = resolvers[options.resolution];
   if (!resolve) {
     throw Boom.badImplementation(
@@ -84,7 +84,11 @@ const resolveTarget = async (options) => {
     );
   }
 
-  const target = await resolve(options);
+  return resolve(options);
+};
+
+const resolveTarget = async (options) => {
+  const target = await findTarget(options);
   if (!target) {
     throw unavailable(options.code, options.configVersion);
   }
@@ -242,26 +246,59 @@ const shouldFallBack = (resolution, error) =>
   fallbackResolutions.has(resolution) &&
   classifyFailure(error) === FetchStatus.PermanentError;
 
-export const loadAgreementDefinition = async (options) => {
-  let lastError;
+const reportUnusable = (target, attempt) => {
+  if (attempt < MAX_RESOLUTION_ATTEMPTS) {
+    logger.warn(
+      `Agreement definition ${target.grantCode}@${target.version} is unusable, falling back to an older version`,
+    );
+    return;
+  }
 
-  for (let attempt = 0; attempt < MAX_RESOLUTION_ATTEMPTS; attempt += 1) {
+  logger.error(
+    `Agreement definition for ${target.grantCode} still unusable after ${MAX_RESOLUTION_ATTEMPTS} attempts`,
+  );
+};
+
+export const loadAgreementDefinition = async (options) => {
+  for (let attempt = 1; attempt <= MAX_RESOLUTION_ATTEMPTS; attempt += 1) {
     const target = await resolveTarget(options);
 
     try {
       return await loadCompiled(target);
     } catch (error) {
-      lastError = error;
       if (!shouldFallBack(options.resolution, error)) {
         throw error;
       }
-      logger.warn(
-        `Agreement definition ${target.grantCode}@${target.version} is unusable, falling back to an older version`,
-      );
+      reportUnusable(target, attempt);
     }
   }
 
-  throw lastError;
+  // Exhausting the fallbacks is the same outcome as never finding a usable
+  // version, so it surfaces the same error rather than the last raw failure.
+  throw unavailable(options.code, options.configVersion);
+};
+
+// Routing asks the loader the question it will actually be asked at creation,
+// so a grant is only claimed locally when a usable definition exists for that
+// application's config version. Anything else belongs to the external service.
+export const canLoadDefinitionForCreation = async (options) => {
+  try {
+    return Boolean(await findTarget({ ...options, resolution: "creation" }));
+  } catch (error) {
+    // No usable or parseable version is a routing answer; anything else is a
+    // fault that must not quietly divert the command to the external service.
+    if (error.isBoom) {
+      return false;
+    }
+    throw error;
+  }
+};
+
+// Test hook: both caches are module scoped and would otherwise leak between
+// cases, letting a test pass against a definition an earlier one cached.
+export const clearAgreementDefinitionCaches = () => {
+  compiledDefinitions.clear();
+  loadsInFlight.clear();
 };
 
 // Once accepted, an Agreement is pinned to the definition it was accepted
