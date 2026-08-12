@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
@@ -22,8 +23,27 @@ const currentAgreementLocation = "/agreements/current";
 const staleError = (etag) => {
   const error = Boom.preconditionFailed("Agreement version is stale");
   error.output.headers.location = currentAgreementLocation;
-  error.output.headers.etag = etag;
+  if (etag) {
+    error.output.headers.etag = etag;
+  }
   return error;
+};
+
+// Losing the race is the real outcome here, and the caller recovers by following
+// the location header. A definition that will not load must not turn that into
+// an opaque 500 with no location, leaving the caller no way back to the page it
+// should be looking at.
+const staleEtag = async (agreement) => {
+  try {
+    const { etag } = await loadCurrentAgreementContext({ agreement });
+    return etag;
+  } catch (error) {
+    logger.warn(
+      error,
+      `Could not build stale ETag for ${agreement.agreementNumber}`,
+    );
+    return null;
+  }
 };
 
 const findCompleted = async (
@@ -183,8 +203,7 @@ const resolveConcurrentUpdate = async (options) => {
   if (!agreement) {
     throw Boom.notFound("Agreement not found");
   }
-  const { etag } = await loadCurrentAgreementContext({ agreement });
-  throw staleError(etag);
+  throw staleError(await staleEtag(agreement));
 };
 
 const toConcurrentOptions = (options) => ({
