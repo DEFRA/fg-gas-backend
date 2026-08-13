@@ -11,6 +11,7 @@ import {
   insertAgreementDefinition,
 } from "../repositories/agreement-definition.repository.js";
 import {
+  canLoadDefinitionForCreation,
   clearAgreementDefinitionCaches,
   loadAgreementDefinition,
   loadDefinitionForAgreement,
@@ -367,6 +368,55 @@ describe("loadAgreementDefinition", () => {
           resolution: "same-major",
         }),
       ).rejects.toMatchObject({ output: { statusCode: 500 } });
+    });
+  });
+
+  describe("canLoadDefinitionForCreation", () => {
+    it("claims a grant whose config version resolves to a definition", async () => {
+      findConfigDefinition.mockResolvedValue(target("1.0.1"));
+
+      await expect(
+        canLoadDefinitionForCreation({
+          code: "test-code",
+          configVersion: "1.0.1",
+        }),
+      ).resolves.toBe(true);
+    });
+
+    // A legacy grant is published through the config broker like any other, so
+    // it has a config version; it just never ships an Agreement definition.
+    it("leaves a grant with no Agreement definition to the external service", async () => {
+      findConfigDefinition.mockResolvedValue(null);
+      findLatestUsableDefinition.mockResolvedValue(null);
+
+      await expect(
+        canLoadDefinitionForCreation({
+          code: "woodland",
+          configVersion: "1.0.0",
+        }),
+      ).resolves.toBe(false);
+    });
+
+    it("leaves a grant with no config version to the external service", async () => {
+      await expect(
+        canLoadDefinitionForCreation({
+          code: "woodland",
+          configVersion: null,
+        }),
+      ).resolves.toBe(false);
+    });
+
+    // A fault is not an answer: diverting the command externally would create
+    // the Agreement in the wrong system.
+    it("rethrows a fault rather than reporting the grant as external", async () => {
+      findConfigDefinition.mockRejectedValue(new Error("mongo is down"));
+
+      await expect(
+        canLoadDefinitionForCreation({
+          code: "test-code",
+          configVersion: "1.0.1",
+        }),
+      ).rejects.toThrow("mongo is down");
     });
   });
 

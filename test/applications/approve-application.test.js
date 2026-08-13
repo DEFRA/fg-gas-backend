@@ -94,4 +94,44 @@ describe("On CaseStatusUpdated", () => {
       messageGroupId: `${clientRef}-${code}`,
     });
   });
+
+  // A legacy grant reaches this point with a config version like any other, so
+  // only the absent Agreement definition keeps its Agreement with the external
+  // service. Routing on the config version alone sends it to the internal
+  // handler, which has no definition to create it from.
+  it("sends the Agreement command to the external service for a grant with no Agreement definition", async () => {
+    await createGrant();
+
+    const { clientRef, code } = await submitApplication(db, {
+      withAgreementDefinition: false,
+    });
+
+    await applications.updateOne(
+      { clientRef },
+      { $set: { currentStatus: "IN_REVIEW" } },
+    );
+
+    await sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
+      id: randomUUID(),
+      traceparent: "ts-002",
+      type: "fg.cw-backend.test.case.status.updated",
+      source: "CW",
+      data: {
+        caseRef: clientRef,
+        workflowCode: code,
+        previousStatus: "IN_REVIEW",
+        currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+      },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 500)); // wait for inbox to pick up queue
+
+    await expect(outbox).toHaveRecord({
+      "event.type": "cloud.defra.local.fg-gas-backend.agreement.create",
+      "event.data.clientRef": clientRef,
+      target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
+    });
+
+    expect(await agreements.findOne({ clientRef, code })).toBeNull();
+  });
 });
