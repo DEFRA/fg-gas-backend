@@ -1,5 +1,6 @@
 import { FetchStatus } from "../fetch-status.js";
 import { db } from "../mongo-client.js";
+import { buildFetchStateUpdate } from "./fetch-state-update.js";
 
 const collection = "config_versions";
 
@@ -104,25 +105,16 @@ export const updateDefinitionFetchStatus = async ({
   fetchStatus,
   fetchError = null,
 }) => {
-  const path = definitionPath(definitionType);
-  const now = new Date().toISOString();
-  const update = {
-    [`${path}.fetchStatus`]: fetchStatus,
-    [`${path}.fetchError`]: fetchError,
-    [`${path}.lastFetchAttemptAt`]: now,
-  };
+  const { set, inc } = buildFetchStateUpdate({
+    path: definitionPath(definitionType),
+    fetchStatus,
+    fetchError,
+    at: new Date().toISOString(),
+  });
 
-  if (fetchStatus === FetchStatus.Fetched) {
-    update[`${path}.fetchedAt`] = now;
-    // Clear the counter on success so it measures consecutive failures rather
-    // than every failure the version has ever had. Otherwise old failures sit
-    // there and combine with a much later blip.
-    update[`${path}.fetchAttempts`] = 0;
-  }
-
-  const mongoUpdate = { $set: update };
-  if (fetchStatus !== FetchStatus.Fetched) {
-    mongoUpdate.$inc = { [`${path}.fetchAttempts`]: 1 };
+  const mongoUpdate = { $set: set };
+  if (inc) {
+    mongoUpdate.$inc = inc;
   }
 
   return db

@@ -1,3 +1,4 @@
+import { buildFetchStateUpdate } from "../../common/config-broker/fetch-state-update.js";
 import { FetchStatus } from "../../common/fetch-status.js";
 import { db } from "../../common/mongo-client.js";
 import { ConfigVersion } from "../models/config-version.js";
@@ -67,11 +68,10 @@ export const findLatestForMajor = async (grantCode, major) => {
 
 // Writes the Grant fetch state twice, top-level and under definitions.grant,
 // because writes have moved to the nested shape while findLatestForMajor above
-// still reads the top-level one. The duplication with
-// updateDefinitionFetchStatus in config-catalog.repository.js is deliberate and
-// temporary: when FGP-1352 moves the Grant reads across, the top-level half goes
-// away and this collapses into a call to that function with a "grant"
-// definitionType. Until then both halves have to stay in step.
+// still reads the top-level one. The nested half comes from the same builder the
+// Agreement path uses, so the two cannot drift; the top-level half is the
+// temporary compatibility write and goes away with those reads in FGP-1352. Both
+// go in one updateOne so they are never briefly out of step with each other.
 export const updateFetchStatus = async (
   grantCode,
   version,
@@ -79,31 +79,27 @@ export const updateFetchStatus = async (
   fetchError = null,
 ) => {
   const now = new Date().toISOString();
-  const update = {
+  const nested = buildFetchStateUpdate({
+    path: "definitions.grant",
     fetchStatus,
     fetchError,
-    lastFetchAttemptAt: now,
-    "definitions.grant.fetchStatus": fetchStatus,
-    "definitions.grant.fetchError": fetchError,
-    "definitions.grant.lastFetchAttemptAt": now,
+    at: now,
+  });
+
+  const update = {
+    $set: { fetchStatus, fetchError, lastFetchAttemptAt: now, ...nested.set },
   };
 
   if (fetchStatus === FetchStatus.Fetched) {
-    update.fetchedAt = now;
-    update["definitions.grant.fetchedAt"] = now;
+    update.$set.fetchedAt = now;
+    // No top-level fetchAttempts reset to match the nested one: this counter
+    // still drives the retry limit in resolve-config-version.service.js, and
+    // clearing it would change that behaviour. It retires with the field.
+  } else {
+    update.$inc = { fetchAttempts: 1, ...nested.inc };
   }
 
-  const mongoUpdate = { $set: update };
-  if (fetchStatus !== FetchStatus.Fetched) {
-    mongoUpdate.$inc = {
-      fetchAttempts: 1,
-      "definitions.grant.fetchAttempts": 1,
-    };
-  }
-
-  return db
-    .collection(collection)
-    .updateOne({ grantCode, version }, mongoUpdate);
+  return db.collection(collection).updateOne({ grantCode, version }, update);
 };
 
 export const findByGrantCodeAndVersion = async (grantCode, version) => {

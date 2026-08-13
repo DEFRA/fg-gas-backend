@@ -21,10 +21,6 @@ import {
 } from "../repositories/agreement-definition.repository.js";
 
 const definitionType = "agreement";
-// A safety net, not the normal terminator: each unusable version is marked a
-// permanent error and so drops out of the next resolve, which is what actually
-// ends the walk back through versions.
-const MAX_RESOLUTION_ATTEMPTS = 10;
 const compiledDefinitions = new Map();
 const loadsInFlight = new Map();
 
@@ -150,10 +146,8 @@ const compileDefinition = (rawDefinition, code, version) => {
   return new AgreementDefinition(definition);
 };
 
-const loadStored = async (target) => {
-  const stored = await findStoredDefinition(target.grantCode, target.version);
-  return stored?.definition ?? null;
-};
+const loadStored = (target) =>
+  findStoredDefinition(target.grantCode, target.version);
 
 const store = async (target, definition) => {
   try {
@@ -304,7 +298,11 @@ export const loadAgreementDefinition = async (options) => {
   // was still sitting there.
   const attempted = new Set();
 
-  for (let attempt = 1; attempt <= MAX_RESOLUTION_ATTEMPTS; attempt += 1) {
+  // Bounded by the versions on offer rather than a count of them: each pass
+  // either records a version not seen before or stops, so this cannot run longer
+  // than there are versions for the grant, and resolveTarget throws once none is
+  // left. A number here could only cut the walk short of a usable release.
+  for (;;) {
     const target = await resolveTarget(options);
     const key = `${target.grantCode}@${target.version}`;
 

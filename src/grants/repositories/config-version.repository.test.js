@@ -147,6 +147,19 @@ describe("config-version.repository", () => {
       );
       expect(mockCollection.updateOne.mock.calls[0][1].$inc).toBeUndefined();
     });
+
+    // The nested state shares its builder with the Agreement path, which clears
+    // the counter on success. The top-level one deliberately does not: it still
+    // drives the retry limit in resolve-config-version.service.js.
+    it("clears the nested attempt counter on success but not the top-level one", async () => {
+      mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 });
+
+      await updateFetchStatus("woodland", "1.2.3", FetchStatus.Fetched);
+
+      const [, update] = mockCollection.updateOne.mock.calls[0];
+      expect(update.$set["definitions.grant.fetchAttempts"]).toBe(0);
+      expect(update.$set.fetchAttempts).toBeUndefined();
+    });
   });
 
   describe("findByGrantCodeAndVersion", () => {
