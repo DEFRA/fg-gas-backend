@@ -3,10 +3,9 @@
 // apart from config that is genuinely broken and must never record it against
 // the shared config version.
 export class EndpointServiceUrlError extends Error {
-  constructor(message, missingServices) {
+  constructor(message) {
     super(message);
     this.name = "EndpointServiceUrlError";
-    this.missingServices = missingServices;
   }
 }
 
@@ -17,7 +16,6 @@ export const resolveEndpointServiceUrl = (service) => {
   if (!url) {
     throw new EndpointServiceUrlError(
       `No URL configured for service "${service}" (expected env var ${envVar})`,
-      [service],
     );
   }
 
@@ -54,7 +52,6 @@ export const validateEndpointServiceUrls = (definitions) => {
 
     throw new EndpointServiceUrlError(
       `Missing required endpoint URL env var(s): ${missingServicesUrls}`,
-      missing,
     );
   }
 };
