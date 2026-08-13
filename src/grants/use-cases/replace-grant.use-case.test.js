@@ -13,6 +13,144 @@ vi.mock("../repositories/grant.repository.js");
 vi.mock("../../common/write-audit-event.js");
 
 describe("replaceGrantUseCase", () => {
+  it("carries entitlementTemplates and amendablePositions through the replacement", async () => {
+    writeAuditEvent.mockResolvedValue(true);
+    findByCode.mockResolvedValue(
+      new Grant({
+        code: "test-grant",
+        version: "0.0.0",
+        metadata: {
+          description: "Test Grant Description",
+          startDate: "2023-01-01T00:00:00Z",
+        },
+        actions: [],
+      }),
+    );
+
+    const phases = [
+      {
+        code: "PRE_AWARD",
+        stages: [
+          {
+            code: "ASSESSMENT",
+            statuses: [{ code: "APPLICATION_RECEIVED", validFrom: [] }],
+          },
+        ],
+      },
+    ];
+    const entitlementTemplates = [
+      {
+        claimCode: "ENT_CS_CAPITAL_PA3",
+        name: "PA3 entitlement",
+        description: "The maximum eligible area that can be claimed.",
+        materialised: false,
+        fields: {
+          totalHectares: {
+            input: true,
+            label: "Total area of eligible woodland",
+            unitType: "decimal",
+            decimalPlaces: 4,
+            unit: "HA",
+            minValue: 0.5,
+            maxValue: null,
+          },
+        },
+        maxEntitlements: 1,
+        availableAt: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "APPLICATION_RECEIVED",
+        },
+        claim: {
+          limits: { maximumClaims: 1, allowsPartialClaims: false },
+          requiresApproval: false,
+          requiresEvidence: false,
+        },
+      },
+    ];
+
+    await replaceGrantUseCase({
+      code: "test-grant",
+      command: {
+        code: "test-grant",
+        metadata: {
+          description: "Updated Test Grant Description",
+          startDate: "2023-01-02T00:00:00Z",
+        },
+        actions: [],
+        phases,
+        amendablePositions: ["PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"],
+        entitlementTemplates,
+      },
+    });
+
+    const [replacedGrant] = replace.mock.calls.at(-1);
+
+    expect(replacedGrant.entitlementTemplates).toEqual(entitlementTemplates);
+    expect(replacedGrant.amendablePositions).toEqual([
+      "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+    ]);
+  });
+
+  // Replace means replace: a payload that says nothing about entitlements
+  // leaves the grant with none, rather than silently keeping the previous set.
+  it("clears entitlementTemplates when the replacement omits them", async () => {
+    writeAuditEvent.mockResolvedValue(true);
+
+    const phases = [
+      {
+        code: "PRE_AWARD",
+        stages: [
+          {
+            code: "ASSESSMENT",
+            statuses: [{ code: "APPLICATION_RECEIVED", validFrom: [] }],
+          },
+        ],
+      },
+    ];
+
+    findByCode.mockResolvedValue(
+      new Grant({
+        code: "test-grant",
+        version: "0.0.0",
+        metadata: {
+          description: "Test Grant Description",
+          startDate: "2023-01-01T00:00:00Z",
+        },
+        actions: [],
+        phases,
+        entitlementTemplates: [
+          {
+            claimCode: "ENT_TRACTOR",
+            name: "Tractor entitlement",
+            availableAt: {
+              phase: "PRE_AWARD",
+              stage: "ASSESSMENT",
+              status: "APPLICATION_RECEIVED",
+            },
+          },
+        ],
+      }),
+    );
+
+    await replaceGrantUseCase({
+      code: "test-grant",
+      command: {
+        code: "test-grant",
+        metadata: {
+          description: "Updated Test Grant Description",
+          startDate: "2023-01-02T00:00:00Z",
+        },
+        actions: [],
+        phases,
+      },
+    });
+
+    const [replacedGrant] = replace.mock.calls.at(-1);
+
+    expect(replacedGrant.entitlementTemplates).toEqual([]);
+  });
+
   it("replaces the whole grant and creates an audit event", async () => {
     writeAuditEvent.mockResolvedValue(true);
     findByCode.mockResolvedValue(

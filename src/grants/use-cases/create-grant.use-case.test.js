@@ -135,4 +135,62 @@ describe("createGrantUseCase", () => {
       }),
     );
   });
+
+  it("creates a grant with entitlementTemplates", async () => {
+    const phases = [
+      {
+        code: "PRE_AWARD",
+        stages: [
+          {
+            code: "ASSESSMENT",
+            statuses: [{ code: "APPLICATION_RECEIVED", validFrom: [] }],
+          },
+        ],
+      },
+    ];
+    const entitlementTemplates = [
+      {
+        claimCode: "ENT_CS_CAPITAL_PA3",
+        name: "PA3 entitlement",
+        description: "The maximum eligible area that can be claimed.",
+        materialised: false,
+        fields: {
+          totalHectares: {
+            input: true,
+            label: "Total area of eligible woodland",
+            unitType: "decimal",
+            decimalPlaces: 4,
+            unit: "HA",
+            minValue: 0.5,
+            maxValue: null,
+          },
+        },
+        maxEntitlements: 1,
+        availableAt: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "APPLICATION_RECEIVED",
+        },
+        claim: {
+          limits: { maximumClaims: 1, allowsPartialClaims: false },
+          requiresApproval: false,
+          requiresEvidence: false,
+        },
+      },
+    ];
+
+    const grant = await createGrantUseCase({
+      code: "test-grant",
+      metadata: {
+        description: "Test Grant Description",
+        startDate: "2023-01-01T00:00:00Z",
+      },
+      actions: [],
+      phases,
+      entitlementTemplates,
+    });
+
+    expect(save).toHaveBeenCalledWith(grant);
+    expect(grant.entitlementTemplates).toEqual(entitlementTemplates);
+  });
 });

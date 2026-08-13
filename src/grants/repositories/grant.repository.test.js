@@ -4,7 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
-import { findAll, findByCode, replace, save } from "./grant.repository.js";
+import {
+  findAll,
+  findByCode,
+  replace,
+  save,
+  saveFromDefinition,
+} from "./grant.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -57,6 +63,7 @@ describe("save", () => {
             url: "http://localhost",
           },
         ],
+        entitlementTemplates: [],
       }),
     );
   });
@@ -179,6 +186,7 @@ describe("replace", () => {
             url: "http://localhost",
           },
         ],
+        entitlementTemplates: [],
       }),
     );
   });
@@ -370,5 +378,235 @@ describe("findByCode", () => {
 
     const result = await findByCode("woodland", "9.9.9");
     expect(result).toBeNull();
+  });
+});
+
+describe("entitlementTemplates", () => {
+  const phases = [
+    {
+      code: "PHASE_PRE_AWARD",
+      stages: [
+        {
+          code: "STAGE_PREPARE_CLAIM",
+          statuses: [{ code: "STATUS_PREPARING_CLAIM", validFrom: [] }],
+        },
+      ],
+    },
+    {
+      code: "PHASE_CLAIM",
+      stages: [
+        {
+          code: "STAGE_AWAITING_CLAIM",
+          statuses: [{ code: "STATUS_AWAITING_CLAIM", validFrom: [] }],
+        },
+        {
+          code: "STAGE_CLAIM_COMPLETE",
+          statuses: [{ code: "STATUS_CLAIM_COMPLETE", validFrom: [] }],
+        },
+      ],
+    },
+  ];
+
+  // The WMP template exactly as the grant definition writes it, so the
+  // round-trip tests below prove the documented shape survives Mongo unchanged
+  // - nulls, nested fields map and all.
+  const entitlementTemplates = [
+    {
+      claimCode: "ENT_CS_CAPITAL_PA3",
+      name: "PA3 Woodland Management Plan entitlement",
+      description:
+        "The maximum eligible woodland area that can be claimed under PA3.",
+      materialised: false,
+      fields: {
+        totalHectares: {
+          input: true,
+          label: "Total area of eligible woodland",
+          unitType: "decimal",
+          decimalPlaces: 4,
+          unit: "HA",
+          minValue: 0.5,
+          maxValue: null,
+        },
+        actionCode: {
+          input: false,
+          value: "PA3",
+          unitType: "string",
+          minLength: 1,
+          maxLength: null,
+        },
+        actionVersion: {
+          input: false,
+          value: "jsonata: $.agreement.actions[code='PA3'].version",
+          unitType: "string",
+          minLength: 1,
+          maxLength: null,
+        },
+      },
+      maxEntitlements: 1,
+      availableAt: {
+        phase: "PHASE_PRE_AWARD",
+        stage: "STAGE_PREPARE_CLAIM",
+        status: "STATUS_PREPARING_CLAIM",
+      },
+      claim: {
+        limits: { maximumClaims: 1, allowsPartialClaims: false },
+        requiresApproval: false,
+        requiresEvidence: false,
+      },
+    },
+  ];
+
+  it("persists entitlementTemplates on the stored document when saving a grant", async () => {
+    const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
+
+    db.collection.mockReturnValue({ insertOne });
+
+    await save(
+      new Grant({
+        code: "woodland",
+        version: "0.0.0",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases,
+        entitlementTemplates,
+      }),
+    );
+
+    expect(insertOne).toHaveBeenCalledWith(
+      new GrantDocument({
+        code: "woodland",
+        version: "0.0.0",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases,
+        entitlementTemplates,
+      }),
+    );
+  });
+
+  it("rehydrates entitlementTemplates from a stored document via findByCode", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce({
+      code: "woodland",
+      version: "0.0.0",
+      metadata: {
+        description: "test",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      phases,
+      entitlementTemplates,
+    });
+
+    db.collection.mockReturnValue({ findOne });
+
+    const result = await findByCode("woodland");
+
+    expect(result.entitlementTemplates).toEqual(entitlementTemplates);
+  });
+
+  it("round-trips entitlementTemplates from a grant definition via saveFromDefinition", async () => {
+    const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
+
+    db.collection.mockReturnValue({ insertOne });
+
+    const grantDefinition = {
+      code: "woodland",
+      metadata: {
+        description: "test",
+        startDate: "2021-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      phases,
+      entitlementTemplates,
+    };
+
+    const grant = await saveFromDefinition(grantDefinition, "1.0.0");
+
+    expect(grant.entitlementTemplates).toEqual(entitlementTemplates);
+    expect(insertOne).toHaveBeenCalledWith(
+      expect.objectContaining({ entitlementTemplates }),
+    );
+  });
+
+  // Grants written before entitlement templates existed have no such key, and
+  // one written without any comes back as null. Both are normalised here rather
+  // than in the model, which takes a collection and nothing else.
+  it.each([
+    ["the key is absent", {}],
+    ["the key is null", { entitlementTemplates: null }],
+  ])(
+    "reads entitlementTemplates as an empty collection when %s",
+    async (_label, storedField) => {
+      const findOne = vi.fn().mockResolvedValueOnce({
+        code: "legacy",
+        version: "1.0.0",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases,
+        ...storedField,
+      });
+
+      db.collection.mockReturnValue({ findOne });
+
+      const result = await findByCode("legacy");
+
+      expect(result.entitlementTemplates).toEqual([]);
+      expect(result.findEntitlementTemplate("ANYTHING")).toBeUndefined();
+      expect(
+        result.findEntitlementTemplatesAvailableAt({
+          phase: "PHASE_PRE_AWARD",
+          stage: "STAGE_PREPARE_CLAIM",
+          status: "STATUS_PREPARING_CLAIM",
+        }),
+      ).toEqual([]);
+    },
+  );
+
+  // The driver resolves ignoreUndefined to false, so the optional keys a
+  // materialised template omits are stored as null - which is what findByCode
+  // then feeds back into the model. Without this, the commonest template of all
+  // saves cleanly and 500s on every subsequent read.
+  it("rehydrates a materialised template stored with nulls for its omitted keys", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce({
+      code: "woodland",
+      version: "1.0.0",
+      metadata: { description: "test", startDate: "2021-01-01T00:00:00.000Z" },
+      actions: [],
+      phases,
+      entitlementTemplates: [
+        {
+          claimCode: "ENT_TRACTOR",
+          name: "Tractor entitlement",
+          description: null,
+          materialised: true,
+          fields: null,
+          maxEntitlements: 1,
+          availableAt: {
+            phase: "PHASE_PRE_AWARD",
+            stage: "STAGE_PREPARE_CLAIM",
+            status: "STATUS_PREPARING_CLAIM",
+          },
+          claim: null,
+        },
+      ],
+    });
+
+    db.collection.mockReturnValue({ findOne });
+
+    const result = await findByCode("woodland");
+    const template = result.findEntitlementTemplate("ENT_TRACTOR");
+
+    expect(template.description).toBeUndefined();
+    expect(template.fields).toBeUndefined();
+    expect(template.claim).toBeUndefined();
   });
 });
