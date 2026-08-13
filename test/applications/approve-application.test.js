@@ -7,6 +7,7 @@ import { createGrant } from "../helpers/grants.js";
 import { sendMessage } from "../helpers/sqs.js";
 
 let db;
+let agreements;
 let applications;
 let outbox;
 let client;
@@ -14,6 +15,7 @@ let client;
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   db = client.db();
+  agreements = db.collection("agreements__agreements");
   applications = db.collection("applications");
   outbox = db.collection("outbox");
 });
@@ -66,8 +68,10 @@ describe("On CaseStatusUpdated", () => {
       target: env.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
     });
 
-    await expect(outbox).toHaveRecord({
-      target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
+    await expect(agreements).toHaveRecord({
+      clientRef,
+      code,
+      state: "offered",
     });
 
     await expect(
@@ -86,33 +90,6 @@ describe("On CaseStatusUpdated", () => {
         currentConfigVersion: "1.0.0",
         currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
         previousStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
-      },
-      messageGroupId: `${clientRef}-${code}`,
-    });
-
-    await expect(env.CREATE_AGREEMENT_QUEUE_URL).toHaveReceived({
-      id: expect.any(String),
-      traceparent,
-      type: "cloud.defra.local.fg-gas-backend.agreement.create",
-      source: "fg-gas-backend",
-      time: expect.any(String),
-      specversion: "1.0",
-      datacontenttype: "application/json",
-      data: {
-        clientRef,
-        code,
-        currentConfigVersion: "1.0.0",
-        identifiers: {
-          sbi: "123456789",
-          frn: "1234567890",
-          crn: "1234567890",
-        },
-        metadata: {
-          defraId: "1234567890",
-        },
-        answers: {
-          question1: "test answer",
-        },
       },
       messageGroupId: `${clientRef}-${code}`,
     });

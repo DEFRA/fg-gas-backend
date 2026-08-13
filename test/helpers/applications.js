@@ -40,6 +40,31 @@ export const createTestApplication = (overrides = {}) => {
   });
 };
 
+const createAgreementDefinition = (code) => ({
+  code,
+  agreementNumberPrefix: "TST",
+  create: {
+    target: "offered",
+    application: "$.input.answers",
+    values: { actions: [], items: [] },
+    processes: [],
+  },
+  states: {
+    offered: { page: "offered" },
+    accepted: { page: "accepted" },
+  },
+  pages: {
+    offered: {
+      title: "Offer",
+      components: [{ component: "heading", text: "Offer" }],
+    },
+    accepted: {
+      title: "Accepted",
+      components: [{ component: "heading", text: "Accepted" }],
+    },
+  },
+});
+
 export const seedConfigVersion = async (db, code, version = "1.0.0") => {
   const cv = ConfigVersion.new({
     grantCode: code,
@@ -51,9 +76,28 @@ export const seedConfigVersion = async (db, code, version = "1.0.0") => {
   const doc = cv.toDocument();
   doc.fetchStatus = FetchStatus.Fetched;
   doc.fetchedAt = new Date().toISOString();
-  await db
-    .collection("config_versions")
-    .updateOne({ grantCode: code, version }, { $set: doc }, { upsert: true });
+  doc.definitions = {
+    agreement: {
+      s3Key: `${code}/${version}/gas/agreement.json`,
+      fetchStatus: FetchStatus.Fetched,
+      fetchAttempts: 0,
+      fetchError: null,
+      fetchedAt: doc.fetchedAt,
+      lastFetchAttemptAt: doc.fetchedAt,
+    },
+  };
+  await Promise.all([
+    db
+      .collection("config_versions")
+      .updateOne({ grantCode: code, version }, { $set: doc }, { upsert: true }),
+    db
+      .collection("agreements__definitions")
+      .updateOne(
+        { code, version },
+        { $set: { definition: createAgreementDefinition(code) } },
+        { upsert: true },
+      ),
+  ]);
 
   // Copy the legacy grant definition to the versioned entry so findStoredGrant resolves it
   const legacyGrant = await db.collection("grants").findOne({ code });
