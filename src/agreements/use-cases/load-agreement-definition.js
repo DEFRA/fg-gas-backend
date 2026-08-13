@@ -347,28 +347,6 @@ export const loadAgreementDefinition = async (options) => {
   throw unavailable(options.code, options.configVersion);
 };
 
-// Routing asks the loader the question it will actually be asked at creation,
-// so a grant is only claimed locally when a usable definition exists for that
-// application's config version. Anything else belongs to the external service.
-//
-// This loads rather than just resolving: routing is decided once and written to
-// the outbox, so a version that resolves but cannot be fetched or compiled would
-// be claimed here and then throw on every redelivery, never reaching the
-// external service. The compiled result is cached, so creation reuses it.
-export const canLoadDefinitionForCreation = async (options) => {
-  try {
-    await loadAgreementDefinition({ ...options, resolution: "creation" });
-    return true;
-  } catch (error) {
-    // No usable or parseable version is a routing answer; anything else is a
-    // fault that must not quietly divert the command to the external service.
-    if (error.isBoom) {
-      return false;
-    }
-    throw error;
-  }
-};
-
 // Test hook: both caches are module scoped and would otherwise leak between
 // cases, letting a test pass against a definition an earlier one cached.
 export const clearAgreementDefinitionCaches = () => {

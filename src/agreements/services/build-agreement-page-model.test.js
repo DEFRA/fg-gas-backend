@@ -581,7 +581,7 @@ describe("buildAgreementPageModel", () => {
       configVersion: "1",
       agreementNumberPrefix: "TST",
       create: creationDefinition,
-      states: { offered: { page: "offer" } },
+      states: { offered: { page: "offer" }, accepted: { page: "offer" } },
       templates: {
         stateSummary: {
           offered: {
@@ -622,7 +622,7 @@ describe("buildAgreementPageModel", () => {
       configVersion: "1",
       agreementNumberPrefix: "TST",
       create: creationDefinition,
-      states: { offered: { page: "offer" } },
+      states: { offered: { page: "offer" }, accepted: { page: "offer" } },
       pages: {
         offer: {
           title: "Offer",

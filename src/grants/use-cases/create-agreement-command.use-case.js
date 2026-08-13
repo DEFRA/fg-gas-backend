@@ -26,11 +26,8 @@ export const auditDataBuilder = (args) => {
   });
 };
 
-const resolveAgreementCommandTarget = async (command) =>
-  (await canHandleInternalCommand(
-    internalCommandTypes.AGREEMENT_CREATE,
-    command,
-  ))
+const resolveAgreementCommandTarget = (command) =>
+  canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, command)
     ? internalMessageBusTarget
     : config.sns.createAgreementTopicArn;
 
@@ -48,7 +45,7 @@ const createAgreementCommand = async ({ clientRef, code }, session) => {
     [
       new Outbox({
         event: command,
-        target: await resolveAgreementCommandTarget(command),
+        target: resolveAgreementCommandTarget(command),
         segregationRef: Outbox.getSegregationRef(command),
       }),
     ],

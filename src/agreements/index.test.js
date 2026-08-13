@@ -1,5 +1,5 @@
 import hapi from "@hapi/hapi";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   canHandleInternalCommand,
   clearInternalCommandHandlers,
@@ -8,9 +8,6 @@ import {
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { agreements } from "./index.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
-import { canLoadDefinitionForCreation } from "./use-cases/load-agreement-definition.js";
-
-vi.mock("./use-cases/load-agreement-definition.js");
 
 describe("agreements", () => {
   afterEach(() => {
@@ -61,29 +58,25 @@ describe("agreements", () => {
     ).toBe(handleCreateAgreementCommandUseCase);
   });
 
-  // Applications whose config version has no usable definition must keep
-  // routing to the external Agreements service rather than failing in the
-  // loader, so routing asks exactly what creation will resolve.
-  it("only handles agreement.create when the config version resolves", async () => {
+  it("handles configured agreement.create commands internally", async () => {
     const server = hapi.server();
     await server.register(agreements);
 
-    canLoadDefinitionForCreation.mockResolvedValue(true);
-    await expect(
+    expect(
       canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
         data: { code: "pigs-might-fly", currentConfigVersion: "1.0.1" },
       }),
-    ).resolves.toBe(true);
-    expect(canLoadDefinitionForCreation).toHaveBeenCalledWith({
-      code: "pigs-might-fly",
-      configVersion: "1.0.1",
-    });
+    ).toBe(true);
+  });
 
-    canLoadDefinitionForCreation.mockResolvedValue(false);
-    await expect(
+  it("leaves legacy agreement.create commands to the external service", async () => {
+    const server = hapi.server();
+    await server.register(agreements);
+
+    expect(
       canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
-        data: { code: "woodland", currentConfigVersion: "1.2.3" },
+        data: { code: "woodland", currentConfigVersion: null },
       }),
-    ).resolves.toBe(false);
+    ).toBe(false);
   });
 });

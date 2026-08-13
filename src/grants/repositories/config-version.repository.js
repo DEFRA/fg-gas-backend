@@ -16,6 +16,10 @@ export const upsert = async (configVersion) => {
     lastFetchAttemptAt: doc.lastFetchAttemptAt,
   };
 
+  // $literal on the values that arrive from the config broker: this is a
+  // pipeline update, where a string is an expression rather than a value, so a
+  // leading "$" would be read as a field path instead of stored verbatim. The
+  // numbers and internal enums below cannot be mistaken for one.
   return db.collection(collection).updateOne(
     { grantCode: doc.grantCode, version: doc.version },
     [
@@ -25,8 +29,8 @@ export const upsert = async (configVersion) => {
           minor: doc.minor,
           patch: doc.patch,
           status: doc.status,
-          s3Key: doc.s3Key,
-          s3Bucket: doc.s3Bucket,
+          s3Key: { $literal: doc.s3Key },
+          s3Bucket: { $literal: doc.s3Bucket },
           receivedAt: { $ifNull: ["$receivedAt", doc.receivedAt] },
           fetchedAt: { $ifNull: ["$fetchedAt", doc.fetchedAt] },
           fetchStatus: { $ifNull: ["$fetchStatus", doc.fetchStatus] },
@@ -39,7 +43,7 @@ export const upsert = async (configVersion) => {
             $mergeObjects: [
               fetchState,
               { $ifNull: ["$definitions.grant", {}] },
-              { s3Key: doc.s3Key },
+              { s3Key: { $literal: doc.s3Key } },
             ],
           },
         },

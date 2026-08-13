@@ -24,41 +24,29 @@ describe("internal-command-bus", () => {
     expect(getInternalCommandHandler("agreement.create")).toBe(handler);
   });
 
-  it("reports whether a handler can handle a command", async () => {
-    const canHandle = (command) =>
-      canHandleInternalCommand("agreement.create", command);
-
-    await expect(canHandle({ data: {} })).resolves.toBe(false);
+  it("reports whether a handler can handle a command", () => {
+    expect(canHandleInternalCommand("agreement.create", { data: {} })).toBe(
+      false,
+    );
 
     registerInternalCommandHandler("agreement.create", () => {});
-    await expect(canHandle({ data: {} })).resolves.toBe(true);
+    expect(canHandleInternalCommand("agreement.create", { data: {} })).toBe(
+      true,
+    );
 
     registerInternalCommandHandler("agreement.create", () => {}, {
       canHandle: (command) => command.data.code === "pigs-might-fly",
     });
-    await expect(canHandle({ data: { code: "pigs-might-fly" } })).resolves.toBe(
-      true,
-    );
-    await expect(canHandle({ data: { code: "woodland" } })).resolves.toBe(
-      false,
-    );
-  });
-
-  it("awaits an asynchronous canHandle", async () => {
-    registerInternalCommandHandler("agreement.create", () => {}, {
-      canHandle: async (command) => command.data.code === "pigs-might-fly",
-    });
-
-    await expect(
+    expect(
       canHandleInternalCommand("agreement.create", {
         data: { code: "pigs-might-fly" },
       }),
-    ).resolves.toBe(true);
-    await expect(
+    ).toBe(true);
+    expect(
       canHandleInternalCommand("agreement.create", {
         data: { code: "woodland" },
       }),
-    ).resolves.toBe(false);
+    ).toBe(false);
   });
 
   it("throws when no handler is registered for a command", async () => {

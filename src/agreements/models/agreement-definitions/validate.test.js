@@ -41,6 +41,19 @@ describe("validateAgreementDefinition", () => {
     );
   });
 
+  // Renaming the accepting state is the failure this rule exists to catch: the
+  // definition would otherwise validate and transition normally, while never
+  // pinning the config version the holder accepted under.
+  it("throws when there is no accepted state, whatever the grant calls its own", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.states.signed = definition.states.accepted;
+    delete definition.states.accepted;
+
+    expect(() => validateAgreementDefinition(definition)).toThrow(
+      /"states.accepted" is required/,
+    );
+  });
+
   it("throws when an action target does not match any state", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.states.offered.on.accept.target = "also-missing";

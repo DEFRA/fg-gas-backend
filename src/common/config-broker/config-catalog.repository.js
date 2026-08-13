@@ -87,11 +87,19 @@ export const updateDefinitionLocation = async ({
   // Deliberately not an upsert: the config version record is written first and
   // carries the fields every read filters on (major, status). Creating a
   // document here would produce one without them, invisible to every query.
+  //
+  // $literal because this is a pipeline update, where a string value is an
+  // expression rather than a value: s3Key arrives from the config broker
+  // manifest, so a leading "$" would be read as a field path instead of stored.
   return db.collection(collection).updateOne({ grantCode, version }, [
     {
       $set: {
         [path]: {
-          $mergeObjects: [defaults, { $ifNull: [`$${path}`, {}] }, { s3Key }],
+          $mergeObjects: [
+            defaults,
+            { $ifNull: [`$${path}`, {}] },
+            { s3Key: { $literal: s3Key } },
+          ],
         },
       },
     },

@@ -131,7 +131,7 @@ describe("config catalog repository", () => {
                   fetchAttempts: 0,
                 }),
                 { $ifNull: ["$definitions.agreement", {}] },
-                { s3Key: "woodland/1.2.3/gas/agreement.json" },
+                { s3Key: { $literal: "woodland/1.2.3/gas/agreement.json" } },
               ],
             },
           },

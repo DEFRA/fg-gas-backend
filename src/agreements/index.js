@@ -5,17 +5,9 @@ import { getCurrentAgreementRoute } from "./routes/get-current-agreement.route.j
 import { invokeAgreementActionRoute } from "./routes/invoke-agreement-action.route.js";
 import { prepareAgreementActionRoute } from "./routes/prepare-agreement-action.route.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
-import { canLoadDefinitionForCreation } from "./use-cases/load-agreement-definition.js";
 
-// Only applications whose config version resolves to a usable Agreement
-// definition are handled here; the rest still belong to the external Agreements
-// service, so the command has to keep routing there rather than failing in the
-// loader.
 const canHandleCreateAgreementCommand = ({ data }) =>
-  canLoadDefinitionForCreation({
-    code: data.code,
-    configVersion: data.currentConfigVersion,
-  });
+  Boolean(data.currentConfigVersion);
 
 export const agreements = {
   name: "agreements",

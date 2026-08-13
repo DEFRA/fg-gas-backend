@@ -11,7 +11,6 @@ import {
   insertAgreementDefinition,
 } from "../repositories/agreement-definition.repository.js";
 import {
-  canLoadDefinitionForCreation,
   clearAgreementDefinitionCaches,
   loadAgreementDefinition,
   loadDefinitionForAgreement,
@@ -385,54 +384,6 @@ describe("loadAgreementDefinition", () => {
           resolution: "same-major",
         }),
       ).rejects.toMatchObject({ output: { statusCode: 500 } });
-    });
-  });
-
-  // Routing must not claim a grant on the strength of a definition the
-  // application's config version could never resolve to.
-  describe("canLoadDefinitionForCreation", () => {
-    it("is true when the config version resolves to a usable definition", async () => {
-      findConfigDefinition.mockResolvedValue(target("1.0.1"));
-
-      await expect(
-        canLoadDefinitionForCreation({
-          code: "test-code",
-          configVersion: "1.0.1",
-        }),
-      ).resolves.toBe(true);
-    });
-
-    it("is false when only an incompatible version publishes a definition", async () => {
-      findConfigDefinition.mockResolvedValue(null);
-      findLatestUsableDefinition.mockResolvedValue(null);
-
-      await expect(
-        canLoadDefinitionForCreation({
-          code: "test-code",
-          configVersion: "1.0.2",
-        }),
-      ).resolves.toBe(false);
-    });
-
-    it("is false for an unparseable config version", async () => {
-      await expect(
-        canLoadDefinitionForCreation({
-          code: "test-code",
-          configVersion: null,
-        }),
-      ).resolves.toBe(false);
-    });
-
-    // A database fault must fail the command, not silently divert it.
-    it("rethrows a non-Boom failure rather than routing externally", async () => {
-      findConfigDefinition.mockRejectedValue(new Error("Mongo down"));
-
-      await expect(
-        canLoadDefinitionForCreation({
-          code: "test-code",
-          configVersion: "1.0.3",
-        }),
-      ).rejects.toThrow("Mongo down");
     });
   });
 

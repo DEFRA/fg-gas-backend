@@ -1,6 +1,7 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterEach, beforeEach } from "vitest";
+import { clearAgreementDefinitionCaches } from "../src/agreements/use-cases/load-agreement-definition.js";
 import { purgeQueues } from "./helpers/sqs";
 
 let client;
@@ -17,7 +18,16 @@ beforeEach(async () => {
     db.collection("grants").deleteMany({}),
     db.collection("users").deleteMany({}),
     db.collection("fifo_locks").deleteMany({}),
+    db.collection("config_versions").deleteMany({}),
+    db.collection("agreements__definitions").deleteMany({}),
   ]);
+
+  // Both the stored definition above and the compiled one here survive a test
+  // otherwise: the caches are module scoped, and these tests run the service in
+  // process. Without this, a file that seeds different content for a
+  // grantCode@version already seen exercises the earlier definition and passes
+  // for the wrong reason.
+  clearAgreementDefinitionCaches();
 
   await db.collection("config_versions").updateOne(
     { grantCode: "pigs-might-fly", version: "1.0.1" },

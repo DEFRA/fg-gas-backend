@@ -81,8 +81,16 @@ const state = Joi.object({
   on: Joi.object().pattern(Joi.string(), actionTransition).optional(),
 }).label("State");
 
+// "accepted" is required rather than just another grant-authored key, because
+// the platform reads meaning from that one name: reaching it is what stamps
+// acceptedAt and pins the Agreement to the config version it was accepted
+// under. A grant that named its accepting state anything else would still
+// validate and still transition, but would silently never be pinned, and would
+// go on re-rendering against newer config after the holder had agreed to it.
+// Requiring the key makes that a load-time failure instead of a silent one.
 const states = Joi.object()
   .pattern(Joi.string(), state)
+  .keys({ accepted: state.required().label("states.accepted") })
   .min(1)
   .required()
   .label("States");
