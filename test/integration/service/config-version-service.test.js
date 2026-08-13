@@ -1,14 +1,6 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   ConfigVersion,
   FetchStatus,
@@ -26,14 +18,6 @@ beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   const db = client.db(env.MONGO_DATABASE);
   configVersions = db.collection("config_versions");
-});
-
-beforeEach(async () => {
-  await configVersions.deleteMany({});
-});
-
-afterEach(async () => {
-  await configVersions.deleteMany({});
 });
 
 afterAll(async () => {

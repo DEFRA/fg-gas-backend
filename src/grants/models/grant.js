@@ -1,3 +1,6 @@
+import Boom from "@hapi/boom";
+import { EntitlementTemplate } from "./entitlement-template.js";
+
 // Constants for fully qualified status path format: "PHASE:STAGE:STATUS"
 const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
 
@@ -10,6 +13,10 @@ export class Grant {
     phases,
     externalStatusMap,
     amendablePositions,
+    // Always a collection, never absent. The repository normalises what it
+    // reads out of Mongo; everything else builds a Grant from a request or a
+    // grant definition, where omitting the block means it has none.
+    entitlementTemplates = [],
   }) {
     this.code = code;
     this.version = version;
@@ -21,6 +28,66 @@ export class Grant {
     this.phases = phases;
     this.externalStatusMap = externalStatusMap;
     this.amendablePositions = amendablePositions;
+    this.entitlementTemplates = entitlementTemplates.map(
+      (template) => new EntitlementTemplate(template),
+    );
+
+    this.#assertEntitlementTemplateClaimCodesUnique();
+    this.#assertEntitlementTemplatePositionsExist();
+  }
+
+  findEntitlementTemplate(claimCode) {
+    return this.entitlementTemplates.find(
+      (template) => template.claimCode === claimCode,
+    );
+  }
+
+  // Every template that could yield an entitlement once an application reaches
+  // the given position. Materialised or not is the caller's business: both
+  // kinds are gated on position alone.
+  findEntitlementTemplatesAvailableAt(position) {
+    return this.entitlementTemplates.filter((template) =>
+      template.isAvailableAt(position),
+    );
+  }
+
+  // findEntitlementTemplate returns the first match, so a duplicated claim code
+  // would silently half-ignore one of the definitions. The array Joi schema
+  // enforces this for the admin API; the S3 ingest path builds each template
+  // individually, so the aggregate has to enforce it too.
+  #assertEntitlementTemplateClaimCodesUnique() {
+    const claimCodes = new Set();
+
+    for (const template of this.entitlementTemplates) {
+      if (claimCodes.has(template.claimCode)) {
+        throw Boom.badImplementation(
+          `Duplicate entitlement template claim code "${template.claimCode}"`,
+        );
+      }
+
+      claimCodes.add(template.claimCode);
+    }
+  }
+
+  // A position that resolves to nothing disables the template silently - it
+  // simply never becomes available - which is how this ticket's own missing
+  // PHASE_CLAIM gap went unnoticed. Reject it at ingest instead.
+  #assertEntitlementTemplatePositionsExist() {
+    for (const template of this.entitlementTemplates) {
+      const { phase, stage, status: statusCode } = template.availableAt;
+      const { status } = this.#findPhaseStageStatus(
+        this.phases,
+        phase,
+        stage,
+        statusCode,
+      );
+
+      if (!status) {
+        throw Boom.badImplementation(
+          `Entitlement template "${template.claimCode}" is available at position "${phase}:${stage}:${statusCode}" which does not match any phase:stage:status in "phases"`,
+        );
+      }
+    }
   }
 
   get hasPhases() {

@@ -192,6 +192,80 @@ describe("resolveAndFetchGrant", () => {
     );
   });
 
+  it("latches permanent_error when the fetched grant definition is invalid", async () => {
+    const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
+    findLatestForMajor.mockResolvedValue(cv);
+    fetchConfigFile.mockResolvedValue(mockGrantDefinition);
+
+    // Grant/EntitlementTemplate validation failures surface as
+    // Boom.badImplementation, which must not be retried forever.
+    const invalidDefinitionError = Boom.badImplementation(
+      'Entitlement template "ENT" references position "A:B:C" which does not match any phase:stage:status in "phases"',
+    );
+    saveFromDefinition.mockRejectedValue(invalidDefinitionError);
+    updateFetchStatus.mockResolvedValue();
+
+    await expect(resolveAndFetchGrant(GRANT_CODE, VERSION)).rejects.toThrow(
+      invalidDefinitionError,
+    );
+
+    expect(updateFetchStatus).toHaveBeenCalledWith(
+      GRANT_CODE,
+      VERSION,
+      FetchStatus.PermanentError,
+      invalidDefinitionError.message,
+    );
+  });
+
+  // saveFromDefinition builds the Grant straight from the parsed JSON without
+  // validating its shape, so a malformed definition dies on a plain TypeError
+  // rather than a Boom. That still has to latch, or it re-fetches forever.
+  it("latches PermanentError when a malformed definition throws a plain TypeError", async () => {
+    const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
+    findLatestForMajor.mockResolvedValue(cv);
+    fetchConfigFile.mockResolvedValue(mockGrantDefinition);
+
+    const malformedError = new TypeError(
+      "Cannot read properties of undefined (reading 'description')",
+    );
+    saveFromDefinition.mockRejectedValue(malformedError);
+    updateFetchStatus.mockResolvedValue();
+
+    await expect(resolveAndFetchGrant(GRANT_CODE, VERSION)).rejects.toThrow(
+      malformedError,
+    );
+
+    expect(updateFetchStatus).toHaveBeenCalledWith(
+      GRANT_CODE,
+      VERSION,
+      FetchStatus.PermanentError,
+      malformedError.message,
+    );
+  });
+
+  // The other side of that: a Mongo failure while saving is transient, so
+  // latching it would permanently disable a perfectly good config version.
+  it("does not latch when saving fails for a transient reason", async () => {
+    const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
+    findLatestForMajor.mockResolvedValue(cv);
+    fetchConfigFile.mockResolvedValue(mockGrantDefinition);
+
+    const transientError = new Error("connection timed out");
+    saveFromDefinition.mockRejectedValue(transientError);
+    updateFetchStatus.mockResolvedValue();
+
+    await expect(resolveAndFetchGrant(GRANT_CODE, VERSION)).rejects.toThrow(
+      transientError,
+    );
+
+    expect(updateFetchStatus).not.toHaveBeenCalledWith(
+      GRANT_CODE,
+      VERSION,
+      FetchStatus.PermanentError,
+      expect.anything(),
+    );
+  });
+
   it("throws badGateway on permanent S3 error (NoSuchKey)", async () => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
     findLatestForMajor.mockResolvedValue(cv);
