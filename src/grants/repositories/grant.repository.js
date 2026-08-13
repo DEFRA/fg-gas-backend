@@ -4,6 +4,12 @@ import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
 
+// Stored documents predate most of what the model now expects: a grant written
+// before entitlement templates existed has no such key, and one written without
+// any comes back as null, because the driver resolves ignoreUndefined to false.
+// Normalising here keeps that drift where it belongs - in the layer that owns
+// the stored shape - so the domain model can take a well-formed collection and
+// not accumulate a guard per field per schema change.
 export const toGrant = (doc) =>
   new Grant({
     code: doc.code,
@@ -13,6 +19,7 @@ export const toGrant = (doc) =>
     phases: doc.phases,
     externalStatusMap: doc.externalStatusMap,
     amendablePositions: doc.amendablePositions,
+    entitlementTemplates: doc.entitlementTemplates ?? [],
   });
 
 export const collection = "grants";

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
+import { EntitlementTemplate } from "./entitlement-template.js";
 
 describe("Grant", () => {
   it("can create a Grant model", () => {
@@ -65,6 +66,7 @@ describe("Grant", () => {
       ],
       amendablePositions: [],
       externalStatusMap: undefined,
+      entitlementTemplates: [],
       phases: [
         {
           code: "PRE_AWARD",
@@ -102,6 +104,172 @@ describe("Grant", () => {
           },
         },
       ],
+    });
+  });
+
+  describe("entitlementTemplates", () => {
+    const entitlementTemplates = [
+      {
+        claimCode: "ENT_CS_CAPITAL_PA3",
+        name: "PA3 Woodland Management Plan entitlement",
+        description:
+          "The maximum eligible woodland area that can be claimed under PA3.",
+        materialised: false,
+        fields: {
+          totalHectares: {
+            input: true,
+            label: "Total area of eligible woodland",
+            unitType: "decimal",
+            decimalPlaces: 4,
+            unit: "HA",
+            minValue: 0.5,
+            maxValue: null,
+          },
+        },
+        maxEntitlements: 1,
+        availableAt: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "APPLICATION_RECEIVED",
+        },
+        claim: {
+          limits: { maximumClaims: 1, allowsPartialClaims: false },
+          requiresApproval: false,
+          requiresEvidence: false,
+        },
+      },
+    ];
+
+    it("wraps entitlementTemplates passed to the constructor as EntitlementTemplate instances", () => {
+      const grant = createTestGrant({ entitlementTemplates });
+
+      expect(grant.entitlementTemplates).toEqual(entitlementTemplates);
+      expect(grant.entitlementTemplates[0]).toBeInstanceOf(EntitlementTemplate);
+    });
+
+    // The repository normalises a missing or null stored field to an empty
+    // array, and everything else that builds a Grant simply omits the block, so
+    // the model never sees anything but a collection.
+    it("is an empty collection when entitlementTemplates is not provided", () => {
+      const grant = createTestGrant({ entitlementTemplates: undefined });
+
+      expect(grant.entitlementTemplates).toEqual([]);
+    });
+
+    it("throws when an entitlement template has an invalid shape", () => {
+      expect(() =>
+        createTestGrant({
+          entitlementTemplates: [{ claimCode: "INVALID" }],
+        }),
+      ).toThrow(/Invalid entitlement template "INVALID"/);
+    });
+
+    it.each([
+      ["phase", "UNKNOWN:ASSESSMENT:APPLICATION_RECEIVED"],
+      ["stage", "PRE_AWARD:UNKNOWN:APPLICATION_RECEIVED"],
+      ["status", "PRE_AWARD:ASSESSMENT:UNKNOWN"],
+    ])(
+      "throws when an entitlement template is available at a %s that does not exist in phases",
+      (segment, position) => {
+        expect(() =>
+          createTestGrant({
+            entitlementTemplates: [
+              {
+                ...entitlementTemplates[0],
+                availableAt: {
+                  ...entitlementTemplates[0].availableAt,
+                  [segment]: "UNKNOWN",
+                },
+              },
+            ],
+          }),
+        ).toThrow(
+          new RegExp(
+            `is available at position "${position}" which does not match any phase:stage:status`,
+          ),
+        );
+      },
+    );
+
+    it("throws when two entitlement templates share a claim code", () => {
+      expect(() =>
+        createTestGrant({
+          entitlementTemplates: [
+            entitlementTemplates[0],
+            { ...entitlementTemplates[0], name: "A duplicate" },
+          ],
+        }),
+      ).toThrow(
+        /Duplicate entitlement template claim code "ENT_CS_CAPITAL_PA3"/,
+      );
+    });
+
+    describe("findEntitlementTemplate", () => {
+      it("returns the entitlement template matching the given claim code", () => {
+        const grant = createTestGrant({ entitlementTemplates });
+
+        expect(grant.findEntitlementTemplate("ENT_CS_CAPITAL_PA3")).toEqual(
+          entitlementTemplates[0],
+        );
+      });
+
+      it("returns undefined when no entitlement template matches", () => {
+        const grant = createTestGrant({ entitlementTemplates });
+
+        expect(grant.findEntitlementTemplate("UNKNOWN")).toBeUndefined();
+      });
+    });
+
+    describe("findEntitlementTemplatesAvailableAt", () => {
+      // A second template at a different position, so the filter has something
+      // to leave behind.
+      const inReview = {
+        claimCode: "ENT_TRACTOR",
+        name: "Tractor entitlement",
+        availableAt: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "IN_REVIEW",
+        },
+      };
+
+      it("returns only the templates available at the given position", () => {
+        const grant = createTestGrant({
+          entitlementTemplates: [...entitlementTemplates, inReview],
+        });
+
+        const available = grant.findEntitlementTemplatesAvailableAt({
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "IN_REVIEW",
+        });
+
+        expect(available.map((t) => t.claimCode)).toEqual(["ENT_TRACTOR"]);
+      });
+
+      it("returns nothing when no template is available at the position", () => {
+        const grant = createTestGrant({ entitlementTemplates });
+
+        expect(
+          grant.findEntitlementTemplatesAvailableAt({
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "IN_REVIEW",
+          }),
+        ).toEqual([]);
+      });
+
+      it("returns nothing when the grant has no entitlement templates", () => {
+        const grant = createTestGrant({ entitlementTemplates: undefined });
+
+        expect(
+          grant.findEntitlementTemplatesAvailableAt({
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "APPLICATION_RECEIVED",
+          }),
+        ).toEqual([]);
+      });
     });
   });
 
