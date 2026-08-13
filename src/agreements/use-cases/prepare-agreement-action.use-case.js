@@ -12,7 +12,7 @@ export const prepareAgreementActionUseCase = async ({
     agreementNumber,
     access,
   });
-  const { action, agreement, agreementDefinition } =
+  const { action, agreement, agreementDefinition, etag } =
     await loadCurrentAgreementActionContext({
       actionName,
       agreement: authorisedAgreement,
@@ -24,10 +24,12 @@ export const prepareAgreementActionUseCase = async ({
     );
   }
 
-  return buildAgreementPageModel({
+  const pageModel = await buildAgreementPageModel({
     agreement,
     agreementDefinition,
     page: action.preparationPage,
     mode: "view",
   });
+
+  return { pageModel, etag };
 };

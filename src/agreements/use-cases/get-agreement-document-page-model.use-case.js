@@ -1,6 +1,6 @@
 import { logger } from "../../common/logger.js";
-import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { buildAgreementDocumentPageModel } from "../services/build-agreement-page-model.js";
+import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 import { loadAgreementDocument } from "./load-current-agreement.js";
 
 export const getAgreementDocumentPageModelUseCase = async ({
@@ -9,14 +9,13 @@ export const getAgreementDocumentPageModelUseCase = async ({
 }) => {
   logger.info({ agreementNumber }, "Getting read-only agreement document");
   const agreement = await loadAgreementDocument({ agreementNumber, access });
-  const agreementDefinition = await loadAgreementDefinition({
-    code: agreement.code,
-    configVersion: agreement.configVersion,
+  const { agreementDefinition, etag } = await loadCurrentAgreementContext({
+    agreement,
   });
   const pageModel = await buildAgreementDocumentPageModel({
     agreement,
     agreementDefinition,
   });
 
-  return { agreement, pageModel };
+  return { agreement, pageModel, etag };
 };

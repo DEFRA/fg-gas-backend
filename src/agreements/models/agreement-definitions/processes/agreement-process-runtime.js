@@ -381,7 +381,11 @@ const runSequence = async (
     resolve,
   );
 
-  return toSequenceResult(outputs, commitOperations, candidate?.agreementValues);
+  return toSequenceResult(
+    outputs,
+    commitOperations,
+    candidate?.agreementValues,
+  );
 };
 
 const resolveDependencies = (dependencies) => ({

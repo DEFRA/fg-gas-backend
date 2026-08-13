@@ -12,6 +12,7 @@ import {
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
+import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 import { loadAgreementForAction } from "./load-current-agreement.js";
 
 vi.mock("../../common/save-outbox-events.js");
@@ -19,13 +20,14 @@ vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("../services/build-agreement-page-model.js");
 vi.mock("./load-current-agreement-action-context.js");
+vi.mock("./load-current-agreement-context.js");
 vi.mock("./load-current-agreement.js");
 
 const options = {
   actionName: "accept",
   agreementNumber: "PMF823153883",
   values: { confirm: "confirmed" },
-  ifMatch: '"PMF823153883:1"',
+  ifMatch: '"PMF823153883:1:1.0.1"',
   idempotencyKey: "9ea924aa-45e9-43a7-888e-c25054ea658c",
   access: {
     source: "defra",
@@ -98,6 +100,11 @@ describe("executeAgreementActionUseCase", () => {
       action,
       agreement,
       agreementDefinition,
+      etag: '"PMF823153883:1:1.0.1"',
+    });
+    loadCurrentAgreementContext.mockResolvedValue({
+      agreement,
+      etag: '"PMF823153883:1:1.0.1"',
     });
     agreementDefinition.executeAction.mockResolvedValue({
       agreement: transitionAgreement(),
@@ -208,10 +215,27 @@ describe("executeAgreementActionUseCase", () => {
         statusCode: 412,
         headers: {
           location: "/agreements/current",
-          etag: '"PMF823153883:1"',
+          etag: '"PMF823153883:1:1.0.1"',
         },
       },
     });
+  });
+
+  it("rejects acceptance when a newer compatible config became active", async () => {
+    loadCurrentAgreementActionContext.mockResolvedValue({
+      action,
+      agreement,
+      agreementDefinition,
+      etag: '"PMF823153883:1:1.0.2"',
+    });
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toMatchObject({
+      output: {
+        statusCode: 412,
+        headers: { etag: '"PMF823153883:1:1.0.2"' },
+      },
+    });
+    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
   });
 
   it("writes nothing when transition candidate resolution fails", async () => {
@@ -272,6 +296,7 @@ describe("executeAgreementActionUseCase", () => {
       actions: [],
       values: {},
       errors: [{ href: "#declaration", text: "Agree to the declaration" }],
+      etag: '"PMF823153883:1:1.0.1"',
     });
     expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
     expect(withTransaction).not.toHaveBeenCalled();

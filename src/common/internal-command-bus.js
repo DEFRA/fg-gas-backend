@@ -22,7 +22,10 @@ export const registerInternalCommandHandler = (
 
 export const getInternalCommandHandler = (type) => handlers.get(type)?.handler;
 
-export const canHandleInternalCommand = (type, command) => {
+// Ownership can only be answered by reading the config catalog, so the
+// predicate is awaited. Callers must await too: an unawaited promise is always
+// truthy, which silently claims every command for the internal handler.
+export const canHandleInternalCommand = async (type, command) => {
   const registration = handlers.get(type);
 
   if (!registration) {
@@ -31,7 +34,7 @@ export const canHandleInternalCommand = (type, command) => {
   if (registration.canHandle === undefined) {
     return true;
   }
-  return Boolean(registration.canHandle(command));
+  return Boolean(await registration.canHandle(command));
 };
 
 export const dispatchInternally = async (event) => {

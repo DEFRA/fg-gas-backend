@@ -1,10 +1,9 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { pmfAgreementDefinitionFixture } from "../../../test/fixtures/pmf-agreement-definition.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
-import { agreementDefinitions } from "../models/agreement-definitions/agreement-definition-registry.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import {
   findAgreementBySourceIdentity,
@@ -12,22 +11,25 @@ import {
   insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
 import { handleCreateAgreementCommandUseCase } from "./handle-create-agreement-command.use-case.js";
+import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
 vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
-vi.mock("../models/agreement-definitions/agreement-definition-loader.js");
+vi.mock("./load-agreement-definition.js");
 vi.mock("../repositories/agreement.repository.js");
 
-const pmfDefinitionData = agreementDefinitions.find(
-  ({ code }) => code === "pigs-might-fly",
-);
+const pmfDefinitionData = {
+  ...structuredClone(pmfAgreementDefinitionFixture),
+  configVersion: "1.2.0",
+};
 const executedAt = "2026-08-06T12:00:00.000Z";
 const command = {
   data: {
     clientRef: "xnp-rr3-nfa",
     code: "pigs-might-fly",
     identifiers: { sbi: "300000069", frn: "1000000000" },
-    metadata: { configVersion: "3.0.0", ignored: "legacy metadata" },
+    currentConfigVersion: "3.0.0",
+    metadata: { configVersion: "legacy-version", ignored: "legacy metadata" },
     answers: {
       whitePigsCount: 5,
       britishLandracePigsCount: 0,
@@ -121,7 +123,7 @@ const fpttDefinitionData = {
     },
     processes: [],
   },
-  states: { offered: { page: "offered" } },
+  states: { offered: { page: "offered" }, accepted: { page: "offered" } },
   pages: {
     offered: {
       title: "FPTT offer",
@@ -498,14 +500,13 @@ describe("handleCreateAgreementCommandUseCase", () => {
     });
   });
 
-  it("uses the default definition version when metadata does not specify one", async () => {
-    await handleCreateAgreementCommandUseCase({
-      data: { ...command.data, metadata: {} },
-    });
+  it("loads the creation definition from currentConfigVersion", async () => {
+    await handleCreateAgreementCommandUseCase(command);
 
     expect(loadAgreementDefinition).toHaveBeenCalledWith({
       code: "pigs-might-fly",
-      configVersion: undefined,
+      configVersion: "3.0.0",
+      resolution: "creation",
     });
   });
 

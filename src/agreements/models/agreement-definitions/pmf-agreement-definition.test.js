@@ -1,16 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
+import { pmfAgreementDefinitionFixture } from "../../../../test/fixtures/pmf-agreement-definition.js";
 import { Agreement } from "../agreement.js";
-import {
-  agreementDefinitions,
-  findAgreementDefinition,
-} from "./agreement-definition-registry.js";
 import { AgreementDefinition } from "./agreement-definition.js";
 
-const pmfAgreementDefinition = agreementDefinitions.find(
-  ({ code }) => code === "pigs-might-fly",
-);
+const pmfAgreementDefinition = {
+  ...structuredClone(pmfAgreementDefinitionFixture),
+  configVersion: "1.2.0",
+};
 
-describe("findAgreementDefinition", () => {
+describe("PMF Agreement definition", () => {
   it("configures PMF offer calculation and Application resolution", () => {
     expect(pmfAgreementDefinition.create).toEqual({
       target: "offered",
@@ -94,7 +92,7 @@ describe("findAgreementDefinition", () => {
       version: 1,
       code: "pigs-might-fly",
       clientRef: "test-client-ref",
-      configVersion: pmfAgreementDefinition.configVersion,
+      configVersion: "1.0.1",
       correlationId: "agreement-correlation-id",
       identifiers: { sbi: "300000069" },
       application: {},
@@ -135,6 +133,7 @@ describe("findAgreementDefinition", () => {
     });
 
     expect(callEndpoint).not.toHaveBeenCalled();
+    expect(result.agreement.configVersion).toBe("1.2.0");
     expect(result.commitOperations).toEqual([
       expect.objectContaining({
         type: "create-agreement-payment",
@@ -160,38 +159,5 @@ describe("findAgreementDefinition", () => {
     expect(pages).not.toContain("paymentCalculation");
     expect(pages).not.toContain("supplementaryData");
     expect(pages).not.toContain("agreement.payload");
-  });
-
-  it("returns the code-specific default when another version is requested", () => {
-    expect(
-      findAgreementDefinition({
-        code: "pigs-might-fly",
-        configVersion: "3.0.0",
-      }),
-    ).toBe(pmfAgreementDefinition);
-  });
-
-  it("returns the code-specific default when no version is requested", () => {
-    expect(findAgreementDefinition({ code: "pigs-might-fly" })).toBe(
-      pmfAgreementDefinition,
-    );
-  });
-
-  it("returns undefined when the code is unknown", () => {
-    expect(
-      findAgreementDefinition({
-        code: "unknown-code",
-        configVersion: "0.0.1",
-      }),
-    ).toBeUndefined();
-  });
-
-  it("ignores an unavailable version", () => {
-    expect(
-      findAgreementDefinition({
-        code: "pigs-might-fly",
-        configVersion: "0.0.0",
-      }),
-    ).toBe(pmfAgreementDefinition);
   });
 });

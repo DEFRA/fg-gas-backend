@@ -11,17 +11,20 @@ describe("prepareAgreementActionRoute", () => {
     server = hapi.server();
     server.route(prepareAgreementActionRoute);
     prepareAgreementActionUseCase.mockResolvedValue({
-      agreement: {
-        agreementNumber: "PMF123",
-        code: "pigs-might-fly",
-        clientRef: "client",
-        identifiers: { sbi: "300000000" },
-        state: "offered",
-        version: 1,
+      pageModel: {
+        agreement: {
+          agreementNumber: "PMF123",
+          code: "pigs-might-fly",
+          clientRef: "client",
+          identifiers: { sbi: "300000000" },
+          state: "offered",
+          version: 1,
+        },
+        page: { name: "accept", title: "Accept" },
+        components: [],
+        actions: [],
       },
-      page: { name: "accept", title: "Accept" },
-      components: [],
-      actions: [],
+      etag: '"PMF123:1:1.2.0"',
     });
   });
 
@@ -37,7 +40,7 @@ describe("prepareAgreementActionRoute", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.headers.etag).toBe('"PMF123:1"');
+    expect(response.headers.etag).toBe('"PMF123:1:1.2.0"');
     expect(prepareAgreementActionUseCase).toHaveBeenCalledWith({
       actionName: "accept",
       agreementNumber: "PMF123",

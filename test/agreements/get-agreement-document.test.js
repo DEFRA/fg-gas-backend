@@ -7,6 +7,7 @@ const agreementNumber = "PMF823153886";
 const code = "pigs-might-fly";
 const clientRef = "document-view-client";
 const sbi = "300000072";
+const configVersion = "1.0.1";
 const createdAt = "2026-07-15T12:00:00.000Z";
 
 const agreement = {
@@ -15,7 +16,7 @@ const agreement = {
   version: 1,
   code,
   clientRef,
-  configVersion: "1.0.1",
+  configVersion,
   correlationId: "7e8c624d-6cf3-4ac5-bb84-a6f6701a6b7d",
   identifiers: { sbi },
   application: { businessName: "Gotham City Pigs" },
@@ -178,6 +179,15 @@ describe("read-only Agreement document", () => {
           ]),
         }),
       ]),
+    );
+  });
+
+  it("returns the same ETag as the Agreement's other routes", async () => {
+    const response = await getAgreementDocument();
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers.etag).toBe(
+      `"${agreementNumber}:1:${configVersion}"`,
     );
   });
 

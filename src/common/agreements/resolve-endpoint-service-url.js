@@ -1,9 +1,17 @@
+// Distinguishes local configuration faults from invalid shared config.
+export class EndpointServiceUrlError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "EndpointServiceUrlError";
+  }
+}
+
 export const resolveEndpointServiceUrl = (service) => {
   const envVar = `${service}_URL`;
   const url = process.env[envVar];
 
   if (!url) {
-    throw new Error(
+    throw new EndpointServiceUrlError(
       `No URL configured for service "${service}" (expected env var ${envVar})`,
     );
   }
@@ -21,8 +29,6 @@ const endpointsFor = (definition) => [
   ...processEndpointsFor(definition),
 ];
 
-// Every Agreement definition endpoint service must resolve to a real
-// {SERVICE}_URL at startup.
 export const validateEndpointServiceUrls = (definitions) => {
   const services = new Set(
     definitions
@@ -39,7 +45,7 @@ export const validateEndpointServiceUrls = (definitions) => {
       .map((service) => `${service}_URL`)
       .join(", ");
 
-    throw new Error(
+    throw new EndpointServiceUrlError(
       `Missing required endpoint URL env var(s): ${missingServicesUrls}`,
     );
   }
