@@ -44,6 +44,20 @@ const validDefinition = {
   },
 };
 
+// The service has no {SERVICE}_URL in the environment, so compiling this fails
+// on the endpoint check rather than on anything in the definition itself.
+const definitionWithUnconfiguredEndpoint = {
+  ...validDefinition,
+  endpoints: [
+    {
+      code: "doThing",
+      method: "POST",
+      path: "/do-thing",
+      service: "SERVICE_WITH_NO_CONFIGURED_URL",
+    },
+  ],
+};
+
 const target = (version) => ({
   grantCode: "test-code",
   version,
@@ -168,6 +182,41 @@ describe("loadAgreementDefinition", () => {
         resolution: "exact",
       }),
     ).rejects.toMatchObject({ output: { statusCode: 500 } });
+  });
+
+  // The definition is fine; this deployment is missing an env var. Recording that
+  // against the config version would mark it unusable for the whole fleet over a
+  // gap local to one instance, and nothing would clear it.
+  it("does not record a missing endpoint URL against the config version", async () => {
+    findConfigDefinition.mockResolvedValue(target("1.0.1"));
+    fetchConfigFile.mockResolvedValue(definitionWithUnconfiguredEndpoint);
+
+    await expect(
+      loadAgreementDefinition({
+        code: "test-code",
+        configVersion: "1.0.1",
+        resolution: "exact",
+      }),
+    ).rejects.toThrow(/Missing required endpoint URL/);
+
+    expect(updateDefinitionFetchStatus).not.toHaveBeenCalled();
+    expect(insertAgreementDefinition).not.toHaveBeenCalled();
+  });
+
+  // Transient, so resolution must not treat it as evidence the version is bad.
+  it("does not fall back to an older version when an endpoint URL is missing", async () => {
+    findLatestUsableDefinition.mockResolvedValue(target("1.0.3"));
+    fetchConfigFile.mockResolvedValue(definitionWithUnconfiguredEndpoint);
+
+    await expect(
+      loadAgreementDefinition({
+        code: "test-code",
+        configVersion: "1.0.3",
+        resolution: "same-major",
+      }),
+    ).rejects.toThrow(/Missing required endpoint URL/);
+
+    expect(findLatestUsableDefinition).toHaveBeenCalledTimes(1);
   });
 
   describe("fallback after an unusable definition", () => {

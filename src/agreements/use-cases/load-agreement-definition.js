@@ -164,24 +164,50 @@ const store = async (target, definition) => {
   }
 };
 
-// Only a Boom error is a defect in the published definition. Anything else is a
-// fault in this process or its environment, which leaves the version selectable
-// so the next attempt can succeed once the fault is fixed.
-const isPermanentDefinitionError = (error) => error.isBoom;
+// What a load failure means, in one place. Two questions, answered together
+// because they interact:
+//
+//   status  what the failure says about the version itself. Permanent takes it
+//           out of resolution for good, so only a defect in the published
+//           definition earns it.
+//   record  whether that verdict belongs on the shared config version at all.
+//
+// The pairing is the point. An environment fault is transient *and* unrecorded:
+// the same definition is fine on an instance that has the env var, so writing
+// anything against the version would condemn it for the whole fleet over a gap
+// in this deployment. Everything else is recorded, because it is a fact about
+// the config rather than about us.
+//
+// Whether a failure may send resolution back to an older release is not here:
+// that also depends on the resolution in play, so shouldFallBack combines this
+// verdict with the resolution's own answer.
+const recorded = (status) => ({ status, record: true });
 
-const classifyS3Failure = (error) =>
+const environmentFault = { status: FetchStatus.TransientError, record: false };
+
+// 404 and 403 are a dead or forbidden key, and unparseable JSON will not become
+// parseable; neither is worth another attempt. Any other S3 error might be.
+const s3FailureStatus = (error) =>
   error.isPermanent || error.isParseError
     ? FetchStatus.PermanentError
     : FetchStatus.TransientError;
 
+// Boom is thrown by the code and schema checks in compileDefinition, so it means
+// the definition is defective. A plain Error is this process failing, which says
+// nothing about the version and leaves it selectable.
+const definitionFailureStatus = (error) =>
+  error.isBoom ? FetchStatus.PermanentError : FetchStatus.TransientError;
+
 const classifyFailure = (error) => {
-  if (error instanceof S3FetchError) {
-    return classifyS3Failure(error);
+  if (error instanceof EndpointServiceUrlError) {
+    return environmentFault;
   }
 
-  return isPermanentDefinitionError(error)
-    ? FetchStatus.PermanentError
-    : FetchStatus.TransientError;
+  if (error instanceof S3FetchError) {
+    return recorded(s3FailureStatus(error));
+  }
+
+  return recorded(definitionFailureStatus(error));
 };
 
 const compileAndCache = async (target, stored, cacheKey) => {
@@ -213,13 +239,9 @@ const load = async (target, cacheKey) => {
   try {
     return await compileAndCache(target, stored, cacheKey);
   } catch (error) {
-    // An env var this instance is missing says nothing about the published
-    // definition, so it must not be recorded against the shared config version:
-    // that would mark it unusable for every instance, and re-publishing the same
-    // version would not clear it. It also must not burn a fetch attempt, which
-    // would promote the version to a permanent error after MAX_FETCH_ATTEMPTS.
-    if (!(error instanceof EndpointServiceUrlError)) {
-      await updateStatus(target, classifyFailure(error), error.message);
+    const { status, record } = classifyFailure(error);
+    if (record) {
+      await updateStatus(target, status, error.message);
     }
     // CDP indexes a curated subset of ECS, so only fields in that subset are
     // searchable: event.action to find these at all, and error.type to pick out
@@ -263,7 +285,7 @@ const loadCompiled = (target) => {
 // silently downgrading the Agreement to older config.
 const shouldFallBack = (resolution, error) =>
   resolutions[resolution].canFallBack &&
-  classifyFailure(error) === FetchStatus.PermanentError;
+  classifyFailure(error).status === FetchStatus.PermanentError;
 
 const reportUnusable = (target) =>
   logger.warn(
