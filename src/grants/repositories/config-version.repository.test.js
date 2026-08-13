@@ -39,19 +39,24 @@ describe("config-version.repository", () => {
 
       expect(mockCollection.updateOne).toHaveBeenCalledWith(
         { grantCode: "woodland", version: "1.2.3" },
-        expect.objectContaining({
-          $set: expect.objectContaining({
-            major: 1,
-            minor: 2,
-            patch: 3,
-            status: "active",
-          }),
-          $setOnInsert: expect.objectContaining({
-            receivedAt: expect.any(String),
-            fetchStatus: FetchStatus.Pending,
-            fetchAttempts: 0,
-          }),
-        }),
+        [
+          {
+            $set: expect.objectContaining({
+              major: 1,
+              minor: 2,
+              patch: 3,
+              status: "active",
+              "definitions.grant": expect.objectContaining({
+                $mergeObjects: expect.arrayContaining([
+                  expect.objectContaining({
+                    fetchStatus: FetchStatus.Pending,
+                    fetchAttempts: 0,
+                  }),
+                ]),
+              }),
+            }),
+          },
+        ],
         { upsert: true },
       );
     });
@@ -118,7 +123,10 @@ describe("config-version.repository", () => {
             fetchStatus: FetchStatus.TransientError,
             fetchError: "S3 timeout",
           }),
-          $inc: { fetchAttempts: 1 },
+          $inc: {
+            fetchAttempts: 1,
+            "definitions.grant.fetchAttempts": 1,
+          },
         },
       );
     });
@@ -138,6 +146,16 @@ describe("config-version.repository", () => {
         },
       );
       expect(mockCollection.updateOne.mock.calls[0][1].$inc).toBeUndefined();
+    });
+
+    it("clears the nested attempt counter on success but not the top-level one", async () => {
+      mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 });
+
+      await updateFetchStatus("woodland", "1.2.3", FetchStatus.Fetched);
+
+      const [, update] = mockCollection.updateOne.mock.calls[0];
+      expect(update.$set["definitions.grant.fetchAttempts"]).toBe(0);
+      expect(update.$set.fetchAttempts).toBeUndefined();
     });
   });
 

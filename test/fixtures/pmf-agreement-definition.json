@@ -1,6 +1,5 @@
 {
   "code": "pigs-might-fly",
-  "configVersion": "1.2.0",
   "agreementNumberPrefix": "PMF",
   "processDefinitions": {
     "GENERATE_OFFER": {

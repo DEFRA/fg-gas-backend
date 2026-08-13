@@ -101,6 +101,16 @@ describe("Agreement", () => {
     });
   });
 
+  it("pins an explicitly resolved config version on transition", () => {
+    const accepted = createAgreement().transition({
+      target: "accepted",
+      transitionedAt: "2026-07-18T09:15:00.000Z",
+      configVersion: "1.2.0",
+    });
+
+    expect(accepted.configVersion).toBe("1.2.0");
+  });
+
   it("preserves the original acceptance time on later transitions", () => {
     const agreement = new Agreement({
       ...createAgreement(),

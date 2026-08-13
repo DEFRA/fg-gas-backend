@@ -81,8 +81,10 @@ const state = Joi.object({
   on: Joi.object().pattern(Joi.string(), actionTransition).optional(),
 }).label("State");
 
+// The platform uses this state to pin the accepted config version.
 const states = Joi.object()
   .pattern(Joi.string(), state)
+  .keys({ accepted: state.required().label("states.accepted") })
   .min(1)
   .required()
   .label("States");
@@ -249,9 +251,9 @@ const endpoint = Joi.object({
 
 const endpoints = Joi.array().items(endpoint).optional().label("Endpoints");
 
+// configVersion is platform-owned and added after producer validation.
 export const agreementDefinitionSchema = Joi.object({
   code: Joi.string().required(),
-  configVersion: Joi.string().required(),
   agreementNumberPrefix: Joi.string().required(),
   endpoints,
   processDefinitions,

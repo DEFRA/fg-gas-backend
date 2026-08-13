@@ -24,29 +24,43 @@ describe("internal-command-bus", () => {
     expect(getInternalCommandHandler("agreement.create")).toBe(handler);
   });
 
-  it("reports whether a handler can handle a command", () => {
-    expect(canHandleInternalCommand("agreement.create", { data: {} })).toBe(
-      false,
-    );
+  it("reports whether a handler can handle a command", async () => {
+    await expect(
+      canHandleInternalCommand("agreement.create", { data: {} }),
+    ).resolves.toBe(false);
 
     registerInternalCommandHandler("agreement.create", () => {});
-    expect(canHandleInternalCommand("agreement.create", { data: {} })).toBe(
-      true,
-    );
+    await expect(
+      canHandleInternalCommand("agreement.create", { data: {} }),
+    ).resolves.toBe(true);
 
     registerInternalCommandHandler("agreement.create", () => {}, {
       canHandle: (command) => command.data.code === "pigs-might-fly",
     });
-    expect(
+    await expect(
       canHandleInternalCommand("agreement.create", {
         data: { code: "pigs-might-fly" },
       }),
-    ).toBe(true);
-    expect(
+    ).resolves.toBe(true);
+    await expect(
       canHandleInternalCommand("agreement.create", {
         data: { code: "woodland" },
       }),
-    ).toBe(false);
+    ).resolves.toBe(false);
+  });
+
+  // An unawaited predicate is always truthy, which would claim every command
+  // for the internal handler.
+  it("awaits an asynchronous canHandle predicate", async () => {
+    registerInternalCommandHandler("agreement.create", () => {}, {
+      canHandle: async (command) => command.data.code === "pigs-might-fly",
+    });
+
+    await expect(
+      canHandleInternalCommand("agreement.create", {
+        data: { code: "woodland" },
+      }),
+    ).resolves.toBe(false);
   });
 
   it("throws when no handler is registered for a command", async () => {

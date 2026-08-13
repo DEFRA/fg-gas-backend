@@ -8,11 +8,14 @@ import {
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { agreements } from "./index.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
+import { canLoadDefinitionForCreation } from "./use-cases/load-agreement-definition.js";
+
+vi.mock("./use-cases/load-agreement-definition.js");
 
 describe("agreements", () => {
   afterEach(() => {
     clearInternalCommandHandlers();
-    vi.unstubAllEnvs();
+    vi.resetAllMocks();
   });
 
   it("registers as a hapi plugin", async () => {
@@ -50,32 +53,43 @@ describe("agreements", () => {
     });
   });
 
-  it("registers the internal handler for configured agreement.create commands", async () => {
+  it("registers the internal handler for agreement.create commands", async () => {
     const server = hapi.server();
     await server.register(agreements);
 
     expect(
       getInternalCommandHandler(internalCommandTypes.AGREEMENT_CREATE),
     ).toBe(handleCreateAgreementCommandUseCase);
-    expect(
-      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
-        data: { code: "pigs-might-fly" },
-      }),
-    ).toBe(true);
-    expect(
-      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
-        data: { code: "woodland" },
-      }),
-    ).toBe(false);
   });
 
-  it("fails to register when a registered agreement definition's endpoint has no URL configured", async () => {
-    vi.stubEnv("GRANT_FUNDING_CALCULATOR_URL", "");
-
+  it("handles configured agreement.create commands internally", async () => {
     const server = hapi.server();
+    await server.register(agreements);
+    canLoadDefinitionForCreation.mockResolvedValue(true);
 
-    await expect(server.register(agreements)).rejects.toThrow(
-      /Missing required endpoint URL env var\(s\): GRANT_FUNDING_CALCULATOR_URL/,
-    );
+    await expect(
+      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
+        data: { code: "pigs-might-fly", currentConfigVersion: "1.0.1" },
+      }),
+    ).resolves.toBe(true);
+
+    expect(canLoadDefinitionForCreation).toHaveBeenCalledWith({
+      code: "pigs-might-fly",
+      configVersion: "1.0.1",
+    });
+  });
+
+  // A legacy grant is published through the config broker like any other, so it
+  // has a config version; only the absent Agreement definition distinguishes it.
+  it("leaves legacy agreement.create commands to the external service", async () => {
+    const server = hapi.server();
+    await server.register(agreements);
+    canLoadDefinitionForCreation.mockResolvedValue(false);
+
+    await expect(
+      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
+        data: { code: "woodland", currentConfigVersion: "1.0.0" },
+      }),
+    ).resolves.toBe(false);
   });
 });

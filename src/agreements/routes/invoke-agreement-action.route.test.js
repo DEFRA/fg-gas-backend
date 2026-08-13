@@ -71,6 +71,7 @@ describe("invokeAgreementActionRoute", () => {
       actions: [],
       values: {},
       errors: [{ href: "#confirmation", text: "Confirm" }],
+      etag: '"PMF123:1:1.2.0"',
     };
     executeAgreementActionUseCase.mockResolvedValue(validationPage);
 
@@ -82,8 +83,9 @@ describe("invokeAgreementActionRoute", () => {
     });
 
     expect(response.statusCode).toBe(422);
-    expect(response.headers.etag).toBe('"PMF123:1"');
-    expect(response.result).toEqual(validationPage);
+    expect(response.headers.etag).toBe('"PMF123:1:1.2.0"');
+    const { etag, ...responsePage } = validationPage;
+    expect(response.result).toEqual(responsePage);
   });
 
   it("passes action conflicts through", async () => {

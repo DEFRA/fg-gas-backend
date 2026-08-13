@@ -25,6 +25,7 @@ describe("Current Agreement route", () => {
     getCurrentAgreementPageModelUseCase.mockResolvedValue({
       agreement: { agreementNumber: "PMF123", version: 1 },
       pageModel,
+      etag: '"PMF123:1:1.2.0"',
     });
 
     const response = await server.inject({
@@ -38,7 +39,7 @@ describe("Current Agreement route", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.headers.etag).toBe('"PMF123:1"');
+    expect(response.headers.etag).toBe('"PMF123:1:1.2.0"');
     expect(response.result).toEqual(pageModel);
     expect(getCurrentAgreementPageModelUseCase).toHaveBeenCalledWith({
       code: "pigs-might-fly",

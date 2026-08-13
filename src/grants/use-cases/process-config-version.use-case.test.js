@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { processConfigVersionUseCase } from "./process-config-version.use-case.js";
 
+const mockUpsertDefinitionLocation = vi.fn();
+vi.mock("../../common/config-broker/config-catalog.repository.js", () => ({
+  updateDefinitionLocation: (...args) => mockUpsertDefinitionLocation(...args),
+}));
+
 vi.mock("../../common/config.js", () => ({
   config: {
     configBroker: {
@@ -26,6 +31,7 @@ describe("processConfigVersionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpsert.mockResolvedValue({ upsertedCount: 1 });
+    mockUpsertDefinitionLocation.mockResolvedValue({ modifiedCount: 1 });
   });
 
   it("should upsert a config version with correct fields", async () => {
@@ -47,6 +53,26 @@ describe("processConfigVersionUseCase", () => {
     expect(arg.s3Key).toBe("woodland/1.2.3/gas/gas.json");
     expect(arg.s3Bucket).toBe("config-broker-test");
     expect(arg.fetchStatus).toBe("pending");
+    expect(mockUpsertDefinitionLocation).not.toHaveBeenCalled();
+  });
+
+  it("should record an optional Agreement definition", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/agreement.json",
+      ],
+    });
+
+    expect(mockUpsertDefinitionLocation).toHaveBeenCalledWith({
+      grantCode: "woodland",
+      version: "1.2.3",
+      definitionType: "agreement",
+      s3Key: "woodland/1.2.3/gas/agreement.json",
+    });
   });
 
   it("should throw when status is missing", async () => {

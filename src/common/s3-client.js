@@ -34,15 +34,24 @@ export class S3FetchError extends Error {
   }
 }
 
-export const findS3KeyInManifest = (manifest, serviceKey) => {
-  const suffix = `/${serviceKey}/${serviceKey}.json`;
-  const match = manifest.find((path) => path.endsWith(suffix));
-  if (!match) {
+// Aliased releases keep the publisher's paths in the manifest.
+export const findS3KeyInManifest = (
+  manifest,
+  { dir, file, required = true },
+) => {
+  const match = manifest.find((path) => path.endsWith(`/${dir}/${file}`));
+
+  if (match) {
+    return match;
+  }
+
+  if (required) {
     throw new Error(
-      `Manifest does not contain a ${serviceKey} config file (expected path ending with ${suffix})`,
+      `Manifest does not contain required config file ${dir}/${file} (manifest: ${manifest.join(", ")})`,
     );
   }
-  return match;
+
+  return null;
 };
 
 // eslint-disable-next-line complexity

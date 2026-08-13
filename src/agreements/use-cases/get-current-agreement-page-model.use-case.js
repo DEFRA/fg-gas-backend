@@ -14,12 +14,13 @@ export const getCurrentAgreementPageModelUseCase = async ({
     "Getting current agreement page model",
   );
 
-  const { agreement, agreementDefinition } = await loadCurrentAgreementContext({
-    agreementNumber,
-    code,
-    clientRef,
-    sbi,
-  });
+  const { agreement, agreementDefinition, etag } =
+    await loadCurrentAgreementContext({
+      agreementNumber,
+      code,
+      clientRef,
+      sbi,
+    });
   const { pageId } = agreementDefinition.resolvePageForState(agreement.state);
   const pageModel = await buildAgreementPageModel({
     agreement,
@@ -35,5 +36,5 @@ export const getCurrentAgreementPageModelUseCase = async ({
     },
     "Rendered current agreement page model",
   );
-  return { agreement, pageModel };
+  return { agreement, pageModel, etag };
 };

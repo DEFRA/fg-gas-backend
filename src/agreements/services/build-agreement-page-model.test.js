@@ -1,14 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { agreementDefinitions } from "../models/agreement-definitions/agreement-definition-registry.js";
+import { pmfAgreementDefinitionFixture } from "../../../test/fixtures/pmf-agreement-definition.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import {
   buildAgreementDocumentPageModel,
   buildAgreementPageModel,
 } from "./build-agreement-page-model.js";
 
-const pmfAgreementDefinition = agreementDefinitions.find(
-  ({ code }) => code === "pigs-might-fly",
-);
+const pmfAgreementDefinition = structuredClone(pmfAgreementDefinitionFixture);
 const creationDefinition = {
   target: "offered",
   application: {},
@@ -583,7 +581,7 @@ describe("buildAgreementPageModel", () => {
       configVersion: "1",
       agreementNumberPrefix: "TST",
       create: creationDefinition,
-      states: { offered: { page: "offer" } },
+      states: { offered: { page: "offer" }, accepted: { page: "offer" } },
       templates: {
         stateSummary: {
           offered: {
@@ -624,7 +622,7 @@ describe("buildAgreementPageModel", () => {
       configVersion: "1",
       agreementNumberPrefix: "TST",
       create: creationDefinition,
-      states: { offered: { page: "offer" } },
+      states: { offered: { page: "offer" }, accepted: { page: "offer" } },
       pages: {
         offer: {
           title: "Offer",

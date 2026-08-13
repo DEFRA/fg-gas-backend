@@ -26,7 +26,7 @@ const createDefinition = () => ({
     values: { actions: [], items: [] },
     processes: ["calculate-offer"],
   },
-  states: { offered: { page: "offered" } },
+  states: { offered: { page: "offered" }, accepted: { page: "offered" } },
   pages: {
     offered: {
       title: "Offer",

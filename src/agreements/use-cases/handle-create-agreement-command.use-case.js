@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import {
   findAgreementBySourceIdentity,
@@ -10,9 +9,10 @@ import {
   insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
 import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
+import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
 const createAgreement = async (event) => {
-  const { clientRef, code, metadata } = event.data;
+  const { clientRef, code, currentConfigVersion } = event.data;
   const existingAgreement = await findAgreementBySourceIdentity({
     clientRef,
     code,
@@ -24,7 +24,8 @@ const createAgreement = async (event) => {
 
   const definition = await loadAgreementDefinition({
     code,
-    configVersion: metadata?.configVersion,
+    configVersion: currentConfigVersion,
+    resolution: "creation",
   });
   const execution = {
     correlationId: randomUUID(),

@@ -4,7 +4,6 @@ import {
   invokeAgreementActionPayloadSchema,
 } from "../schemas/requests/invoke-agreement-action-request.schema.js";
 import { invokeAgreementActionResponseSchema } from "../schemas/responses/invoke-agreement-action-response.schema.js";
-import { toEtag } from "../use-cases/agreement-etag.js";
 import { executeAgreementActionUseCase } from "../use-cases/execute-agreement-action.use-case.js";
 
 const SEE_OTHER_STATUS_CODE = 303;
@@ -43,10 +42,11 @@ export const invokeAgreementActionRoute = {
     });
 
     if (result.errors) {
+      const { etag, ...response } = result;
       return h
-        .response(result)
+        .response(response)
         .code(UNPROCESSABLE_CONTENT_STATUS_CODE)
-        .header("etag", toEtag(result.agreement));
+        .header("etag", etag);
     }
 
     return h.redirect(result.location).code(SEE_OTHER_STATUS_CODE);

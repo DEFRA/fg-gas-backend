@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { agreementDefinitions } from "./agreement-definition-registry.js";
+import { pmfAgreementDefinitionFixture } from "../../../../test/fixtures/pmf-agreement-definition.js";
 import { validateAgreementDefinition } from "./validate.js";
 
-const pmfAgreementDefinition = agreementDefinitions.find(
-  ({ code }) => code === "pigs-might-fly",
-);
+const pmfAgreementDefinition = structuredClone(pmfAgreementDefinitionFixture);
 
 describe("validateAgreementDefinition", () => {
   it("returns the validated definition when it is valid", () => {
@@ -40,6 +38,16 @@ describe("validateAgreementDefinition", () => {
 
     expect(() => validateAgreementDefinition(definition)).toThrow(
       /"create.target" \("missing-state"\) does not match any key in "states"/,
+    );
+  });
+
+  it("throws when there is no accepted state, whatever the grant calls its own", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.states.signed = definition.states.accepted;
+    delete definition.states.accepted;
+
+    expect(() => validateAgreementDefinition(definition)).toThrow(
+      /"states.accepted" is required/,
     );
   });
 

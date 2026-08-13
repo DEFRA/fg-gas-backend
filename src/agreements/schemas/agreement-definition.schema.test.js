@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { agreementDefinitions } from "../models/agreement-definitions/agreement-definition-registry.js";
+import { pmfAgreementDefinitionFixture } from "../../../test/fixtures/pmf-agreement-definition.js";
 import { agreementDefinitionSchema } from "./agreement-definition.schema.js";
 
-const pmfAgreementDefinition = agreementDefinitions.find(
-  ({ code }) => code === "pigs-might-fly",
-);
+const pmfAgreementDefinition = structuredClone(pmfAgreementDefinitionFixture);
 
 const validate = (definition) =>
   agreementDefinitionSchema.validate(definition, { abortEarly: false });
@@ -16,13 +14,21 @@ describe("agreementDefinitionSchema", () => {
     expect(error).toBeUndefined();
   });
 
+  it("rejects producer-owned configVersion", () => {
+    const definition = { ...pmfAgreementDefinition, configVersion: "1.0.0" };
+    const { error } = validate(definition);
+
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /"configVersion" is not allowed/,
+    );
+  });
+
   it("fails when top-level required fields are missing", () => {
     const { error } = validate({});
 
     expect(error).toBeDefined();
     const messages = error.details.map((d) => d.message).join(", ");
     expect(messages).toMatch(/"code" is required/);
-    expect(messages).toMatch(/"configVersion" is required/);
     expect(messages).toMatch(/"agreementNumberPrefix" is required/);
     expect(messages).toMatch(/"Create" is required/);
     expect(messages).toMatch(/"States" is required/);

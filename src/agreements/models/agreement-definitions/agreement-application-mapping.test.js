@@ -11,7 +11,7 @@ const createDefinition = (application) => ({
     application,
     values: { actions: [], items: [] },
   },
-  states: { offered: { page: "offered" } },
+  states: { offered: { page: "offered" }, accepted: { page: "offered" } },
   pages: {
     offered: {
       title: "Offer",

@@ -7,6 +7,7 @@ import { createGrant } from "../helpers/grants.js";
 import { sendMessage } from "../helpers/sqs.js";
 
 let db;
+let agreements;
 let applications;
 let outbox;
 let client;
@@ -14,6 +15,7 @@ let client;
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   db = client.db();
+  agreements = db.collection("agreements__agreements");
   applications = db.collection("applications");
   outbox = db.collection("outbox");
 });
@@ -66,8 +68,10 @@ describe("On CaseStatusUpdated", () => {
       target: env.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
     });
 
-    await expect(outbox).toHaveRecord({
-      target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
+    await expect(agreements).toHaveRecord({
+      clientRef,
+      code,
+      state: "offered",
     });
 
     await expect(
@@ -89,32 +93,45 @@ describe("On CaseStatusUpdated", () => {
       },
       messageGroupId: `${clientRef}-${code}`,
     });
+  });
 
-    await expect(env.CREATE_AGREEMENT_QUEUE_URL).toHaveReceived({
-      id: expect.any(String),
-      traceparent,
-      type: "cloud.defra.local.fg-gas-backend.agreement.create",
-      source: "fg-gas-backend",
-      time: expect.any(String),
-      specversion: "1.0",
-      datacontenttype: "application/json",
-      data: {
-        clientRef,
-        code,
-        currentConfigVersion: "1.0.0",
-        identifiers: {
-          sbi: "123456789",
-          frn: "1234567890",
-          crn: "1234567890",
-        },
-        metadata: {
-          defraId: "1234567890",
-        },
-        answers: {
-          question1: "test answer",
-        },
-      },
-      messageGroupId: `${clientRef}-${code}`,
+  // A legacy grant reaches this point with a config version like any other, so
+  // only the absent Agreement definition keeps its Agreement with the external
+  // service. Routing on the config version alone sends it to the internal
+  // handler, which has no definition to create it from.
+  it("sends the Agreement command to the external service for a grant with no Agreement definition", async () => {
+    await createGrant();
+
+    const { clientRef, code } = await submitApplication(db, {
+      withAgreementDefinition: false,
     });
+
+    await applications.updateOne(
+      { clientRef },
+      { $set: { currentStatus: "IN_REVIEW" } },
+    );
+
+    await sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
+      id: randomUUID(),
+      traceparent: "ts-002",
+      type: "fg.cw-backend.test.case.status.updated",
+      source: "CW",
+      data: {
+        caseRef: clientRef,
+        workflowCode: code,
+        previousStatus: "IN_REVIEW",
+        currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+      },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 500)); // wait for inbox to pick up queue
+
+    await expect(outbox).toHaveRecord({
+      "event.type": "cloud.defra.local.fg-gas-backend.agreement.create",
+      "event.data.clientRef": clientRef,
+      target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
+    });
+
+    expect(await agreements.findOne({ clientRef, code })).toBeNull();
   });
 });

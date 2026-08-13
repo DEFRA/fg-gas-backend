@@ -13,7 +13,7 @@ const createDefinition = (values) =>
         values,
         processes: [],
       },
-      states: { offered: { page: "offered" } },
+      states: { offered: { page: "offered" }, accepted: { page: "offered" } },
       pages: {
         offered: {
           title: "Offer",
@@ -277,7 +277,10 @@ describe("AgreementDefinition creation-value mapping", () => {
             },
             processes: ["CALCULATE_TOTAL"],
           },
-          states: { offered: { page: "offered" } },
+          states: {
+            offered: { page: "offered" },
+            accepted: { page: "offered" },
+          },
           pages: {
             offered: {
               title: "Offer",

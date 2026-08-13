@@ -30,7 +30,9 @@ const createApplication = () => {
     updatedAt: createdAt,
     submittedAt: createdAt,
     identifiers: { sbi },
-    metadata: { configVersion: "1.0.1" },
+    originalConfigVersion: "1.0.1",
+    currentConfigVersion: "1.0.1",
+    metadata: { configVersion: "legacy-version" },
     phases: [
       {
         code: "PRE_AWARD",
@@ -81,7 +83,10 @@ describe("PMF Agreement creation", () => {
 
   beforeEach(async () => {
     await clearScenarioData();
-    await grants.insertOne(structuredClone(pmfGrantDefinition));
+    await grants.insertOne({
+      ...structuredClone(pmfGrantDefinition),
+      version: "1.0.1",
+    });
     await applications.insertOne(createApplication());
   });
 
