@@ -6,8 +6,6 @@ import { loadCurrentAgreementByNumber } from "./load-current-agreement.js";
 vi.mock("./load-agreement-definition.js");
 vi.mock("./load-current-agreement.js");
 
-// Which definition version an Agreement resolves to is owned by
-// loadDefinitionForAgreement and covered in load-agreement-definition.test.js.
 it("returns the loaded Agreement with the definition it resolves to", async () => {
   const agreement = {
     agreementNumber: "PMF823153883",
@@ -26,7 +24,6 @@ it("returns the loaded Agreement with the definition it resolves to", async () =
   ).resolves.toEqual({
     agreement,
     agreementDefinition,
-    // ETag carries the resolved definition version, not the Agreement's.
     etag: '"PMF823153883:1:1.2.0"',
   });
   expect(loadDefinitionForAgreement).toHaveBeenCalledWith(agreement);

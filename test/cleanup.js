@@ -19,15 +19,10 @@ beforeEach(async () => {
     db.collection("config_versions").deleteMany({}),
     db.collection("users").deleteMany({}),
     db.collection("fifo_locks").deleteMany({}),
-    db.collection("config_versions").deleteMany({}),
     db.collection("agreements__definitions").deleteMany({}),
   ]);
 
-  // Both the stored definition above and the compiled one here survive a test
-  // otherwise: the caches are module scoped, and these tests run the service in
-  // process. Without this, a file that seeds different content for a
-  // grantCode@version already seen exercises the earlier definition and passes
-  // for the wrong reason.
+  // Clear module caches that survive database cleanup.
   clearAgreementDefinitionCaches();
 
   await db.collection("config_versions").updateOne(

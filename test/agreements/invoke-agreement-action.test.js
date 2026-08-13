@@ -4,7 +4,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { wreck } from "../helpers/wreck.js";
 
 const agreementNumber = "PMF823153884";
-// The ETag carries the resolved definition version, not the Agreement's own.
 const configVersion = "1.0.1";
 const etagFor = (version) => `"${agreementNumber}:${version}:${configVersion}"`;
 const idempotencyKey = "9ea924aa-45e9-43a7-888e-c25054ea658c";

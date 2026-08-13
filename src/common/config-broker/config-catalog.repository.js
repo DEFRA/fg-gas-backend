@@ -36,8 +36,6 @@ export const findConfigDefinition = async ({
   return toDefinition(doc, definitionType);
 };
 
-// Omit minor/patch for the latest usable definition in the major; pass them to
-// cap the result at that version.
 export const findLatestUsableDefinition = async ({
   grantCode,
   major,
@@ -56,9 +54,7 @@ export const findLatestUsableDefinition = async ({
       grantCode,
       major,
       status: "active",
-      // $ne rather than $exists: s3Key is nullable, and legacy rows carry an
-      // explicit null that $exists would accept as a usable location. $ne: null
-      // excludes both the null and the missing field.
+      // $ne excludes missing and null locations.
       [`${path}.s3Key`]: { $ne: null },
       [`${path}.fetchStatus`]: { $ne: FetchStatus.PermanentError },
       ...upperBound,
@@ -84,13 +80,7 @@ export const updateDefinitionLocation = async ({
     lastFetchAttemptAt: null,
   };
 
-  // Deliberately not an upsert: the config version record is written first and
-  // carries the fields every read filters on (major, status). Creating a
-  // document here would produce one without them, invisible to every query.
-  //
-  // $literal because this is a pipeline update, where a string value is an
-  // expression rather than a value: s3Key arrives from the config broker
-  // manifest, so a leading "$" would be read as a field path instead of stored.
+  // Do not upsert an incomplete config version. $literal preserves leading "$".
   return db.collection(collection).updateOne({ grantCode, version }, [
     {
       $set: {

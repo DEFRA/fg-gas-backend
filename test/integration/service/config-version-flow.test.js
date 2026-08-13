@@ -104,8 +104,6 @@ describe("config broker message flow", () => {
     });
   });
 
-  // Proves the guarantee at the database rather than the call: a definition
-  // location for a version that was never ingested must write nothing at all.
   it("does not create a config version record when the parent is missing", async () => {
     await updateDefinitionLocation({
       grantCode: "never-ingested",
@@ -122,9 +120,6 @@ describe("config broker message flow", () => {
     ).resolves.toBeNull();
   });
 
-  // The broker republishes an aliased release under the alias but leaves the
-  // publishing grant's paths in the manifest, so the stored keys must follow
-  // the manifest rather than the grant code on the message.
   it("stores the publishing grant's paths for an aliased release", async () => {
     await processConfigVersionUseCase({
       grantCode: "frps-private-beta",

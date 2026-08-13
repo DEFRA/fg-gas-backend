@@ -43,8 +43,6 @@ const validDefinition = {
   },
 };
 
-// The service has no {SERVICE}_URL in the environment, so compiling this fails
-// on the endpoint check rather than on anything in the definition itself.
 const definitionWithUnconfiguredEndpoint = {
   ...validDefinition,
   endpoints: [
@@ -183,9 +181,6 @@ describe("loadAgreementDefinition", () => {
     ).rejects.toMatchObject({ output: { statusCode: 500 } });
   });
 
-  // The definition is fine; this deployment is missing an env var. Recording that
-  // against the config version would mark it unusable for the whole fleet over a
-  // gap local to one instance, and nothing would clear it.
   it("does not record a missing endpoint URL against the config version", async () => {
     findConfigDefinition.mockResolvedValue(target("1.0.1"));
     fetchConfigFile.mockResolvedValue(definitionWithUnconfiguredEndpoint);
@@ -202,7 +197,6 @@ describe("loadAgreementDefinition", () => {
     expect(insertAgreementDefinition).not.toHaveBeenCalled();
   });
 
-  // Transient, so resolution must not treat it as evidence the version is bad.
   it("does not fall back to an older version when an endpoint URL is missing", async () => {
     findLatestUsableDefinition.mockResolvedValue(target("1.0.3"));
     fetchConfigFile.mockResolvedValue(definitionWithUnconfiguredEndpoint);
@@ -245,9 +239,6 @@ describe("loadAgreementDefinition", () => {
       );
     });
 
-    // fetchAttempts is shared across the fleet, so a short S3 outage runs it up
-    // on a version that is perfectly good. It must not be treated as evidence
-    // that the version itself is broken.
     it("still loads a version that has accumulated failed fetch attempts", async () => {
       findConfigDefinition.mockResolvedValue({
         ...target("1.0.1"),
@@ -285,7 +276,6 @@ describe("loadAgreementDefinition", () => {
       expect(definition.configVersion).toBe("1.0.2");
     });
 
-    // A service fault must not be laundered into a silent config downgrade.
     it("rethrows a transient failure without falling back", async () => {
       findLatestUsableDefinition.mockResolvedValue(target("1.0.2"));
       insertAgreementDefinition.mockRejectedValue(new Error("Mongo down"));
@@ -315,10 +305,6 @@ describe("loadAgreementDefinition", () => {
       expect(findLatestUsableDefinition).not.toHaveBeenCalled();
     });
 
-    // Running out of versions is the same outcome as finding nothing, so it must
-    // surface the normal unavailable error, not the last validation failure. The
-    // walk ends when resolution repeats a version rather than after a fixed
-    // number of releases, so the last one is resolved twice.
     it("reports unavailable once every attempt is invalid", async () => {
       findLatestUsableDefinition
         .mockResolvedValueOnce(target("1.0.3"))
@@ -345,9 +331,6 @@ describe("loadAgreementDefinition", () => {
       );
     });
 
-    // The walk is bounded by the versions on offer, not by a release count: four
-    // consecutive broken releases used to exhaust it while a usable fifth was
-    // still there to be found.
     it("keeps falling back past more than three invalid versions", async () => {
       findLatestUsableDefinition
         .mockResolvedValueOnce(target("1.0.5"))
@@ -410,7 +393,6 @@ describe("loadAgreementDefinition", () => {
       expect(findLatestUsableDefinition).not.toHaveBeenCalled();
     });
 
-    // The pin has to outlive the accepted state itself.
     it("keeps the pin after an accepted Agreement is terminated", async () => {
       findConfigDefinition.mockResolvedValue(target("1.0.1"));
 

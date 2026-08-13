@@ -53,7 +53,6 @@ describe("Agreement definition repository", () => {
       version: "1.0.1",
       definition,
     });
-    // The write result is a db record, so it is not handed back to callers.
     expect(result).toBeUndefined();
   });
 });

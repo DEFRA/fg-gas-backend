@@ -16,10 +16,7 @@ export const upsert = async (configVersion) => {
     lastFetchAttemptAt: doc.lastFetchAttemptAt,
   };
 
-  // $literal on the values that arrive from the config broker: this is a
-  // pipeline update, where a string is an expression rather than a value, so a
-  // leading "$" would be read as a field path instead of stored verbatim. The
-  // numbers and internal enums below cannot be mistaken for one.
+  // $literal preserves leading "$" in broker values.
   return db.collection(collection).updateOne(
     { grantCode: doc.grantCode, version: doc.version },
     [
@@ -70,12 +67,7 @@ export const findLatestForMajor = async (grantCode, major) => {
   return ConfigVersion.fromDocument(doc);
 };
 
-// Writes the Grant fetch state twice, top-level and under definitions.grant,
-// because writes have moved to the nested shape while findLatestForMajor above
-// still reads the top-level one. The nested half comes from the same builder the
-// Agreement path uses, so the two cannot drift; the top-level half is the
-// temporary compatibility write and goes away with those reads in FGP-1352. Both
-// go in one updateOne so they are never briefly out of step with each other.
+// Dual-write until FGP-1352 moves Grant reads to definitions.grant.
 export const updateFetchStatus = async (
   grantCode,
   version,
@@ -96,9 +88,7 @@ export const updateFetchStatus = async (
 
   if (fetchStatus === FetchStatus.Fetched) {
     update.$set.fetchedAt = now;
-    // No top-level fetchAttempts reset to match the nested one: this counter
-    // still drives the retry limit in resolve-config-version.service.js, and
-    // clearing it would change that behaviour. It retires with the field.
+    // The top-level counter still drives the retry limit until FGP-1352.
   } else {
     update.$inc = { fetchAttempts: 1, ...nested.inc };
   }

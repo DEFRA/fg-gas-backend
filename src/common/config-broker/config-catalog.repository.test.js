@@ -140,8 +140,6 @@ describe("config catalog repository", () => {
     );
   });
 
-  // Upserting here would create a record with no major or status, which every
-  // read filters on, leaving it invisible to all queries.
   it("is not an upsert, so it cannot create a config version record", async () => {
     await updateDefinitionLocation({
       grantCode: "woodland",
@@ -175,8 +173,6 @@ describe("config catalog repository", () => {
     );
   });
 
-  // Otherwise the counter measures every failure the version has ever had, and
-  // old ones combine with a much later blip to condemn it.
   it("clears the attempt counter once a fetch succeeds", async () => {
     await updateDefinitionFetchStatus({
       grantCode: "woodland",

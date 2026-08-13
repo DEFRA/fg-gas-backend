@@ -8,9 +8,6 @@ export const getAgreementDocumentPageModelUseCase = async ({
   access,
 }) => {
   logger.info({ agreementNumber }, "Getting read-only agreement document");
-  // The document has its own access check, so the Agreement is loaded here and
-  // handed to the context for the Definition and the ETag. Deriving the ETag
-  // here instead left this route free to drift from the three that share it.
   const agreement = await loadAgreementDocument({ agreementNumber, access });
   const { agreementDefinition, etag } = await loadCurrentAgreementContext({
     agreement,

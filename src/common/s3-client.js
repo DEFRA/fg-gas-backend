@@ -34,10 +34,7 @@ export class S3FetchError extends Error {
   }
 }
 
-// The key is taken from the manifest rather than rebuilt from the grant code:
-// an aliased release (farm-payments publishing again as frps-private-beta)
-// carries the alias on the message but keeps the original grant's paths in the
-// manifest, and the objects really do live under those paths.
+// Aliased releases keep the publisher's paths in the manifest.
 export const findS3KeyInManifest = (
   manifest,
   { dir, file, required = true },

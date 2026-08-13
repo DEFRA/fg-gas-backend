@@ -77,8 +77,6 @@ describe("s3-client", () => {
       ).toBeNull();
     });
 
-    // An aliased release keeps the original grant's paths in the manifest while
-    // the message carries the alias, so the key cannot be rebuilt from the code.
     it("resolves an aliased release against the publishing grant's paths", () => {
       const manifest = [
         "farm-payments/1.2.3/gas/gas.json",

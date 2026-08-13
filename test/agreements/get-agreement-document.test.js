@@ -7,7 +7,6 @@ const agreementNumber = "PMF823153886";
 const code = "pigs-might-fly";
 const clientRef = "document-view-client";
 const sbi = "300000072";
-// The ETag carries the resolved definition version, not the Agreement's own.
 const configVersion = "1.0.1";
 const createdAt = "2026-07-15T12:00:00.000Z";
 

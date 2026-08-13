@@ -29,10 +29,7 @@ const staleError = (etag) => {
   return error;
 };
 
-// Losing the race is the real outcome here, and the caller recovers by following
-// the location header. A definition that will not load must not turn that into
-// an opaque 500 with no location, leaving the caller no way back to the page it
-// should be looking at.
+// Preserve the stale response even when its ETag cannot be rebuilt.
 const staleEtag = async (agreement) => {
   try {
     const { etag } = await loadCurrentAgreementContext({ agreement });

@@ -1,7 +1,4 @@
-// A deployment gap, not a defect in the published definition: the same config
-// is fine on an instance that has the env var. Typed so the loader can tell it
-// apart from config that is genuinely broken and must never record it against
-// the shared config version.
+// Distinguishes local configuration faults from invalid shared config.
 export class EndpointServiceUrlError extends Error {
   constructor(message) {
     super(message);
@@ -32,8 +29,6 @@ const endpointsFor = (definition) => [
   ...processEndpointsFor(definition),
 ];
 
-// Every loaded Agreement definition endpoint service must resolve to a real
-// {SERVICE}_URL before the definition is cached.
 export const validateEndpointServiceUrls = (definitions) => {
   const services = new Set(
     definitions

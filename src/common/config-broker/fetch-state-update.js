@@ -1,9 +1,6 @@
 import { FetchStatus } from "../fetch-status.js";
 
-// One definition of what a fetch outcome records, shared by the Grant and
-// Agreement paths so they cannot drift on it. Returns the update fragments
-// rather than applying them, so a caller writing more than one path still does
-// so in a single updateOne.
+// Returns fragments so callers can combine them in one update.
 export const buildFetchStateUpdate = ({
   path,
   fetchStatus,
@@ -21,9 +18,7 @@ export const buildFetchStateUpdate = ({
   }
 
   set[`${path}.fetchedAt`] = at;
-  // Cleared on success so the counter measures consecutive failures rather than
-  // every failure the version has ever had. Without this, old failures combine
-  // with a much later blip to condemn a version that has been fetching fine.
+  // Count consecutive failures only.
   set[`${path}.fetchAttempts`] = 0;
 
   return { set };
