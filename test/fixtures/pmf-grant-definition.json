@@ -97,6 +97,24 @@
               ]
             },
             {
+              "code": "WITHDRAWAL_REQUESTED",
+              "validFrom": [
+                {
+                  "code": "IN_REVIEW",
+                  "processes": ["REQUEST_APPLICATION_WITHDRAWAL"]
+                }
+              ]
+            },
+            {
+              "code": "APPLICATION_WITHDRAWN",
+              "validFrom": [
+                {
+                  "code": "WITHDRAWAL_REQUESTED",
+                  "processes": []
+                }
+              ]
+            },
+            {
               "code": "AGREEMENT_GENERATING",
               "validFrom": [
                 {
@@ -138,6 +156,24 @@
                   "processes": ["STORE_AGREEMENT_CASE"]
                 }
               ]
+            },
+            {
+              "code": "WITHDRAWAL_REQUESTED",
+              "validFrom": [
+                {
+                  "code": "AGREEMENT_DRAFTED",
+                  "processes": ["REQUEST_APPLICATION_WITHDRAWAL"]
+                }
+              ]
+            },
+            {
+              "code": "APPLICATION_WITHDRAWN",
+              "validFrom": [
+                {
+                  "code": "WITHDRAWAL_REQUESTED",
+                  "processes": ["WITHDRAW_AGREEMENT"]
+                }
+              ]
             }
           ]
         },
@@ -152,6 +188,24 @@
                 {
                   "code": "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
                   "processes": []
+                }
+              ]
+            },
+            {
+              "code": "WITHDRAWAL_REQUESTED",
+              "validFrom": [
+                {
+                  "code": "AGREEMENT_OFFERED",
+                  "processes": ["REQUEST_APPLICATION_WITHDRAWAL"]
+                }
+              ]
+            },
+            {
+              "code": "APPLICATION_WITHDRAWN",
+              "validFrom": [
+                {
+                  "code": "WITHDRAWAL_REQUESTED",
+                  "processes": ["WITHDRAW_AGREEMENT"]
                 }
               ]
             }
@@ -175,6 +229,10 @@
                 {
                   "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
                   "processes": ["ACCEPT_AGREEMENT"]
+                },
+                {
+                  "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:WITHDRAWAL_REQUESTED",
+                  "processes": ["ACCEPT_AGREEMENT"]
                 }
               ]
             }
@@ -195,6 +253,11 @@
                 "code": "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
                 "source": "CW",
                 "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW"
+              },
+              {
+                "code": "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWAL_REQUESTED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWAL_REQUESTED"
               },
               {
                 "code": "PRE_AWARD:REVIEW_APPLICATION:ON_HOLD",
@@ -232,6 +295,16 @@
                 "mappedTo": "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED"
               },
               {
+                "code": "PRE_AWARD:REVIEW_OFFER:WITHDRAWAL_REQUESTED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:REVIEW_OFFER:WITHDRAWAL_REQUESTED"
+              },
+              {
+                "code": "withdrawn",
+                "source": "AS",
+                "mappedTo": "PRE_AWARD:REVIEW_OFFER:APPLICATION_WITHDRAWN"
+              },
+              {
                 "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
                 "source": "CW",
                 "mappedTo": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED"
@@ -241,6 +314,16 @@
           {
             "code": "CUSTOMER_AGREEMENT_REVIEW",
             "statuses": [
+              {
+                "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:WITHDRAWAL_REQUESTED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:WITHDRAWAL_REQUESTED"
+              },
+              {
+                "code": "withdrawn",
+                "source": "AS",
+                "mappedTo": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_WITHDRAWN"
+              },
               {
                 "code": "accepted",
                 "source": "AS",
