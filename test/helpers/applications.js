@@ -127,10 +127,9 @@ export const seedConfigVersion = async (
 
 export const submitApplication = async (
   db,
-  { withAgreementDefinition } = {},
+  { withAgreementDefinition, code = "test-code-1" } = {},
 ) => {
   const clientRef = `cr-12345-${randomUUID()}`;
-  const code = "test-code-1";
 
   await seedConfigVersion(db, code, "1.0.0", { withAgreementDefinition });
 
