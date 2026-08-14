@@ -95,14 +95,12 @@ describe("On CaseStatusUpdated", () => {
     });
   });
 
-  // A legacy grant reaches this point with a config version like any other, so
-  // only the absent Agreement definition keeps its Agreement with the external
-  // service. Routing on the config version alone sends it to the internal
-  // handler, which has no definition to create it from.
-  it("sends the Agreement command to the external service for a grant with no Agreement definition", async () => {
-    await createGrant();
+  it("sends the Agreement command to the external service for a grant outside the allowlist", async () => {
+    const code = "legacy-test-code";
+    await createGrant(code);
 
-    const { clientRef, code } = await submitApplication(db, {
+    const { clientRef } = await submitApplication(db, {
+      code,
       withAgreementDefinition: false,
     });
 

@@ -57,9 +57,9 @@ export const createTestGrant = (overrides = {}) => {
   });
 };
 
-export const createGrant = async () => {
+export const createGrant = async (code = "test-code-1") => {
   const payload = {
-    code: "test-code-1",
+    code,
     version: "0.0.0",
     metadata: {
       description: "test description 1",

@@ -287,26 +287,6 @@ export const loadAgreementDefinition = async (options) => {
   throw unavailable(options.code, options.configVersion);
 };
 
-// Routing asks the question creation will actually ask, so the two cannot
-// diverge: a Boom result means no usable definition and the command belongs to
-// the external Agreements service. Anything else is a fault, not an answer, and
-// must not quietly divert the command.
-export const canLoadDefinitionForCreation = async ({ code, configVersion }) => {
-  try {
-    await loadAgreementDefinition({
-      code,
-      configVersion,
-      resolution: "creation",
-    });
-    return true;
-  } catch (error) {
-    if (!error.isBoom) {
-      throw error;
-    }
-    return false;
-  }
-};
-
 // Reset module caches between tests.
 export const clearAgreementDefinitionCaches = () => {
   compiledDefinitions.clear();

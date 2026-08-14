@@ -15,6 +15,7 @@ services:
       INBOX_POLL_MS: "${INBOX_POLL_MS}"
       GRANT_FUNDING_CALCULATOR_URL: "${GRANT_FUNDING_CALCULATOR_URL}"
       VIEW_AGREEMENT_URI: "${VIEW_AGREEMENT_URI}"
+      GAS_MANAGED_AGREEMENT_GRANT_CODES: "${GAS_MANAGED_AGREEMENT_GRANT_CODES}"
     depends_on:
       mongo-ready:
         condition: service_healthy
