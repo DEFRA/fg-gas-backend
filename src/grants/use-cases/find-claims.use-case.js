@@ -22,11 +22,7 @@ export const findClaimsUseCase = async ({ code, clientRef }) => {
     `Grant for code ${code} and version ${currentConfigVersion}`,
   );
 
-  // @julian checks...
   // does the current application position meet the "availableAt" position on the entitlementTemplate?
-  // is materialised "false"
-  // is the number of entitlement instances for this application less that the maxEntitlements field in the template?
-
   const position = application.currentPosition();
 
   const available = grant.findEntitlementTemplatesAvailableAt(position);
@@ -38,15 +34,17 @@ export const findClaimsUseCase = async ({ code, clientRef }) => {
     existing.filter((entitlement) => entitlement.claimCode === claimCode)
       .length;
 
-  logger.info(
-    { available, existing: existing.length },
-    `Entitlement templates available at position for ${clientRef}`,
-  );
-
+  // is materialised "false"
+  // is the number of entitlement instances for this application less that the maxEntitlements field in the template?
   const availableEntitlements = available.filter(
     (template) =>
       template.materialised === false &&
       countFor(template.claimCode) < template.maxEntitlements,
+  );
+
+  logger.info(
+    { available, existing: existing.length },
+    `Entitlement templates available at position for ${clientRef}`,
   );
 
   return {
