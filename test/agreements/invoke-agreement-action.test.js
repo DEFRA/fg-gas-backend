@@ -4,6 +4,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { wreck } from "../helpers/wreck.js";
 
 const agreementNumber = "PMF823153884";
+const configVersion = "1.0.1";
+const etagFor = (version) => `"${agreementNumber}:${version}:${configVersion}"`;
 const idempotencyKey = "9ea924aa-45e9-43a7-888e-c25054ea658c";
 const createdAt = "2026-07-15T12:00:00.000Z";
 const agreementAccessHeaders = {
@@ -75,7 +77,7 @@ const toFundedValues = (value) => ({
 
 const requestAction = async ({
   values = { confirm: "confirmed" },
-  ifMatch = `"${agreementNumber}:1"`,
+  ifMatch = etagFor(1),
   key = idempotencyKey,
 } = {}) => {
   const response = await wreck.request(
@@ -148,7 +150,7 @@ describe("single Agreement actions", () => {
     const payload = await wreck.read(response, { json: true });
 
     expect(response.statusCode).toBe(200);
-    expect(response.headers.etag).toBe(`"${agreementNumber}:1"`);
+    expect(response.headers.etag).toBe(etagFor(1));
     expect(payload.agreement.agreementNumber).toBe(agreementNumber);
     expect(JSON.stringify(payload)).not.toContain("agreementItem");
   });
@@ -282,7 +284,7 @@ describe("single Agreement actions", () => {
     const { response, payload } = await requestAction({ values: {} });
 
     expect(response.statusCode).toBe(422);
-    expect(response.headers.etag).toBe(`"${agreementNumber}:1"`);
+    expect(response.headers.etag).toBe(etagFor(1));
     expect(payload).toMatchObject({
       page: { name: "accept", title: "Accept your agreement offer" },
       components: [
@@ -344,10 +346,10 @@ describe("single Agreement actions", () => {
 
   it("rejects a stale expected version without changing the offer", async () => {
     const offered = await agreements.findOne({ agreementNumber });
-    const { response } = await requestAction({ ifMatch: '"PMF823153884:0"' });
+    const { response } = await requestAction({ ifMatch: etagFor(0) });
 
     expect(response.statusCode).toBe(412);
-    expect(response.headers.etag).toBe(`"${agreementNumber}:1"`);
+    expect(response.headers.etag).toBe(etagFor(1));
     expect(await agreements.findOne({ agreementNumber })).toEqual(offered);
     expect(await versions.countDocuments({ agreementNumber })).toBe(1);
   });

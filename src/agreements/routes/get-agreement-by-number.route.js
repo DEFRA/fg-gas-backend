@@ -2,7 +2,6 @@ import { agreementAccessHeadersSchema } from "../schemas/requests/agreement-acce
 import { getAgreementDocumentQuerySchema } from "../schemas/requests/get-current-agreement-query.schema.js";
 import { agreementNumberParamsSchema } from "../schemas/requests/invoke-agreement-action-request.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
-import { toEtag } from "../use-cases/agreement-etag.js";
 import { getAgreementDocumentPageModelUseCase } from "../use-cases/get-agreement-document-page-model.use-case.js";
 
 export const getAgreementByNumberRoute = {
@@ -19,17 +18,15 @@ export const getAgreementByNumberRoute = {
     response: { schema: agreementPageModelResponseSchema },
   },
   async handler(request, h) {
-    const { agreement, pageModel } = await getAgreementDocumentPageModelUseCase(
-      {
-        agreementNumber: request.params.agreementNumber,
-        access: {
-          source: request.headers["x-agreement-source"],
-          code: request.headers["x-agreement-code"],
-          sbi: request.headers["x-agreement-sbi"],
-        },
+    const { pageModel, etag } = await getAgreementDocumentPageModelUseCase({
+      agreementNumber: request.params.agreementNumber,
+      access: {
+        source: request.headers["x-agreement-source"],
+        code: request.headers["x-agreement-code"],
+        sbi: request.headers["x-agreement-sbi"],
       },
-    );
+    });
 
-    return h.response(pageModel).header("ETag", toEtag(agreement));
+    return h.response(pageModel).header("ETag", etag);
   },
 };

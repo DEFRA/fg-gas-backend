@@ -59,10 +59,17 @@ const findReferenceErrors = ({ create, states, pages }) => {
   return errors;
 };
 
+const includeConfigVersion = (value, configVersion) =>
+  configVersion === undefined ? value : { ...value, configVersion };
+
 const runValidation = (definition) => {
-  const { value, error } = agreementDefinitionSchema.validate(definition, {
-    abortEarly: false,
-  });
+  const { configVersion, ...producerDefinition } = definition;
+  const { value, error } = agreementDefinitionSchema.validate(
+    producerDefinition,
+    {
+      abortEarly: false,
+    },
+  );
 
   if (error) {
     // badImplementation (500), not badRequest: an invalid Agreement definition
@@ -80,7 +87,7 @@ const runValidation = (definition) => {
     );
   }
 
-  return value;
+  return includeConfigVersion(value, configVersion);
 };
 
 // Agreement definitions are static, in-memory objects, so a given definition

@@ -30,6 +30,7 @@ it("returns canonical Agreement presentation with an ETag", async () => {
   getAgreementDocumentPageModelUseCase.mockResolvedValue({
     agreement,
     pageModel,
+    etag: '"PMF123:2:1.2.0"',
   });
 
   const response = await server.inject({
@@ -42,7 +43,7 @@ it("returns canonical Agreement presentation with an ETag", async () => {
   });
 
   expect(response.statusCode).toBe(200);
-  expect(response.headers.etag).toBe('"PMF123:2"');
+  expect(response.headers.etag).toBe('"PMF123:2:1.2.0"');
   expect(response.result).toEqual(pageModel);
   expect(getAgreementDocumentPageModelUseCase).toHaveBeenCalledWith({
     agreementNumber: "PMF123",

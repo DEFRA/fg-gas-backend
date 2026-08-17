@@ -41,6 +41,7 @@ export default defineConfig({
       TRACING_HEADER: "x-cdp-request-id",
       ENVIRONMENT: "local",
       VIEW_AGREEMENT_URI: "http://localhost:3000",
+      GAS_MANAGED_AGREEMENT_GRANT_CODES: "pigs-might-fly,test-code-1",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created_fifo.fifo",
       GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: `${SQS_URL}/gas__sqs__update_agreement_status_fifo.fifo`,

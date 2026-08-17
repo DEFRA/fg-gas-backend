@@ -12,7 +12,7 @@ import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-a
 describe("agreements", () => {
   afterEach(() => {
     clearInternalCommandHandlers();
-    vi.unstubAllEnvs();
+    vi.resetAllMocks();
   });
 
   it("registers as a hapi plugin", async () => {
@@ -50,32 +50,34 @@ describe("agreements", () => {
     });
   });
 
-  it("registers the internal handler for configured agreement.create commands", async () => {
+  it("registers the internal handler for agreement.create commands", async () => {
     const server = hapi.server();
     await server.register(agreements);
 
     expect(
       getInternalCommandHandler(internalCommandTypes.AGREEMENT_CREATE),
     ).toBe(handleCreateAgreementCommandUseCase);
-    expect(
-      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
-        data: { code: "pigs-might-fly" },
-      }),
-    ).toBe(true);
-    expect(
-      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
-        data: { code: "woodland" },
-      }),
-    ).toBe(false);
   });
 
-  it("fails to register when a registered agreement definition's endpoint has no URL configured", async () => {
-    vi.stubEnv("GRANT_FUNDING_CALCULATOR_URL", "");
-
+  it("handles allowlisted agreement.create commands internally", async () => {
     const server = hapi.server();
+    await server.register(agreements);
 
-    await expect(server.register(agreements)).rejects.toThrow(
-      /Missing required endpoint URL env var\(s\): GRANT_FUNDING_CALCULATOR_URL/,
-    );
+    await expect(
+      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
+        data: { code: "another-gas-grant", currentConfigVersion: "1.0.1" },
+      }),
+    ).resolves.toBe(true);
+  });
+
+  it("leaves grants outside the allowlist to the external service", async () => {
+    const server = hapi.server();
+    await server.register(agreements);
+
+    await expect(
+      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
+        data: { code: "woodland", currentConfigVersion: "1.0.0" },
+      }),
+    ).resolves.toBe(false);
   });
 });

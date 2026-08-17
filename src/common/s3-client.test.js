@@ -48,9 +48,9 @@ describe("s3-client", () => {
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/metadata.json",
       ];
-      expect(findS3KeyInManifest(manifest, "gas")).toBe(
-        "woodland/1.2.3/gas/gas.json",
-      );
+      expect(
+        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
+      ).toBe("woodland/1.2.3/gas/gas.json");
     });
 
     it("should handle manifests with many entries", () => {
@@ -60,9 +60,40 @@ describe("s3-client", () => {
         "frps-private-beta/2.0.0/grants-ui/allowlist.yaml",
         "frps-private-beta/2.0.0/metadata.json",
       ];
-      expect(findS3KeyInManifest(manifest, "gas")).toBe(
-        "frps-private-beta/2.0.0/gas/gas.json",
-      );
+      expect(
+        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
+      ).toBe("frps-private-beta/2.0.0/gas/gas.json");
+    });
+
+    it("returns null for a missing optional exact path", () => {
+      const manifest = ["woodland/1.2.3/gas/gas.json"];
+
+      expect(
+        findS3KeyInManifest(manifest, {
+          dir: "gas",
+          file: "agreement.json",
+          required: false,
+        }),
+      ).toBeNull();
+    });
+
+    it("resolves an aliased release against the publishing grant's paths", () => {
+      const manifest = [
+        "farm-payments/1.2.3/gas/gas.json",
+        "farm-payments/1.2.3/gas/agreement.json",
+        "farm-payments/1.2.3/metadata.json",
+      ];
+
+      expect(
+        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
+      ).toBe("farm-payments/1.2.3/gas/gas.json");
+      expect(
+        findS3KeyInManifest(manifest, {
+          dir: "gas",
+          file: "agreement.json",
+          required: false,
+        }),
+      ).toBe("farm-payments/1.2.3/gas/agreement.json");
     });
 
     it("should throw when the manifest does not contain a matching path", () => {
@@ -70,9 +101,9 @@ describe("s3-client", () => {
         "woodland/1.2.3/cw/cw.json",
         "woodland/1.2.3/metadata.json",
       ];
-      expect(() => findS3KeyInManifest(manifest, "gas")).toThrow(
-        "Manifest does not contain a gas config file",
-      );
+      expect(() =>
+        findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
+      ).toThrow("Manifest does not contain required config file");
     });
   });
 

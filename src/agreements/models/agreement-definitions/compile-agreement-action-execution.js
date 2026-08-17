@@ -26,6 +26,10 @@ export const compileAgreementActionExecution = (
         target: action.transition.target,
         transitionedAt: execution.executedAt,
         values: processResult.agreementValues,
+        configVersion:
+          action.transition.target === "accepted"
+            ? definition.configVersion
+            : undefined,
       }),
       commitOperations: processResult.commitOperations,
     };
