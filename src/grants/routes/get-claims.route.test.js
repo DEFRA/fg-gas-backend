@@ -1,9 +1,9 @@
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { findAvailableEntitlementTemplatesUseCase } from "../use-cases/find-available-entitements.use-case.js";
-import { getAvailableEntitlementsRoute } from "./get-available-entitlements.route.js";
+import { findClaimsUseCase } from "../use-cases/find-claims.use-case.js";
+import { getClaimsRoute } from "./get-claims.route.js";
 
-vi.mock("../use-cases/find-available-entitements.use-case.js");
+vi.mock("../use-cases/find-claims.use-case.js");
 vi.mock("../../common/logger.js", () => ({
   logger: {
     info: vi.fn(),
@@ -43,14 +43,14 @@ const template = {
 };
 
 const url = (code, clientRef) =>
-  `/grant-admin/grants/${code}/applications/${clientRef}/claims/available-entitlements`;
+  `/grant-admin/grants/${code}/applications/${clientRef}/claims`;
 
-describe("getAvailableEntitlementsRoute", () => {
+describe("getClaimsRoute", () => {
   let server;
 
   beforeAll(async () => {
     server = hapi.server();
-    server.route(getAvailableEntitlementsRoute);
+    server.route(getClaimsRoute);
     await server.initialize();
   });
 
@@ -58,12 +58,14 @@ describe("getAvailableEntitlementsRoute", () => {
     await server.stop();
   });
 
-  it("returns the available entitlement templates for code and clientRef", async () => {
+  it("returns the claims data for code and clientRef", async () => {
     const code = "grant-1";
     const clientRef = "ref-1234";
 
-    findAvailableEntitlementTemplatesUseCase.mockResolvedValue({
-      entitlementTemplates: [template],
+    findClaimsUseCase.mockResolvedValue({
+      availableEntitlements: [template],
+      claimableEntitlements: [],
+      claims: [],
     });
 
     const result = await server.inject({
@@ -72,16 +74,22 @@ describe("getAvailableEntitlementsRoute", () => {
     });
 
     expect(result.statusCode).toEqual(200);
-    expect(findAvailableEntitlementTemplatesUseCase).toHaveBeenCalledWith({
+    expect(findClaimsUseCase).toHaveBeenCalledWith({
       code,
       clientRef,
     });
-    expect(result.result).toEqual({ entitlementTemplates: [template] });
+    expect(result.result).toEqual({
+      availableEntitlements: [template],
+      claimableEntitlements: [],
+      claims: [],
+    });
   });
 
-  it("returns an empty list when no template is available", async () => {
-    findAvailableEntitlementTemplatesUseCase.mockResolvedValue({
-      entitlementTemplates: [],
+  it("returns empty lists when nothing is available", async () => {
+    findClaimsUseCase.mockResolvedValue({
+      availableEntitlements: [],
+      claimableEntitlements: [],
+      claims: [],
     });
 
     const result = await server.inject({
@@ -90,6 +98,10 @@ describe("getAvailableEntitlementsRoute", () => {
     });
 
     expect(result.statusCode).toEqual(200);
-    expect(result.result).toEqual({ entitlementTemplates: [] });
+    expect(result.result).toEqual({
+      availableEntitlements: [],
+      claimableEntitlements: [],
+      claims: [],
+    });
   });
 });

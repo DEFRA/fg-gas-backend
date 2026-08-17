@@ -109,7 +109,7 @@ describe("grants", () => {
       { method: "get", path: "/grants/{code}/applications/{clientRef}/status" },
       {
         method: "get",
-        path: "/grant-admin/grants/{code}/applications/{clientRef}/claims/available-entitlements",
+        path: "/grant-admin/grants/{code}/applications/{clientRef}/claims",
       },
     ]);
   });

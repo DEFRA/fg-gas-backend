@@ -5,7 +5,7 @@ import { code } from "../schemas/grant/code.js";
 import { entitlementTemplates } from "../schemas/grant/entitlement-template.js";
 import { findClaimsUseCase } from "../use-cases/find-claims.use-case.js";
 
-export const getAvailableEntitlementsRoute = {
+export const getClaimsRoute = {
   method: "GET",
   path: "/grant-admin/grants/{code}/applications/{clientRef}/claims",
   options: {
@@ -18,8 +18,13 @@ export const getAvailableEntitlementsRoute = {
       }),
     },
     response: {
+      // claimableEntitlements and claims are stubbed as empty by the use case
+      // until entitlement instances are written, so neither has a shape to
+      // pin down yet.
       schema: Joi.object({
-        entitlementTemplates,
+        availableEntitlements: entitlementTemplates,
+        claimableEntitlements: Joi.array(),
+        claims: Joi.array(),
       }),
     },
   },
