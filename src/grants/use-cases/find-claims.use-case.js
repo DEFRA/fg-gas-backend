@@ -3,11 +3,7 @@ import { findExistingEntitlements } from "../repositories/entitlement.repository
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
 
-export const findAvailableEntitlementTemplatesUseCase = async ({
-  code,
-  clientRef,
-}) => {
-  // get application - (extract version)
+export const findClaimsUseCase = async ({ code, clientRef }) => {
   const application = await findApplicationByClientRefAndCodeUseCase(
     clientRef,
     code,
@@ -16,7 +12,6 @@ export const findAvailableEntitlementTemplatesUseCase = async ({
 
   logger.info({ currentConfigVersion }, "Application currentConfigVersion");
 
-  // get grant
   const { grant } = await resolveCurrentGrantUseCase(
     code,
     currentConfigVersion,
@@ -27,13 +22,10 @@ export const findAvailableEntitlementTemplatesUseCase = async ({
     `Grant for code ${code} and version ${currentConfigVersion}`,
   );
 
-  // look up entitlement templates from grant
-  const { entitlementTemplates } = grant;
-
+  // @julian checks...
   // does the current application position meet the "availableAt" position on the entitlementTemplate?
   // is materialised "false"
   // is the number of entitlement instances for this application less that the maxEntitlements field in the template?
-  //  ^ the above will have to be hardcoded. call out to a helper to fetch entitlement instances for an application
 
   const position = application.currentPosition();
 
@@ -47,15 +39,19 @@ export const findAvailableEntitlementTemplatesUseCase = async ({
       .length;
 
   logger.info(
-    { entitlementTemplates, available, existing: existing.length },
+    { available, existing: existing.length },
     `Entitlement templates available at position for ${clientRef}`,
   );
 
+  const availableEntitlements = available.filter(
+    (template) =>
+      template.materialised === false &&
+      countFor(template.claimCode) < template.maxEntitlements,
+  );
+
   return {
-    entitlementTemplates: available.filter(
-      (template) =>
-        template.materialised === false &&
-        countFor(template.claimCode) < template.maxEntitlements,
-    ),
+    availableEntitlements,
+    claimableEntitlements: [],
+    claims: [],
   };
 };
