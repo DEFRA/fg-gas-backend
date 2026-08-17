@@ -17,14 +17,28 @@
       "description": "The maximum eligible woodland area that can be claimed under PA3.",
       "materialised": false,
       "fields": {
-        "limitQuantity": {
+        "totalHectares": {
           "input": true,
           "label": "Total area of eligible woodland",
           "unitType": "decimal",
-          "decimalPlaces": 2,
+          "decimalPlaces": 4,
           "unit": "HA",
-          "minValue": 3,
-          "maxValue": 10000
+          "minValue": 0.5,
+          "maxValue": null
+        },
+        "actionCode": {
+          "input": false,
+          "value": "PA3",
+          "unitType": "string",
+          "minLength": 1,
+          "maxLength": null
+        },
+        "actionVersion": {
+          "input": false,
+          "value": "jsonata: $.agreement.actions[code='PA3'].version",
+          "unitType": "string",
+          "minLength": 1,
+          "maxLength": null
         }
       },
       "maxEntitlements": 1,
