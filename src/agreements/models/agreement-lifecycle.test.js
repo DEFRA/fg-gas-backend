@@ -45,6 +45,41 @@ describe("AgreementLifecycle", () => {
     });
   });
 
+  it("resolves the configured action for a target state", () => {
+    expect(
+      lifecycle.resolveActionForTarget("offered", "withdrawn").transition,
+    ).toEqual({
+      from: "offered",
+      action: "withdraw",
+      target: "withdrawn",
+    });
+  });
+
+  it("rejects a target without a configured transition", () => {
+    expect(() =>
+      lifecycle.resolveActionForTarget("accepted", "withdrawn"),
+    ).toThrow(InvalidAgreementTransitionError);
+  });
+
+  it("rejects an ambiguous target", () => {
+    const ambiguous = new AgreementLifecycle({
+      create: { target: "offered" },
+      states: {
+        offered: {
+          on: {
+            withdraw: { target: "withdrawn" },
+            forceWithdraw: { target: "withdrawn" },
+          },
+        },
+        withdrawn: {},
+      },
+    });
+
+    expect(() =>
+      ambiguous.resolveActionForTarget("offered", "withdrawn"),
+    ).toThrow('configures multiple actions targeting "withdrawn"');
+  });
+
   it("resolves terminate from accepted", () => {
     expect(lifecycle.resolveAction("accepted", "terminate").transition).toEqual(
       {

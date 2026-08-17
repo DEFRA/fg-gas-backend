@@ -1,5 +1,10 @@
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { config } from "../../common/config.js";
+import {
+  canHandleInternalCommand,
+  internalMessageBusTarget,
+} from "../../common/internal-command-bus.js";
+import { internalCommandTypes } from "../../common/internal-command-types.js";
 import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
@@ -26,6 +31,14 @@ export const auditDataBuilder = (args) => {
   });
 };
 
+const resolveAgreementStatusCommandTarget = async (command) =>
+  (await canHandleInternalCommand(
+    internalCommandTypes.AGREEMENT_STATUS_UPDATE,
+    command,
+  ))
+    ? internalMessageBusTarget
+    : config.sns.updateAgreementStatusTopicArn;
+
 const withdrawApplication = async (command, session) => {
   const { clientRef, code } = command;
   const application = await findByClientRefAndCode(
@@ -49,7 +62,9 @@ const withdrawApplication = async (command, session) => {
     outboxObjects.push(
       new Outbox({
         event: updateAgreementStatusCommand,
-        target: config.sns.updateAgreementStatusTopicArn,
+        target: await resolveAgreementStatusCommandTarget(
+          updateAgreementStatusCommand,
+        ),
         segregationRef: Outbox.getSegregationRef(updateAgreementStatusCommand),
       }),
     );

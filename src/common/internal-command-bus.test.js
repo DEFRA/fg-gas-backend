@@ -77,6 +77,10 @@ describe("internal-command-bus", () => {
       internalCommandTypes.AGREEMENT_CREATE,
     ],
     [
+      internalCommandTypes.AGREEMENT_STATUS_UPDATE,
+      "cloud.defra.dev.gas.agreement.status.update",
+    ],
+    [
       internalCommandTypes.AGREEMENT_STATUS_UPDATED,
       "cloud.defra.dev.gas.agreement.status.updated",
     ],

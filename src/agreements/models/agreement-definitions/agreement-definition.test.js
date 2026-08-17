@@ -125,6 +125,24 @@ describe("AgreementDefinition", () => {
     });
   });
 
+  it("resolves the configured action for an external target status", () => {
+    const configuration = structuredClone(validDefinition);
+    configuration.states.offered.on.withdraw = { target: "withdrawn" };
+    configuration.states.withdrawn = { page: "offered" };
+    const definition = new AgreementDefinition(configuration);
+
+    expect(
+      definition.resolveActionForStatus({
+        state: "offered",
+        status: "withdrawn",
+      }).transition,
+    ).toEqual({
+      from: "offered",
+      action: "withdraw",
+      target: "withdrawn",
+    });
+  });
+
   it("preserves the requested state and action over extensible metadata", () => {
     const configuration = structuredClone(validDefinition);
     configuration.states.offered.on.accept.from = "accepted";

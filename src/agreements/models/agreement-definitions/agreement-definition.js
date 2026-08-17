@@ -75,6 +75,13 @@ export class AgreementDefinition {
     );
   }
 
+  resolveActionForStatus({ state, status }) {
+    return new AgreementLifecycle(this.#definition).resolveActionForTarget(
+      state,
+      status,
+    );
+  }
+
   resolvePage(page) {
     const pageDefinition = this.#definition.pages[page];
 

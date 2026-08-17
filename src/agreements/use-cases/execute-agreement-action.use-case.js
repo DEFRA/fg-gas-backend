@@ -209,7 +209,7 @@ const toConcurrentOptions = (options) => ({
   idempotencyKey: options.idempotencyKey,
 });
 
-const commitAction = async (options) => {
+export const commitAgreementAction = async (options) => {
   let result;
 
   try {
@@ -270,7 +270,7 @@ export const executeAgreementActionUseCase = async (options) => {
       executedAt: new Date().toISOString(),
     },
   });
-  return commitAction({
+  return commitAgreementAction({
     actionName: options.actionName,
     current: agreement,
     idempotencyKey: options.idempotencyKey,

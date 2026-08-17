@@ -51,9 +51,8 @@ const definition = new AgreementDefinition({
       layout: "document",
       contents: true,
       print: true,
-      watermark: {
-        condition: "jsonata:$.agreement.state = 'offered'",
-        text: "DRAFT",
+      watermarks: {
+        offered: "DRAFT",
       },
       components: [{ component: "heading", text: "Document" }],
       sections: [
@@ -354,7 +353,7 @@ describe("buildAgreementPageModel", () => {
     expect(result.actions).toEqual([]);
   });
 
-  it("omits a conditional watermark when its condition is false", async () => {
+  it("omits a watermark when the current state is not mapped", async () => {
     const result = await buildAgreementDocumentPageModel({
       agreement: { ...agreement, state: "accepted" },
       agreementDefinition: definition,
@@ -444,6 +443,67 @@ describe("buildAgreementPageModel", () => {
         target: "_blank",
       },
     ]);
+  });
+
+  it("derives PMF document watermarks from future terminal states", async () => {
+    const futureDefinition = structuredClone(pmfAgreementDefinition);
+    futureDefinition.states.terminated = { page: "withdrawn" };
+    futureDefinition.pages.document.watermarks.terminated = "TERMINATED";
+
+    const documentModel = await buildAgreementDocumentPageModel({
+      agreement: {
+        ...agreement,
+        code: "pigs-might-fly",
+        state: "terminated",
+        ...offeredValues,
+      },
+      agreementDefinition: new AgreementDefinition(futureDefinition),
+    });
+
+    expect(documentModel.page.watermark).toEqual({ text: "TERMINATED" });
+  });
+
+  it("renders withdrawn PMF pages without lifecycle actions", async () => {
+    const withdrawnAgreement = {
+      ...agreement,
+      code: "pigs-might-fly",
+      state: "withdrawn",
+      ...offeredValues,
+    };
+    const pmfDefinition = new AgreementDefinition(pmfAgreementDefinition);
+
+    const [documentModel, withdrawnModel] = await Promise.all([
+      buildAgreementDocumentPageModel({
+        agreement: withdrawnAgreement,
+        agreementDefinition: pmfDefinition,
+      }),
+      buildAgreementPageModel({
+        agreement: withdrawnAgreement,
+        agreementDefinition: pmfDefinition,
+        page: "withdrawn",
+        mode: "view",
+      }),
+    ]);
+
+    expect(documentModel.page.watermark).toEqual({ text: "WITHDRAWN" });
+    expect(documentModel.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          component: "notification-banner",
+          title: "This agreement offer has been withdrawn",
+        }),
+      ]),
+    );
+    expect(withdrawnModel).toMatchObject({
+      page: { watermark: { text: "WITHDRAWN" } },
+      components: expect.arrayContaining([
+        expect.objectContaining({
+          component: "notification-banner",
+          title: "This agreement offer has been withdrawn",
+        }),
+      ]),
+      actions: [],
+    });
   });
 
   it("shows the PMF offer summary without duplicating the payment schedule", async () => {
