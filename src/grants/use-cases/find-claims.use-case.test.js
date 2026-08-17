@@ -97,11 +97,43 @@ describe("find claims use case", () => {
     expect(result.availableEntitlements[0].claimCode).toBe("ENT_PA3");
   });
 
-  it("excludes templates available at another position", async () => {
+  // The parts a template leaves out match anything, so a phase-only template is
+  // available everywhere within its phase.
+  it("returns a template that declares only the phase the application is in", async () => {
+    givenGrantWith([
+      createTemplate({ availableAt: { phase: position.phase } }),
+    ]);
+
+    const result = await findClaimsUseCase({ code, clientRef });
+
+    expect(result.availableEntitlements).toHaveLength(1);
+    expect(result.availableEntitlements[0].claimCode).toBe("ENT_PA3");
+  });
+
+  it("excludes templates available at another status", async () => {
     givenGrantWith([
       createTemplate({
         availableAt: { ...position, status: "IN_REVIEW" },
       }),
+    ]);
+
+    const result = await findClaimsUseCase({ code, clientRef });
+
+    expect(result.availableEntitlements).toEqual([]);
+  });
+
+  // Phase is the one part a template cannot leave open, so an application in
+  // another phase is out regardless of how little the template declares.
+  it("excludes templates when the application is in another phase", async () => {
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
+      createTestApplication({
+        clientRef,
+        code,
+        currentPhase: "POST_AWARD",
+      }),
+    );
+    givenGrantWith([
+      createTemplate({ availableAt: { phase: position.phase } }),
     ]);
 
     const result = await findClaimsUseCase({ code, clientRef });
@@ -153,6 +185,14 @@ describe("find claims use case", () => {
     const result = await findClaimsUseCase({ code, clientRef });
 
     expect(result.availableEntitlements).toHaveLength(1);
+  });
+
+  it("returns nothing available when the grant defines no templates", async () => {
+    givenGrantWith([]);
+
+    const result = await findClaimsUseCase({ code, clientRef });
+
+    expect(result.availableEntitlements).toEqual([]);
   });
 
   // Both are stubbed until entitlement instances are written.
