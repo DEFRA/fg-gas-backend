@@ -45,10 +45,9 @@ const createLifecycleMessages = (agreement, payment) => {
       event,
       target: internalMessageBusTarget,
     },
-    {
-      event,
-      target: config.sns.agreementStatusUpdatedTopicArn,
-    },
+    ...(agreement.state === "accepted"
+      ? [{ event, target: config.sns.agreementStatusUpdatedTopicArn }]
+      : []),
   ];
 };
 

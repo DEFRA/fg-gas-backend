@@ -42,6 +42,24 @@ describe("createOutboxMessages", () => {
     });
   });
 
+  it("keeps non-accepted lifecycle events internal", () => {
+    const messages = createOutboxMessages(["lifecycle"], {
+      agreementNumber: "PMF123",
+      correlationId: "correlation-id",
+      clientRef: "client-1",
+      code: "pigs-might-fly",
+      version: 1,
+      state: "offered",
+      updatedAt: "2026-07-17T11:29:00.000Z",
+    });
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      target: internalMessageBusTarget,
+      event: { data: { status: "offered" } },
+    });
+  });
+
   it("adds committed Agreement and Payment facts to the accepted lifecycle wire", () => {
     const agreement = {
       agreementNumber: "PMF123",
