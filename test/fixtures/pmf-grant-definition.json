@@ -229,10 +229,6 @@
                 {
                   "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
                   "processes": ["ACCEPT_AGREEMENT"]
-                },
-                {
-                  "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:WITHDRAWAL_REQUESTED",
-                  "processes": ["ACCEPT_AGREEMENT"]
                 }
               ]
             }
