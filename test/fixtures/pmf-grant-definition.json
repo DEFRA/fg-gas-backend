@@ -158,6 +158,24 @@
               ]
             },
             {
+              "code": "AMENDMENT_REQUESTED",
+              "validFrom": [
+                {
+                  "code": "AGREEMENT_DRAFTED",
+                  "processes": ["REQUEST_AGREEMENT_CANCELLATION"]
+                }
+              ]
+            },
+            {
+              "code": "APPLICATION_AMEND",
+              "validFrom": [
+                {
+                  "code": "AMENDMENT_REQUESTED",
+                  "processes": ["CANCEL_AGREEMENT"]
+                }
+              ]
+            },
+            {
               "code": "WITHDRAWAL_REQUESTED",
               "validFrom": [
                 {
@@ -188,6 +206,24 @@
                 {
                   "code": "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
                   "processes": []
+                }
+              ]
+            },
+            {
+              "code": "AMENDMENT_REQUESTED",
+              "validFrom": [
+                {
+                  "code": "AGREEMENT_OFFERED",
+                  "processes": ["REQUEST_AGREEMENT_CANCELLATION"]
+                }
+              ]
+            },
+            {
+              "code": "APPLICATION_AMEND",
+              "validFrom": [
+                {
+                  "code": "AMENDMENT_REQUESTED",
+                  "processes": ["CANCEL_AGREEMENT"]
                 }
               ]
             },
@@ -232,6 +268,10 @@
                 },
                 {
                   "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:WITHDRAWAL_REQUESTED",
+                  "processes": ["ACCEPT_AGREEMENT"]
+                },
+                {
+                  "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AMENDMENT_REQUESTED",
                   "processes": ["ACCEPT_AGREEMENT"]
                 }
               ]
@@ -295,6 +335,16 @@
                 "mappedTo": "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED"
               },
               {
+                "code": "PRE_AWARD:REVIEW_OFFER:AMENDMENT_REQUESTED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:REVIEW_OFFER:AMENDMENT_REQUESTED"
+              },
+              {
+                "code": "cancelled",
+                "source": "AS",
+                "mappedTo": "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND"
+              },
+              {
                 "code": "PRE_AWARD:REVIEW_OFFER:WITHDRAWAL_REQUESTED",
                 "source": "CW",
                 "mappedTo": "PRE_AWARD:REVIEW_OFFER:WITHDRAWAL_REQUESTED"
@@ -314,6 +364,16 @@
           {
             "code": "CUSTOMER_AGREEMENT_REVIEW",
             "statuses": [
+              {
+                "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AMENDMENT_REQUESTED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AMENDMENT_REQUESTED"
+              },
+              {
+                "code": "cancelled",
+                "source": "AS",
+                "mappedTo": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND"
+              },
               {
                 "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:WITHDRAWAL_REQUESTED",
                 "source": "CW",
