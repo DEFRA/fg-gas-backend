@@ -54,8 +54,10 @@ const resolveSections = async (context, sections = []) => {
   return resolved.filter(Boolean);
 };
 
-const resolveWatermark = (watermark, context) =>
-  resolveConditionalDefinition(watermark, context, resolveRefs);
+const resolveWatermark = (watermarks, state) => {
+  const text = watermarks?.[state];
+  return text === undefined ? undefined : { text };
+};
 
 const omitUndefined = (value) =>
   Object.fromEntries(
@@ -63,7 +65,10 @@ const omitUndefined = (value) =>
   );
 
 const buildPageMetadata = async (page, pageDefinition, context) => {
-  const watermark = await resolveWatermark(pageDefinition.watermark, context);
+  const watermark = resolveWatermark(
+    pageDefinition.watermarks,
+    context.agreement.state,
+  );
 
   return omitUndefined({
     name: page,

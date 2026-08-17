@@ -110,11 +110,17 @@
             ]
           },
           "processes": ["CREATE_AGREEMENT_PAYMENT"]
+        },
+        "withdraw": {
+          "target": "withdrawn"
         }
       }
     },
     "accepted": {
       "page": "accepted"
+    },
+    "withdrawn": {
+      "page": "withdrawn"
     }
   },
   "pages": {
@@ -123,15 +129,20 @@
       "layout": "document",
       "contents": true,
       "print": true,
-      "watermark": {
-        "condition": "jsonata:$.agreement.state = 'offered'",
-        "text": "DRAFT"
+      "watermarks": {
+        "offered": "DRAFT",
+        "withdrawn": "WITHDRAWN"
       },
       "components": [
         {
           "component": "notification-banner",
           "condition": "jsonata:$.agreement.state = 'offered'",
           "title": "This is a draft version of your agreement"
+        },
+        {
+          "component": "notification-banner",
+          "condition": "jsonata:$.agreement.state = 'withdrawn'",
+          "title": "This agreement offer has been withdrawn"
         },
         {
           "component": "heading",
@@ -455,6 +466,40 @@
           "text": "Accept agreement offer"
         }
       ]
+    },
+    "withdrawn": {
+      "title": "Your agreement offer has been withdrawn",
+      "watermarks": {
+        "withdrawn": "WITHDRAWN"
+      },
+      "components": [
+        {
+          "component": "notification-banner",
+          "title": "This agreement offer has been withdrawn",
+          "text": "The Rural Payments Agency has withdrawn this offer. You do not need to do anything."
+        },
+        {
+          "component": "summary-list",
+          "rows": [
+            {
+              "label": "Agreement number",
+              "text": "$.agreement.agreementNumber"
+            }
+          ]
+        },
+        {
+          "component": "url",
+          "href": {
+            "urlTemplate": "/agreements/{agreementNumber}/document",
+            "params": {
+              "agreementNumber": "$.agreement.agreementNumber"
+            }
+          },
+          "text": "View and print your withdrawn agreement (opens in new tab)",
+          "target": "_blank"
+        }
+      ],
+      "actions": []
     },
     "accepted": {
       "title": "Your agreement is now active",

@@ -95,7 +95,7 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
-  it("validates document sections, contents, print and watermark", () => {
+  it("validates document sections, contents, print and watermarks", () => {
     const definition = structuredClone(pmfAgreementDefinition);
 
     const { error } = validate(definition);
@@ -103,19 +103,11 @@ describe("agreementDefinitionSchema", () => {
     expect(error).toBeUndefined();
     expect(definition.pages.document.contents).toBe(true);
     expect(definition.pages.document.print).toBe(true);
+    expect(definition.pages.document.watermarks).toEqual({
+      offered: "DRAFT",
+      withdrawn: "WITHDRAWN",
+    });
     expect(definition.pages.document.sections.length).toBeGreaterThan(0);
-  });
-
-  it("fails when watermark configuration contains UI classes", () => {
-    const definition = structuredClone(pmfAgreementDefinition);
-    definition.pages.document.watermark.classes = "custom-watermark";
-
-    const { error } = validate(definition);
-
-    expect(error).toBeDefined();
-    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
-      /"pages.document.watermark.classes" is not allowed/,
-    );
   });
 
   it("allows render Processes on lifecycle states", () => {

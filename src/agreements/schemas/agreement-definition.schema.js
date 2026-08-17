@@ -215,17 +215,17 @@ const documentSection = Joi.object({
   components: Joi.array().items(component).min(1).required(),
 }).label("DocumentSection");
 
-const watermark = Joi.object({
-  condition: reference.optional(),
-  text: Joi.string().required(),
-}).label("Watermark");
+const watermarks = Joi.object()
+  .pattern(Joi.string(), Joi.string().required())
+  .min(1)
+  .label("Watermarks");
 
 const pageDefinition = Joi.object({
   title: Joi.string().required(),
   layout: Joi.string().valid("document").optional(),
   contents: Joi.boolean().optional(),
   print: Joi.boolean().optional(),
-  watermark: watermark.optional(),
+  watermarks: watermarks.optional(),
   components: Joi.array().items(component).min(1).required(),
   processes: Joi.forbidden(),
   sections: Joi.array().items(documentSection).min(1).unique("id").optional(),
