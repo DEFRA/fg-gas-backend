@@ -4,6 +4,9 @@ import { EntitlementTemplate } from "./entitlement-template.js";
 // Constants for fully qualified status path format: "PHASE:STAGE:STATUS"
 const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
 
+const formatPosition = ({ phase, stage, status }) =>
+  [phase, stage, status].filter((part) => part != null).join(":");
+
 export class Grant {
   constructor({
     code,
@@ -74,20 +77,30 @@ export class Grant {
   // PHASE_CLAIM gap went unnoticed. Reject it at ingest instead.
   #assertEntitlementTemplatePositionsExist() {
     for (const template of this.entitlementTemplates) {
-      const { phase, stage, status: statusCode } = template.availableAt;
-      const { status } = this.#findPhaseStageStatus(
-        this.phases,
-        phase,
-        stage,
-        statusCode,
-      );
-
-      if (!status) {
+      if (!this.#positionExists(template.availableAt)) {
         throw Boom.badImplementation(
-          `Entitlement template "${template.claimCode}" is available at position "${phase}:${stage}:${statusCode}" which does not match any phase:stage:status in "phases"`,
+          `Entitlement template "${template.claimCode}" is available at position "${formatPosition(template.availableAt)}" which does not match any position in "phases"`,
         );
       }
     }
+  }
+
+  // Only the parts the template declares are checked: a phase-only position is
+  // valid as long as the phase exists.
+  #positionExists({ phase, stage, status }) {
+    const foundPhase = this.#findPhase(this.phases, phase);
+    const foundStage = this.#findStage(foundPhase, stage);
+    const foundStatus = this.#findStatus(foundStage, status);
+
+    if (status != null) {
+      return Boolean(foundStatus);
+    }
+
+    if (stage != null) {
+      return Boolean(foundStage);
+    }
+
+    return Boolean(foundPhase);
   }
 
   get hasPhases() {

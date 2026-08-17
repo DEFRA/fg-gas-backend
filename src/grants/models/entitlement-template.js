@@ -42,12 +42,14 @@ export class EntitlementTemplate {
       return false;
     }
 
+    const matches = (declared, actual) =>
+      declared == null || declared === actual;
     const { phase, stage, status } = this.availableAt;
 
     return (
       phase === position.phase &&
-      stage === position.stage &&
-      status === position.status
+      matches(stage, position.stage) &&
+      matches(status, position.status)
     );
   }
 

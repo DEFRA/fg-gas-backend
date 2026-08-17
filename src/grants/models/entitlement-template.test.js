@@ -317,6 +317,53 @@ describe("EntitlementTemplate", () => {
 
       expect(template.isAvailableAt(undefined)).toBe(false);
     });
+
+    // An undeclared part matches anything, so a phase-only template is
+    // available everywhere within its phase.
+    it("matches any stage and status when only a phase is declared", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        availableAt: { phase: validProps.availableAt.phase },
+      });
+
+      expect(
+        template.isAvailableAt({
+          phase: validProps.availableAt.phase,
+          stage: "ANY_STAGE",
+          status: "ANY_STATUS",
+        }),
+      ).toBe(true);
+    });
+
+    it("still requires the phase to match when only a phase is declared", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        availableAt: { phase: validProps.availableAt.phase },
+      });
+
+      expect(
+        template.isAvailableAt({
+          phase: "SOMETHING_ELSE",
+          stage: validProps.availableAt.stage,
+          status: validProps.availableAt.status,
+        }),
+      ).toBe(false);
+    });
+
+    it("matches any status when a phase and stage are declared", () => {
+      const { phase, stage } = validProps.availableAt;
+      const template = new EntitlementTemplate({
+        ...validProps,
+        availableAt: { phase, stage },
+      });
+
+      expect(
+        template.isAvailableAt({ phase, stage, status: "ANY_STATUS" }),
+      ).toBe(true);
+      expect(
+        template.isAvailableAt({ phase, stage: "OTHER", status: "ANY_STATUS" }),
+      ).toBe(false);
+    });
   });
 
   describe("inputFieldNames", () => {

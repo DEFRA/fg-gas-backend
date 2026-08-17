@@ -126,6 +126,15 @@ export class Application {
     return `${this.currentPhase}:${this.currentStage}:${this.currentStatus}`;
   }
 
+  // The same position as getFullyQualifiedStatus, by part rather than joined,
+  currentPosition() {
+    return {
+      phase: this.currentPhase,
+      stage: this.currentStage,
+      status: this.currentStatus,
+    };
+  }
+
   addAgreement(agreement) {
     if (this.agreements[agreement.agreementRef]) {
       throw Boom.conflict(
