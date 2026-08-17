@@ -1,7 +1,7 @@
 import Joi from "joi";
 import { logger } from "../../common/logger.js";
-import { clientRef } from "../../common/schemas/client-ref.js";
-import { code } from "../schemas/grant/code.js";
+import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
+import { code as grantCode } from "../schemas/grant/code.js";
 import { entitlementTemplates } from "../schemas/grant/entitlement-template.js";
 import { findClaimsUseCase } from "../use-cases/find-claims.use-case.js";
 
@@ -13,8 +13,8 @@ export const getClaimsRoute = {
     tags: ["api"],
     validate: {
       params: Joi.object({
-        code,
-        clientRef,
+        code: grantCode,
+        clientRef: applicationClientRef,
       }),
     },
     response: {
