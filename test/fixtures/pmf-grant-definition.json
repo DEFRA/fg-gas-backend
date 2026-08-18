@@ -158,6 +158,24 @@
               ]
             },
             {
+              "code": "AMENDMENT_REQUESTED",
+              "validFrom": [
+                {
+                  "code": "AGREEMENT_DRAFTED",
+                  "processes": ["REQUEST_AGREEMENT_CANCELLATION"]
+                }
+              ]
+            },
+            {
+              "code": "APPLICATION_AMEND",
+              "validFrom": [
+                {
+                  "code": "AMENDMENT_REQUESTED",
+                  "processes": ["CANCEL_AGREEMENT"]
+                }
+              ]
+            },
+            {
               "code": "WITHDRAWAL_REQUESTED",
               "validFrom": [
                 {
@@ -188,6 +206,24 @@
                 {
                   "code": "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
                   "processes": []
+                }
+              ]
+            },
+            {
+              "code": "AMENDMENT_REQUESTED",
+              "validFrom": [
+                {
+                  "code": "AGREEMENT_OFFERED",
+                  "processes": ["REQUEST_AGREEMENT_CANCELLATION"]
+                }
+              ]
+            },
+            {
+              "code": "APPLICATION_AMEND",
+              "validFrom": [
+                {
+                  "code": "AMENDMENT_REQUESTED",
+                  "processes": ["CANCEL_AGREEMENT"]
                 }
               ]
             },
@@ -229,6 +265,48 @@
                 {
                   "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
                   "processes": ["ACCEPT_AGREEMENT"]
+                },
+                {
+                  "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AMENDMENT_REQUESTED",
+                  "processes": ["ACCEPT_AGREEMENT"]
+                },
+                {
+                  "code": "POST_AGREEMENT_MONITORING:AGREEMENT_TERMINATION:PRE_TERMINATION_CHECKS",
+                  "processes": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "AGREEMENT_TERMINATION",
+          "name": "Agreement termination",
+          "description": "Stage to control the workflow for the termination process",
+          "statuses": [
+            {
+              "code": "PRE_TERMINATION_CHECKS",
+              "validFrom": [
+                {
+                  "code": "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
+                  "processes": []
+                }
+              ]
+            },
+            {
+              "code": "TERMINATION_REQUESTED",
+              "validFrom": [
+                {
+                  "code": "POST_AGREEMENT_MONITORING:AGREEMENT_TERMINATION:PRE_TERMINATION_CHECKS",
+                  "processes": ["REQUEST_AGREEMENT_TERMINATION"]
+                }
+              ]
+            },
+            {
+              "code": "AGREEMENT_TERMINATED",
+              "validFrom": [
+                {
+                  "code": "POST_AGREEMENT_MONITORING:AGREEMENT_TERMINATION:TERMINATION_REQUESTED",
+                  "processes": ["APPLY_AGREEMENT_TERMINATION"]
                 }
               ]
             }
@@ -291,6 +369,16 @@
                 "mappedTo": "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED"
               },
               {
+                "code": "PRE_AWARD:REVIEW_OFFER:AMENDMENT_REQUESTED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:REVIEW_OFFER:AMENDMENT_REQUESTED"
+              },
+              {
+                "code": "cancelled",
+                "source": "AS",
+                "mappedTo": "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND"
+              },
+              {
                 "code": "PRE_AWARD:REVIEW_OFFER:WITHDRAWAL_REQUESTED",
                 "source": "CW",
                 "mappedTo": "PRE_AWARD:REVIEW_OFFER:WITHDRAWAL_REQUESTED"
@@ -310,6 +398,16 @@
           {
             "code": "CUSTOMER_AGREEMENT_REVIEW",
             "statuses": [
+              {
+                "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AMENDMENT_REQUESTED",
+                "source": "CW",
+                "mappedTo": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AMENDMENT_REQUESTED"
+              },
+              {
+                "code": "cancelled",
+                "source": "AS",
+                "mappedTo": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND"
+              },
               {
                 "code": "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:WITHDRAWAL_REQUESTED",
                 "source": "CW",
@@ -339,6 +437,26 @@
                 "code": "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED",
                 "source": "CW",
                 "mappedTo": "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED"
+              },
+              {
+                "code": "POST_AGREEMENT_MONITORING:AGREEMENT_TERMINATION:PRE_TERMINATION_CHECKS",
+                "source": "CW",
+                "mappedTo": "POST_AGREEMENT_MONITORING:AGREEMENT_TERMINATION:PRE_TERMINATION_CHECKS"
+              }
+            ]
+          },
+          {
+            "code": "AGREEMENT_TERMINATION",
+            "statuses": [
+              {
+                "code": "POST_AGREEMENT_MONITORING:AGREEMENT_TERMINATION:TERMINATION_REQUESTED",
+                "source": "CW",
+                "mappedTo": "POST_AGREEMENT_MONITORING:AGREEMENT_TERMINATION:TERMINATION_REQUESTED"
+              },
+              {
+                "code": "terminated",
+                "source": "AS",
+                "mappedTo": "POST_AGREEMENT_MONITORING:AGREEMENT_TERMINATION:AGREEMENT_TERMINATED"
               }
             ]
           }
