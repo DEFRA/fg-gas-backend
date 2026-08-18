@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { config } from "../../common/config.js";
+import {
+  canHandleInternalCommand,
+  internalMessageBusTarget,
+} from "../../common/internal-command-bus.js";
 import { writeAuditEvent } from "../../common/write-audit-event.js";
 import {
   Agreement,
@@ -21,6 +25,10 @@ import {
   requestAgreementTerminationUseCase,
 } from "./request-agreement-termination.use-case.js";
 
+vi.mock("../../common/internal-command-bus.js", async () => {
+  const actual = await vi.importActual("../../common/internal-command-bus.js");
+  return { ...actual, canHandleInternalCommand: vi.fn() };
+});
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/outbox.repository.js");
 vi.mock("../../common/write-audit-event.js");
@@ -29,6 +37,7 @@ describe("requestAgreementTerminationUseCase", () => {
   let agreement;
 
   beforeEach(() => {
+    canHandleInternalCommand.mockResolvedValue(false);
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-15T10:30:00.000Z"));
   });
@@ -54,6 +63,31 @@ describe("requestAgreementTerminationUseCase", () => {
         }),
       ],
     });
+  });
+
+  it("routes GAS-managed agreement termination to the internal handler", async () => {
+    canHandleInternalCommand.mockResolvedValue(true);
+    const application = new Application({
+      currentPhase: ApplicationPhase.PostAgreementMonitoring,
+      currentStage: ApplicationStage.Monitoring,
+      currentStatus: ApplicationStatus.AgreementAccepted,
+      clientRef: "test-client-ref",
+      code: "test-code",
+      agreements: {
+        "agreement-123": agreement,
+      },
+      phases: [],
+    });
+
+    findByClientRefAndCode.mockResolvedValueOnce(application);
+    await requestAgreementTerminationUseCase(
+      { clientRef: "test-client-ref", code: "test-code" },
+      {},
+    );
+
+    expect(insertMany.mock.calls[0][0][0].target).toBe(
+      internalMessageBusTarget,
+    );
   });
 
   it("sends termination request to Agreement Service when agreement exists", async () => {

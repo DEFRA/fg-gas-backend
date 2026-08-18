@@ -232,6 +232,66 @@ describe("PMF Agreement definition", () => {
     expect(result.commitOperations).toEqual([]);
   });
 
+  it("terminates an accepted Agreement without touching its Payment", async () => {
+    const definition = new AgreementDefinition(pmfAgreementDefinition);
+    const paymentSchedule = {
+      instalments: [
+        {
+          id: "instalment:1",
+          dueDate: "2026-11-06",
+          totalAmountPence: 5000,
+          lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+        },
+      ],
+    };
+    const agreement = new Agreement({
+      agreementNumber: "PMF123456789",
+      version: 1,
+      code: "pigs-might-fly",
+      clientRef: "test-client-ref",
+      configVersion: "1.0.1",
+      correlationId: "agreement-correlation-id",
+      identifiers: { sbi: "300000069" },
+      application: {},
+      state: "accepted",
+      startDate: "2026-08-01",
+      endDate: "2027-07-31",
+      acceptedAt: "2026-08-02T10:00:00.000Z",
+      actions: [],
+      items: [],
+      totalAmountPence: 5000,
+      paymentSchedule,
+      createdAt: "2026-08-01T10:00:00.000Z",
+      updatedAt: "2026-08-01T10:00:00.000Z",
+    });
+
+    const action = definition.resolveActionForStatus({
+      state: "accepted",
+      status: "terminated",
+    });
+    const result = await definition.executeAction({
+      agreement,
+      actionName: action.transition.action,
+      values: {},
+      execution: {
+        correlationId: agreement.correlationId,
+        executedAt: "2027-01-02T10:00:00.000Z",
+      },
+    });
+
+    expect(action.transition).toEqual({
+      from: "accepted",
+      action: "terminate",
+      target: "terminated",
+    });
+    expect(result.agreement.state).toBe("terminated");
+    expect(result.commitOperations).toEqual([]);
+    expect(result.agreement.paymentSchedule).toEqual(paymentSchedule);
+    expect(result.agreement.totalAmountPence).toBe(5000);
+    expect(result.agreement.acceptedAt).toBe("2026-08-02T10:00:00.000Z");
+    expect(result.agreement.startDate).toBe("2026-08-01");
+  });
+
   it("binds PMF pages only to stored Agreement values", () => {
     const pages = JSON.stringify(pmfAgreementDefinition.pages);
 

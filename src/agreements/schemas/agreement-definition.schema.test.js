@@ -107,6 +107,7 @@ describe("agreementDefinitionSchema", () => {
       offered: "DRAFT",
       withdrawn: "WITHDRAWN",
       cancelled: "CANCELLED",
+      terminated: "TERMINATED",
     });
     expect(definition.pages.document.sections.length).toBeGreaterThan(0);
   });

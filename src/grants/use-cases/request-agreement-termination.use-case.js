@@ -1,5 +1,4 @@
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
-import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
 import { UpdateAgreementStatusCommand } from "../events/update-agreement-status.command.js";
@@ -7,6 +6,7 @@ import { AgreementServiceStatus } from "../models/agreement.js";
 import { Outbox } from "../models/outbox.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { resolveAgreementStatusCommandTarget } from "./agreement-status-command.helpers.js";
 
 export const auditDataBuilder = (args, result) => {
   const { clientRef, code } = args[0];
@@ -59,7 +59,9 @@ const requestAgreementTermination = async ({ clientRef, code }, session) => {
     [
       new Outbox({
         event: updateAgreementStatusCommand,
-        target: config.sns.updateAgreementStatusTopicArn,
+        target: await resolveAgreementStatusCommandTarget(
+          updateAgreementStatusCommand,
+        ),
         segregationRef: Outbox.getSegregationRef(updateAgreementStatusCommand),
       }),
     ],
