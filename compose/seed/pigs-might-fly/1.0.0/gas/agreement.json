@@ -120,13 +120,21 @@
       }
     },
     "accepted": {
-      "page": "accepted"
+      "page": "accepted",
+      "on": {
+        "terminate": {
+          "target": "terminated"
+        }
+      }
     },
     "withdrawn": {
       "page": "withdrawn"
     },
     "cancelled": {
       "page": "cancelled"
+    },
+    "terminated": {
+      "page": "terminated"
     }
   },
   "pages": {
@@ -138,7 +146,8 @@
       "watermarks": {
         "offered": "DRAFT",
         "withdrawn": "WITHDRAWN",
-        "cancelled": "CANCELLED"
+        "cancelled": "CANCELLED",
+        "terminated": "TERMINATED"
       },
       "components": [
         {
@@ -155,6 +164,11 @@
           "component": "notification-banner",
           "condition": "jsonata:$.agreement.state = 'cancelled'",
           "title": "This agreement offer has been cancelled"
+        },
+        {
+          "component": "notification-banner",
+          "condition": "jsonata:$.agreement.state = 'terminated'",
+          "title": "This agreement has been terminated"
         },
         {
           "component": "heading",
@@ -542,6 +556,45 @@
             }
           },
           "text": "View and print your cancelled agreement (opens in new tab)",
+          "target": "_blank"
+        }
+      ],
+      "actions": []
+    },
+    "terminated": {
+      "title": "Your agreement has been terminated",
+      "watermarks": {
+        "terminated": "TERMINATED"
+      },
+      "components": [
+        {
+          "component": "notification-banner",
+          "title": "This agreement has been terminated",
+          "text": "The Rural Payments Agency has terminated this agreement. All actions and standards in the agreement have ended."
+        },
+        {
+          "component": "summary-list",
+          "rows": [
+            {
+              "label": "Agreement number",
+              "text": "$.agreement.agreementNumber"
+            },
+            {
+              "label": "Agreement start date",
+              "text": "$.agreement.startDate",
+              "format": "dateLong"
+            }
+          ]
+        },
+        {
+          "component": "url",
+          "href": {
+            "urlTemplate": "/agreements/{agreementNumber}/document",
+            "params": {
+              "agreementNumber": "$.agreement.agreementNumber"
+            }
+          },
+          "text": "View and print your terminated agreement (opens in new tab)",
           "target": "_blank"
         }
       ],
