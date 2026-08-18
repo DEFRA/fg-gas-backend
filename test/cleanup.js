@@ -20,6 +20,7 @@ beforeEach(async () => {
     db.collection("users").deleteMany({}),
     db.collection("fifo_locks").deleteMany({}),
     db.collection("agreements__definitions").deleteMany({}),
+    db.collection("entitlements").deleteMany({}),
   ]);
 
   // Clear module caches that survive database cleanup.

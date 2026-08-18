@@ -185,7 +185,41 @@ describe("Grant", () => {
           }),
         ).toThrow(
           new RegExp(
-            `is available at position "${position}" which does not match any phase:stage:status`,
+            `is available at position "${position}" which does not match any position`,
+          ),
+        );
+      },
+    );
+
+    // A partial availableAt is checked only as deep as it goes, so a phase-only
+    // template is valid whenever the phase itself exists.
+    it.each([
+      ["phase only", { phase: "PRE_AWARD" }],
+      ["phase and stage", { phase: "PRE_AWARD", stage: "ASSESSMENT" }],
+    ])(
+      "accepts an entitlement template available at a %s",
+      (_, availableAt) => {
+        const grant = createTestGrant({
+          entitlementTemplates: [{ ...entitlementTemplates[0], availableAt }],
+        });
+
+        expect(grant.entitlementTemplates[0].availableAt).toEqual(availableAt);
+      },
+    );
+
+    it.each([
+      ["phase", { phase: "UNKNOWN" }, "UNKNOWN"],
+      ["stage", { phase: "PRE_AWARD", stage: "UNKNOWN" }, "PRE_AWARD:UNKNOWN"],
+    ])(
+      "throws when a partial position names a %s that does not exist in phases",
+      (_, availableAt, position) => {
+        expect(() =>
+          createTestGrant({
+            entitlementTemplates: [{ ...entitlementTemplates[0], availableAt }],
+          }),
+        ).toThrow(
+          new RegExp(
+            `is available at position "${position}" which does not match any position`,
           ),
         );
       },

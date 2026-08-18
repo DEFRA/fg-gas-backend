@@ -1,18 +1,34 @@
 import Joi from "joi";
 
+// The MongoDB driver resolves ignoreUndefined to false, so a key this template
+// leaves undefined is stored as null and comes back as null on the next read.
+// Every optional key therefore has to read null as "absent", or a template that
+// omits one would save cleanly and then fail validation forever afterwards -
+// and because findAll rehydrates every document, one such grant would take out
+// the whole collection.
+const absentAsNull = (schema) => schema.optional().empty(null);
+
 export const UnitType = {
   Decimal: "decimal",
   String: "string",
 };
 
-// The position an application has to reach before the template applies. A
-// single position rather than a list: a template describes one opportunity to
-// create or materialise an entitlement, and the definition addresses it the
-// same way `phases` does, so there is nothing left to parse or mis-spell.
+// Where an application has to be before the template applies, addressed by part
+// the same way `phases` is, so there is nothing left to parse or mis-spell. A
+// part left out matches anything, which is how a template covers a whole phase
+// without restating every stage and status underneath it.
+//
+// Only a prefix may be omitted - a status needs the stage it belongs to. Status
+// codes are not unique across stages, so "this status, in any stage" would name
+// a set the definition cannot see the boundaries of.
 const availableAt = Joi.object({
   phase: Joi.string().required(),
-  stage: Joi.string().required(),
-  status: Joi.string().required(),
+  stage: absentAsNull(Joi.string()),
+  status: Joi.any().when("stage", {
+    is: Joi.exist(),
+    then: absentAsNull(Joi.string()),
+    otherwise: Joi.forbidden(),
+  }),
 }).label("EntitlementTemplateAvailableAt");
 
 // Constraint keys belong to one unit type each. Carrying `decimalPlaces` on a
@@ -109,14 +125,6 @@ const assertPersistedTemplateCollectsInput = (template, helpers) => {
         custom: `"fields" must define at least one field with "input" true when "materialised" is false`,
       });
 };
-
-// The MongoDB driver resolves ignoreUndefined to false, so a key this template
-// leaves undefined is stored as null and comes back as null on the next read.
-// Every optional key therefore has to read null as "absent", or a template that
-// omits one would save cleanly and then fail validation forever afterwards -
-// and because findAll rehydrates every document, one such grant would take out
-// the whole collection.
-const absentAsNull = (schema) => schema.optional().empty(null);
 
 export const entitlementTemplate = Joi.object({
   claimCode: Joi.string().required(),

@@ -7,6 +7,7 @@ import { applicationStatusRoute } from "./routes/application-status.route.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";
 import { findGrantsRoute } from "./routes/find-grants.route.js";
+import { getClaimsRoute } from "./routes/get-claims.route.js";
 import {
   invokeGetActionRoute,
   invokePostActionRoute,
@@ -64,6 +65,7 @@ export const grants = {
       invokePostActionRoute,
       submitApplicationRoute,
       applicationStatusRoute,
+      getClaimsRoute,
     ]);
   },
 };

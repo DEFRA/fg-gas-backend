@@ -197,7 +197,11 @@ if ! awslocal s3api head-bucket --bucket config-broker-local >/dev/null 2>&1; th
 fi
 awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/gas.json \
   s3://config-broker-local/pigs-might-fly/1.0.0/gas/gas.json
+
 awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/agreement.json \
   s3://config-broker-local/pigs-might-fly/1.0.0/gas/agreement.json
+
+awslocal s3 cp /etc/floci/seed/woodland/1.1.0/gas/gas.json \
+  s3://config-broker-local/woodland/1.1.0/gas/gas.json
 
 echo "S3 config broker bucket ready"
