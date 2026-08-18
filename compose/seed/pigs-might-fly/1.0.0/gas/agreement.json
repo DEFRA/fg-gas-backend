@@ -113,6 +113,9 @@
         },
         "withdraw": {
           "target": "withdrawn"
+        },
+        "cancel": {
+          "target": "cancelled"
         }
       }
     },
@@ -121,6 +124,9 @@
     },
     "withdrawn": {
       "page": "withdrawn"
+    },
+    "cancelled": {
+      "page": "cancelled"
     }
   },
   "pages": {
@@ -131,7 +137,8 @@
       "print": true,
       "watermarks": {
         "offered": "DRAFT",
-        "withdrawn": "WITHDRAWN"
+        "withdrawn": "WITHDRAWN",
+        "cancelled": "CANCELLED"
       },
       "components": [
         {
@@ -143,6 +150,11 @@
           "component": "notification-banner",
           "condition": "jsonata:$.agreement.state = 'withdrawn'",
           "title": "This agreement offer has been withdrawn"
+        },
+        {
+          "component": "notification-banner",
+          "condition": "jsonata:$.agreement.state = 'cancelled'",
+          "title": "This agreement offer has been cancelled"
         },
         {
           "component": "heading",
@@ -496,6 +508,40 @@
             }
           },
           "text": "View and print your withdrawn agreement (opens in new tab)",
+          "target": "_blank"
+        }
+      ],
+      "actions": []
+    },
+    "cancelled": {
+      "title": "Your agreement offer has been cancelled",
+      "watermarks": {
+        "cancelled": "CANCELLED"
+      },
+      "components": [
+        {
+          "component": "notification-banner",
+          "title": "This agreement offer has been cancelled",
+          "text": "Your funding offer is currently being updated. The Rural Payments Agency will email you when it is ready for you to review."
+        },
+        {
+          "component": "summary-list",
+          "rows": [
+            {
+              "label": "Agreement number",
+              "text": "$.agreement.agreementNumber"
+            }
+          ]
+        },
+        {
+          "component": "url",
+          "href": {
+            "urlTemplate": "/agreements/{agreementNumber}/document",
+            "params": {
+              "agreementNumber": "$.agreement.agreementNumber"
+            }
+          },
+          "text": "View and print your cancelled agreement (opens in new tab)",
           "target": "_blank"
         }
       ],

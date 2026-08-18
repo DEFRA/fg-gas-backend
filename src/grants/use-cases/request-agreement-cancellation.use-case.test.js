@@ -1,6 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { config } from "../../common/config.js";
+import {
+  canHandleInternalCommand,
+  internalMessageBusTarget,
+} from "../../common/internal-command-bus.js";
 import { writeAuditEvent } from "../../common/write-audit-event.js";
 import {
   Agreement,
@@ -16,11 +20,61 @@ import {
   requestAgreementCancellationUseCase,
 } from "./request-agreement-cancellation.use-case.js";
 
+vi.mock("../../common/internal-command-bus.js", async () => {
+  const actual = await vi.importActual("../../common/internal-command-bus.js");
+  return { ...actual, canHandleInternalCommand: vi.fn() };
+});
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/outbox.repository.js");
 vi.mock("../../common/write-audit-event.js");
 
+const offeredApplication = () => {
+  const agreement = new Agreement({
+    agreementRef: "agreement-123",
+    latestStatus: AgreementStatus.Offered,
+    updatedAt: "2024-01-01T12:00:00Z",
+    history: [
+      new AgreementHistoryEntry({
+        agreementStatus: AgreementStatus.Offered,
+        createdAt: "2024-01-01T12:00:00Z",
+      }),
+    ],
+  });
+
+  return new Application({
+    currentPhase: "PRE_AWARD",
+    currentStage: "REVIEW_OFFER",
+    currentStatus: "AMENDMENT_REQUESTED",
+    clientRef: "test-client-ref",
+    code: "test-code",
+    agreements: { "agreement-123": agreement },
+    phases: [],
+    replacementAllowed: false,
+  });
+};
+
 describe("requestAgreementCancellationUseCase", () => {
+  beforeEach(() => {
+    canHandleInternalCommand.mockResolvedValue(false);
+  });
+
+  it("routes GAS-managed agreement cancellation to the internal handler", async () => {
+    canHandleInternalCommand.mockResolvedValue(true);
+    findByClientRefAndCode.mockResolvedValue(offeredApplication());
+
+    await requestAgreementCancellationUseCase(
+      {
+        clientRef: "test-client-ref",
+        code: "test-code",
+      },
+      {},
+    );
+
+    expect(insertMany.mock.calls[0][0][0].target).toBe(
+      internalMessageBusTarget,
+    );
+  });
+
   it("publishes an agreement cancellation command when an offered agreement exists", async () => {
     const agreement = new Agreement({
       agreementRef: "agreement-123",

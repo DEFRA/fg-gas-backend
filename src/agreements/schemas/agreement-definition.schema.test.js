@@ -106,6 +106,7 @@ describe("agreementDefinitionSchema", () => {
     expect(definition.pages.document.watermarks).toEqual({
       offered: "DRAFT",
       withdrawn: "WITHDRAWN",
+      cancelled: "CANCELLED",
     });
     expect(definition.pages.document.sections.length).toBeGreaterThan(0);
   });
