@@ -1,3 +1,4 @@
+import Boom from "@hapi/boom";
 import { AgreementAction } from "./agreement-action.js";
 import { InvalidAgreementTransitionError } from "./invalid-agreement-transition.error.js";
 import { requirePersistedAgreementState } from "./require-persisted-agreement-state.js";
@@ -39,6 +40,32 @@ export class AgreementLifecycle {
     });
 
     return Object.keys(stateDefinition.on ?? {});
+  }
+
+  resolveActionForTarget(state, target) {
+    const stateDefinition = requirePersistedAgreementState({
+      definition: this.definition,
+      state,
+    });
+    const transitions = stateDefinition.on ?? {};
+    const matches = Object.keys(transitions).filter(
+      (action) => transitions[action].target === target,
+    );
+
+    if (matches.length === 0) {
+      throw new InvalidAgreementTransitionError({
+        from: state,
+        action: `transition to ${target}`,
+        availableActions: Object.keys(transitions),
+      });
+    }
+    if (matches.length > 1) {
+      throw Boom.badImplementation(
+        `Agreement state "${state}" configures multiple actions targeting "${target}"`,
+      );
+    }
+
+    return this.resolveAction(state, matches[0]);
   }
 
   resolveAction(state, actionName) {
