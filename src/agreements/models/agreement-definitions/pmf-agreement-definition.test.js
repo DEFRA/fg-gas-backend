@@ -191,6 +191,47 @@ describe("PMF Agreement definition", () => {
     expect(result.commitOperations).toEqual([]);
   });
 
+  it("configures cancellation without a Payment operation", async () => {
+    const definition = new AgreementDefinition(pmfAgreementDefinition);
+    const agreement = new Agreement({
+      agreementNumber: "PMF123456789",
+      version: 1,
+      code: "pigs-might-fly",
+      clientRef: "test-client-ref",
+      configVersion: "1.0.1",
+      correlationId: "agreement-correlation-id",
+      identifiers: { sbi: "300000069" },
+      application: {},
+      state: "offered",
+      actions: [],
+      items: [],
+      createdAt: "2026-08-01T10:00:00.000Z",
+      updatedAt: "2026-08-01T10:00:00.000Z",
+    });
+
+    const action = definition.resolveActionForStatus({
+      state: "offered",
+      status: "cancelled",
+    });
+    const result = await definition.executeAction({
+      agreement,
+      actionName: action.transition.action,
+      values: {},
+      execution: {
+        correlationId: agreement.correlationId,
+        executedAt: "2026-08-02T10:00:00.000Z",
+      },
+    });
+
+    expect(action.transition).toEqual({
+      from: "offered",
+      action: "cancel",
+      target: "cancelled",
+    });
+    expect(result.agreement.state).toBe("cancelled");
+    expect(result.commitOperations).toEqual([]);
+  });
+
   it("binds PMF pages only to stored Agreement values", () => {
     const pages = JSON.stringify(pmfAgreementDefinition.pages);
 
