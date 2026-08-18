@@ -361,6 +361,16 @@ describe("Application", () => {
     );
   });
 
+  it("gets the current position by part", () => {
+    const application = createTestApplication();
+
+    expect(application.currentPosition()).toEqual({
+      phase: ApplicationPhase.PreAward,
+      stage: ApplicationStage.Assessment,
+      status: ApplicationStatus.Received,
+    });
+  });
+
   it("returns null when getting a non-existent agreement", () => {
     const application = createTestApplication();
 

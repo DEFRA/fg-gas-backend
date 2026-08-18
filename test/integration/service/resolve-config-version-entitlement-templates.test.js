@@ -251,7 +251,7 @@ describe("config broker entitlementTemplates ingestion", () => {
     });
 
     await expect(resolveAndFetchGrant(grantCode, version)).rejects.toThrow(
-      /is available at position "PHASE_CLAIM:STAGE_CLAIM_COMPLETE:STATUS_UNKNOWN" which does not match any phase:stage:status/,
+      /is available at position "PHASE_CLAIM:STAGE_CLAIM_COMPLETE:STATUS_UNKNOWN" which does not match any position in "phases"/,
     );
 
     const storedDoc = await grants.findOne({ code: grantCode, version });
