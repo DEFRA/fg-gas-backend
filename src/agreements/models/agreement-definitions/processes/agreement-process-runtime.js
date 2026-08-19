@@ -236,7 +236,7 @@ const allowedPages = (definition, state) => {
     [
       stateDefinition.page,
       ...Object.values(stateDefinition.on ?? {}).map(
-        (transition) => transition.validation?.page,
+        (transition) => transition.page,
       ),
       definition.pages.document ? "document" : undefined,
     ].filter(Boolean),

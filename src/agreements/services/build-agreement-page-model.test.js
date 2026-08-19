@@ -25,8 +25,8 @@ const definition = new AgreementDefinition({
       on: {
         print: {
           target: "offered",
+          page: "document",
           validation: {
-            page: "document",
             required: [
               {
                 name: "confirm",

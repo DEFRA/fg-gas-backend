@@ -60,12 +60,12 @@ describe("validateAgreementDefinition", () => {
     );
   });
 
-  it("throws when a validation.page does not match any page", () => {
+  it("throws when an action page does not match any page", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.states.offered.on.accept.validation.page = "missing-page";
+    definition.states.offered.on.accept.page = "missing-page";
 
     expect(() => validateAgreementDefinition(definition)).toThrow(
-      /"states.offered.on.accept.validation.page" \("missing-page"\) does not match any key in "pages"/,
+      /"states.offered.on.accept.page" \("missing-page"\) does not match any key in "pages"/,
     );
   });
 
@@ -73,7 +73,7 @@ describe("validateAgreementDefinition", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.create.target = "missing-state";
     definition.states.offered.on.accept.target = "also-missing";
-    definition.states.offered.on.accept.validation.page = "missing-page";
+    definition.states.offered.on.accept.page = "missing-page";
 
     try {
       validateAgreementDefinition(definition);
@@ -81,7 +81,7 @@ describe("validateAgreementDefinition", () => {
     } catch (error) {
       expect(error.message).toMatch(/create.target/);
       expect(error.message).toMatch(/states.offered.on.accept.target/);
-      expect(error.message).toMatch(/states.offered.on.accept.validation.page/);
+      expect(error.message).toMatch(/states.offered.on.accept.page/);
     }
   });
 });

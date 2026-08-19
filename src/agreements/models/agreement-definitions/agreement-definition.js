@@ -131,8 +131,6 @@ const collectAllowedPages = (stateDefinition) =>
   new Set(
     [
       stateDefinition.page,
-      ...Object.values(stateDefinition.on ?? {}).map(
-        (action) => action.validation?.page,
-      ),
+      ...Object.values(stateDefinition.on ?? {}).map((action) => action.page),
     ].filter(Boolean),
   );

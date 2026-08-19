@@ -23,12 +23,14 @@ const collectValidationErrors = (requirements, values) => {
 export class AgreementAction {
   #from;
   #name;
+  #page;
   #target;
   #validation;
 
-  constructor({ from, name, target, validation }) {
+  constructor({ from, name, page, target, validation }) {
     this.#from = from;
     this.#name = name;
+    this.#page = page;
     this.#target = target;
     this.#validation = validation;
   }
@@ -42,7 +44,7 @@ export class AgreementAction {
   }
 
   get preparationPage() {
-    return this.#validation?.page;
+    return this.#page;
   }
 
   validate(values) {
@@ -60,7 +62,7 @@ export class AgreementAction {
 
     return {
       valid: false,
-      page: this.#validation.page,
+      page: this.#page,
       errors,
     };
   }
