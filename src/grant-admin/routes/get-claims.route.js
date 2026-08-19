@@ -1,8 +1,8 @@
 import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
-import { code as grantCode } from "../schemas/grant/code.js";
-import { entitlementTemplates } from "../schemas/grant/entitlement-template.js";
+import { entitlementTemplates } from "../../grants/schemas/grant/entitlement-template.js";
+import { code as grantCode } from "../schemas/code.js";
 import { findClaimsUseCase } from "../use-cases/find-claims.use-case.js";
 
 export const getClaimsRoute = {

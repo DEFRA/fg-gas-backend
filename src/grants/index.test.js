@@ -113,14 +113,10 @@ describe("grants", () => {
         },
         {
           method: "get",
-          path: "/grant-admin/grants/{code}/applications/{clientRef}/claims",
-        },
-        {
-          method: "get",
           path: "/grants/{grantCode}/entitlements/{clientRef}/available-claims",
         },
       ]),
     );
-    expect(routePaths).toHaveLength(10);
+    expect(routePaths).toHaveLength(9);
   });
 });

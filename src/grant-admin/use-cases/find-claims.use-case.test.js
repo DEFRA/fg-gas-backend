@@ -1,20 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
-import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
-import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
+import { findExistingEntitlements } from "../../grants/repositories/entitlement.repository.js";
+import { findApplicationByClientRefAndCodeUseCase } from "../../grants/use-cases/find-application-by-client-ref-and-code.use-case.js";
+import { resolveCurrentGrantUseCase } from "../../grants/use-cases/resolve-current-grant.use-case.js";
 import { findClaimsUseCase } from "./find-claims.use-case.js";
-import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
 
-vi.mock("./find-application-by-client-ref-and-code.use-case.js");
-vi.mock("../repositories/entitlement.repository.js");
-vi.mock("./resolve-current-grant.use-case.js", async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    resolveCurrentGrantUseCase: vi.fn(),
-  };
-});
+vi.mock(
+  "../../grants/use-cases/find-application-by-client-ref-and-code.use-case.js",
+);
+vi.mock("../../grants/repositories/entitlement.repository.js");
+vi.mock(
+  "../../grants/use-cases/resolve-current-grant.use-case.js",
+  async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+      ...actual,
+      resolveCurrentGrantUseCase: vi.fn(),
+    };
+  },
+);
 vi.mock("../../common/logger.js", () => ({
   logger: {
     info: vi.fn(),

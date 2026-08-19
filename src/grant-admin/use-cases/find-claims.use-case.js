@@ -1,7 +1,7 @@
 import { logger } from "../../common/logger.js";
-import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
-import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
-import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
+import { findExistingEntitlements } from "../../grants/repositories/entitlement.repository.js";
+import { findApplicationByClientRefAndCodeUseCase } from "../../grants/use-cases/find-application-by-client-ref-and-code.use-case.js";
+import { resolveCurrentGrantUseCase } from "../../grants/use-cases/resolve-current-grant.use-case.js";
 
 export const findClaimsUseCase = async ({ code, clientRef }) => {
   const application = await findApplicationByClientRefAndCodeUseCase(

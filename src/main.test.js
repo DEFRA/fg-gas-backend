@@ -19,6 +19,9 @@ describe("main", () => {
     vi.doMock("./agreements/index.js", () => ({
       agreements: { name: "agreements" },
     }));
+    vi.doMock("./grant-admin/index.js", () => ({
+      grantAdmin: { name: "grant-admin" },
+    }));
     vi.doMock("./common/logger.js", () => ({ logger: { error: vi.fn() } }));
   });
 
@@ -34,12 +37,14 @@ describe("main", () => {
     const { health } = await import("./health/index.js");
     const { grants } = await import("./grants/index.js");
     const { agreements } = await import("./agreements/index.js");
+    const { grantAdmin } = await import("./grant-admin/index.js");
 
     expect(createServer).toHaveBeenCalled();
     expect(mockServer.register).toHaveBeenCalledWith([
       health,
       grants,
       agreements,
+      grantAdmin,
     ]);
     expect(mockServer.start).toHaveBeenCalled();
   });
