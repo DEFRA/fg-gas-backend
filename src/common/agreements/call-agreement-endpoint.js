@@ -1,6 +1,9 @@
 import Boom from "@hapi/boom";
 import { wreck } from "../wreck.js";
-import { resolveEndpointServiceUrl } from "./resolve-endpoint-service-url.js";
+import {
+  resolveEndpointServiceHeaders,
+  resolveEndpointServiceUrl,
+} from "./resolve-endpoint-service-url.js";
 
 const HTTP_SUCCESS_MIN = 200;
 const HTTP_SUCCESS_MAX = 300;
@@ -17,7 +20,10 @@ const buildUrl = (baseUrl, path) => {
 const sendRequest = async (endpoint, url, body) => {
   try {
     return await wreck.request(endpoint.method, url, {
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...resolveEndpointServiceHeaders(endpoint.service),
+      },
       payload: body,
       json: true,
     });

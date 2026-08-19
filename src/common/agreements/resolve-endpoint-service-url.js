@@ -6,6 +6,44 @@ export class EndpointServiceUrlError extends Error {
   }
 }
 
+const stripOuterQuotes = (value) =>
+  value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
+
+const resolveEnvReferences = (value) =>
+  value.replace(/\$\{([^}]+)\}/g, (_match, name) => {
+    if (process.env[name] === undefined) {
+      throw new EndpointServiceUrlError(
+        `Environment variable ${name} referenced in service headers is not defined`,
+      );
+    }
+
+    return process.env[name];
+  });
+
+const parseHeader = (value) => {
+  const separator = value.indexOf(":");
+  if (separator === -1) {
+    throw new EndpointServiceUrlError("Invalid service header format");
+  }
+
+  return [
+    value.slice(0, separator).trim(),
+    resolveEnvReferences(value.slice(separator + 1).trim()),
+  ];
+};
+
+export const resolveEndpointServiceHeaders = (service) => {
+  const value = process.env[`${service}_HEADERS`];
+
+  return value
+    ? Object.fromEntries(
+        stripOuterQuotes(value)
+          .split(",")
+          .map((header) => parseHeader(stripOuterQuotes(header.trim()))),
+      )
+    : {};
+};
+
 export const resolveEndpointServiceUrl = (service) => {
   const envVar = `${service}_URL`;
   const url = process.env[envVar];
