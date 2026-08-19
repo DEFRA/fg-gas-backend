@@ -1,11 +1,27 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  resolveEndpointServiceHeaders,
   resolveEndpointServiceUrl,
   validateEndpointServiceUrls,
 } from "./resolve-endpoint-service-url.js";
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+describe("resolveEndpointServiceHeaders", () => {
+  it("resolves service headers and their environment variable references", () => {
+    vi.stubEnv("LAND_GRANTS_TOKEN", "encrypted-token");
+    vi.stubEnv(
+      "LAND_GRANTS_HEADERS",
+      `"x-api-key: api-key,Authorization: Bearer \${LAND_GRANTS_TOKEN}"`,
+    );
+
+    expect(resolveEndpointServiceHeaders("LAND_GRANTS")).toEqual({
+      "x-api-key": "api-key",
+      Authorization: "Bearer encrypted-token",
+    });
+  });
 });
 
 describe("resolveEndpointServiceUrl", () => {

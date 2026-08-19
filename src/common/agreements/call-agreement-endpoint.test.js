@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { wreck } from "../wreck.js";
 import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
-import { resolveEndpointServiceUrl } from "./resolve-endpoint-service-url.js";
+import {
+  resolveEndpointServiceHeaders,
+  resolveEndpointServiceUrl,
+} from "./resolve-endpoint-service-url.js";
 
 vi.mock("./resolve-endpoint-service-url.js");
 vi.mock("../wreck.js");
@@ -42,6 +45,32 @@ describe("callAgreementEndpoint", () => {
     expect(result).toEqual({
       items: [{ description: "Large White", total: 320 }],
     });
+  });
+
+  it("adds headers configured for the endpoint service", async () => {
+    resolveEndpointServiceUrl.mockReturnValue("http://land-grants");
+    resolveEndpointServiceHeaders.mockReturnValue({
+      Authorization: "Bearer encrypted-token",
+    });
+    wreck.request.mockResolvedValue({ statusCode: 200 });
+    wreck.read.mockResolvedValue({ payment: {} });
+
+    await callAgreementEndpoint(
+      { ...endpointConfig, service: "LAND_GRANTS" },
+      { BODY: {} },
+    );
+
+    expect(resolveEndpointServiceHeaders).toHaveBeenCalledWith("LAND_GRANTS");
+    expect(wreck.request).toHaveBeenCalledWith(
+      "POST",
+      "http://land-grants/grantFundingCalculator",
+      expect.objectContaining({
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer encrypted-token",
+        },
+      }),
+    );
   });
 
   it("throws Boom.badGateway on a non-2xx response", async () => {
