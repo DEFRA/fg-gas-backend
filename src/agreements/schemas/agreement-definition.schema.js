@@ -59,7 +59,7 @@ const requiredValidationField = Joi.object({
   .label("RequiredValidationField");
 
 const validation = Joi.object({
-  page: Joi.string().required(),
+  page: Joi.forbidden(),
   required: Joi.array().items(requiredValidationField).min(1).required(),
 })
   .unknown(true)
@@ -67,11 +67,13 @@ const validation = Joi.object({
 
 const actionTransition = Joi.object({
   target: Joi.string().required(),
+  page: Joi.string().optional(),
   validation: validation.optional(),
   values: Joi.object().min(1).unknown(true).optional(),
   effects: Joi.forbidden(),
   processes,
 })
+  .with("validation", "page")
   .unknown(true)
   .label("ActionTransition");
 

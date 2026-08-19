@@ -98,8 +98,8 @@
       "on": {
         "accept": {
           "target": "accepted",
+          "page": "accept",
           "validation": {
-            "page": "accept",
             "required": [
               {
                 "name": "confirm",

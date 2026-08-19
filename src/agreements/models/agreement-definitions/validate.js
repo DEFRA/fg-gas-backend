@@ -1,14 +1,12 @@
 import Boom from "@hapi/boom";
 import { agreementDefinitionSchema } from "../../schemas/agreement-definition.schema.js";
 
-const findValidationReferenceErrors = (validation, path, pages) => {
-  if (!validation || pages[validation.page]) {
+const findPageReferenceErrors = (page, path, pages) => {
+  if (!page || pages[page]) {
     return [];
   }
 
-  return [
-    `"${path}.validation.page" ("${validation.page}") does not match any key in "pages"`,
-  ];
+  return [`"${path}.page" ("${page}") does not match any key in "pages"`];
 };
 
 const findActionReferenceErrors = (action, path, states, pages) => {
@@ -20,7 +18,7 @@ const findActionReferenceErrors = (action, path, states, pages) => {
     );
   }
 
-  errors.push(...findValidationReferenceErrors(action.validation, path, pages));
+  errors.push(...findPageReferenceErrors(action.page, path, pages));
 
   return errors;
 };

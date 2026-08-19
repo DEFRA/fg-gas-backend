@@ -32,6 +32,24 @@ describe("AgreementLifecycle", () => {
     });
   });
 
+  it("resolves an action preparation page", () => {
+    const configured = new AgreementLifecycle({
+      create: { target: "offered" },
+      states: {
+        offered: {
+          on: {
+            accept: { target: "accepted", page: "accept" },
+          },
+        },
+        accepted: {},
+      },
+    });
+
+    expect(configured.resolveAction("offered", "accept").preparationPage).toBe(
+      "accept",
+    );
+  });
+
   it("resolves withdraw and cancel from offered", () => {
     expect(lifecycle.resolveAction("offered", "withdraw").transition).toEqual({
       from: "offered",

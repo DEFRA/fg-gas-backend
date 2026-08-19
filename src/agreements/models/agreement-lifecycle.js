@@ -84,11 +84,12 @@ export class AgreementLifecycle {
       });
     }
 
-    const { target, validation } = transitions[actionName];
+    const { page, target, validation } = transitions[actionName];
 
     return new AgreementAction({
       from: state,
       name: actionName,
+      page,
       target,
       validation,
     });

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { AgreementAction } from "./agreement-action.js";
 
-const toAction = (validation) =>
+const toAction = (validation, page) =>
   new AgreementAction({
     from: "offered",
     name: "accept",
     target: "accepted",
+    page,
     validation,
   });
 
@@ -19,7 +20,7 @@ describe("AgreementAction", () => {
   });
 
   it("returns its configured preparation page", () => {
-    expect(toAction({ page: "accept" }).preparationPage).toBe("accept");
+    expect(toAction(undefined, "accept").preparationPage).toBe("accept");
     expect(toAction().preparationPage).toBeUndefined();
   });
 
@@ -65,7 +66,6 @@ describe("AgreementAction", () => {
 
   it("returns every configured field failure in declaration order", () => {
     const validation = {
-      page: "accept",
       required: [
         {
           name: "missing",
@@ -89,7 +89,7 @@ describe("AgreementAction", () => {
     };
 
     expect(
-      toAction(validation).validate({
+      toAction(validation, "accept").validate({
         empty: "",
         different: "not-confirmed",
       }),

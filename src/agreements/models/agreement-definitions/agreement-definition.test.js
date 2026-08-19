@@ -17,8 +17,8 @@ const validDefinition = {
       on: {
         accept: {
           target: "accepted",
+          page: "accept",
           validation: {
-            page: "accept",
             required: [
               {
                 name: "confirm",
@@ -204,7 +204,7 @@ describe("AgreementDefinition", () => {
     );
   });
 
-  it("allows the state page and its action validation pages", () => {
+  it("allows the state page and its action pages", () => {
     const definition = new AgreementDefinition(validDefinition);
 
     expect(() =>

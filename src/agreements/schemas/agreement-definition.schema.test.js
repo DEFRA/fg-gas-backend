@@ -59,6 +59,37 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
+  it("allows an action page without validation rules", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    delete definition.states.offered.on.accept.validation;
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
+  it("rejects validation rules without an action page", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    delete definition.states.offered.on.accept.page;
+
+    const { error } = validate(definition);
+
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /missing required peer "page"/,
+    );
+  });
+
+  it("rejects a page nested inside validation", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.states.offered.on.accept.validation.page = "accept";
+
+    const { error } = validate(definition);
+
+    expect(error.details.map((detail) => detail.message).join(", ")).toMatch(
+      /validation.page" is not allowed/,
+    );
+  });
+
   it("fails when validation.required is empty", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.states.offered.on.accept.validation.required = [];
