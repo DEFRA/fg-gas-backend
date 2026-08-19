@@ -59,7 +59,6 @@ const requiredValidationField = Joi.object({
   .label("RequiredValidationField");
 
 const validation = Joi.object({
-  page: Joi.forbidden(),
   required: Joi.array().items(requiredValidationField).min(1).required(),
 })
   .unknown(true)
