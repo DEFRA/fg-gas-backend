@@ -22,6 +22,25 @@ describe("resolveEndpointServiceHeaders", () => {
       Authorization: "Bearer encrypted-token",
     });
   });
+
+  it("throws when a referenced environment variable is undefined", () => {
+    vi.stubEnv(
+      "LAND_GRANTS_HEADERS",
+      `Authorization: Bearer \${MISSING_TOKEN}`,
+    );
+
+    expect(() => resolveEndpointServiceHeaders("LAND_GRANTS")).toThrow(
+      /Environment variable MISSING_TOKEN .* is not defined/,
+    );
+  });
+
+  it("throws when a header has no separator", () => {
+    vi.stubEnv("LAND_GRANTS_HEADERS", "invalid-header");
+
+    expect(() => resolveEndpointServiceHeaders("LAND_GRANTS")).toThrow(
+      "Invalid service header format",
+    );
+  });
 });
 
 describe("resolveEndpointServiceUrl", () => {
