@@ -85,9 +85,8 @@ const createPaymentEvent = (payment) => ({
  * Everything the message needs is already on the Payment, so building it never
  * loads the Agreement or its definition. The Agreement Number is the outbox
  * segregation reference, which keeps a single Agreement's payment events in
- * order behind one FIFO lock and, at publish time, becomes the SNS FIFO
- * message group ID. It stays out of the message body, which the Payment
- * Service inherited from the legacy Agreements API.
+ * order behind one FIFO lock and becomes the SNS FIFO message group ID when the
+ * outbox subscriber publishes it.
  */
 export const createPaymentPublication = (payment) => ({
   event: createPaymentEvent(payment),

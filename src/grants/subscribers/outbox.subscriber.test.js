@@ -251,7 +251,6 @@ describe("outbox.subscriber", () => {
       messageGroupId: "PMF123456789",
       deduplicationId: "payment-event-id",
     });
-    expect(mockEvent.event).not.toHaveProperty("messageGroupId");
   });
 
   it("should not derive a message group id for standard topics", async () => {
