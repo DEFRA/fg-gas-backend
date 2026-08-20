@@ -184,8 +184,12 @@ export class OutboxSubscriber {
     logger.info("All outbox events processed.");
   }
 
+  // The FIFO group ID is transport metadata, so messages that keep it out of
+  // their body fall back to the outbox segregation reference - the same key
+  // their FIFO lock already uses. The fallback applies after the existing
+  // rules, so it only fires where they produced no group ID at all.
   getMessageGroupId(id, data, segregationRef) {
-    return getMessageGroupId(id ?? segregationRef, data);
+    return getMessageGroupId(id, data) ?? segregationRef;
   }
 
   async start() {
