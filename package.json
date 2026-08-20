@@ -41,7 +41,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.995.0",
     "@aws-sdk/client-sns": "^3.1084.0",
-    "@aws-sdk/client-sqs": "^3.1084.0",
+    "@aws-sdk/client-sqs": "^3.1093.0",
     "@aws-sdk/credential-providers": "^3.1084.0",
     "@defra/fcp-audit-publisher": "^1.0.7",
     "@defra/hapi-tracing": "^1.28.0",
