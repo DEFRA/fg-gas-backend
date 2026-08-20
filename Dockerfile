@@ -14,12 +14,12 @@ USER node
 
 COPY --chown=node:node package*.json ./
 COPY --chown=node:node .npmrc ./
-COPY --chown=node:node scripts/run.sh scripts/run.sh
+COPY --chown=node:node scripts scripts
 COPY --chown=node:node migrate-mongo-config.js ./
 COPY --chown=node:node migrations ./migrations
 
 RUN npm ci --omit=dev \
-  && chmod +x scripts/run.sh
+  && chmod +x scripts/*.sh scripts/*.js
 
 COPY --chown=node:node src src
 
