@@ -20,9 +20,9 @@ const resolveText = async (field, context, name) => {
   }
 };
 
-const resolveSummary = async (summary = {}, context) => {
+const resolveSummary = async (summary, context) => {
   const entries = await Promise.all(
-    Object.entries(summary).map(async ([name, field]) => [
+    Object.entries(summary ?? {}).map(async ([name, field]) => [
       name,
       await resolveText(field, context, name),
     ]),
