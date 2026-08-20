@@ -2,6 +2,7 @@ import { logger } from "../../common/logger.js";
 import { findExistingEntitlements } from "../../grants/repositories/entitlement.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../../grants/use-cases/find-application-by-client-ref-and-code.use-case.js";
 import { resolveCurrentGrantUseCase } from "../../grants/use-cases/resolve-current-grant.use-case.js";
+import { buildBanner } from "../services/build-banner.js";
 
 export const findClaimsUseCase = async ({ code, clientRef }) => {
   const application = await findApplicationByClientRefAndCodeUseCase(
@@ -47,7 +48,11 @@ export const findClaimsUseCase = async ({ code, clientRef }) => {
     `Entitlement templates available at position for ${clientRef}`,
   );
 
+  // The header the claims page is topped with. Built here because this endpoint
+  // serves that page: the admin frontend is handed values to render rather than
+  // the pieces to assemble them from.
   return {
+    banner: buildBanner({ grant, application }),
     availableEntitlements,
     claimableEntitlements: [],
     claims: [],

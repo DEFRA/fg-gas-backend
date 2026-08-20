@@ -209,4 +209,46 @@ describe("find claims use case", () => {
     expect(result.claimableEntitlements).toEqual([]);
     expect(result.claims).toEqual([]);
   });
+
+  // The claims page is served by this endpoint, so the header it is topped with
+  // is built here rather than left to the frontend to assemble.
+  describe("banner", () => {
+    it("heads the page with the scheme, reference and sbi", async () => {
+      givenGrantWith([]);
+
+      const { banner } = await findClaimsUseCase({ code, clientRef });
+
+      expect(banner.summary.applicationId.text).toBe(clientRef);
+      expect(banner.summary.sbi.text).toBe("sbi-1");
+    });
+
+    it("titles the page with the applicant's business", async () => {
+      findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
+        createTestApplication({
+          clientRef,
+          code,
+          phases: [
+            {
+              code: position.phase,
+              answers: { applicant: { business: { name: "Elmwood Land Co" } } },
+            },
+          ],
+        }),
+      );
+      givenGrantWith([]);
+
+      const { banner } = await findClaimsUseCase({ code, clientRef });
+
+      expect(banner.title.text).toBe("Elmwood Land Co");
+    });
+
+    it("returns the entitlements alongside it", async () => {
+      givenGrantWith([createTemplate()]);
+
+      const result = await findClaimsUseCase({ code, clientRef });
+
+      expect(result.banner).toBeDefined();
+      expect(result.availableEntitlements).toHaveLength(1);
+    });
+  });
 });

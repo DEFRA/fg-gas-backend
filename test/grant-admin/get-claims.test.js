@@ -61,7 +61,7 @@ const template = (overrides = {}) => ({
 
 // The application is stored without a configVersion, so the grant resolves by
 // code at the unversioned sentinel - the same route application-status takes.
-const seed = async ({ entitlementTemplates, currentPhase } = {}) => {
+const seed = async ({ entitlementTemplates, currentPhase, answers } = {}) => {
   await grants.insertOne(
     new GrantDocument(createTestGrant({ code, entitlementTemplates })),
   );
@@ -73,7 +73,13 @@ const seed = async ({ entitlementTemplates, currentPhase } = {}) => {
       currentPhase: currentPhase ?? position.phase,
       currentStage: position.stage,
       currentStatus: position.status,
-      phases: [{ code: position.phase, questions: {} }],
+      phases: [
+        {
+          code: position.phase,
+          questions: {},
+          ...(answers ? { answers } : {}),
+        },
+      ],
       identifiers: { sbi: "123", frn: "456", crn: "789", defraId: "abc" },
     }),
   );
@@ -162,5 +168,36 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
     expect(response.payload.availableEntitlements).toEqual([]);
     expect(response.payload.claimableEntitlements).toEqual([]);
     expect(response.payload.claims).toEqual([]);
+  });
+
+  // The header the claims page is topped with, alongside the entitlements.
+  it("heads the page with the applicant, scheme, reference and sbi", async () => {
+    await seed({
+      entitlementTemplates: [template()],
+      answers: { applicant: { business: { name: "Elmwood Land Co" } } },
+    });
+
+    const response = await getClaims();
+
+    expect(response.res.statusCode).toBe(200);
+    expect(response.payload.banner.title).toEqual({
+      text: "Elmwood Land Co",
+      type: "string",
+    });
+    expect(response.payload.banner.summary).toMatchObject({
+      scheme: { label: "Scheme", text: "Test Grant" },
+      applicationId: { label: "Application ID", text: clientRef },
+      sbi: { label: "SBI", text: "123" },
+    });
+  });
+
+  it("omits the title when the application names no business", async () => {
+    await seed({ entitlementTemplates: [template()] });
+
+    const response = await getClaims();
+
+    expect(response.res.statusCode).toBe(200);
+    expect(response.payload.banner.title).toBeUndefined();
+    expect(response.payload.banner.summary.sbi.text).toBe("123");
   });
 });
