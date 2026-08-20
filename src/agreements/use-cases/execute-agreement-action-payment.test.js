@@ -343,7 +343,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     expect(data.grants[0].payments[0].invoiceLines[0].amountPence).toBe("2000");
   });
 
-  it("groups the payment event by Agreement Number", async () => {
+  it("groups the payment event without changing its message", async () => {
     await executeAgreementActionUseCase(options);
 
     const [publications] = saveOutboxEvents.mock.calls[0];
@@ -351,9 +351,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     const paymentPublication = findPaymentPublication(publications);
 
     expect(paymentPublication.segregationRef).toBe(options.agreementNumber);
-    expect(paymentPublication.event.messageGroupId).toBe(
-      options.agreementNumber,
-    );
+    expect(paymentPublication.event).not.toHaveProperty("messageGroupId");
   });
 
   it("targets the Payment Service topic", async () => {

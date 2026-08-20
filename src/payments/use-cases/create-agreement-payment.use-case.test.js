@@ -96,7 +96,6 @@ describe("createAgreementPaymentUseCase", () => {
       event: {
         type: "io.onsite.agreement.create-payment",
         source: "urn:service:agreement",
-        messageGroupId: "PMF123456789",
         data: {
           claimId: payment.paymentHubClaimId,
           grants: [
@@ -108,7 +107,9 @@ describe("createAgreementPaymentUseCase", () => {
         },
       },
     });
+    expect(publication.event).not.toHaveProperty("messageGroupId");
   });
+
   it("inserts nothing when the request cannot be turned into a Payment", async () => {
     await expect(
       createAgreementPaymentUseCase(

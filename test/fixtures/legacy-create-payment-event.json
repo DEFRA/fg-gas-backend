@@ -3,7 +3,6 @@
   "specversion": "1.0",
   "type": "io.onsite.agreement.create-payment",
   "datacontenttype": "application/json",
-  "messageGroupId": "FPTT123456",
   "data": {
     "sbi": "SBI123",
     "frn": "FRN456",
@@ -16,7 +15,7 @@
         "fesCode": "FALS_FPTT",
         "paymentRequestNumber": 1,
         "correlationId": "123e4567-e89b-12d3-a456-426614174000",
-        "invoiceNumber": "R00000001-V001Q2",
+        "invoiceNumber": "R00000001-V001QX",
         "ledger": "AP",
         "originalInvoiceNumber": "ORIG-INV-123",
         "agreementNumber": "FPTT123456",
