@@ -61,9 +61,34 @@ const template = (overrides = {}) => ({
 
 // The application is stored without a configVersion, so the grant resolves by
 // code at the unversioned sentinel - the same route application-status takes.
-const seed = async ({ entitlementTemplates, currentPhase, answers } = {}) => {
+const claimsPage = {
+  claims: {
+    details: {
+      banner: {
+        title: { text: "$.answers.applicant.business.name", type: "string" },
+        summary: {
+          scheme: { label: "Scheme", text: "Test Grant", type: "string" },
+          applicationId: {
+            label: "Application ID",
+            text: "$.clientRef",
+            type: "string",
+          },
+          sbi: { label: "SBI", text: "$.identifiers.sbi", type: "string" },
+        },
+      },
+    },
+  },
+};
+
+const seed = async (options = {}) => {
+  const { entitlementTemplates, currentPhase, answers } = options;
+
+  // Key presence rather than a default, so a test can seed a grant that
+  // configures no pages at all by passing "pages: undefined".
+  const pages = "pages" in options ? options.pages : claimsPage;
+
   await grants.insertOne(
-    new GrantDocument(createTestGrant({ code, entitlementTemplates })),
+    new GrantDocument(createTestGrant({ code, entitlementTemplates, pages })),
   );
 
   await applications.insertOne(
@@ -77,7 +102,9 @@ const seed = async ({ entitlementTemplates, currentPhase, answers } = {}) => {
         {
           code: position.phase,
           questions: {},
-          ...(answers ? { answers } : {}),
+          answers: answers ?? {
+            applicant: { business: { name: "Elmwood Land Co" } },
+          },
         },
       ],
       identifiers: { sbi: "123", frn: "456", crn: "789", defraId: "abc" },
@@ -170,12 +197,10 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
     expect(response.payload.claims).toEqual([]);
   });
 
-  // The header the claims page is topped with, alongside the entitlements.
-  it("heads the page with the applicant, scheme, reference and sbi", async () => {
-    await seed({
-      entitlementTemplates: [template()],
-      answers: { applicant: { business: { name: "Elmwood Land Co" } } },
-    });
+  // The header the grant configures for this page, resolved against the
+  // application it is being viewed for.
+  it("heads the page with the banner the grant configures", async () => {
+    await seed({ entitlementTemplates: [template()] });
 
     const response = await getClaims();
 
@@ -191,13 +216,22 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
     });
   });
 
-  it("omits the title when the application names no business", async () => {
-    await seed({ entitlementTemplates: [template()] });
+  it("drops a field the application has no answer for", async () => {
+    await seed({ entitlementTemplates: [template()], answers: {} });
 
     const response = await getClaims();
 
     expect(response.res.statusCode).toBe(200);
     expect(response.payload.banner.title).toBeUndefined();
     expect(response.payload.banner.summary.sbi.text).toBe("123");
+  });
+
+  // A page headed by nothing tells a case officer less than an honest 404 does.
+  it("answers 404 for a grant that configures no claims page", async () => {
+    await seed({ entitlementTemplates: [template()], pages: undefined });
+
+    await expect(getClaims()).rejects.toMatchObject({
+      output: { statusCode: 404 },
+    });
   });
 });

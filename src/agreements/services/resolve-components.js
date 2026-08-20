@@ -1,6 +1,6 @@
+import { resolveCondition, resolveRefs } from "../../common/resolve-refs.js";
 import { applyFormat } from "./format.js";
 import { resolvePageHref } from "./resolve-page-href.js";
-import { resolveCondition, resolveRefs } from "./resolve-refs.js";
 
 const applyFormatsToObject = (value) => {
   const { format, ...rest } = value;
