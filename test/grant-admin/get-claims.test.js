@@ -234,4 +234,32 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
       output: { statusCode: 404 },
     });
   });
+
+  it("drops a field whose reference resolves to something it cannot show", async () => {
+    await seed({
+      entitlementTemplates: [template()],
+      pages: {
+        claims: {
+          details: {
+            banner: {
+              title: { text: "$.answers.applicant", type: "string" },
+              summary: {
+                sbi: {
+                  label: "SBI",
+                  text: "$.identifiers.sbi",
+                  type: "string",
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const response = await getClaims();
+
+    expect(response.res.statusCode).toBe(200);
+    expect(response.payload.banner.title).toBeUndefined();
+    expect(response.payload.banner.summary.sbi.text).toBe("123");
+  });
 });

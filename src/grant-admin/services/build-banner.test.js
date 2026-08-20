@@ -10,11 +10,16 @@ const application = {
   clientRef: "wood-1001",
   code: "woodland",
   currentStatus: "STATUS_PREPARING_CLAIM",
-  identifiers: { sbi: "113598882" },
+  identifiers: { sbi: "113598882", frn: null },
   phases: [
     {
       code: "PHASE_PRE_AWARD",
-      answers: { applicant: { business: { name: "Elmwood Land Co" } } },
+      answers: {
+        applicant: { business: { name: "Elmwood Land Co" } },
+        landParcels: [{ parcelId: "SD6743" }],
+        hectares: 40.25,
+        confirmed: true,
+      },
     },
   ],
 };
@@ -127,5 +132,40 @@ describe("buildBanner", () => {
       title: { text: "wood-1001", type: "string" },
       summary: {},
     });
+  });
+
+  it.each([
+    ["an object", "$.answers.applicant"],
+    ["an array", "$.answers.landParcels"],
+    ["a null", "$.identifiers.frn"],
+  ])("drops a field whose reference resolves to %s", async (_, text) => {
+    const { title, summary } = await build(
+      grantWith({
+        title: { text, type: "string" },
+        summary: {
+          unshowable: { label: "Unshowable", text, type: "string" },
+          sbi: { label: "SBI", text: "$.identifiers.sbi", type: "string" },
+        },
+      }),
+    );
+
+    expect(title).toBeUndefined();
+    expect(summary.unshowable).toBeUndefined();
+    expect(summary.sbi.text).toBe("113598882");
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a number", "$.answers.hectares", 40.25],
+    ["a boolean", "$.answers.confirmed", true],
+  ])("keeps a field resolving to %s", async (_, text, expected) => {
+    const { summary } = await build(
+      grantWith({
+        title: { text: "$.clientRef", type: "string" },
+        summary: { field: { label: "Field", text, type: "string" } },
+      }),
+    );
+
+    expect(summary.field.text).toBe(expected);
   });
 });

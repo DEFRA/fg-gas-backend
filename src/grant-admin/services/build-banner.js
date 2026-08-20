@@ -3,21 +3,29 @@ import { logger } from "../../common/logger.js";
 import { resolveRefs } from "../../common/resolve-refs.js";
 import { toApplicationContext } from "./application-context.js";
 
-// A field whose reference cannot be resolved is dropped rather than allowed to
-// take the page down with it. An answer a grant expects but an application has
-// never been asked is a gap in one line of a header, not a reason to refuse the
-// entitlements underneath it.
-const resolveText = async (field, context, name) => {
-  try {
-    return { ...field, text: await resolveRefs(field.text, { context }) };
-  } catch (err) {
-    logger.warn(
-      { err, field: name },
-      `Banner field "${name}" could not be resolved`,
-    );
+const renderableTypes = ["string", "number", "boolean"];
 
-    return undefined;
+const isRenderable = (text) =>
+  text instanceof Date || renderableTypes.includes(typeof text);
+
+const drop = (name, reason) => {
+  logger.warn({ field: name, ...reason }, `Banner field "${name}" was dropped`);
+
+  return undefined;
+};
+
+const resolveText = async (field, context, name) => {
+  let text;
+
+  try {
+    text = await resolveRefs(field.text, { context });
+  } catch (err) {
+    return drop(name, { err });
   }
+
+  return isRenderable(text)
+    ? { ...field, text }
+    : drop(name, { resolved: typeof text });
 };
 
 const resolveSummary = async (summary, context) => {
@@ -36,7 +44,7 @@ const findBanner = (grant, page) => grant.pages?.[page]?.details?.banner;
 const withTitle = (title) => (title ? { title } : {});
 
 /**
- * Grants with no banner are not configured for this page - 404 rather than leaving a 
+ * Grants with no banner are not configured for this page - 404 rather than leaving a
  * broken page for case worker.
  */
 export const buildBanner = async ({ grant, application, page }) => {
