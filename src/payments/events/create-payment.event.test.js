@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // The fixture is the message payload produced by the legacy Agreements API's
 // createGrantPaymentFromAgreement test, wrapped in the CloudEvent fields GAS
-// must preserve. GAS adds messageGroupId for Agreement-level FIFO grouping.
+// must preserve.
 import legacyCreatePaymentEvent from "../../../test/fixtures/legacy-create-payment-event.json";
 import { Payment } from "../models/payment.js";
 import { buildPayment } from "../use-cases/build-payment.js";
@@ -25,7 +25,7 @@ const payment = new Payment({
   fesCode: "FALS_FPTT",
   paymentRequestNumber: 1,
   correlationId: "123e4567-e89b-12d3-a456-426614174000",
-  invoiceNumber: "R00000001-V001Q2",
+  invoiceNumber: "R00000001-V001QX",
   originalInvoiceNumber: "ORIG-INV-123",
   ledger: "AP",
   totalAmountPence: 10000,
@@ -140,7 +140,6 @@ describe("createPaymentPublication", () => {
       createdAt: "2026-08-01T10:00:00.000Z",
     });
     const expected = structuredClone(legacyCreatePaymentEvent);
-    expected.data.grants[0].invoiceNumber = "R00000001-V001QX";
     expected.data.grants[0].originalInvoiceNumber = "";
 
     expect(createPaymentPublication(builtPayment).event).toEqual({
@@ -165,11 +164,11 @@ describe("createPaymentPublication", () => {
     );
   });
 
-  it("groups by Agreement Number in the outbox and on the message", () => {
+  it("groups by Agreement Number without changing the legacy message", () => {
     const { event, segregationRef } = createPaymentPublication(payment);
 
     expect(segregationRef).toBe("FPTT123456");
-    expect(event.messageGroupId).toBe("FPTT123456");
+    expect(event).not.toHaveProperty("messageGroupId");
   });
 
   it("stringifies pence at the boundary", () => {

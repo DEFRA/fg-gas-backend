@@ -148,6 +148,7 @@ export class OutboxSubscriber {
   async sendEvent(outboxEvent) {
     const {
       target,
+      segregationRef,
       event: message,
       event: { messageGroupId },
     } = outboxEvent;
@@ -159,7 +160,11 @@ export class OutboxSubscriber {
         logger.info(`Send outbox event to ${target}`);
         const fifoOptions = target.endsWith(".fifo")
           ? {
-              messageGroupId: this.getMessageGroupId(messageGroupId, message),
+              messageGroupId: this.getMessageGroupId(
+                messageGroupId,
+                message,
+                segregationRef,
+              ),
               deduplicationId: message.id,
             }
           : undefined;
@@ -179,8 +184,8 @@ export class OutboxSubscriber {
     logger.info("All outbox events processed.");
   }
 
-  getMessageGroupId(id, data) {
-    return getMessageGroupId(id, data);
+  getMessageGroupId(id, data, segregationRef) {
+    return getMessageGroupId(id, data) ?? segregationRef;
   }
 
   async start() {

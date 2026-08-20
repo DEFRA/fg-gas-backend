@@ -214,14 +214,33 @@ describe("outbox.subscriber", () => {
     );
   });
 
-  it("passes the persisted event ID as the fifo deduplication ID", async () => {
+  it("passes event FIFO attributes separately from the message", async () => {
     const mockEvent = {
       target:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
+      segregationRef: "outbox-group",
       event: {
         id: "payment-event-id",
-        messageGroupId: "PMF123456789",
+        messageGroupId: "event-group",
       },
+      markAsComplete: vi.fn(),
+    };
+
+    const outbox = new OutboxSubscriber();
+    await outbox.sendEvent(mockEvent);
+
+    expect(publish).toHaveBeenCalledWith(mockEvent.target, mockEvent.event, {
+      messageGroupId: "event-group",
+      deduplicationId: "payment-event-id",
+    });
+  });
+
+  it("uses outbox metadata when the message has no FIFO attribute", async () => {
+    const mockEvent = {
+      target:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
+      segregationRef: "PMF123456789",
+      event: { id: "payment-event-id" },
       markAsComplete: vi.fn(),
     };
 
