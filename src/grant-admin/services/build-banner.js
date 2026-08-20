@@ -36,13 +36,8 @@ const findBanner = (grant, page) => grant.pages?.[page]?.details?.banner;
 const withTitle = (title) => (title ? { title } : {});
 
 /**
- * The banner a grant configures for one of its pages, resolved against an
- * application.
- *
- * A grant that configures no banner for the page has no such page: there is
- * nothing to head it with, and a page headed by nothing tells a case officer
- * less than an honest 404 does. So this refuses rather than answering with a
- * header-shaped hole.
+ * Grants with no banner are not configured for this page - 404 rather than leaving a 
+ * broken page for case worker.
  */
 export const buildBanner = async ({ grant, application, page }) => {
   const banner = findBanner(grant, page);
