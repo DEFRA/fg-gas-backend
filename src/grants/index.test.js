@@ -98,19 +98,29 @@ describe("grants", () => {
       method: r.method,
     }));
 
-    expect(routePaths).toEqual([
-      { method: "post", path: "/grants" },
-      { method: "post", path: "/grants/{code}/applications" },
-      { method: "post", path: "/grants/{code}/actions/{name}/invoke" },
-      { method: "put", path: "/tmp/grants/{code}" },
-      { method: "get", path: "/grants" },
-      { method: "get", path: "/grants/{code}" },
-      { method: "get", path: "/grants/{code}/actions/{name}/invoke" },
-      { method: "get", path: "/grants/{code}/applications/{clientRef}/status" },
-      {
-        method: "get",
-        path: "/grant-admin/grants/{code}/applications/{clientRef}/claims",
-      },
-    ]);
+    expect(routePaths).toEqual(
+      expect.arrayContaining([
+        { method: "post", path: "/grants" },
+        { method: "post", path: "/grants/{code}/applications" },
+        { method: "post", path: "/grants/{code}/actions/{name}/invoke" },
+        { method: "put", path: "/tmp/grants/{code}" },
+        { method: "get", path: "/grants" },
+        { method: "get", path: "/grants/{code}" },
+        { method: "get", path: "/grants/{code}/actions/{name}/invoke" },
+        {
+          method: "get",
+          path: "/grants/{code}/applications/{clientRef}/status",
+        },
+        {
+          method: "get",
+          path: "/grant-admin/grants/{code}/applications/{clientRef}/claims",
+        },
+        {
+          method: "get",
+          path: "/grants/{grantCode}/entitlements/{clientRef}/available-claims",
+        },
+      ]),
+    );
+    expect(routePaths).toHaveLength(10);
   });
 });
