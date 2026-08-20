@@ -69,7 +69,6 @@ const createPaymentEvent = (payment) => ({
   type: CREATE_PAYMENT_TYPE,
   time: new Date().toISOString(),
   datacontenttype: "application/json",
-  messageGroupId: payment.source.agreementNumber,
   data: {
     sbi: payment.sbi,
     frn: payment.frn,
