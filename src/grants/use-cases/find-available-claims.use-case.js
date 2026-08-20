@@ -98,7 +98,7 @@ const resolveGrant = async (code, configVersion) => {
   return grant;
 };
 
-const resolveLive = async (code, clientRef) => {
+export const resolveLive = async (code, clientRef) => {
   const application = await findApplicationByClientRefAndCodeUseCase(
     clientRef,
     code,

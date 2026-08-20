@@ -3,7 +3,10 @@ import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
-import { findAvailableClaimsUseCase } from "./find-available-claims.use-case.js";
+import {
+  findAvailableClaimsUseCase,
+  resolveLive,
+} from "./find-available-claims.use-case.js";
 import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
 
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
@@ -131,17 +134,13 @@ describe("find available claims use case", () => {
     });
   });
 
-  // Tests below exercise the live resolution path (resolveLive).
-  // When IS_STUBBED is flipped to false, these will run against the real logic.
-  // They are kept to document the intended behaviour and to verify the
-  // implementation once the stub is removed.
-  describe.skip("live resolution (IS_STUBBED = false)", () => {
+  describe("live resolution (resolveLive)", () => {
     it("resolves the grant against the application's pinned config version", async () => {
       const application = createTestApplication({ clientRef, code });
       findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
       givenGrantWith([]);
 
-      await findAvailableClaimsUseCase({ code, clientRef });
+      await resolveLive(code, clientRef);
 
       expect(findApplicationByClientRefAndCodeUseCase).toHaveBeenCalledWith(
         clientRef,
@@ -158,7 +157,7 @@ describe("find available claims use case", () => {
       givenGrantWith([createTemplate()]);
       findExistingEntitlements.mockResolvedValue([createEntitlement()]);
 
-      const result = await findAvailableClaimsUseCase({ code, clientRef });
+      const result = await resolveLive(code, clientRef);
 
       expect(result.availableClaims).toHaveLength(1);
       expect(result.availableClaims[0]).toEqual({
@@ -202,7 +201,7 @@ describe("find available claims use case", () => {
         createEntitlement({ data: { totalHectares: 500 } }),
       ]);
 
-      const result = await findAvailableClaimsUseCase({ code, clientRef });
+      const result = await resolveLive(code, clientRef);
 
       expect(result.availableClaims[0].data.totalHectares).toEqual({
         value: 500,
@@ -216,7 +215,7 @@ describe("find available claims use case", () => {
       givenGrantWith([createTemplate()]);
       findExistingEntitlements.mockResolvedValue([createEntitlement()]);
 
-      const result = await findAvailableClaimsUseCase({ code, clientRef });
+      const result = await resolveLive(code, clientRef);
 
       expect(result.availableClaims[0].data.actionCode).toEqual({
         value: "PA3",
@@ -233,7 +232,7 @@ describe("find available claims use case", () => {
       givenGrantWith([createTemplate()]);
       findExistingEntitlements.mockResolvedValue([]);
 
-      const result = await findAvailableClaimsUseCase({ code, clientRef });
+      const result = await resolveLive(code, clientRef);
 
       expect(result.availableClaims).toEqual([]);
     });
@@ -246,7 +245,7 @@ describe("find available claims use case", () => {
       ]);
       findExistingEntitlements.mockResolvedValue([createEntitlement()]);
 
-      const result = await findAvailableClaimsUseCase({ code, clientRef });
+      const result = await resolveLive(code, clientRef);
 
       expect(result.availableClaims).toEqual([]);
     });
@@ -254,7 +253,7 @@ describe("find available claims use case", () => {
     it("returns empty availableClaims when the grant defines no templates", async () => {
       givenGrantWith([]);
 
-      const result = await findAvailableClaimsUseCase({ code, clientRef });
+      const result = await resolveLive(code, clientRef);
 
       expect(result.availableClaims).toEqual([]);
     });
@@ -271,7 +270,7 @@ describe("find available claims use case", () => {
         createEntitlement({ claimCode: "ENT_MATERIALISED" }),
       ]);
 
-      const result = await findAvailableClaimsUseCase({ code, clientRef });
+      const result = await resolveLive(code, clientRef);
 
       expect(result.availableClaims).toEqual([]);
     });
@@ -282,7 +281,7 @@ describe("find available claims use case", () => {
         createEntitlement({ data: { totalHectares: 300 } }),
       ]);
 
-      const result = await findAvailableClaimsUseCase({ code, clientRef });
+      const result = await resolveLive(code, clientRef);
 
       expect(result.availableClaims[0].data.actionCode.value).toBe("PA3");
       expect(result.availableClaims[0].data.actionVersion.value).toBe("1.2.3");
@@ -294,9 +293,7 @@ describe("find available claims use case", () => {
         output: { statusCode: 404 },
       });
 
-      await expect(
-        findAvailableClaimsUseCase({ code, clientRef }),
-      ).rejects.toMatchObject({
+      await expect(resolveLive(code, clientRef)).rejects.toMatchObject({
         output: { statusCode: 404 },
       });
     });
@@ -320,7 +317,7 @@ describe("find available claims use case", () => {
         }),
       ]);
 
-      const result = await findAvailableClaimsUseCase({ code, clientRef });
+      const result = await resolveLive(code, clientRef);
 
       expect(result.availableClaims).toHaveLength(2);
       expect(result.availableClaims[0].data.totalHectares.value).toBe(100);
@@ -333,7 +330,7 @@ describe("find available claims use case", () => {
         createEntitlement({ claimCode: "ENT_SOMETHING_ELSE" }),
       ]);
 
-      const result = await findAvailableClaimsUseCase({ code, clientRef });
+      const result = await resolveLive(code, clientRef);
 
       expect(result.availableClaims).toEqual([]);
     });
