@@ -4,6 +4,35 @@ import { findExistingEntitlements } from "../repositories/entitlement.repository
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
 
+// Stubbed response while entitlement creation and claims storage are not yet
+// implemented. Set to false once the live resolution path is ready.
+const IS_STUBBED = true;
+
+const stubbedResponse = {
+  availableClaims: [
+    {
+      code: "ENT_CS_CAPITAL_PA3",
+      name: "PA3 Woodland Management Plan entitlement",
+      description:
+        "The maximum eligible woodland area that can be claimed under PA3.",
+      data: {
+        totalHectares: {
+          value: 455000,
+          decimalPlaces: 4,
+          minValue: 0.5,
+          maxValue: null,
+        },
+        actionCode: {
+          value: "PA3",
+        },
+        actionVersion: {
+          value: "1.2.3",
+        },
+      },
+    },
+  ],
+};
+
 const resolveFieldValue = (fieldName, fieldDef, entitlementData) =>
   entitlementData?.[fieldName] ?? fieldDef.value ?? null;
 
@@ -69,7 +98,7 @@ const resolveGrant = async (code, configVersion) => {
   return grant;
 };
 
-export const findAvailableClaimsUseCase = async ({ code, clientRef }) => {
+const resolveLive = async (code, clientRef) => {
   const application = await findApplicationByClientRefAndCodeUseCase(
     clientRef,
     code,
@@ -92,4 +121,15 @@ export const findAvailableClaimsUseCase = async ({ code, clientRef }) => {
   );
 
   return { availableClaims };
+};
+
+export const findAvailableClaimsUseCase = async ({ code, clientRef }) => {
+  if (IS_STUBBED) {
+    logger.info(
+      `Returning stubbed available claims for grant ${code} and clientRef ${clientRef}`,
+    );
+    return stubbedResponse;
+  }
+
+  return resolveLive(code, clientRef);
 };
