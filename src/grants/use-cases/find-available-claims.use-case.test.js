@@ -334,5 +334,98 @@ describe("find available claims use case", () => {
 
       expect(result.availableClaims).toEqual([]);
     });
+
+    it("returns null description when template has no description", async () => {
+      givenGrantWith([createTemplate({ description: undefined })]);
+      findExistingEntitlements.mockResolvedValue([createEntitlement()]);
+
+      const result = await resolveLive(code, clientRef);
+
+      expect(result.availableClaims[0].description).toBeNull();
+    });
+
+    it("returns empty data when template fields are null at runtime", async () => {
+      const grant = createTestGrant({
+        entitlementTemplates: [createTemplate()],
+      });
+      const tpl = grant.findEntitlementTemplatesAvailableAt(position)[0];
+      tpl.fields = null;
+      resolveCurrentGrantUseCase.mockResolvedValue({ grant });
+      findExistingEntitlements.mockResolvedValue([createEntitlement()]);
+
+      const result = await resolveLive(code, clientRef);
+
+      expect(result.availableClaims[0].data).toEqual({});
+    });
+
+    it("falls back to template value when entitlement has no data", async () => {
+      givenGrantWith([createTemplate()]);
+      findExistingEntitlements.mockResolvedValue([
+        createEntitlement({ data: undefined }),
+      ]);
+
+      const result = await resolveLive(code, clientRef);
+
+      expect(result.availableClaims[0].data.actionCode.value).toBe("PA3");
+      expect(result.availableClaims[0].data.totalHectares.value).toBeNull();
+    });
+
+    it("defaults minValue and maxValue to null when not defined on the template", async () => {
+      givenGrantWith([
+        createTemplate({
+          fields: {
+            amount: {
+              input: true,
+              label: "Amount",
+              unitType: "decimal",
+              decimalPlaces: 2,
+              unit: "GBP",
+            },
+          },
+        }),
+      ]);
+      findExistingEntitlements.mockResolvedValue([
+        createEntitlement({ data: { amount: 100 } }),
+      ]);
+
+      const result = await resolveLive(code, clientRef);
+
+      expect(result.availableClaims[0].data.amount).toEqual({
+        value: 100,
+        decimalPlaces: 2,
+        minValue: null,
+        maxValue: null,
+      });
+    });
+
+    it("resolves value to null when neither entitlement data nor template defines it", async () => {
+      givenGrantWith([
+        createTemplate({
+          fields: {
+            optional: {
+              input: true,
+              label: "Optional field",
+              unitType: "string",
+            },
+          },
+        }),
+      ]);
+      findExistingEntitlements.mockResolvedValue([
+        createEntitlement({ data: {} }),
+      ]);
+
+      const result = await resolveLive(code, clientRef);
+
+      expect(result.availableClaims[0].data.optional.value).toBeNull();
+    });
+
+    it("throws 404 when grant is not found", async () => {
+      resolveCurrentGrantUseCase.mockResolvedValue({ grant: null });
+
+      await expect(resolveLive(code, clientRef)).rejects.toMatchObject({
+        isBoom: true,
+        output: { statusCode: 404 },
+      });
+    });
   });
 });
