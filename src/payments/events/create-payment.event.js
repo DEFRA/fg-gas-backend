@@ -69,7 +69,6 @@ const createPaymentEvent = (payment) => ({
   type: CREATE_PAYMENT_TYPE,
   time: new Date().toISOString(),
   datacontenttype: "application/json",
-  messageGroupId: payment.source.agreementNumber,
   data: {
     sbi: payment.sbi,
     frn: payment.frn,
@@ -84,9 +83,10 @@ const createPaymentEvent = (payment) => ({
  * Payment Service.
  *
  * Everything the message needs is already on the Payment, so building it never
- * loads the Agreement or its definition. The Agreement Number is both the
- * outbox segregation reference and the CloudEvent message group ID, which keeps
- * a single Agreement's payment events in order behind one FIFO lock.
+ * loads the Agreement or its definition. The Agreement Number is the outbox
+ * segregation reference, which keeps a single Agreement's payment events in
+ * order behind one FIFO lock and becomes the SNS FIFO message group ID when the
+ * outbox subscriber publishes it.
  */
 export const createPaymentPublication = (payment) => ({
   event: createPaymentEvent(payment),
