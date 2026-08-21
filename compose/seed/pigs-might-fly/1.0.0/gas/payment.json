@@ -1,0 +1,14 @@
+{
+  "code": "pigs-might-fly",
+  "scheme": "SFI",
+  "sourceSystem": "FPTT",
+  "deliveryBody": "RP00",
+  "fesCode": "FALS_FPTT",
+  "ledger": "AP",
+  "currency": "GBP",
+  "invoiceLine": {
+    "schemeCode": "CMOR1",
+    "accountCode": "SOS710",
+    "fundCode": "DRD10"
+  }
+}

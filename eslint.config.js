@@ -146,11 +146,11 @@ export default [
               from: ["**/payments/**"],
               except: [
                 "**/payments/use-cases/create-agreement-payment.use-case.js",
+                "**/payments/use-cases/load-payment-definition.js",
               ],
               message:
-                "Agreements may only enter Payments through " +
-                "payments/use-cases/create-agreement-payment.use-case.js, which shares the " +
-                "action's transaction. See docs/MODULE_BOUNDARIES.md.",
+                "Agreements may only enter Payments through its configured and transactional " +
+                "use cases. See docs/MODULE_BOUNDARIES.md.",
             },
           ],
         },

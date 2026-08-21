@@ -17,7 +17,7 @@ const endpointProcessDefinition = Joi.object({
 
 const handlerProcessDefinition = Joi.object({
   type: Joi.string().valid("handler").required(),
-  input: Joi.object().unknown(true).required(),
+  input: Joi.object().unknown(true).default({}),
 }).label("HandlerProcessDefinition");
 
 const unknownProcessDefinition = Joi.object({

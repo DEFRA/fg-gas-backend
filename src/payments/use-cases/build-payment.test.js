@@ -196,6 +196,23 @@ describe("buildPayment", () => {
     });
   });
 
+  it("uses a fixed configured invoice-line description when provided", () => {
+    const paymentConfiguration = structuredClone(mapping);
+    paymentConfiguration.invoiceLine.description =
+      "Woodland Management Plan Payment";
+
+    const payment = build({ paymentConfiguration });
+
+    expect(payment.payments[0].invoiceLines).toEqual([
+      expect.objectContaining({
+        description: "Woodland Management Plan Payment",
+      }),
+      expect.objectContaining({
+        description: "Woodland Management Plan Payment",
+      }),
+    ]);
+  });
+
   it("turns each payment due into one entry in payments", () => {
     const payment = build();
 
@@ -243,7 +260,7 @@ describe("buildPayment", () => {
 
     expect(error.output.statusCode).toBe(500);
     expect(error.message).toBe(
-      "createPayment requires payment configuration from the Agreement Definition",
+      "createPayment requires a compiled Payment definition",
     );
   });
 

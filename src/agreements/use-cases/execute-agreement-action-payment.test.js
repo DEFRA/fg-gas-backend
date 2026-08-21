@@ -474,7 +474,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     withTransaction.mockImplementation(async (callback) => callback(session));
 
     await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
-      "createPayment requires payment configuration from the Agreement Definition",
+      "createPayment requires a compiled Payment definition",
     );
     expect(insertPayment).not.toHaveBeenCalled();
     expect(saveOutboxEvents).not.toHaveBeenCalled();

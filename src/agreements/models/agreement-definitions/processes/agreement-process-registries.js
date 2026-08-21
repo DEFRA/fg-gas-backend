@@ -1,20 +1,6 @@
+import Boom from "@hapi/boom";
 import Joi from "joi";
 import { agreementValueSchema } from "../../../schemas/agreement-value.schema.js";
-
-const paymentConfigurationSchema = Joi.object({
-  scheme: Joi.string().required(),
-  sourceSystem: Joi.string().required(),
-  deliveryBody: Joi.string().required(),
-  fesCode: Joi.string().required(),
-  ledger: Joi.string().required(),
-  currency: Joi.string().required(),
-  marketingYear: Joi.string().required(),
-  invoiceLine: Joi.object({
-    schemeCode: Joi.string().optional(),
-    accountCode: Joi.string().required(),
-    fundCode: Joi.string().required(),
-  }).required(),
-}).required();
 
 const acceptedAgreementValuesSchema = agreementValueSchema
   .fork("application", (schema) => schema.forbidden())
@@ -24,8 +10,10 @@ const acceptedAgreementValuesSchema = agreementValueSchema
   )
   .required();
 
+// ponytail: accept the previous inline shape during rollout; remove once every
+// grant config publishes payment.json.
 const paymentHandlerInputSchema = Joi.object({
-  payment: paymentConfigurationSchema,
+  payment: Joi.object().unknown(true).optional(),
 }).required();
 
 const paymentCommitOperationsSchema = Joi.object({
@@ -35,7 +23,7 @@ const paymentCommitOperationsSchema = Joi.object({
         type: Joi.string().valid("create-agreement-payment").required(),
         request: Joi.object({
           agreementValues: acceptedAgreementValuesSchema,
-          paymentConfiguration: paymentConfigurationSchema,
+          paymentConfiguration: Joi.object().unknown(true).required(),
         }).required(),
       }).required(),
     )
@@ -57,23 +45,37 @@ const selectPaymentAgreementValues = (agreement) =>
     paymentAgreementValueFields.map((field) => [field, agreement[field]]),
   );
 
-const stageAgreementPayment = ({ agreement, input }) => ({
-  commitOperations: [
-    {
-      type: "create-agreement-payment",
-      request: {
-        agreementValues: selectPaymentAgreementValues(agreement),
-        paymentConfiguration: input.payment,
-      },
-    },
-  ],
-});
+const missingPaymentDefinition = () => {
+  throw Boom.badImplementation(
+    "CREATE_AGREEMENT_PAYMENT requires a Payment definition",
+  );
+};
 
-export const agreementProcessHandlers = Object.freeze({
-  CREATE_AGREEMENT_PAYMENT: Object.freeze({
-    inputSchema: paymentHandlerInputSchema,
-    commitOperationsSchema: paymentCommitOperationsSchema,
-    execute: stageAgreementPayment,
-    locations: Object.freeze(["transition"]),
-  }),
-});
+export const createAgreementProcessHandlers = ({
+  resolvePaymentConfiguration = missingPaymentDefinition,
+} = {}) => {
+  const stageAgreementPayment = async ({ agreement, execution }) => ({
+    commitOperations: [
+      {
+        type: "create-agreement-payment",
+        request: {
+          agreementValues: selectPaymentAgreementValues(agreement),
+          paymentConfiguration: await resolvePaymentConfiguration({
+            executedAt: execution.executedAt,
+          }),
+        },
+      },
+    ],
+  });
+
+  return Object.freeze({
+    CREATE_AGREEMENT_PAYMENT: Object.freeze({
+      inputSchema: paymentHandlerInputSchema,
+      commitOperationsSchema: paymentCommitOperationsSchema,
+      execute: stageAgreementPayment,
+      locations: Object.freeze(["transition"]),
+    }),
+  });
+};
+
+export const agreementProcessHandlers = createAgreementProcessHandlers();

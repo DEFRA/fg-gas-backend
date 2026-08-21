@@ -30,15 +30,16 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 | **Inbox / Outbox records** | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox |
 | **Shared infrastructure**  | Import from `src/common/` (logger, DB client, messaging helpers)                            |
 
-### Transactional entry points
+### Direct entry points
 
-Some collaborations have to commit in a single Mongo transaction, which no event, command or HTTP seam can span. Those are allowed as a single named use case in the owning module, and only that file may be imported:
+Some collaborations cannot use an event, command or HTTP seam. Only the named Payments use cases below may be imported:
 
 | Caller       | Entry point                                               | Why                                                                                                               |
 | ------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `agreements` | `payments/use-cases/load-payment-definition.js`           | Payment configuration is loaded and validated before an Agreement action starts its transaction                   |
 | `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | The Payment for an accepted Agreement Version must commit with the Agreement, its Version and the lifecycle event |
 
-The caller passes its session in; nothing else in `payments` is importable, and the ESLint zone lists the exception explicitly so adding another one is a deliberate, reviewed change.
+The transactional entry point takes the caller's session. The ESLint zone lists both exceptions explicitly so adding another one is a deliberate, reviewed change.
 
 `payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from that entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.
 

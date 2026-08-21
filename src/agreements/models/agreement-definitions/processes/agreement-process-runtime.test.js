@@ -3,6 +3,7 @@ import Joi from "joi";
 import { describe, expect, it, vi } from "vitest";
 import { Agreement } from "../../agreement.js";
 import { AgreementDefinition } from "../agreement-definition.js";
+import { createAgreementProcessHandlers } from "./agreement-process-registries.js";
 
 const createDefinition = () => ({
   code: "test-processes",
@@ -61,22 +62,26 @@ const paymentAgreementValues = {
   paymentSchedule,
 };
 
-const paymentHandlerInput = {
-  payment: {
-    scheme: "SFI",
-    sourceSystem: "FPTT",
-    deliveryBody: "RP00",
-    fesCode: "FALS_FPTT",
-    ledger: "AP",
-    currency: "GBP",
-    marketingYear: "2026",
-    invoiceLine: {
-      schemeCode: "CMOR1",
-      accountCode: "SOS710",
-      fundCode: "DRD10",
-    },
+const paymentConfiguration = {
+  scheme: "SFI",
+  sourceSystem: "FPTT",
+  deliveryBody: "RP00",
+  fesCode: "FALS_FPTT",
+  ledger: "AP",
+  currency: "GBP",
+  marketingYear: "2026",
+  invoiceLine: {
+    schemeCode: "CMOR1",
+    accountCode: "SOS710",
+    fundCode: "DRD10",
   },
 };
+
+const paymentDependencies = (configuration = paymentConfiguration) => ({
+  handlers: createAgreementProcessHandlers({
+    resolvePaymentConfiguration: () => configuration,
+  }),
+});
 
 const addTransition = (definition, processes, target = "offered") => {
   definition.states.offered.on = {
@@ -473,14 +478,16 @@ describe("AgreementDefinition Process runtime", () => {
 
   it("allows Payment scheme codes to derive from funded entries", async () => {
     const definitionData = createDefinition();
-    const input = structuredClone(paymentHandlerInput);
-    delete input.payment.invoiceLine.schemeCode;
+    const configuration = structuredClone(paymentConfiguration);
+    delete configuration.invoiceLine.schemeCode;
     definitionData.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
       type: "handler",
-      input,
     };
     addTransition(definitionData, ["CREATE_AGREEMENT_PAYMENT"]);
-    const definition = new AgreementDefinition(definitionData);
+    const definition = new AgreementDefinition(
+      definitionData,
+      paymentDependencies(configuration),
+    );
 
     const result = await executeAction(
       definition,
@@ -492,14 +499,38 @@ describe("AgreementDefinition Process runtime", () => {
     ).not.toHaveProperty("schemeCode");
   });
 
+  it("ignores the previous inline Payment configuration during rollout", async () => {
+    const definitionData = createDefinition();
+    definitionData.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
+      type: "handler",
+      input: { payment: { legacy: "ignored" } },
+    };
+    addTransition(definitionData, ["CREATE_AGREEMENT_PAYMENT"]);
+    const definition = new AgreementDefinition(
+      definitionData,
+      paymentDependencies(),
+    );
+
+    const result = await executeAction(
+      definition,
+      toAgreement(paymentAgreementValues),
+    );
+
+    expect(result.commitOperations[0].request.paymentConfiguration).toEqual(
+      paymentConfiguration,
+    );
+  });
+
   it("stages a typed Payment commit operation without writing", async () => {
     const definitionData = createDefinition();
     definitionData.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
       type: "handler",
-      input: paymentHandlerInput,
     };
     addTransition(definitionData, ["CREATE_AGREEMENT_PAYMENT"]);
-    const definition = new AgreementDefinition(definitionData);
+    const definition = new AgreementDefinition(
+      definitionData,
+      paymentDependencies(),
+    );
 
     await expect(
       executeAction(definition, toAgreement(paymentAgreementValues)),
@@ -510,7 +541,7 @@ describe("AgreementDefinition Process runtime", () => {
           type: "create-agreement-payment",
           request: {
             agreementValues: paymentAgreementValues,
-            paymentConfiguration: paymentHandlerInput.payment,
+            paymentConfiguration,
           },
         },
       ],
@@ -821,11 +852,9 @@ const compilationCases = [
     "unknown handler input fields",
     () => {
       const definition = createDefinition();
-      const input = structuredClone(paymentHandlerInput);
-      input.agreementValues = { agreementNumber: "not-configurable" };
       definition.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
         type: "handler",
-        input,
+        input: { agreementValues: { agreementNumber: "not-configurable" } },
       };
       return { definition };
     },

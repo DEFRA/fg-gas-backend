@@ -128,6 +128,7 @@ describe("config broker message flow", () => {
       manifest: [
         "farm-payments/1.2.6/gas/gas.json",
         "farm-payments/1.2.6/gas/agreement.json",
+        "farm-payments/1.2.6/gas/payment.json",
         "farm-payments/1.2.6/metadata.json",
       ],
     });
@@ -139,6 +140,10 @@ describe("config broker message flow", () => {
     expect(doc.s3Key).toBe("farm-payments/1.2.6/gas/gas.json");
     expect(doc.definitions.agreement).toMatchObject({
       s3Key: "farm-payments/1.2.6/gas/agreement.json",
+      fetchStatus: FetchStatus.Pending,
+    });
+    expect(doc.definitions.payment).toMatchObject({
+      s3Key: "farm-payments/1.2.6/gas/payment.json",
       fetchStatus: FetchStatus.Pending,
     });
   });

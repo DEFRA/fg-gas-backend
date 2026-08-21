@@ -35,6 +35,22 @@ const validateEventData = ({ grantCode, version, status, manifest }) => {
   }
 };
 
+const recordDefinition = async ({
+  grantCode,
+  version,
+  definitionType,
+  s3Key,
+}) => {
+  if (s3Key) {
+    await updateDefinitionLocation({
+      grantCode,
+      version,
+      definitionType,
+      s3Key,
+    });
+  }
+};
+
 export const processConfigVersionUseCase = async (eventData) => {
   const { grantCode, version, status, manifest } = eventData;
 
@@ -49,6 +65,11 @@ export const processConfigVersionUseCase = async (eventData) => {
     file: "agreement.json",
     required: false,
   });
+  const paymentS3Key = findS3KeyInManifest(manifest, {
+    dir: "gas",
+    file: "payment.json",
+    required: false,
+  });
 
   const configVersion = ConfigVersion.new({
     grantCode,
@@ -60,14 +81,20 @@ export const processConfigVersionUseCase = async (eventData) => {
 
   await upsert(configVersion);
 
-  if (agreementS3Key) {
-    await updateDefinitionLocation({
-      grantCode,
-      version,
-      definitionType: "agreement",
-      s3Key: agreementS3Key,
-    });
-  }
+  // Record Payment first so an Agreement definition never becomes visible
+  // before the configuration it requires.
+  await recordDefinition({
+    grantCode,
+    version,
+    definitionType: "payment",
+    s3Key: paymentS3Key,
+  });
+  await recordDefinition({
+    grantCode,
+    version,
+    definitionType: "agreement",
+    s3Key: agreementS3Key,
+  });
 
   logger.info(
     `Upserted config version: ${grantCode}@${version} (s3Key: ${s3Key})`,

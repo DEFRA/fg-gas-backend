@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { pmfAgreementDefinitionFixture } from "../../../../test/fixtures/pmf-agreement-definition.js";
 import { Agreement } from "../agreement.js";
 import { AgreementDefinition } from "./agreement-definition.js";
+import { createAgreementProcessHandlers } from "./processes/agreement-process-registries.js";
 
 const pmfAgreementDefinition = {
   ...structuredClone(pmfAgreementDefinitionFixture),
@@ -59,33 +60,32 @@ describe("PMF Agreement definition", () => {
 
     expect(acceptance.processes).toEqual(["CREATE_AGREEMENT_PAYMENT"]);
     expect(acceptance).not.toHaveProperty("effects");
-    expect(paymentProcess).toEqual({
-      type: "handler",
-      input: {
-        payment: {
-          scheme: "SFI",
-          sourceSystem: "FPTT",
-          deliveryBody: "RP00",
-          fesCode: "FALS_FPTT",
-          ledger: "AP",
-          currency: "GBP",
-          marketingYear: "jsonata:$substring($.execution.executedAt, 0, 4)",
-          invoiceLine: {
-            schemeCode: "CMOR1",
-            accountCode: "SOS710",
-            fundCode: "DRD10",
-          },
-        },
-      },
-    });
+    expect(paymentProcess).toEqual({ type: "handler" });
     expect(JSON.stringify(acceptance)).not.toContain("callEndpoint");
     expect(JSON.stringify(acceptance)).not.toContain("paymentCalculation");
   });
 
   it("stages acceptance from stored values without calling an endpoint", async () => {
     const callEndpoint = vi.fn();
+    const resolvePaymentConfiguration = vi.fn().mockReturnValue({
+      scheme: "SFI",
+      sourceSystem: "FPTT",
+      deliveryBody: "RP00",
+      fesCode: "FALS_FPTT",
+      ledger: "AP",
+      currency: "GBP",
+      marketingYear: "2027",
+      invoiceLine: {
+        schemeCode: "CMOR1",
+        accountCode: "SOS710",
+        fundCode: "DRD10",
+      },
+    });
     const definition = new AgreementDefinition(pmfAgreementDefinition, {
       callEndpoint,
+      handlers: createAgreementProcessHandlers({
+        resolvePaymentConfiguration,
+      }),
     });
     const agreement = new Agreement({
       agreementNumber: "PMF123456789",
@@ -133,6 +133,9 @@ describe("PMF Agreement definition", () => {
     });
 
     expect(callEndpoint).not.toHaveBeenCalled();
+    expect(resolvePaymentConfiguration).toHaveBeenCalledWith({
+      executedAt: "2027-01-02T10:00:00.000Z",
+    });
     expect(result.agreement.configVersion).toBe("1.2.0");
     expect(result.commitOperations).toEqual([
       expect.objectContaining({

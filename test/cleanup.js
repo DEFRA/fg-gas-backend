@@ -2,6 +2,7 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterEach, beforeEach } from "vitest";
 import { clearAgreementDefinitionCaches } from "../src/agreements/use-cases/load-agreement-definition.js";
+import { clearPaymentDefinitionCaches } from "../src/payments/use-cases/load-payment-definition.js";
 import { purgeQueues } from "./helpers/sqs";
 
 let client;
@@ -25,6 +26,7 @@ beforeEach(async () => {
 
   // Clear module caches that survive database cleanup.
   clearAgreementDefinitionCaches();
+  clearPaymentDefinitionCaches();
 
   await db.collection("config_versions").updateOne(
     { grantCode: "pigs-might-fly", version: "1.0.1" },
@@ -40,6 +42,14 @@ beforeEach(async () => {
         definitions: {
           agreement: {
             s3Key: "pigs-might-fly/1.0.0/gas/agreement.json",
+            fetchStatus: "pending",
+            fetchAttempts: 0,
+            fetchError: null,
+            fetchedAt: null,
+            lastFetchAttemptAt: null,
+          },
+          payment: {
+            s3Key: "pigs-might-fly/1.0.0/gas/payment.json",
             fetchStatus: "pending",
             fetchAttempts: 0,
             fetchError: null,

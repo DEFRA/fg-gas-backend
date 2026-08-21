@@ -20,7 +20,7 @@ const paymentScheduleLineItemSchema = Joi.object({
 const requirePaymentConfiguration = (paymentConfiguration) => {
   if (!paymentConfiguration) {
     throw Boom.badImplementation(
-      "createPayment requires payment configuration from the Agreement Definition",
+      "createPayment requires a compiled Payment definition",
     );
   }
 
@@ -86,13 +86,13 @@ const toInvoiceLine = (candidate, context) => {
   const entry = findFundedEntry(lineItem, context.agreementValues);
   const { invoiceLine } = context.paymentConfiguration;
 
-  // A configured scheme code is an intentional fixed-code policy (PMF).
-  // Otherwise the referenced funded entry owns the line's scheme code. Only
-  // contextual wording may be supplied by the mapped Payment Schedule line;
-  // all accounting fields remain behind Payment configuration.
+  // Configured scheme codes and descriptions are fixed grant policy.
+  // Otherwise the Agreement entry and its scheduled line supply them; all
+  // accounting fields remain behind Payment configuration.
   return {
     schemeCode: invoiceLine.schemeCode ?? entry.code,
-    description: lineItem.description ?? entry.description,
+    description:
+      invoiceLine.description ?? lineItem.description ?? entry.description,
     amountPence: lineItem.amountPence,
     accountCode: invoiceLine.accountCode,
     fundCode: invoiceLine.fundCode,
