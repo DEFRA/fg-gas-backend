@@ -24,6 +24,7 @@ const rawDefinition = {
   fesCode: "FALS_FPTT",
   ledger: "AP",
   currency: "GBP",
+  marketingYear: "jsonata:$substring($.execution.executedAt, 0, 4)",
   invoiceLine: {
     schemeCode: "CMOR1",
     accountCode: "SOS710",
@@ -63,9 +64,12 @@ describe("loadPaymentDefinition", () => {
       "bucket",
       "pigs-might-fly/1.2.3/gas/payment.json",
     );
-    expect(
-      definition.resolve({ executedAt: "2026-01-01T00:00:00Z" }),
-    ).toMatchObject({
+    await expect(
+      definition.resolve({
+        execution: { executedAt: "2026-01-01T00:00:00Z" },
+        agreement: {},
+      }),
+    ).resolves.toMatchObject({
       scheme: "SFI",
       marketingYear: "2026",
     });

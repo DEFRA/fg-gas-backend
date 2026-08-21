@@ -67,7 +67,7 @@ describe("PMF Agreement definition", () => {
 
   it("stages acceptance from stored values without calling an endpoint", async () => {
     const callEndpoint = vi.fn();
-    const resolvePaymentConfiguration = vi.fn().mockReturnValue({
+    const resolvePaymentConfiguration = vi.fn().mockResolvedValue({
       scheme: "SFI",
       sourceSystem: "FPTT",
       deliveryBody: "RP00",
@@ -134,7 +134,17 @@ describe("PMF Agreement definition", () => {
 
     expect(callEndpoint).not.toHaveBeenCalled();
     expect(resolvePaymentConfiguration).toHaveBeenCalledWith({
-      executedAt: "2027-01-02T10:00:00.000Z",
+      execution: {
+        correlationId: agreement.correlationId,
+        executedAt: "2027-01-02T10:00:00.000Z",
+        location: "transition",
+        target: "accepted",
+      },
+      agreement: expect.objectContaining({
+        agreementNumber: agreement.agreementNumber,
+        clientRef: agreement.clientRef,
+        code: agreement.code,
+      }),
     });
     expect(result.agreement.configVersion).toBe("1.2.0");
     expect(result.commitOperations).toEqual([

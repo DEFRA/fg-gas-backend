@@ -1,5 +1,5 @@
 import jsonata from "jsonata";
-import { toProcessExpression } from "../../../../common/agreements/resolve-process-mapping.js";
+import { toProcessExpression } from "../../../../common/resolve-process-mapping.js";
 
 const jsonataPrefix = "jsonata:";
 

@@ -1,15 +1,18 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
+import {
+  resolveProcessMapping,
+  validateProcessMapping,
+} from "../../common/resolve-process-mapping.js";
 
-const definitionSchema = Joi.object({
-  code: Joi.string().required(),
-  configVersion: Joi.forbidden(),
+const configurationSchema = Joi.object({
   scheme: Joi.string().required(),
   sourceSystem: Joi.string().required(),
   deliveryBody: Joi.string().required(),
   fesCode: Joi.string().required(),
   ledger: Joi.string().required(),
   currency: Joi.string().required(),
+  marketingYear: Joi.string().required(),
   invoiceLine: Joi.object({
     schemeCode: Joi.string().optional(),
     description: Joi.string().optional(),
@@ -17,6 +20,11 @@ const definitionSchema = Joi.object({
     fundCode: Joi.string().required(),
   }).required(),
 }).required();
+
+const definitionSchema = configurationSchema.keys({
+  code: Joi.string().required(),
+  configVersion: Joi.forbidden(),
+});
 
 const invalid = (code, message) =>
   Boom.badImplementation(`Invalid Payment definition "${code}": ${message}`);
@@ -36,28 +44,30 @@ export class PaymentDefinition {
       throw invalid(code, `code "${value.code}" does not match "${code}"`);
     }
 
-    this.code = code;
-    this.configVersion = configVersion;
-    this.configuration = Object.freeze({
-      scheme: value.scheme,
-      sourceSystem: value.sourceSystem,
-      deliveryBody: value.deliveryBody,
-      fesCode: value.fesCode,
-      ledger: value.ledger,
-      currency: value.currency,
-      invoiceLine: Object.freeze({ ...value.invoiceLine }),
-    });
-  }
-
-  resolve({ executedAt }) {
-    const date = new Date(executedAt);
-    if (Number.isNaN(date.getTime())) {
-      throw invalid(this.code, '"executedAt" must be an ISO date');
+    const { code: _code, ...configuration } = value;
+    try {
+      validateProcessMapping(configuration);
+    } catch (error) {
+      throw invalid(code, error.message);
     }
 
-    return structuredClone({
-      ...this.configuration,
-      marketingYear: String(date.getUTCFullYear()),
+    this.code = code;
+    this.configVersion = configVersion;
+    this.configuration = Object.freeze(configuration);
+  }
+
+  async resolve(context) {
+    const resolved = await resolveProcessMapping(this.configuration, context);
+    const { error, value } = configurationSchema.validate(resolved, {
+      abortEarly: false,
+      allowUnknown: false,
+      convert: false,
     });
+
+    if (error) {
+      throw invalid(this.code, error.message);
+    }
+
+    return value;
   }
 }

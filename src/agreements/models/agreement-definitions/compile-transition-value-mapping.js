@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import {
   resolveProcessMapping,
   validateProcessMapping,
-} from "../../../common/agreements/resolve-process-mapping.js";
+} from "../../../common/resolve-process-mapping.js";
 import { transitionAgreementValueCandidateSchema } from "../../schemas/agreement-value-candidate.schema.js";
 import { agreementValueSchema } from "../../schemas/agreement-value.schema.js";
 import { reconcileTransitionIdentities } from "../materialise-agreement-identities.js";

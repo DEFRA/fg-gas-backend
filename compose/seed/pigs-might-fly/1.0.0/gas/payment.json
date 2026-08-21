@@ -6,6 +6,7 @@
   "fesCode": "FALS_FPTT",
   "ledger": "AP",
   "currency": "GBP",
+  "marketingYear": "jsonata:$substring($.execution.executedAt, 0, 4)",
   "invoiceLine": {
     "schemeCode": "CMOR1",
     "accountCode": "SOS710",

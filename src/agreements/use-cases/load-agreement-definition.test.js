@@ -123,6 +123,7 @@ describe("loadAgreementDefinition", () => {
         fesCode: "FALS_FPTT",
         ledger: "AP",
         currency: "GBP",
+        marketingYear: "jsonata:$substring($.execution.executedAt, 0, 4)",
         invoiceLine: {
           accountCode: "SOS710",
           fundCode: "DRD10",

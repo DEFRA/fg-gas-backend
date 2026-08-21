@@ -9,9 +9,10 @@ const rawDefinition = {
   fesCode: "FALS_WMP",
   ledger: "AP",
   currency: "GBP",
+  marketingYear: "jsonata:$substring($.execution.executedAt, 0, 4)",
   invoiceLine: {
     schemeCode: "PA3",
-    description: "Woodland Management Plan Payment",
+    description: "$.agreement.paymentDescription",
     accountCode: "SOS710",
     fundCode: "DRD10",
   },
@@ -24,12 +25,17 @@ const createDefinition = (overrides = {}) =>
   );
 
 describe("PaymentDefinition", () => {
-  it("resolves fixed policy and the UTC execution year", () => {
+  it("resolves configuration against execution and Agreement context", async () => {
     const definition = createDefinition();
 
-    expect(
-      definition.resolve({ executedAt: "2026-12-31T23:59:59.000Z" }),
-    ).toEqual({
+    await expect(
+      definition.resolve({
+        execution: { executedAt: "2026-12-31T23:59:59.000Z" },
+        agreement: {
+          paymentDescription: "Woodland Management Plan Payment",
+        },
+      }),
+    ).resolves.toEqual({
       scheme: "WMP",
       sourceSystem: "WMP",
       deliveryBody: "RP10",
@@ -37,7 +43,10 @@ describe("PaymentDefinition", () => {
       ledger: "AP",
       currency: "GBP",
       marketingYear: "2026",
-      invoiceLine: rawDefinition.invoiceLine,
+      invoiceLine: {
+        ...rawDefinition.invoiceLine,
+        description: "Woodland Management Plan Payment",
+      },
     });
   });
 
@@ -53,11 +62,36 @@ describe("PaymentDefinition", () => {
     );
   });
 
-  it("rejects an invalid execution date", () => {
+  it("rejects an invalid mapping expression", () => {
+    expect(() =>
+      createDefinition({ marketingYear: "jsonata:$substring(" }),
+    ).toThrow("Invalid Payment definition");
+  });
+
+  it("rejects a resolved value with the wrong type", async () => {
+    const definition = createDefinition({ scheme: "$.agreement.scheme" });
+
+    await expect(
+      definition.resolve({
+        execution: { executedAt: "2026-12-31T23:59:59.000Z" },
+        agreement: {
+          scheme: 123,
+          paymentDescription: "Woodland Management Plan Payment",
+        },
+      }),
+    ).rejects.toThrow('"scheme" must be a string');
+  });
+
+  it("rejects an unresolved mapping", async () => {
     const definition = createDefinition();
 
-    expect(() => definition.resolve({ executedAt: "not-a-date" })).toThrow(
-      '"executedAt" must be an ISO date',
+    await expect(
+      definition.resolve({
+        execution: { executedAt: "2026-12-31T23:59:59.000Z" },
+        agreement: {},
+      }),
+    ).rejects.toThrow(
+      'Unresolved process mapping "$.agreement.paymentDescription"',
     );
   });
 });

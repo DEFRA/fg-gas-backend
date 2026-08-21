@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import {
   resolveProcessMapping,
   validateProcessMapping,
-} from "../../../../common/agreements/resolve-process-mapping.js";
+} from "../../../../common/resolve-process-mapping.js";
 import { findAgreementProcessOutputSchema } from "../../../schemas/agreement-value-candidate.schema.js";
 import { findProcessOutputDependencies } from "./find-process-output-dependencies.js";
 import { findUnknownMappingField } from "./find-unknown-mapping-field.js";

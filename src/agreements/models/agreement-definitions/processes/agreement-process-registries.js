@@ -41,7 +41,7 @@ const selectPaymentAgreementValues = (agreement) =>
     paymentAgreementValueFields.map((field) => [field, agreement[field]]),
   );
 
-const missingPaymentDefinition = () => {
+const missingPaymentDefinition = async () => {
   throw Boom.badImplementation(
     "CREATE_AGREEMENT_PAYMENT requires a Payment definition",
   );
@@ -50,14 +50,15 @@ const missingPaymentDefinition = () => {
 export const createAgreementProcessHandlers = ({
   resolvePaymentConfiguration = missingPaymentDefinition,
 } = {}) => {
-  const stageAgreementPayment = ({ agreement, execution }) => ({
+  const stageAgreementPayment = async ({ agreement, execution }) => ({
     commitOperations: [
       {
         type: "create-agreement-payment",
         request: {
           agreementValues: selectPaymentAgreementValues(agreement),
-          paymentConfiguration: resolvePaymentConfiguration({
-            executedAt: execution.executedAt,
+          paymentConfiguration: await resolvePaymentConfiguration({
+            execution,
+            agreement,
           }),
         },
       },
