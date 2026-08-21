@@ -18,7 +18,10 @@ import {
   loadPaymentDefinition,
 } from "../../payments/use-cases/load-payment-definition.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
-import { createAgreementProcessHandlers } from "../models/agreement-definitions/processes/agreement-process-registries.js";
+import {
+  CREATE_AGREEMENT_PAYMENT,
+  createAgreementProcessHandlers,
+} from "../models/agreement-definitions/processes/agreement-process-registries.js";
 import { validateAgreementDefinition } from "../models/agreement-definitions/validate.js";
 import {
   findAgreementDefinition as findStoredDefinition,
@@ -118,8 +121,6 @@ const guardFetchStatus = (target) => {
   }
 };
 
-const paymentProcessKey = "CREATE_AGREEMENT_PAYMENT";
-
 const assertDefinitionIdentity = (rawDefinition, code) => {
   if (rawDefinition.code !== code) {
     throw Boom.badImplementation(
@@ -134,7 +135,12 @@ const assertDefinitionIdentity = (rawDefinition, code) => {
 };
 
 const compilePaymentDependencies = async (definition, code, version) => {
-  if (!Object.hasOwn(definition.processDefinitions ?? {}, paymentProcessKey)) {
+  if (
+    !Object.hasOwn(
+      definition.processDefinitions ?? {},
+      CREATE_AGREEMENT_PAYMENT,
+    )
+  ) {
     return {};
   }
 

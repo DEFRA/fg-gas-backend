@@ -1,6 +1,8 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
 
+export const CREATE_AGREEMENT_PAYMENT = "CREATE_AGREEMENT_PAYMENT";
+
 const paymentHandlerInputSchema = Joi.object({}).required();
 
 const paymentCommitOperationsSchema = Joi.object({
@@ -19,7 +21,7 @@ const paymentCommitOperationsSchema = Joi.object({
 
 const missingPaymentDefinition = async () => {
   throw Boom.badImplementation(
-    "CREATE_AGREEMENT_PAYMENT requires a Payment definition",
+    `${CREATE_AGREEMENT_PAYMENT} requires a Payment definition`,
   );
 };
 
@@ -41,7 +43,7 @@ export const createAgreementProcessHandlers = ({
   });
 
   return Object.freeze({
-    CREATE_AGREEMENT_PAYMENT: Object.freeze({
+    [CREATE_AGREEMENT_PAYMENT]: Object.freeze({
       inputSchema: paymentHandlerInputSchema,
       commitOperationsSchema: paymentCommitOperationsSchema,
       execute: stageAgreementPayment,
