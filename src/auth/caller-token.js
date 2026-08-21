@@ -6,9 +6,12 @@ import crypto from "node:crypto";
 // enforce) audience/issuer/subject claims so verification can run in a
 // backwards-compatible ("warn-only") mode until enforcement lands.
 
+const JWT_SEGMENT_COUNT = 3;
+
 const decodeSegment = (segment) => {
   const padLength = segment.length % 4 === 0 ? 0 : 4 - (segment.length % 4);
-  const base64 = segment.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat(padLength);
+  const base64 =
+    segment.replaceAll("-", "+").replaceAll("_", "/") + "=".repeat(padLength);
   return Buffer.from(base64, "base64");
 };
 
@@ -26,7 +29,10 @@ const signaturesMatch = (expected, provided) =>
 
 // eslint-disable-next-line complexity
 const decodeToken = (token) => {
-  if (typeof token !== "string" || token.split(".").length !== 3) {
+  if (
+    typeof token !== "string" ||
+    token.split(".").length !== JWT_SEGMENT_COUNT
+  ) {
     return { reason: "malformed" };
   }
 
@@ -41,7 +47,10 @@ const decodeToken = (token) => {
   return { header, payload, headerB64, payloadB64, signatureB64 };
 };
 
-const checkSignature = ({ header, headerB64, payloadB64, signatureB64 }, secret) => {
+const checkSignature = (
+  { header, headerB64, payloadB64, signatureB64 },
+  secret,
+) => {
   if (header.alg !== "HS256") {
     return "unsupported-alg";
   }
@@ -97,7 +106,11 @@ export const verifyCallerToken = (token, secret, options = {}) => {
 
   const signatureError = checkSignature(decoded, secret);
   if (signatureError) {
-    return { verified: false, reason: signatureError, payload: decoded.payload };
+    return {
+      verified: false,
+      reason: signatureError,
+      payload: decoded.payload,
+    };
   }
 
   const { payload } = decoded;
@@ -105,5 +118,9 @@ export const verifyCallerToken = (token, secret, options = {}) => {
     return { verified: false, reason: "expired", payload };
   }
 
-  return { verified: true, payload, warnings: collectClaimWarnings(payload, audience) };
+  return {
+    verified: true,
+    payload,
+    warnings: collectClaimWarnings(payload, audience),
+  };
 };
