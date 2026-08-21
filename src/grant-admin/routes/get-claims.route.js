@@ -1,8 +1,8 @@
 import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
-import { code as grantCode } from "../schemas/grant/code.js";
-import { entitlementTemplates } from "../schemas/grant/entitlement-template.js";
+import { code as grantCode } from "../schemas/code.js";
+import { getClaimsResponseSchema } from "../schemas/get-claims-response.schema.js";
 import { findClaimsUseCase } from "../use-cases/find-claims.use-case.js";
 
 export const getClaimsRoute = {
@@ -18,14 +18,7 @@ export const getClaimsRoute = {
       }),
     },
     response: {
-      // claimableEntitlements and claims are stubbed as empty by the use case
-      // until entitlement instances are written, so neither has a shape to
-      // pin down yet.
-      schema: Joi.object({
-        availableEntitlements: entitlementTemplates,
-        claimableEntitlements: Joi.array(),
-        claims: Joi.array(),
-      }),
+      schema: getClaimsResponseSchema,
     },
   },
   async handler(request) {
