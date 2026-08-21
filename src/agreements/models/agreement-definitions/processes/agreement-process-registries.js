@@ -50,13 +50,13 @@ const missingPaymentDefinition = () => {
 export const createAgreementProcessHandlers = ({
   resolvePaymentConfiguration = missingPaymentDefinition,
 } = {}) => {
-  const stageAgreementPayment = async ({ agreement, execution }) => ({
+  const stageAgreementPayment = ({ agreement, execution }) => ({
     commitOperations: [
       {
         type: "create-agreement-payment",
         request: {
           agreementValues: selectPaymentAgreementValues(agreement),
-          paymentConfiguration: await resolvePaymentConfiguration({
+          paymentConfiguration: resolvePaymentConfiguration({
             executedAt: execution.executedAt,
           }),
         },
