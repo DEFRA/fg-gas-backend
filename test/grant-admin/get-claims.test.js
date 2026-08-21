@@ -235,7 +235,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
     });
   });
 
-  it("drops a field whose reference resolves to something it cannot show", async () => {
+  it("raises a reference that resolves to something it cannot show", async () => {
     await seed({
       entitlementTemplates: [template()],
       pages: {
@@ -256,10 +256,8 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
       },
     });
 
-    const response = await getClaims();
-
-    expect(response.res.statusCode).toBe(200);
-    expect(response.payload.banner.title).toBeUndefined();
-    expect(response.payload.banner.summary.sbi.text).toBe("123");
+    await expect(getClaims()).rejects.toMatchObject({
+      output: { statusCode: 500 },
+    });
   });
 });

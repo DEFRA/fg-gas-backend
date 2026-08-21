@@ -1,6 +1,9 @@
 import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
-import { resolveRefs } from "../../common/resolve-refs.js";
+import {
+  resolveRefs,
+  UnresolvedReferenceError,
+} from "../../common/resolve-refs.js";
 import { toApplicationContext } from "./application-context.js";
 
 const renderableTypes = ["string", "number", "boolean"];
@@ -14,18 +17,41 @@ const drop = (name, reason) => {
   return undefined;
 };
 
+const describeType = (text) => {
+  if (text === null) {
+    return "null";
+  }
+
+  return Array.isArray(text) ? "an array" : "an object";
+};
+
+const requireRenderable = (text, field, name) => {
+  if (isRenderable(text)) {
+    return { ...field, text };
+  }
+
+  throw Boom.badImplementation(
+    `Banner field "${name}" reference "${field.text}" resolves to ${describeType(text)}`,
+  );
+};
+
+// Answers vary from grant to grant so nulls can happen.
+// anything else, a definition pointing to something that doesnt exist and will not
+// parse, is wrong. Raise so it can be fixed/debugged.
 const resolveText = async (field, context, name) => {
   let text;
 
   try {
     text = await resolveRefs(field.text, { context });
   } catch (err) {
-    return drop(name, { err });
+    if (err instanceof UnresolvedReferenceError) {
+      return drop(name, { err });
+    }
+
+    throw err;
   }
 
-  return isRenderable(text)
-    ? { ...field, text }
-    : drop(name, { resolved: typeof text });
+  return requireRenderable(text, field, name);
 };
 
 const resolveSummary = async (summary, context) => {

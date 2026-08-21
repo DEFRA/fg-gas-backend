@@ -10,13 +10,14 @@ const application = {
   clientRef: "wood-1001",
   code: "woodland",
   currentStatus: "STATUS_PREPARING_CLAIM",
-  identifiers: { sbi: "113598882", frn: null },
+  identifiers: { sbi: "113598882" },
   phases: [
     {
       code: "PHASE_PRE_AWARD",
       answers: {
         applicant: { business: { name: "Elmwood Land Co" } },
         landParcels: [{ parcelId: "SD6743" }],
+        woodlandName: null,
         hectares: 40.25,
         confirmed: true,
       },
@@ -137,22 +138,21 @@ describe("buildBanner", () => {
   it.each([
     ["an object", "$.answers.applicant"],
     ["an array", "$.answers.landParcels"],
-    ["a null", "$.identifiers.frn"],
-  ])("drops a field whose reference resolves to %s", async (_, text) => {
-    const { title, summary } = await build(
-      grantWith({
-        title: { text, type: "string" },
-        summary: {
-          unshowable: { label: "Unshowable", text, type: "string" },
-          sbi: { label: "SBI", text: "$.identifiers.sbi", type: "string" },
-        },
-      }),
-    );
+    ["a null answer", "$.answers.woodlandName"],
+  ])("raises a reference that resolves to %s", async (_, text) => {
+    await expect(
+      build(grantWith({ title: { text, type: "string" } })),
+    ).rejects.toMatchObject({ output: { statusCode: 500 } });
+  });
 
-    expect(title).toBeUndefined();
-    expect(summary.unshowable).toBeUndefined();
-    expect(summary.sbi.text).toBe("113598882");
-    expect(logger.warn).toHaveBeenCalled();
+  it("raises a malformed jsonata expression", async () => {
+    await expect(
+      build(
+        grantWith({
+          title: { text: "jsonata:$.clientRef &&&", type: "string" },
+        }),
+      ),
+    ).rejects.toThrow();
   });
 
   it.each([
