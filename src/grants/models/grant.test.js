@@ -107,6 +107,33 @@ describe("Grant", () => {
     });
   });
 
+  describe("pages", () => {
+    const pages = {
+      claims: {
+        details: {
+          banner: {
+            title: {
+              text: "$.answers.applicant.business.name",
+              type: "string",
+            },
+          },
+        },
+      },
+    };
+
+    it("keeps the pages a definition configures", () => {
+      const grant = createTestGrant({ pages });
+
+      expect(grant.pages).toEqual(pages);
+    });
+
+    it("has no pages when the definition configures none", () => {
+      const grant = createTestGrant({ pages: undefined });
+
+      expect(grant.pages).toBeUndefined();
+    });
+  });
+
   describe("entitlementTemplates", () => {
     const entitlementTemplates = [
       {

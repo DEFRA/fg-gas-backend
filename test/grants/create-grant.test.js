@@ -38,6 +38,10 @@ describe("POST /grants", () => {
           startDate: Joi.date().validate(grant1.metadata.startDate).value,
         },
         externalStatusMap: null,
+        // A grant that configures no pages serializes to null the same way
+        // externalStatusMap does, because the driver resolves ignoreUndefined
+        // to false.
+        pages: null,
         // A grant with no templates now stores an empty collection rather than
         // null: the model always holds one, so that is what reaches the
         // document. externalStatusMap is untouched and still serializes to null.

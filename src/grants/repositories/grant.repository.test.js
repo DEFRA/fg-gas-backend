@@ -610,3 +610,81 @@ describe("entitlementTemplates", () => {
     expect(template.claim).toBeUndefined();
   });
 });
+
+describe("pages", () => {
+  const phases = [
+    {
+      code: "PRE_AWARD",
+      stages: [
+        {
+          code: "ASSESSMENT",
+          statuses: [{ code: "APPLICATION_RECEIVED", validFrom: [] }],
+        },
+      ],
+    },
+  ];
+
+  const pages = {
+    claims: {
+      details: {
+        banner: {
+          title: {
+            text: "$.answers.applicant.business.name",
+            type: "string",
+          },
+          summary: {
+            sbi: { label: "SBI", text: "$.identifiers.sbi", type: "string" },
+          },
+        },
+      },
+    },
+  };
+
+  const definition = {
+    code: "woodland",
+    metadata: { description: "test", startDate: "2021-01-01T00:00:00.000Z" },
+    actions: [],
+    phases,
+    pages,
+  };
+
+  it("round-trips pages from a grant definition via saveFromDefinition", async () => {
+    const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
+
+    db.collection.mockReturnValue({ insertOne });
+
+    const grant = await saveFromDefinition(definition, "1.1.0");
+
+    expect(grant.pages).toEqual(pages);
+    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ pages }));
+  });
+
+  it("rehydrates pages from a stored document via findByCode", async () => {
+    const findOne = vi
+      .fn()
+      .mockResolvedValueOnce({ ...definition, version: "0.0.0" });
+
+    db.collection.mockReturnValue({ findOne });
+
+    const result = await findByCode("woodland");
+
+    expect(result.pages).toEqual(pages);
+  });
+
+  // The driver resolves ignoreUndefined to false, so a grant saved without
+  // pages reads back as null - which the model only takes as "absent" when it
+  // arrives undefined.
+  it("reads a stored null as no pages at all", async () => {
+    const findOne = vi.fn().mockResolvedValueOnce({
+      ...definition,
+      version: "0.0.0",
+      pages: null,
+    });
+
+    db.collection.mockReturnValue({ findOne });
+
+    const result = await findByCode("woodland");
+
+    expect(result.pages).toBeUndefined();
+  });
+});
