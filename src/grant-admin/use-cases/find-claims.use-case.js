@@ -1,7 +1,8 @@
 import { logger } from "../../common/logger.js";
-import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
-import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
-import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
+import { findExistingEntitlements } from "../../grants/repositories/entitlement.repository.js";
+import { findApplicationByClientRefAndCodeUseCase } from "../../grants/use-cases/find-application-by-client-ref-and-code.use-case.js";
+import { resolveCurrentGrantUseCase } from "../../grants/use-cases/resolve-current-grant.use-case.js";
+import { buildBanner } from "../services/build-banner.js";
 
 export const findClaimsUseCase = async ({ code, clientRef }) => {
   const application = await findApplicationByClientRefAndCodeUseCase(
@@ -47,7 +48,15 @@ export const findClaimsUseCase = async ({ code, clientRef }) => {
     `Entitlement templates available at position for ${clientRef}`,
   );
 
+  // The header the claims page is topped with, as the grant configures it.
+  // Resolved here because this endpoint serves that page: the admin frontend is
+  // handed values to render, not a config to interpret. A grant that configures
+  // no claims page has none, and this refuses rather than serving a headless
+  // one.
+  const banner = await buildBanner({ grant, application, page: "claims" });
+
   return {
+    banner,
     availableEntitlements,
     claimableEntitlements: [],
     claims: [],

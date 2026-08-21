@@ -20,6 +20,9 @@ export const toGrant = (doc) =>
     externalStatusMap: doc.externalStatusMap,
     amendablePositions: doc.amendablePositions,
     entitlementTemplates: doc.entitlementTemplates ?? [],
+    // Stored as null by the driver when a grant carries none, which the model
+    // reads as "absent" only if it arrives undefined.
+    pages: doc.pages ?? undefined,
   });
 
 export const collection = "grants";

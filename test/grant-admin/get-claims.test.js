@@ -61,9 +61,34 @@ const template = (overrides = {}) => ({
 
 // The application is stored without a configVersion, so the grant resolves by
 // code at the unversioned sentinel - the same route application-status takes.
-const seed = async ({ entitlementTemplates, currentPhase } = {}) => {
+const claimsPage = {
+  claims: {
+    details: {
+      banner: {
+        title: { text: "$.answers.applicant.business.name", type: "string" },
+        summary: {
+          scheme: { label: "Scheme", text: "Test Grant", type: "string" },
+          applicationId: {
+            label: "Application ID",
+            text: "$.clientRef",
+            type: "string",
+          },
+          sbi: { label: "SBI", text: "$.identifiers.sbi", type: "string" },
+        },
+      },
+    },
+  },
+};
+
+const seed = async (options = {}) => {
+  const { entitlementTemplates, currentPhase, answers } = options;
+
+  // Key presence rather than a default, so a test can seed a grant that
+  // configures no pages at all by passing "pages: undefined".
+  const pages = "pages" in options ? options.pages : claimsPage;
+
   await grants.insertOne(
-    new GrantDocument(createTestGrant({ code, entitlementTemplates })),
+    new GrantDocument(createTestGrant({ code, entitlementTemplates, pages })),
   );
 
   await applications.insertOne(
@@ -73,7 +98,15 @@ const seed = async ({ entitlementTemplates, currentPhase } = {}) => {
       currentPhase: currentPhase ?? position.phase,
       currentStage: position.stage,
       currentStatus: position.status,
-      phases: [{ code: position.phase, questions: {} }],
+      phases: [
+        {
+          code: position.phase,
+          questions: {},
+          answers: answers ?? {
+            applicant: { business: { name: "Elmwood Land Co" } },
+          },
+        },
+      ],
       identifiers: { sbi: "123", frn: "456", crn: "789", defraId: "abc" },
     }),
   );
@@ -162,5 +195,69 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
     expect(response.payload.availableEntitlements).toEqual([]);
     expect(response.payload.claimableEntitlements).toEqual([]);
     expect(response.payload.claims).toEqual([]);
+  });
+
+  // The header the grant configures for this page, resolved against the
+  // application it is being viewed for.
+  it("heads the page with the banner the grant configures", async () => {
+    await seed({ entitlementTemplates: [template()] });
+
+    const response = await getClaims();
+
+    expect(response.res.statusCode).toBe(200);
+    expect(response.payload.banner.title).toEqual({
+      text: "Elmwood Land Co",
+      type: "string",
+    });
+    expect(response.payload.banner.summary).toMatchObject({
+      scheme: { label: "Scheme", text: "Test Grant" },
+      applicationId: { label: "Application ID", text: clientRef },
+      sbi: { label: "SBI", text: "123" },
+    });
+  });
+
+  it("drops a field the application has no answer for", async () => {
+    await seed({ entitlementTemplates: [template()], answers: {} });
+
+    const response = await getClaims();
+
+    expect(response.res.statusCode).toBe(200);
+    expect(response.payload.banner.title).toBeUndefined();
+    expect(response.payload.banner.summary.sbi.text).toBe("123");
+  });
+
+  // A page headed by nothing tells a case officer less than an honest 404 does.
+  it("answers 404 for a grant that configures no claims page", async () => {
+    await seed({ entitlementTemplates: [template()], pages: undefined });
+
+    await expect(getClaims()).rejects.toMatchObject({
+      output: { statusCode: 404 },
+    });
+  });
+
+  it("raises a reference that resolves to something it cannot show", async () => {
+    await seed({
+      entitlementTemplates: [template()],
+      pages: {
+        claims: {
+          details: {
+            banner: {
+              title: { text: "$.answers.applicant", type: "string" },
+              summary: {
+                sbi: {
+                  label: "SBI",
+                  text: "$.identifiers.sbi",
+                  type: "string",
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    await expect(getClaims()).rejects.toMatchObject({
+      output: { statusCode: 500 },
+    });
   });
 });
