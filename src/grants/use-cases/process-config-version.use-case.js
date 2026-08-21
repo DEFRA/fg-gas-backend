@@ -1,5 +1,4 @@
 import Boom from "@hapi/boom";
-import { updateDefinitionLocation } from "../../common/config-broker/config-catalog.repository.js";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { findS3KeyInManifest } from "../../common/s3-client.js";
@@ -35,22 +34,6 @@ const validateEventData = ({ grantCode, version, status, manifest }) => {
   }
 };
 
-const recordDefinition = async ({
-  grantCode,
-  version,
-  definitionType,
-  s3Key,
-}) => {
-  if (s3Key) {
-    await updateDefinitionLocation({
-      grantCode,
-      version,
-      definitionType,
-      s3Key,
-    });
-  }
-};
-
 export const processConfigVersionUseCase = async (eventData) => {
   const { grantCode, version, status, manifest } = eventData;
 
@@ -79,21 +62,9 @@ export const processConfigVersionUseCase = async (eventData) => {
     s3Bucket,
   });
 
-  await upsert(configVersion);
-
-  // Record Payment first so an Agreement definition never becomes visible
-  // before the configuration it requires.
-  await recordDefinition({
-    grantCode,
-    version,
-    definitionType: "payment",
-    s3Key: paymentS3Key,
-  });
-  await recordDefinition({
-    grantCode,
-    version,
-    definitionType: "agreement",
-    s3Key: agreementS3Key,
+  await upsert(configVersion, {
+    ...(agreementS3Key ? { agreement: agreementS3Key } : {}),
+    ...(paymentS3Key ? { payment: paymentS3Key } : {}),
   });
 
   logger.info(

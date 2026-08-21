@@ -60,6 +60,46 @@ describe("config-version.repository", () => {
         { upsert: true },
       );
     });
+
+    it("upserts all definition locations atomically", async () => {
+      const cv = ConfigVersion.new({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        s3Key: "woodland/1.2.3/gas/gas.json",
+        s3Bucket: "bucket",
+      });
+
+      await upsert(cv, {
+        agreement: "woodland/1.2.3/gas/agreement.json",
+        payment: "woodland/1.2.3/gas/payment.json",
+      });
+
+      expect(mockCollection.updateOne).toHaveBeenCalledTimes(1);
+      const [, [{ $set }]] = mockCollection.updateOne.mock.calls[0];
+      expect($set["definitions.agreement"]).toEqual({
+        $mergeObjects: [
+          expect.objectContaining({ fetchStatus: FetchStatus.Pending }),
+          { $ifNull: ["$definitions.agreement", {}] },
+          {
+            s3Key: {
+              $literal: "woodland/1.2.3/gas/agreement.json",
+            },
+          },
+        ],
+      });
+      expect($set["definitions.payment"]).toEqual({
+        $mergeObjects: [
+          expect.objectContaining({ fetchStatus: FetchStatus.Pending }),
+          { $ifNull: ["$definitions.payment", {}] },
+          {
+            s3Key: {
+              $literal: "woodland/1.2.3/gas/payment.json",
+            },
+          },
+        ],
+      });
+    });
   });
 
   describe("findLatestForMajor", () => {

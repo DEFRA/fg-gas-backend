@@ -5,9 +5,16 @@ import { ConfigVersion } from "../models/config-version.js";
 
 const collection = "config_versions";
 
-export const upsert = async (configVersion) => {
-  const doc = configVersion.toDocument();
+const definitionUpdate = (definitionType, s3Key, fetchState) => ({
+  $mergeObjects: [
+    fetchState,
+    { $ifNull: [`$definitions.${definitionType}`, {}] },
+    { s3Key: { $literal: s3Key } },
+  ],
+});
 
+export const upsert = async (configVersion, definitions = {}) => {
+  const doc = configVersion.toDocument();
   const fetchState = {
     fetchedAt: doc.fetchedAt,
     fetchStatus: doc.fetchStatus,
@@ -15,6 +22,14 @@ export const upsert = async (configVersion) => {
     fetchAttempts: doc.fetchAttempts,
     lastFetchAttemptAt: doc.lastFetchAttemptAt,
   };
+  const definitionUpdates = Object.fromEntries(
+    Object.entries({ grant: doc.s3Key, ...definitions })
+      .filter(([, s3Key]) => s3Key)
+      .map(([definitionType, s3Key]) => [
+        `definitions.${definitionType}`,
+        definitionUpdate(definitionType, s3Key, fetchState),
+      ]),
+  );
 
   // $literal preserves leading "$" in broker values.
   return db.collection(collection).updateOne(
@@ -36,13 +51,7 @@ export const upsert = async (configVersion) => {
           lastFetchAttemptAt: {
             $ifNull: ["$lastFetchAttemptAt", doc.lastFetchAttemptAt],
           },
-          "definitions.grant": {
-            $mergeObjects: [
-              fetchState,
-              { $ifNull: ["$definitions.grant", {}] },
-              { s3Key: { $literal: doc.s3Key } },
-            ],
-          },
+          ...definitionUpdates,
         },
       },
     ],
