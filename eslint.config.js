@@ -145,12 +145,11 @@ export default [
               target: "**/agreements/**/!(*.test).js",
               from: ["**/payments/**"],
               except: [
-                "**/payments/use-cases/create-agreement-payment.use-case.js",
                 "**/payments/use-cases/prepare-agreement-payment.use-case.js",
               ],
               message:
-                "Agreements may only enter Payments through its configured and transactional " +
-                "use cases. See docs/MODULE_BOUNDARIES.md.",
+                "Agreements may only enter Payments through prepareAgreementPayment, which " +
+                "stages an opaque Commit Operation. See docs/MODULE_BOUNDARIES.md.",
             },
           ],
         },

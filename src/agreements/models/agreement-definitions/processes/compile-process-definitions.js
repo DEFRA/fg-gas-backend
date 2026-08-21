@@ -152,22 +152,32 @@ const mapHandlerInput = async (processKey, definition, context) => {
   }
 };
 
-const validateHandlerResult = (processKey, handler, result) => {
+const isCommitOperation = (operation) =>
+  operation !== null &&
+  typeof operation === "object" &&
+  typeof operation.commit === "function";
+
+const isCommitOperationList = (commitOperations) =>
+  Array.isArray(commitOperations) && commitOperations.every(isCommitOperation);
+
+// A Commit Operation is an opaque handle owned by the module that staged it, so
+// the runtime checks only that each one can be committed. Validating its
+// contents here would mirror that module's shape back into Agreements — and
+// validateMappedValue clones, which would strip the handle's commit function.
+const validateHandlerResult = (processKey, result) => {
   if (result === undefined) {
     return { commitOperations: [] };
   }
 
-  if (!handler.commitOperationsSchema) {
+  const commitOperations = result?.commitOperations;
+
+  if (!isCommitOperationList(commitOperations)) {
     throw Boom.badImplementation(
-      `Agreement Process handler "${processKey}" returned unsupported commit operations`,
+      `Agreement Process handler "${processKey}" returned malformed commit operations`,
     );
   }
 
-  return validateMappedValue(
-    handler.commitOperationsSchema,
-    result,
-    `Agreement Process handler "${processKey}" returned malformed commit operations`,
-  );
+  return { commitOperations };
 };
 
 const executeHandler = async (processKey, handler, context, input) => {
@@ -178,7 +188,7 @@ const executeHandler = async (processKey, handler, context, input) => {
       input,
     });
 
-    return validateHandlerResult(processKey, handler, result);
+    return validateHandlerResult(processKey, result);
   } catch (error) {
     if (Boom.isBoom(error)) {
       throw error;

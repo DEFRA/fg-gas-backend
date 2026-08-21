@@ -14,11 +14,10 @@ const endpointDefinition = {
 
 const handler = (execute = vi.fn()) => ({
   inputSchema: Joi.object({ amount: Joi.number().required() }),
-  commitOperationsSchema: Joi.object({
-    commitOperations: Joi.array().items(Joi.object()).required(),
-  }),
   execute,
 });
+
+const commitOperation = () => ({ commit: vi.fn() });
 
 describe("findProcessHandler", () => {
   it("returns a registered own-property handler", () => {
@@ -62,10 +61,9 @@ describe("compileProcessDefinitions", () => {
     );
   });
 
-  it("compiles a handler that maps input and returns validated commit operations", async () => {
-    const execute = vi.fn().mockReturnValue({
-      commitOperations: [{ type: "record" }],
-    });
+  it("compiles a handler that maps input and stages its commit operations", async () => {
+    const staged = commitOperation();
+    const execute = vi.fn().mockReturnValue({ commitOperations: [staged] });
     const processes = compileProcessDefinitions(
       {
         record: {
@@ -81,7 +79,7 @@ describe("compileProcessDefinitions", () => {
     };
 
     await expect(processes.record(context)).resolves.toEqual({
-      commitOperations: [{ type: "record" }],
+      commitOperations: [staged],
       output: {},
     });
     expect(execute).toHaveBeenCalledWith({
@@ -146,16 +144,33 @@ describe("compileProcessDefinitions", () => {
     ).rejects.toThrow('Agreement Process "calculate" endpoint call failed');
   });
 
-  it("rejects unsupported handler results", async () => {
-    const registered = handler(() => ({ commitOperations: [] }));
-    delete registered.commitOperationsSchema;
+  it.each([
+    ["a non-array", { commitOperations: { commit: vi.fn() } }],
+    ["an operation that cannot be committed", { commitOperations: [{}] }],
+    ["a result with no commit operations", { staged: [] }],
+  ])("rejects handler results carrying %s", async (_label, result) => {
     const processes = compileProcessDefinitions(
       { record: { type: "handler", input: { amount: 1 } } },
-      { handlers: { record: registered } },
+      { handlers: { record: handler(() => result) } },
     );
 
     await expect(
       processes.record({ agreement: {}, execution: {} }),
-    ).rejects.toThrow(/returned unsupported commit operations/);
+    ).rejects.toThrow(/returned malformed commit operations/);
+  });
+
+  it("passes a staged commit operation through without cloning it", async () => {
+    const staged = commitOperation();
+    const processes = compileProcessDefinitions(
+      { record: { type: "handler", input: { amount: 1 } } },
+      { handlers: { record: handler(() => ({ commitOperations: [staged] })) } },
+    );
+
+    const { commitOperations } = await processes.record({
+      agreement: {},
+      execution: {},
+    });
+
+    expect(commitOperations[0]).toBe(staged);
   });
 });

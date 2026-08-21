@@ -42,7 +42,7 @@ describe("createOutboxMessages", () => {
     });
   });
 
-  it("adds committed Agreement and Payment facts to the accepted lifecycle wire", () => {
+  it("adds committed Agreement facts and the Claim ID to the accepted lifecycle wire", () => {
     const agreement = {
       agreementNumber: "PMF123",
       correlationId: "correlation-id",
@@ -55,12 +55,10 @@ describe("createOutboxMessages", () => {
       endDate: "2027-07-31",
       updatedAt: "2026-07-17T11:29:00.000Z",
     };
-    const payment = { paymentHubClaimId: "R00000001" };
-
     const [message, publication] = createOutboxMessages(
       ["lifecycle"],
       agreement,
-      payment,
+      "R00000001",
     );
 
     expect(message).toEqual({

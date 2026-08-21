@@ -5,20 +5,6 @@ export const CREATE_AGREEMENT_PAYMENT = "CREATE_AGREEMENT_PAYMENT";
 
 const paymentHandlerInputSchema = Joi.object({}).required();
 
-const paymentCommitOperationsSchema = Joi.object({
-  commitOperations: Joi.array()
-    .items(
-      Joi.object({
-        type: Joi.string().valid("create-agreement-payment").required(),
-        request: Joi.object({
-          paymentConfiguration: Joi.object().unknown(true).required(),
-        }).required(),
-      }).required(),
-    )
-    .length(1)
-    .required(),
-}).required();
-
 const missingPaymentHandler = async () => {
   throw Boom.badImplementation(
     `${CREATE_AGREEMENT_PAYMENT} requires a Payments handler`,
@@ -31,7 +17,6 @@ export const createAgreementProcessHandlers = ({
   Object.freeze({
     [CREATE_AGREEMENT_PAYMENT]: Object.freeze({
       inputSchema: paymentHandlerInputSchema,
-      commitOperationsSchema: paymentCommitOperationsSchema,
       execute: prepareAgreementPayment,
       locations: Object.freeze(["transition"]),
     }),

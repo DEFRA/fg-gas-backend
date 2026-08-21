@@ -3,7 +3,6 @@ import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { createAgreementPaymentUseCase } from "../../payments/use-cases/create-agreement-payment.use-case.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import {
   findAgreementByNumber,
@@ -61,65 +60,48 @@ const findCompleted = async (
   return { location: currentAgreementLocation };
 };
 
-const findPaymentRequest = (commitOperations) => {
-  const unsupported = commitOperations.find(
-    ({ type }) => type !== "create-agreement-payment",
-  );
+// A Commit Operation is an opaque handle staged by the module that owns what it
+// commits — Payments, today. It is handed the action's session and the facts
+// only known once the transition is materialised, so what it writes commits
+// with the Agreement, its Version and the lifecycle event, and rolls back
+// together when anything before the commit fails. It returns the outbox
+// publication to write alongside the rest, and the Claim ID the Agreement's own
+// lifecycle event carries.
+//
+// Failures propagate unwrapped on purpose: a raced acceptance that beats the
+// optimistic version check surfaces as a duplicate key error on the Payment's
+// unique source index, and isConcurrentActionConflict below has to see it.
+const runCommitOperation = ({ agreement, commitOperations }, session) => {
+  const [operation] = commitOperations;
 
-  if (unsupported) {
-    throw Boom.badImplementation(
-      `Unsupported Agreement Action commit operation "${unsupported.type}"`,
-    );
-  }
-
-  if (commitOperations.length > 1) {
-    throw Boom.badImplementation(
-      "Agreement Action cannot create more than one Payment",
-    );
-  }
-
-  return commitOperations[0]?.request;
-};
-
-// Payments owns the claim ID, the Payment document and the message that carries
-// it to the Payment Service; it is handed the action's session so all of them
-// commit with the Agreement, its Version and the lifecycle event, and roll back
-// together when anything before the commit fails. The Payment Service
-// publication comes back to be written to the outbox with the rest.
-const createAgreementPayment = async (
-  { agreement, commitOperations },
-  session,
-) => {
-  const paymentRequest = findPaymentRequest(commitOperations);
-
-  if (!paymentRequest) {
+  if (!operation) {
     return null;
   }
 
-  return createAgreementPaymentUseCase(
+  return operation.commit(
     {
       agreementNumber: agreement.agreementNumber,
       version: agreement.version,
-      agreementCorrelationId: agreement.correlationId,
-      ...paymentRequest,
+      correlationId: agreement.correlationId,
     },
     session,
   );
 };
-const createLifecyclePublications = (current, next, payment) =>
+
+const createLifecyclePublications = (current, next, claimId) =>
   current.state === next.state
     ? []
-    : createOutboxMessages(["lifecycle"], next, payment);
+    : createOutboxMessages(["lifecycle"], next, claimId);
 
-const createActionPublications = (current, next, paymentResult) => {
+const createActionPublications = (current, next, commitResult) => {
   const lifecyclePublications = createLifecyclePublications(
     current,
     next,
-    paymentResult?.payment,
+    commitResult?.claimId,
   );
 
-  return paymentResult
-    ? [...lifecyclePublications, paymentResult.publication]
+  return commitResult
+    ? [...lifecyclePublications, commitResult.publication]
     : lifecyclePublications;
 };
 
@@ -179,9 +161,9 @@ const commitActionTransaction = async (
     }),
     session,
   );
-  const paymentResult = await createAgreementPayment(next, session);
+  const commitResult = await runCommitOperation(next, session);
   await saveOutboxEvents(
-    createActionPublications(current, next.agreement, paymentResult),
+    createActionPublications(current, next.agreement, commitResult),
     session,
   );
 

@@ -5,15 +5,15 @@ import { internalMessageBusTarget } from "../../../common/internal-command-bus.j
 const LIFECYCLE_TYPE = "io.onsite.agreement.status.updated";
 const LIFECYCLE_SOURCE = "urn:service:agreement";
 
-const acceptedLifecycleData = (agreement, payment) => ({
+const acceptedLifecycleData = (agreement, claimId) => ({
   agreementUrl: `${config.viewAgreementUri.replace(/\/$/, "")}/${agreement.agreementNumber}`,
   sbi: agreement.identifiers.sbi,
   startDate: agreement.startDate,
   endDate: agreement.endDate,
-  ...(payment ? { claimId: payment.paymentHubClaimId } : {}),
+  ...(claimId ? { claimId } : {}),
 });
 
-const lifecycleData = (agreement, payment) => ({
+const lifecycleData = (agreement, claimId) => ({
   agreementNumber: agreement.agreementNumber,
   correlationId: agreement.correlationId,
   clientRef: agreement.clientRef,
@@ -22,11 +22,11 @@ const lifecycleData = (agreement, payment) => ({
   status: agreement.state,
   date: agreement.updatedAt,
   ...(agreement.state === "accepted"
-    ? acceptedLifecycleData(agreement, payment)
+    ? acceptedLifecycleData(agreement, claimId)
     : {}),
 });
 
-const createLifecycleEvent = (agreement, payment) => ({
+const createLifecycleEvent = (agreement, claimId) => ({
   id: randomUUID(),
   source: LIFECYCLE_SOURCE,
   specversion: "1.0",
@@ -34,11 +34,11 @@ const createLifecycleEvent = (agreement, payment) => ({
   time: new Date().toISOString(),
   datacontenttype: "application/json",
   messageGroupId: `${agreement.clientRef}-${agreement.code}`,
-  data: lifecycleData(agreement, payment),
+  data: lifecycleData(agreement, claimId),
 });
 
-const createLifecycleMessages = (agreement, payment) => {
-  const event = createLifecycleEvent(agreement, payment);
+const createLifecycleMessages = (agreement, claimId) => {
+  const event = createLifecycleEvent(agreement, claimId);
 
   return [
     {
@@ -52,10 +52,10 @@ const createLifecycleMessages = (agreement, payment) => {
   ];
 };
 
-export const createOutboxMessages = (messageTypes, agreement, payment) =>
+export const createOutboxMessages = (messageTypes, agreement, claimId) =>
   messageTypes.flatMap((type) => {
     if (type !== "lifecycle") {
       throw new Error(`Unsupported Agreement outbox message type: "${type}"`);
     }
-    return createLifecycleMessages(agreement, payment);
+    return createLifecycleMessages(agreement, claimId);
   });

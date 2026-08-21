@@ -1,4 +1,17 @@
+import Boom from "@hapi/boom";
 import { AgreementLifecycle } from "../agreement-lifecycle.js";
+
+// Creation and page Processes stage no Commit Operations at all; an Action
+// stages at most one, so a single transaction never commits two.
+const assertSingleCommitOperation = (commitOperations) => {
+  if (commitOperations.length > 1) {
+    throw Boom.badImplementation(
+      "Agreement Action Processes staged more than one commit operation",
+    );
+  }
+
+  return commitOperations;
+};
 
 export const compileAgreementActionExecution = (
   definition,
@@ -31,7 +44,9 @@ export const compileAgreementActionExecution = (
             ? definition.configVersion
             : undefined,
       }),
-      commitOperations: processResult.commitOperations,
+      commitOperations: assertSingleCommitOperation(
+        processResult.commitOperations,
+      ),
     };
   };
 };

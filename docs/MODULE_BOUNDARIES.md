@@ -32,16 +32,30 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 
 ### Direct entry points
 
-Some collaborations cannot use an event, command or HTTP seam. Only the named Payments use cases below may be imported:
+Some collaborations cannot use an event, command or HTTP seam, because a shared transaction cannot cross one. Only the named Payments use case below may be imported:
 
-| Caller       | Entry point                                                | Why                                                                                                               |
-| ------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `agreements` | `payments/use-cases/prepare-agreement-payment.use-case.js` | Payments prepares the commit operation from Agreement action context before the transaction starts                |
-| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js`  | The Payment for an accepted Agreement Version must commit with the Agreement, its Version and the lifecycle event |
+| Caller       | Entry point                                                | Why                                                                                            |
+| ------------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `agreements` | `payments/use-cases/prepare-agreement-payment.use-case.js` | Payments stages a Commit Operation from Agreement Action context before the transaction starts |
 
-The transactional entry point takes the caller's session. The ESLint zone lists both exceptions explicitly so adding another one is a deliberate, reviewed change.
+The ESLint zone lists this single exception explicitly, so adding another is a deliberate, reviewed change.
 
-`payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from that entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.
+### Commit Operations
+
+A **Commit Operation** is an opaque handle the staging module returns and the calling module runs inside its own transaction. Agreements never inspects one:
+
+```js
+// staged by payments, before the transaction opens
+{ commit: (facts, session) => Promise<{ publication, claimId }> }
+```
+
+- **Staging happens outside the transaction.** Payments loads and resolves the Payment Definition when it stages the handle, so an invalid definition leaves the Agreement in its current state instead of failing mid-transaction. Resolving lazily inside `commit` would also hold the session open across JSONata evaluation.
+- **The caller supplies only committed facts.** `{ agreementNumber, version, correlationId }` — `version` is bumped by the transition, so it cannot be captured at staging time. Payments takes plain values and never receives an Agreement.
+- **The caller reads only what comes back.** The outbox publication it writes in its own transaction, and the Claim ID its own lifecycle event carries. `payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) but stays out of the outbox and out of publishing.
+- **Commit failures propagate unwrapped.** A raced acceptance surfaces as a duplicate key error on the Payment's unique source index, and `isConcurrentActionConflict` in Agreements has to read its `keyPattern`.
+- **An Agreement Action stages at most one Commit Operation**; creation and page Processes stage none. Enforced in `agreements/models/agreement-definitions/`, before the transaction opens.
+
+Because the handle is opaque, adding a second commit source — Claims — requires no change in Agreements.
 
 ## Adding a New Seam
 

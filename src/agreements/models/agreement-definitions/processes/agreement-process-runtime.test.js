@@ -93,16 +93,11 @@ const paymentConfiguration = {
   ],
 };
 
-const paymentDependencies = (configuration = paymentConfiguration) => ({
+const stagedPaymentCommit = { commit: vi.fn() };
+
+const paymentDependencies = (operation = stagedPaymentCommit) => ({
   handlers: createAgreementProcessHandlers({
-    prepareAgreementPayment: () => ({
-      commitOperations: [
-        {
-          type: "create-agreement-payment",
-          request: { paymentConfiguration: configuration },
-        },
-      ],
-    }),
+    prepareAgreementPayment: () => ({ commitOperations: [operation] }),
   }),
 });
 
@@ -118,7 +113,6 @@ const handlerDependencies = (name, options = {}) => ({
   handlers: {
     [name]: {
       inputSchema: optionOr(options.inputSchema, Joi.object().unknown(true)),
-      commitOperationsSchema: options.commitOperationsSchema,
       execute: optionOr(options.execute, vi.fn()),
       locations: optionOr(options.locations, ["transition"]),
     },
@@ -411,17 +405,9 @@ describe("AgreementDefinition Process runtime", () => {
       input: {},
     };
     definitionData.states.offered.processes = ["stage"];
-    const commitOperationsSchema = Joi.object({
-      commitOperations: Joi.array()
-        .items(Joi.object({ type: Joi.string().required() }))
-        .required(),
-    });
     const definition = new AgreementDefinition(definitionData, {
       ...handlerDependencies("stage", {
-        execute: () => ({
-          commitOperations: [{ type: "unsupported" }],
-        }),
-        commitOperationsSchema,
+        execute: () => ({ commitOperations: [{ commit: vi.fn() }] }),
         locations: ["page"],
       }),
     });
@@ -514,13 +500,30 @@ describe("AgreementDefinition Process runtime", () => {
       executeAction(definition, toAgreement(paymentAgreementValues)),
     ).resolves.toMatchObject({
       agreement: { state: "offered", version: 2 },
-      commitOperations: [
-        {
-          type: "create-agreement-payment",
-          request: { paymentConfiguration },
-        },
-      ],
+      commitOperations: [stagedPaymentCommit],
     });
+  });
+
+  it("rejects an Action staging more than one commit operation", async () => {
+    const definitionData = createDefinition();
+    definitionData.processDefinitions.stage = {
+      type: "handler",
+      input: {},
+    };
+    addTransition(definitionData, ["stage"]);
+    const definition = new AgreementDefinition(definitionData, {
+      ...handlerDependencies("stage", {
+        execute: () => ({
+          commitOperations: [{ commit: vi.fn() }, { commit: vi.fn() }],
+        }),
+      }),
+    });
+
+    await expect(
+      executeAction(definition, toAgreement(paymentAgreementValues)),
+    ).rejects.toThrow(
+      "Agreement Action Processes staged more than one commit operation",
+    );
   });
 
   it("rejects commit operations produced during Agreement creation", async () => {
@@ -530,18 +533,10 @@ describe("AgreementDefinition Process runtime", () => {
       input: {},
     };
     definitionData.create.processes = ["stage"];
-    const commitOperationsSchema = Joi.object({
-      commitOperations: Joi.array()
-        .items(Joi.object({ type: Joi.string().required() }))
-        .required(),
-    });
     const definition = new AgreementDefinition(definitionData, {
       generateAgreementNumber: () => "TST123456789",
       ...handlerDependencies("stage", {
-        execute: () => ({
-          commitOperations: [{ type: "unsupported" }],
-        }),
-        commitOperationsSchema,
+        execute: () => ({ commitOperations: [{ commit: vi.fn() }] }),
         locations: ["create"],
       }),
     });

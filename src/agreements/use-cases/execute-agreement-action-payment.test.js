@@ -2,8 +2,6 @@ import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { allocateNextSequence } from "../../payments/repositories/counter.repository.js";
-import { insertPayment } from "../../payments/repositories/payment.repository.js";
 import { Agreement } from "../models/agreement.js";
 import {
   findAgreementByNumber,
@@ -17,20 +15,7 @@ import { loadCurrentAgreementActionContext } from "./load-current-agreement-acti
 vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
-vi.mock(
-  "../../payments/repositories/counter.repository.js",
-  async (importOriginal) => ({
-    ...(await importOriginal()),
-    allocateNextSequence: vi.fn(),
-  }),
-);
-vi.mock("../../payments/repositories/payment.repository.js");
 vi.mock("./load-current-agreement-action-context.js");
-
-const findPaymentPublication = (publications) =>
-  publications.find(
-    ({ event }) => event.type === "io.onsite.agreement.create-payment",
-  );
 
 const options = {
   actionName: "accept",
@@ -63,25 +48,16 @@ const agreement = new Agreement({
       description: "Large White Pig",
       totalAmountPence: 2000,
     },
-    {
-      id: "action:2",
-      code: "berkshire",
-      description: "Berkshire",
-      totalAmountPence: 1800,
-    },
   ],
   items: [],
-  totalAmountPence: 3800,
+  totalAmountPence: 2000,
   paymentSchedule: {
     instalments: [
       {
         id: "instalment:1",
         dueDate: "2026-11-06",
-        totalAmountPence: 3800,
-        lineItems: [
-          { actionId: "action:1", amountPence: 2000 },
-          { actionId: "action:2", amountPence: 1800 },
-        ],
+        totalAmountPence: 2000,
+        lineItems: [{ actionId: "action:1", amountPence: 2000 }],
       },
     ],
   },
@@ -90,41 +66,20 @@ const agreement = new Agreement({
   updatedAt: "2026-08-01T10:00:00.000Z",
 });
 
-const toPaymentConfiguration = (values) => ({
-  sbi: agreement.identifiers.sbi,
-  frn: agreement.identifiers.frn,
-  scheme: "SFI",
-  sourceSystem: "FPTT",
-  deliveryBody: "RP00",
-  fesCode: "FALS_FPTT",
-  originalInvoiceNumber: "",
-  ledger: "AP",
-  totalAmountPence: values.totalAmountPence,
-  currency: "GBP",
-  marketingYear: "2026",
-  payments: values.paymentSchedule.instalments.map((instalment) => ({
-    dueDate: instalment.dueDate,
-    totalAmountPence: instalment.totalAmountPence,
-    invoiceLines: instalment.lineItems.map((line) => {
-      const entry = values.actions.find(({ id }) => id === line.actionId);
-      return {
-        schemeCode: "CMOR1",
-        description: line.description ?? entry?.description,
-        amountPence: line.amountPence,
-        accountCode: "SOS710",
-        fundCode: "DRD10",
-        deliveryBody: "RP00",
-        marketingYear: "2026",
-      };
-    }),
-  })),
-});
-
-const mapping = toPaymentConfiguration(agreement);
-
-const action = {
-  validate: vi.fn().mockReturnValue({ valid: true }),
+const publication = {
+  target: "payment-service-topic",
+  segregationRef: options.agreementNumber,
+  event: { type: "io.onsite.agreement.create-payment" },
 };
+
+// Agreements never sees inside a Commit Operation, so its tests never need to
+// build one. The whole contract is a commit function taking the committed
+// Agreement facts and the session, and returning a publication and a Claim ID.
+const stageCommit = (
+  commit = vi.fn().mockResolvedValue({ publication, claimId: "R00000001" }),
+) => ({ commit });
+
+const action = { validate: vi.fn().mockReturnValue({ valid: true }) };
 const agreementDefinition = { executeAction: vi.fn() };
 
 const transitionAgreement = (values = undefined) =>
@@ -133,11 +88,26 @@ const transitionAgreement = (values = undefined) =>
     transitionedAt: "2026-08-20T10:00:00.000Z",
     values,
   });
+
 const session = {};
 
-describe("executeAgreementActionUseCase with a Payment commit operation", () => {
+const stagedBy = (commitOperations, values = undefined) =>
+  agreementDefinition.executeAction.mockResolvedValue({
+    agreement: transitionAgreement(values),
+    commitOperations,
+  });
+
+const lifecycleEvents = (publications) =>
+  publications.filter(({ event }) =>
+    event.type.endsWith("agreement.status.updated"),
+  );
+
+describe("executeAgreementActionUseCase with a staged Commit Operation", () => {
+  let operation;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    operation = stageCommit();
     findAgreementByNumber.mockResolvedValue(agreement);
     findVersionByIdempotencyKey.mockResolvedValue(null);
     loadCurrentAgreementActionContext.mockResolvedValue({
@@ -146,369 +116,133 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       agreementDefinition,
       etag: `"${agreement.agreementNumber}:${agreement.version}:${agreement.configVersion}"`,
     });
-    agreementDefinition.executeAction.mockResolvedValue({
-      agreement: transitionAgreement(),
-      commitOperations: [
-        {
-          type: "create-agreement-payment",
-          request: { paymentConfiguration: mapping },
-        },
-      ],
-    });
+    stagedBy([operation]);
     replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 1 });
     withTransaction.mockImplementation((callback) => callback(session));
-    allocateNextSequence.mockResolvedValue(1);
     action.validate.mockReturnValue({ valid: true });
   });
 
-  it("commits the configured Payment operation atomically", async () => {
+  it("commits the staged operation with the materialised Agreement facts", async () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
       location: "/agreements/current",
     });
 
-    expect(agreementDefinition.executeAction).toHaveBeenCalledWith({
-      agreement,
-      actionName: "accept",
-      values: options.values,
-      execution: {
+    expect(operation.commit).toHaveBeenCalledWith(
+      {
+        agreementNumber: options.agreementNumber,
+        version: 2,
         correlationId: agreement.correlationId,
-        executedAt: expect.any(String),
       },
-    });
-    expect(insertPayment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        source: {
-          type: "agreement",
-          agreementNumber: options.agreementNumber,
-          version: 2,
-        },
-        correlationId: agreement.correlationId,
-        totalAmountPence: 3800,
-        payments: [
-          expect.objectContaining({
-            dueDate: "2026-11-06",
-            invoiceLines: [
-              expect.objectContaining({
-                description: "Large White Pig",
-                amountPence: 2000,
-              }),
-              expect.objectContaining({
-                description: "Berkshire",
-                amountPence: 1800,
-              }),
-            ],
-          }),
-        ],
-      }),
-      session,
-    );
-    expect(saveOutboxEvents).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          event: expect.objectContaining({
-            data: expect.objectContaining({ claimId: "R00000001" }),
-          }),
-        }),
-        expect.objectContaining({
-          event: expect.objectContaining({
-            type: "io.onsite.agreement.create-payment",
-          }),
-        }),
-      ]),
       session,
     );
   });
 
-  it("commits the Payment with the Agreement, Version and lifecycle event", async () => {
-    await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/current",
-    });
-
-    expect(insertPayment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        source: {
-          type: "agreement",
-          agreementNumber: options.agreementNumber,
-          version: 2,
-        },
-        paymentHubClaimId: "R00000001",
-        invoiceNumber: "R00000001-V001QX",
-        totalAmountPence: 3800,
-        scheme: "SFI",
-        fesCode: "FALS_FPTT",
-      }),
-      session,
-    );
-    expect(replaceCurrentAgreement).toHaveBeenCalledWith(
-      expect.objectContaining({ state: "accepted", version: 2 }),
-      1,
-      session,
-    );
-    expect(insertAgreementVersion).toHaveBeenCalledWith(
-      expect.anything(),
-      session,
-    );
-    expect(saveOutboxEvents).toHaveBeenCalledWith(expect.anything(), session);
-  });
-
-  it("creates Payment from the exact materialised values committed to the Agreement", async () => {
-    const actions = agreement.actions.map((entry, index) => ({
-      ...entry,
-      totalAmountPence: index === 0 ? 2200 : 1800,
-    }));
-    const paymentSchedule = {
-      instalments: [
-        {
-          id: "instalment:1",
-          dueDate: "2026-12-01",
-          totalAmountPence: 4000,
-          lineItems: [
-            { actionId: "action:1", amountPence: 2200 },
-            { actionId: "action:2", amountPence: 1800 },
-          ],
-        },
-      ],
-    };
-    const agreementValues = {
-      application: agreement.application,
-      startDate: "2026-09-01",
-      endDate: "2027-08-31",
-      actions,
-      items: [],
-      totalAmountPence: 4000,
-      paymentSchedule,
-    };
-    agreementDefinition.executeAction.mockResolvedValue({
-      agreement: transitionAgreement(agreementValues),
-      commitOperations: [
-        {
-          type: "create-agreement-payment",
-          request: {
-            paymentConfiguration: toPaymentConfiguration(agreementValues),
-          },
-        },
-      ],
-    });
-
+  // The transition bumps the version, so the facts the operation commits with
+  // are only known after the Agreement has been materialised — never at the
+  // point the operation was staged.
+  it("commits the version written to the Agreement and its Version", async () => {
     await executeAgreementActionUseCase(options);
 
     const [accepted] = replaceCurrentAgreement.mock.calls[0];
     const [version] = insertAgreementVersion.mock.calls[0];
-    const [payment] = insertPayment.mock.calls[0];
-    expect(accepted).toMatchObject(agreementValues);
+    const [facts] = operation.commit.mock.calls[0];
+
+    expect(accepted.version).toBe(2);
     expect(version.snapshot).toEqual(accepted);
-    expect(payment).toMatchObject({
-      totalAmountPence: accepted.totalAmountPence,
-      payments: [
-        expect.objectContaining({
-          dueDate: accepted.paymentSchedule.instalments[0].dueDate,
-          totalAmountPence:
-            accepted.paymentSchedule.instalments[0].totalAmountPence,
-        }),
-      ],
+    expect(facts.version).toBe(accepted.version);
+  });
+
+  it("commits after the Agreement Version and before the outbox write", async () => {
+    const order = [];
+    insertAgreementVersion.mockImplementation(() => order.push("version"));
+    operation.commit.mockImplementation(async () => {
+      order.push("commit");
+      return { publication, claimId: "R00000001" };
     });
-  });
+    saveOutboxEvents.mockImplementation(() => order.push("outbox"));
 
-  it("commits the payment event with the lifecycle event in one write", async () => {
     await executeAgreementActionUseCase(options);
 
-    expect(saveOutboxEvents).toHaveBeenCalledTimes(1);
-    const [publications] = saveOutboxEvents.mock.calls[0];
-
-    expect(publications).toHaveLength(3);
-    expect(
-      publications.filter(({ event }) =>
-        event.type.endsWith("agreement.status.updated"),
-      ),
-    ).toHaveLength(2);
-    expect(findPaymentPublication(publications)).toBeDefined();
+    expect(order).toEqual(["version", "commit", "outbox"]);
   });
 
-  it("builds the payment event from the committed Payment", async () => {
-    await executeAgreementActionUseCase(options);
-
-    const [publications] = saveOutboxEvents.mock.calls[0];
-    const [payment] = insertPayment.mock.calls[0];
-    const { data } = findPaymentPublication(publications).event;
-
-    expect(data.claimId).toBe(payment.paymentHubClaimId);
-    expect(data.grants[0]).toMatchObject({
-      agreementNumber: options.agreementNumber,
-      invoiceNumber: payment.invoiceNumber,
-      correlationId: payment.correlationId,
-      totalAmountPence: "3800",
-    });
-    expect(data.grants[0].payments[0].invoiceLines[0].amountPence).toBe("2000");
-  });
-
-  it("groups the payment event without changing its message", async () => {
-    await executeAgreementActionUseCase(options);
-
-    const [publications] = saveOutboxEvents.mock.calls[0];
-
-    const paymentPublication = findPaymentPublication(publications);
-
-    expect(paymentPublication.segregationRef).toBe(options.agreementNumber);
-    expect(paymentPublication.event).not.toHaveProperty("messageGroupId");
-  });
-
-  it("targets the Payment Service topic", async () => {
-    await executeAgreementActionUseCase(options);
-
-    const [publications] = saveOutboxEvents.mock.calls[0];
-
-    expect(findPaymentPublication(publications).target).toBe(
-      "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
-    );
-  });
-
-  it("stores everything a Payment Service message needs on the Payment", async () => {
-    await executeAgreementActionUseCase(options);
-
-    const [payment] = insertPayment.mock.calls[0];
-
-    // A follow-up story builds the message from the Payment alone, so none of
-    // these may require loading the Agreement or its definition.
-    expect(payment).toMatchObject({
-      sbi: "106284736",
-      frn: "1101234567",
-      paymentHubClaimId: "R00000001",
-      scheme: "SFI",
-      sourceSystem: "FPTT",
-      deliveryBody: "RP00",
-      fesCode: "FALS_FPTT",
-      paymentRequestNumber: 1,
-      invoiceNumber: "R00000001-V001QX",
-      originalInvoiceNumber: "",
-      ledger: "AP",
-      totalAmountPence: 3800,
-      currency: "GBP",
-      marketingYear: expect.any(String),
-      correlationId: expect.any(String),
-    });
-    expect(payment.source.agreementNumber).toBe(options.agreementNumber);
-    expect(payment.payments[0]).toMatchObject({
-      dueDate: "2026-11-06",
-      totalAmountPence: 3800,
-      status: "pending",
-      correlationId: expect.any(String),
-    });
-    expect(payment.payments[0].invoiceLines[0]).toMatchObject({
-      schemeCode: "CMOR1",
-      description: "Large White Pig",
-      amountPence: 2000,
-      accountCode: "SOS710",
-      fundCode: "DRD10",
-      deliveryBody: "RP00",
-    });
-  });
-
-  it("keeps pence numeric on the Payment", async () => {
-    await executeAgreementActionUseCase(options);
-
-    const [payment] = insertPayment.mock.calls[0];
-
-    expect(payment.totalAmountPence).toBe(3800);
-    expect(payment.payments[0].invoiceLines[0].amountPence).toBe(2000);
-  });
-
-  it("does not copy a Calculator Result onto the Agreement or Version", async () => {
-    await executeAgreementActionUseCase(options);
-
-    const [accepted] = replaceCurrentAgreement.mock.calls[0];
-    const [version] = insertAgreementVersion.mock.calls[0];
-
-    expect(accepted.paymentCalculation).toBeUndefined();
-    expect(version.snapshot.paymentCalculation).toBeUndefined();
-    expect(version.snapshot).toEqual(accepted);
-  });
-
-  it("allocates the claim ID inside the action transaction", async () => {
-    let allocatedBeforeTransaction = true;
+  it("does not commit before the transaction starts", async () => {
     withTransaction.mockImplementation((callback) => {
-      allocatedBeforeTransaction = allocateNextSequence.mock.calls.length > 0;
-      return callback(session);
-    });
-
-    await executeAgreementActionUseCase(options);
-
-    expect(allocatedBeforeTransaction).toBe(false);
-    expect(allocateNextSequence).toHaveBeenCalledWith("claimIds", session);
-  });
-
-  it("does not write to Mongo before the transaction starts", async () => {
-    withTransaction.mockImplementation((callback) => {
-      expect(insertPayment).not.toHaveBeenCalled();
-      expect(allocateNextSequence).not.toHaveBeenCalled();
+      expect(operation.commit).not.toHaveBeenCalled();
       expect(insertAgreementVersion).not.toHaveBeenCalled();
       return callback(session);
     });
 
     await executeAgreementActionUseCase(options);
 
-    expect(insertPayment).toHaveBeenCalled();
+    expect(operation.commit).toHaveBeenCalled();
   });
 
-  it("leaves the Agreement offered when the Payment configuration is invalid", async () => {
-    agreementDefinition.executeAction.mockResolvedValue({
-      agreement: transitionAgreement(),
-      commitOperations: [
-        {
-          type: "create-agreement-payment",
-          request: { paymentConfiguration: undefined },
-        },
-      ],
+  it("writes the returned publication with the lifecycle events in one write", async () => {
+    await executeAgreementActionUseCase(options);
+
+    expect(saveOutboxEvents).toHaveBeenCalledTimes(1);
+    const [publications] = saveOutboxEvents.mock.calls[0];
+
+    expect(publications).toHaveLength(3);
+    expect(lifecycleEvents(publications)).toHaveLength(2);
+    expect(publications).toContain(publication);
+    expect(saveOutboxEvents).toHaveBeenCalledWith(expect.anything(), session);
+  });
+
+  it("carries the returned Claim ID on the accepted lifecycle event", async () => {
+    operation.commit.mockResolvedValue({ publication, claimId: "R00000042" });
+
+    await executeAgreementActionUseCase(options);
+
+    const [publications] = saveOutboxEvents.mock.calls[0];
+
+    expect(lifecycleEvents(publications)).toHaveLength(2);
+    lifecycleEvents(publications).forEach(({ event }) => {
+      expect(event.data).toMatchObject({
+        status: "accepted",
+        claimId: "R00000042",
+      });
     });
-    withTransaction.mockImplementation(async (callback) => callback(session));
+  });
+
+  it("publishes only lifecycle events when the Action stages nothing", async () => {
+    stagedBy([]);
+
+    await executeAgreementActionUseCase(options);
+
+    const [publications] = saveOutboxEvents.mock.calls[0];
+
+    expect(publications).toHaveLength(2);
+    expect(lifecycleEvents(publications)).toHaveLength(2);
+    expect(publications[0].event.data).not.toHaveProperty("claimId");
+  });
+
+  it("does not commit when a completed action is replayed", async () => {
+    findVersionByIdempotencyKey.mockResolvedValue({
+      actionExecution: { name: "accept" },
+    });
+
+    await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
+      location: "/agreements/current",
+    });
+    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
+    expect(operation.commit).not.toHaveBeenCalled();
+  });
+
+  it("writes no outbox events when the commit fails", async () => {
+    operation.commit.mockRejectedValue(new Error("commit failed"));
 
     await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
-      "createPayment requires a compiled Payment definition",
+      "commit failed",
     );
-    expect(insertPayment).not.toHaveBeenCalled();
     expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
-  it("leaves the Agreement offered when resolved Payment fields are invalid", async () => {
-    const paymentConfiguration = structuredClone(mapping);
-    delete paymentConfiguration.payments[0].invoiceLines[0].description;
-    agreementDefinition.executeAction.mockResolvedValue({
-      agreement: transitionAgreement(),
-      commitOperations: [
-        {
-          type: "create-agreement-payment",
-          request: { paymentConfiguration },
-        },
-      ],
-    });
-
-    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
-      "Invalid Payment",
-    );
-    expect(insertPayment).not.toHaveBeenCalled();
-    expect(saveOutboxEvents).not.toHaveBeenCalled();
-  });
-
-  it("leaves the Agreement offered when resolved Payment facts do not balance", async () => {
-    agreementDefinition.executeAction.mockResolvedValue({
-      agreement: transitionAgreement(),
-      commitOperations: [
-        {
-          type: "create-agreement-payment",
-          request: {
-            paymentConfiguration: { ...mapping, totalAmountPence: 1 },
-          },
-        },
-      ],
-    });
-
-    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
-      "Invalid Payment",
-    );
-    expect(insertPayment).not.toHaveBeenCalled();
-    expect(saveOutboxEvents).not.toHaveBeenCalled();
-  });
-
-  it("resolves a duplicate Payment for the same Agreement Version idempotently", async () => {
+  // The commit is deliberately not wrapped: a raced acceptance that beats the
+  // optimistic version check surfaces as a duplicate key error from inside the
+  // commit, and isConcurrentActionConflict has to be able to read keyPattern.
+  it("resolves a raced acceptance from the committed unique index", async () => {
     findVersionByIdempotencyKey
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ actionExecution: { name: "accept" } });
@@ -525,66 +259,14 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     });
   });
 
-  it("does not create a Payment when a completed action is replayed", async () => {
-    findVersionByIdempotencyKey.mockResolvedValue({
-      actionExecution: { name: "accept" },
-    });
-
-    await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/current",
-    });
-    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
-    expect(insertPayment).not.toHaveBeenCalled();
-    expect(allocateNextSequence).not.toHaveBeenCalled();
-  });
-
-  it("does not create a Payment without a Payment commit operation", async () => {
-    agreementDefinition.executeAction.mockResolvedValue({
-      agreement: transitionAgreement(),
-      commitOperations: [],
-    });
-
+  it("does not copy a Calculator Result onto the Agreement or Version", async () => {
     await executeAgreementActionUseCase(options);
 
-    expect(insertPayment).not.toHaveBeenCalled();
-    expect(allocateNextSequence).not.toHaveBeenCalled();
+    const [accepted] = replaceCurrentAgreement.mock.calls[0];
+    const [version] = insertAgreementVersion.mock.calls[0];
 
-    const [publications] = saveOutboxEvents.mock.calls[0];
-
-    expect(publications).toHaveLength(2);
-    expect(
-      publications.every(({ event }) =>
-        event.type.endsWith("agreement.status.updated"),
-      ),
-    ).toBe(true);
-  });
-
-  it("rejects an unsupported commit operation", async () => {
-    agreementDefinition.executeAction.mockResolvedValue({
-      agreement: transitionAgreement(),
-      commitOperations: [{ type: "unsupported" }],
-    });
-
-    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
-      'Unsupported Agreement Action commit operation "unsupported"',
-    );
-    expect(insertPayment).not.toHaveBeenCalled();
-    expect(saveOutboxEvents).not.toHaveBeenCalled();
-  });
-
-  it("rejects more than one Payment commit operation", async () => {
-    agreementDefinition.executeAction.mockResolvedValue({
-      agreement: transitionAgreement(),
-      commitOperations: [
-        { type: "create-agreement-payment", request: {} },
-        { type: "create-agreement-payment", request: {} },
-      ],
-    });
-
-    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
-      "Agreement Action cannot create more than one Payment",
-    );
-    expect(insertPayment).not.toHaveBeenCalled();
-    expect(saveOutboxEvents).not.toHaveBeenCalled();
+    expect(accepted.paymentCalculation).toBeUndefined();
+    expect(version.snapshot.paymentCalculation).toBeUndefined();
+    expect(version.snapshot).toEqual(accepted);
   });
 });

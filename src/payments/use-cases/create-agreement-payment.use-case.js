@@ -8,7 +8,8 @@ import { formatClaimId } from "../services/claim-id.js";
 import { buildPayment } from "./build-payment.js";
 
 /**
- * The Agreements module's only entry point into Payments.
+ * Internal to Payments: the commit half of the Commit Operation staged by
+ * prepareAgreementPayment. Agreements reaches it only through that handle.
  *
  * Called with the accepting action's session so the claim ID allocation and the
  * Payment insert commit with the Agreement, its Version and the lifecycle
@@ -17,8 +18,9 @@ import { buildPayment } from "./build-payment.js";
  * transaction cannot cross an event or HTTP seam.
  *
  * Returns the Payment with the outbox publication that sends it to the Payment
- * Service. The caller writes that publication in the same transaction; Payments
- * builds the message but never owns the outbox.
+ * Service. The handle narrows this to what Agreements may read; the Payment
+ * stays here for Payments' own tests. The caller writes the publication in the
+ * same transaction; Payments builds the message but never owns the outbox.
  */
 export const createAgreementPaymentUseCase = async (
   { agreementNumber, version, agreementCorrelationId, paymentConfiguration },
