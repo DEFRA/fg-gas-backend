@@ -13,33 +13,59 @@ const ALGORITHMS = ["HS256"];
 const mapSignatureError = (message) =>
   message === "Unsupported algorithm" ? "unsupported-alg" : "bad-signature";
 
-// eslint-disable-next-line complexity
-const collectClaimWarnings = (payload, audience) => {
-  const warnings = [];
-  const { aud } = payload;
+const collectAudienceWarning = (aud, audience) => {
   const audienceMatches =
     aud === audience || (Array.isArray(aud) && aud.includes(audience));
-  if (!audienceMatches) {
-    warnings.push("audience");
+  return audienceMatches ? null : "audience";
+};
+
+const collectIssuerWarning = (iss, allowedIssuers) => {
+  if (iss == null) {
+    return "missing-iss";
   }
-  for (const claim of ["iss", "sub"]) {
-    if (payload[claim] == null) {
-      warnings.push(`missing-${claim}`);
-    }
+  if (allowedIssuers.length > 0 && !allowedIssuers.includes(iss)) {
+    return "unknown-issuer";
   }
-  return warnings;
+  return null;
+};
+
+// FGP-1307: report a warning when the expiry claim is absent or not a valid
+// numeric timestamp. Replayable tokens (no exp) must be visible during the
+// warn-only rollout so they cannot silently pass future enforcement.
+const collectExpiryWarning = (exp) => {
+  if (exp == null) {
+    return "missing-exp";
+  }
+  if (typeof exp !== "number" || !Number.isFinite(exp)) {
+    return "invalid-exp";
+  }
+  return null;
+};
+
+const collectClaimWarnings = (payload, { audience, allowedIssuers }) => {
+  const warnings = [
+    collectAudienceWarning(payload.aud, audience),
+    collectIssuerWarning(payload.iss, allowedIssuers),
+    collectExpiryWarning(payload.exp),
+    payload.sub == null ? "missing-sub" : null,
+  ];
+  return warnings.filter(Boolean);
 };
 
 /**
  * Verify a forwarded caller JWT (HS256) using @hapi/jwt.
  * @param {string} token - The raw JWT from the x-encrypted-auth header.
  * @param {string} secret - The shared HS256 secret.
- * @param {{ audience?: string, nowSec?: number }} [options]
+ * @param {{ audience?: string, allowedIssuers?: string[], nowSec?: number }} [options]
  * @returns {{ verified: boolean, reason?: string, payload?: object, warnings?: string[] }}
  */
 // eslint-disable-next-line complexity
 export const verifyCallerToken = (token, secret, options = {}) => {
-  const { audience = "gas", nowSec = Math.floor(Date.now() / 1000) } = options;
+  const {
+    audience = "gas",
+    allowedIssuers = [],
+    nowSec = Math.floor(Date.now() / 1000),
+  } = options;
 
   if (!secret) {
     return { verified: false, reason: "no-secret" };
@@ -73,6 +99,6 @@ export const verifyCallerToken = (token, secret, options = {}) => {
   return {
     verified: true,
     payload,
-    warnings: collectClaimWarnings(payload, audience),
+    warnings: collectClaimWarnings(payload, { audience, allowedIssuers }),
   };
 };

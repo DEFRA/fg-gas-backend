@@ -103,12 +103,37 @@ describe("auth plugin", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("still authenticates when a caller token is forwarded (FGP-1307, warn-only)", async () => {
+  it("verifies a forwarded caller token on an agreement route (FGP-1307, warn-only)", async () => {
+    const server = await createServer();
+    server.route({
+      method: "GET",
+      path: "/agreements/current",
+      handler: (request) => ({ callerToken: request.app.callerToken }),
+    });
+
+    await server.initialize();
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/agreements/current",
+      headers: {
+        authorization: "Bearer good",
+        "x-encrypted-auth": "eyJ.forwarded.caller-token",
+      },
+    });
+
+    // Verification is warn-only: a bad/unverifiable caller token must not break
+    // the request while the rollout is in progress.
+    expect(res.statusCode).toBe(200);
+    expect(res.result.callerToken.verified).toBe(false);
+  });
+
+  it("does not verify caller tokens on non-agreement routes", async () => {
     const server = await createServer();
     server.route({
       method: "GET",
       path: "/secure",
-      handler: (request) => ({ callerToken: request.app.callerToken }),
+      handler: (request) => ({ callerToken: request.app.callerToken ?? null }),
     });
 
     await server.initialize();
@@ -122,9 +147,31 @@ describe("auth plugin", () => {
       },
     });
 
-    // Verification is warn-only: a bad/unverifiable caller token must not break
-    // the request while the rollout is in progress.
+    // /secure is not an agreement route, so the caller token is ignored.
     expect(res.statusCode).toBe(200);
-    expect(res.result.callerToken.verified).toBe(false);
+    expect(res.result.callerToken).toBeNull();
+  });
+
+  it("records a missing-token reason on agreement routes when no caller token is sent", async () => {
+    const server = await createServer();
+    server.route({
+      method: "GET",
+      path: "/agreements/current",
+      handler: (request) => ({ callerToken: request.app.callerToken }),
+    });
+
+    await server.initialize();
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/agreements/current",
+      headers: { authorization: "Bearer good" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result.callerToken).toEqual({
+      verified: false,
+      reason: "missing-token",
+    });
   });
 });

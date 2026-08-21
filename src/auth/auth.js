@@ -1,8 +1,8 @@
 import Boom from "@hapi/boom";
 import crypto from "node:crypto";
-import { db } from "../common/mongo-client.js";
 import { config } from "../common/config.js";
 import { logger } from "../common/logger.js";
+import { db } from "../common/mongo-client.js";
 import { verifyCallerToken } from "./caller-token.js";
 
 const CALLER_TOKEN_HEADER = "x-encrypted-auth";
@@ -58,38 +58,66 @@ const registerServiceAuth = async (server) => {
 // rather than trusting the unsigned x-agreement-* identity headers. This runs
 // in a backwards-compatible ("warn-only") mode: results are logged but not
 // enforced, and the x-agreement-* headers are still honoured for now.
+//
+// Verification is scoped to the agreement routes that consume caller identity,
+// so unrelated GAS endpoints (e.g. /grants/*) are unaffected now and won't be
+// dragged into caller-token enforcement later.
+const CALLER_TOKEN_ROUTES = new Set([
+  "/agreements/current",
+  "/agreements/{agreementNumber}/document",
+  "/agreements/{agreementNumber}/actions/{actionName}",
+]);
+
+const isCallerTokenRoute = (request) =>
+  CALLER_TOKEN_ROUTES.has(request.route?.path);
+
+const logCallerTokenResult = (request, result) => {
+  if (!result.verified) {
+    logger.warn(
+      { reason: result.reason, path: request.path },
+      "Caller token failed verification (FGP-1307); accepted for now",
+    );
+  } else if (result.warnings.length > 0) {
+    logger.warn(
+      { warnings: result.warnings, path: request.path },
+      "Caller token verified with claim warnings (FGP-1307)",
+    );
+  } else {
+    logger.info(
+      { iss: result.payload.iss },
+      "Caller token verified (FGP-1307)",
+    );
+  }
+};
+
 const registerCallerTokenVerification = (server) => {
   server.ext("onPostAuth", (request, h) => {
+    if (!isCallerTokenRoute(request)) {
+      return h.continue;
+    }
+
     const token = request.headers[CALLER_TOKEN_HEADER];
 
     // TODO (FGP-1307): once every caller forwards the caller token, require it
     // here and stop trusting the unsigned x-agreement-* headers for identity.
     if (!token) {
+      // Record the absence so we can measure whether every Agreements UI
+      // request carries a caller token before enforcement is switched on.
+      request.app.callerToken = { verified: false, reason: "missing-token" };
+      logger.warn(
+        { reason: "missing-token", path: request.path },
+        "Caller token missing on agreement route (FGP-1307); accepted for now",
+      );
       return h.continue;
     }
 
     const result = verifyCallerToken(token, config.callerToken.secret, {
       audience: config.callerToken.audience,
+      allowedIssuers: config.callerToken.allowedIssuers,
     });
 
     request.app.callerToken = result;
-
-    if (!result.verified) {
-      logger.warn(
-        { reason: result.reason, path: request.path },
-        "Caller token failed verification (FGP-1307); accepted for now",
-      );
-    } else if (result.warnings.length > 0) {
-      logger.warn(
-        { warnings: result.warnings, path: request.path },
-        "Caller token verified with claim warnings (FGP-1307)",
-      );
-    } else {
-      logger.info(
-        { iss: result.payload.iss },
-        "Caller token verified (FGP-1307)",
-      );
-    }
+    logCallerTokenResult(request, result);
 
     return h.continue;
   });

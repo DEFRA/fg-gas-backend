@@ -28,6 +28,8 @@ const makeToken = (payload, { secret = SECRET, alg = "HS256" } = {}) => {
 
 const nowSec = Math.floor(Date.now() / 1000);
 
+const ALLOWED_ISSUERS = ["grants-ui", "fg-cw-frontend", "agreements-pdf"];
+
 const validPayload = {
   iss: "grants-ui",
   aud: ["agreements-ui", "gas"],
@@ -35,9 +37,16 @@ const validPayload = {
   exp: nowSec + 300,
 };
 
+const verify = (payload, opts = {}) =>
+  verifyCallerToken(makeToken(payload), SECRET, {
+    nowSec,
+    allowedIssuers: ALLOWED_ISSUERS,
+    ...opts,
+  });
+
 describe("verifyCallerToken", () => {
   it("verifies a well-formed, correctly-signed, unexpired token targeting gas", () => {
-    const result = verifyCallerToken(makeToken(validPayload), SECRET, { nowSec });
+    const result = verify(validPayload);
 
     expect(result.verified).toBe(true);
     expect(result.warnings).toEqual([]);
@@ -45,11 +54,7 @@ describe("verifyCallerToken", () => {
   });
 
   it("accepts a string audience equal to gas", () => {
-    const result = verifyCallerToken(
-      makeToken({ ...validPayload, aud: "gas" }),
-      SECRET,
-      { nowSec },
-    );
+    const result = verify({ ...validPayload, aud: "gas" });
 
     expect(result.verified).toBe(true);
     expect(result.warnings).toEqual([]);
@@ -81,11 +86,7 @@ describe("verifyCallerToken", () => {
   });
 
   it("rejects an expired token", () => {
-    const result = verifyCallerToken(
-      makeToken({ ...validPayload, exp: nowSec - 1 }),
-      SECRET,
-      { nowSec },
-    );
+    const result = verify({ ...validPayload, exp: nowSec - 1 });
 
     expect(result.verified).toBe(false);
     expect(result.reason).toBe("expired");
@@ -103,22 +104,14 @@ describe("verifyCallerToken", () => {
   });
 
   it("verifies but warns when the audience excludes gas", () => {
-    const result = verifyCallerToken(
-      makeToken({ ...validPayload, aud: ["agreements-ui"] }),
-      SECRET,
-      { nowSec },
-    );
+    const result = verify({ ...validPayload, aud: ["agreements-ui"] });
 
     expect(result.verified).toBe(true);
     expect(result.warnings).toContain("audience");
   });
 
   it("verifies but warns when iss and sub are missing (legacy token shape)", () => {
-    const result = verifyCallerToken(
-      makeToken({ aud: "gas", exp: nowSec + 300 }),
-      SECRET,
-      { nowSec },
-    );
+    const result = verify({ aud: "gas", exp: nowSec + 300 });
 
     expect(result.verified).toBe(true);
     expect(result.warnings).toEqual(
@@ -126,14 +119,47 @@ describe("verifyCallerToken", () => {
     );
   });
 
-  it("accepts a legacy token with no exp claim (backwards-compatible)", () => {
-    const result = verifyCallerToken(
-      makeToken({ iss: "grants-ui", aud: "gas", sub: "1" }),
-      SECRET,
-      { nowSec },
-    );
+  it("verifies but warns when exp is missing (replayable token)", () => {
+    const result = verify({ iss: "grants-ui", aud: "gas", sub: "1" });
 
     expect(result.verified).toBe(true);
-    expect(result.warnings).toEqual([]);
+    expect(result.warnings).toContain("missing-exp");
+  });
+
+  it("verifies but warns when exp is not a numeric timestamp", () => {
+    const result = verify({ ...validPayload, exp: "soon" });
+
+    expect(result.verified).toBe(true);
+    expect(result.warnings).toContain("invalid-exp");
+  });
+
+  describe("issuer identity", () => {
+    it.each([
+      ["applicant", "grants-ui"],
+      ["caseworker", "fg-cw-frontend"],
+      ["PDF", "agreements-pdf"],
+    ])("accepts the %s issuer (%s) without warning", (_caller, iss) => {
+      const result = verify({ ...validPayload, iss });
+
+      expect(result.verified).toBe(true);
+      expect(result.warnings).toEqual([]);
+    });
+
+    it("verifies but warns when the issuer is not an allowed producer", () => {
+      const result = verify({ ...validPayload, iss: "evil-service" });
+
+      expect(result.verified).toBe(true);
+      expect(result.warnings).toContain("unknown-issuer");
+    });
+
+    it("does not check issuer identity when no allow-list is configured", () => {
+      const result = verify(
+        { ...validPayload, iss: "anything" },
+        { allowedIssuers: [] },
+      );
+
+      expect(result.verified).toBe(true);
+      expect(result.warnings).toEqual([]);
+    });
   });
 });

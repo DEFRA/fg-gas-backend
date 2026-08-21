@@ -51,6 +51,10 @@ const schema = Joi.object({
   VIEW_AGREEMENT_URI: Joi.string().uri().required(),
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
   AGREEMENTS_JWT_SECRET: Joi.string().optional(),
+  CALLER_TOKEN_ALLOWED_ISSUERS: Joi.string()
+    .allow("")
+    .optional()
+    .default("grants-ui,fg-cw-frontend,agreements-pdf"),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -128,8 +132,14 @@ export const config = {
   // FGP-1307: shared secret used to verify the caller token forwarded by
   // Agreements UI. Audience is "gas" for now (the interim token also carries
   // "agreements-ui"); this moves to token exchange / per-issuer keys later.
+  // allowedIssuers lists the producer services permitted to mint caller tokens
+  // (applicant/grants-ui, caseworker/fg-cw-frontend, PDF/agreements-pdf); an
+  // unrecognised issuer is reported as a warning during the warn-only rollout.
   callerToken: {
     secret: vars.AGREEMENTS_JWT_SECRET,
     audience: "gas",
+    allowedIssuers: vars.CALLER_TOKEN_ALLOWED_ISSUERS.split(",")
+      .map((issuer) => issuer.trim())
+      .filter(Boolean),
   },
 };
