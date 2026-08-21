@@ -8,5 +8,6 @@ export class GrantDocument {
     this.externalStatusMap = grant.externalStatusMap;
     this.amendablePositions = grant.amendablePositions;
     this.entitlementTemplates = grant.entitlementTemplates;
+    this.pages = grant.pages;
   }
 }

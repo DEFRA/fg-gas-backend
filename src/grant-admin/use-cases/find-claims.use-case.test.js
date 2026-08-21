@@ -60,8 +60,35 @@ const createTemplate = (overrides = {}) => ({
   ...overrides,
 });
 
-const givenGrantWith = (entitlementTemplates) => {
-  const grant = createTestGrant({ entitlementTemplates });
+const claimsPage = {
+  claims: {
+    details: {
+      banner: {
+        title: { text: "$.answers.answer1", type: "string" },
+        summary: {
+          applicationId: {
+            label: "Application ID",
+            text: "$.clientRef",
+            type: "string",
+          },
+          sbi: { label: "SBI", text: "$.identifiers.sbi", type: "string" },
+        },
+      },
+    },
+  },
+};
+
+const givenGrantWith = (entitlementTemplates, pages = claimsPage) => {
+  const grant = createTestGrant({ entitlementTemplates, pages });
+  resolveCurrentGrantUseCase.mockResolvedValue({ grant });
+  return grant;
+};
+
+// Its own helper rather than givenGrantWith([], undefined): passing undefined
+// to a parameter with a default just applies the default again.
+const givenGrantWithoutClaimsPage = () => {
+  const grant = createTestGrant({ entitlementTemplates: [] });
+  delete grant.pages;
   resolveCurrentGrantUseCase.mockResolvedValue({ grant });
   return grant;
 };
@@ -213,33 +240,23 @@ describe("find claims use case", () => {
   // The claims page is served by this endpoint, so the header it is topped with
   // is built here rather than left to the frontend to assemble.
   describe("banner", () => {
-    it("heads the page with the scheme, reference and sbi", async () => {
+    it("returns the banner the grant configures, resolved", async () => {
       givenGrantWith([]);
 
       const { banner } = await findClaimsUseCase({ code, clientRef });
 
+      expect(banner.title.text).toBe("test");
       expect(banner.summary.applicationId.text).toBe(clientRef);
       expect(banner.summary.sbi.text).toBe("sbi-1");
     });
 
-    it("titles the page with the applicant's business", async () => {
-      findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
-        createTestApplication({
-          clientRef,
-          code,
-          phases: [
-            {
-              code: position.phase,
-              answers: { applicant: { business: { name: "Elmwood Land Co" } } },
-            },
-          ],
-        }),
-      );
-      givenGrantWith([]);
+    // A page headed by nothing tells a case officer less than an honest 404.
+    it("refuses a grant that configures no claims page", async () => {
+      givenGrantWithoutClaimsPage();
 
-      const { banner } = await findClaimsUseCase({ code, clientRef });
-
-      expect(banner.title.text).toBe("Elmwood Land Co");
+      await expect(
+        findClaimsUseCase({ code, clientRef }),
+      ).rejects.toMatchObject({ output: { statusCode: 404 } });
     });
 
     it("returns the entitlements alongside it", async () => {

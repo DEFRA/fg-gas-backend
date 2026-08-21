@@ -495,5 +495,34 @@
         ]
       }
     ]
+  },
+  "pages": {
+    "claims": {
+      "details": {
+        "banner": {
+          "title": {
+            "text": "$.answers.applicant.business.name",
+            "type": "string"
+          },
+          "summary": {
+            "scheme": {
+              "label": "Scheme",
+              "text": "Woodland Management Plan",
+              "type": "string"
+            },
+            "applicationId": {
+              "label": "Application ID",
+              "text": "$.clientRef",
+              "type": "string"
+            },
+            "sbi": {
+              "label": "SBI",
+              "text": "$.identifiers.sbi",
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
   }
 }

@@ -1,9 +1,9 @@
 import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
+import { resolveCondition, resolveRefs } from "../../common/resolve-refs.js";
 import { assertSupportedAgreementPageMode } from "./assert-supported-agreement-page-mode.js";
 import { resolveComponents } from "./resolve-components.js";
 import { resolveActions } from "./resolve-page-href.js";
-import { resolveCondition, resolveRefs } from "./resolve-refs.js";
 
 const DOCUMENT_PAGE = "document";
 

@@ -20,6 +20,10 @@ export class Grant {
     // reads out of Mongo; everything else builds a Grant from a request or a
     // grant definition, where omitting the block means it has none.
     entitlementTemplates = [],
+    // How a page built from this grant labels and fills its banner. Absent for
+    // a grant no admin page is configured for, which is every grant until one
+    // is written.
+    pages,
   }) {
     this.code = code;
     this.version = version;
@@ -34,6 +38,7 @@ export class Grant {
     this.entitlementTemplates = entitlementTemplates.map(
       (template) => new EntitlementTemplate(template),
     );
+    this.pages = pages;
 
     this.#assertEntitlementTemplateClaimCodesUnique();
     this.#assertEntitlementTemplatePositionsExist();

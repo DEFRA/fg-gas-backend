@@ -1,37 +1,85 @@
+import Boom from "@hapi/boom";
+import { logger } from "../../common/logger.js";
+import {
+  resolveRefs,
+  UnresolvedReferenceError,
+} from "../../common/resolve-refs.js";
 import { toApplicationContext } from "./application-context.js";
 
-// A field an application has no value for is left out rather than shown empty.
-const field = (label, text, type = "string") =>
-  text == null ? undefined : { label, text, type };
+const renderableTypes = new Set(["string", "number", "boolean"]);
 
-const withoutEmpty = (summary) =>
-  Object.fromEntries(
-    Object.entries(summary).filter(([, entry]) => entry !== undefined),
+const isRenderable = (text) =>
+  text instanceof Date || renderableTypes.has(typeof text);
+
+const drop = (name, reason) => {
+  logger.warn({ field: name, ...reason }, `Banner field "${name}" was dropped`);
+
+  return undefined;
+};
+
+const requireRenderable = (text, field, name) => {
+  if (isRenderable(text)) {
+    return { ...field, text };
+  }
+
+  throw Boom.badImplementation(
+    `Banner field "${name}" reference "${field.text}" resolves to ${Array.isArray(text) ? "an array" : "an object"}`,
+  );
+};
+
+// Answers vary from grant to grant so nulls can happen.
+// anything else, a definition pointing to something that doesnt exist and will not
+// parse, is wrong. Raise so it can be fixed/debugged.
+const resolveText = async (field, context, name) => {
+  let text;
+
+  try {
+    text = await resolveRefs(field.text, { context });
+  } catch (err) {
+    if (err instanceof UnresolvedReferenceError) {
+      return drop(name, { err });
+    }
+
+    throw err;
+  }
+
+  if (text === null) {
+    return drop(name, { resolved: "null" });
+  }
+
+  return requireRenderable(text, field, name);
+};
+
+const resolveSummary = async (summary, context) => {
+  const entries = await Promise.all(
+    Object.entries(summary ?? {}).map(async ([name, field]) => [
+      name,
+      await resolveText(field, context, name),
+    ]),
   );
 
-const businessName = (answers) => answers.applicant?.business?.name;
+  return Object.fromEntries(entries.filter(([, field]) => field !== undefined));
+};
 
-const withTitle = (name) =>
-  name ? { title: { text: name, type: "string" } } : {};
+const findBanner = (grant, page) => grant.pages?.[page]?.details?.banner;
+
+const withTitle = (title) => (title ? { title } : {});
 
 /**
- * The header the claims page is topped with.
- *
- * These fields are the ones the story asks for, chosen here rather than by the
- * grant. A following change moves that choice into the grant definition, so a
- * scheme can say what its own header shows. This stands in until then, and it
- * answers with the shape config will produce afterwards, so the frontend does
- * not change when the source does.
+ * Grants with no banner are not configured for this page - 404 rather than leaving a
+ * broken page for case worker.
  */
-export const buildBanner = ({ grant, application }) => {
-  const { clientRef, identifiers, answers } = toApplicationContext(application);
+export const buildBanner = async ({ grant, application, page }) => {
+  const banner = findBanner(grant, page);
+
+  if (!banner) {
+    throw Boom.notFound(`Grant "${grant.code}" configures no "${page}" page`);
+  }
+
+  const context = toApplicationContext(application);
 
   return {
-    ...withTitle(businessName(answers)),
-    summary: withoutEmpty({
-      scheme: field("Scheme", grant.metadata?.description),
-      applicationId: field("Application ID", clientRef),
-      sbi: field("SBI", identifiers.sbi),
-    }),
+    ...withTitle(await resolveText(banner.title, context, "title")),
+    summary: await resolveSummary(banner.summary, context),
   };
 };

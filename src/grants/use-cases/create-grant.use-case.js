@@ -20,6 +20,7 @@ export const createGrantUseCase = async (createGrantCommand) => {
     phases: createGrantCommand.phases,
     externalStatusMap: createGrantCommand.externalStatusMap,
     entitlementTemplates: createGrantCommand.entitlementTemplates,
+    pages: createGrantCommand.pages,
   });
 
   await save(grant);

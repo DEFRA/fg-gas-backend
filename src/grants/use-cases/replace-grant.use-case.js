@@ -37,6 +37,7 @@ export const replaceGrant = async ({ code, command }) => {
     externalStatusMap: command.externalStatusMap,
     amendablePositions: command.amendablePositions,
     entitlementTemplates: command.entitlementTemplates,
+    pages: command.pages,
   });
 
   await replace(grant);

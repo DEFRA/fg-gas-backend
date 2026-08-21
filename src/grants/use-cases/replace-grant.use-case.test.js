@@ -374,6 +374,89 @@ describe("replaceGrantUseCase", () => {
       }),
     );
   });
+
+  const phasesFor = () => [
+    {
+      code: "PRE_AWARD",
+      stages: [
+        {
+          code: "ASSESSMENT",
+          statuses: [{ code: "APPLICATION_RECEIVED", validFrom: [] }],
+        },
+      ],
+    },
+  ];
+
+  const pages = {
+    claims: {
+      details: {
+        banner: {
+          title: { text: "$.answers.applicant.business.name", type: "string" },
+          summary: {
+            sbi: { label: "SBI", text: "$.identifiers.sbi", type: "string" },
+          },
+        },
+      },
+    },
+  };
+
+  const existingGrantWithPages = () =>
+    new Grant({
+      code: "test-grant",
+      version: "0.0.0",
+      metadata: {
+        description: "Test Grant Description",
+        startDate: "2023-01-01T00:00:00Z",
+      },
+      actions: [],
+      phases: phasesFor(),
+      pages,
+    });
+
+  it("carries the pages a replacement configures", async () => {
+    writeAuditEvent.mockResolvedValue(true);
+    findByCode.mockResolvedValue(existingGrantWithPages());
+
+    await replaceGrantUseCase({
+      code: "test-grant",
+      command: {
+        code: "test-grant",
+        metadata: {
+          description: "Updated Test Grant Description",
+          startDate: "2023-01-02T00:00:00Z",
+        },
+        actions: [],
+        phases: phasesFor(),
+        pages,
+      },
+    });
+
+    const [replacedGrant] = replace.mock.calls.at(-1);
+
+    expect(replacedGrant.pages).toEqual(pages);
+  });
+
+  it("clears pages when the replacement omits them", async () => {
+    writeAuditEvent.mockResolvedValue(true);
+    findByCode.mockResolvedValue(existingGrantWithPages());
+
+    await replaceGrantUseCase({
+      code: "test-grant",
+      command: {
+        code: "test-grant",
+        metadata: {
+          description: "Updated Test Grant Description",
+          startDate: "2023-01-02T00:00:00Z",
+        },
+        actions: [],
+        phases: phasesFor(),
+      },
+    });
+
+    const [replacedGrant] = replace.mock.calls.at(-1);
+
+    expect(replacedGrant.pages).toBeUndefined();
+  });
 });
 
 describe("replaceGrantAuditBuilder", () => {

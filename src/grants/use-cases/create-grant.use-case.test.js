@@ -193,4 +193,46 @@ describe("createGrantUseCase", () => {
     expect(save).toHaveBeenCalledWith(grant);
     expect(grant.entitlementTemplates).toEqual(entitlementTemplates);
   });
+
+  it("creates a grant with the pages it configures", async () => {
+    const pages = {
+      claims: {
+        details: {
+          banner: {
+            title: {
+              text: "$.answers.applicant.business.name",
+              type: "string",
+            },
+            summary: {
+              sbi: { label: "SBI", text: "$.identifiers.sbi", type: "string" },
+            },
+          },
+        },
+      },
+    };
+
+    const grant = await createGrantUseCase({
+      code: "test-grant",
+      metadata: {
+        description: "Test Grant Description",
+        startDate: "2023-01-01T00:00:00Z",
+      },
+      actions: [],
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "ASSESSMENT",
+              statuses: [{ code: "APPLICATION_RECEIVED", validFrom: [] }],
+            },
+          ],
+        },
+      ],
+      pages,
+    });
+
+    expect(save).toHaveBeenCalledWith(grant);
+    expect(grant.pages).toEqual(pages);
+  });
 });
