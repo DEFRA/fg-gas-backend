@@ -49,6 +49,11 @@ export const processConfigVersionUseCase = async (eventData) => {
     file: "agreement.json",
     required: false,
   });
+  const paymentS3Key = findS3KeyInManifest(manifest, {
+    dir: "gas",
+    file: "payment.json",
+    required: false,
+  });
 
   const configVersion = ConfigVersion.new({
     grantCode,
@@ -66,6 +71,15 @@ export const processConfigVersionUseCase = async (eventData) => {
       version,
       definitionType: "agreement",
       s3Key: agreementS3Key,
+    });
+  }
+
+  if (paymentS3Key) {
+    await updateDefinitionLocation({
+      grantCode,
+      version,
+      definitionType: "payment",
+      s3Key: paymentS3Key,
     });
   }
 

@@ -75,6 +75,52 @@ describe("processConfigVersionUseCase", () => {
     });
   });
 
+  it("should record an optional Payment definition", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/payment.json",
+      ],
+    });
+
+    expect(mockUpsertDefinitionLocation).toHaveBeenCalledWith({
+      grantCode: "woodland",
+      version: "1.2.3",
+      definitionType: "payment",
+      s3Key: "woodland/1.2.3/gas/payment.json",
+    });
+  });
+
+  it("should record Agreement and Payment definitions independently", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/agreement.json",
+        "woodland/1.2.3/gas/payment.json",
+      ],
+    });
+
+    expect(mockUpsertDefinitionLocation).toHaveBeenCalledTimes(2);
+    expect(mockUpsertDefinitionLocation).toHaveBeenCalledWith({
+      grantCode: "woodland",
+      version: "1.2.3",
+      definitionType: "agreement",
+      s3Key: "woodland/1.2.3/gas/agreement.json",
+    });
+    expect(mockUpsertDefinitionLocation).toHaveBeenCalledWith({
+      grantCode: "woodland",
+      version: "1.2.3",
+      definitionType: "payment",
+      s3Key: "woodland/1.2.3/gas/payment.json",
+    });
+  });
+
   it("should throw when status is missing", async () => {
     await expect(
       processConfigVersionUseCase({
