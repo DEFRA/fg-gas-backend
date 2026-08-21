@@ -1,71 +1,17 @@
-import crypto from "node:crypto";
+import Jwt from "@hapi/jwt";
 
-// FGP-1307: minimal HS256 caller-token verifier. GAS has no JWT library and
-// this is deliberately dependency-free. It verifies the signature and expiry of
-// the caller token forwarded by Agreements UI, and reports (but does not
-// enforce) audience/issuer/subject claims so verification can run in a
-// backwards-compatible ("warn-only") mode until enforcement lands.
+// FGP-1307: caller-token verifier built on @hapi/jwt (the same JWT library the
+// other farming-grants services use) rather than a hand-rolled implementation.
+// Token parsing and HS256 signature verification are delegated to the library;
+// on top of that we apply GAS's warn-only claim policy: expiry is enforced,
+// while audience/issuer/subject mismatches are reported as warnings (not
+// rejected) so verification can run in a backwards-compatible mode until
+// enforcement lands.
 
-const JWT_SEGMENT_COUNT = 3;
+const ALGORITHMS = ["HS256"];
 
-const decodeSegment = (segment) => {
-  const padLength = segment.length % 4 === 0 ? 0 : 4 - (segment.length % 4);
-  const base64 =
-    segment.replaceAll("-", "+").replaceAll("_", "/") + "=".repeat(padLength);
-  return Buffer.from(base64, "base64");
-};
-
-const parseJson = (segment) => {
-  try {
-    return JSON.parse(decodeSegment(segment).toString("utf8"));
-  } catch {
-    return null;
-  }
-};
-
-const signaturesMatch = (expected, provided) =>
-  expected.length === provided.length &&
-  crypto.timingSafeEqual(expected, provided);
-
-// eslint-disable-next-line complexity
-const decodeToken = (token) => {
-  if (
-    typeof token !== "string" ||
-    token.split(".").length !== JWT_SEGMENT_COUNT
-  ) {
-    return { reason: "malformed" };
-  }
-
-  const [headerB64, payloadB64, signatureB64] = token.split(".");
-  const header = parseJson(headerB64);
-  const payload = parseJson(payloadB64);
-
-  if (!header || !payload) {
-    return { reason: "malformed" };
-  }
-
-  return { header, payload, headerB64, payloadB64, signatureB64 };
-};
-
-const checkSignature = (
-  { header, headerB64, payloadB64, signatureB64 },
-  secret,
-) => {
-  if (header.alg !== "HS256") {
-    return "unsupported-alg";
-  }
-
-  const expectedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(`${headerB64}.${payloadB64}`)
-    .digest();
-
-  if (!signaturesMatch(expectedSignature, decodeSegment(signatureB64))) {
-    return "bad-signature";
-  }
-
-  return null;
-};
+const mapSignatureError = (message) =>
+  message === "Unsupported algorithm" ? "unsupported-alg" : "bad-signature";
 
 // eslint-disable-next-line complexity
 const collectClaimWarnings = (payload, audience) => {
@@ -85,7 +31,7 @@ const collectClaimWarnings = (payload, audience) => {
 };
 
 /**
- * Verify a forwarded caller JWT (HS256).
+ * Verify a forwarded caller JWT (HS256) using @hapi/jwt.
  * @param {string} token - The raw JWT from the x-encrypted-auth header.
  * @param {string} secret - The shared HS256 secret.
  * @param {{ audience?: string, nowSec?: number }} [options]
@@ -99,21 +45,27 @@ export const verifyCallerToken = (token, secret, options = {}) => {
     return { verified: false, reason: "no-secret" };
   }
 
-  const decoded = decodeToken(token);
-  if (decoded.reason) {
-    return { verified: false, reason: decoded.reason };
+  let artifacts;
+  try {
+    artifacts = Jwt.token.decode(token);
+  } catch {
+    return { verified: false, reason: "malformed" };
   }
 
-  const signatureError = checkSignature(decoded, secret);
-  if (signatureError) {
+  try {
+    Jwt.token.verifySignature(artifacts, {
+      key: secret,
+      algorithms: ALGORITHMS,
+    });
+  } catch (error) {
     return {
       verified: false,
-      reason: signatureError,
-      payload: decoded.payload,
+      reason: mapSignatureError(error.message),
+      payload: artifacts.decoded?.payload,
     };
   }
 
-  const { payload } = decoded;
+  const payload = artifacts.decoded?.payload ?? {};
   if (typeof payload.exp === "number" && payload.exp <= nowSec) {
     return { verified: false, reason: "expired", payload };
   }
