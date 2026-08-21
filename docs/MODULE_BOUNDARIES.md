@@ -40,6 +40,8 @@ Some collaborations cannot use an event, command or HTTP seam, because a shared 
 
 The ESLint zone lists this single exception explicitly, so adding another is a deliberate, reviewed change.
 
+Agreements passes the Agreement Definition's **resolved** config version, so Payments loads its definition at that exact version with no fallback of its own. Do not add fallback to the Payment Definition loader: it would let an Agreement at one version pair with a Payment Definition at another. See `CONTEXT.md`.
+
 ### Commit Operations
 
 A **Commit Operation** is an opaque handle the staging module returns and the calling module runs inside its own transaction. Agreements never inspects one:

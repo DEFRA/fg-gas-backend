@@ -32,6 +32,15 @@ business fields of a Payment. Owned by Payments; Agreements neither loads nor
 interprets it. IDs, source identity, claim and invoice numbering, statuses and
 timestamps stay code-owned and cannot be configured.
 
+Resolved at the **exact** Config Version, never with fallback — unlike an
+Agreement Definition, which falls back to older usable versions. This is
+deliberate: `compileDefinition` passes the Agreement Definition's _resolved_
+version to Payments, so an Agreement Definition that falls back from 1.2.0 to
+1.1.0 requests its Payment Definition at 1.1.0 exactly, and the pair always
+resolves at one version. Independent fallback could pair an Agreement at one
+version with a Payment Definition at another and produce a Payment from
+mismatched mappings.
+
 **Mapping** — a value in a definition resolved against context at runtime:
 a literal, a reference (`$.agreement.totalAmountPence`, `@.dueDate` inside a
 collection), or a `jsonata:` expression. A **collection mapping**
