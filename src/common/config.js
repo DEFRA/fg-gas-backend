@@ -50,6 +50,7 @@ const schema = Joi.object({
   GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: Joi.string().optional(),
   VIEW_AGREEMENT_URI: Joi.string().uri().required(),
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
+  AGREEMENTS_JWT_SECRET: Joi.string().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -123,5 +124,12 @@ export const config = {
   },
   configBroker: {
     s3Bucket: vars.CONFIG_BROKER_S3_BUCKET,
+  },
+  // FGP-1307: shared secret used to verify the caller token forwarded by
+  // Agreements UI. Audience is "gas" for now (the interim token also carries
+  // "agreements-ui"); this moves to token exchange / per-issuer keys later.
+  callerToken: {
+    secret: vars.AGREEMENTS_JWT_SECRET,
+    audience: "gas",
   },
 };

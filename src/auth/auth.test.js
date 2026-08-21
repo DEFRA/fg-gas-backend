@@ -102,4 +102,29 @@ describe("auth plugin", () => {
 
     expect(res.statusCode).toBe(401);
   });
+
+  it("still authenticates when a caller token is forwarded (FGP-1307, warn-only)", async () => {
+    const server = await createServer();
+    server.route({
+      method: "GET",
+      path: "/secure",
+      handler: (request) => ({ callerToken: request.app.callerToken }),
+    });
+
+    await server.initialize();
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/secure",
+      headers: {
+        authorization: "Bearer good",
+        "x-encrypted-auth": "eyJ.forwarded.caller-token",
+      },
+    });
+
+    // Verification is warn-only: a bad/unverifiable caller token must not break
+    // the request while the rollout is in progress.
+    expect(res.statusCode).toBe(200);
+    expect(res.result.callerToken.verified).toBe(false);
+  });
 });

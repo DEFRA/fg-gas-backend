@@ -1,6 +1,11 @@
 import Boom from "@hapi/boom";
 import crypto from "node:crypto";
 import { db } from "../common/mongo-client.js";
+import { config } from "../common/config.js";
+import { logger } from "../common/logger.js";
+import { verifyCallerToken } from "./caller-token.js";
+
+const CALLER_TOKEN_HEADER = "x-encrypted-auth";
 
 const hashToken = (raw) => {
   return crypto.createHash("sha256").update(raw, "utf8").digest("hex");
@@ -49,11 +54,53 @@ const registerServiceAuth = async (server) => {
   server.auth.default("service"); // Apply this strategy by default - `/health` and `/documentation` are opted out
 };
 
+// FGP-1307: GAS verifies the caller token forwarded by Agreements UI itself,
+// rather than trusting the unsigned x-agreement-* identity headers. This runs
+// in a backwards-compatible ("warn-only") mode: results are logged but not
+// enforced, and the x-agreement-* headers are still honoured for now.
+const registerCallerTokenVerification = (server) => {
+  server.ext("onPostAuth", (request, h) => {
+    const token = request.headers[CALLER_TOKEN_HEADER];
+
+    // TODO (FGP-1307): once every caller forwards the caller token, require it
+    // here and stop trusting the unsigned x-agreement-* headers for identity.
+    if (!token) {
+      return h.continue;
+    }
+
+    const result = verifyCallerToken(token, config.callerToken.secret, {
+      audience: config.callerToken.audience,
+    });
+
+    request.app.callerToken = result;
+
+    if (!result.verified) {
+      logger.warn(
+        { reason: result.reason, path: request.path },
+        "Caller token failed verification (FGP-1307); accepted for now",
+      );
+    } else if (result.warnings.length > 0) {
+      logger.warn(
+        { warnings: result.warnings, path: request.path },
+        "Caller token verified with claim warnings (FGP-1307)",
+      );
+    } else {
+      logger.info(
+        { iss: result.payload.iss },
+        "Caller token verified (FGP-1307)",
+      );
+    }
+
+    return h.continue;
+  });
+};
+
 export const auth = {
   plugin: {
     name: "auth",
     register: async (server) => {
       await registerServiceAuth(server);
+      registerCallerTokenVerification(server);
     },
   },
 };
