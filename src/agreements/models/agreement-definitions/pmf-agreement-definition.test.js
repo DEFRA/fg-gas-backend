@@ -68,18 +68,34 @@ describe("PMF Agreement definition", () => {
   it("stages acceptance from stored values without calling an endpoint", async () => {
     const callEndpoint = vi.fn();
     const resolvePaymentConfiguration = vi.fn().mockResolvedValue({
+      sbi: "300000069",
+      frn: "1101234567",
       scheme: "SFI",
       sourceSystem: "FPTT",
       deliveryBody: "RP00",
       fesCode: "FALS_FPTT",
+      originalInvoiceNumber: "",
       ledger: "AP",
+      totalAmountPence: 5000,
       currency: "GBP",
       marketingYear: "2027",
-      invoiceLine: {
-        schemeCode: "CMOR1",
-        accountCode: "SOS710",
-        fundCode: "DRD10",
-      },
+      payments: [
+        {
+          dueDate: "2026-11-06",
+          totalAmountPence: 5000,
+          invoiceLines: [
+            {
+              schemeCode: "CMOR1",
+              description: "Large White Pig",
+              amountPence: 5000,
+              accountCode: "SOS710",
+              fundCode: "DRD10",
+              deliveryBody: "RP00",
+              marketingYear: "2027",
+            },
+          ],
+        },
+      ],
     });
     const definition = new AgreementDefinition(pmfAgreementDefinition, {
       callEndpoint,
@@ -150,15 +166,11 @@ describe("PMF Agreement definition", () => {
     expect(result.commitOperations).toEqual([
       expect.objectContaining({
         type: "create-agreement-payment",
-        request: expect.objectContaining({
-          agreementValues: expect.objectContaining({
-            actions: agreement.actions,
-            paymentSchedule: agreement.paymentSchedule,
-          }),
+        request: {
           paymentConfiguration: expect.objectContaining({
             marketingYear: "2027",
           }),
-        }),
+        },
       }),
     ]);
   });

@@ -90,20 +90,37 @@ const agreement = new Agreement({
   updatedAt: "2026-08-01T10:00:00.000Z",
 });
 
-const mapping = {
+const toPaymentConfiguration = (values) => ({
+  sbi: agreement.identifiers.sbi,
+  frn: agreement.identifiers.frn,
   scheme: "SFI",
   sourceSystem: "FPTT",
   deliveryBody: "RP00",
   fesCode: "FALS_FPTT",
+  originalInvoiceNumber: "",
   ledger: "AP",
+  totalAmountPence: values.totalAmountPence,
   currency: "GBP",
   marketingYear: "2026",
-  invoiceLine: {
-    schemeCode: "CMOR1",
-    accountCode: "SOS710",
-    fundCode: "DRD10",
-  },
-};
+  payments: values.paymentSchedule.instalments.map((instalment) => ({
+    dueDate: instalment.dueDate,
+    totalAmountPence: instalment.totalAmountPence,
+    invoiceLines: instalment.lineItems.map((line) => {
+      const entry = values.actions.find(({ id }) => id === line.actionId);
+      return {
+        schemeCode: "CMOR1",
+        description: line.description ?? entry?.description,
+        amountPence: line.amountPence,
+        accountCode: "SOS710",
+        fundCode: "DRD10",
+        deliveryBody: "RP00",
+        marketingYear: "2026",
+      };
+    }),
+  })),
+});
+
+const mapping = toPaymentConfiguration(agreement);
 
 const action = {
   validate: vi.fn().mockReturnValue({ valid: true }),
@@ -134,17 +151,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       commitOperations: [
         {
           type: "create-agreement-payment",
-          request: {
-            agreementValues: {
-              startDate: agreement.startDate,
-              endDate: agreement.endDate,
-              actions: agreement.actions,
-              items: agreement.items,
-              totalAmountPence: agreement.totalAmountPence,
-              paymentSchedule: agreement.paymentSchedule,
-            },
-            paymentConfiguration: mapping,
-          },
+          request: { paymentConfiguration: mapping },
         },
       ],
     });
@@ -271,22 +278,13 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       totalAmountPence: 4000,
       paymentSchedule,
     };
-    const paymentValues = {
-      startDate: agreementValues.startDate,
-      endDate: agreementValues.endDate,
-      actions,
-      items: [],
-      totalAmountPence: 4000,
-      paymentSchedule,
-    };
     agreementDefinition.executeAction.mockResolvedValue({
       agreement: transitionAgreement(agreementValues),
       commitOperations: [
         {
           type: "create-agreement-payment",
           request: {
-            agreementValues: paymentValues,
-            paymentConfiguration: mapping,
+            paymentConfiguration: toPaymentConfiguration(agreementValues),
           },
         },
       ],
@@ -457,17 +455,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       commitOperations: [
         {
           type: "create-agreement-payment",
-          request: {
-            agreementValues: {
-              startDate: agreement.startDate,
-              endDate: agreement.endDate,
-              actions: agreement.actions,
-              items: agreement.items,
-              totalAmountPence: agreement.totalAmountPence,
-              paymentSchedule: agreement.paymentSchedule,
-            },
-            paymentConfiguration: undefined,
-          },
+          request: { paymentConfiguration: undefined },
         },
       ],
     });
@@ -480,27 +468,15 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
-  it("leaves the Agreement offered when invoice-line metadata cannot be resolved", async () => {
-    const actions = agreement.actions.map(({ description, ...entry }) => entry);
+  it("leaves the Agreement offered when resolved Payment fields are invalid", async () => {
     const paymentConfiguration = structuredClone(mapping);
-    delete paymentConfiguration.invoiceLine.schemeCode;
-    const paymentValues = {
-      startDate: agreement.startDate,
-      endDate: agreement.endDate,
-      actions,
-      items: agreement.items,
-      totalAmountPence: agreement.totalAmountPence,
-      paymentSchedule: agreement.paymentSchedule,
-    };
+    delete paymentConfiguration.payments[0].invoiceLines[0].description;
     agreementDefinition.executeAction.mockResolvedValue({
-      agreement: transitionAgreement({
-        application: agreement.application,
-        ...paymentValues,
-      }),
+      agreement: transitionAgreement(),
       commitOperations: [
         {
           type: "create-agreement-payment",
-          request: { agreementValues: paymentValues, paymentConfiguration },
+          request: { paymentConfiguration },
         },
       ],
     });
@@ -512,26 +488,14 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
-  it("leaves the Agreement offered when the stored Payment facts do not balance", async () => {
-    const paymentValues = {
-      startDate: agreement.startDate,
-      endDate: agreement.endDate,
-      actions: agreement.actions,
-      items: agreement.items,
-      totalAmountPence: 1,
-      paymentSchedule: agreement.paymentSchedule,
-    };
+  it("leaves the Agreement offered when resolved Payment facts do not balance", async () => {
     agreementDefinition.executeAction.mockResolvedValue({
-      agreement: transitionAgreement({
-        application: agreement.application,
-        ...paymentValues,
-      }),
+      agreement: transitionAgreement(),
       commitOperations: [
         {
           type: "create-agreement-payment",
           request: {
-            agreementValues: paymentValues,
-            paymentConfiguration: mapping,
+            paymentConfiguration: { ...mapping, totalAmountPence: 1 },
           },
         },
       ],

@@ -1,5 +1,4 @@
 import Boom from "@hapi/boom";
-import Joi from "joi";
 import { randomUUID } from "node:crypto";
 import {
   DuePaymentStatus,
@@ -9,13 +8,6 @@ import {
 import { formatInvoiceNumber } from "../services/claim-id.js";
 
 const PAYMENT_REQUEST_NUMBER = 1;
-
-const paymentScheduleLineItemSchema = Joi.object({
-  actionId: Joi.string().optional(),
-  itemId: Joi.string().optional(),
-  amountPence: Joi.number().integer().strict().required(),
-  description: Joi.string().optional(),
-}).xor("actionId", "itemId");
 
 const requirePaymentConfiguration = (paymentConfiguration) => {
   if (!paymentConfiguration) {
@@ -37,131 +29,37 @@ const requireAgreementCorrelationId = (agreementCorrelationId) => {
   return agreementCorrelationId;
 };
 
-const requireInstalments = (agreementValues) => {
-  const instalments = agreementValues?.paymentSchedule?.instalments;
-
-  if (!instalments) {
-    throw Boom.badImplementation(
-      "createPayment requires a stored Agreement Payment Schedule",
-    );
-  }
-
-  return instalments;
-};
-
-const findFundedEntry = (lineItem, agreementValues) => {
-  const entries = lineItem.actionId
-    ? agreementValues.actions
-    : agreementValues.items;
-  const id = lineItem.actionId ?? lineItem.itemId;
-  const entry = entries.find((candidate) => candidate.id === id);
-
-  if (!entry) {
-    throw Boom.badImplementation(
-      `Scheduled Line Item references unknown Agreement entry "${id}"`,
-    );
-  }
-
-  return entry;
-};
-
-const validateScheduleLineItem = (lineItem) => {
-  const { error, value } = paymentScheduleLineItemSchema.validate(lineItem, {
-    abortEarly: false,
-    allowUnknown: false,
-    convert: false,
-  });
-
-  if (error) {
-    throw Boom.badRequest(
-      `Invalid Payment Schedule Line Item: ${error.message}`,
-    );
-  }
-
-  return value;
-};
-
-const toInvoiceLine = (candidate, context) => {
-  const lineItem = validateScheduleLineItem(candidate);
-  const entry = findFundedEntry(lineItem, context.agreementValues);
-  const { invoiceLine } = context.paymentConfiguration;
-
-  // Configured scheme codes and descriptions are fixed grant policy.
-  // Otherwise the Agreement entry and its scheduled line supply them; all
-  // accounting fields remain behind Payment configuration.
-  return {
-    schemeCode: invoiceLine.schemeCode ?? entry.code,
-    description:
-      invoiceLine.description ?? lineItem.description ?? entry.description,
-    amountPence: lineItem.amountPence,
-    accountCode: invoiceLine.accountCode,
-    fundCode: invoiceLine.fundCode,
-    deliveryBody: context.paymentConfiguration.deliveryBody,
-    marketingYear: context.paymentConfiguration.marketingYear,
-  };
-};
-
-const toDuePayment = (instalment, context) => ({
-  dueDate: instalment.dueDate,
-  totalAmountPence: instalment.totalAmountPence,
+const addPlatformFields = (payment) => ({
+  ...payment,
   status: DuePaymentStatus.PENDING,
-  correlationId: instalment.correlationId ?? randomUUID(),
-  invoiceLines: instalment.lineItems.map((lineItem) =>
-    toInvoiceLine(lineItem, context),
-  ),
+  correlationId: randomUUID(),
 });
 
-/**
- * Builds the immutable Payment projection for an accepted Agreement Version.
- *
- * Agreement values supply the promised schedule, contextual line descriptions
- * and referenced funded entries. The Agreement Definition supplies fixed-code
- * policy and accounting values. Code owns identifiers, statuses and invoice
- * numbering, while preserving a supplied due-payment correlation ID.
- */
 export const buildPayment = ({
   agreementNumber,
   version,
-  sbi,
-  frn,
   agreementCorrelationId,
-  agreementValues,
   paymentConfiguration,
   paymentHubClaimId,
   createdAt,
 }) => {
   const configuration = requirePaymentConfiguration(paymentConfiguration);
-  const correlationId = requireAgreementCorrelationId(agreementCorrelationId);
-  const instalments = requireInstalments(agreementValues);
-  const context = { agreementValues, paymentConfiguration: configuration };
 
   return Payment.create({
+    ...configuration,
     source: {
       type: PaymentSourceType.AGREEMENT,
       agreementNumber,
       version,
     },
-    sbi,
-    frn,
     paymentHubClaimId,
-    correlationId,
-    scheme: configuration.scheme,
-    sourceSystem: configuration.sourceSystem,
-    deliveryBody: configuration.deliveryBody,
-    fesCode: configuration.fesCode,
     paymentRequestNumber: PAYMENT_REQUEST_NUMBER,
+    correlationId: requireAgreementCorrelationId(agreementCorrelationId),
     invoiceNumber: formatInvoiceNumber(
       paymentHubClaimId,
       PAYMENT_REQUEST_NUMBER,
     ),
-    originalInvoiceNumber: "",
-    ledger: configuration.ledger,
-    totalAmountPence: agreementValues.totalAmountPence,
-    currency: configuration.currency,
-    marketingYear: configuration.marketingYear,
-    payments: instalments.map((instalment) =>
-      toDuePayment(instalment, context),
-    ),
+    payments: configuration.payments.map(addPlatformFields),
     createdAt,
   });
 };

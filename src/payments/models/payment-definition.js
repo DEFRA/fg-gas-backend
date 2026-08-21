@@ -4,24 +4,57 @@ import {
   resolveProcessMapping,
   validateProcessMapping,
 } from "../../common/resolve-process-mapping.js";
+import { paymentBusinessFieldsSchema } from "./payment.js";
 
-const configurationSchema = Joi.object({
-  scheme: Joi.string().required(),
-  sourceSystem: Joi.string().required(),
-  deliveryBody: Joi.string().required(),
-  fesCode: Joi.string().required(),
-  ledger: Joi.string().required(),
-  currency: Joi.string().required(),
-  marketingYear: Joi.string().required(),
-  invoiceLine: Joi.object({
-    schemeCode: Joi.string().optional(),
-    description: Joi.string().optional(),
-    accountCode: Joi.string().required(),
-    fundCode: Joi.string().required(),
-  }).required(),
+const mappedString = Joi.string().required();
+const mappedInteger = Joi.alternatives()
+  .try(Joi.number().integer().strict(), Joi.string())
+  .required();
+
+const mappedCollection = (itemSchema) =>
+  Joi.alternatives()
+    .try(
+      Joi.string(),
+      Joi.array().items(itemSchema).min(1),
+      Joi.object({
+        itemsRef: Joi.string().required(),
+        items: itemSchema.required(),
+      }),
+    )
+    .required();
+
+const invoiceLineMappingSchema = Joi.object({
+  schemeCode: mappedString,
+  description: mappedString,
+  amountPence: mappedInteger,
+  accountCode: mappedString,
+  fundCode: mappedString,
+  deliveryBody: mappedString,
+  marketingYear: mappedString,
+});
+
+const duePaymentMappingSchema = Joi.object({
+  dueDate: mappedString,
+  totalAmountPence: mappedInteger,
+  invoiceLines: mappedCollection(invoiceLineMappingSchema),
+});
+
+const configurationMappingSchema = Joi.object({
+  sbi: mappedString,
+  frn: mappedString,
+  scheme: mappedString,
+  sourceSystem: mappedString,
+  deliveryBody: mappedString,
+  fesCode: mappedString,
+  originalInvoiceNumber: Joi.string().allow("").required(),
+  ledger: mappedString,
+  totalAmountPence: mappedInteger,
+  currency: mappedString,
+  marketingYear: mappedString,
+  payments: mappedCollection(duePaymentMappingSchema),
 }).required();
 
-const definitionSchema = configurationSchema.keys({
+const definitionSchema = configurationMappingSchema.keys({
   code: Joi.string().required(),
   configVersion: Joi.forbidden(),
 });
@@ -47,8 +80,8 @@ export class PaymentDefinition {
     const { code: _code, ...configuration } = value;
     try {
       validateProcessMapping(configuration);
-    } catch (error) {
-      throw invalid(code, error.message);
+    } catch (mappingError) {
+      throw invalid(code, mappingError.message);
     }
 
     this.code = code;
@@ -58,7 +91,7 @@ export class PaymentDefinition {
 
   async resolve(context) {
     const resolved = await resolveProcessMapping(this.configuration, context);
-    const { error, value } = configurationSchema.validate(resolved, {
+    const { error, value } = paymentBusinessFieldsSchema.validate(resolved, {
       abortEarly: false,
       allowUnknown: false,
       convert: false,

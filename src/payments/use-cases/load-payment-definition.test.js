@@ -18,18 +18,34 @@ vi.mock("../../common/logger.js", () => ({
 
 const rawDefinition = {
   code: "pigs-might-fly",
+  sbi: "106284736",
+  frn: "1101234567",
   scheme: "SFI",
   sourceSystem: "FPTT",
   deliveryBody: "RP00",
   fesCode: "FALS_FPTT",
+  originalInvoiceNumber: "",
   ledger: "AP",
+  totalAmountPence: 3800,
   currency: "GBP",
   marketingYear: "jsonata:$substring($.execution.executedAt, 0, 4)",
-  invoiceLine: {
-    schemeCode: "CMOR1",
-    accountCode: "SOS710",
-    fundCode: "DRD10",
-  },
+  payments: [
+    {
+      dueDate: "2026-11-06",
+      totalAmountPence: 3800,
+      invoiceLines: [
+        {
+          schemeCode: "CMOR1",
+          description: "Large White Pig",
+          amountPence: 3800,
+          accountCode: "SOS710",
+          fundCode: "DRD10",
+          deliveryBody: "RP00",
+          marketingYear: "jsonata:$substring($.execution.executedAt, 0, 4)",
+        },
+      ],
+    },
+  ],
 };
 
 const target = {

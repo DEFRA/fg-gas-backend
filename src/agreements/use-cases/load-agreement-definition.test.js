@@ -44,6 +44,38 @@ const validDefinition = {
   },
 };
 
+const validPaymentDefinition = {
+  code: "test-code",
+  sbi: "106284736",
+  frn: "1101234567",
+  scheme: "SFI",
+  sourceSystem: "FPTT",
+  deliveryBody: "RP00",
+  fesCode: "FALS_FPTT",
+  originalInvoiceNumber: "",
+  ledger: "AP",
+  totalAmountPence: 100,
+  currency: "GBP",
+  marketingYear: "2026",
+  payments: [
+    {
+      dueDate: "2026-11-06",
+      totalAmountPence: 100,
+      invoiceLines: [
+        {
+          schemeCode: "CMOR1",
+          description: "Test payment",
+          amountPence: 100,
+          accountCode: "SOS710",
+          fundCode: "DRD10",
+          deliveryBody: "RP00",
+          marketingYear: "2026",
+        },
+      ],
+    },
+  ],
+};
+
 const definitionWithUnconfiguredEndpoint = {
   ...validDefinition,
   endpoints: [
@@ -115,20 +147,7 @@ describe("loadAgreementDefinition", () => {
           CREATE_AGREEMENT_PAYMENT: { type: "handler" },
         },
       })
-      .mockResolvedValueOnce({
-        code: "test-code",
-        scheme: "SFI",
-        sourceSystem: "FPTT",
-        deliveryBody: "RP00",
-        fesCode: "FALS_FPTT",
-        ledger: "AP",
-        currency: "GBP",
-        marketingYear: "jsonata:$substring($.execution.executedAt, 0, 4)",
-        invoiceLine: {
-          accountCode: "SOS710",
-          fundCode: "DRD10",
-        },
-      });
+      .mockResolvedValueOnce(validPaymentDefinition);
 
     await loadAgreementDefinition({
       code: "test-code",

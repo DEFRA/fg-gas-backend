@@ -21,15 +21,7 @@ import { buildPayment } from "./build-payment.js";
  * builds the message but never owns the outbox.
  */
 export const createAgreementPaymentUseCase = async (
-  {
-    agreementNumber,
-    version,
-    sbi,
-    frn,
-    agreementCorrelationId,
-    agreementValues,
-    paymentConfiguration,
-  },
+  { agreementNumber, version, agreementCorrelationId, paymentConfiguration },
   session,
 ) => {
   const sequence = await allocateNextSequence(ClaimIdCounter, session);
@@ -37,10 +29,7 @@ export const createAgreementPaymentUseCase = async (
   const payment = buildPayment({
     agreementNumber,
     version,
-    sbi,
-    frn,
     agreementCorrelationId,
-    agreementValues,
     paymentConfiguration,
     paymentHubClaimId: formatClaimId(sequence),
   });

@@ -9,52 +9,39 @@ vi.mock("../repositories/counter.repository.js", async (importOriginal) => ({
 }));
 vi.mock("../repositories/payment.repository.js");
 
-const mapping = {
-  scheme: "SFI",
-  sourceSystem: "FPTT",
-  deliveryBody: "RP00",
-  fesCode: "FALS_FPTT",
-  ledger: "AP",
-  currency: "GBP",
-  invoiceLine: {
-    schemeCode: "CMOR1",
-    accountCode: "SOS710",
-    fundCode: "DRD10",
-  },
-};
-
-const agreementValues = {
-  actions: [
-    {
-      id: "action:1",
-      code: "largeWhite",
-      description: "Large White Pig",
-    },
-  ],
-  items: [],
-  totalAmountPence: 2000,
-  paymentSchedule: {
-    instalments: [
-      {
-        id: "instalment:1",
-        dueDate: "2026-11-06",
-        totalAmountPence: 2000,
-        lineItems: [{ actionId: "action:1", amountPence: 2000 }],
-      },
-    ],
-  },
-};
-
 const request = {
   agreementNumber: "PMF123456789",
   version: 2,
-  sbi: "106284736",
-  frn: "1101234567",
   agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",
-  agreementValues,
   paymentConfiguration: {
-    ...mapping,
+    sbi: "106284736",
+    frn: "1101234567",
+    scheme: "SFI",
+    sourceSystem: "FPTT",
+    deliveryBody: "RP00",
+    fesCode: "FALS_FPTT",
+    originalInvoiceNumber: "",
+    ledger: "AP",
+    totalAmountPence: 2000,
+    currency: "GBP",
     marketingYear: "2026",
+    payments: [
+      {
+        dueDate: "2026-11-06",
+        totalAmountPence: 2000,
+        invoiceLines: [
+          {
+            schemeCode: "CMOR1",
+            description: "Large White Pig",
+            amountPence: 2000,
+            accountCode: "SOS710",
+            fundCode: "DRD10",
+            deliveryBody: "RP00",
+            marketingYear: "2026",
+          },
+        ],
+      },
+    ],
   },
 };
 

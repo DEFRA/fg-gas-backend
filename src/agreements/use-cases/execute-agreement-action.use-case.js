@@ -100,8 +100,6 @@ const createAgreementPayment = async (
     {
       agreementNumber: agreement.agreementNumber,
       version: agreement.version,
-      sbi: agreement.identifiers?.sbi,
-      frn: agreement.identifiers?.frn,
       agreementCorrelationId: agreement.correlationId,
       ...paymentRequest,
     },
