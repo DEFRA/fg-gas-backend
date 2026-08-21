@@ -103,7 +103,7 @@ describe("createAgreementPaymentUseCase", () => {
         { ...request, paymentConfiguration: undefined },
         session,
       ),
-    ).rejects.toThrow("createPayment requires a compiled Payment definition");
+    ).rejects.toThrow("A Payment requires a resolved Payment Definition");
     expect(insertPayment).not.toHaveBeenCalled();
   });
 });

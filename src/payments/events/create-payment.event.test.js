@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // must preserve.
 import legacyCreatePaymentEvent from "../../../test/fixtures/legacy-create-payment-event.json";
 import { Payment } from "../models/payment.js";
-import { buildPayment } from "../use-cases/build-payment.js";
 import { createPaymentPublication } from "./create-payment.event.js";
 
 vi.mock("node:crypto", () => ({
@@ -124,7 +123,7 @@ describe("createPaymentPublication", () => {
         },
       ],
     };
-    const builtPayment = buildPayment({
+    const builtPayment = Payment.forAgreement({
       agreementNumber: "FPTT123456",
       version: 2,
       agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",

@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
 import { randomUUID } from "node:crypto";
+import { formatInvoiceNumber } from "./claim-id.js";
 
 const balancesWithInvoiceLines = (payments, helpers) => {
   const unbalanced = payments.find(
@@ -65,13 +66,41 @@ const deepFreeze = (value) => {
   return value;
 };
 
-export const PaymentSourceType = {
+const PaymentSourceType = {
   AGREEMENT: "agreement",
 };
 
-export const DuePaymentStatus = {
+const DuePaymentStatus = {
   PENDING: "pending",
 };
+
+const PAYMENT_REQUEST_NUMBER = 1;
+
+const requireConfiguration = (paymentConfiguration) => {
+  if (!paymentConfiguration) {
+    throw Boom.badImplementation(
+      "A Payment requires a resolved Payment Definition",
+    );
+  }
+
+  return paymentConfiguration;
+};
+
+const requireAgreementCorrelationId = (agreementCorrelationId) => {
+  if (!agreementCorrelationId) {
+    throw Boom.badImplementation(
+      "A Payment requires the Agreement Correlation ID",
+    );
+  }
+
+  return agreementCorrelationId;
+};
+
+const addPlatformFields = (duePayment) => ({
+  ...duePayment,
+  status: DuePaymentStatus.PENDING,
+  correlationId: randomUUID(),
+});
 
 /**
  * An immutable record of an amount owed against an accepted Agreement Version,
@@ -137,12 +166,43 @@ export class Payment {
     deepFreeze(this);
   }
 
-  static create({
-    id = randomUUID(),
-    correlationId = randomUUID(),
+  /**
+   * The only way to mint a Payment for an accepted Agreement Version.
+   *
+   * Takes the business fields a Payment Definition resolved and adds the fields
+   * that are code-owned and never configurable: identity, source, statuses,
+   * request and invoice numbering, correlation IDs and timestamps. Keeping that
+   * split here rather than in a caller means configuration cannot reach a
+   * platform field by any route.
+   */
+  static forAgreement({
+    agreementNumber,
+    version,
+    agreementCorrelationId,
+    paymentConfiguration,
+    paymentHubClaimId,
     createdAt = new Date().toISOString(),
-    ...props
+    id = randomUUID(),
   }) {
-    return new Payment({ ...props, id, correlationId, createdAt });
+    const configuration = requireConfiguration(paymentConfiguration);
+
+    return new Payment({
+      ...configuration,
+      id,
+      source: {
+        type: PaymentSourceType.AGREEMENT,
+        agreementNumber,
+        version,
+      },
+      paymentHubClaimId,
+      paymentRequestNumber: PAYMENT_REQUEST_NUMBER,
+      correlationId: requireAgreementCorrelationId(agreementCorrelationId),
+      invoiceNumber: formatInvoiceNumber(
+        paymentHubClaimId,
+        PAYMENT_REQUEST_NUMBER,
+      ),
+      payments: configuration.payments.map(addPlatformFields),
+      createdAt,
+    });
   }
 }

@@ -61,12 +61,8 @@ const findCompleted = async (
 };
 
 // A Commit Operation is an opaque handle staged by the module that owns what it
-// commits — Payments, today. It is handed the action's session and the facts
-// only known once the transition is materialised, so what it writes commits
-// with the Agreement, its Version and the lifecycle event, and rolls back
-// together when anything before the commit fails. It returns the outbox
-// publication to write alongside the rest, and the Claim ID the Agreement's own
-// lifecycle event carries.
+// commits, run inside this transaction so it rolls back with the Agreement. See
+// docs/MODULE_BOUNDARIES.md.
 //
 // Failures propagate unwrapped on purpose: a raced acceptance that beats the
 // optimistic version check surfaces as a duplicate key error on the Payment's

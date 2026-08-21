@@ -1,11 +1,11 @@
 import { createPaymentPublication } from "../events/create-payment.event.js";
+import { formatClaimId } from "../models/claim-id.js";
+import { Payment } from "../models/payment.js";
 import {
   allocateNextSequence,
   ClaimIdCounter,
 } from "../repositories/counter.repository.js";
 import { insertPayment } from "../repositories/payment.repository.js";
-import { formatClaimId } from "../services/claim-id.js";
-import { buildPayment } from "./build-payment.js";
 
 /**
  * Internal to Payments: the commit half of the Commit Operation staged by
@@ -28,7 +28,7 @@ export const createAgreementPaymentUseCase = async (
 ) => {
   const sequence = await allocateNextSequence(ClaimIdCounter, session);
 
-  const payment = buildPayment({
+  const payment = Payment.forAgreement({
     agreementNumber,
     version,
     agreementCorrelationId,
