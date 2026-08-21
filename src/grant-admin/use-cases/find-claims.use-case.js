@@ -48,11 +48,15 @@ export const findClaimsUseCase = async ({ code, clientRef }) => {
     `Entitlement templates available at position for ${clientRef}`,
   );
 
-  // The header the claims page is topped with. Built here because this endpoint
-  // serves that page: the admin frontend is handed values to render rather than
-  // the pieces to assemble them from.
+  // The header the claims page is topped with, as the grant configures it.
+  // Resolved here because this endpoint serves that page: the admin frontend is
+  // handed values to render, not a config to interpret. A grant that configures
+  // no claims page has none, and this refuses rather than serving a headless
+  // one.
+  const banner = await buildBanner({ grant, application, page: "claims" });
+
   return {
-    banner: buildBanner({ grant, application }),
+    banner,
     availableEntitlements,
     claimableEntitlements: [],
     claims: [],

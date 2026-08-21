@@ -42,6 +42,13 @@ const template = {
   },
 };
 
+const banner = {
+  title: { text: "Elmwood Land Co", type: "string" },
+  summary: {
+    sbi: { label: "SBI", text: "113598882", type: "string" },
+  },
+};
+
 const url = (code, clientRef) =>
   `/grant-admin/grants/${code}/applications/${clientRef}/claims`;
 
@@ -63,6 +70,7 @@ describe("getClaimsRoute", () => {
     const clientRef = "ref-1234";
 
     findClaimsUseCase.mockResolvedValue({
+      banner,
       availableEntitlements: [template],
       claimableEntitlements: [],
       claims: [],
@@ -79,6 +87,7 @@ describe("getClaimsRoute", () => {
       clientRef,
     });
     expect(result.result).toEqual({
+      banner,
       availableEntitlements: [template],
       claimableEntitlements: [],
       claims: [],
@@ -87,6 +96,7 @@ describe("getClaimsRoute", () => {
 
   it("returns empty lists when nothing is available", async () => {
     findClaimsUseCase.mockResolvedValue({
+      banner,
       availableEntitlements: [],
       claimableEntitlements: [],
       claims: [],
@@ -99,6 +109,7 @@ describe("getClaimsRoute", () => {
 
     expect(result.statusCode).toEqual(200);
     expect(result.result).toEqual({
+      banner,
       availableEntitlements: [],
       claimableEntitlements: [],
       claims: [],

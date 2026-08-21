@@ -37,9 +37,19 @@ const evaluate = async (expression, { context, row }) => {
   return compiled.evaluate(context);
 };
 
+// Distinguishable so a caller can tell a reference the data does not answer
+// from a definition that is wrong. Everything else out of here is the latter.
+export class UnresolvedReferenceError extends Error {
+  constructor(reference) {
+    super(`Unresolved reference "${reference}"`);
+    this.name = "UnresolvedReferenceError";
+    this.reference = reference;
+  }
+}
+
 const requireResolved = (resolved, reference) => {
   if (resolved === undefined) {
-    throw new Error(`Unresolved reference "${reference}"`);
+    throw new UnresolvedReferenceError(reference);
   }
 
   return resolved;
