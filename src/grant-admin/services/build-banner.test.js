@@ -135,10 +135,30 @@ describe("buildBanner", () => {
     });
   });
 
+  it("drops a field whose reference resolves to a null answer", async () => {
+    const { title, summary } = await build(
+      grantWith({
+        title: { text: "$.answers.woodlandName", type: "string" },
+        summary: {
+          woodland: {
+            label: "Woodland",
+            text: "$.answers.woodlandName",
+            type: "string",
+          },
+          sbi: { label: "SBI", text: "$.identifiers.sbi", type: "string" },
+        },
+      }),
+    );
+
+    expect(title).toBeUndefined();
+    expect(summary.woodland).toBeUndefined();
+    expect(summary.sbi.text).toBe("113598882");
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
   it.each([
     ["an object", "$.answers.applicant"],
     ["an array", "$.answers.landParcels"],
-    ["a null answer", "$.answers.woodlandName"],
   ])("raises a reference that resolves to %s", async (_, text) => {
     await expect(
       build(grantWith({ title: { text, type: "string" } })),

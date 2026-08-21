@@ -6,23 +6,15 @@ import {
 } from "../../common/resolve-refs.js";
 import { toApplicationContext } from "./application-context.js";
 
-const renderableTypes = ["string", "number", "boolean"];
+const renderableTypes = new Set(["string", "number", "boolean"]);
 
 const isRenderable = (text) =>
-  text instanceof Date || renderableTypes.includes(typeof text);
+  text instanceof Date || renderableTypes.has(typeof text);
 
 const drop = (name, reason) => {
   logger.warn({ field: name, ...reason }, `Banner field "${name}" was dropped`);
 
   return undefined;
-};
-
-const describeType = (text) => {
-  if (text === null) {
-    return "null";
-  }
-
-  return Array.isArray(text) ? "an array" : "an object";
 };
 
 const requireRenderable = (text, field, name) => {
@@ -31,7 +23,7 @@ const requireRenderable = (text, field, name) => {
   }
 
   throw Boom.badImplementation(
-    `Banner field "${name}" reference "${field.text}" resolves to ${describeType(text)}`,
+    `Banner field "${name}" reference "${field.text}" resolves to ${Array.isArray(text) ? "an array" : "an object"}`,
   );
 };
 
@@ -49,6 +41,10 @@ const resolveText = async (field, context, name) => {
     }
 
     throw err;
+  }
+
+  if (text === null) {
+    return drop(name, { resolved: "null" });
   }
 
   return requireRenderable(text, field, name);
