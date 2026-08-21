@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   findConfigDefinition,
+  findLatestUsableDefinition,
   updateDefinitionFetchStatus,
 } from "../../common/config-broker/config-catalog.repository.js";
 import { FetchStatus } from "../../common/fetch-status.js";
@@ -65,7 +66,11 @@ describe("loadPaymentDefinition", () => {
     updateDefinitionFetchStatus.mockResolvedValue({ modifiedCount: 1 });
   });
 
-  it("loads and compiles the exact configured definition", async () => {
+  // Fetching, caching, fetch-status latching and failure classification belong
+  // to the shared Definition Loader and are covered by its own suite. What is
+  // Payments' own is the definition type it asks for, what it compiles to, and
+  // that it pins the exact version.
+  it("compiles the payment definition for the configured version", async () => {
     const definition = await loadPaymentDefinition({
       code: "pigs-might-fly",
       configVersion: "1.2.3",
@@ -76,78 +81,32 @@ describe("loadPaymentDefinition", () => {
       version: "1.2.3",
       definitionType: "payment",
     });
-    expect(fetchConfigFile).toHaveBeenCalledWith(
-      "bucket",
-      "pigs-might-fly/1.2.3/gas/payment.json",
-    );
     await expect(
       definition.resolve({
         execution: { executedAt: "2026-01-01T00:00:00Z" },
         agreement: {},
       }),
-    ).resolves.toMatchObject({
-      scheme: "SFI",
-      marketingYear: "2026",
-    });
-    expect(updateDefinitionFetchStatus).toHaveBeenCalledWith(
-      expect.objectContaining({
-        definitionType: "payment",
-        fetchStatus: FetchStatus.Fetched,
-      }),
-    );
+    ).resolves.toMatchObject({ scheme: "SFI", marketingYear: "2026" });
   });
 
-  it("shares cached definitions", async () => {
-    await loadPaymentDefinition({
-      code: "pigs-might-fly",
-      configVersion: "1.2.3",
-    });
-    await loadPaymentDefinition({
-      code: "pigs-might-fly",
-      configVersion: "1.2.3",
-    });
-
-    expect(fetchConfigFile).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects a missing definition", async () => {
-    findConfigDefinition.mockResolvedValue(null);
-
-    await expect(
-      loadPaymentDefinition({
-        code: "pigs-might-fly",
-        configVersion: "1.2.3",
-      }),
-    ).rejects.toThrow(
-      'Payment definition "pigs-might-fly" version "1.2.3" is unavailable',
-    );
-  });
-
-  it("records invalid definitions as permanent failures", async () => {
+  it("rejects a definition published for another grant", async () => {
     fetchConfigFile.mockResolvedValue({ ...rawDefinition, code: "other" });
 
     await expect(
-      loadPaymentDefinition({
-        code: "pigs-might-fly",
-        configVersion: "1.2.3",
-      }),
+      loadPaymentDefinition({ code: "pigs-might-fly", configVersion: "1.2.3" }),
     ).rejects.toThrow('code "other" does not match "pigs-might-fly"');
-    expect(updateDefinitionFetchStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ fetchStatus: FetchStatus.PermanentError }),
-    );
   });
 
-  it("records service failures as transient", async () => {
-    fetchConfigFile.mockRejectedValue(new Error("S3 unavailable"));
+  // Agreements passes its own resolved config version, so the pair always
+  // resolves together. See docs/MODULE_BOUNDARIES.md.
+  it("never falls back to an older version", async () => {
+    findConfigDefinition.mockResolvedValue(null);
 
     await expect(
-      loadPaymentDefinition({
-        code: "pigs-might-fly",
-        configVersion: "1.2.3",
-      }),
-    ).rejects.toThrow("S3 unavailable");
-    expect(updateDefinitionFetchStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ fetchStatus: FetchStatus.TransientError }),
+      loadPaymentDefinition({ code: "pigs-might-fly", configVersion: "1.2.3" }),
+    ).rejects.toThrow(
+      'Payment definition "pigs-might-fly" version "1.2.3" is unavailable',
     );
+    expect(findLatestUsableDefinition).not.toHaveBeenCalled();
   });
 });

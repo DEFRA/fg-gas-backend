@@ -23,6 +23,13 @@ Agreement Definition unusable.
 against the Config Version, and used to resolve one definition independently of
 the others.
 
+**Definition Loader** — resolves one Definition Type from the Config Catalog:
+picks a target version, fetches it, compiles it, caches it, and latches its fetch
+status so a broken version is not re-fetched on every request. Callers supply the
+Definition Type, how to compile the raw definition, and a **resolution strategy**
+— `exact` pins the version asked for, `same-major` and `creation` may fall back
+to older usable versions.
+
 **Agreement Definition** — the configuration that gives an Agreement its states,
 transitions, pages, values and Processes. Compiled once per grant code and
 version, then cached.
