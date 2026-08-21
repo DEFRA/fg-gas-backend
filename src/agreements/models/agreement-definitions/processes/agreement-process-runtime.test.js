@@ -95,7 +95,14 @@ const paymentConfiguration = {
 
 const paymentDependencies = (configuration = paymentConfiguration) => ({
   handlers: createAgreementProcessHandlers({
-    resolvePaymentConfiguration: () => configuration,
+    prepareAgreementPayment: () => ({
+      commitOperations: [
+        {
+          type: "create-agreement-payment",
+          request: { paymentConfiguration: configuration },
+        },
+      ],
+    }),
   }),
 });
 

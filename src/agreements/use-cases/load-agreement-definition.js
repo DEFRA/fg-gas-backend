@@ -13,15 +13,9 @@ import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
 import { parseSemver } from "../../common/semver.js";
-import {
-  isPaymentDefinitionError,
-  loadPaymentDefinition,
-} from "../../payments/use-cases/load-payment-definition.js";
+import { prepareAgreementPayment } from "../../payments/use-cases/prepare-agreement-payment.use-case.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
-import {
-  CREATE_AGREEMENT_PAYMENT,
-  createAgreementProcessHandlers,
-} from "../models/agreement-definitions/processes/agreement-process-registries.js";
+import { createAgreementProcessHandlers } from "../models/agreement-definitions/processes/agreement-process-registries.js";
 import { validateAgreementDefinition } from "../models/agreement-definitions/validate.js";
 import {
   findAgreementDefinition as findStoredDefinition,
@@ -134,38 +128,21 @@ const assertDefinitionIdentity = (rawDefinition, code) => {
   }
 };
 
-const compilePaymentDependencies = async (definition, code, version) => {
-  if (
-    !Object.hasOwn(
-      definition.processDefinitions ?? {},
-      CREATE_AGREEMENT_PAYMENT,
-    )
-  ) {
-    return {};
-  }
-
-  const paymentDefinition = await loadPaymentDefinition({
-    code,
-    configVersion: version,
-  });
-  return {
-    handlers: createAgreementProcessHandlers({
-      resolvePaymentConfiguration: (context) =>
-        paymentDefinition.resolve(context),
-    }),
-  };
-};
-
-const compileDefinition = async (rawDefinition, code, version) => {
+const compileDefinition = (rawDefinition, code, version) => {
   assertDefinitionIdentity(rawDefinition, code);
   const definition = { ...rawDefinition, configVersion: version };
   validateEndpointServiceUrls([validateAgreementDefinition(definition)]);
-  const dependencies = await compilePaymentDependencies(
-    definition,
-    code,
-    version,
-  );
-  return new AgreementDefinition(definition, dependencies);
+  return new AgreementDefinition(definition, {
+    handlers: createAgreementProcessHandlers({
+      prepareAgreementPayment: ({ agreement, execution }) =>
+        prepareAgreementPayment({
+          code,
+          configVersion: version,
+          agreement,
+          execution,
+        }),
+    }),
+  });
 };
 
 const loadStored = (target) =>
@@ -201,10 +178,7 @@ const definitionFailureStatus = (error) =>
   error.isBoom ? FetchStatus.PermanentError : FetchStatus.TransientError;
 
 const classifyFailure = (error) => {
-  if (
-    error instanceof EndpointServiceUrlError ||
-    isPaymentDefinitionError(error)
-  ) {
+  if (error instanceof EndpointServiceUrlError) {
     return environmentFault;
   }
 
@@ -218,7 +192,7 @@ const classifyFailure = (error) => {
 const compileAndCache = async (target, stored, cacheKey) => {
   const rawDefinition =
     stored ?? (await fetchConfigFile(target.s3Bucket, target.s3Key));
-  const compiled = await compileDefinition(
+  const compiled = compileDefinition(
     rawDefinition,
     target.grantCode,
     target.version,
@@ -246,13 +220,11 @@ const load = async (target, cacheKey) => {
     if (record) {
       await updateStatus(target, status, error.message);
     }
-    if (!isPaymentDefinitionError(error)) {
-      // CDP indexes event.action and ECS error fields.
-      logger.error(
-        { error, event: { action: "agreement-definition-load-failed" } },
-        `Agreement definition load failed for ${target.grantCode}@${target.version}`,
-      );
-    }
+    // CDP indexes event.action and ECS error fields.
+    logger.error(
+      { error, event: { action: "agreement-definition-load-failed" } },
+      `Agreement definition load failed for ${target.grantCode}@${target.version}`,
+    );
     throw error;
   }
 };

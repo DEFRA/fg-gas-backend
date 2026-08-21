@@ -34,10 +34,10 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 
 Some collaborations cannot use an event, command or HTTP seam. Only the named Payments use cases below may be imported:
 
-| Caller       | Entry point                                               | Why                                                                                                               |
-| ------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `agreements` | `payments/use-cases/load-payment-definition.js`           | Payment configuration is loaded and validated before an Agreement action starts its transaction                   |
-| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | The Payment for an accepted Agreement Version must commit with the Agreement, its Version and the lifecycle event |
+| Caller       | Entry point                                                | Why                                                                                                               |
+| ------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `agreements` | `payments/use-cases/prepare-agreement-payment.use-case.js` | Payments prepares the commit operation from Agreement action context before the transaction starts                |
+| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js`  | The Payment for an accepted Agreement Version must commit with the Agreement, its Version and the lifecycle event |
 
 The transactional entry point takes the caller's session. The ESLint zone lists both exceptions explicitly so adding another one is a deliberate, reviewed change.
 

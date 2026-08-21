@@ -11,21 +11,10 @@ import { PaymentDefinition } from "../models/payment-definition.js";
 const definitionType = "payment";
 const definitions = new Map();
 const loadsInFlight = new Map();
-const paymentDefinitionErrors = new WeakSet();
-
-const markPaymentDefinitionError = (error) => {
-  paymentDefinitionErrors.add(error);
-  return error;
-};
-
-export const isPaymentDefinitionError = (error) =>
-  paymentDefinitionErrors.has(error);
 
 const unavailable = (code, version) =>
-  markPaymentDefinitionError(
-    Boom.badImplementation(
-      `Payment definition "${code}" version "${version}" is unavailable`,
-    ),
+  Boom.badImplementation(
+    `Payment definition "${code}" version "${version}" is unavailable`,
   );
 
 const updateStatus = (target, fetchStatus, fetchError = null) =>
@@ -70,7 +59,7 @@ const fetchAndCompile = async (target) => {
       { error, event: { action: "payment-definition-load-failed" } },
       `Payment definition load failed for ${target.grantCode}@${target.version}`,
     );
-    throw markPaymentDefinitionError(error);
+    throw error;
   }
 };
 

@@ -146,7 +146,7 @@ export default [
               from: ["**/payments/**"],
               except: [
                 "**/payments/use-cases/create-agreement-payment.use-case.js",
-                "**/payments/use-cases/load-payment-definition.js",
+                "**/payments/use-cases/prepare-agreement-payment.use-case.js",
               ],
               message:
                 "Agreements may only enter Payments through its configured and transactional " +

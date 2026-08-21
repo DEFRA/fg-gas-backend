@@ -67,7 +67,7 @@ describe("PMF Agreement definition", () => {
 
   it("stages acceptance from stored values without calling an endpoint", async () => {
     const callEndpoint = vi.fn();
-    const resolvePaymentConfiguration = vi.fn().mockResolvedValue({
+    const paymentConfiguration = {
       sbi: "300000069",
       frn: "1101234567",
       scheme: "SFI",
@@ -96,12 +96,18 @@ describe("PMF Agreement definition", () => {
           ],
         },
       ],
+    };
+    const prepareAgreementPayment = vi.fn().mockResolvedValue({
+      commitOperations: [
+        {
+          type: "create-agreement-payment",
+          request: { paymentConfiguration },
+        },
+      ],
     });
     const definition = new AgreementDefinition(pmfAgreementDefinition, {
       callEndpoint,
-      handlers: createAgreementProcessHandlers({
-        resolvePaymentConfiguration,
-      }),
+      handlers: createAgreementProcessHandlers({ prepareAgreementPayment }),
     });
     const agreement = new Agreement({
       agreementNumber: "PMF123456789",
@@ -149,7 +155,7 @@ describe("PMF Agreement definition", () => {
     });
 
     expect(callEndpoint).not.toHaveBeenCalled();
-    expect(resolvePaymentConfiguration).toHaveBeenCalledWith({
+    expect(prepareAgreementPayment).toHaveBeenCalledWith({
       execution: {
         correlationId: agreement.correlationId,
         executedAt: "2027-01-02T10:00:00.000Z",
@@ -161,6 +167,7 @@ describe("PMF Agreement definition", () => {
         clientRef: agreement.clientRef,
         code: agreement.code,
       }),
+      input: {},
     });
     expect(result.agreement.configVersion).toBe("1.2.0");
     expect(result.commitOperations).toEqual([

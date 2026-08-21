@@ -19,37 +19,22 @@ const paymentCommitOperationsSchema = Joi.object({
     .required(),
 }).required();
 
-const missingPaymentDefinition = async () => {
+const missingPaymentHandler = async () => {
   throw Boom.badImplementation(
-    `${CREATE_AGREEMENT_PAYMENT} requires a Payment definition`,
+    `${CREATE_AGREEMENT_PAYMENT} requires a Payments handler`,
   );
 };
 
 export const createAgreementProcessHandlers = ({
-  resolvePaymentConfiguration = missingPaymentDefinition,
-} = {}) => {
-  const stageAgreementPayment = async ({ agreement, execution }) => ({
-    commitOperations: [
-      {
-        type: "create-agreement-payment",
-        request: {
-          paymentConfiguration: await resolvePaymentConfiguration({
-            execution,
-            agreement,
-          }),
-        },
-      },
-    ],
-  });
-
-  return Object.freeze({
+  prepareAgreementPayment = missingPaymentHandler,
+} = {}) =>
+  Object.freeze({
     [CREATE_AGREEMENT_PAYMENT]: Object.freeze({
       inputSchema: paymentHandlerInputSchema,
       commitOperationsSchema: paymentCommitOperationsSchema,
-      execute: stageAgreementPayment,
+      execute: prepareAgreementPayment,
       locations: Object.freeze(["transition"]),
     }),
   });
-};
 
 export const agreementProcessHandlers = createAgreementProcessHandlers();

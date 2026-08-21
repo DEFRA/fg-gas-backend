@@ -6,7 +6,6 @@ import {
 } from "../../common/config-broker/config-catalog.repository.js";
 import { FetchStatus } from "../../common/fetch-status.js";
 import { fetchConfigFile } from "../../common/s3-client.js";
-import { clearPaymentDefinitionCaches } from "../../payments/use-cases/load-payment-definition.js";
 import {
   findAgreementDefinition,
   insertAgreementDefinition,
@@ -44,38 +43,6 @@ const validDefinition = {
   },
 };
 
-const validPaymentDefinition = {
-  code: "test-code",
-  sbi: "106284736",
-  frn: "1101234567",
-  scheme: "SFI",
-  sourceSystem: "FPTT",
-  deliveryBody: "RP00",
-  fesCode: "FALS_FPTT",
-  originalInvoiceNumber: "",
-  ledger: "AP",
-  totalAmountPence: 100,
-  currency: "GBP",
-  marketingYear: "2026",
-  payments: [
-    {
-      dueDate: "2026-11-06",
-      totalAmountPence: 100,
-      invoiceLines: [
-        {
-          schemeCode: "CMOR1",
-          description: "Test payment",
-          amountPence: 100,
-          accountCode: "SOS710",
-          fundCode: "DRD10",
-          deliveryBody: "RP00",
-          marketingYear: "2026",
-        },
-      ],
-    },
-  ],
-};
-
 const definitionWithUnconfiguredEndpoint = {
   ...validDefinition,
   endpoints: [
@@ -105,7 +72,6 @@ describe("loadAgreementDefinition", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearAgreementDefinitionCaches();
-    clearPaymentDefinitionCaches();
     findAgreementDefinition.mockResolvedValue(null);
     fetchConfigFile.mockResolvedValue(validDefinition);
     insertAgreementDefinition.mockResolvedValue({ insertedId: "definition" });
@@ -128,80 +94,6 @@ describe("loadAgreementDefinition", () => {
     );
     expect(updateDefinitionFetchStatus).toHaveBeenCalledWith(
       expect.objectContaining({ fetchStatus: FetchStatus.Fetched }),
-    );
-  });
-
-  it("loads and validates a matching Payment definition when configured", async () => {
-    const agreementTarget = target("1.0.1");
-    const paymentTarget = {
-      ...agreementTarget,
-      s3Key: "test-code/1.0.1/gas/payment.json",
-    };
-    findConfigDefinition
-      .mockResolvedValueOnce(agreementTarget)
-      .mockResolvedValueOnce(paymentTarget);
-    fetchConfigFile
-      .mockResolvedValueOnce({
-        ...validDefinition,
-        processDefinitions: {
-          CREATE_AGREEMENT_PAYMENT: { type: "handler" },
-        },
-      })
-      .mockResolvedValueOnce(validPaymentDefinition);
-
-    await loadAgreementDefinition({
-      code: "test-code",
-      configVersion: "1.0.1",
-      resolution: "exact",
-    });
-
-    expect(findConfigDefinition).toHaveBeenLastCalledWith({
-      grantCode: "test-code",
-      version: "1.0.1",
-      definitionType: "payment",
-    });
-    expect(fetchConfigFile).toHaveBeenLastCalledWith(
-      "bucket",
-      "test-code/1.0.1/gas/payment.json",
-    );
-  });
-
-  it("does not poison or fall back from a valid Agreement when Payment config is invalid", async () => {
-    const agreementTarget = target("1.0.1");
-    findLatestUsableDefinition.mockResolvedValue(agreementTarget);
-    findConfigDefinition.mockResolvedValue({
-      ...agreementTarget,
-      s3Key: "test-code/1.0.1/gas/payment.json",
-    });
-    fetchConfigFile
-      .mockResolvedValueOnce({
-        ...validDefinition,
-        processDefinitions: {
-          CREATE_AGREEMENT_PAYMENT: { type: "handler" },
-        },
-      })
-      .mockResolvedValueOnce({ code: "test-code" });
-
-    await expect(
-      loadAgreementDefinition({
-        code: "test-code",
-        configVersion: "1.0.0",
-        resolution: "same-major",
-      }),
-    ).rejects.toThrow("Invalid Payment definition");
-
-    expect(findLatestUsableDefinition).toHaveBeenCalledTimes(1);
-    expect(updateDefinitionFetchStatus).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        definitionType: "agreement",
-        fetchStatus: FetchStatus.PermanentError,
-      }),
-    );
-    expect(updateDefinitionFetchStatus).toHaveBeenCalledWith(
-      expect.objectContaining({
-        definitionType: "payment",
-        fetchStatus: FetchStatus.PermanentError,
-      }),
     );
   });
 
