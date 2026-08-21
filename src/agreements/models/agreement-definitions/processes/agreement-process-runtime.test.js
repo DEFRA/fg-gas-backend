@@ -499,28 +499,6 @@ describe("AgreementDefinition Process runtime", () => {
     ).not.toHaveProperty("schemeCode");
   });
 
-  it("ignores the previous inline Payment configuration during rollout", async () => {
-    const definitionData = createDefinition();
-    definitionData.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
-      type: "handler",
-      input: { payment: { legacy: "ignored" } },
-    };
-    addTransition(definitionData, ["CREATE_AGREEMENT_PAYMENT"]);
-    const definition = new AgreementDefinition(
-      definitionData,
-      paymentDependencies(),
-    );
-
-    const result = await executeAction(
-      definition,
-      toAgreement(paymentAgreementValues),
-    );
-
-    expect(result.commitOperations[0].request.paymentConfiguration).toEqual(
-      paymentConfiguration,
-    );
-  });
-
   it("stages a typed Payment commit operation without writing", async () => {
     const definitionData = createDefinition();
     definitionData.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
@@ -849,16 +827,16 @@ const compilationCases = [
     /lineItems\.actionId.*unknown/,
   ],
   [
-    "unknown handler input fields",
+    "inline Payment configuration",
     () => {
       const definition = createDefinition();
       definition.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
         type: "handler",
-        input: { agreementValues: { agreementNumber: "not-configurable" } },
+        input: { payment: paymentConfiguration },
       };
       return { definition };
     },
-    /input\.agreementValues.*unknown/,
+    /input\.payment.*unknown/,
   ],
 ];
 

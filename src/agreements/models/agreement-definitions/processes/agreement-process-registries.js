@@ -10,11 +10,7 @@ const acceptedAgreementValuesSchema = agreementValueSchema
   )
   .required();
 
-// ponytail: accept the previous inline shape during rollout; remove once every
-// grant config publishes payment.json.
-const paymentHandlerInputSchema = Joi.object({
-  payment: Joi.object().unknown(true).optional(),
-}).required();
+const paymentHandlerInputSchema = Joi.object({}).required();
 
 const paymentCommitOperationsSchema = Joi.object({
   commitOperations: Joi.array()
