@@ -69,22 +69,7 @@
     },
     "CREATE_AGREEMENT_PAYMENT": {
       "type": "handler",
-      "input": {
-        "payment": {
-          "scheme": "SFI",
-          "sourceSystem": "FPTT",
-          "deliveryBody": "RP00",
-          "fesCode": "FALS_FPTT",
-          "ledger": "AP",
-          "currency": "GBP",
-          "marketingYear": "jsonata:$substring($.execution.executedAt, 0, 4)",
-          "invoiceLine": {
-            "schemeCode": "CMOR1",
-            "accountCode": "SOS710",
-            "fundCode": "DRD10"
-          }
-        }
-      }
+      "input": {}
     }
   },
   "create": {

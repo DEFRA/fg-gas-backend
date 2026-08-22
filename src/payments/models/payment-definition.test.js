@@ -388,4 +388,49 @@ describe("PMF payment definition (real config)", () => {
       "Unresolved process mapping",
     );
   });
+
+  it("rejects a PMF Agreement with no scheduled instalments", async () => {
+    const definition = new PaymentDefinition(pmfDefinition);
+    const agreement = structuredClone(pmfAgreement);
+    agreement.paymentSchedule.instalments = [];
+
+    await expectResolutionError(definition, {
+      agreement,
+      execution: pmfExecution,
+    });
+  });
+
+  it("rejects a PMF line with no matching action or item description", async () => {
+    const definition = new PaymentDefinition(pmfDefinition);
+    const agreement = structuredClone(pmfAgreement);
+    agreement.paymentSchedule.instalments[0].lineItems = [
+      { actionId: "action:missing", amountPence: 3800 },
+    ];
+
+    await expectResolutionError(
+      definition,
+      { agreement, execution: pmfExecution },
+      "Unresolved process mapping",
+    );
+  });
+
+  it("resolves duplicate business codes by stable action IDs", async () => {
+    const definition = new PaymentDefinition(pmfDefinition);
+    const agreement = structuredClone(pmfAgreement);
+    agreement.actions[0].code = "shared";
+    agreement.actions[1].code = "shared";
+    agreement.paymentSchedule.instalments[0].lineItems = [
+      { actionId: "action:1", amountPence: 2000 },
+      { actionId: "action:2", amountPence: 1800 },
+    ];
+
+    const payment = await definition.resolve({
+      agreement,
+      execution: pmfExecution,
+    });
+
+    expect(
+      payment.duePayments[0].invoiceLines.map(({ description }) => description),
+    ).toEqual(["Large White Pig", "Berkshire"]);
+  });
 });
