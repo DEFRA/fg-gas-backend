@@ -20,7 +20,7 @@ const mappingFields = [
   "totalAmountPence",
   "currency",
   "marketingYear",
-  "duePayments",
+  "payments",
 ];
 
 const duePaymentFields = ["dueDate", "totalAmountPence", "invoiceLines"];
@@ -97,9 +97,9 @@ const validateDefinition = (definition) => {
 };
 
 const validateNestedMappings = (mappings) => {
-  const unknown = findUnknownDuePaymentField(mappings.duePayments);
+  const unknown = findUnknownDuePaymentField(mappings.payments);
   if (unknown) {
-    throw new Error(`"duePayments.${unknown}" is not allowed`);
+    throw new Error(`"payments.${unknown}" is not allowed`);
   }
 };
 

@@ -11,7 +11,7 @@
   "totalAmountPence": "$.agreement.totalAmountPence",
   "currency": "GBP",
   "marketingYear": "jsonata:$substring($.execution.executedAt, 0, 4)",
-  "duePayments": {
+  "payments": {
     "itemsRef": "$.agreement.paymentSchedule.instalments",
     "items": {
       "dueDate": "@.dueDate",

@@ -15,7 +15,7 @@ export const paymentDefinitionSchema = Joi.object({
   totalAmountPence: mapping,
   currency: mapping,
   marketingYear: mapping,
-  duePayments: mapping,
+  payments: mapping,
 }).unknown(false);
 
 const penceSchema = Joi.number().integer().strict().required();
@@ -34,8 +34,8 @@ const duePaymentSchema = Joi.object({
   invoiceLines: Joi.array().items(invoiceLineSchema).min(1).required(),
 }).unknown(false);
 
-const balancesWithInvoiceLines = (duePayments, helpers) => {
-  const unbalanced = duePayments.find(
+const balancesWithInvoiceLines = (payments, helpers) => {
+  const unbalanced = payments.find(
     ({ totalAmountPence, invoiceLines }) =>
       BigInt(totalAmountPence) !==
       invoiceLines.reduce(
@@ -48,19 +48,19 @@ const balancesWithInvoiceLines = (duePayments, helpers) => {
     ? helpers.message({
         custom: `payment due ${unbalanced.dueDate} does not balance with its invoice lines`,
       })
-    : duePayments;
+    : payments;
 };
 
-const balancesWithDuePayments = (payment, helpers) => {
-  const duePaymentsTotal = payment.duePayments.reduce(
+const balancesWithPayments = (payment, helpers) => {
+  const paymentsTotal = payment.payments.reduce(
     (total, duePayment) => total + BigInt(duePayment.totalAmountPence),
     0n,
   );
 
-  return BigInt(payment.totalAmountPence) === duePaymentsTotal
+  return BigInt(payment.totalAmountPence) === paymentsTotal
     ? payment
     : helpers.message({
-        custom: "totalAmountPence does not balance with duePayments",
+        custom: "totalAmountPence does not balance with payments",
       });
 };
 
@@ -76,12 +76,12 @@ export const resolvedPaymentValueSchema = Joi.object({
   totalAmountPence: penceSchema,
   currency: Joi.string().required(),
   marketingYear: Joi.string().required(),
-  duePayments: Joi.array()
+  payments: Joi.array()
     .items(duePaymentSchema)
     .min(1)
     .custom(balancesWithInvoiceLines)
     .required(),
 })
   .unknown(false)
-  .custom(balancesWithDuePayments)
+  .custom(balancesWithPayments)
   .strict();

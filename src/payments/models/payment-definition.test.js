@@ -29,7 +29,7 @@ const validDefinition = {
   totalAmountPence: 3800,
   currency: "GBP",
   marketingYear: "2026",
-  duePayments: [duePayment],
+  payments: [duePayment],
 };
 
 const validResolvedPayment = Object.fromEntries(
@@ -100,7 +100,7 @@ const expectedPmfPayment = {
   totalAmountPence: 3800,
   currency: "GBP",
   marketingYear: "2026",
-  duePayments: [
+  payments: [
     {
       dueDate: "2026-11-06",
       totalAmountPence: 3800,
@@ -188,7 +188,7 @@ describe("PaymentDefinition", () => {
       sbi: "$.agreement.sbi",
       frn: "jsonata:$.agreement.frn",
       totalAmountPence: "$.totalAmountPence",
-      duePayments: {
+      payments: {
         itemsRef: "$.schedule",
         items: {
           dueDate: "@.date",
@@ -274,15 +274,15 @@ describe("PaymentDefinition", () => {
 
   it.each([{ itemsRef: "$.schedule" }, { items: { dueDate: "@.date" } }])(
     "rejects malformed collection mappings",
-    (duePayments) => {
+    (payments) => {
       expectConfigurationError(
-        () => new PaymentDefinition({ ...validDefinition, duePayments }),
+        () => new PaymentDefinition({ ...validDefinition, payments }),
       );
     },
   );
 
   it.each([
-    [[{ ...duePayment, status: "pending" }], "duePayments.status"],
+    [[{ ...duePayment, status: "pending" }], "payments.status"],
     [
       [
         {
@@ -290,14 +290,23 @@ describe("PaymentDefinition", () => {
           invoiceLines: [{ ...invoiceLine, deliveryBody: "RP00" }],
         },
       ],
-      "duePayments.invoiceLines.deliveryBody",
+      "payments.invoiceLines.deliveryBody",
+    ],
+    [
+      [
+        {
+          ...duePayment,
+          invoiceLines: [{ ...invoiceLine, marketingYear: "2026" }],
+        },
+      ],
+      "payments.invoiceLines.marketingYear",
     ],
     [
       {
         itemsRef: "$.schedule",
         items: { ...duePayment, correlationId: "$.correlationId" },
       },
-      "duePayments.correlationId",
+      "payments.correlationId",
     ],
     [
       {
@@ -310,11 +319,11 @@ describe("PaymentDefinition", () => {
           },
         },
       },
-      "duePayments.invoiceLines.invoiceNumber",
+      "payments.invoiceLines.invoiceNumber",
     ],
-  ])("rejects unknown nested mapping fields", (duePayments, path) => {
+  ])("rejects unknown nested mapping fields", (payments, path) => {
     expectConfigurationError(
-      () => new PaymentDefinition({ ...validDefinition, duePayments }),
+      () => new PaymentDefinition({ ...validDefinition, payments }),
       path,
     );
   });
@@ -362,18 +371,18 @@ describe("PaymentDefinition", () => {
   it("rejects unknown fields produced at resolution", async () => {
     const definition = new PaymentDefinition({
       ...validDefinition,
-      duePayments: "$.duePayments",
+      payments: "$.payments",
     });
 
     await expectResolutionError(definition, {
-      duePayments: [{ ...duePayment, status: "pending" }],
+      payments: [{ ...duePayment, status: "pending" }],
     });
   });
 
   it("rejects a due payment that does not balance", async () => {
     const definition = new PaymentDefinition({
       ...validDefinition,
-      duePayments: [
+      payments: [
         {
           ...duePayment,
           invoiceLines: [{ ...invoiceLine, amountPence: 3799 }],
@@ -397,7 +406,7 @@ describe("PaymentDefinition", () => {
     await expectResolutionError(
       definition,
       {},
-      "totalAmountPence does not balance with duePayments",
+      "totalAmountPence does not balance with payments",
     );
   });
 });
@@ -470,7 +479,7 @@ describe("PMF payment definition (real config)", () => {
     });
 
     expect(
-      payment.duePayments[0].invoiceLines.map(({ description }) => description),
+      payment.payments[0].invoiceLines.map(({ description }) => description),
     ).toEqual(["Large White Pig", "Berkshire"]);
   });
 });

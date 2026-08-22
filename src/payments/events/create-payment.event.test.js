@@ -100,7 +100,7 @@ describe("createPaymentPublication", () => {
         totalAmountPence: 10000,
         currency: "GBP",
         marketingYear: "2026",
-        duePayments: [
+        payments: [
           {
             dueDate: "2024-05-01",
             totalAmountPence: 10000,

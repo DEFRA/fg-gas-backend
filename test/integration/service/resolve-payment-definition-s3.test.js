@@ -88,7 +88,7 @@ const expectedPayment = {
   totalAmountPence: 3800,
   currency: "GBP",
   marketingYear: "2026",
-  duePayments: [
+  payments: [
     {
       dueDate: "2026-11-06",
       totalAmountPence: 3800,
@@ -216,7 +216,7 @@ describe("Payment definition ingestion (real S3)", () => {
       isBoom: true,
       output: { statusCode: 500 },
       message: expect.stringContaining(
-        "totalAmountPence does not balance with duePayments",
+        "totalAmountPence does not balance with payments",
       ),
     });
 

@@ -64,7 +64,7 @@ export const buildPayment = ({
     totalAmountPence: resolved.totalAmountPence,
     currency: resolved.currency,
     marketingYear: resolved.marketingYear,
-    payments: resolved.duePayments.map((duePayment) =>
+    payments: resolved.payments.map((duePayment) =>
       toDuePayment(duePayment, resolved),
     ),
     createdAt,

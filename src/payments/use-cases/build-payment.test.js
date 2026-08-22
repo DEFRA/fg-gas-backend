@@ -13,7 +13,7 @@ const resolved = {
   totalAmountPence: 3800,
   currency: "GBP",
   marketingYear: "2026",
-  duePayments: [
+  payments: [
     {
       dueDate: "2026-11-06",
       totalAmountPence: 2000,

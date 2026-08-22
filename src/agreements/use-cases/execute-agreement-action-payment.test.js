@@ -105,7 +105,7 @@ const resolvedPayment = {
   totalAmountPence: 3800,
   currency: "GBP",
   marketingYear: "2026",
-  duePayments: [
+  payments: [
     {
       dueDate: "2026-11-06",
       totalAmountPence: 3800,
@@ -263,14 +263,14 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     const resolved = {
       ...resolvedPayment,
       totalAmountPence: 4200,
-      duePayments: [
+      payments: [
         {
-          ...resolvedPayment.duePayments[0],
+          ...resolvedPayment.payments[0],
           dueDate: "2026-12-01",
           totalAmountPence: 4200,
           invoiceLines: [
             {
-              ...resolvedPayment.duePayments[0].invoiceLines[0],
+              ...resolvedPayment.payments[0].invoiceLines[0],
               description: "Resolved payment line",
               amountPence: 4200,
             },
