@@ -22,6 +22,7 @@ const rawDefinition = {
   code,
   sbi: "$.agreement.sbi",
   frn: "1101234567",
+  originalInvoiceNumber: "",
   scheme: "SFI",
   sourceSystem: "FPTT",
   deliveryBody: "RP00",

@@ -96,6 +96,7 @@ const agreement = new Agreement({
 const resolvedPayment = {
   sbi: "106284736",
   frn: "1101234567",
+  originalInvoiceNumber: "ORIG-INV-123",
   scheme: "SFI",
   sourceSystem: "FPTT",
   deliveryBody: "RP00",
@@ -374,7 +375,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       fesCode: "FALS_FPTT",
       paymentRequestNumber: 1,
       invoiceNumber: "R00000001-V001QX",
-      originalInvoiceNumber: "",
+      originalInvoiceNumber: "ORIG-INV-123",
       ledger: "AP",
       totalAmountPence: 3800,
       currency: "GBP",

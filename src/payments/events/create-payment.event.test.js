@@ -91,6 +91,7 @@ describe("createPaymentPublication", () => {
       resolved: {
         sbi: "SBI123",
         frn: "FRN456",
+        originalInvoiceNumber: "ORIG-INV-123",
         scheme: "SFI",
         sourceSystem: "FPTT",
         deliveryBody: "RP00",
@@ -127,7 +128,6 @@ describe("createPaymentPublication", () => {
       createdAt: "2026-08-01T10:00:00.000Z",
     });
     const expected = structuredClone(legacyCreatePaymentEvent);
-    expected.data.grants[0].originalInvoiceNumber = "";
     expected.data.grants[0].payments[0].correlationId =
       "9c3ff46a-6625-4ba7-81f5-58a7602f91ed";
 

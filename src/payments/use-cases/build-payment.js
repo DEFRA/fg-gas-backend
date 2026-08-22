@@ -59,7 +59,7 @@ export const buildPayment = ({
       paymentHubClaimId,
       PAYMENT_REQUEST_NUMBER,
     ),
-    originalInvoiceNumber: "",
+    originalInvoiceNumber: resolved.originalInvoiceNumber,
     ledger: resolved.ledger,
     totalAmountPence: resolved.totalAmountPence,
     currency: resolved.currency,

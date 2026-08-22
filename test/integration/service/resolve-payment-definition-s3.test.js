@@ -79,6 +79,7 @@ const context = {
 const expectedPayment = {
   sbi: "106284736",
   frn: "1101234567",
+  originalInvoiceNumber: "",
   scheme: "SFI",
   sourceSystem: "FPTT",
   deliveryBody: "RP00",

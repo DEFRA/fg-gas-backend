@@ -11,6 +11,7 @@ import {
 const mappingFields = [
   "sbi",
   "frn",
+  "originalInvoiceNumber",
   "scheme",
   "sourceSystem",
   "deliveryBody",

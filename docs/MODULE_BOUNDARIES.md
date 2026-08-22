@@ -41,6 +41,8 @@ Agreement acceptance uses two named Payment use cases:
 
 The resolver is a read-only, pre-transaction seam. Config Broker loading and mapping validation stay outside the write transaction. The creation use case is the transactional seam, and the caller passes its session in.
 
+A Payment definition supplies `originalInvoiceNumber` as a top-level lookup or literal mapping. `payments` generates `invoiceNumber` when it builds the Payment.
+
 Nothing else in `payments` is importable from Agreements. The ESLint zone lists both exceptions explicitly so adding another one is a deliberate, reviewed change.
 
 `payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from the creation entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.

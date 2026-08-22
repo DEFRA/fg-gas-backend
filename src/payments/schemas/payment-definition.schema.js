@@ -6,6 +6,7 @@ export const paymentDefinitionSchema = Joi.object({
   code: Joi.string().required(),
   sbi: mapping,
   frn: mapping,
+  originalInvoiceNumber: mapping,
   scheme: mapping,
   sourceSystem: mapping,
   deliveryBody: mapping,
@@ -66,6 +67,7 @@ const balancesWithDuePayments = (payment, helpers) => {
 export const resolvedPaymentValueSchema = Joi.object({
   sbi: Joi.string().required(),
   frn: Joi.string().required(),
+  originalInvoiceNumber: Joi.string().allow("").required(),
   scheme: Joi.string().required(),
   sourceSystem: Joi.string().required(),
   deliveryBody: Joi.string().required(),

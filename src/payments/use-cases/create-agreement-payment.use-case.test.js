@@ -16,6 +16,7 @@ const request = {
   resolved: {
     sbi: "106284736",
     frn: "1101234567",
+    originalInvoiceNumber: "ORIG-INV-123",
     scheme: "SFI",
     sourceSystem: "FPTT",
     deliveryBody: "RP00",
@@ -65,6 +66,7 @@ describe("createAgreementPaymentUseCase", () => {
       frn: "1101234567",
       paymentHubClaimId: "R00000007",
       invoiceNumber: "R00000007-V001QX",
+      originalInvoiceNumber: "ORIG-INV-123",
       totalAmountPence: 2000,
     });
   });

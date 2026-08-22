@@ -2,6 +2,7 @@
   "code": "pigs-might-fly",
   "sbi": "$.agreement.identifiers.sbi",
   "frn": "$.agreement.identifiers.frn",
+  "originalInvoiceNumber": "",
   "scheme": "SFI",
   "sourceSystem": "FPTT",
   "deliveryBody": "RP00",

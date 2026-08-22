@@ -4,6 +4,7 @@ import { buildPayment } from "./build-payment.js";
 const resolved = {
   sbi: "106284736",
   frn: "1101234567",
+  originalInvoiceNumber: "ORIG-INV-123",
   scheme: "SFI",
   sourceSystem: "FPTT",
   deliveryBody: "RP00",
@@ -66,6 +67,7 @@ describe("buildPayment", () => {
     expect(build()).toMatchObject({
       sbi: "106284736",
       frn: "1101234567",
+      originalInvoiceNumber: "ORIG-INV-123",
       scheme: "SFI",
       sourceSystem: "FPTT",
       deliveryBody: "RP00",
@@ -114,7 +116,7 @@ describe("buildPayment", () => {
     );
     expect(payment.paymentRequestNumber).toBe(1);
     expect(payment.invoiceNumber).toBe("R00000001-V001QX");
-    expect(payment.originalInvoiceNumber).toBe("");
+    expect(payment.originalInvoiceNumber).toBe("ORIG-INV-123");
     expect(payment.payments.every(({ status }) => status === "pending")).toBe(
       true,
     );

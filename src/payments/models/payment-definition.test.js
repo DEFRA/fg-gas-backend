@@ -20,6 +20,7 @@ const validDefinition = {
   code: "gas",
   sbi: "106284736",
   frn: "1101234567",
+  originalInvoiceNumber: "",
   scheme: "SFI",
   sourceSystem: "FPTT",
   deliveryBody: "RP00",
@@ -90,6 +91,7 @@ const pmfExecution = { executedAt: "2026-08-06T10:15:00.000Z" };
 const expectedPmfPayment = {
   sbi: "106284736",
   frn: "1101234567",
+  originalInvoiceNumber: "",
   scheme: "SFI",
   sourceSystem: "FPTT",
   deliveryBody: "RP00",
@@ -165,6 +167,21 @@ describe("PaymentDefinition", () => {
     expect(new PaymentDefinition(validDefinition).code).toBe("gas");
   });
 
+  it("resolves original invoice number literals and references", async () => {
+    const literal = new PaymentDefinition(validDefinition);
+    const reference = new PaymentDefinition({
+      ...validDefinition,
+      originalInvoiceNumber: "$.originalInvoiceNumber",
+    });
+
+    await expect(literal.resolve({})).resolves.toMatchObject({
+      originalInvoiceNumber: "",
+    });
+    await expect(
+      reference.resolve({ originalInvoiceNumber: "INV-123" }),
+    ).resolves.toMatchObject({ originalInvoiceNumber: "INV-123" });
+  });
+
   it("resolves literals, references, JSONata and nested collections", async () => {
     const definition = new PaymentDefinition({
       ...validDefinition,
@@ -214,6 +231,16 @@ describe("PaymentDefinition", () => {
     expectConfigurationError(
       () => new PaymentDefinition(definition),
       '"scheme" is required',
+    );
+  });
+
+  it("requires an original invoice number mapping", () => {
+    const { originalInvoiceNumber: _originalInvoiceNumber, ...definition } =
+      validDefinition;
+
+    expectConfigurationError(
+      () => new PaymentDefinition(definition),
+      '"originalInvoiceNumber" is required',
     );
   });
 
@@ -317,6 +344,19 @@ describe("PaymentDefinition", () => {
     });
 
     await expectResolutionError(definition);
+  });
+
+  it("rejects a non-string resolved original invoice number", async () => {
+    const definition = new PaymentDefinition({
+      ...validDefinition,
+      originalInvoiceNumber: "$.originalInvoiceNumber",
+    });
+
+    await expectResolutionError(
+      definition,
+      { originalInvoiceNumber: 123 },
+      '"originalInvoiceNumber" must be a string',
+    );
   });
 
   it("rejects unknown fields produced at resolution", async () => {
