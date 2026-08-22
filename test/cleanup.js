@@ -2,6 +2,7 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterEach, beforeEach } from "vitest";
 import { clearAgreementDefinitionCaches } from "../src/agreements/use-cases/load-agreement-definition.js";
+import { clearPaymentDefinitionCaches } from "../src/payments/use-cases/load-payment-definition.js";
 import { purgeQueues } from "./helpers/sqs";
 
 let client;
@@ -20,11 +21,13 @@ beforeEach(async () => {
     db.collection("users").deleteMany({}),
     db.collection("fifo_locks").deleteMany({}),
     db.collection("agreements__definitions").deleteMany({}),
+    db.collection("payments__definitions").deleteMany({}),
     db.collection("entitlements").deleteMany({}),
   ]);
 
   // Clear module caches that survive database cleanup.
   clearAgreementDefinitionCaches();
+  clearPaymentDefinitionCaches();
 
   await db.collection("config_versions").updateOne(
     { grantCode: "pigs-might-fly", version: "1.0.1" },

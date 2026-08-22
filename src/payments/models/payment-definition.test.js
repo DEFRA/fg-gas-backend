@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PaymentDefinition } from "./payment-definition.js";
 
@@ -33,6 +34,93 @@ const validDefinition = {
 const validResolvedPayment = Object.fromEntries(
   Object.entries(validDefinition).filter(([key]) => key !== "code"),
 );
+
+const pmfDefinition = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../compose/seed/pigs-might-fly/1.0.0/gas/payment.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+
+const pmfAgreement = {
+  identifiers: { sbi: "106284736", frn: "1101234567" },
+  agreementNumber: "PMF123456789",
+  state: "accepted",
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+      totalAmountPence: 2000,
+    },
+    {
+      id: "action:2",
+      code: "berkshire",
+      description: "Berkshire",
+      totalAmountPence: 1800,
+    },
+  ],
+  items: [{ id: "item:1", code: "pigArk", description: "Pig ark" }],
+  totalAmountPence: 3800,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 3800,
+        lineItems: [
+          { actionId: "action:1", amountPence: 2000 },
+          {
+            itemId: "item:1",
+            amountPence: 1800,
+          },
+        ],
+      },
+    ],
+  },
+};
+
+const pmfExecution = { executedAt: "2026-08-06T10:15:00.000Z" };
+
+const expectedPmfPayment = {
+  sbi: "106284736",
+  frn: "1101234567",
+  scheme: "SFI",
+  sourceSystem: "FPTT",
+  deliveryBody: "RP00",
+  fesCode: "FALS_FPTT",
+  ledger: "AP",
+  totalAmountPence: 3800,
+  currency: "GBP",
+  marketingYear: "2026",
+  duePayments: [
+    {
+      dueDate: "2026-11-06",
+      totalAmountPence: 3800,
+      invoiceLines: [
+        {
+          schemeCode: "CMOR1",
+          description: "Large White Pig",
+          amountPence: 2000,
+          accountCode: "SOS710",
+          fundCode: "DRD10",
+        },
+        {
+          schemeCode: "CMOR1",
+          description: "Pig ark",
+          amountPence: 1800,
+          accountCode: "SOS710",
+          fundCode: "DRD10",
+        },
+      ],
+    },
+  ],
+};
 
 const captureError = (action) => {
   try {
@@ -270,6 +358,34 @@ describe("PaymentDefinition", () => {
       definition,
       {},
       "totalAmountPence does not balance with duePayments",
+    );
+  });
+});
+
+describe("PMF payment definition (real config)", () => {
+  it("constructs the compose seed", () => {
+    const definition = new PaymentDefinition(pmfDefinition);
+
+    expect(definition.code).toBe("pigs-might-fly");
+  });
+
+  it("resolves an accepted PMF Agreement", async () => {
+    const definition = new PaymentDefinition(pmfDefinition);
+
+    await expect(
+      definition.resolve({ agreement: pmfAgreement, execution: pmfExecution }),
+    ).resolves.toEqual(expectedPmfPayment);
+  });
+
+  it("rejects a PMF Agreement missing its SBI", async () => {
+    const definition = new PaymentDefinition(pmfDefinition);
+    const agreement = structuredClone(pmfAgreement);
+    delete agreement.identifiers.sbi;
+
+    await expectResolutionError(
+      definition,
+      { agreement, execution: pmfExecution },
+      "Unresolved process mapping",
     );
   });
 });
