@@ -135,7 +135,7 @@ export default [
             },
             {
               target: "**/payments/**/!(*.test).js",
-              from: ["**/agreements/**", "**/grants/**"],
+              from: ["src/agreements/**", "src/grants/**"],
               message:
                 "Payments must not import Agreements or Grants domain internals directly. " +
                 "Payments is entered through its own use cases and knows nothing about " +
