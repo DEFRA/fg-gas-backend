@@ -86,7 +86,7 @@ export const resolveAgreementPayment = ({ agreement, next, execution }) =>
   hasPaymentCommitOperation(next.commitOperations)
     ? resolvePaymentDefinition({
         code: agreement.code,
-        configVersion: agreement.configVersion,
+        configVersion: next.agreement.configVersion,
         context: { agreement: next.agreement, execution },
       })
     : null;

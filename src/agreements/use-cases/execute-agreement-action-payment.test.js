@@ -138,6 +138,7 @@ const transitionAgreement = (values = undefined) =>
     target: "accepted",
     transitionedAt: "2026-08-20T10:00:00.000Z",
     values,
+    configVersion: "1.2.0",
   });
 const session = {};
 
@@ -447,7 +448,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       expect(paymentResolved).toBe(true);
       expect(resolvePaymentDefinition).toHaveBeenCalledWith({
         code: agreement.code,
-        configVersion: agreement.configVersion,
+        configVersion: nextAgreement.configVersion,
         context: { agreement: nextAgreement, execution },
       });
       expect(insertPayment).not.toHaveBeenCalled();

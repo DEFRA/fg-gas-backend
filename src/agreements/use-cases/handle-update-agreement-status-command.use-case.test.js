@@ -91,7 +91,11 @@ describe("handleUpdateAgreementStatusCommandUseCase", () => {
       data: { ...command.data, status: "accepted" },
     };
     const next = {
-      agreement: { ...agreement, state: "accepted" },
+      agreement: {
+        ...agreement,
+        configVersion: "1.2.0",
+        state: "accepted",
+      },
       commitOperations: [{ type: "create-agreement-payment" }],
     };
     const agreementDefinition = {
@@ -111,7 +115,7 @@ describe("handleUpdateAgreementStatusCommandUseCase", () => {
     const [{ execution }] = agreementDefinition.executeAction.mock.calls[0];
     expect(resolvePaymentDefinition).toHaveBeenCalledWith({
       code: agreement.code,
-      configVersion: agreement.configVersion,
+      configVersion: next.agreement.configVersion,
       context: { agreement: next.agreement, execution },
     });
     expect(commitAgreementAction).toHaveBeenCalledWith({
