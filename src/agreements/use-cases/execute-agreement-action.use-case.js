@@ -82,7 +82,7 @@ const hasPaymentCommitOperation = (commitOperations) => {
   return commitOperations.length === 1;
 };
 
-const resolveAgreementPayment = ({ agreement, next, execution }) =>
+export const resolveAgreementPayment = ({ agreement, next, execution }) =>
   hasPaymentCommitOperation(next.commitOperations)
     ? resolvePaymentDefinition({
         code: agreement.code,
