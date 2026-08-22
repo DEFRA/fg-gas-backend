@@ -1,0 +1,31 @@
+{
+  "code": "pigs-might-fly",
+  "sbi": "$.agreement.identifiers.sbi",
+  "frn": "$.agreement.identifiers.frn",
+  "originalInvoiceNumber": "",
+  "scheme": "SFI",
+  "sourceSystem": "FPTT",
+  "deliveryBody": "RP00",
+  "fesCode": "FALS_FPTT",
+  "ledger": "AP",
+  "totalAmountPence": "$.agreement.totalAmountPence",
+  "currency": "GBP",
+  "marketingYear": "jsonata:$substring($.execution.executedAt, 0, 4)",
+  "payments": {
+    "itemsRef": "$.agreement.paymentSchedule.instalments",
+    "items": {
+      "dueDate": "@.dueDate",
+      "totalAmountPence": "@.totalAmountPence",
+      "invoiceLines": {
+        "itemsRef": "@.lineItems",
+        "items": {
+          "schemeCode": "CMOR1",
+          "description": "jsonata:@.description ?? $.agreement.actions[id = @.actionId].description ?? $.agreement.items[id = @.itemId].description",
+          "amountPence": "@.amountPence",
+          "accountCode": "SOS710",
+          "fundCode": "DRD10"
+        }
+      }
+    }
+  }
+}

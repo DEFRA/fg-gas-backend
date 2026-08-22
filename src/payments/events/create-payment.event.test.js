@@ -87,60 +87,49 @@ describe("createPaymentPublication", () => {
     const builtPayment = buildPayment({
       agreementNumber: "FPTT123456",
       version: 2,
-      sbi: "SBI123",
-      frn: "FRN456",
       agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",
-      agreementValues: {
-        actions: [
-          { id: "action:1", code: "CODE-P1", description: "Parcel action" },
-          {
-            id: "action:2",
-            code: "CODE-A1",
-            description: "Agreement action",
-          },
-        ],
-        items: [],
-        totalAmountPence: 10000,
-        paymentSchedule: {
-          instalments: [
-            {
-              id: "instalment:1",
-              dueDate: "2024-05-01",
-              totalAmountPence: 10000,
-              correlationId: "324b1946-7c0f-4be0-8573-020e482c9a8d",
-              lineItems: [
-                {
-                  actionId: "action:1",
-                  amountPence: 6000,
-                  description:
-                    "2024-05-01: Parcel: P1: Parcel Item Description",
-                },
-                {
-                  actionId: "action:2",
-                  amountPence: 4000,
-                  description:
-                    "2024-05-01: One-off payment per agreement per year for Agreement Level Description",
-                },
-              ],
-            },
-          ],
-        },
-      },
-      paymentConfiguration: {
+      resolved: {
+        sbi: "SBI123",
+        frn: "FRN456",
+        originalInvoiceNumber: "ORIG-INV-123",
         scheme: "SFI",
         sourceSystem: "FPTT",
         deliveryBody: "RP00",
         fesCode: "FALS_FPTT",
         ledger: "AP",
+        totalAmountPence: 10000,
         currency: "GBP",
         marketingYear: "2026",
-        invoiceLine: { accountCode: "SOS710", fundCode: "DRD10" },
+        payments: [
+          {
+            dueDate: "2024-05-01",
+            totalAmountPence: 10000,
+            invoiceLines: [
+              {
+                schemeCode: "CODE-P1",
+                description: "2024-05-01: Parcel: P1: Parcel Item Description",
+                amountPence: 6000,
+                accountCode: "SOS710",
+                fundCode: "DRD10",
+              },
+              {
+                schemeCode: "CODE-A1",
+                description:
+                  "2024-05-01: One-off payment per agreement per year for Agreement Level Description",
+                amountPence: 4000,
+                accountCode: "SOS710",
+                fundCode: "DRD10",
+              },
+            ],
+          },
+        ],
       },
       paymentHubClaimId: "R00000001",
       createdAt: "2026-08-01T10:00:00.000Z",
     });
     const expected = structuredClone(legacyCreatePaymentEvent);
-    expected.data.grants[0].originalInvoiceNumber = "";
+    expected.data.grants[0].payments[0].correlationId =
+      "9c3ff46a-6625-4ba7-81f5-58a7602f91ed";
 
     expect(createPaymentPublication(builtPayment).event).toEqual({
       id: "9c3ff46a-6625-4ba7-81f5-58a7602f91ed",

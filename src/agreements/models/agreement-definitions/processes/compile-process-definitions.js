@@ -203,7 +203,7 @@ const compileHandler = (processKey, definition, handlers) => {
     const mapped = await mapHandlerInput(processKey, definition, context);
     const input = validateMappedValue(
       handler.inputSchema,
-      mapped,
+      mapped ?? {},
       `Agreement Process "${processKey}" input failed validation`,
     );
     const { commitOperations } = await executeHandler(

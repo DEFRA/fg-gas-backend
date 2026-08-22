@@ -91,6 +91,32 @@ describe("compileProcessDefinitions", () => {
     });
   });
 
+  it("defaults omitted handler input to an empty object", async () => {
+    const execute = vi.fn();
+    const processes = compileProcessDefinitions(
+      { record: { type: "handler" } },
+      { handlers: { record: { inputSchema: Joi.object({}), execute } } },
+    );
+    const context = { agreement: {}, execution: {} };
+
+    await expect(processes.record(context)).resolves.toEqual({
+      commitOperations: [],
+      output: {},
+    });
+    expect(execute).toHaveBeenCalledWith({ ...context, input: {} });
+  });
+
+  it("rejects omitted handler input when the schema requires fields", async () => {
+    const processes = compileProcessDefinitions(
+      { record: { type: "handler" } },
+      { handlers: { record: handler() } },
+    );
+
+    await expect(
+      processes.record({ agreement: {}, execution: {} }),
+    ).rejects.toThrow(/Agreement Process "record" input failed validation/);
+  });
+
   it("treats an undefined handler result as no commit operations", async () => {
     const processes = compileProcessDefinitions(
       { record: { type: "handler", input: { amount: 1 } } },
