@@ -68,8 +68,7 @@
       }
     },
     "CREATE_AGREEMENT_PAYMENT": {
-      "type": "handler",
-      "input": {}
+      "type": "handler"
     }
   },
   "create": {

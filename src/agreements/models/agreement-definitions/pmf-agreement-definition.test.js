@@ -60,7 +60,7 @@ describe("PMF Agreement definition", () => {
 
     expect(acceptance.processes).toEqual(["CREATE_AGREEMENT_PAYMENT"]);
     expect(acceptance).not.toHaveProperty("effects");
-    expect(paymentProcess).toEqual({ type: "handler", input: {} });
+    expect(paymentProcess).toEqual({ type: "handler" });
     expect(JSON.stringify(acceptance)).not.toContain("callEndpoint");
     expect(JSON.stringify(acceptance)).not.toContain("paymentCalculation");
   });
@@ -124,8 +124,8 @@ describe("PMF Agreement definition", () => {
 
   it("rejects the retired inline Payment input", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.processDefinitions.CREATE_AGREEMENT_PAYMENT.input.payment = {
-      scheme: "SFI",
+    definition.processDefinitions.CREATE_AGREEMENT_PAYMENT.input = {
+      payment: { scheme: "SFI" },
     };
 
     let compiled;
