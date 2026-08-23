@@ -174,14 +174,14 @@ describe("verifyCallerToken", () => {
       expect(result.warnings).toContain("unknown-issuer");
     });
 
-    it("does not check issuer identity when no allow-list is configured", () => {
+    it("fails closed and warns for any issuer when the allow-list is empty", () => {
       const result = verify(
         { ...validPayload, iss: "anything" },
         { allowedIssuers: [] },
       );
 
       expect(result.verified).toBe(true);
-      expect(result.warnings).toEqual([]);
+      expect(result.warnings).toContain("unknown-issuer");
     });
   });
 });

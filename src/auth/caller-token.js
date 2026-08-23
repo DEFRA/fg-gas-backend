@@ -23,7 +23,10 @@ const collectIssuerWarning = (iss, allowedIssuers) => {
   if (iss == null) {
     return "missing-iss";
   }
-  if (allowedIssuers.length > 0 && !allowedIssuers.includes(iss)) {
+  // FGP-1307: fail closed. An empty allow-list means "no issuer is allowed", so
+  // any issuer that is not explicitly listed is reported as unknown. The allow-list
+  // never silently degrades to "accept any issuer".
+  if (!allowedIssuers.includes(iss)) {
     return "unknown-issuer";
   }
   return null;
