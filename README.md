@@ -115,11 +115,11 @@ the agreement routes. It must match the secret the producer services sign with
 (Caseworking frontend, PDF service and Grants UI). It is supplied per
 environment from the platform secret store and must never be committed. It is
 optional while verification runs in warn-only mode; when absent the caller token
-is reported as unverified but requests are not rejected. `CALLER_TOKEN_ALLOWED_ISSUERS`
-is the comma-separated list of producer issuers permitted to mint caller tokens
-(defaults to `grants-ui,fg-cw-frontend,agreements-pdf`). It fails closed: an
-explicit empty value is rejected at startup so the allowlist can never silently
-degrade to "accept any issuer".
+is reported as unverified but requests are not rejected. The producer issuers
+permitted to mint caller tokens (`grants-ui`, `fg-cw-frontend`, `agreements-pdf`)
+are a fixed code constant rather than configuration — the same list applies in
+every environment, so there is no env var to set and no `cdp-app-config` entry,
+and the allowlist can never be misconfigured to an empty "accept any issuer" list.
 
 ### AWS emulation (floci)
 
