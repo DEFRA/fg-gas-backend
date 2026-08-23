@@ -63,6 +63,47 @@ const payment = new Payment({
   createdAt: "2026-08-01T10:00:00.000Z",
 });
 
+const resolvedPayment = {
+  sbi: "SBI123",
+  frn: "FRN456",
+  originalInvoiceNumber: "ORIG-INV-123",
+  scheme: "SFI",
+  sourceSystem: "FPTT",
+  deliveryBody: "RP00",
+  fesCode: "FALS_FPTT",
+  ledger: "AP",
+  totalAmountPence: 10000,
+  currency: "GBP",
+  marketingYear: "2026",
+  payments: [
+    {
+      dueDate: "2024-05-01",
+      totalAmountPence: 10000,
+      invoiceLines: [
+        {
+          schemeCode: "CODE-P1",
+          description: "2024-05-01: Parcel: P1: Parcel Item Description",
+          amountPence: 6000,
+          accountCode: "SOS710",
+          fundCode: "DRD10",
+          deliveryBody: "RP00",
+          marketingYear: "2026",
+        },
+        {
+          schemeCode: "CODE-A1",
+          description:
+            "2024-05-01: One-off payment per agreement per year for Agreement Level Description",
+          amountPence: 4000,
+          accountCode: "SOS710",
+          fundCode: "DRD10",
+          deliveryBody: "RP00",
+          marketingYear: "2026",
+        },
+      ],
+    },
+  ],
+};
+
 describe("createPaymentPublication", () => {
   beforeAll(() => {
     vi.useFakeTimers();
@@ -88,42 +129,7 @@ describe("createPaymentPublication", () => {
       agreementNumber: "FPTT123456",
       version: 2,
       agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",
-      resolved: {
-        sbi: "SBI123",
-        frn: "FRN456",
-        originalInvoiceNumber: "ORIG-INV-123",
-        scheme: "SFI",
-        sourceSystem: "FPTT",
-        deliveryBody: "RP00",
-        fesCode: "FALS_FPTT",
-        ledger: "AP",
-        totalAmountPence: 10000,
-        currency: "GBP",
-        marketingYear: "2026",
-        payments: [
-          {
-            dueDate: "2024-05-01",
-            totalAmountPence: 10000,
-            invoiceLines: [
-              {
-                schemeCode: "CODE-P1",
-                description: "2024-05-01: Parcel: P1: Parcel Item Description",
-                amountPence: 6000,
-                accountCode: "SOS710",
-                fundCode: "DRD10",
-              },
-              {
-                schemeCode: "CODE-A1",
-                description:
-                  "2024-05-01: One-off payment per agreement per year for Agreement Level Description",
-                amountPence: 4000,
-                accountCode: "SOS710",
-                fundCode: "DRD10",
-              },
-            ],
-          },
-        ],
-      },
+      resolved: resolvedPayment,
       paymentHubClaimId: "R00000001",
       createdAt: "2026-08-01T10:00:00.000Z",
     });
@@ -135,6 +141,28 @@ describe("createPaymentPublication", () => {
       id: "9c3ff46a-6625-4ba7-81f5-58a7602f91ed",
       time: eventTime,
       ...expected,
+    });
+  });
+
+  it("preserves configured invoice-line accounting fields", () => {
+    const resolved = structuredClone(resolvedPayment);
+    resolved.payments[0].invoiceLines[0].deliveryBody = "RPA1";
+    resolved.payments[0].invoiceLines[0].marketingYear = "2027";
+    const builtPayment = buildPayment({
+      agreementNumber: "FPTT123456",
+      version: 2,
+      agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",
+      resolved,
+      paymentHubClaimId: "R00000001",
+      createdAt: "2026-08-01T10:00:00.000Z",
+    });
+
+    const [line] =
+      createPaymentPublication(builtPayment).event.data.grants[0].payments[0]
+        .invoiceLines;
+    expect(line).toMatchObject({
+      deliveryBody: "RPA1",
+      marketingYear: "2027",
     });
   });
 

@@ -19,15 +19,10 @@ const requireAgreementCorrelationId = (agreementCorrelationId) => {
   return agreementCorrelationId;
 };
 
-const toDuePayment = (duePayment, resolved) => ({
+const toDuePayment = (duePayment) => ({
   ...duePayment,
   status: DuePaymentStatus.PENDING,
   correlationId: randomUUID(),
-  invoiceLines: duePayment.invoiceLines.map((invoiceLine) => ({
-    ...invoiceLine,
-    deliveryBody: resolved.deliveryBody,
-    marketingYear: resolved.marketingYear,
-  })),
 });
 
 export const buildPayment = ({
@@ -64,9 +59,7 @@ export const buildPayment = ({
     totalAmountPence: resolved.totalAmountPence,
     currency: resolved.currency,
     marketingYear: resolved.marketingYear,
-    payments: resolved.payments.map((duePayment) =>
-      toDuePayment(duePayment, resolved),
-    ),
+    payments: resolved.payments.map(toDuePayment),
     createdAt,
   });
 };

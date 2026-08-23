@@ -26,6 +26,8 @@ const invoiceLineSchema = Joi.object({
   amountPence: penceSchema,
   accountCode: Joi.string().required(),
   fundCode: Joi.string().required(),
+  deliveryBody: Joi.string().required(),
+  marketingYear: Joi.string().required(),
 }).unknown(false);
 
 const duePaymentSchema = Joi.object({

@@ -99,6 +99,8 @@ const expectedPayment = {
           amountPence: 2000,
           accountCode: "SOS710",
           fundCode: "DRD10",
+          deliveryBody: "RP00",
+          marketingYear: "2026",
         },
         {
           schemeCode: "CMOR1",
@@ -106,6 +108,8 @@ const expectedPayment = {
           amountPence: 1800,
           accountCode: "SOS710",
           fundCode: "DRD10",
+          deliveryBody: "RP00",
+          marketingYear: "2026",
         },
       ],
     },

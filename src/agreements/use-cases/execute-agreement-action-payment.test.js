@@ -116,6 +116,8 @@ const resolvedPayment = {
           amountPence: 2000,
           accountCode: "SOS710",
           fundCode: "DRD10",
+          deliveryBody: "RPA1",
+          marketingYear: "2027",
         },
         {
           schemeCode: "CMOR1",
@@ -123,6 +125,8 @@ const resolvedPayment = {
           amountPence: 1800,
           accountCode: "SOS710",
           fundCode: "DRD10",
+          deliveryBody: "RPA2",
+          marketingYear: "2028",
         },
       ],
     },
@@ -334,7 +338,11 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       correlationId: payment.correlationId,
       totalAmountPence: "3800",
     });
-    expect(data.grants[0].payments[0].invoiceLines[0].amountPence).toBe("2000");
+    expect(data.grants[0].payments[0].invoiceLines[0]).toMatchObject({
+      amountPence: "2000",
+      deliveryBody: "RPA1",
+      marketingYear: "2027",
+    });
   });
 
   it("groups the payment event without changing its message", async () => {
@@ -395,7 +403,8 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       amountPence: 2000,
       accountCode: "SOS710",
       fundCode: "DRD10",
-      deliveryBody: "RP00",
+      deliveryBody: "RPA1",
+      marketingYear: "2027",
     });
   });
 

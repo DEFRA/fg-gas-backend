@@ -8,6 +8,8 @@ const invoiceLine = {
   amountPence: 3800,
   accountCode: "SOS710",
   fundCode: "DRD10",
+  deliveryBody: "RPA1",
+  marketingYear: "2027",
 };
 
 const duePayment = {
@@ -111,6 +113,8 @@ const expectedPmfPayment = {
           amountPence: 2000,
           accountCode: "SOS710",
           fundCode: "DRD10",
+          deliveryBody: "RP00",
+          marketingYear: "2026",
         },
         {
           schemeCode: "CMOR1",
@@ -118,6 +122,8 @@ const expectedPmfPayment = {
           amountPence: 1800,
           accountCode: "SOS710",
           fundCode: "DRD10",
+          deliveryBody: "RP00",
+          marketingYear: "2026",
         },
       ],
     },
@@ -201,6 +207,8 @@ describe("PaymentDefinition", () => {
               amountPence: "@.amountPence",
               accountCode: "@.accountCode",
               fundCode: "@.fundCode",
+              deliveryBody: "@.deliveryBody",
+              marketingYear: "@.marketingYear",
             },
           },
         },
@@ -224,6 +232,39 @@ describe("PaymentDefinition", () => {
       frn: "1101234567",
     });
   });
+
+  it("accepts independently configured invoice-line accounting mappings", async () => {
+    const definition = new PaymentDefinition(validDefinition);
+
+    await expect(definition.resolve({})).resolves.toMatchObject({
+      deliveryBody: "RP00",
+      marketingYear: "2026",
+      payments: [
+        {
+          invoiceLines: [
+            {
+              deliveryBody: "RPA1",
+              marketingYear: "2027",
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it.each(["deliveryBody", "marketingYear"])(
+    "requires invoice-line %s",
+    async (field) => {
+      const line = { ...invoiceLine };
+      delete line[field];
+      const definition = new PaymentDefinition({
+        ...validDefinition,
+        payments: [{ ...duePayment, invoiceLines: [line] }],
+      });
+
+      await expectResolutionError(definition, {}, field);
+    },
+  );
 
   it("rejects missing required fields", () => {
     const { scheme: _scheme, ...definition } = validDefinition;
@@ -283,24 +324,6 @@ describe("PaymentDefinition", () => {
 
   it.each([
     [[{ ...duePayment, status: "pending" }], "payments.status"],
-    [
-      [
-        {
-          ...duePayment,
-          invoiceLines: [{ ...invoiceLine, deliveryBody: "RP00" }],
-        },
-      ],
-      "payments.invoiceLines.deliveryBody",
-    ],
-    [
-      [
-        {
-          ...duePayment,
-          invoiceLines: [{ ...invoiceLine, marketingYear: "2026" }],
-        },
-      ],
-      "payments.invoiceLines.marketingYear",
-    ],
     [
       {
         itemsRef: "$.schedule",

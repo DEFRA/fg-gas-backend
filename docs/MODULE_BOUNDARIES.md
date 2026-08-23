@@ -41,7 +41,7 @@ Agreement acceptance uses two named Payment use cases:
 
 The resolver is a read-only, pre-transaction seam. Config Broker loading and mapping validation stay outside the write transaction. The creation use case is the transactional seam, and the caller passes its session in.
 
-A Payment definition supplies `originalInvoiceNumber` as a top-level lookup or literal mapping. `payments` generates `invoiceNumber` when it builds the Payment.
+A Payment definition supplies `originalInvoiceNumber` as a top-level lookup or literal mapping. It also supplies `deliveryBody` and `marketingYear` at both Payment and invoice-line levels. Invoice-line values may differ from the Payment-level values, and `payments` preserves them when it builds the Payment. `payments` generates `invoiceNumber`.
 
 Nothing else in `payments` is importable from Agreements. The ESLint zone lists both exceptions explicitly so adding another one is a deliberate, reviewed change.
 

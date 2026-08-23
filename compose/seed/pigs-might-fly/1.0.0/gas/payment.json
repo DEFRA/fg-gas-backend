@@ -23,7 +23,9 @@
           "description": "jsonata:@.description ?? $.agreement.actions[id = @.actionId].description ?? $.agreement.items[id = @.itemId].description",
           "amountPence": "@.amountPence",
           "accountCode": "SOS710",
-          "fundCode": "DRD10"
+          "fundCode": "DRD10",
+          "deliveryBody": "RP00",
+          "marketingYear": "jsonata:$substring($.execution.executedAt, 0, 4)"
         }
       }
     }

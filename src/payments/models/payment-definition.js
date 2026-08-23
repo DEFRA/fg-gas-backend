@@ -30,6 +30,8 @@ const invoiceLineFields = [
   "amountPence",
   "accountCode",
   "fundCode",
+  "deliveryBody",
+  "marketingYear",
 ];
 
 const isObject = (value) => value !== null && typeof value === "object";

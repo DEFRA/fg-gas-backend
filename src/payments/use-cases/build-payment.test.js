@@ -24,6 +24,8 @@ const resolved = {
           amountPence: 2000,
           accountCode: "SOS710",
           fundCode: "DRD10",
+          deliveryBody: "RPA1",
+          marketingYear: "2027",
         },
       ],
     },
@@ -37,6 +39,8 @@ const resolved = {
           amountPence: 1800,
           accountCode: "SOS710",
           fundCode: "DRD10",
+          deliveryBody: "RPA2",
+          marketingYear: "2028",
         },
       ],
     },
@@ -135,16 +139,16 @@ describe("buildPayment", () => {
     ).toEqual([2000, 1800]);
   });
 
-  it("copies top-level delivery body and marketing year onto invoice lines", () => {
+  it("preserves configured invoice-line accounting fields", () => {
     const payment = build();
 
     expect(payment.payments[0].invoiceLines[0]).toMatchObject({
-      deliveryBody: "RP00",
-      marketingYear: "2026",
+      deliveryBody: "RPA1",
+      marketingYear: "2027",
     });
     expect(payment.payments[1].invoiceLines[0]).toMatchObject({
-      deliveryBody: "RP00",
-      marketingYear: "2026",
+      deliveryBody: "RPA2",
+      marketingYear: "2028",
     });
   });
 

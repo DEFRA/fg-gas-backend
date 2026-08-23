@@ -42,6 +42,8 @@ const rawDefinition = {
           amountPence: 3800,
           accountCode: "SOS710",
           fundCode: "DRD10",
+          deliveryBody: "RP00",
+          marketingYear: "2026",
         },
       ],
     },

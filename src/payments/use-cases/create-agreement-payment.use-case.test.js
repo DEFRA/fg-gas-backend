@@ -36,6 +36,8 @@ const request = {
             amountPence: 2000,
             accountCode: "SOS710",
             fundCode: "DRD10",
+            deliveryBody: "RP00",
+            marketingYear: "2026",
           },
         ],
       },
