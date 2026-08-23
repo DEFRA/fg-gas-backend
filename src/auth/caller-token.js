@@ -42,12 +42,25 @@ const collectExpiryWarning = (exp) => {
   return null;
 };
 
+// FGP-1307: the subject identifies the caller. A present-but-empty or non-string
+// sub (e.g. "", 0, {}, []) is malformed and must be visible during the warn-only
+// rollout, so require a non-empty string rather than only checking for null.
+const collectSubjectWarning = (sub) => {
+  if (sub == null) {
+    return "missing-sub";
+  }
+  if (typeof sub !== "string" || sub.trim() === "") {
+    return "invalid-sub";
+  }
+  return null;
+};
+
 const collectClaimWarnings = (payload, { audience, allowedIssuers }) => {
   const warnings = [
     collectAudienceWarning(payload.aud, audience),
     collectIssuerWarning(payload.iss, allowedIssuers),
     collectExpiryWarning(payload.exp),
-    payload.sub == null ? "missing-sub" : null,
+    collectSubjectWarning(payload.sub),
   ];
   return warnings.filter(Boolean);
 };

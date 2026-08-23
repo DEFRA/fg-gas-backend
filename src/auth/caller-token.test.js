@@ -119,6 +119,28 @@ describe("verifyCallerToken", () => {
     );
   });
 
+  it.each([
+    ["an empty string", ""],
+    ["a whitespace-only string", "   "],
+    ["a number", 0],
+    ["an object", {}],
+    ["an array", []],
+  ])("verifies but warns when sub is %s (malformed subject)", (_label, sub) => {
+    const result = verify({ ...validPayload, sub });
+
+    expect(result.verified).toBe(true);
+    expect(result.warnings).toContain("invalid-sub");
+    expect(result.warnings).not.toContain("missing-sub");
+  });
+
+  it("does not warn on sub for a valid non-empty string subject", () => {
+    const result = verify({ ...validPayload, sub: "123456789" });
+
+    expect(result.verified).toBe(true);
+    expect(result.warnings).not.toContain("invalid-sub");
+    expect(result.warnings).not.toContain("missing-sub");
+  });
+
   it("verifies but warns when exp is missing (replayable token)", () => {
     const result = verify({ iss: "grants-ui", aud: "gas", sub: "1" });
 

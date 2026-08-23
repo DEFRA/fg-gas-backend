@@ -117,7 +117,9 @@ environment from the platform secret store and must never be committed. It is
 optional while verification runs in warn-only mode; when absent the caller token
 is reported as unverified but requests are not rejected. `CALLER_TOKEN_ALLOWED_ISSUERS`
 is the comma-separated list of producer issuers permitted to mint caller tokens
-(defaults to `grants-ui,fg-cw-frontend,agreements-pdf`).
+(defaults to `grants-ui,fg-cw-frontend,agreements-pdf`). It fails closed: an
+explicit empty value is rejected at startup so the allowlist can never silently
+degrade to "accept any issuer".
 
 ### AWS emulation (floci)
 

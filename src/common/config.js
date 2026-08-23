@@ -52,7 +52,6 @@ const schema = Joi.object({
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
   AGREEMENTS_JWT_SECRET: Joi.string().optional(),
   CALLER_TOKEN_ALLOWED_ISSUERS: Joi.string()
-    .allow("")
     .optional()
     .default("grants-ui,fg-cw-frontend,agreements-pdf"),
 }).options({

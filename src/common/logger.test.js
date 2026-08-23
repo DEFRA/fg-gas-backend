@@ -31,6 +31,14 @@ describe("logger redaction (FGP-1307)", () => {
     expect(productionRedactPaths).toContain('req.headers["x-encrypted-auth"]');
   });
 
+  it("lists the x-agreement identity headers in the production redaction paths", () => {
+    expect(productionRedactPaths).toContain('req.headers["x-agreement-code"]');
+    expect(productionRedactPaths).toContain(
+      'req.headers["x-agreement-client-ref"]',
+    );
+    expect(productionRedactPaths).toContain('req.headers["x-agreement-sbi"]');
+  });
+
   it("never serializes the caller token to logs", () => {
     const output = captureLog({
       req: {
@@ -44,5 +52,21 @@ describe("logger redaction (FGP-1307)", () => {
 
     expect(output).not.toContain(TOKEN);
     expect(output).not.toContain("x-encrypted-auth");
+  });
+
+  it("never serializes x-agreement identity values (grantCode/clientRef/sbi) to logs", () => {
+    const output = captureLog({
+      req: {
+        headers: {
+          "x-agreement-code": "GRANT-CODE-XYZ",
+          "x-agreement-client-ref": "CLIENT-REF-123",
+          "x-agreement-sbi": "123456789",
+        },
+      },
+    });
+
+    expect(output).not.toContain("GRANT-CODE-XYZ");
+    expect(output).not.toContain("CLIENT-REF-123");
+    expect(output).not.toContain("123456789");
   });
 });
