@@ -61,22 +61,7 @@ const paymentAgreementValues = {
   paymentSchedule,
 };
 
-const paymentHandlerInput = {
-  payment: {
-    scheme: "SFI",
-    sourceSystem: "FPTT",
-    deliveryBody: "RP00",
-    fesCode: "FALS_FPTT",
-    ledger: "AP",
-    currency: "GBP",
-    marketingYear: "2026",
-    invoiceLine: {
-      schemeCode: "CMOR1",
-      accountCode: "SOS710",
-      fundCode: "DRD10",
-    },
-  },
-};
+const paymentHandlerInput = {};
 
 const addTransition = (definition, processes, target = "offered") => {
   definition.states.offered.on = {
@@ -471,27 +456,6 @@ describe("AgreementDefinition Process runtime", () => {
     });
   });
 
-  it("allows Payment scheme codes to derive from funded entries", async () => {
-    const definitionData = createDefinition();
-    const input = structuredClone(paymentHandlerInput);
-    delete input.payment.invoiceLine.schemeCode;
-    definitionData.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
-      type: "handler",
-      input,
-    };
-    addTransition(definitionData, ["CREATE_AGREEMENT_PAYMENT"]);
-    const definition = new AgreementDefinition(definitionData);
-
-    const result = await executeAction(
-      definition,
-      toAgreement(paymentAgreementValues),
-    );
-
-    expect(
-      result.commitOperations[0].request.paymentConfiguration.invoiceLine,
-    ).not.toHaveProperty("schemeCode");
-  });
-
   it("stages a typed Payment commit operation without writing", async () => {
     const definitionData = createDefinition();
     definitionData.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
@@ -505,15 +469,7 @@ describe("AgreementDefinition Process runtime", () => {
       executeAction(definition, toAgreement(paymentAgreementValues)),
     ).resolves.toMatchObject({
       agreement: { state: "offered", version: 2 },
-      commitOperations: [
-        {
-          type: "create-agreement-payment",
-          request: {
-            agreementValues: paymentAgreementValues,
-            paymentConfiguration: paymentHandlerInput.payment,
-          },
-        },
-      ],
+      commitOperations: [{ type: "create-agreement-payment" }],
     });
   });
 
@@ -822,14 +778,14 @@ const compilationCases = [
     () => {
       const definition = createDefinition();
       const input = structuredClone(paymentHandlerInput);
-      input.agreementValues = { agreementNumber: "not-configurable" };
+      input.payment = { scheme: "SFI" };
       definition.processDefinitions.CREATE_AGREEMENT_PAYMENT = {
         type: "handler",
         input,
       };
       return { definition };
     },
-    /input\.agreementValues.*unknown/,
+    /input\.payment.*unknown/,
   ],
 ];
 
