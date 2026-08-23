@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { processConfigVersionUseCase } from "./process-config-version.use-case.js";
 
-const mockUpsertDefinitionLocation = vi.fn();
-vi.mock("../../common/config-broker/config-catalog.repository.js", () => ({
-  updateDefinitionLocation: (...args) => mockUpsertDefinitionLocation(...args),
-}));
-
 vi.mock("../../common/config.js", () => ({
   config: {
     configBroker: {
@@ -31,7 +26,6 @@ describe("processConfigVersionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpsert.mockResolvedValue({ upsertedCount: 1 });
-    mockUpsertDefinitionLocation.mockResolvedValue({ modifiedCount: 1 });
   });
 
   it("should upsert a config version with correct fields", async () => {
@@ -53,7 +47,7 @@ describe("processConfigVersionUseCase", () => {
     expect(arg.s3Key).toBe("woodland/1.2.3/gas/gas.json");
     expect(arg.s3Bucket).toBe("config-broker-test");
     expect(arg.fetchStatus).toBe("pending");
-    expect(mockUpsertDefinitionLocation).not.toHaveBeenCalled();
+    expect(mockUpsert).toHaveBeenCalledWith(arg, {});
   });
 
   it("should record an optional Agreement definition", async () => {
@@ -67,11 +61,43 @@ describe("processConfigVersionUseCase", () => {
       ],
     });
 
-    expect(mockUpsertDefinitionLocation).toHaveBeenCalledWith({
+    expect(mockUpsert.mock.calls[0][1]).toEqual({
+      agreementS3Key: "woodland/1.2.3/gas/agreement.json",
+    });
+  });
+
+  it("should record an optional Payment definition", async () => {
+    await processConfigVersionUseCase({
       grantCode: "woodland",
       version: "1.2.3",
-      definitionType: "agreement",
-      s3Key: "woodland/1.2.3/gas/agreement.json",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/payment.json",
+      ],
+    });
+
+    expect(mockUpsert.mock.calls[0][1]).toEqual({
+      paymentS3Key: "woodland/1.2.3/gas/payment.json",
+    });
+  });
+
+  it("should record Agreement and Payment definitions independently", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/agreement.json",
+        "woodland/1.2.3/gas/payment.json",
+      ],
+    });
+
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    expect(mockUpsert.mock.calls[0][1]).toEqual({
+      agreementS3Key: "woodland/1.2.3/gas/agreement.json",
+      paymentS3Key: "woodland/1.2.3/gas/payment.json",
     });
   });
 

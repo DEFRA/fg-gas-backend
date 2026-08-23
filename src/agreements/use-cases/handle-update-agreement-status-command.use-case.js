@@ -1,7 +1,10 @@
 import { logger } from "../../common/logger.js";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { findVersionByIdempotencyKey } from "../repositories/agreement.repository.js";
-import { commitAgreementAction } from "./execute-agreement-action.use-case.js";
+import {
+  commitAgreementAction,
+  resolveAgreementPayment,
+} from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
 const findCompleted = async ({ agreementNumber, status }, idempotencyKey) => {
@@ -28,14 +31,20 @@ const executeStatusTransition = async ({ command, agreement, definition }) => {
     state: agreement.state,
     status,
   }).transition.action;
+  const execution = {
+    correlationId: agreement.correlationId,
+    executedAt: new Date().toISOString(),
+  };
   const next = await definition.executeAction({
     agreement,
     actionName,
     values: {},
-    execution: {
-      correlationId: agreement.correlationId,
-      executedAt: new Date().toISOString(),
-    },
+    execution,
+  });
+  const resolvedPayment = await resolveAgreementPayment({
+    agreement,
+    next,
+    execution,
   });
 
   return commitAgreementAction({
@@ -43,6 +52,7 @@ const executeStatusTransition = async ({ command, agreement, definition }) => {
     current: agreement,
     idempotencyKey: command.id,
     next,
+    resolvedPayment,
   });
 };
 

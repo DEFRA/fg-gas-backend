@@ -73,6 +73,29 @@ describe("config broker message flow", () => {
     });
   });
 
+  it("records an optional Payment definition independently", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.7",
+      status: "active",
+      manifest: [
+        "woodland/1.2.7/gas/gas.json",
+        "woodland/1.2.7/gas/payment.json",
+      ],
+    });
+
+    const doc = await configVersionsCol.findOne({
+      grantCode: "woodland",
+      version: "1.2.7",
+    });
+    expect(doc.definitions.payment).toMatchObject({
+      s3Key: "woodland/1.2.7/gas/payment.json",
+      fetchStatus: FetchStatus.Pending,
+      fetchAttempts: 0,
+    });
+    expect(doc.definitions.agreement).toBeUndefined();
+  });
+
   it("does not reset Agreement fetch state on a duplicate message", async () => {
     const event = {
       grantCode: "woodland",

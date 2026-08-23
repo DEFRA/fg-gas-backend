@@ -201,6 +201,9 @@ awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/gas.json \
 awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/agreement.json \
   s3://config-broker-local/pigs-might-fly/1.0.0/gas/agreement.json
 
+awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/payment.json \
+  s3://config-broker-local/pigs-might-fly/1.0.0/gas/payment.json
+
 awslocal s3 cp /etc/floci/seed/woodland/1.1.0/gas/gas.json \
   s3://config-broker-local/woodland/1.1.0/gas/gas.json
 

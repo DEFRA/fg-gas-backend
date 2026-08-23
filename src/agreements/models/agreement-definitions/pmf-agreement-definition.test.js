@@ -1,3 +1,4 @@
+import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
 import { pmfAgreementDefinitionFixture } from "../../../../test/fixtures/pmf-agreement-definition.js";
 import { Agreement } from "../agreement.js";
@@ -52,32 +53,14 @@ describe("PMF Agreement definition", () => {
     ).not.toHaveProperty("id");
   });
 
-  it("configures acceptance to stage Payment from stored Agreement values", () => {
+  it("configures acceptance to require a resolved Payment definition", () => {
     const acceptance = pmfAgreementDefinition.states.offered.on.accept;
     const paymentProcess =
       pmfAgreementDefinition.processDefinitions.CREATE_AGREEMENT_PAYMENT;
 
     expect(acceptance.processes).toEqual(["CREATE_AGREEMENT_PAYMENT"]);
     expect(acceptance).not.toHaveProperty("effects");
-    expect(paymentProcess).toEqual({
-      type: "handler",
-      input: {
-        payment: {
-          scheme: "SFI",
-          sourceSystem: "FPTT",
-          deliveryBody: "RP00",
-          fesCode: "FALS_FPTT",
-          ledger: "AP",
-          currency: "GBP",
-          marketingYear: "jsonata:$substring($.execution.executedAt, 0, 4)",
-          invoiceLine: {
-            schemeCode: "CMOR1",
-            accountCode: "SOS710",
-            fundCode: "DRD10",
-          },
-        },
-      },
-    });
+    expect(paymentProcess).toEqual({ type: "handler" });
     expect(JSON.stringify(acceptance)).not.toContain("callEndpoint");
     expect(JSON.stringify(acceptance)).not.toContain("paymentCalculation");
   });
@@ -135,19 +118,29 @@ describe("PMF Agreement definition", () => {
     expect(callEndpoint).not.toHaveBeenCalled();
     expect(result.agreement.configVersion).toBe("1.2.0");
     expect(result.commitOperations).toEqual([
-      expect.objectContaining({
-        type: "create-agreement-payment",
-        request: expect.objectContaining({
-          agreementValues: expect.objectContaining({
-            actions: agreement.actions,
-            paymentSchedule: agreement.paymentSchedule,
-          }),
-          paymentConfiguration: expect.objectContaining({
-            marketingYear: "2027",
-          }),
-        }),
-      }),
+      { type: "create-agreement-payment" },
     ]);
+  });
+
+  it("rejects the retired inline Payment input", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.processDefinitions.CREATE_AGREEMENT_PAYMENT.input = {
+      payment: { scheme: "SFI" },
+    };
+
+    let compiled;
+    let error;
+    try {
+      compiled = new AgreementDefinition(definition);
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(compiled).toBeUndefined();
+    expect(Boom.isBoom(error)).toBe(true);
+    expect(error.output.statusCode).toBe(500);
+    expect(error.message).toContain("CREATE_AGREEMENT_PAYMENT");
+    expect(error.message).toContain("payment");
   });
 
   it("configures withdrawal without a Payment operation", async () => {

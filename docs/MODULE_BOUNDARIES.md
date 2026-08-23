@@ -30,17 +30,22 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 | **Inbox / Outbox records** | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox |
 | **Shared infrastructure**  | Import from `src/common/` (logger, DB client, messaging helpers)                            |
 
-### Transactional entry points
+### Payment entry points
 
-Some collaborations have to commit in a single Mongo transaction, which no event, command or HTTP seam can span. Those are allowed as a single named use case in the owning module, and only that file may be imported:
+Agreement acceptance uses two named Payment use cases:
 
-| Caller       | Entry point                                               | Why                                                                                                               |
-| ------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | The Payment for an accepted Agreement Version must commit with the Agreement, its Version and the lifecycle event |
+| Caller       | Entry point                                               | Why                                                                                                                                                       |
+| ------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agreements` | `payments/use-cases/resolve-payment-definition.js`        | Resolves and validates the persisted Agreement's exact Payment definition before the transaction starts, so configuration or fetch failures write nothing |
+| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | Creates the Payment in the Agreement action's Mongo session so the Payment, Agreement, Version and lifecycle event commit together                        |
 
-The caller passes its session in; nothing else in `payments` is importable, and the ESLint zone lists the exception explicitly so adding another one is a deliberate, reviewed change.
+The resolver is a read-only, pre-transaction seam. Config Broker loading and mapping validation stay outside the write transaction. The creation use case is the transactional seam, and the caller passes its session in.
 
-`payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from that entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.
+A Payment definition supplies `originalInvoiceNumber` as a top-level lookup or literal mapping. It also supplies `deliveryBody` and `marketingYear` at both Payment and invoice-line levels. Invoice-line values may differ from the Payment-level values, and `payments` preserves them when it builds the Payment. `payments` generates `invoiceNumber`.
+
+Nothing else in `payments` is importable from Agreements. The ESLint zone lists both exceptions explicitly so adding another one is a deliberate, reviewed change.
+
+`payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from the creation entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.
 
 ## Adding a New Seam
 
