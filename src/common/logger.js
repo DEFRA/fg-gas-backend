@@ -18,19 +18,27 @@ const format = {
   },
 }[config.logFormat];
 
+// FGP-1307: x-encrypted-auth carries the signed caller JWT and must never be
+// serialized to logs. It is redacted alongside the existing sensitive headers.
+// The x-agreement-* identity headers (grant code, client ref, sbi) are personal
+// identifiers and are redacted too so grantCode/clientRef/sbi never reach logs.
+export const productionRedactPaths = [
+  "req.headers.authorization",
+  "req.headers.cookie",
+  'req.headers["x-encrypted-auth"]',
+  'req.headers["x-agreement-code"]',
+  'req.headers["x-agreement-client-ref"]',
+  'req.headers["x-agreement-sbi"]',
+  "res.headers",
+];
+
 export const logger = pino({
   enabled: config.logEnabled,
   ignorePaths: ["/health"],
   redact: {
     paths:
       config.env === "production"
-        ? [
-            "req.headers.authorization",
-            "req.headers.cookie",
-            'req.headers["x-agreement-client-ref"]',
-            'req.headers["x-agreement-sbi"]',
-            "res.headers",
-          ]
+        ? productionRedactPaths
         : ["req", "res", "responseTime"],
     remove: true,
   },
