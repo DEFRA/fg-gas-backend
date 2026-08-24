@@ -5,7 +5,26 @@ import { ConfigVersion } from "../models/config-version.js";
 
 const collection = "config_versions";
 
-export const upsert = async (configVersion) => {
+const definitionLocationUpdate = (definitionType, s3Key) => ({
+  [`definitions.${definitionType}`]: {
+    $mergeObjects: [
+      {
+        fetchStatus: FetchStatus.Pending,
+        fetchAttempts: 0,
+        fetchError: null,
+        fetchedAt: null,
+        lastFetchAttemptAt: null,
+      },
+      { $ifNull: [`$definitions.${definitionType}`, {}] },
+      { s3Key: { $literal: s3Key } },
+    ],
+  },
+});
+
+export const upsert = async (
+  configVersion,
+  { agreementS3Key, paymentS3Key } = {},
+) => {
   const doc = configVersion.toDocument();
 
   const fetchState = {
@@ -43,6 +62,10 @@ export const upsert = async (configVersion) => {
               { s3Key: { $literal: doc.s3Key } },
             ],
           },
+          ...(agreementS3Key &&
+            definitionLocationUpdate("agreement", agreementS3Key)),
+          ...(paymentS3Key &&
+            definitionLocationUpdate("payment", paymentS3Key)),
         },
       },
     ],

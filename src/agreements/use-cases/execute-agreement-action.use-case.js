@@ -4,6 +4,7 @@ import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { createAgreementPaymentUseCase } from "../../payments/use-cases/create-agreement-payment.use-case.js";
+import { resolvePaymentDefinition } from "../../payments/use-cases/resolve-payment-definition.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import {
   findAgreementByNumber,
@@ -61,7 +62,7 @@ const findCompleted = async (
   return { location: currentAgreementLocation };
 };
 
-const findPaymentRequest = (commitOperations) => {
+const hasPaymentCommitOperation = (commitOperations) => {
   const unsupported = commitOperations.find(
     ({ type }) => type !== "create-agreement-payment",
   );
@@ -78,8 +79,17 @@ const findPaymentRequest = (commitOperations) => {
     );
   }
 
-  return commitOperations[0]?.request;
+  return commitOperations.length === 1;
 };
+
+export const resolveAgreementPayment = ({ agreement, next, execution }) =>
+  hasPaymentCommitOperation(next.commitOperations)
+    ? resolvePaymentDefinition({
+        code: agreement.code,
+        configVersion: next.agreement.configVersion,
+        context: { agreement: next.agreement, execution },
+      })
+    : null;
 
 // Payments owns the claim ID, the Payment document and the message that carries
 // it to the Payment Service; it is handed the action's session so all of them
@@ -87,12 +97,10 @@ const findPaymentRequest = (commitOperations) => {
 // together when anything before the commit fails. The Payment Service
 // publication comes back to be written to the outbox with the rest.
 const createAgreementPayment = async (
-  { agreement, commitOperations },
+  { agreement, resolvedPayment },
   session,
 ) => {
-  const paymentRequest = findPaymentRequest(commitOperations);
-
-  if (!paymentRequest) {
+  if (resolvedPayment == null) {
     return null;
   }
 
@@ -100,10 +108,8 @@ const createAgreementPayment = async (
     {
       agreementNumber: agreement.agreementNumber,
       version: agreement.version,
-      sbi: agreement.identifiers?.sbi,
-      frn: agreement.identifiers?.frn,
       agreementCorrelationId: agreement.correlationId,
-      ...paymentRequest,
+      resolved: resolvedPayment,
     },
     session,
   );
@@ -148,7 +154,7 @@ const isConcurrentActionConflict = (error) =>
     hasPaymentSourceIndex(error.keyPattern));
 
 const commitActionTransaction = async (
-  { actionName, current, idempotencyKey, next },
+  { actionName, current, idempotencyKey, next, resolvedPayment },
   session,
 ) => {
   const completed = await findCompleted(
@@ -181,7 +187,10 @@ const commitActionTransaction = async (
     }),
     session,
   );
-  const paymentResult = await createAgreementPayment(next, session);
+  const paymentResult = await createAgreementPayment(
+    { agreement: next.agreement, resolvedPayment },
+    session,
+  );
   await saveOutboxEvents(
     createActionPublications(current, next.agreement, paymentResult),
     session,
@@ -261,19 +270,27 @@ export const executeAgreementActionUseCase = async (options) => {
     };
   }
 
+  const execution = {
+    correlationId: agreement.correlationId,
+    executedAt: new Date().toISOString(),
+  };
   const next = await agreementDefinition.executeAction({
     agreement,
     actionName: options.actionName,
     values: options.values,
-    execution: {
-      correlationId: agreement.correlationId,
-      executedAt: new Date().toISOString(),
-    },
+    execution,
   });
+  const resolvedPayment = await resolveAgreementPayment({
+    agreement,
+    next,
+    execution,
+  });
+
   return commitAgreementAction({
     actionName: options.actionName,
     current: agreement,
     idempotencyKey: options.idempotencyKey,
     next,
+    resolvedPayment,
   });
 };
