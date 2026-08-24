@@ -24,6 +24,8 @@ Agreement pages should follow the Case Working approach. Pages are configuration
 
 Agreement definitions should define page IDs, routing metadata, headings, labels, declarations, links, sections, bindings, conditions, actions and PDF behaviour. GAS exposes this as an agreement page/action model that a UI outside GAS can render. The UI should not contain journey logic for individual Agreement types.
 
+When an Agreement stores an applicant, its page and document models include an account-display applicant projection: the business name and the customer's first and last names. Those models retain the Agreement's SBI, but exclude applicant addresses, titles, middle names and application answers.
+
 Definitions are versioned so an accepted agreement can be reproduced from the definition used when it was created. Store Agreement version data, definition version, generated document reference and audit facts. Do not treat the rendered page model as the durable record.
 
 The renderer should be reusable. It could be a shared library used by host UIs, or a standalone Agreement UI service that uses the same page/action model. Forms Engine compatibility may help, but the agreement UI should not be locked to Grants UI rendering.
