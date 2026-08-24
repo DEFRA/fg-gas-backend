@@ -3,12 +3,11 @@ import { buildClaimsView } from "../services/build-claims-view.js";
 import { resolveEntitlementsUseCase } from "./resolve-entitlements.use-case.js";
 
 export const findClaimUseCase = async ({ code, clientRef, claimCode }) => {
-  const { application, grant, atPosition, available, existing } =
+  const { application, grant, offerable, available, existing } =
     await resolveEntitlementsUseCase({ code, clientRef });
 
-  const entitlementTemplate = atPosition.find(
-    (template) =>
-      template.claimCode === claimCode && template.materialised === false,
+  const entitlementTemplate = offerable.find(
+    (template) => template.claimCode === claimCode,
   );
 
   if (!entitlementTemplate) {

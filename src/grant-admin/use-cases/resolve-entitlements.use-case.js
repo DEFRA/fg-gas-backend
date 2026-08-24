@@ -3,15 +3,16 @@ import { findExistingEntitlements } from "../../grants/repositories/entitlement.
 import { findApplicationByClientRefAndCodeUseCase } from "../../grants/use-cases/find-application-by-client-ref-and-code.use-case.js";
 import { resolveCurrentGrantUseCase } from "../../grants/use-cases/resolve-current-grant.use-case.js";
 
-const selectAvailable = (atPosition, existing) => {
+const selectOfferable = (atPosition) =>
+  atPosition.filter((template) => template.materialised === false);
+
+const selectAvailable = (offerable, existing) => {
   const countFor = (claimCode) =>
     existing.filter((entitlement) => entitlement.claimCode === claimCode)
       .length;
 
-  return atPosition.filter(
-    (template) =>
-      template.materialised === false &&
-      countFor(template.claimCode) < template.maxEntitlements,
+  return offerable.filter(
+    (template) => countFor(template.claimCode) < template.maxEntitlements,
   );
 };
 
@@ -29,22 +30,22 @@ export const resolveEntitlementsUseCase = async ({ code, clientRef }) => {
     currentConfigVersion,
   );
 
-  const atPosition = grant.findEntitlementTemplatesAvailableAt(
-    application.currentPosition(),
+  const offerable = selectOfferable(
+    grant.findEntitlementTemplatesAvailableAt(application.currentPosition()),
   );
 
   const existing = await findExistingEntitlements(clientRef, code);
 
-  const available = selectAvailable(atPosition, existing);
+  const available = selectAvailable(offerable, existing);
 
   logger.info(
     {
-      atPosition: atPosition.length,
+      offerable: offerable.length,
       available: available.length,
       existing: existing.length,
     },
     `Entitlement templates resolved for ${clientRef}`,
   );
 
-  return { application, grant, atPosition, available, existing };
+  return { application, grant, offerable, available, existing };
 };

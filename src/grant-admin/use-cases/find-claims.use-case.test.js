@@ -26,7 +26,7 @@ describe("find claims use case", () => {
     resolveEntitlementsUseCase.mockResolvedValue({
       application,
       grant,
-      atPosition: available,
+      offerable: available,
       available,
       existing: [],
     });

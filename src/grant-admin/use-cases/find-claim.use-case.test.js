@@ -28,18 +28,17 @@ const view = {
   claims: [],
 };
 
-const givenEntitlements = ({ atPosition, existing = [] }) => {
-  const available = atPosition.filter(
+const givenEntitlements = ({ offerable, existing = [] }) => {
+  const available = offerable.filter(
     (candidate) =>
-      candidate.materialised === false &&
       existing.filter((e) => e.claimCode === candidate.claimCode).length <
-        candidate.maxEntitlements,
+      candidate.maxEntitlements,
   );
 
   resolveEntitlementsUseCase.mockResolvedValue({
     application,
     grant,
-    atPosition,
+    offerable,
     available,
     existing,
   });
@@ -54,7 +53,7 @@ describe("find claim use case", () => {
   });
 
   it("returns the claims view with the template for the claim code", async () => {
-    const available = givenEntitlements({ atPosition: [template] });
+    const available = givenEntitlements({ offerable: [template] });
 
     const result = await findClaimUseCase({ code, clientRef, claimCode });
 
@@ -72,7 +71,7 @@ describe("find claim use case", () => {
 
   it("picks the template matching the claim code", async () => {
     const other = { ...template, claimCode: "ENT_OTHER" };
-    givenEntitlements({ atPosition: [other, template] });
+    givenEntitlements({ offerable: [other, template] });
 
     const result = await findClaimUseCase({ code, clientRef, claimCode });
 
@@ -81,7 +80,7 @@ describe("find claim use case", () => {
 
   it("refuses a claim code that has reached maxEntitlements", async () => {
     givenEntitlements({
-      atPosition: [template],
+      offerable: [template],
       existing: [{ claimCode }],
     });
 
@@ -96,7 +95,7 @@ describe("find claim use case", () => {
 
   it("allows a claim code that still has capacity", async () => {
     givenEntitlements({
-      atPosition: [{ ...template, maxEntitlements: 2 }],
+      offerable: [{ ...template, maxEntitlements: 2 }],
       existing: [{ claimCode }],
     });
 
@@ -107,7 +106,7 @@ describe("find claim use case", () => {
 
   it("ignores entitlements for other claim codes", async () => {
     givenEntitlements({
-      atPosition: [template],
+      offerable: [template],
       existing: [{ claimCode: "ENT_OTHER" }],
     });
 
@@ -118,7 +117,7 @@ describe("find claim use case", () => {
 
   it("refuses a claim code the position does not reach", async () => {
     givenEntitlements({
-      atPosition: [{ ...template, claimCode: "ENT_OTHER" }],
+      offerable: [{ ...template, claimCode: "ENT_OTHER" }],
     });
 
     await expect(
@@ -130,10 +129,8 @@ describe("find claim use case", () => {
     );
   });
 
-  it("refuses a materialised claim code", async () => {
-    givenEntitlements({
-      atPosition: [{ ...template, materialised: true }],
-    });
+  it("refuses a materialised claim code, which is never offerable", async () => {
+    givenEntitlements({ offerable: [] });
 
     await expect(
       findClaimUseCase({ code, clientRef, claimCode }),

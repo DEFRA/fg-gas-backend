@@ -145,7 +145,7 @@ describe("resolve entitlements use case", () => {
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
-    expect(result.atPosition).toEqual([]);
+    expect(result.offerable).toEqual([]);
     expect(result.available).toEqual([]);
   });
 
@@ -165,13 +165,13 @@ describe("resolve entitlements use case", () => {
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
-    expect(result.atPosition).toEqual([]);
+    expect(result.offerable).toEqual([]);
     expect(result.available).toEqual([]);
   });
 
   // A materialised entitlement is projected rather than created, so it is never
   // something the caller is offered the chance to create.
-  it("excludes materialised templates from available", async () => {
+  it("excludes materialised templates from offerable", async () => {
     givenGrantWith([
       createTemplate({
         claimCode: "ENT_MATERIALISED",
@@ -182,11 +182,11 @@ describe("resolve entitlements use case", () => {
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
-    expect(result.atPosition).toHaveLength(1);
+    expect(result.offerable).toEqual([]);
     expect(result.available).toEqual([]);
   });
 
-  // A template at its cap stays in atPosition so callers can tell "no capacity
+  // A template at its cap stays in offerable so callers can tell "no capacity
   // left" apart from "not offered here".
   it("excludes templates that have reached maxEntitlements from available", async () => {
     givenGrantWith([createTemplate({ maxEntitlements: 1 })]);
@@ -194,7 +194,7 @@ describe("resolve entitlements use case", () => {
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
-    expect(result.atPosition).toHaveLength(1);
+    expect(result.offerable).toHaveLength(1);
     expect(result.available).toEqual([]);
   });
 
@@ -224,7 +224,7 @@ describe("resolve entitlements use case", () => {
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
-    expect(result.atPosition).toEqual([]);
+    expect(result.offerable).toEqual([]);
     expect(result.available).toEqual([]);
   });
 });
