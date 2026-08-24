@@ -15,9 +15,7 @@ vi.mock("./execute-agreement-action.use-case.js", async (importOriginal) => ({
   commitAgreementAction: vi.fn(),
 }));
 vi.mock("./load-current-agreement-context.js");
-vi.mock("../../common/logger.js", () => ({
-  logger: { warn: vi.fn(), error: vi.fn() },
-}));
+vi.mock("../../common/logger.js");
 
 const command = {
   id: "withdrawal-command-id",

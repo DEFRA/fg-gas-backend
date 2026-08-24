@@ -8,9 +8,7 @@ import { loadPaymentDefinition } from "./load-payment-definition.js";
 import { resolvePaymentDefinition } from "./resolve-payment-definition.js";
 
 vi.mock("../../common/config-broker/config-catalog.repository.js");
-vi.mock("../../common/logger.js", () => ({
-  logger: { error: vi.fn() },
-}));
+vi.mock("../../common/logger.js");
 vi.mock("./load-payment-definition.js", () => ({
   loadPaymentDefinition: vi.fn(),
 }));
