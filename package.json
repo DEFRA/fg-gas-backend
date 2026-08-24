@@ -49,6 +49,7 @@
     "@hapi/boom": "^10.0.1",
     "@hapi/hapi": "^21.4.9",
     "@hapi/inert": "^7.1.2",
+    "@hapi/jwt": "^3.2.4",
     "@hapi/vision": "^7.0.3",
     "@hapi/wreck": "^18.1.2",
     "ajv": "^8.20.0",

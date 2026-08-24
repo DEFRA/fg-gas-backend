@@ -109,6 +109,18 @@ cp .env.example .env
 lifecycle events. Do not include a trailing slash; the Agreement Number is
 appended when the event is created.
 
+`AGREEMENTS_JWT_SECRET` (FGP-1307) is the shared HS256 secret GAS uses to verify
+the caller token (the `x-encrypted-auth` header) forwarded by Agreements UI on
+the agreement routes. It must match the secret the producer services sign with
+(Caseworking frontend, PDF service and Grants UI). It is supplied per
+environment from the platform secret store and must never be committed. It is
+optional while verification runs in warn-only mode; when absent the caller token
+is reported as unverified but requests are not rejected. The producer issuers
+permitted to mint caller tokens (`grants-ui`, `fg-cw-frontend`, `agreements-pdf`)
+are a fixed code constant rather than configuration — the same list applies in
+every environment, so there is no env var to set and no `cdp-app-config` entry,
+and the allowlist can never be misconfigured to an empty "accept any issuer" list.
+
 ### AWS emulation (floci)
 
 SQS and SNS are emulated by [floci](https://floci.io) on `localhost:4566`,

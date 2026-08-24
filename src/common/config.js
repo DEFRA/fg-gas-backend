@@ -1,6 +1,17 @@
 import Joi from "joi";
 import { env } from "node:process";
 
+// FGP-1307: the producer services permitted to mint caller tokens
+// (applicant/grants-ui, caseworker/fg-cw-frontend, PDF/agreements-pdf). This is
+// the same in every environment, so it is a code constant rather than
+// configuration — it cannot be misconfigured to an empty list and needs no
+// cdp-app-config entry.
+const CALLER_TOKEN_ALLOWED_ISSUERS = Object.freeze([
+  "grants-ui",
+  "fg-cw-frontend",
+  "agreements-pdf",
+]);
+
 const schema = Joi.object({
   NODE_ENV: Joi.string().allow("development", "production", "test"),
   SERVICE_NAME: Joi.string(),
@@ -50,6 +61,7 @@ const schema = Joi.object({
   GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: Joi.string().optional(),
   VIEW_AGREEMENT_URI: Joi.string().uri().required(),
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
+  AGREEMENTS_JWT_SECRET: Joi.string().optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -123,5 +135,16 @@ export const config = {
   },
   configBroker: {
     s3Bucket: vars.CONFIG_BROKER_S3_BUCKET,
+  },
+  // FGP-1307: shared secret used to verify the caller token forwarded by
+  // Agreements UI. Audience is "gas" for now (the interim token also carries
+  // "agreements-ui"); this moves to token exchange / per-issuer keys later.
+  // allowedIssuers is the fixed list of producer services permitted to mint
+  // caller tokens; an unrecognised issuer is reported as a warning during the
+  // warn-only rollout.
+  callerToken: {
+    secret: vars.AGREEMENTS_JWT_SECRET,
+    audience: "gas",
+    allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
   },
 };
