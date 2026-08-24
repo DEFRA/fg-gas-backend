@@ -10,7 +10,7 @@ describe("grant-admin", () => {
     expect(server.registrations["grant-admin"]).toBeDefined();
   });
 
-  it("registers the admin claims endpoint", async () => {
+  it("registers the admin claims endpoints", async () => {
     const server = hapi.server();
     await server.register(grantAdmin);
 
@@ -20,6 +20,10 @@ describe("grant-admin", () => {
       {
         method: "get",
         path: "/grant-admin/grants/{code}/applications/{clientRef}/claims",
+      },
+      {
+        method: "get",
+        path: "/grant-admin/grants/{code}/applications/{clientRef}/claims/{claimCode}",
       },
     ]);
   });
