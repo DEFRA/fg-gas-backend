@@ -27,6 +27,7 @@ const template = {
   name: "PA3 Woodland Management Plan entitlement",
   description: "The maximum eligible woodland area that can be claimed.",
   materialised: false,
+  createdCount: 0,
   fields: {
     totalHectares: {
       input: true,

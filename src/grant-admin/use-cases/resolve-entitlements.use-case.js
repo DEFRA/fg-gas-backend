@@ -6,14 +6,21 @@ import { resolveCurrentGrantUseCase } from "../../grants/use-cases/resolve-curre
 const selectOfferable = (atPosition) =>
   atPosition.filter((template) => template.materialised === false);
 
+// Each available template carries how many entitlements already exist against
+// it, so a caller can show "1 of 3" without a way to count for itself.
 const selectAvailable = (offerable, existing) => {
   const countFor = (claimCode) =>
     existing.filter((entitlement) => entitlement.claimCode === claimCode)
       .length;
 
-  return offerable.filter(
-    (template) => countFor(template.claimCode) < template.maxEntitlements,
-  );
+  return offerable
+    .filter(
+      (template) => countFor(template.claimCode) < template.maxEntitlements,
+    )
+    .map((template) => ({
+      ...template,
+      createdCount: countFor(template.claimCode),
+    }));
 };
 
 export const resolveEntitlementsUseCase = async ({ code, clientRef }) => {

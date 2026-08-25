@@ -207,6 +207,26 @@ describe("resolve entitlements use case", () => {
     expect(result.available).toHaveLength(1);
   });
 
+  it("reports how many entitlements exist against an available template", async () => {
+    givenGrantWith([createTemplate({ maxEntitlements: 3 })]);
+    findExistingEntitlements.mockResolvedValue([
+      { claimCode: "ENT_PA3" },
+      { claimCode: "ENT_PA3" },
+    ]);
+
+    const result = await resolveEntitlementsUseCase({ code, clientRef });
+
+    expect(result.available[0].createdCount).toBe(2);
+  });
+
+  it("reports a count of zero when nothing has been created", async () => {
+    givenGrantWith([createTemplate({ maxEntitlements: 1 })]);
+
+    const result = await resolveEntitlementsUseCase({ code, clientRef });
+
+    expect(result.available[0].createdCount).toBe(0);
+  });
+
   it("counts existing entitlements against their own claim code only", async () => {
     givenGrantWith([createTemplate({ maxEntitlements: 1 })]);
     findExistingEntitlements.mockResolvedValue([
