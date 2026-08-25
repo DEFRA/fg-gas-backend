@@ -286,6 +286,44 @@ describe("buildAgreementPageModel", () => {
       components: [{ component: "heading", text: "Agreement offer" }],
       actions: [],
     });
+
+    const model = await buildAgreementPageModel({
+      agreement,
+      agreementDefinition: definition,
+      page: "offer",
+      mode: "view",
+    });
+    expect(model.agreement).not.toHaveProperty("applicant");
+  });
+
+  it("projects applicant account display fields on lifecycle and document pages", async () => {
+    const agreementWithApplicant = {
+      ...agreement,
+      applicant: {
+        business: { name: "Gotham City Pigs Ltd" },
+        customer: { name: { first: "Bruce", last: "Wayne" } },
+      },
+    };
+
+    const [lifecycleModel, documentModel] = await Promise.all([
+      buildAgreementPageModel({
+        agreement: agreementWithApplicant,
+        agreementDefinition: definition,
+        page: "offer",
+        mode: "view",
+      }),
+      buildAgreementDocumentPageModel({
+        agreement: agreementWithApplicant,
+        agreementDefinition: definition,
+      }),
+    ]);
+    const applicant = {
+      business: { name: "Gotham City Pigs Ltd" },
+      customer: { name: { first: "Bruce", last: "Wayne" } },
+    };
+
+    expect(lifecycleModel.agreement.applicant).toEqual(applicant);
+    expect(documentModel.agreement.applicant).toEqual(applicant);
   });
 
   it("removes actions in print mode", async () => {

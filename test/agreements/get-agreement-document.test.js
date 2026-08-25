@@ -19,6 +19,24 @@ const agreement = {
   configVersion,
   correlationId: "7e8c624d-6cf3-4ac5-bb84-a6f6701a6b7d",
   identifiers: { sbi },
+  applicant: {
+    business: {
+      name: "Gotham City Pigs Ltd",
+      address: {
+        line1: "1 Wayne Manor",
+        city: "Gotham",
+        postalCode: "GC1 1AA",
+      },
+    },
+    customer: {
+      name: {
+        title: "Mx",
+        first: "Bruce",
+        middle: "Thomas",
+        last: "Wayne",
+      },
+    },
+  },
   application: { businessName: "Gotham City Pigs" },
   actions: [
     {
@@ -95,6 +113,14 @@ describe("read-only Agreement document", () => {
       },
       actions: [],
     });
+    expect(payload.agreement.identifiers.sbi).toBe(sbi);
+    expect(payload.agreement.applicant).toEqual({
+      business: { name: "Gotham City Pigs Ltd" },
+      customer: { name: { first: "Bruce", last: "Wayne" } },
+    });
+    expect(payload.agreement.applicant.business.address).toBeUndefined();
+    expect(payload.agreement.applicant.customer.name.title).toBeUndefined();
+    expect(payload.agreement.applicant.customer.name.middle).toBeUndefined();
     expect(payload.components).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

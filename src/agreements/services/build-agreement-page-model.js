@@ -80,6 +80,13 @@ const buildPageMetadata = async (page, pageDefinition, context) => {
   });
 };
 
+const toApplicantSummary = ({ business, customer }) => ({
+  business: { name: business.name },
+  customer: {
+    name: { first: customer.name.first, last: customer.name.last },
+  },
+});
+
 const toAgreementSummary = ({
   agreementNumber,
   code,
@@ -87,6 +94,7 @@ const toAgreementSummary = ({
   identifiers: { sbi },
   state,
   version,
+  applicant,
 }) => ({
   agreementNumber,
   code,
@@ -94,6 +102,7 @@ const toAgreementSummary = ({
   identifiers: { sbi },
   state,
   version,
+  ...(applicant && { applicant: toApplicantSummary(applicant) }),
 });
 
 const buildPageModel = async ({
