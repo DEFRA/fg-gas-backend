@@ -9,6 +9,9 @@ const SQS_URL = `http://sqs.eu-west-2.127.0.0.1:${FLOCI_PORT}/000000000000`;
 
 export default defineConfig({
   test: {
+    restoreMocks: true,
+    clearMocks: true,
+    mockReset: true,
     globalSetup: "./test/setup.js",
     setupFiles: [
       "./test/matchers.js",

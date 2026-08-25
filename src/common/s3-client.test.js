@@ -28,13 +28,7 @@ vi.mock("./config.js", () => ({
   },
 }));
 
-vi.mock("./logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
+vi.mock("./logger.js");
 
 describe("s3-client", () => {
   beforeEach(() => {

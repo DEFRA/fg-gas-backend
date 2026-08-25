@@ -9,14 +9,7 @@ import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.s
 import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
 import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 
-vi.mock("../common/logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
-}));
+vi.mock("../common/logger.js");
 
 vi.mock("../common/mongo-client.js");
 vi.mock("migrate-mongo");
