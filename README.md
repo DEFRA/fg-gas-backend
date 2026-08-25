@@ -217,6 +217,97 @@ The GAS API uses simple bearer tokens for service access. Tokens are UUIDv4 valu
 
 Clients must send the raw token in the `Authorization` header as `Bearer <token>`.
 
+### Issuing a credential to another service
+
+Deployed environments give nobody direct database access, so tokens for other
+services are not inserted by hand. GAS seeds one itself on boot from
+`SERVICE_ACCESS_TOKEN_HASH`, supplied by the platform's secret store, which makes
+issuing and rotating a credential a secret change plus a redeploy.
+
+The value is a single `client:sha256hex` pair:
+
+```
+some-service:4bb35ade...
+```
+
+Only the hash reaches GAS. The raw token lives solely in the calling service's
+own secrets, so GAS cannot mint or impersonate the credentials it accepts - the
+same reason `access_tokens` stores hashes in the first place. Neither value
+belongs in a repository: this repo is public, and callers' repos may be too.
+
+This is an instruction to issue, not a record of who holds a token:
+
+- It affects only the client it names. Other services' tokens are never touched,
+  and neither are tokens minted by hand with `scripts/mint-access-token.js`
+  (reconciliation is scoped to records the seeder created).
+- Unset it and nothing happens. Clearing the secret revokes nobody, so it can be
+  emptied once a credential has been issued.
+- Onboard services one at a time: point it at the next client and redeploy. The
+  previously issued token stays valid.
+
+Seeding never stops GAS starting. A malformed value or a database failure is
+logged and skipped, leaving that client without a working token until the next
+deploy, rather than taking the service down for everyone. Check the logs after a
+deploy - a credential that silently never appeared looks exactly like one that
+was never set.
+
+#### Issue or rotate
+
+Run once **per environment** - never reuse a token across environments, or a dev
+credential authenticates against prod:
+
+```bash
+npm run token:new -- <client-name>
+```
+
+Then in the CDP portal for that environment:
+
+1. `fg-gas-backend` -> Secrets -> `SERVICE_ACCESS_TOKEN_HASH` = the printed
+   `client:hash` pair
+2. Give the raw token to the calling service as its own secret
+3. Redeploy `fg-gas-backend`, then the caller
+
+Setting a new hash for a client that already has one rotates it: a single seeded record
+per client is enforced by a unique index, so the new token replaces the previous
+one on the next boot. Expect 401s between the two redeploys, so deploy GAS
+first.
+
+Locally, set `SERVICE_ACCESS_TOKEN_HASH` in `.env` instead of the portal.
+
+#### Revoke
+
+There is no revoke-by-omission - clearing the secret deliberately does nothing.
+To cut a client off, rotate it to a freshly generated hash and discard the raw
+token: the old token stops working on the next boot and nobody holds the new one.
+Removing the record outright needs database access. Issuing the new hash and
+revoking the old one is a single atomic step, so confirm the deploy logged
+`Seeded access token for <client>` - a failed seed leaves the old token live.
+
+The client name is the identity. Reconciliation is scoped to the client named in
+the secret, so renaming one issues a _second_ credential rather than rotating the
+first, and the original stays valid indefinitely. Cut the old name off the same
+way - point the secret at `<old-name>:<fresh hash>`, redeploy, and discard that
+token - before switching to the new name.
+
+#### Verify
+
+Check the GAS startup logs, which will show one of:
+
+| Log line                                                                    | Meaning                                                                                                                  |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `Seeded access token for <client>`                                          | Issued. A `, replacing the previous one` suffix means the hash changed; without it, the credential was already in place. |
+| `SERVICE_ACCESS_TOKEN_HASH is not a client:sha256hex pair - nothing seeded` | The value is malformed. Nothing was issued or removed.                                                                   |
+| `Failed to seed access token for <client>`                                  | The database write failed. GAS started anyway; retry by redeploying.                                                     |
+| nothing                                                                     | The secret is empty or unset, so there was nothing to do.                                                                |
+
+Then confirm the raw token is accepted:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer <raw token>" \
+  https://fg-gas-backend.<env>.cdp-int.defra.cloud/grants
+```
+
 ### Minting service access tokens
 
 There is a helper script to mint access tokens and optionally write them to MongoDB:
