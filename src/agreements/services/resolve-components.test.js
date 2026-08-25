@@ -55,6 +55,55 @@ describe("resolveComponents", () => {
     ]);
   });
 
+  it("resolves a structured href for a url nested inside display components", async () => {
+    const components = [
+      {
+        component: "unordered-list",
+        items: [
+          {
+            component: "paragraph",
+            items: [
+              { text: "your " },
+              {
+                component: "url",
+                href: {
+                  urlTemplate: "/agreements/{agreementNumber}/document",
+                  params: {
+                    agreementNumber: "$.agreement.agreementNumber",
+                  },
+                },
+                text: "agreement document",
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { agreementNumber: "PMF823153883" },
+    });
+
+    expect(result).toEqual([
+      {
+        component: "unordered-list",
+        items: [
+          {
+            component: "paragraph",
+            items: [
+              { text: "your " },
+              {
+                component: "url",
+                href: "/agreements/PMF823153883/document",
+                text: "agreement document",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
   it("applies format outside of a table, on any resolved component", async () => {
     const components = [
       {
