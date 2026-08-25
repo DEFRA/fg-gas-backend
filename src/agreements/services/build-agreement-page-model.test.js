@@ -75,7 +75,6 @@ const definition = new AgreementDefinition(
       offer: {
         title: "Offer",
         components: [{ component: "heading", text: "Agreement offer" }],
-        actions: [],
       },
       document: {
         title: "Document",
@@ -171,7 +170,6 @@ const createPageProcessDefinition = (callEndpoint) =>
               ],
             },
           ],
-          actions: [],
         },
         offer: {
           title: "Offer",
@@ -187,12 +185,10 @@ const createPageProcessDefinition = (callEndpoint) =>
               ],
             },
           ],
-          actions: [],
         },
         accepted: {
           title: "Accepted",
           components: [{ component: "heading", text: "Accepted" }],
-          actions: [],
         },
       },
     }),
@@ -238,17 +234,15 @@ describe("buildAgreementPageModel", () => {
           components: [
             {
               component: "grid-column",
-              components: [{ component: "button", actionId: "continue" }],
+              components: [
+                {
+                  component: "button",
+                  action: "continue",
+                  text: "Continue",
+                },
+              ],
             },
           ],
-        },
-      ],
-      actions: [
-        {
-          name: "continue",
-          method: "GET",
-          href: "/agreements/TST123/actions/continue",
-          text: "Continue",
         },
       ],
       expected: {
@@ -268,20 +262,12 @@ describe("buildAgreementPageModel", () => {
               components: [
                 {
                   component: "form",
-                  actionId: "accept",
-                  components: [{ component: "button", actionId: "accept" }],
+                  action: "accept",
+                  components: [{ component: "button", text: "Accept" }],
                 },
               ],
             },
           ],
-        },
-      ],
-      actions: [
-        {
-          name: "accept",
-          method: "POST",
-          href: "/agreements/TST123/actions/accept",
-          text: "Accept",
         },
       ],
       expected: {
@@ -294,14 +280,14 @@ describe("buildAgreementPageModel", () => {
     },
   ])(
     "publishes a resolved $name without an action catalogue",
-    async ({ components, actions, expected }) => {
+    async ({ components, expected }) => {
       const agreementDefinition = new AgreementDefinition({
         code: "test",
         configVersion: "1",
         agreementNumberPrefix: "TST",
         create: creationDefinition,
         states: { offered: { page: "offer" }, accepted: { page: "offer" } },
-        pages: { offer: { title: "Offer", components, actions } },
+        pages: { offer: { title: "Offer", components } },
       });
 
       const model = await buildAgreementPageModel({
@@ -463,16 +449,12 @@ describe("buildAgreementPageModel", () => {
           title: "Offer",
           components: explicitTree([
             { component: "heading", text: "Agreement offer" },
-            { component: "button", actionId: "continue" },
-          ]),
-          actions: [
             {
-              name: "continue",
-              method: "GET",
-              href: "/agreements/TST123/actions/continue",
+              component: "button",
+              action: "continue",
               text: "Continue",
             },
-          ],
+          ]),
         },
       },
     });
@@ -865,7 +847,6 @@ describe("buildAgreementPageModel", () => {
                 templateKey: "$.agreement.state",
               },
             ],
-            actions: [],
           },
         },
       }),
@@ -897,7 +878,6 @@ describe("buildAgreementPageModel", () => {
             components: [
               { component: "paragraph", text: "$.agreement.doesNotExist" },
             ],
-            actions: [],
           },
         },
       }),

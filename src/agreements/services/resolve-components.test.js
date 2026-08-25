@@ -481,7 +481,7 @@ describe("resolveComponents explicit component trees", () => {
             components: [
               {
                 component: "form",
-                actionId: "accept",
+                action: "accept",
                 components: [
                   {
                     component: "table",
@@ -521,7 +521,7 @@ describe("resolveComponents explicit component trees", () => {
             components: [
               {
                 component: "form",
-                actionId: "accept",
+                action: "accept",
                 components: [
                   {
                     component: "table",

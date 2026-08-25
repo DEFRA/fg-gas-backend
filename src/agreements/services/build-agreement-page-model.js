@@ -4,12 +4,8 @@ import { resolveCondition, resolveRefs } from "../../common/resolve-refs.js";
 import { assertSupportedAgreementPageMode } from "./assert-supported-agreement-page-mode.js";
 import { resolveComponents } from "./resolve-components.js";
 import { resolvePageActions as bindPageActions } from "./resolve-page-actions.js";
-import { resolveActions } from "./resolve-page-href.js";
 
 const DOCUMENT_PAGE = "document";
-
-const resolveLifecyclePageActions = (pageDefinition, context) =>
-  resolveActions(context, pageDefinition.actions);
 
 const removeNestedActionNodes = (component, remove) => {
   const children = remove(component.components);
@@ -46,15 +42,8 @@ const removePageActionNodes = (tree) => ({
 const withoutPageActions = (tree, removeActions) =>
   removeActions ? removePageActionNodes(tree) : tree;
 
-const resolvePageContent = async (
-  pageDefinition,
-  context,
-  resolvePageActions,
-) =>
-  Promise.all([
-    resolveComponents(pageDefinition.components, context),
-    resolvePageActions(pageDefinition, context),
-  ]);
+const resolvePageContent = (pageDefinition, context) =>
+  resolveComponents(pageDefinition.components, context);
 
 const resolveConditionalDefinition = async (definition, context, resolve) => {
   if (definition === undefined) {
@@ -154,7 +143,6 @@ const buildPageModel = async ({
   outputs,
   page,
   removeActions = false,
-  resolvePageActions,
 }) => {
   const pageDefinition = agreementDefinition.resolvePage(page);
   // "definition.templates" is exposed so page content can address template
@@ -167,13 +155,13 @@ const buildPageModel = async ({
   };
 
   try {
-    const [[components, actions], sections, pageMetadata] = await Promise.all([
-      resolvePageContent(pageDefinition, context, resolvePageActions),
+    const [components, sections, pageMetadata] = await Promise.all([
+      resolvePageContent(pageDefinition, context),
       resolvePageSections(includeSections, context, pageDefinition.sections),
       buildPageMetadata(page, pageDefinition, context),
     ]);
     const resolvedTree = withoutPageActions(
-      bindPageActions({ components, sections, actions }),
+      bindPageActions({ components, sections }, agreement),
       removeActions,
     );
 
@@ -232,7 +220,6 @@ export const buildAgreementPageModel = async ({
     agreementDefinition,
     page,
     removeActions: mode === "print",
-    resolvePageActions: resolveLifecyclePageActions,
   });
 };
 
@@ -245,5 +232,4 @@ export const buildAgreementDocumentPageModel = async ({
     agreementDefinition,
     includeSections: true,
     page: DOCUMENT_PAGE,
-    resolvePageActions: () => [],
   });

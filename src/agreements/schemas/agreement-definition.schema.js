@@ -196,15 +196,6 @@ const templates = Joi.object()
   .optional()
   .label("Templates");
 
-const pageAction = Joi.object({
-  name: Joi.string().required(),
-  method: Joi.string().valid("GET", "POST").required(),
-  href: pageHref.required(),
-  text: Joi.string().required(),
-})
-  .unknown(true)
-  .label("PageAction");
-
 const sectionId = Joi.string()
   .pattern(/^[a-z][a-z0-9-]*$/)
   .label("SectionId");
@@ -230,7 +221,6 @@ const pageDefinition = Joi.object({
   components: Joi.array().items(component).min(1).required(),
   processes: Joi.forbidden(),
   sections: Joi.array().items(documentSection).min(1).unique("id").optional(),
-  actions: Joi.array().items(pageAction).optional(),
 })
   .unknown(true)
   .label("Page");

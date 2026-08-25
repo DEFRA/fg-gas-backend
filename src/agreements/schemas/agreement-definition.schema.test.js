@@ -209,11 +209,10 @@ describe("agreementDefinitionSchema", () => {
     expect(error).toBeUndefined();
   });
 
-  it("allows extra keys on required-validation-field, page action and page, so other agreement types can extend them", () => {
+  it("allows extra keys on required-validation-field and page, so other agreement types can extend them", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.states.offered.on.accept.validation.required[0].hint =
       "extra guidance";
-    definition.pages.offered.actions[0].style = "secondary";
     definition.pages.offered.extraPageMetadata = "allowed";
 
     const { error } = validate(definition);

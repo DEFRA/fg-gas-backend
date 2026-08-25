@@ -11,29 +11,8 @@ const explicitTree = (components) => [
   },
 ];
 
-const placeActions = (components, actions = []) => {
-  if (actions.length === 0) {
-    return explicitTree(components);
-  }
-
-  const [action] = actions;
-  const button = { component: "button", actionId: action.name };
-
-  return explicitTree(
-    action.method === "POST"
-      ? [
-          {
-            component: "form",
-            actionId: action.name,
-            components: [...components, button],
-          },
-        ]
-      : [...components, button],
-  );
-};
-
 for (const page of Object.values(definition.pages)) {
-  page.components = placeActions(page.components, page.actions);
+  page.components = explicitTree(page.components);
 
   for (const section of page.sections ?? []) {
     section.components = explicitTree(section.components);

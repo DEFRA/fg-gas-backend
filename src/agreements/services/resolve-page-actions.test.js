@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { resolvePageActions } from "./resolve-page-actions.js";
 
+const agreement = { agreementNumber: "PMF123" };
+
 const tree = (components) => [
   {
     component: "grid-row",
@@ -9,137 +11,85 @@ const tree = (components) => [
 ];
 
 describe("resolvePageActions", () => {
-  it("binds a GET action to exactly one button", () => {
+  it("resolves a configured GET action button", () => {
     expect(
-      resolvePageActions({
-        components: tree([{ component: "button", actionId: "continue" }]),
-        sections: [],
-        actions: [
-          {
-            name: "continue",
-            method: "GET",
-            href: "/agreements/TST123/actions/continue",
-            text: "Continue",
-            classes: "govuk-button--secondary",
-          },
-        ],
-      }),
+      resolvePageActions(
+        {
+          components: tree([
+            { component: "button", action: "accept", text: "Continue" },
+          ]),
+        },
+        agreement,
+      ),
     ).toEqual({
       components: tree([
         {
           component: "button",
           text: "Continue",
-          href: "/agreements/TST123/actions/continue",
-          classes: "govuk-button--secondary",
+          href: "/agreements/PMF123/actions/accept",
         },
       ]),
       sections: [],
     });
   });
 
-  it("binds a POST action to one form and its nested submit button", () => {
+  it("resolves a configured POST form and preserves its content", () => {
     expect(
-      resolvePageActions({
-        components: tree([
-          {
-            component: "form",
-            actionId: "accept",
-            components: [
-              { component: "checkboxes", name: "confirm", items: [] },
-              { component: "button", actionId: "accept" },
-            ],
-          },
-        ]),
-        sections: [],
-        actions: [
-          {
-            name: "accept",
-            method: "POST",
-            href: "/agreements/TST123/actions/accept",
-            text: "Accept offer",
-            fields: [{ name: "source", value: "agreement" }],
-          },
-        ],
-      }),
+      resolvePageActions(
+        {
+          components: tree([
+            {
+              component: "form",
+              action: "accept",
+              hiddenFields: [{ name: "source", value: "offer" }],
+              components: [
+                { component: "checkboxes", name: "confirm", items: [] },
+                { component: "button", text: "Accept agreement offer" },
+              ],
+            },
+          ]),
+          sections: [
+            {
+              id: "terms",
+              title: "Terms",
+              components: tree([
+                { component: "button", action: "review", text: "Review" },
+              ]),
+            },
+          ],
+        },
+        agreement,
+      ),
     ).toEqual({
       components: tree([
         {
           component: "form",
+          method: "POST",
+          formAction: "/agreements/PMF123/actions/accept",
+          hiddenFields: [{ name: "source", value: "offer" }],
           components: [
             { component: "checkboxes", name: "confirm", items: [] },
-            { component: "button", text: "Accept offer", submit: true },
-          ],
-          method: "POST",
-          formAction: "/agreements/TST123/actions/accept",
-          hiddenFields: [{ name: "source", value: "agreement" }],
-        },
-      ]),
-      sections: [],
-    });
-  });
-
-  it.each([
-    [
-      "duplicate action names",
-      tree([{ component: "button", actionId: "next" }]),
-      [
-        { name: "next", method: "GET", href: "/next", text: "Next" },
-        { name: "next", method: "GET", href: "/again", text: "Again" },
-      ],
-    ],
-    [
-      "an unreferenced action",
-      tree([{ component: "paragraph", text: "Hi" }]),
-      [{ name: "next", method: "GET", href: "/next", text: "Next" }],
-    ],
-    [
-      "a GET button inside a form",
-      tree([
-        {
-          component: "form",
-          actionId: "save",
-          components: [{ component: "button", actionId: "next" }],
-        },
-      ]),
-      [
-        { name: "save", method: "POST", href: "/save", text: "Save" },
-        { name: "next", method: "GET", href: "/next", text: "Next" },
-      ],
-    ],
-    [
-      "nested forms",
-      tree([
-        {
-          component: "form",
-          actionId: "save",
-          components: [
             {
-              component: "form",
-              actionId: "other",
-              components: [{ component: "button", actionId: "other" }],
+              component: "button",
+              text: "Accept agreement offer",
+              submit: true,
             },
-            { component: "button", actionId: "save" },
           ],
         },
       ]),
-      [
-        { name: "save", method: "POST", href: "/save", text: "Save" },
-        { name: "other", method: "POST", href: "/other", text: "Other" },
+      sections: [
+        {
+          id: "terms",
+          title: "Terms",
+          components: tree([
+            {
+              component: "button",
+              text: "Review",
+              href: "/agreements/PMF123/actions/review",
+            },
+          ]),
+        },
       ],
-    ],
-  ])("rejects %s", (_name, components, actions) => {
-    expect(() =>
-      resolvePageActions({ components, sections: [], actions }),
-    ).toThrow("Invalid agreement action bindings");
-  });
-
-  it("rejects a non-grid page root", () => {
-    expect(() =>
-      resolvePageActions({
-        components: [{ component: "paragraph" }],
-        sections: [],
-        actions: [],
-      }),
-    ).toThrow("Agreement page must use an explicit component tree");
+    });
   });
 });

@@ -472,25 +472,11 @@
                 },
                 {
                   "component": "button",
-                  "actionId": "accept"
+                  "action": "accept"
                 }
               ]
             }
           ]
-        }
-      ],
-      "actions": [
-        {
-          "name": "accept",
-          "method": "GET",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/actions/{name}",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber",
-              "name": "accept"
-            }
-          },
-          "text": "Continue"
         }
       ]
     },
@@ -506,7 +492,6 @@
               "components": [
                 {
                   "component": "form",
-                  "actionId": "accept",
                   "components": [
                     {
                       "component": "heading",
@@ -554,28 +539,14 @@
                       ]
                     },
                     {
-                      "component": "button",
-                      "actionId": "accept"
+                      "component": "button"
                     }
-                  ]
+                  ],
+                  "action": "accept"
                 }
               ]
             }
           ]
-        }
-      ],
-      "actions": [
-        {
-          "name": "accept",
-          "method": "POST",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/actions/{name}",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber",
-              "name": "accept"
-            }
-          },
-          "text": "Accept agreement offer"
         }
       ]
     },
@@ -621,8 +592,7 @@
             }
           ]
         }
-      ],
-      "actions": []
+      ]
     },
     "cancelled": {
       "title": "Your agreement offer has been cancelled",
@@ -666,8 +636,7 @@
             }
           ]
         }
-      ],
-      "actions": []
+      ]
     },
     "terminated": {
       "title": "Your agreement has been terminated",
@@ -716,8 +685,7 @@
             }
           ]
         }
-      ],
-      "actions": []
+      ]
     },
     "accepted": {
       "title": "Your agreement is now active",
@@ -759,8 +727,7 @@
             }
           ]
         }
-      ],
-      "actions": []
+      ]
     }
   }
 }
