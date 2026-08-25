@@ -153,8 +153,38 @@ const resolvers = {
   "component-container": resolveContainer,
 };
 
+const isObject = (value) => value !== null && typeof value === "object";
+
+// Display components can contain child components in their items. Route nested
+// URLs through the same structured href resolver used for top-level URLs.
+const resolveDisplayObject = async (value, scope) => {
+  if (value.component === "url") {
+    const [resolvedUrl] = await resolveUrl(value, scope);
+    return resolvedUrl;
+  }
+
+  const entries = await Promise.all(
+    Object.entries(value).map(async ([key, item]) => [
+      key,
+      await resolveDisplayValue(item, scope),
+    ]),
+  );
+
+  return Object.fromEntries(entries);
+};
+
+const resolveDisplayValue = async (value, scope) => {
+  if (Array.isArray(value)) {
+    return Promise.all(value.map((item) => resolveDisplayValue(item, scope)));
+  }
+
+  return isObject(value)
+    ? resolveDisplayObject(value, scope)
+    : resolveRefs(value, scope);
+};
+
 const resolveDisplayComponent = async (component, scope) => [
-  applyFormats(await resolveRefs(component, scope)),
+  applyFormats(await resolveDisplayValue(component, scope)),
 ];
 
 const isHidden = async (condition, scope) =>
