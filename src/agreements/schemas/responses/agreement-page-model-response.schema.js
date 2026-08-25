@@ -1,7 +1,20 @@
 import Joi from "joi";
+import { applicantSchema } from "../agreement-value.schema.js";
 import { clientRef } from "../agreement/client-ref.js";
 import { code } from "../agreement/code.js";
 import { sbi } from "../agreement/sbi.js";
+
+const accountDisplayApplicant = Joi.object({
+  business: Joi.object({
+    name: applicantSchema.extract("business.name"),
+  }).required(),
+  customer: Joi.object({
+    name: Joi.object({
+      first: applicantSchema.extract("customer.name.first"),
+      last: applicantSchema.extract("customer.name.last"),
+    }).required(),
+  }).required(),
+}).label("AgreementPageModelApplicant");
 
 const component = Joi.object({ component: Joi.string().required() })
   .unknown(true)
@@ -32,6 +45,7 @@ export const agreementPageModelResponseSchema = Joi.object({
     identifiers: Joi.object({ sbi: sbi.required() }).required(),
     state: Joi.string().required(),
     version: Joi.number().integer().min(1).required(),
+    applicant: accountDisplayApplicant.optional(),
   }).required(),
   page: Joi.object({
     name: Joi.string().required(),
