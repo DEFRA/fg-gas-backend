@@ -77,6 +77,16 @@ const documentHeaders = {
 const getAgreementDocument = (headers = documentHeaders) =>
   wreck.request("GET", `/agreements/${agreementNumber}/document`, { headers });
 
+const explicitTree = (components) => [
+  {
+    component: "grid-row",
+    components: [{ component: "grid-column", width: "two-thirds", components }],
+  },
+];
+
+const contentComponents = (pageModel) =>
+  pageModel.components[0].components[0].components;
+
 describe("read-only Agreement document", () => {
   let agreements;
   let client;
@@ -111,7 +121,12 @@ describe("read-only Agreement document", () => {
         print: true,
         watermark: { text: "DRAFT" },
       },
-      actions: [],
+      components: explicitTree([
+        expect.objectContaining({
+          component: "notification-banner",
+          title: "This is a draft version of your agreement",
+        }),
+      ]),
     });
     expect(payload.agreement.identifiers.sbi).toBe(sbi);
     expect(payload.agreement.applicant).toEqual({
@@ -121,14 +136,6 @@ describe("read-only Agreement document", () => {
     expect(payload.agreement.applicant.business.address).toBeUndefined();
     expect(payload.agreement.applicant.customer.name.title).toBeUndefined();
     expect(payload.agreement.applicant.customer.name.middle).toBeUndefined();
-    expect(payload.components).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          component: "notification-banner",
-          title: "This is a draft version of your agreement",
-        }),
-      ]),
-    );
     expect(payload.sections.map(({ id }) => id)).toEqual([
       "agreement-overview",
       "pigs-and-funding",
@@ -140,7 +147,7 @@ describe("read-only Agreement document", () => {
     ).toEqual({
       id: "pigs-and-funding",
       title: "Pigs and funding",
-      components: [
+      components: explicitTree([
         {
           component: "table",
           head: [
@@ -154,13 +161,13 @@ describe("read-only Agreement document", () => {
           component: "summary-list",
           rows: [{ label: "Total funding", text: "£50" }],
         },
-      ],
+      ]),
     });
     expect(
       payload.sections.find(({ id }) => id === "payment-schedule"),
     ).toEqual(
       expect.objectContaining({
-        components: expect.arrayContaining([
+        components: explicitTree([
           expect.objectContaining({
             component: "table",
             rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
@@ -187,8 +194,8 @@ describe("read-only Agreement document", () => {
     expect(response.statusCode).toBe(200);
     expect(payload.agreement.state).toBe("accepted");
     expect(payload.page.watermark).toBeUndefined();
-    expect(payload.actions).toEqual([]);
-    expect(payload.components).not.toEqual(
+    expect(payload).not.toHaveProperty("actions");
+    expect(contentComponents(payload)).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ component: "notification-banner" }),
       ]),
@@ -197,7 +204,7 @@ describe("read-only Agreement document", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: "payment-schedule",
-          components: expect.arrayContaining([
+          components: explicitTree([
             expect.objectContaining({
               component: "table",
               rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
