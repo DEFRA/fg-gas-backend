@@ -18,25 +18,15 @@ const accountDisplayApplicant = Joi.object({
 
 const componentLink = Joi.link("#renderComponent");
 const childComponents = Joi.array().items(componentLink).min(1).required();
-const forbiddenResolverFields = {
-  actionId: Joi.forbidden(),
-  condition: Joi.forbidden(),
-  format: Joi.forbidden(),
-  itemsRef: Joi.forbidden(),
-  templateRef: Joi.forbidden(),
-};
-
 const gridColumn = Joi.object({
   component: Joi.string().valid("grid-column").required(),
   width: Joi.string().valid("two-thirds", "full").optional(),
   components: childComponents,
-  ...forbiddenResolverFields,
 }).label("AgreementPageModelGridColumn");
 
 const gridRow = Joi.object({
   component: Joi.string().valid("grid-row").required(),
   components: Joi.array().items(gridColumn).min(1).required(),
-  ...forbiddenResolverFields,
 }).label("AgreementPageModelGridRow");
 
 const form = Joi.object({
@@ -45,7 +35,6 @@ const form = Joi.object({
   formAction: Joi.string().required(),
   hiddenFields: Joi.array().items(Joi.object().unknown(true)).required(),
   components: childComponents,
-  ...forbiddenResolverFields,
 }).label("AgreementPageModelForm");
 
 const getButton = Joi.object({
@@ -54,7 +43,6 @@ const getButton = Joi.object({
   href: Joi.string().required(),
   classes: Joi.string().optional(),
   submit: Joi.forbidden(),
-  ...forbiddenResolverFields,
 }).unknown(true);
 
 const submitButton = Joi.object({
@@ -63,7 +51,6 @@ const submitButton = Joi.object({
   submit: Joi.boolean().valid(true).required(),
   classes: Joi.string().optional(),
   href: Joi.forbidden(),
-  ...forbiddenResolverFields,
 }).unknown(true);
 
 const button = Joi.alternatives()
@@ -93,7 +80,6 @@ const displayComponent = Joi.object({
       "warning-text",
     )
     .required(),
-  ...forbiddenResolverFields,
 })
   .unknown(true)
   .label("AgreementPageModelDisplayComponent");

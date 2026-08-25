@@ -52,30 +52,6 @@ describe("agreementPageModelResponseSchema", () => {
   it.each([
     ["the actions catalogue", { ...pageModel, actions: [] }],
     [
-      "an actionId",
-      {
-        ...pageModel,
-        components: [
-          {
-            component: "grid-row",
-            components: [
-              {
-                component: "grid-column",
-                components: [
-                  {
-                    component: "button",
-                    actionId: "accept",
-                    text: "Accept",
-                    submit: true,
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    [
       "a flat component list",
       {
         ...pageModel,
