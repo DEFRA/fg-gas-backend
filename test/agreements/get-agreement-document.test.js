@@ -87,6 +87,8 @@ const explicitTree = (components) => [
 const contentComponents = (pageModel) =>
   pageModel.components[0].components[0].components;
 
+const sectionComponents = (section) => contentComponents(section);
+
 describe("read-only Agreement document", () => {
   let agreements;
   let client;
@@ -121,12 +123,6 @@ describe("read-only Agreement document", () => {
         print: true,
         watermark: { text: "DRAFT" },
       },
-      components: explicitTree([
-        expect.objectContaining({
-          component: "notification-banner",
-          title: "This is a draft version of your agreement",
-        }),
-      ]),
     });
     expect(payload.agreement.identifiers.sbi).toBe(sbi);
     expect(payload.agreement.applicant).toEqual({
@@ -136,6 +132,14 @@ describe("read-only Agreement document", () => {
     expect(payload.agreement.applicant.business.address).toBeUndefined();
     expect(payload.agreement.applicant.customer.name.title).toBeUndefined();
     expect(payload.agreement.applicant.customer.name.middle).toBeUndefined();
+    expect(contentComponents(payload)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          component: "notification-banner",
+          title: "This is a draft version of your agreement",
+        }),
+      ]),
+    );
     expect(payload.sections.map(({ id }) => id)).toEqual([
       "agreement-overview",
       "pigs-and-funding",
@@ -164,16 +168,16 @@ describe("read-only Agreement document", () => {
       ]),
     });
     expect(
-      payload.sections.find(({ id }) => id === "payment-schedule"),
+      sectionComponents(
+        payload.sections.find(({ id }) => id === "payment-schedule"),
+      ),
     ).toEqual(
-      expect.objectContaining({
-        components: explicitTree([
-          expect.objectContaining({
-            component: "table",
-            rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
-          }),
-        ]),
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          component: "table",
+          rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
+        }),
+      ]),
     );
   });
 
@@ -200,16 +204,15 @@ describe("read-only Agreement document", () => {
         expect.objectContaining({ component: "notification-banner" }),
       ]),
     );
-    expect(payload.sections).toEqual(
+    expect(
+      sectionComponents(
+        payload.sections.find(({ id }) => id === "payment-schedule"),
+      ),
+    ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "payment-schedule",
-          components: explicitTree([
-            expect.objectContaining({
-              component: "table",
-              rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
-            }),
-          ]),
+          component: "table",
+          rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
         }),
       ]),
     );
