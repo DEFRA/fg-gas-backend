@@ -57,7 +57,7 @@ const indexActions = (actions) => {
 const orEmpty = (value) => value ?? [];
 
 const requirePostFormAction = (action, context) => {
-  if (!action || action.method !== "POST") {
+  if (action?.method !== "POST") {
     invalidBindings();
   }
 

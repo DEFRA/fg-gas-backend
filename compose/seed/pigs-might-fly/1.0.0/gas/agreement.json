@@ -135,40 +135,51 @@
       },
       "components": [
         {
-          "component": "notification-banner",
-          "condition": "jsonata:$.agreement.state = 'offered'",
-          "title": "This is a draft version of your agreement"
-        },
-        {
-          "component": "notification-banner",
-          "condition": "jsonata:$.agreement.state = 'withdrawn'",
-          "title": "This agreement offer has been withdrawn"
-        },
-        {
-          "component": "notification-banner",
-          "condition": "jsonata:$.agreement.state = 'cancelled'",
-          "title": "This agreement offer has been cancelled"
-        },
-        {
-          "component": "notification-banner",
-          "condition": "jsonata:$.agreement.state = 'terminated'",
-          "title": "This agreement has been terminated"
-        },
-        {
-          "component": "heading",
-          "level": 1,
-          "text": "Pigs Might Fly agreement document"
-        },
-        {
-          "component": "summary-list",
-          "rows": [
+          "component": "grid-row",
+          "components": [
             {
-              "label": "SBI",
-              "text": "$.agreement.identifiers.sbi"
-            },
-            {
-              "label": "Agreement number",
-              "text": "$.agreement.agreementNumber"
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "notification-banner",
+                  "condition": "jsonata:$.agreement.state = 'offered'",
+                  "title": "This is a draft version of your agreement"
+                },
+                {
+                  "component": "notification-banner",
+                  "condition": "jsonata:$.agreement.state = 'withdrawn'",
+                  "title": "This agreement offer has been withdrawn"
+                },
+                {
+                  "component": "notification-banner",
+                  "condition": "jsonata:$.agreement.state = 'cancelled'",
+                  "title": "This agreement offer has been cancelled"
+                },
+                {
+                  "component": "notification-banner",
+                  "condition": "jsonata:$.agreement.state = 'terminated'",
+                  "title": "This agreement has been terminated"
+                },
+                {
+                  "component": "heading",
+                  "level": 1,
+                  "text": "Pigs Might Fly agreement document"
+                },
+                {
+                  "component": "summary-list",
+                  "rows": [
+                    {
+                      "label": "SBI",
+                      "text": "$.agreement.identifiers.sbi"
+                    },
+                    {
+                      "label": "Agreement number",
+                      "text": "$.agreement.agreementNumber"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
@@ -179,8 +190,19 @@
           "title": "Agreement overview",
           "components": [
             {
-              "component": "paragraph",
-              "text": "This test agreement records the pigs included in your offer, the funding amount and, after acceptance, the payment schedule."
+              "component": "grid-row",
+              "components": [
+                {
+                  "component": "grid-column",
+                  "width": "two-thirds",
+                  "components": [
+                    {
+                      "component": "paragraph",
+                      "text": "This test agreement records the pigs included in your offer, the funding amount and, after acceptance, the payment schedule."
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },
@@ -189,39 +211,50 @@
           "title": "Pigs and funding",
           "components": [
             {
-              "component": "table",
-              "head": [
+              "component": "grid-row",
+              "components": [
                 {
-                  "text": "Pig type"
-                },
-                {
-                  "text": "Number of pigs"
-                },
-                {
-                  "text": "Funding amount"
-                }
-              ],
-              "rowsRef": "$.agreement.actions",
-              "rows": [
-                {
-                  "text": "@.description"
-                },
-                {
-                  "text": "@.quantity"
-                },
-                {
-                  "text": "@.totalAmountPence",
-                  "format": "poundsFromPence"
-                }
-              ]
-            },
-            {
-              "component": "summary-list",
-              "rows": [
-                {
-                  "label": "Total funding",
-                  "text": "$.agreement.totalAmountPence",
-                  "format": "poundsFromPence"
+                  "component": "grid-column",
+                  "width": "two-thirds",
+                  "components": [
+                    {
+                      "component": "table",
+                      "head": [
+                        {
+                          "text": "Pig type"
+                        },
+                        {
+                          "text": "Number of pigs"
+                        },
+                        {
+                          "text": "Funding amount"
+                        }
+                      ],
+                      "rowsRef": "$.agreement.actions",
+                      "rows": [
+                        {
+                          "text": "@.description"
+                        },
+                        {
+                          "text": "@.quantity"
+                        },
+                        {
+                          "text": "@.totalAmountPence",
+                          "format": "poundsFromPence"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "summary-list",
+                      "rows": [
+                        {
+                          "label": "Total funding",
+                          "text": "$.agreement.totalAmountPence",
+                          "format": "poundsFromPence"
+                        }
+                      ]
+                    }
+                  ]
                 }
               ]
             }
@@ -232,44 +265,55 @@
           "title": "Payment schedule",
           "components": [
             {
-              "component": "summary-list",
-              "rows": [
+              "component": "grid-row",
+              "components": [
                 {
-                  "label": "Agreement start date",
-                  "text": "$.agreement.startDate",
-                  "format": "dateLong"
-                },
-                {
-                  "label": "Agreement end date",
-                  "text": "$.agreement.endDate",
-                  "format": "dateLong"
-                },
-                {
-                  "label": "Total payment",
-                  "text": "$.agreement.totalAmountPence",
-                  "format": "poundsFromPence"
-                }
-              ]
-            },
-            {
-              "component": "table",
-              "head": [
-                {
-                  "text": "Payment date"
-                },
-                {
-                  "text": "Amount"
-                }
-              ],
-              "rowsRef": "$.agreement.paymentSchedule.instalments",
-              "rows": [
-                {
-                  "text": "@.dueDate",
-                  "format": "dateLong"
-                },
-                {
-                  "text": "@.totalAmountPence",
-                  "format": "poundsFromPence"
+                  "component": "grid-column",
+                  "width": "two-thirds",
+                  "components": [
+                    {
+                      "component": "summary-list",
+                      "rows": [
+                        {
+                          "label": "Agreement start date",
+                          "text": "$.agreement.startDate",
+                          "format": "dateLong"
+                        },
+                        {
+                          "label": "Agreement end date",
+                          "text": "$.agreement.endDate",
+                          "format": "dateLong"
+                        },
+                        {
+                          "label": "Total payment",
+                          "text": "$.agreement.totalAmountPence",
+                          "format": "poundsFromPence"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "table",
+                      "head": [
+                        {
+                          "text": "Payment date"
+                        },
+                        {
+                          "text": "Amount"
+                        }
+                      ],
+                      "rowsRef": "$.agreement.paymentSchedule.instalments",
+                      "rows": [
+                        {
+                          "text": "@.dueDate",
+                          "format": "dateLong"
+                        },
+                        {
+                          "text": "@.totalAmountPence",
+                          "format": "poundsFromPence"
+                        }
+                      ]
+                    }
+                  ]
                 }
               ]
             }
@@ -281,18 +325,29 @@
           "condition": "jsonata:$.agreement.state = 'accepted'",
           "components": [
             {
-              "component": "summary-list",
-              "rows": [
+              "component": "grid-row",
+              "components": [
                 {
-                  "label": "Accepted on",
-                  "text": "$.agreement.acceptedAt",
-                  "format": "dateLong"
+                  "component": "grid-column",
+                  "width": "two-thirds",
+                  "components": [
+                    {
+                      "component": "summary-list",
+                      "rows": [
+                        {
+                          "label": "Accepted on",
+                          "text": "$.agreement.acceptedAt",
+                          "format": "dateLong"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "paragraph",
+                      "text": "This agreement was accepted electronically."
+                    }
+                  ]
                 }
               ]
-            },
-            {
-              "component": "paragraph",
-              "text": "This agreement was accepted electronically."
             }
           ]
         },
@@ -301,8 +356,19 @@
           "title": "About this test agreement",
           "components": [
             {
-              "component": "paragraph",
-              "text": "Pigs Might Fly is a test grant used to check the agreement service. It is not a real grant agreement."
+              "component": "grid-row",
+              "components": [
+                {
+                  "component": "grid-column",
+                  "width": "two-thirds",
+                  "components": [
+                    {
+                      "component": "paragraph",
+                      "text": "Pigs Might Fly is a test grant used to check the agreement service. It is not a real grant agreement."
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
@@ -312,90 +378,105 @@
       "title": "Review your agreement offer",
       "components": [
         {
-          "component": "heading",
-          "level": 1,
-          "text": "Review your agreement offer"
-        },
-        {
-          "component": "paragraph",
-          "text": "Check the details of this test agreement before you continue."
-        },
-        {
-          "component": "summary-list",
-          "rows": [
+          "component": "grid-row",
+          "components": [
             {
-              "label": "SBI",
-              "text": "$.agreement.identifiers.sbi"
-            },
-            {
-              "label": "Agreement number",
-              "text": "$.agreement.agreementNumber"
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "heading",
+                  "level": 1,
+                  "text": "Review your agreement offer"
+                },
+                {
+                  "component": "paragraph",
+                  "text": "Check the details of this test agreement before you continue."
+                },
+                {
+                  "component": "summary-list",
+                  "rows": [
+                    {
+                      "label": "SBI",
+                      "text": "$.agreement.identifiers.sbi"
+                    },
+                    {
+                      "label": "Agreement number",
+                      "text": "$.agreement.agreementNumber"
+                    }
+                  ]
+                },
+                {
+                  "component": "heading",
+                  "level": 2,
+                  "text": "Pigs and funding"
+                },
+                {
+                  "component": "table",
+                  "head": [
+                    {
+                      "text": "Pig type"
+                    },
+                    {
+                      "text": "Number of pigs"
+                    },
+                    {
+                      "text": "Funding amount"
+                    }
+                  ],
+                  "rowsRef": "$.agreement.actions",
+                  "rows": [
+                    {
+                      "text": "@.description"
+                    },
+                    {
+                      "text": "@.quantity"
+                    },
+                    {
+                      "text": "@.totalAmountPence",
+                      "format": "poundsFromPence"
+                    }
+                  ]
+                },
+                {
+                  "component": "summary-list",
+                  "rows": [
+                    {
+                      "label": "Agreement start date",
+                      "text": "$.agreement.startDate",
+                      "format": "dateLong"
+                    },
+                    {
+                      "label": "Agreement end date",
+                      "text": "$.agreement.endDate",
+                      "format": "dateLong"
+                    },
+                    {
+                      "label": "Total funding",
+                      "text": "$.agreement.totalAmountPence",
+                      "format": "poundsFromPence"
+                    }
+                  ]
+                },
+                {
+                  "component": "url",
+                  "href": {
+                    "urlTemplate": "/agreements/{agreementNumber}/document",
+                    "params": {
+                      "agreementNumber": "$.agreement.agreementNumber"
+                    }
+                  },
+                  "text": "View the draft agreement (opens in new tab)",
+                  "target": "_blank",
+                  "classes": "govuk-link govuk-!-display-block govuk-!-margin-bottom-4"
+                },
+                {
+                  "component": "button",
+                  "actionId": "accept"
+                }
+              ]
             }
           ]
-        },
-        {
-          "component": "heading",
-          "level": 2,
-          "text": "Pigs and funding"
-        },
-        {
-          "component": "table",
-          "head": [
-            {
-              "text": "Pig type"
-            },
-            {
-              "text": "Number of pigs"
-            },
-            {
-              "text": "Funding amount"
-            }
-          ],
-          "rowsRef": "$.agreement.actions",
-          "rows": [
-            {
-              "text": "@.description"
-            },
-            {
-              "text": "@.quantity"
-            },
-            {
-              "text": "@.totalAmountPence",
-              "format": "poundsFromPence"
-            }
-          ]
-        },
-        {
-          "component": "summary-list",
-          "rows": [
-            {
-              "label": "Agreement start date",
-              "text": "$.agreement.startDate",
-              "format": "dateLong"
-            },
-            {
-              "label": "Agreement end date",
-              "text": "$.agreement.endDate",
-              "format": "dateLong"
-            },
-            {
-              "label": "Total funding",
-              "text": "$.agreement.totalAmountPence",
-              "format": "poundsFromPence"
-            }
-          ]
-        },
-        {
-          "component": "url",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/document",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber"
-            }
-          },
-          "text": "View the draft agreement (opens in new tab)",
-          "target": "_blank",
-          "classes": "govuk-link govuk-!-display-block govuk-!-margin-bottom-4"
         }
       ],
       "actions": [
@@ -417,47 +498,68 @@
       "title": "Accept your agreement offer",
       "components": [
         {
-          "component": "heading",
-          "level": 1,
-          "text": "Accept your agreement offer"
-        },
-        {
-          "component": "url",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/document",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber"
-            }
-          },
-          "text": "View the draft agreement (opens in new tab)",
-          "target": "_blank",
-          "classes": "govuk-link govuk-!-display-block govuk-!-margin-bottom-4"
-        },
-        {
-          "component": "paragraph",
-          "text": "By accepting this offer, you confirm that:"
-        },
-        {
-          "component": "unordered-list",
-          "items": [
+          "component": "grid-row",
+          "components": [
             {
-              "text": "the information in the agreement is correct"
-            },
-            {
-              "text": "you have authority to accept the agreement"
-            },
-            {
-              "text": "you understand this is a test grant"
-            }
-          ]
-        },
-        {
-          "component": "checkboxes",
-          "name": "confirm",
-          "items": [
-            {
-              "value": "confirmed",
-              "text": "I confirm I have read the information in this section and accept this agreement offer."
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "form",
+                  "actionId": "accept",
+                  "components": [
+                    {
+                      "component": "heading",
+                      "level": 1,
+                      "text": "Accept your agreement offer"
+                    },
+                    {
+                      "component": "url",
+                      "href": {
+                        "urlTemplate": "/agreements/{agreementNumber}/document",
+                        "params": {
+                          "agreementNumber": "$.agreement.agreementNumber"
+                        }
+                      },
+                      "text": "View the draft agreement (opens in new tab)",
+                      "target": "_blank",
+                      "classes": "govuk-link govuk-!-display-block govuk-!-margin-bottom-4"
+                    },
+                    {
+                      "component": "paragraph",
+                      "text": "By accepting this offer, you confirm that:"
+                    },
+                    {
+                      "component": "unordered-list",
+                      "items": [
+                        {
+                          "text": "the information in the agreement is correct"
+                        },
+                        {
+                          "text": "you have authority to accept the agreement"
+                        },
+                        {
+                          "text": "you understand this is a test grant"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "checkboxes",
+                      "name": "confirm",
+                      "items": [
+                        {
+                          "value": "confirmed",
+                          "text": "I confirm I have read the information in this section and accept this agreement offer."
+                        }
+                      ]
+                    },
+                    {
+                      "component": "button",
+                      "actionId": "accept"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
@@ -484,29 +586,40 @@
       },
       "components": [
         {
-          "component": "notification-banner",
-          "title": "This agreement offer has been withdrawn",
-          "text": "The Rural Payments Agency has withdrawn this offer. You do not need to do anything."
-        },
-        {
-          "component": "summary-list",
-          "rows": [
+          "component": "grid-row",
+          "components": [
             {
-              "label": "Agreement number",
-              "text": "$.agreement.agreementNumber"
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "notification-banner",
+                  "title": "This agreement offer has been withdrawn",
+                  "text": "The Rural Payments Agency has withdrawn this offer. You do not need to do anything."
+                },
+                {
+                  "component": "summary-list",
+                  "rows": [
+                    {
+                      "label": "Agreement number",
+                      "text": "$.agreement.agreementNumber"
+                    }
+                  ]
+                },
+                {
+                  "component": "url",
+                  "href": {
+                    "urlTemplate": "/agreements/{agreementNumber}/document",
+                    "params": {
+                      "agreementNumber": "$.agreement.agreementNumber"
+                    }
+                  },
+                  "text": "View and print your withdrawn agreement (opens in new tab)",
+                  "target": "_blank"
+                }
+              ]
             }
           ]
-        },
-        {
-          "component": "url",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/document",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber"
-            }
-          },
-          "text": "View and print your withdrawn agreement (opens in new tab)",
-          "target": "_blank"
         }
       ],
       "actions": []
@@ -518,29 +631,40 @@
       },
       "components": [
         {
-          "component": "notification-banner",
-          "title": "This agreement offer has been cancelled",
-          "text": "Your funding offer is currently being updated. The Rural Payments Agency will email you when it is ready for you to review."
-        },
-        {
-          "component": "summary-list",
-          "rows": [
+          "component": "grid-row",
+          "components": [
             {
-              "label": "Agreement number",
-              "text": "$.agreement.agreementNumber"
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "notification-banner",
+                  "title": "This agreement offer has been cancelled",
+                  "text": "Your funding offer is currently being updated. The Rural Payments Agency will email you when it is ready for you to review."
+                },
+                {
+                  "component": "summary-list",
+                  "rows": [
+                    {
+                      "label": "Agreement number",
+                      "text": "$.agreement.agreementNumber"
+                    }
+                  ]
+                },
+                {
+                  "component": "url",
+                  "href": {
+                    "urlTemplate": "/agreements/{agreementNumber}/document",
+                    "params": {
+                      "agreementNumber": "$.agreement.agreementNumber"
+                    }
+                  },
+                  "text": "View and print your cancelled agreement (opens in new tab)",
+                  "target": "_blank"
+                }
+              ]
             }
           ]
-        },
-        {
-          "component": "url",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/document",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber"
-            }
-          },
-          "text": "View and print your cancelled agreement (opens in new tab)",
-          "target": "_blank"
         }
       ],
       "actions": []
@@ -552,34 +676,45 @@
       },
       "components": [
         {
-          "component": "notification-banner",
-          "title": "This agreement has been terminated",
-          "text": "The Rural Payments Agency has terminated this agreement. All actions and standards in the agreement have ended."
-        },
-        {
-          "component": "summary-list",
-          "rows": [
+          "component": "grid-row",
+          "components": [
             {
-              "label": "Agreement number",
-              "text": "$.agreement.agreementNumber"
-            },
-            {
-              "label": "Agreement start date",
-              "text": "$.agreement.startDate",
-              "format": "dateLong"
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "notification-banner",
+                  "title": "This agreement has been terminated",
+                  "text": "The Rural Payments Agency has terminated this agreement. All actions and standards in the agreement have ended."
+                },
+                {
+                  "component": "summary-list",
+                  "rows": [
+                    {
+                      "label": "Agreement number",
+                      "text": "$.agreement.agreementNumber"
+                    },
+                    {
+                      "label": "Agreement start date",
+                      "text": "$.agreement.startDate",
+                      "format": "dateLong"
+                    }
+                  ]
+                },
+                {
+                  "component": "url",
+                  "href": {
+                    "urlTemplate": "/agreements/{agreementNumber}/document",
+                    "params": {
+                      "agreementNumber": "$.agreement.agreementNumber"
+                    }
+                  },
+                  "text": "View and print your terminated agreement (opens in new tab)",
+                  "target": "_blank"
+                }
+              ]
             }
           ]
-        },
-        {
-          "component": "url",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/document",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber"
-            }
-          },
-          "text": "View and print your terminated agreement (opens in new tab)",
-          "target": "_blank"
         }
       ],
       "actions": []
@@ -588,30 +723,41 @@
       "title": "Your agreement is now active",
       "components": [
         {
-          "component": "panel",
-          "title": "Agreement offer accepted",
-          "text": "Agreement number: $.agreement.agreementNumber"
-        },
-        {
-          "component": "summary-list",
-          "rows": [
+          "component": "grid-row",
+          "components": [
             {
-              "label": "Agreement start date",
-              "text": "$.agreement.startDate",
-              "format": "dateLong"
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "panel",
+                  "title": "Agreement offer accepted",
+                  "text": "Agreement number: $.agreement.agreementNumber"
+                },
+                {
+                  "component": "summary-list",
+                  "rows": [
+                    {
+                      "label": "Agreement start date",
+                      "text": "$.agreement.startDate",
+                      "format": "dateLong"
+                    }
+                  ]
+                },
+                {
+                  "component": "url",
+                  "href": {
+                    "urlTemplate": "/agreements/{agreementNumber}/document",
+                    "params": {
+                      "agreementNumber": "$.agreement.agreementNumber"
+                    }
+                  },
+                  "text": "View and print your agreement (opens in new tab)",
+                  "target": "_blank"
+                }
+              ]
             }
           ]
-        },
-        {
-          "component": "url",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/document",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber"
-            }
-          },
-          "text": "View and print your agreement (opens in new tab)",
-          "target": "_blank"
         }
       ],
       "actions": []
