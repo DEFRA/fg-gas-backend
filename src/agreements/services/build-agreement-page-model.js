@@ -3,12 +3,48 @@ import { logger } from "../../common/logger.js";
 import { resolveCondition, resolveRefs } from "../../common/resolve-refs.js";
 import { assertSupportedAgreementPageMode } from "./assert-supported-agreement-page-mode.js";
 import { resolveComponents } from "./resolve-components.js";
+import { resolvePageActions as bindPageActions } from "./resolve-page-actions.js";
 import { resolveActions } from "./resolve-page-href.js";
 
 const DOCUMENT_PAGE = "document";
 
-const resolveLifecyclePageActions = (pageDefinition, context, mode) =>
-  mode === "print" ? [] : resolveActions(context, pageDefinition.actions);
+const resolveLifecyclePageActions = (pageDefinition, context) =>
+  resolveActions(context, pageDefinition.actions);
+
+const removeNestedActionNodes = (component, remove) => {
+  const children = remove(component.components);
+  if (component.component === "form") {
+    return children;
+  }
+
+  return children.length === 0 ? [] : [{ ...component, components: children }];
+};
+
+const removeActionNode = (component, remove) => {
+  if (component.component === "button") {
+    return [];
+  }
+
+  return Array.isArray(component.components)
+    ? removeNestedActionNodes(component, remove)
+    : [component];
+};
+
+const removeActionNodes = (components) =>
+  components.flatMap((component) =>
+    removeActionNode(component, removeActionNodes),
+  );
+
+const removePageActionNodes = (tree) => ({
+  components: removeActionNodes(tree.components),
+  sections: tree.sections.map((section) => ({
+    ...section,
+    components: removeActionNodes(section.components),
+  })),
+});
+
+const withoutPageActions = (tree, removeActions) =>
+  removeActions ? removePageActionNodes(tree) : tree;
 
 const resolvePageContent = async (
   pageDefinition,
@@ -105,12 +141,19 @@ const toAgreementSummary = ({
   ...(applicant && { applicant: toApplicantSummary(applicant) }),
 });
 
+const resolvePageSections = (includeSections, context, sections) =>
+  includeSections ? resolveSections(context, sections) : undefined;
+
+const withPageSections = (includeSections, sections) =>
+  includeSections ? sections : undefined;
+
 const buildPageModel = async ({
   agreement,
   agreementDefinition,
   includeSections = false,
   outputs,
   page,
+  removeActions = false,
   resolvePageActions,
 }) => {
   const pageDefinition = agreementDefinition.resolvePage(page);
@@ -126,18 +169,19 @@ const buildPageModel = async ({
   try {
     const [[components, actions], sections, pageMetadata] = await Promise.all([
       resolvePageContent(pageDefinition, context, resolvePageActions),
-      includeSections
-        ? resolveSections(context, pageDefinition.sections)
-        : undefined,
+      resolvePageSections(includeSections, context, pageDefinition.sections),
       buildPageMetadata(page, pageDefinition, context),
     ]);
+    const resolvedTree = withoutPageActions(
+      bindPageActions({ components, sections, actions }),
+      removeActions,
+    );
 
     return omitUndefined({
       agreement: toAgreementSummary(agreement),
       page: pageMetadata,
-      components,
-      sections,
-      actions,
+      components: resolvedTree.components,
+      sections: withPageSections(includeSections, resolvedTree.sections),
     });
   } catch (error) {
     logger.error(
@@ -187,8 +231,8 @@ export const buildAgreementPageModel = async ({
     agreement,
     agreementDefinition,
     page,
-    resolvePageActions: (pageDefinition, context) =>
-      resolveLifecyclePageActions(pageDefinition, context, mode),
+    removeActions: mode === "print",
+    resolvePageActions: resolveLifecyclePageActions,
   });
 };
 

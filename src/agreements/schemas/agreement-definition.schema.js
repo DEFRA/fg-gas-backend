@@ -120,7 +120,26 @@ const pageHref = Joi.alternatives()
   .label("PageHref");
 
 const genericComponent = Joi.object({
-  component: Joi.string().required(),
+  component: Joi.string()
+    .valid(
+      "accordion",
+      "checkboxes",
+      "container",
+      "description-list",
+      "details",
+      "heading",
+      "line-break",
+      "notification-banner",
+      "ordered-list",
+      "panel",
+      "paragraph",
+      "status",
+      "summary-list",
+      "text",
+      "unordered-list",
+      "warning-text",
+    )
+    .required(),
   condition: reference.optional(),
 })
   .unknown(true)
@@ -170,6 +189,33 @@ const urlComponent = Joi.object({
   text: Joi.string().required(),
 }).unknown(true);
 
+const gridColumnComponent = Joi.object({
+  component: Joi.string().valid("grid-column").required(),
+  condition: reference.optional(),
+  width: Joi.string().valid("two-thirds", "full").optional(),
+  components: nestedComponents.required(),
+});
+
+const gridRowComponent = Joi.object({
+  component: Joi.string().valid("grid-row").required(),
+  condition: reference.optional(),
+  components: Joi.array().items(gridColumnComponent).min(1).required(),
+});
+
+const formComponent = Joi.object({
+  component: Joi.string().valid("form").required(),
+  condition: reference.optional(),
+  actionId: Joi.string().required(),
+  components: nestedComponents.required(),
+});
+
+const buttonComponent = Joi.object({
+  component: Joi.string().valid("button").required(),
+  condition: reference.optional(),
+  actionId: Joi.string().required(),
+  classes: Joi.string().optional(),
+});
+
 const component = Joi.alternatives()
   .conditional(".component", {
     switch: [
@@ -179,6 +225,10 @@ const component = Joi.alternatives()
       { is: "component-container", then: containerComponent },
       { is: "table", then: tableComponent },
       { is: "url", then: urlComponent },
+      { is: "grid-row", then: gridRowComponent },
+      { is: "grid-column", then: gridColumnComponent },
+      { is: "form", then: formComponent },
+      { is: "button", then: buttonComponent },
     ],
     otherwise: genericComponent,
   })

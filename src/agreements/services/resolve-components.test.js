@@ -469,6 +469,75 @@ describe("resolveComponents repeated content", () => {
   });
 });
 
+describe("resolveComponents explicit component trees", () => {
+  it("preserves structural nodes while resolving nested components with table-row scope", async () => {
+    const components = [
+      {
+        component: "grid-row",
+        components: [
+          {
+            component: "grid-column",
+            width: "full",
+            components: [
+              {
+                component: "form",
+                actionId: "accept",
+                components: [
+                  {
+                    component: "table",
+                    rowsRef: "$.agreement.actions",
+                    rows: [{ text: "@.description" }],
+                  },
+                  {
+                    component: "conditional",
+                    condition: "jsonata:$.agreement.state = 'offered'",
+                    whenTrue: {
+                      component: "paragraph",
+                      text: "Offer available",
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: {
+        state: "offered",
+        actions: [{ description: "Hedgerow" }],
+      },
+    });
+
+    expect(result).toEqual([
+      {
+        component: "grid-row",
+        components: [
+          {
+            component: "grid-column",
+            width: "full",
+            components: [
+              {
+                component: "form",
+                actionId: "accept",
+                components: [
+                  {
+                    component: "table",
+                    rows: [[{ text: "Hedgerow" }]],
+                  },
+                  { component: "paragraph", text: "Offer available" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+});
+
 describe("resolveComponents containers and templates", () => {
   it("flattens a container's content into its parent", async () => {
     const components = [

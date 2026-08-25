@@ -16,21 +16,117 @@ const accountDisplayApplicant = Joi.object({
   }).required(),
 }).label("AgreementPageModelApplicant");
 
-const component = Joi.object({ component: Joi.string().required() })
-  .unknown(true)
-  .label("AgreementPageModelComponent");
+const componentLink = Joi.link("#renderComponent");
+const childComponents = Joi.array().items(componentLink).min(1).required();
+const forbiddenResolverFields = {
+  actionId: Joi.forbidden(),
+  condition: Joi.forbidden(),
+  format: Joi.forbidden(),
+  itemsRef: Joi.forbidden(),
+  templateRef: Joi.forbidden(),
+};
 
-const action = Joi.object({
-  name: Joi.string().required(),
-  method: Joi.string().valid("GET", "POST").required(),
+const gridColumn = Joi.object({
+  component: Joi.string().valid("grid-column").required(),
+  width: Joi.string().valid("two-thirds", "full").optional(),
+  components: childComponents,
+  ...forbiddenResolverFields,
+}).label("AgreementPageModelGridColumn");
+
+const gridRow = Joi.object({
+  component: Joi.string().valid("grid-row").required(),
+  components: Joi.array().items(gridColumn).min(1).required(),
+  ...forbiddenResolverFields,
+}).label("AgreementPageModelGridRow");
+
+const form = Joi.object({
+  component: Joi.string().valid("form").required(),
+  method: Joi.string().valid("POST").required(),
+  formAction: Joi.string().required(),
+  hiddenFields: Joi.array().items(Joi.object().unknown(true)).required(),
+  components: childComponents,
+  ...forbiddenResolverFields,
+}).label("AgreementPageModelForm");
+
+const getButton = Joi.object({
+  component: Joi.string().valid("button").required(),
   text: Joi.string().required(),
   href: Joi.string().required(),
-}).label("AgreementPageModelAction");
+  classes: Joi.string().optional(),
+  submit: Joi.forbidden(),
+  ...forbiddenResolverFields,
+}).unknown(true);
+
+const submitButton = Joi.object({
+  component: Joi.string().valid("button").required(),
+  text: Joi.string().required(),
+  submit: Joi.boolean().valid(true).required(),
+  classes: Joi.string().optional(),
+  href: Joi.forbidden(),
+  ...forbiddenResolverFields,
+}).unknown(true);
+
+const button = Joi.alternatives()
+  .try(getButton, submitButton)
+  .label("AgreementPageModelButton");
+
+const displayComponent = Joi.object({
+  component: Joi.string()
+    .valid(
+      "accordion",
+      "checkboxes",
+      "container",
+      "description-list",
+      "details",
+      "heading",
+      "line-break",
+      "notification-banner",
+      "ordered-list",
+      "panel",
+      "paragraph",
+      "status",
+      "summary-list",
+      "table",
+      "text",
+      "unordered-list",
+      "url",
+      "warning-text",
+    )
+    .required(),
+  ...forbiddenResolverFields,
+})
+  .unknown(true)
+  .label("AgreementPageModelDisplayComponent");
+
+const component = Joi.alternatives()
+  .conditional(".component", {
+    switch: [
+      { is: "grid-row", then: gridRow },
+      { is: "grid-column", then: gridColumn },
+      { is: "form", then: form },
+      { is: "button", then: button },
+    ],
+    otherwise: displayComponent,
+  })
+  .id("renderComponent");
+
+const componentTree = Joi.array()
+  .items(component)
+  .custom((components, helpers) =>
+    components.every(({ component: name }) => name === "grid-row")
+      ? components
+      : helpers.error("array.explicitComponentTree"),
+  )
+  .messages({
+    "array.explicitComponentTree":
+      "{{#label}} must use grid-row components at the root",
+  })
+  .required();
 
 const section = Joi.object({
   id: Joi.string().required(),
   title: Joi.string().required(),
-  components: Joi.array().items(component).required(),
+  components: componentTree,
 }).label("AgreementPageModelSection");
 
 const watermark = Joi.object({
@@ -55,9 +151,8 @@ export const agreementPageModelResponseSchema = Joi.object({
     print: Joi.boolean().optional(),
     watermark: watermark.optional(),
   }).required(),
-  components: Joi.array().items(component).required(),
+  components: componentTree,
   sections: Joi.array().items(section).optional(),
-  actions: Joi.array().items(action).required(),
 })
-  .options({ presence: "required", stripUnknown: true })
+  .options({ presence: "required" })
   .label("AgreementPageModelResponse");
