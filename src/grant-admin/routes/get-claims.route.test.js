@@ -4,14 +4,7 @@ import { findClaimsUseCase } from "../use-cases/find-claims.use-case.js";
 import { getClaimsRoute } from "./get-claims.route.js";
 
 vi.mock("../use-cases/find-claims.use-case.js");
-vi.mock("../../common/logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
-}));
+vi.mock("../../common/logger.js");
 
 const template = {
   claimCode: "ENT_CS_CAPITAL_PA3",

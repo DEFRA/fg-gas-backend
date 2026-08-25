@@ -9,7 +9,12 @@ export default defineConfig({
     coverage: {
       reporter: ["text", "lcov", "html"],
       include: ["src/**/*.js"],
-      exclude: ["**/migrations/**", "**/test/**", "**/scripts/**"],
+      exclude: [
+        "**/migrations/**",
+        "**/test/**",
+        "**/scripts/**",
+        "**/__mocks__/**",
+      ],
     },
     env: {
       NODE_ENV: "test",

@@ -7,14 +7,7 @@ vi.mock("./write-audit-event.js", () => ({
   writeAuditEvent: vi.fn(),
 }));
 
-vi.mock("./logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
-}));
+vi.mock("./logger.js");
 
 describe("buildAuditEvent", () => {
   const baseArgs = {

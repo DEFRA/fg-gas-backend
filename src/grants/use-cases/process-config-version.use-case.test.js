@@ -9,13 +9,7 @@ vi.mock("../../common/config.js", () => ({
   },
 }));
 
-vi.mock("../../common/logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
+vi.mock("../../common/logger.js");
 
 const mockUpsert = vi.fn();
 vi.mock("../repositories/config-version.repository.js", () => ({

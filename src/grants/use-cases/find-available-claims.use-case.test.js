@@ -18,14 +18,7 @@ vi.mock("./resolve-current-grant.use-case.js", async (importOriginal) => {
     resolveCurrentGrantUseCase: vi.fn(),
   };
 });
-vi.mock("../../common/logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
-}));
+vi.mock("../../common/logger.js");
 
 const code = "grant-1";
 const clientRef = "application-1";

@@ -62,6 +62,15 @@ const schema = Joi.object({
   VIEW_AGREEMENT_URI: Joi.string().uri().required(),
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
   AGREEMENTS_JWT_SECRET: Joi.string().optional(),
+  // A client:sha256hex pair, e.g. some-service:1f0a... Empty or unset seeds
+  // nothing and removes nothing. Deliberately not validated here: the shape is
+  // enforced in src/auth/seed-access-token.js, where a bad value warns and
+  // issues nothing rather than stopping the service from booting.
+  SERVICE_ACCESS_TOKEN_HASH: Joi.string()
+    .trim()
+    .lowercase()
+    .allow("")
+    .optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -147,4 +156,5 @@ export const config = {
     audience: "gas",
     allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
   },
+  serviceAccessTokenHash: vars.SERVICE_ACCESS_TOKEN_HASH,
 };

@@ -26,9 +26,7 @@ vi.mock("./config.js", () => ({
   },
 }));
 
-vi.mock("./logger.js", () => ({
-  logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn() },
-}));
+vi.mock("./logger.js");
 
 vi.mock("./get-request-context.js", () => ({
   getRequestContext: vi.fn(),

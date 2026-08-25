@@ -2,9 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
 import { buildBanner } from "./build-banner.js";
 
-vi.mock("../../common/logger.js", () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}));
+vi.mock("../../common/logger.js");
 
 const application = {
   clientRef: "wood-1001",

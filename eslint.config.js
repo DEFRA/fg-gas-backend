@@ -28,7 +28,13 @@ export default [
       "import-x/no-cycle": "error",
       "import-x/no-extraneous-dependencies": [
         "error",
-        { devDependencies: ["src/**/*.test.js", "test/**"] },
+        {
+          devDependencies: [
+            "src/**/*.test.js",
+            "src/**/__mocks__/**",
+            "test/**",
+          ],
+        },
       ],
       "import-x/no-restricted-paths": [
         "error",

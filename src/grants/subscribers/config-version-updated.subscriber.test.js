@@ -14,9 +14,7 @@ vi.mock("../../common/config.js", () => ({
   },
 }));
 
-vi.mock("../../common/logger.js", () => ({
-  logger: { warn: vi.fn(), info: vi.fn() },
-}));
+vi.mock("../../common/logger.js");
 
 const mockProcessConfigVersion = vi.fn();
 vi.mock("../use-cases/process-config-version.use-case.js", () => ({
