@@ -24,6 +24,23 @@ describe("AgreementAction", () => {
     expect(toAction().preparationPage).toBeUndefined();
   });
 
+  it("exposes only the client-safe submission requirements", () => {
+    const validation = {
+      required: [
+        {
+          name: "declaration",
+          value: "agreed",
+          href: "#declaration",
+          message: "Agree to the declaration",
+        },
+      ],
+    };
+
+    expect(toAction(validation).submissionRequirements).toEqual([
+      { name: "declaration", value: "agreed" },
+    ]);
+  });
+
   it("accepts a submitted scalar value that matches the configured value", () => {
     const validation = {
       required: [

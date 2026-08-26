@@ -13,70 +13,108 @@ const creationDefinition = {
   values: { actions: [], items: [] },
 };
 
-const definition = new AgreementDefinition({
-  code: "test",
-  configVersion: "1",
-  agreementNumberPrefix: "TST",
-  create: creationDefinition,
-  states: {
-    accepted: { page: "offer" },
-    offered: {
-      page: "offer",
-      on: {
-        print: {
-          target: "offered",
-          page: "document",
-          validation: {
-            required: [
-              {
-                name: "confirm",
-                value: "yes",
-                href: "#confirm",
-                message: "Confirm",
-              },
-            ],
+const explicitTree = (components, width) => [
+  {
+    component: "grid-row",
+    components: [
+      {
+        component: "grid-column",
+        ...(width && { width }),
+        components,
+      },
+    ],
+  },
+];
+
+const wrapSections = (sections = []) => {
+  for (const section of sections) {
+    section.components = explicitTree(section.components);
+  }
+};
+
+const withExplicitTrees = (definition) => {
+  for (const page of Object.values(definition.pages)) {
+    page.components = explicitTree(page.components);
+    wrapSections(page.sections);
+  }
+
+  return definition;
+};
+
+const pageContent = ({ components }) => components[0].components[0].components;
+
+const definition = new AgreementDefinition(
+  withExplicitTrees({
+    code: "test",
+    configVersion: "1",
+    agreementNumberPrefix: "TST",
+    create: creationDefinition,
+    states: {
+      accepted: { page: "offer" },
+      offered: {
+        page: "offer",
+        on: {
+          print: {
+            target: "offered",
+            page: "document",
+            validation: {
+              required: [
+                {
+                  name: "confirm",
+                  value: "yes",
+                  href: "#confirm",
+                  message: "Confirm",
+                },
+              ],
+            },
           },
         },
       },
     },
-  },
-  pages: {
-    offer: {
-      title: "Offer",
-      components: [{ component: "heading", text: "Agreement offer" }],
-      actions: [],
-    },
-    document: {
-      title: "Document",
-      layout: "document",
-      contents: true,
-      print: true,
-      watermarks: {
-        offered: "DRAFT",
+    pages: {
+      offer: {
+        title: "Offer",
+        backLink: {
+          text: "Back to agreement",
+          href: {
+            urlTemplate: "/agreements/{agreementNumber}",
+            params: { agreementNumber: "$.agreement.agreementNumber" },
+          },
+        },
+        components: [{ component: "heading", text: "Agreement offer" }],
       },
-      components: [{ component: "heading", text: "Document" }],
-      sections: [
-        {
-          id: "agreement-details",
-          title: "Agreement $.agreement.agreementNumber",
-          components: [
-            {
-              component: "paragraph",
-              text: "SBI $.agreement.identifiers.sbi",
-            },
-          ],
+      document: {
+        title: "Document",
+        layout: "document",
+        contents: true,
+        print: true,
+        watermarks: {
+          offered: "DRAFT",
         },
-        {
-          id: "accepted-only",
-          title: "Acceptance",
-          condition: "jsonata:$.agreement.state = 'accepted'",
-          components: [{ component: "paragraph", text: "Accepted" }],
-        },
-      ],
-      actions: [{ name: "accept", method: "GET", text: "Accept", href: "/" }],
+        components: [{ component: "heading", text: "Document" }],
+        sections: [
+          {
+            id: "agreement-details",
+            title: "Agreement $.agreement.agreementNumber",
+            components: [
+              {
+                component: "paragraph",
+                text: "SBI $.agreement.identifiers.sbi",
+              },
+            ],
+          },
+          {
+            id: "accepted-only",
+            title: "Acceptance",
+            condition: "jsonata:$.agreement.state = 'accepted'",
+            components: [{ component: "paragraph", text: "Accepted" }],
+          },
+        ],
+        actions: [{ name: "accept", method: "GET", text: "Accept", href: "/" }],
+      },
     },
-  },
-});
+  }),
+);
 const agreement = {
   agreementNumber: "TST123",
   code: "test",
@@ -92,7 +130,7 @@ const agreement = {
 };
 const createPageProcessDefinition = (callEndpoint) =>
   new AgreementDefinition(
-    {
+    withExplicitTrees({
       code: "test",
       configVersion: "1",
       agreementNumberPrefix: "TST",
@@ -139,7 +177,6 @@ const createPageProcessDefinition = (callEndpoint) =>
               ],
             },
           ],
-          actions: [],
         },
         offer: {
           title: "Offer",
@@ -155,15 +192,13 @@ const createPageProcessDefinition = (callEndpoint) =>
               ],
             },
           ],
-          actions: [],
         },
         accepted: {
           title: "Accepted",
           components: [{ component: "heading", text: "Accepted" }],
-          actions: [],
         },
       },
-    },
+    }),
     { callEndpoint },
   );
 
@@ -197,6 +232,91 @@ const offeredValues = {
 };
 
 describe("buildAgreementPageModel", () => {
+  it.each([
+    {
+      name: "GET button",
+      components: [
+        {
+          component: "grid-row",
+          components: [
+            {
+              component: "grid-column",
+              components: [
+                {
+                  component: "button",
+                  action: "continue",
+                  text: "Continue",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      expected: {
+        component: "button",
+        href: "/agreements/TST123/actions/continue",
+        text: "Continue",
+      },
+    },
+    {
+      name: "POST form",
+      components: [
+        {
+          component: "grid-row",
+          components: [
+            {
+              component: "grid-column",
+              components: [
+                {
+                  component: "form",
+                  action: "accept",
+                  components: [{ component: "button", text: "Accept" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      expected: {
+        component: "form",
+        method: "POST",
+        formAction: "/agreements/TST123/actions/accept",
+        hiddenFields: [],
+        submissionRequirements: [],
+        components: [{ component: "button", text: "Accept", submit: true }],
+      },
+    },
+  ])(
+    "publishes a resolved $name without an action catalogue",
+    async ({ components, expected }) => {
+      const agreementDefinition = new AgreementDefinition({
+        code: "test",
+        configVersion: "1",
+        agreementNumberPrefix: "TST",
+        create: creationDefinition,
+        states: {
+          offered: {
+            page: "offer",
+            on: { accept: { target: "accepted" } },
+          },
+          accepted: { page: "offer" },
+        },
+        pages: { offer: { title: "Offer", components } },
+      });
+
+      const model = await buildAgreementPageModel({
+        agreement,
+        agreementDefinition,
+        page: "offer",
+        mode: "view",
+      });
+
+      expect(model.components[0].components[0].components).toEqual([expected]);
+      expect(model).not.toHaveProperty("actions");
+      expect(JSON.stringify(model)).not.toContain("actionId");
+    },
+  );
+
   it("runs configured page Processes on every render and exposes their ephemeral outputs", async () => {
     const callEndpoint = vi
       .fn()
@@ -214,18 +334,22 @@ describe("buildAgreementPageModel", () => {
     const first = await render();
     const second = await render();
 
-    expect(first.components).toEqual([
-      {
-        component: "summary-list",
-        rows: [{ label: "Total funding", text: "£12" }],
-      },
-    ]);
-    expect(second.components).toEqual([
-      {
-        component: "summary-list",
-        rows: [{ label: "Total funding", text: "£34" }],
-      },
-    ]);
+    expect(first.components).toEqual(
+      explicitTree([
+        {
+          component: "summary-list",
+          rows: [{ label: "Total funding", text: "£12" }],
+        },
+      ]),
+    );
+    expect(second.components).toEqual(
+      explicitTree([
+        {
+          component: "summary-list",
+          rows: [{ label: "Total funding", text: "£34" }],
+        },
+      ]),
+    );
     expect(callEndpoint).toHaveBeenCalledTimes(2);
     expect(callEndpoint).toHaveBeenCalledWith(
       {
@@ -282,9 +406,17 @@ describe("buildAgreementPageModel", () => {
         state: "offered",
         version: 1,
       },
-      page: { name: "offer", title: "Offer" },
-      components: [{ component: "heading", text: "Agreement offer" }],
-      actions: [],
+      page: {
+        name: "offer",
+        title: "Offer",
+        backLink: {
+          text: "Back to agreement",
+          href: "/agreements/TST123",
+        },
+      },
+      components: explicitTree([
+        { component: "heading", text: "Agreement offer" },
+      ]),
     });
 
     const model = await buildAgreementPageModel({
@@ -326,16 +458,40 @@ describe("buildAgreementPageModel", () => {
     expect(documentModel.agreement.applicant).toEqual(applicant);
   });
 
-  it("removes actions in print mode", async () => {
+  it("removes configured action nodes in print mode", async () => {
+    const printableDefinition = new AgreementDefinition({
+      code: "test",
+      configVersion: "1",
+      agreementNumberPrefix: "TST",
+      create: creationDefinition,
+      states: { offered: { page: "offer" }, accepted: { page: "offer" } },
+      pages: {
+        offer: {
+          title: "Offer",
+          components: explicitTree([
+            { component: "heading", text: "Agreement offer" },
+            {
+              component: "button",
+              action: "continue",
+              text: "Continue",
+            },
+          ]),
+        },
+      },
+    });
+
     const result = await buildAgreementPageModel({
       agreement,
-      agreementDefinition: definition,
-      page: "document",
+      agreementDefinition: printableDefinition,
+      page: "offer",
       mode: "print",
     });
-    expect(result.page.layout).toBe("document");
-    expect(result).not.toHaveProperty("sections");
-    expect(result.actions).toEqual([]);
+
+    expect(result.components).toEqual(
+      explicitTree([{ component: "heading", text: "Agreement offer" }]),
+    );
+    expect(result).not.toHaveProperty("actions");
+    expect(JSON.stringify(result)).not.toContain("actionId");
   });
 
   it("runs offered-state Processes when building a draft document", async () => {
@@ -346,7 +502,7 @@ describe("buildAgreementPageModel", () => {
       agreementDefinition: createPageProcessDefinition(callEndpoint),
     });
 
-    expect(model.components).toContainEqual({
+    expect(pageContent(model)).toContainEqual({
       component: "summary-list",
       rows: [{ label: "Total funding", text: "£12" }],
     });
@@ -361,9 +517,9 @@ describe("buildAgreementPageModel", () => {
       agreementDefinition: createPageProcessDefinition(callEndpoint),
     });
 
-    expect(model.components).toEqual([
-      { component: "heading", text: "Document" },
-    ]);
+    expect(model.components).toEqual(
+      explicitTree([{ component: "heading", text: "Document" }]),
+    );
     expect(callEndpoint).not.toHaveBeenCalled();
   });
 
@@ -385,10 +541,12 @@ describe("buildAgreementPageModel", () => {
       {
         id: "agreement-details",
         title: "Agreement TST123",
-        components: [{ component: "paragraph", text: "SBI 300000000" }],
+        components: explicitTree([
+          { component: "paragraph", text: "SBI 300000000" },
+        ]),
       },
     ]);
-    expect(result.actions).toEqual([]);
+    expect(result).not.toHaveProperty("actions");
   });
 
   it("omits a watermark when the current state is not mapped", async () => {
@@ -401,7 +559,7 @@ describe("buildAgreementPageModel", () => {
     expect(result.sections.at(-1)).toEqual({
       id: "accepted-only",
       title: "Acceptance",
-      components: [{ component: "paragraph", text: "Accepted" }],
+      components: explicitTree([{ component: "paragraph", text: "Accepted" }]),
     });
   });
 
@@ -435,52 +593,58 @@ describe("buildAgreementPageModel", () => {
     ).toEqual({
       id: "pigs-and-funding",
       title: "Pigs and funding",
-      components: [
-        {
-          component: "table",
-          head: [
-            { text: "Pig type" },
-            { text: "Number of pigs" },
-            { text: "Funding amount" },
-          ],
-          rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
-        },
-        {
-          component: "summary-list",
-          rows: [{ label: "Total funding", text: "£50" }],
-        },
-      ],
+      components: explicitTree(
+        [
+          {
+            component: "table",
+            head: [
+              { text: "Pig type" },
+              { text: "Number of pigs" },
+              { text: "Funding amount" },
+            ],
+            rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
+          },
+          {
+            component: "summary-list",
+            rows: [{ label: "Total funding", text: "£50" }],
+          },
+        ],
+        "two-thirds",
+      ),
     });
-    expect(documentModel.sections).toEqual(
+    const paymentSchedule = documentModel.sections.find(
+      ({ id }) => id === "payment-schedule",
+    );
+    expect(pageContent(paymentSchedule)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "payment-schedule",
-          components: expect.arrayContaining([
-            expect.objectContaining({
-              component: "table",
-              rows: [[{ text: "11 November 2026" }, { text: "£50" }]],
-            }),
-          ]),
+          component: "table",
+          rows: [[{ text: "11 November 2026" }, { text: "£50" }]],
         }),
       ]),
     );
-    expect(acceptedModel.components).toEqual([
-      {
-        component: "panel",
-        title: "Agreement offer accepted",
-        text: "Agreement number: TST123",
-      },
-      {
-        component: "summary-list",
-        rows: [{ label: "Agreement start date", text: "6 August 2026" }],
-      },
-      {
-        component: "url",
-        href: "/agreements/TST123/document",
-        text: "View and print your agreement (opens in new tab)",
-        target: "_blank",
-      },
-    ]);
+    expect(acceptedModel.components).toEqual(
+      explicitTree(
+        [
+          {
+            component: "panel",
+            title: "Agreement offer accepted",
+            text: "Agreement number: TST123",
+          },
+          {
+            component: "summary-list",
+            rows: [{ label: "Agreement start date", text: "6 August 2026" }],
+          },
+          {
+            component: "url",
+            href: "/agreements/TST123/document",
+            text: "View and print your agreement (opens in new tab)",
+            target: "_blank",
+          },
+        ],
+        "two-thirds",
+      ),
+    );
   });
 
   it("derives PMF document watermarks from future terminal states", async () => {
@@ -524,7 +688,7 @@ describe("buildAgreementPageModel", () => {
     ]);
 
     expect(documentModel.page.watermark).toEqual({ text: "WITHDRAWN" });
-    expect(documentModel.components).toEqual(
+    expect(pageContent(documentModel)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           component: "notification-banner",
@@ -532,16 +696,18 @@ describe("buildAgreementPageModel", () => {
         }),
       ]),
     );
-    expect(withdrawnModel).toMatchObject({
-      page: { watermark: { text: "WITHDRAWN" } },
-      components: expect.arrayContaining([
+    expect(withdrawnModel.page).toMatchObject({
+      watermark: { text: "WITHDRAWN" },
+    });
+    expect(pageContent(withdrawnModel)).toEqual(
+      expect.arrayContaining([
         expect.objectContaining({
           component: "notification-banner",
           title: "This agreement offer has been withdrawn",
         }),
       ]),
-      actions: [],
-    });
+    );
+    expect(withdrawnModel).not.toHaveProperty("actions");
   });
 
   it("shows the PMF offer summary without duplicating the payment schedule", async () => {
@@ -558,7 +724,7 @@ describe("buildAgreementPageModel", () => {
       mode: "view",
     });
 
-    expect(model.components).toEqual([
+    expect(pageContent(model)).toEqual([
       {
         component: "heading",
         level: 1,
@@ -604,15 +770,13 @@ describe("buildAgreementPageModel", () => {
         target: "_blank",
         classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
       },
-    ]);
-    expect(model.actions).toEqual([
       {
-        name: "accept",
-        method: "GET",
+        component: "button",
         href: "/agreements/TST123/actions/accept",
         text: "Continue",
       },
     ]);
+    expect(model).not.toHaveProperty("actions");
   });
 
   it("focuses the PMF acceptance page on declarations and confirmation", async () => {
@@ -627,110 +791,119 @@ describe("buildAgreementPageModel", () => {
       mode: "view",
     });
 
-    expect(model.components).toEqual([
+    expect(pageContent(model)).toEqual([
       {
-        component: "heading",
-        level: 1,
-        text: "Accept your agreement offer",
-      },
-      {
-        component: "url",
-        href: "/agreements/TST123/document",
-        text: "View the draft agreement (opens in new tab)",
-        target: "_blank",
-        classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
-      },
-      {
-        component: "paragraph",
-        text: "By accepting this offer, you confirm that:",
-      },
-      {
-        component: "unordered-list",
-        items: [
-          { text: "the information in the agreement is correct" },
-          { text: "you have authority to accept the agreement" },
-          { text: "you understand this is a test grant" },
-        ],
-      },
-      {
-        component: "checkboxes",
-        name: "confirm",
-        items: [
+        component: "form",
+        method: "POST",
+        formAction: "/agreements/TST123/actions/accept",
+        hiddenFields: [],
+        submissionRequirements: [{ name: "confirm", value: "confirmed" }],
+        components: [
           {
-            value: "confirmed",
-            text: "I confirm I have read the information in this section and accept this agreement offer.",
+            component: "heading",
+            level: 1,
+            text: "Accept your agreement offer",
+          },
+          {
+            component: "url",
+            href: "/agreements/TST123/document",
+            text: "View the draft agreement (opens in new tab)",
+            target: "_blank",
+            classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
+          },
+          {
+            component: "paragraph",
+            text: "By accepting this offer, you confirm that:",
+          },
+          {
+            component: "unordered-list",
+            items: [
+              { text: "the information in the agreement is correct" },
+              { text: "you have authority to accept the agreement" },
+              { text: "you understand this is a test grant" },
+            ],
+          },
+          {
+            component: "checkboxes",
+            name: "confirm",
+            items: [
+              {
+                value: "confirmed",
+                text: "I confirm I have read the information in this section and accept this agreement offer.",
+              },
+            ],
+          },
+          {
+            component: "button",
+            text: "Accept agreement offer",
+            submit: true,
           },
         ],
       },
     ]);
-    expect(model.actions).toEqual([
-      {
-        name: "accept",
-        method: "POST",
-        href: "/agreements/TST123/actions/accept",
-        text: "Accept agreement offer",
-      },
-    ]);
+    expect(model).not.toHaveProperty("actions");
   });
 
   it("resolves a template from the definition against the agreement", async () => {
-    const templateDefinition = new AgreementDefinition({
-      code: "test",
-      configVersion: "1",
-      agreementNumberPrefix: "TST",
-      create: creationDefinition,
-      states: { offered: { page: "offer" }, accepted: { page: "offer" } },
-      templates: {
-        stateSummary: {
-          offered: {
-            content: [{ component: "status", text: "Draft agreement" }],
+    const templateDefinition = new AgreementDefinition(
+      withExplicitTrees({
+        code: "test",
+        configVersion: "1",
+        agreementNumberPrefix: "TST",
+        create: creationDefinition,
+        states: { offered: { page: "offer" }, accepted: { page: "offer" } },
+        templates: {
+          stateSummary: {
+            offered: {
+              content: [{ component: "status", text: "Draft agreement" }],
+            },
           },
         },
-      },
-      pages: {
-        offer: {
-          title: "Offer",
-          components: [
-            {
-              component: "template",
-              templateRef: "$.definition.templates.stateSummary",
-              templateKey: "$.agreement.state",
-            },
-          ],
-          actions: [],
+        pages: {
+          offer: {
+            title: "Offer",
+            components: [
+              {
+                component: "template",
+                templateRef: "$.definition.templates.stateSummary",
+                templateKey: "$.agreement.state",
+              },
+            ],
+          },
         },
-      },
+      }),
+    );
+
+    const model = await buildAgreementPageModel({
+      agreement,
+      agreementDefinition: templateDefinition,
+      page: "offer",
+      mode: "view",
     });
 
-    await expect(
-      buildAgreementPageModel({
-        agreement,
-        agreementDefinition: templateDefinition,
-        page: "offer",
-        mode: "view",
-      }),
-    ).resolves.toMatchObject({
-      components: [{ component: "status", text: "Draft agreement" }],
-    });
+    expect(pageContent(model)).toEqual([
+      { component: "status", text: "Draft agreement" },
+    ]);
   });
 
   it("returns a controlled internal error, naming the page and agreement but not agreement data, when a valid definition cannot be resolved", async () => {
-    const unresolvableDefinition = new AgreementDefinition({
-      code: "test",
-      configVersion: "1",
-      agreementNumberPrefix: "TST",
-      create: creationDefinition,
-      states: { offered: { page: "offer" }, accepted: { page: "offer" } },
-      pages: {
-        offer: {
-          title: "Offer",
-          components: [
-            { component: "paragraph", text: "$.agreement.doesNotExist" },
-          ],
-          actions: [],
+    const unresolvableDefinition = new AgreementDefinition(
+      withExplicitTrees({
+        code: "test",
+        configVersion: "1",
+        agreementNumberPrefix: "TST",
+        create: creationDefinition,
+        states: { offered: { page: "offer" }, accepted: { page: "offer" } },
+        pages: {
+          offer: {
+            title: "Offer",
+            components: [
+              { component: "paragraph", text: "$.agreement.doesNotExist" },
+            ],
+          },
         },
-      },
-    });
+      }),
+    );
 
     const error = await buildAgreementPageModel({
       agreement,

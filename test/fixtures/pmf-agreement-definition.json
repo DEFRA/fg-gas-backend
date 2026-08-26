@@ -396,19 +396,10 @@
           "text": "View the draft agreement (opens in new tab)",
           "target": "_blank",
           "classes": "govuk-link govuk-!-display-block govuk-!-margin-bottom-4"
-        }
-      ],
-      "actions": [
+        },
         {
-          "name": "accept",
-          "method": "GET",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/actions/{name}",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber",
-              "name": "accept"
-            }
-          },
+          "component": "button",
+          "action": "accept",
           "text": "Continue"
         }
       ]
@@ -417,65 +408,70 @@
       "title": "Accept your agreement offer",
       "components": [
         {
-          "component": "heading",
-          "level": 1,
-          "text": "Accept your agreement offer"
-        },
-        {
-          "component": "url",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/document",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber"
-            }
-          },
-          "text": "View the draft agreement (opens in new tab)",
-          "target": "_blank",
-          "classes": "govuk-link govuk-!-display-block govuk-!-margin-bottom-4"
-        },
-        {
-          "component": "paragraph",
-          "text": "By accepting this offer, you confirm that:"
-        },
-        {
-          "component": "unordered-list",
-          "items": [
+          "component": "form",
+          "action": "accept",
+          "components": [
             {
-              "text": "the information in the agreement is correct"
+              "component": "heading",
+              "level": 1,
+              "text": "Accept your agreement offer"
             },
             {
-              "text": "you have authority to accept the agreement"
+              "component": "url",
+              "href": {
+                "urlTemplate": "/agreements/{agreementNumber}/document",
+                "params": {
+                  "agreementNumber": "$.agreement.agreementNumber"
+                }
+              },
+              "text": "View the draft agreement (opens in new tab)",
+              "target": "_blank",
+              "classes": "govuk-link govuk-!-display-block govuk-!-margin-bottom-4"
             },
             {
-              "text": "you understand this is a test grant"
-            }
-          ]
-        },
-        {
-          "component": "checkboxes",
-          "name": "confirm",
-          "items": [
+              "component": "paragraph",
+              "text": "By accepting this offer, you confirm that:"
+            },
             {
-              "value": "confirmed",
-              "text": "I confirm I have read the information in this section and accept this agreement offer."
+              "component": "unordered-list",
+              "items": [
+                {
+                  "text": "the information in the agreement is correct"
+                },
+                {
+                  "text": "you have authority to accept the agreement"
+                },
+                {
+                  "text": "you understand this is a test grant"
+                }
+              ]
+            },
+            {
+              "component": "checkboxes",
+              "name": "confirm",
+              "items": [
+                {
+                  "value": "confirmed",
+                  "text": "I confirm I have read the information in this section and accept this agreement offer."
+                }
+              ]
+            },
+            {
+              "component": "button",
+              "text": "Accept agreement offer"
             }
           ]
         }
       ],
-      "actions": [
-        {
-          "name": "accept",
-          "method": "POST",
-          "href": {
-            "urlTemplate": "/agreements/{agreementNumber}/actions/{name}",
-            "params": {
-              "agreementNumber": "$.agreement.agreementNumber",
-              "name": "accept"
-            }
-          },
-          "text": "Accept agreement offer"
+      "backLink": {
+        "text": "Back",
+        "href": {
+          "urlTemplate": "/agreements/{agreementNumber}",
+          "params": {
+            "agreementNumber": "$.agreement.agreementNumber"
+          }
         }
-      ]
+      }
     },
     "withdrawn": {
       "title": "Your agreement offer has been withdrawn",
@@ -508,8 +504,7 @@
           "text": "View and print your withdrawn agreement (opens in new tab)",
           "target": "_blank"
         }
-      ],
-      "actions": []
+      ]
     },
     "cancelled": {
       "title": "Your agreement offer has been cancelled",
@@ -542,8 +537,7 @@
           "text": "View and print your cancelled agreement (opens in new tab)",
           "target": "_blank"
         }
-      ],
-      "actions": []
+      ]
     },
     "terminated": {
       "title": "Your agreement has been terminated",
@@ -581,8 +575,7 @@
           "text": "View and print your terminated agreement (opens in new tab)",
           "target": "_blank"
         }
-      ],
-      "actions": []
+      ]
     },
     "accepted": {
       "title": "Your agreement is now active",
@@ -613,8 +606,7 @@
           "text": "View and print your agreement (opens in new tab)",
           "target": "_blank"
         }
-      ],
-      "actions": []
+      ]
     }
   }
 }

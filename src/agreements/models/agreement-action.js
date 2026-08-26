@@ -47,6 +47,13 @@ export class AgreementAction {
     return this.#page;
   }
 
+  get submissionRequirements() {
+    return (this.#validation?.required ?? []).map(({ name, value }) => ({
+      name,
+      value,
+    }));
+  }
+
   validate(values) {
     const requirements = this.#validation?.required;
 
