@@ -62,13 +62,35 @@ describe("invokeAgreementActionRoute", () => {
       page: { name: "accept", title: "Accept" },
       components: [
         {
-          component: "checkboxes",
-          name: "confirmation",
-          errorMessage: { text: "Confirm" },
-          items: [{ value: "confirmed", checked: false }],
+          component: "grid-row",
+          components: [
+            {
+              component: "grid-column",
+              components: [
+                {
+                  component: "form",
+                  method: "POST",
+                  formAction: "/agreements/PMF123/actions/accept",
+                  hiddenFields: [],
+                  components: [
+                    {
+                      component: "checkboxes",
+                      name: "confirmation",
+                      errorMessage: { text: "Confirm" },
+                      items: [{ value: "confirmed", checked: false }],
+                    },
+                    {
+                      component: "button",
+                      text: "Accept",
+                      submit: true,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
         },
       ],
-      actions: [],
       values: {},
       errors: [{ href: "#confirmation", text: "Confirm" }],
       etag: '"PMF123:1:1.2.0"',

@@ -75,6 +75,13 @@ const toFundedValues = (value) => ({
   paymentSchedule: value.paymentSchedule,
 });
 
+const explicitTree = (components) => [
+  {
+    component: "grid-row",
+    components: [{ component: "grid-column", width: "two-thirds", components }],
+  },
+];
+
 const requestAction = async ({
   values = { confirm: "confirmed" },
   ifMatch = etagFor(1),
@@ -287,46 +294,60 @@ describe("single Agreement actions", () => {
     expect(response.headers.etag).toBe(etagFor(1));
     expect(payload).toMatchObject({
       page: { name: "accept", title: "Accept your agreement offer" },
-      components: [
+      components: explicitTree([
         {
-          component: "heading",
-          level: 1,
-          text: "Accept your agreement offer",
-        },
-        {
-          component: "url",
-          href: `/agreements/${agreementNumber}/document`,
-          text: "View the draft agreement (opens in new tab)",
-          target: "_blank",
-          classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
-        },
-        {
-          component: "paragraph",
-          text: "By accepting this offer, you confirm that:",
-        },
-        {
-          component: "unordered-list",
-          items: [
-            { text: "the information in the agreement is correct" },
-            { text: "you have authority to accept the agreement" },
-            { text: "you understand this is a test grant" },
-          ],
-        },
-        {
-          component: "checkboxes",
-          name: "confirm",
-          errorMessage: {
-            text: "Confirm this agreement offer before accepting it",
-          },
-          items: [
+          component: "form",
+          method: "POST",
+          formAction: `/agreements/${agreementNumber}/actions/accept`,
+          hiddenFields: [],
+          components: [
             {
-              value: "confirmed",
-              text: "I confirm I have read the information in this section and accept this agreement offer.",
-              checked: false,
+              component: "heading",
+              level: 1,
+              text: "Accept your agreement offer",
+            },
+            {
+              component: "url",
+              href: `/agreements/${agreementNumber}/document`,
+              text: "View the draft agreement (opens in new tab)",
+              target: "_blank",
+              classes:
+                "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
+            },
+            {
+              component: "paragraph",
+              text: "By accepting this offer, you confirm that:",
+            },
+            {
+              component: "unordered-list",
+              items: [
+                { text: "the information in the agreement is correct" },
+                { text: "you have authority to accept the agreement" },
+                { text: "you understand this is a test grant" },
+              ],
+            },
+            {
+              component: "checkboxes",
+              name: "confirm",
+              errorMessage: {
+                text: "Confirm this agreement offer before accepting it",
+              },
+              items: [
+                {
+                  value: "confirmed",
+                  text: "I confirm I have read the information in this section and accept this agreement offer.",
+                  checked: false,
+                },
+              ],
+            },
+            {
+              component: "button",
+              text: "Accept agreement offer",
+              submit: true,
             },
           ],
         },
-      ],
+      ]),
       errors: [
         {
           href: "#confirm",

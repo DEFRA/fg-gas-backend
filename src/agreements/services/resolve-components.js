@@ -133,6 +133,26 @@ const resolveTemplate = async (component, scope) => {
 const resolveContainer = (component, scope) =>
   resolveComponentList(component.content, scope);
 
+const resolveComponentTreeNode = async (
+  { components, ...component },
+  scope,
+) => {
+  if (!Array.isArray(components)) {
+    throw new Error(
+      `A "${component.component}" component must configure "components"`,
+    );
+  }
+
+  const [resolvedComponent, resolvedComponents] = await Promise.all([
+    resolveDisplayValue(component, scope),
+    resolveComponentList(components, scope),
+  ]);
+
+  return [
+    { ...applyFormats(resolvedComponent), components: resolvedComponents },
+  ];
+};
+
 const resolveUrl = async ({ href, ...component }, scope) => {
   const [resolvedComponent, resolvedHref] = await Promise.all([
     resolveRefs(component, scope),
@@ -151,6 +171,9 @@ const resolvers = {
   template: resolveTemplate,
   url: resolveUrl,
   "component-container": resolveContainer,
+  "grid-row": resolveComponentTreeNode,
+  "grid-column": resolveComponentTreeNode,
+  form: resolveComponentTreeNode,
 };
 
 const isObject = (value) => value !== null && typeof value === "object";

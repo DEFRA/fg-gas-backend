@@ -20,13 +20,6 @@ const component = Joi.object({ component: Joi.string().required() })
   .unknown(true)
   .label("AgreementPageModelComponent");
 
-const action = Joi.object({
-  name: Joi.string().required(),
-  method: Joi.string().valid("GET", "POST").required(),
-  text: Joi.string().required(),
-  href: Joi.string().required(),
-}).label("AgreementPageModelAction");
-
 const section = Joi.object({
   id: Joi.string().required(),
   title: Joi.string().required(),
@@ -36,6 +29,11 @@ const section = Joi.object({
 const watermark = Joi.object({
   text: Joi.string().required(),
 }).label("AgreementPageModelWatermark");
+
+const backLink = Joi.object({
+  href: Joi.string().required(),
+  text: Joi.string().optional(),
+}).label("AgreementPageModelBackLink");
 
 export const agreementPageModelResponseSchema = Joi.object({
   agreement: Joi.object({
@@ -54,10 +52,10 @@ export const agreementPageModelResponseSchema = Joi.object({
     contents: Joi.boolean().optional(),
     print: Joi.boolean().optional(),
     watermark: watermark.optional(),
+    backLink: backLink.optional(),
   }).required(),
   components: Joi.array().items(component).required(),
   sections: Joi.array().items(section).optional(),
-  actions: Joi.array().items(action).required(),
 })
   .options({ presence: "required", stripUnknown: true })
   .label("AgreementPageModelResponse");

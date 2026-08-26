@@ -21,8 +21,23 @@ describe("prepareAgreementActionRoute", () => {
           version: 1,
         },
         page: { name: "accept", title: "Accept" },
-        components: [],
-        actions: [],
+        components: [
+          {
+            component: "grid-row",
+            components: [
+              {
+                component: "grid-column",
+                components: [
+                  {
+                    component: "button",
+                    href: "/agreements/PMF123/actions/accept",
+                    text: "Continue",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       },
       etag: '"PMF123:1:1.2.0"',
     });

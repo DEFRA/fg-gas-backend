@@ -103,6 +103,18 @@ describe("agreementDefinitionSchema", () => {
     );
   });
 
+  it("fails when a page back link has no href", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.pages.offered.backLink = { text: "Back" };
+
+    const { error } = validate(definition);
+
+    expect(error).toBeDefined();
+    expect(error.details.map((d) => d.message).join(", ")).toMatch(
+      /"pages.offered.backLink.href" is required/,
+    );
+  });
+
   it("fails when a page component is missing its component name", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     delete definition.pages.offered.components[0].component;
@@ -209,11 +221,10 @@ describe("agreementDefinitionSchema", () => {
     expect(error).toBeUndefined();
   });
 
-  it("allows extra keys on required-validation-field, page action and page, so other agreement types can extend them", () => {
+  it("allows extra keys on required-validation-field and page, so other agreement types can extend them", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.states.offered.on.accept.validation.required[0].hint =
       "extra guidance";
-    definition.pages.offered.actions[0].style = "secondary";
     definition.pages.offered.extraPageMetadata = "allowed";
 
     const { error } = validate(definition);
@@ -351,6 +362,36 @@ describe("agreementDefinitionSchema resolver instructions", () => {
       "a table with no rowsRef",
       [{ component: "table", rows: [{ text: "@.description" }] }],
       /"pages\.offered\.components\[0\]\.rowsRef" is required/,
+    ],
+    [
+      "a grid row with no components",
+      [{ component: "grid-row" }],
+      /"pages\.offered\.components\[0\]\.components" is required/,
+    ],
+    [
+      "a grid column with no components",
+      [{ component: "grid-column" }],
+      /"pages\.offered\.components\[0\]\.components" is required/,
+    ],
+    [
+      "a form with no action",
+      [
+        {
+          component: "form",
+          components: [{ component: "button", text: "Submit" }],
+        },
+      ],
+      /"pages\.offered\.components\[0\]\.action" is required/,
+    ],
+    [
+      "a form with no components",
+      [{ component: "form", action: "accept" }],
+      /"pages\.offered\.components\[0\]\.components" is required/,
+    ],
+    [
+      "a button with an empty action",
+      [{ component: "button", action: "", text: "Continue" }],
+      /"pages\.offered\.components\[0\]\.action" is not allowed to be empty/,
     ],
     [
       "a url with an incomplete structured href",
