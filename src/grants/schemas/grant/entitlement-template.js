@@ -89,6 +89,18 @@ const field = Joi.object({
   ),
 }).label("EntitlementTemplateField");
 
+const helpBlock = Joi.object({
+  text: Joi.string(),
+  items: Joi.array().items(Joi.string()).min(1),
+})
+  .xor("text", "items")
+  .label("EntitlementTemplateHelpBlock");
+
+const help = Joi.object({
+  summary: Joi.string().required(),
+  content: Joi.array().items(helpBlock).min(1).required(),
+}).label("EntitlementTemplateHelp");
+
 // Claiming happens after the entitlement exists and is not consulted to create
 // one, so the whole block is optional and every rule inside it has a default.
 const claim = Joi.object({
@@ -142,6 +154,8 @@ export const entitlementTemplate = Joi.object({
   maxEntitlements: Joi.number().integer().min(1).default(1).optional(),
 
   availableAt: availableAt.required(),
+
+  help: absentAsNull(help),
 
   claim: absentAsNull(claim),
 })
