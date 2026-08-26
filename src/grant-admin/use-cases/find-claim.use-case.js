@@ -26,7 +26,12 @@ export const findClaimUseCase = async ({ code, clientRef, claimCode }) => {
     );
   }
 
-  const claims = await buildClaimsView({ grant, application, available });
+  const claims = await buildClaimsView({
+    grant,
+    application,
+    available,
+    existing,
+  });
 
   return {
     ...claims,

@@ -83,7 +83,7 @@ describe("build claims view", () => {
   });
 
   // Both are stubbed until entitlement instances are written.
-  it("returns empty claimable entitlements and claims", async () => {
+  it("returns nothing claimable when nothing has been created", async () => {
     const result = await buildClaimsView({
       grant,
       application,
@@ -92,5 +92,18 @@ describe("build claims view", () => {
 
     expect(result.claimableEntitlements).toEqual([]);
     expect(result.claims).toEqual([]);
+  });
+
+  it("returns the entitlements that already exist as claimable", async () => {
+    const existing = [{ id: "ent-1", claimCode: "ENT_PA3" }];
+
+    const result = await buildClaimsView({
+      grant,
+      application,
+      available: [],
+      existing,
+    });
+
+    expect(result.claimableEntitlements).toEqual(existing);
   });
 });

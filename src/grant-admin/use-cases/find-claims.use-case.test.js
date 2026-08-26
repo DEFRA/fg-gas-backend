@@ -44,6 +44,7 @@ describe("find claims use case", () => {
       grant,
       application,
       available,
+      existing: [],
     });
     expect(result).toEqual(view);
   });

@@ -65,6 +65,7 @@ describe("find claim use case", () => {
       grant,
       application,
       available,
+      existing: [],
     });
     expect(result).toEqual({ ...view, entitlementTemplate: template });
   });
