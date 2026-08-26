@@ -550,7 +550,16 @@
             }
           ]
         }
-      ]
+      ],
+      "backLink": {
+        "text": "Back",
+        "href": {
+          "urlTemplate": "/agreements/{agreementNumber}",
+          "params": {
+            "agreementNumber": "$.agreement.agreementNumber"
+          }
+        }
+      }
     },
     "withdrawn": {
       "title": "Your agreement offer has been withdrawn",

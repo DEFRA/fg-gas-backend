@@ -30,6 +30,11 @@ const watermark = Joi.object({
   text: Joi.string().required(),
 }).label("AgreementPageModelWatermark");
 
+const backLink = Joi.object({
+  href: Joi.string().required(),
+  text: Joi.string().optional(),
+}).label("AgreementPageModelBackLink");
+
 export const agreementPageModelResponseSchema = Joi.object({
   agreement: Joi.object({
     agreementNumber: Joi.string().required(),
@@ -47,6 +52,7 @@ export const agreementPageModelResponseSchema = Joi.object({
     contents: Joi.boolean().optional(),
     print: Joi.boolean().optional(),
     watermark: watermark.optional(),
+    backLink: backLink.optional(),
   }).required(),
   components: Joi.array().items(component).required(),
   sections: Joi.array().items(section).optional(),

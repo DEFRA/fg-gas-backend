@@ -74,6 +74,13 @@ const definition = new AgreementDefinition(
     pages: {
       offer: {
         title: "Offer",
+        backLink: {
+          text: "Back to agreement",
+          href: {
+            urlTemplate: "/agreements/{agreementNumber}",
+            params: { agreementNumber: "$.agreement.agreementNumber" },
+          },
+        },
         components: [{ component: "heading", text: "Agreement offer" }],
       },
       document: {
@@ -275,6 +282,7 @@ describe("buildAgreementPageModel", () => {
         method: "POST",
         formAction: "/agreements/TST123/actions/accept",
         hiddenFields: [],
+        submissionRequirements: [],
         components: [{ component: "button", text: "Accept", submit: true }],
       },
     },
@@ -286,7 +294,13 @@ describe("buildAgreementPageModel", () => {
         configVersion: "1",
         agreementNumberPrefix: "TST",
         create: creationDefinition,
-        states: { offered: { page: "offer" }, accepted: { page: "offer" } },
+        states: {
+          offered: {
+            page: "offer",
+            on: { accept: { target: "accepted" } },
+          },
+          accepted: { page: "offer" },
+        },
         pages: { offer: { title: "Offer", components } },
       });
 
@@ -392,7 +406,14 @@ describe("buildAgreementPageModel", () => {
         state: "offered",
         version: 1,
       },
-      page: { name: "offer", title: "Offer" },
+      page: {
+        name: "offer",
+        title: "Offer",
+        backLink: {
+          text: "Back to agreement",
+          href: "/agreements/TST123",
+        },
+      },
       components: explicitTree([
         { component: "heading", text: "Agreement offer" },
       ]),
@@ -776,6 +797,7 @@ describe("buildAgreementPageModel", () => {
         method: "POST",
         formAction: "/agreements/TST123/actions/accept",
         hiddenFields: [],
+        submissionRequirements: [{ name: "confirm", value: "confirmed" }],
         components: [
           {
             component: "heading",

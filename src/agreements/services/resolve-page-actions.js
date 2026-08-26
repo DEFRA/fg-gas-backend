@@ -5,6 +5,7 @@ const orEmpty = (value) => value ?? [];
 
 const resolveForm = (value, context) => {
   const { action, ...form } = value;
+  const resolvedAction = context.resolveAction(action);
 
   return {
     ...form,
@@ -15,15 +16,18 @@ const resolveForm = (value, context) => {
     method: "POST",
     formAction: actionHref(context.agreementNumber, action),
     hiddenFields: orEmpty(form.hiddenFields),
+    submissionRequirements: resolvedAction.submissionRequirements,
   };
 };
 
-const resolveButton = (value, { agreementNumber, withinForm }) => {
+const resolveButton = (value, context) => {
   const { action, ...button } = value;
 
-  return withinForm
-    ? { ...button, submit: true }
-    : { ...button, href: actionHref(agreementNumber, action) };
+  if (context.withinForm) {
+    return { ...button, submit: true };
+  }
+
+  return { ...button, href: actionHref(context.agreementNumber, action) };
 };
 
 const resolveObjectActions = (value, context) => {
@@ -56,8 +60,13 @@ const resolveComponentActions = (value, context) => {
 export const resolvePageActions = (
   { components, sections = [] },
   agreement,
+  agreementDefinition,
 ) => {
-  const context = { agreementNumber: agreement.agreementNumber };
+  const context = {
+    agreementNumber: agreement.agreementNumber,
+    resolveAction: (action) =>
+      agreementDefinition.resolveAction({ state: agreement.state, action }),
+  };
   const resolve = (value) => resolveComponentActions(value, context);
 
   return {

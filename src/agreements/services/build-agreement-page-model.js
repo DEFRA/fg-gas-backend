@@ -4,6 +4,7 @@ import { resolveCondition, resolveRefs } from "../../common/resolve-refs.js";
 import { assertSupportedAgreementPageMode } from "./assert-supported-agreement-page-mode.js";
 import { resolveComponents } from "./resolve-components.js";
 import { resolvePageActions as bindPageActions } from "./resolve-page-actions.js";
+import { resolvePageHref } from "./resolve-page-href.js";
 
 const DOCUMENT_PAGE = "document";
 
@@ -89,11 +90,27 @@ const omitUndefined = (value) =>
     Object.entries(value).filter(([_key, item]) => item !== undefined),
   );
 
+const resolveBackLink = async (backLink, context) => {
+  if (backLink === undefined) {
+    return undefined;
+  }
+
+  const { href, ...display } = backLink;
+  const scope = { context };
+  const [resolvedDisplay, resolvedHref] = await Promise.all([
+    resolveRefs(display, scope),
+    resolvePageHref(href, context),
+  ]);
+
+  return { ...resolvedDisplay, href: resolvedHref };
+};
+
 const buildPageMetadata = async (page, pageDefinition, context) => {
   const watermark = resolveWatermark(
     pageDefinition.watermarks,
     context.agreement.state,
   );
+  const backLink = await resolveBackLink(pageDefinition.backLink, context);
 
   return omitUndefined({
     name: page,
@@ -102,6 +119,7 @@ const buildPageMetadata = async (page, pageDefinition, context) => {
     contents: pageDefinition.contents,
     print: pageDefinition.print,
     watermark,
+    backLink,
   });
 };
 
@@ -161,7 +179,7 @@ const buildPageModel = async ({
       buildPageMetadata(page, pageDefinition, context),
     ]);
     const resolvedTree = withoutPageActions(
-      bindPageActions({ components, sections }, agreement),
+      bindPageActions({ components, sections }, agreement, agreementDefinition),
       removeActions,
     );
 
