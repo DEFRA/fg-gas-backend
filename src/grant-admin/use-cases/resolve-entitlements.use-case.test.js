@@ -119,8 +119,8 @@ describe("resolve entitlements use case", () => {
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
-    expect(result.available).toHaveLength(1);
-    expect(result.available[0].claimCode).toBe("ENT_PA3");
+    expect(result.offerable).toHaveLength(1);
+    expect(result.offerable[0].claimCode).toBe("ENT_PA3");
   });
 
   // The parts a template leaves out match anything, so a phase-only template is
@@ -132,8 +132,8 @@ describe("resolve entitlements use case", () => {
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
-    expect(result.available).toHaveLength(1);
-    expect(result.available[0].claimCode).toBe("ENT_PA3");
+    expect(result.offerable).toHaveLength(1);
+    expect(result.offerable[0].claimCode).toBe("ENT_PA3");
   });
 
   it("excludes templates available at another status", async () => {
@@ -146,7 +146,6 @@ describe("resolve entitlements use case", () => {
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
     expect(result.offerable).toEqual([]);
-    expect(result.available).toEqual([]);
   });
 
   // Phase is the one part a template cannot leave open, so an application in
@@ -166,7 +165,6 @@ describe("resolve entitlements use case", () => {
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
     expect(result.offerable).toEqual([]);
-    expect(result.available).toEqual([]);
   });
 
   // A materialised entitlement is projected rather than created, so it is never
@@ -183,31 +181,20 @@ describe("resolve entitlements use case", () => {
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
     expect(result.offerable).toEqual([]);
-    expect(result.available).toEqual([]);
   });
 
-  // A template at its cap stays in offerable so callers can tell "no capacity
-  // left" apart from "not offered here".
-  it("excludes templates that have reached maxEntitlements from available", async () => {
+  it("keeps a template that has reached its maximum, with the count that says so", async () => {
     givenGrantWith([createTemplate({ maxEntitlements: 1 })]);
     findExistingEntitlements.mockResolvedValue([{ claimCode: "ENT_PA3" }]);
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
     expect(result.offerable).toHaveLength(1);
-    expect(result.available).toEqual([]);
+    expect(result.offerable[0].createdCount).toBe(1);
+    expect(result.offerable[0].maxEntitlements).toBe(1);
   });
 
-  it("keeps templates that still have capacity", async () => {
-    givenGrantWith([createTemplate({ maxEntitlements: 2 })]);
-    findExistingEntitlements.mockResolvedValue([{ claimCode: "ENT_PA3" }]);
-
-    const result = await resolveEntitlementsUseCase({ code, clientRef });
-
-    expect(result.available).toHaveLength(1);
-  });
-
-  it("reports how many entitlements exist against an available template", async () => {
+  it("reports how many entitlements exist against a template", async () => {
     givenGrantWith([createTemplate({ maxEntitlements: 3 })]);
     findExistingEntitlements.mockResolvedValue([
       { claimCode: "ENT_PA3" },
@@ -216,7 +203,7 @@ describe("resolve entitlements use case", () => {
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
-    expect(result.available[0].createdCount).toBe(2);
+    expect(result.offerable[0].createdCount).toBe(2);
   });
 
   it("reports a count of zero when nothing has been created", async () => {
@@ -224,7 +211,7 @@ describe("resolve entitlements use case", () => {
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
-    expect(result.available[0].createdCount).toBe(0);
+    expect(result.offerable[0].createdCount).toBe(0);
   });
 
   it("counts existing entitlements against their own claim code only", async () => {
@@ -236,7 +223,7 @@ describe("resolve entitlements use case", () => {
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
-    expect(result.available).toHaveLength(1);
+    expect(result.offerable).toHaveLength(1);
   });
 
   it("returns nothing available when the grant defines no templates", async () => {
@@ -245,6 +232,5 @@ describe("resolve entitlements use case", () => {
     const result = await resolveEntitlementsUseCase({ code, clientRef });
 
     expect(result.offerable).toEqual([]);
-    expect(result.available).toEqual([]);
   });
 });

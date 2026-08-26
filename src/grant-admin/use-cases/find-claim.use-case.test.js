@@ -29,21 +29,14 @@ const view = {
 };
 
 const givenEntitlements = ({ offerable, existing = [] }) => {
-  const available = offerable.filter(
-    (candidate) =>
-      existing.filter((e) => e.claimCode === candidate.claimCode).length <
-      candidate.maxEntitlements,
-  );
-
   resolveEntitlementsUseCase.mockResolvedValue({
     application,
     grant,
     offerable,
-    available,
     existing,
   });
 
-  return available;
+  return offerable;
 };
 
 describe("find claim use case", () => {
@@ -53,7 +46,7 @@ describe("find claim use case", () => {
   });
 
   it("returns the claims view with the template for the claim code", async () => {
-    const available = givenEntitlements({ offerable: [template] });
+    const offerable = givenEntitlements({ offerable: [template] });
 
     const result = await findClaimUseCase({ code, clientRef, claimCode });
 
@@ -64,7 +57,7 @@ describe("find claim use case", () => {
     expect(buildClaimsView).toHaveBeenCalledWith({
       grant,
       application,
-      available,
+      offerable,
       existing: [],
     });
     expect(result).toEqual({ ...view, entitlementTemplate: template });

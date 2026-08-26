@@ -11,11 +11,11 @@ const clientRef = "application-1";
 
 const application = { clientRef };
 const grant = { code };
-const available = [{ claimCode: "ENT_PA3" }];
+const offerable = [{ claimCode: "ENT_PA3" }];
 
 const view = {
   banner: { title: { text: "Elmwood Land Co", type: "string" }, summary: {} },
-  availableEntitlements: available,
+  availableEntitlements: offerable,
   claimableEntitlements: [],
   claims: [],
 };
@@ -26,8 +26,7 @@ describe("find claims use case", () => {
     resolveEntitlementsUseCase.mockResolvedValue({
       application,
       grant,
-      offerable: available,
-      available,
+      offerable,
       existing: [],
     });
     buildClaimsView.mockResolvedValue(view);
@@ -43,7 +42,7 @@ describe("find claims use case", () => {
     expect(buildClaimsView).toHaveBeenCalledWith({
       grant,
       application,
-      available,
+      offerable,
       existing: [],
     });
     expect(result).toEqual(view);

@@ -6,21 +6,15 @@ import { resolveCurrentGrantUseCase } from "../../grants/use-cases/resolve-curre
 const selectOfferable = (atPosition) =>
   atPosition.filter((template) => template.materialised === false);
 
-// Each available template carries how many entitlements already exist against
-// it, so a caller can show "1 of 3" without a way to count for itself.
-const selectAvailable = (offerable, existing) => {
+const withCreatedCount = (offerable, existing) => {
   const countFor = (claimCode) =>
     existing.filter((entitlement) => entitlement.claimCode === claimCode)
       .length;
 
-  return offerable
-    .filter(
-      (template) => countFor(template.claimCode) < template.maxEntitlements,
-    )
-    .map((template) => ({
-      ...template,
-      createdCount: countFor(template.claimCode),
-    }));
+  return offerable.map((template) => ({
+    ...template,
+    createdCount: countFor(template.claimCode),
+  }));
 };
 
 export const resolveEntitlementsUseCase = async ({ code, clientRef }) => {
@@ -37,22 +31,19 @@ export const resolveEntitlementsUseCase = async ({ code, clientRef }) => {
     currentConfigVersion,
   );
 
-  const offerable = selectOfferable(
-    grant.findEntitlementTemplatesAvailableAt(application.currentPosition()),
-  );
-
   const existing = await findExistingEntitlements(clientRef, code);
 
-  const available = selectAvailable(offerable, existing);
+  const offerable = withCreatedCount(
+    selectOfferable(
+      grant.findEntitlementTemplatesAvailableAt(application.currentPosition()),
+    ),
+    existing,
+  );
 
   logger.info(
-    {
-      offerable: offerable.length,
-      available: available.length,
-      existing: existing.length,
-    },
+    { offerable: offerable.length, existing: existing.length },
     `Entitlement templates resolved for ${clientRef}`,
   );
 
-  return { application, grant, offerable, available, existing };
+  return { application, grant, offerable, existing };
 };

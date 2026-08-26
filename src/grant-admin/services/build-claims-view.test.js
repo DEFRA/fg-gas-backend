@@ -54,7 +54,7 @@ describe("build claims view", () => {
     const { banner } = await buildClaimsView({
       grant,
       application,
-      available: [],
+      offerable: [],
     });
 
     expect(banner.title.text).toBe("test");
@@ -75,7 +75,7 @@ describe("build claims view", () => {
     const result = await buildClaimsView({
       grant,
       application,
-      available: [template],
+      offerable: [template],
     });
 
     expect(result.banner).toBeDefined();
@@ -87,7 +87,7 @@ describe("build claims view", () => {
     const result = await buildClaimsView({
       grant,
       application,
-      available: [template],
+      offerable: [template],
     });
 
     expect(result.claimableEntitlements).toEqual([]);
@@ -100,7 +100,7 @@ describe("build claims view", () => {
     const result = await buildClaimsView({
       grant,
       application,
-      available: [],
+      offerable: [],
       existing,
     });
 

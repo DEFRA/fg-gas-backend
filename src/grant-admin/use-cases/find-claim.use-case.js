@@ -3,7 +3,7 @@ import { buildClaimsView } from "../services/build-claims-view.js";
 import { resolveEntitlementsUseCase } from "./resolve-entitlements.use-case.js";
 
 export const findClaimUseCase = async ({ code, clientRef, claimCode }) => {
-  const { application, grant, offerable, available, existing } =
+  const { application, grant, offerable, existing } =
     await resolveEntitlementsUseCase({ code, clientRef });
 
   const entitlementTemplate = offerable.find(
@@ -29,7 +29,7 @@ export const findClaimUseCase = async ({ code, clientRef, claimCode }) => {
   const claims = await buildClaimsView({
     grant,
     application,
-    available,
+    offerable,
     existing,
   });
 
