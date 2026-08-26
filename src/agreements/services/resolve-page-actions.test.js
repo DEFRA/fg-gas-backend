@@ -45,6 +45,18 @@ describe("resolvePageActions", () => {
     });
   });
 
+  it("rejects a standalone button without an action", () => {
+    expect(() =>
+      resolvePageActions(
+        {
+          components: tree([{ component: "button", text: "Continue" }]),
+        },
+        agreement,
+        agreementDefinition,
+      ),
+    ).toThrow('A standalone "button" component must configure an action');
+  });
+
   it("resolves a configured POST form and preserves its content", () => {
     expect(
       resolvePageActions(

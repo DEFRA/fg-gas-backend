@@ -109,15 +109,18 @@ const reference = Joi.string().pattern(/^(?:jsonata:.+|[$@]\.[\w$.[\]]+)$/s, {
 // A branch may be a single component or several
 const branch = Joi.alternatives().try(componentLink, nestedComponents);
 
-const pageHref = Joi.alternatives()
-  .try(
-    Joi.string(),
-    Joi.object({
-      urlTemplate: Joi.string().required(),
-      params: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
-    }),
-  )
-  .label("PageHref");
+const pageHref = Joi.alternatives().try(
+  Joi.string(),
+  Joi.object({
+    urlTemplate: Joi.string().required(),
+    params: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
+  }),
+);
+
+const backLink = Joi.object({
+  text: Joi.string().optional(),
+  href: pageHref.required(),
+}).label("BackLink");
 
 const genericComponent = Joi.object({
   component: Joi.string().required(),
@@ -170,6 +173,30 @@ const urlComponent = Joi.object({
   text: Joi.string().required(),
 }).unknown(true);
 
+const treeComponent = Joi.object({
+  component: Joi.string().valid("grid-row", "grid-column").required(),
+  condition: reference.optional(),
+  components: nestedComponents.required(),
+}).unknown(true);
+
+const action = Joi.string().trim().min(1);
+
+const formComponent = Joi.object({
+  component: Joi.string().valid("form").required(),
+  condition: reference.optional(),
+  action: action.required(),
+  components: nestedComponents.required(),
+}).unknown(true);
+
+// Buttons inside forms submit their parent action, so only validate an action
+// when one is configured. The action binder rejects missing actions on
+// standalone buttons.
+const buttonComponent = Joi.object({
+  component: Joi.string().valid("button").required(),
+  condition: reference.optional(),
+  action: action.optional(),
+}).unknown(true);
+
 const component = Joi.alternatives()
   .conditional(".component", {
     switch: [
@@ -179,6 +206,10 @@ const component = Joi.alternatives()
       { is: "component-container", then: containerComponent },
       { is: "table", then: tableComponent },
       { is: "url", then: urlComponent },
+      { is: "grid-row", then: treeComponent },
+      { is: "grid-column", then: treeComponent },
+      { is: "form", then: formComponent },
+      { is: "button", then: buttonComponent },
     ],
     otherwise: genericComponent,
   })
@@ -218,6 +249,7 @@ const pageDefinition = Joi.object({
   contents: Joi.boolean().optional(),
   print: Joi.boolean().optional(),
   watermarks: watermarks.optional(),
+  backLink: backLink.optional(),
   components: Joi.array().items(component).min(1).required(),
   processes: Joi.forbidden(),
   sections: Joi.array().items(documentSection).min(1).unique("id").optional(),

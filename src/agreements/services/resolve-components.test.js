@@ -470,6 +470,12 @@ describe("resolveComponents repeated content", () => {
 });
 
 describe("resolveComponents explicit component trees", () => {
+  it("rejects a structural node without child components", async () => {
+    await expect(
+      resolveComponents([{ component: "grid-row" }], {}),
+    ).rejects.toThrow('A "grid-row" component must configure "components"');
+  });
+
   it("preserves structural nodes while resolving nested components with table-row scope", async () => {
     const components = [
       {

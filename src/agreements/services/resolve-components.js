@@ -137,6 +137,12 @@ const resolveComponentTreeNode = async (
   { components, ...component },
   scope,
 ) => {
+  if (!Array.isArray(components)) {
+    throw new Error(
+      `A "${component.component}" component must configure "components"`,
+    );
+  }
+
   const [resolvedComponent, resolvedComponents] = await Promise.all([
     resolveDisplayValue(component, scope),
     resolveComponentList(components, scope),

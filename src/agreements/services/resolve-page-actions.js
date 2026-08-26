@@ -3,8 +3,17 @@ const actionHref = (agreementNumber, action) =>
 
 const orEmpty = (value) => value ?? [];
 
+const requireAction = (action, component) => {
+  if (typeof action !== "string" || !action.trim()) {
+    throw new Error(`${component} must configure an action`);
+  }
+
+  return action.trim();
+};
+
 const resolveForm = (value, context) => {
-  const { action, ...form } = value;
+  const { action: configuredAction, ...form } = value;
+  const action = requireAction(configuredAction, 'A "form" component');
   const resolvedAction = context.resolveAction(action);
 
   return {
@@ -21,11 +30,16 @@ const resolveForm = (value, context) => {
 };
 
 const resolveButton = (value, context) => {
-  const { action, ...button } = value;
+  const { action: configuredAction, ...button } = value;
 
   if (context.withinForm) {
     return { ...button, submit: true };
   }
+
+  const action = requireAction(
+    configuredAction,
+    'A standalone "button" component',
+  );
 
   return { ...button, href: actionHref(context.agreementNumber, action) };
 };
