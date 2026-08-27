@@ -62,6 +62,12 @@ const schema = Joi.object({
   VIEW_AGREEMENT_URI: Joi.string().uri().required(),
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
   AGREEMENTS_JWT_SECRET: Joi.string().optional(),
+  // Caseworking backend (fg-cw-backend). GAS authenticates to it with a
+  // service access token supplied per environment from the platform secret
+  // store, presented as a bearer token. Both optional so environments that do
+  // not call fg-cw-backend can boot without them.
+  CW_BACKEND_URL: Joi.string().uri().optional(),
+  CW_BACKEND_TOKEN: Joi.string().optional(),
   // A client:sha256hex pair, e.g. some-service:1f0a... Empty or unset seeds
   // nothing and removes nothing. Deliberately not validated here: the shape is
   // enforced in src/auth/seed-access-token.js, where a bad value warns and
@@ -157,4 +163,8 @@ export const config = {
     allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
   },
   serviceAccessTokenHash: vars.SERVICE_ACCESS_TOKEN_HASH,
+  cwBackend: {
+    url: vars.CW_BACKEND_URL,
+    token: vars.CW_BACKEND_TOKEN,
+  },
 };
