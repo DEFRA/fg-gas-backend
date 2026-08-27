@@ -21,7 +21,7 @@ export const UnitType = {
 // Only a prefix may be omitted - a status needs the stage it belongs to. Status
 // codes are not unique across stages, so "this status, in any stage" would name
 // a set the definition cannot see the boundaries of.
-const availableAt = Joi.object({
+const templatePosition = Joi.object({
   phase: Joi.string().required(),
   stage: absentAsNull(Joi.string()),
   status: Joi.any().when("stage", {
@@ -29,7 +29,16 @@ const availableAt = Joi.object({
     then: absentAsNull(Joi.string()),
     otherwise: Joi.forbidden(),
   }),
-}).label("EntitlementTemplateAvailableAt");
+}).label("EntitlementTemplatePosition");
+
+const availableAt = Joi.array()
+  .items(templatePosition)
+  .min(1)
+  .label("EntitlementTemplateAvailableAt");
+
+const claimableAt = Joi.array()
+  .items(templatePosition)
+  .label("EntitlementTemplateClaimableAt");
 
 // Constraint keys belong to one unit type each. Carrying `decimalPlaces` on a
 // string field (or `maxLength` on a decimal) is a definition mistake that would
@@ -92,6 +101,10 @@ const field = Joi.object({
 // Claiming happens after the entitlement exists and is not consulted to create
 // one, so the whole block is optional and every rule inside it has a default.
 const claim = Joi.object({
+  // Where an application has to be before a claim can be submitted against
+  // this entitlement. Same position shape as availableAt; any listed position
+  // is enough. Absent or empty means claims are never accepted.
+  claimableAt: absentAsNull(claimableAt),
   limits: Joi.object({
     // How many claims may be made against a single entitlement, as opposed to
     // maxEntitlements, which caps how many entitlements exist to claim against.

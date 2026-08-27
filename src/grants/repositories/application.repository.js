@@ -113,3 +113,19 @@ export const updateCurrentConfigVersion = async (clientRef, code, version) => {
       { $set: { currentConfigVersion: version } },
     );
 };
+
+export const lockForUpdate = async ({ clientRef, code }, session) => {
+  const doc = await db
+    .collection(collection)
+    .findOneAndUpdate(
+      { clientRef, code },
+      { $set: { updatedAt: new Date().toISOString() } },
+      { session, returnDocument: "after" },
+    );
+
+  if (doc === null) {
+    return null;
+  }
+
+  return toApplication(doc);
+};
