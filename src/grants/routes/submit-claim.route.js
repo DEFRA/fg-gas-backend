@@ -6,6 +6,11 @@ import { submitClaimRequestSchema } from "../schemas/requests/submit-claim-reque
 import { submitClaimResponseSchema } from "../schemas/responses/submit-claim-response.schema.js";
 import { submitClaimUseCase } from "../use-cases/submit-claim.use-case.js";
 
+const statusCodes = {
+  ok: 200,
+  created: 201,
+};
+
 export const submitClaimRoute = {
   method: "POST",
   path: "/grants/{grantCode}/applications/{clientRef}/claims",
@@ -42,10 +47,10 @@ export const submitClaimRoute = {
       `Finished: Submitting claim for grant ${code} and clientRef ${clientRef}`,
     );
 
-    if (!result.created) {
-      return h.response().code(200);
+    if (!result?.created) {
+      return h.response().code(statusCodes.ok);
     }
 
-    return h.response({ claimId: result.claimId }).code(201);
+    return h.response({ claimId: result.claimId }).code(statusCodes.created);
   },
 };
