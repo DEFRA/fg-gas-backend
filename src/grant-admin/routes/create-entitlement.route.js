@@ -6,6 +6,8 @@ import { code as grantCode } from "../schemas/code.js";
 import { createEntitlementRequestSchema } from "../schemas/create-entitlement-request.schema.js";
 import { createEntitlementUseCase } from "../use-cases/create-entitlement.use-case.js";
 
+const HTTP_STATUS_CREATED = 201;
+
 export const createEntitlementRoute = {
   method: "POST",
   path: "/grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
@@ -41,6 +43,6 @@ export const createEntitlementRoute = {
       data: payload.data,
     });
 
-    return h.response(entitlement).code(201);
+    return h.response(entitlement).code(HTTP_STATUS_CREATED);
   },
 };

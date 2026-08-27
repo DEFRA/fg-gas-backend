@@ -3,6 +3,8 @@ import { Entitlement } from "../models/entitlement.js";
 import { insertEntitlement } from "../repositories/entitlement.repository.js";
 import { resolveEntitlementsUseCase } from "./resolve-entitlements.use-case.js";
 
+const HTTP_STATUS_NOT_FOUND = 404;
+
 const withErrorCode = (boom, errorCode) => {
   boom.output.payload.errorCode = errorCode;
   return boom;
@@ -10,7 +12,7 @@ const withErrorCode = (boom, errorCode) => {
 
 const isApplicationNotFound = (error) =>
   error.isBoom &&
-  error.output.statusCode === 404 &&
+  error.output.statusCode === HTTP_STATUS_NOT_FOUND &&
   error.message.startsWith("Application");
 
 const resolveOrMapNotFound = async ({ code, clientRef }) => {
