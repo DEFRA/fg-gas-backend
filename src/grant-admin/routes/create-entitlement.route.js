@@ -38,9 +38,7 @@ export const createEntitlementRoute = {
       code,
       clientRef,
       claimCode: payload.claimCode,
-      description: payload.description,
       data: payload.data,
-      createdBy: payload.createdBy,
     });
 
     return h.response(entitlement).code(201);

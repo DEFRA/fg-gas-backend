@@ -99,6 +99,13 @@ const entitlementTemplate = {
     stage: "STAGE_PREPARE_CLAIM",
     status: "STATUS_PREPARING_CLAIM",
   },
+  help: {
+    summary: "How is the claim amount calculated?",
+    content: [
+      { text: "Threshold payments for eligible land in hectares (ha):" },
+      { items: ["0.5ha to 50ha: flat rate of \u00a31,500"] },
+    ],
+  },
   claim: {
     limits: { maximumClaims: 1, allowsPartialClaims: false },
     requiresApproval: false,

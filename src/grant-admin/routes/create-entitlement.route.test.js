@@ -30,9 +30,7 @@ const payload = {
   clientRef,
   grantCode: code,
   claimCode,
-  description: "PA3 based on Forestry Commission assessed area.",
   data: { totalHectares: { value: 455000 } },
-  createdBy: "user-1",
 };
 
 const entitlement = {
@@ -41,10 +39,8 @@ const entitlement = {
   code,
   claimCode,
   configVersion: "1.1.0",
-  description: payload.description,
   data: { totalHectares: 455000 },
   createdAt: "2026-08-24T10:00:00.000Z",
-  createdBy: "user-1",
 };
 
 const url = `/grant-admin/grants/${code}/applications/${clientRef}/claims/entitlements`;
@@ -76,28 +72,20 @@ describe("createEntitlementRoute", () => {
       code,
       clientRef,
       claimCode,
-      description: payload.description,
       data: payload.data,
-      createdBy: "user-1",
     });
     expect(result.result).toEqual(entitlement);
   });
 
-  it("accepts a payload without description and createdBy", async () => {
-    createEntitlementUseCase.mockResolvedValue(entitlement);
-    const { description, createdBy, ...rest } = payload;
-
-    const result = await server.inject({ method: "POST", url, payload: rest });
-
-    expect(result.statusCode).toEqual(201);
-    expect(createEntitlementUseCase).toHaveBeenCalledWith({
-      code,
-      clientRef,
-      claimCode,
-      description: undefined,
-      data: payload.data,
-      createdBy: undefined,
+  it("refuses a payload carrying a field the request does not define", async () => {
+    const result = await server.inject({
+      method: "POST",
+      url,
+      payload: { ...payload, createdBy: "user-1" },
     });
+
+    expect(result.statusCode).toEqual(400);
+    expect(createEntitlementUseCase).not.toHaveBeenCalled();
   });
 
   it("refuses a payload whose clientRef does not match the URL", async () => {
