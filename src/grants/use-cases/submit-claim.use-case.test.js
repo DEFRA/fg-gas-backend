@@ -57,7 +57,7 @@ const payload = {
     configVersion: "1.14.0",
     submittedAt: "2026-08-07T11:16:05.745Z",
   },
-  answers: {
+  claim: {
     claimAmountPence: 150000,
   },
 };
@@ -123,7 +123,7 @@ describe("submitClaimUseCase", () => {
         claimCode,
         clientClaimRef: payload.metadata.clientClaimRef,
         metadata: payload.metadata,
-        answers: payload.answers,
+        claim: payload.claim,
       }),
       session,
     );

@@ -84,7 +84,7 @@ const claimPayload = (code, clientRef, clientClaimRef) => ({
     configVersion: "1.0.0",
     submittedAt: "2026-08-07T11:16:05.745Z",
   },
-  answers: {
+  claim: {
     claimAmountPence: 150000,
   },
 });
@@ -141,7 +141,7 @@ describe("POST /grants/{grantCode}/applications/{clientRef}/claims", () => {
       clientClaimRef: "WMP-C0001",
     });
     expect(stored.claimCode).toBe("ENT_CS_CAPITAL_PA3");
-    expect(stored.answers).toEqual({ claimAmountPence: 150000 });
+    expect(stored.claim).toEqual({ claimAmountPence: 150000 });
     expect(stored._id.toString()).toBe(response.payload.claimId);
   });
 

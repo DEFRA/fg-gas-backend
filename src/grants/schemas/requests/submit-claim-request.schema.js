@@ -25,7 +25,7 @@ export const submitClaimRequestSchema = Joi.object({
       .message("Config version must be a valid config string (e.g. 1.0.3)")
       .required(),
   }).unknown(true),
-  answers: Joi.object({}).unknown(),
+  claim: Joi.object({}).unknown(),
 })
   .options({
     presence: "required",

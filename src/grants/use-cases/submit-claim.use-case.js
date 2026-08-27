@@ -110,7 +110,7 @@ const persistNewClaim = async ({ grantCode, clientRef, payload }, session) => {
       claimCode: payload.metadata.claimCode,
       clientClaimRef: payload.metadata.clientClaimRef,
       metadata: payload.metadata,
-      answers: payload.answers,
+      claim: payload.claim,
       createdAt: now,
       updatedAt: now,
     },
