@@ -2,6 +2,7 @@ import { agreementAccessHeadersSchema } from "../schemas/requests/agreement-acce
 import { invokeAgreementActionParamsSchema } from "../schemas/requests/invoke-agreement-action-request.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
 import { prepareAgreementActionUseCase } from "../use-cases/prepare-agreement-action.use-case.js";
+import { resolveAgreementAccess } from "../services/resolve-agreement-access.js";
 
 export const prepareAgreementActionRoute = {
   method: "GET",
@@ -18,14 +19,11 @@ export const prepareAgreementActionRoute = {
     },
   },
   async handler(request, h) {
+    const { source, code, sbi } = resolveAgreementAccess(request);
     const { pageModel, etag } = await prepareAgreementActionUseCase({
       actionName: request.params.actionName,
       agreementNumber: request.params.agreementNumber,
-      access: {
-        source: request.headers["x-agreement-source"],
-        code: request.headers["x-agreement-code"],
-        sbi: request.headers["x-agreement-sbi"],
-      },
+      access: { source, code, sbi },
     });
 
     return h.response(pageModel).header("ETag", etag);
