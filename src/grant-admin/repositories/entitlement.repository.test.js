@@ -10,6 +10,7 @@ const entitlement = {
   clientRef: "wmp-abc-123",
   code: "woodland",
   claimCode: "ENT_CS_CAPITAL_PA3",
+  instanceNumber: 1,
   data: { totalHectares: 455000 },
 };
 
@@ -38,6 +39,22 @@ describe("insertEntitlement", () => {
       output: { statusCode: 409 },
       message: `Entitlement with id "${entitlement.id}" exists`,
     });
+  });
+
+  it("reports a claimed entitlement slot without converting it to an id conflict", async () => {
+    const error = new MongoServerError({ message: "duplicate" });
+    error.code = 11000;
+    error.keyPattern = {
+      clientRef: 1,
+      code: 1,
+      claimCode: 1,
+      instanceNumber: 1,
+    };
+    db.collection.mockReturnValue({
+      insertOne: vi.fn().mockRejectedValue(error),
+    });
+
+    await expect(insertEntitlement(entitlement)).resolves.toBe(false);
   });
 
   it("rethrows other errors", async () => {

@@ -17,6 +17,7 @@ export class Entitlement {
     clientRef: Joi.string().required(),
     code: Joi.string().required(),
     claimCode: Joi.string().required(),
+    instanceNumber: Joi.number().integer().min(1).required(),
     configVersion: Joi.string().required(),
     data: Joi.object()
       .pattern(

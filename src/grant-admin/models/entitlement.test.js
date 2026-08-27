@@ -5,6 +5,7 @@ const props = {
   clientRef: "wmp-abc-123",
   code: "woodland",
   claimCode: "ENT_CS_CAPITAL_PA3",
+  instanceNumber: 1,
   configVersion: "1.1.0",
   data: { totalHectares: 455000, actionCode: "PA3" },
 };
@@ -37,6 +38,12 @@ describe("Entitlement", () => {
 
   it("refuses a record missing its claim code", () => {
     const { claimCode, ...rest } = props;
+
+    expect(() => Entitlement.create(rest)).toThrow(/Invalid Entitlement/);
+  });
+
+  it("refuses a record without an entitlement instance number", () => {
+    const { instanceNumber, ...rest } = props;
 
     expect(() => Entitlement.create(rest)).toThrow(/Invalid Entitlement/);
   });
