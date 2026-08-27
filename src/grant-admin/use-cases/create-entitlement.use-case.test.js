@@ -61,6 +61,7 @@ describe("create entitlement use case", () => {
       clientRef,
       code,
       claimCode,
+      instanceNumber: 1,
       configVersion: "1.1.0",
       data: { totalHectares: 455000 },
     });
@@ -152,5 +153,54 @@ describe("create entitlement use case", () => {
     const entitlement = await createEntitlementUseCase(request);
 
     expect(insertEntitlement).toHaveBeenCalledWith(entitlement);
+  });
+
+  it("allocates the lowest unclaimed entitlement instance number", async () => {
+    givenEntitlements({
+      offerable: [{ ...template, maxEntitlements: 3 }],
+      existing: [
+        { claimCode, instanceNumber: 1 },
+        { claimCode, instanceNumber: 3 },
+      ],
+    });
+
+    const entitlement = await createEntitlementUseCase(request);
+
+    expect(entitlement.instanceNumber).toEqual(2);
+  });
+
+  it("retries after another request claims the selected slot", async () => {
+    givenEntitlements({ offerable: [{ ...template, maxEntitlements: 2 }] });
+    insertEntitlement.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    resolveEntitlementsUseCase.mockResolvedValueOnce({
+      application,
+      grant,
+      offerable: [{ ...template, maxEntitlements: 2 }],
+      existing: [],
+    });
+    resolveEntitlementsUseCase.mockResolvedValueOnce({
+      application,
+      grant,
+      offerable: [{ ...template, maxEntitlements: 2 }],
+      existing: [{ claimCode, instanceNumber: 1 }],
+    });
+
+    const entitlement = await createEntitlementUseCase(request);
+
+    expect(entitlement.instanceNumber).toEqual(2);
+    expect(insertEntitlement).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns the capacity error when its one retry also loses the slot", async () => {
+    givenEntitlements();
+    insertEntitlement.mockResolvedValue(false);
+
+    await expect(createEntitlementUseCase(request)).rejects.toMatchObject({
+      output: {
+        statusCode: 409,
+        payload: { errorCode: "ENTITLEMENT_LIMIT_EXCEEDED" },
+      },
+    });
+    expect(insertEntitlement).toHaveBeenCalledTimes(2);
   });
 });

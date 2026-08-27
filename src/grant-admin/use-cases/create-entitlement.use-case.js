@@ -56,54 +56,99 @@ const assertClaimCode = ({ grant, offerable, code, clientRef, claimCode }) => {
   return template;
 };
 
+const throwEntitlementLimitExceeded = ({ template, claimCode }) => {
+  throw withErrorCode(
+    Boom.conflict(
+      `Cannot create entitlement '${claimCode}'. Maximum instance limit of ${template.maxEntitlements} has been reached.`,
+    ),
+    "ENTITLEMENT_LIMIT_EXCEEDED",
+  );
+};
+
 const assertCapacity = ({ template, existing, claimCode }) => {
   const count = existing.filter(
     (entitlement) => entitlement.claimCode === claimCode,
   ).length;
 
   if (count >= template.maxEntitlements) {
-    throw withErrorCode(
-      Boom.conflict(
-        `Cannot create entitlement '${claimCode}'. Maximum instance limit of ${template.maxEntitlements} has been reached.`,
-      ),
-      "ENTITLEMENT_LIMIT_EXCEEDED",
-    );
+    throwEntitlementLimitExceeded({ template, claimCode });
   }
+};
+
+const findAvailableInstanceNumber = ({ template, existing, claimCode }) => {
+  const used = new Set(
+    existing
+      .filter((entitlement) => entitlement.claimCode === claimCode)
+      .map((entitlement) => entitlement.instanceNumber)
+      .filter(Number.isInteger),
+  );
+
+  for (
+    let instanceNumber = 1;
+    instanceNumber <= template.maxEntitlements;
+    instanceNumber += 1
+  ) {
+    if (!used.has(instanceNumber)) {
+      return instanceNumber;
+    }
+  }
+
+  return undefined;
 };
 
 const flattenData = (data) =>
   Object.fromEntries(
     Object.entries(data).map(([name, field]) => [name, field.value]),
   );
-
+// A unique database slot is the authority on capacity. If another request claims the slot selected from this read,
+// resolve again and try the next available slot. This could use template.maxEntitlements; for now, retry
+// once only.
+const retries = 1;
 export const createEntitlementUseCase = async ({
   code,
   clientRef,
   claimCode,
   data,
 }) => {
-  const { application, grant, offerable, existing } =
-    await resolveOrMapNotFound({ code, clientRef });
+  let template;
 
-  const template = assertClaimCode({
-    grant,
-    offerable,
-    code,
-    clientRef,
-    claimCode,
-  });
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const { application, grant, offerable, existing } =
+      await resolveOrMapNotFound({ code, clientRef });
 
-  assertCapacity({ template, existing, claimCode });
+    template = assertClaimCode({
+      grant,
+      offerable,
+      code,
+      clientRef,
+      claimCode,
+    });
 
-  const entitlement = Entitlement.create({
-    clientRef,
-    code,
-    claimCode,
-    configVersion: application.currentConfigVersion,
-    data: flattenData(data),
-  });
+    assertCapacity({ template, existing, claimCode });
 
-  await insertEntitlement(entitlement);
+    const instanceNumber = findAvailableInstanceNumber({
+      template,
+      existing,
+      claimCode,
+    });
 
-  return entitlement;
+    if (instanceNumber === undefined) {
+      throwEntitlementLimitExceeded({ template, claimCode });
+    }
+
+    const entitlement = Entitlement.create({
+      clientRef,
+      code,
+      claimCode,
+      instanceNumber,
+      configVersion: application.currentConfigVersion,
+      data: flattenData(data),
+    });
+
+    if ((await insertEntitlement(entitlement)) !== false) {
+      return entitlement;
+    }
+  }
+
+  throwEntitlementLimitExceeded({ template, claimCode });
 };
