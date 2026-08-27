@@ -19,8 +19,17 @@ describe("Current Agreement route", () => {
         version: 1,
       },
       page: { name: "offered", title: "Review your agreement offer" },
-      components: [],
-      actions: [],
+      components: [
+        {
+          component: "grid-row",
+          components: [
+            {
+              component: "grid-column",
+              components: [{ component: "heading", text: "Offer" }],
+            },
+          ],
+        },
+      ],
     };
     getCurrentAgreementPageModelUseCase.mockResolvedValue({
       agreement: { agreementNumber: "PMF123", version: 1 },

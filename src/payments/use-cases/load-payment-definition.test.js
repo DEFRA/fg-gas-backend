@@ -18,9 +18,7 @@ import {
 } from "./load-payment-definition.js";
 
 vi.mock("../../common/config-broker/config-catalog.repository.js");
-vi.mock("../../common/logger.js", () => ({
-  logger: { error: vi.fn() },
-}));
+vi.mock("../../common/logger.js");
 vi.mock("../../common/s3-client.js", async (importOriginal) => ({
   ...(await importOriginal()),
   fetchConfigFile: vi.fn(),

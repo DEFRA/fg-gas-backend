@@ -133,6 +133,26 @@ const resolveTemplate = async (component, scope) => {
 const resolveContainer = (component, scope) =>
   resolveComponentList(component.content, scope);
 
+const resolveComponentTreeNode = async (
+  { components, ...component },
+  scope,
+) => {
+  if (!Array.isArray(components)) {
+    throw new Error(
+      `A "${component.component}" component must configure "components"`,
+    );
+  }
+
+  const [resolvedComponent, resolvedComponents] = await Promise.all([
+    resolveDisplayValue(component, scope),
+    resolveComponentList(components, scope),
+  ]);
+
+  return [
+    { ...applyFormats(resolvedComponent), components: resolvedComponents },
+  ];
+};
+
 const resolveUrl = async ({ href, ...component }, scope) => {
   const [resolvedComponent, resolvedHref] = await Promise.all([
     resolveRefs(component, scope),
@@ -151,10 +171,43 @@ const resolvers = {
   template: resolveTemplate,
   url: resolveUrl,
   "component-container": resolveContainer,
+  "grid-row": resolveComponentTreeNode,
+  "grid-column": resolveComponentTreeNode,
+  form: resolveComponentTreeNode,
+};
+
+const isObject = (value) => value !== null && typeof value === "object";
+
+// Display components can contain child components in their items. Route nested
+// URLs through the same structured href resolver used for top-level URLs.
+const resolveDisplayObject = async (value, scope) => {
+  if (value.component === "url") {
+    const [resolvedUrl] = await resolveUrl(value, scope);
+    return resolvedUrl;
+  }
+
+  const entries = await Promise.all(
+    Object.entries(value).map(async ([key, item]) => [
+      key,
+      await resolveDisplayValue(item, scope),
+    ]),
+  );
+
+  return Object.fromEntries(entries);
+};
+
+const resolveDisplayValue = async (value, scope) => {
+  if (Array.isArray(value)) {
+    return Promise.all(value.map((item) => resolveDisplayValue(item, scope)));
+  }
+
+  return isObject(value)
+    ? resolveDisplayObject(value, scope)
+    : resolveRefs(value, scope);
 };
 
 const resolveDisplayComponent = async (component, scope) => [
-  applyFormats(await resolveRefs(component, scope)),
+  applyFormats(await resolveDisplayValue(component, scope)),
 ];
 
 const isHidden = async (condition, scope) =>

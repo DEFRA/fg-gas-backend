@@ -19,6 +19,24 @@ const agreement = {
   configVersion,
   correlationId: "7e8c624d-6cf3-4ac5-bb84-a6f6701a6b7d",
   identifiers: { sbi },
+  applicant: {
+    business: {
+      name: "Gotham City Pigs Ltd",
+      address: {
+        line1: "1 Wayne Manor",
+        city: "Gotham",
+        postalCode: "GC1 1AA",
+      },
+    },
+    customer: {
+      name: {
+        title: "Mx",
+        first: "Bruce",
+        middle: "Thomas",
+        last: "Wayne",
+      },
+    },
+  },
   application: { businessName: "Gotham City Pigs" },
   actions: [
     {
@@ -59,6 +77,18 @@ const documentHeaders = {
 const getAgreementDocument = (headers = documentHeaders) =>
   wreck.request("GET", `/agreements/${agreementNumber}/document`, { headers });
 
+const explicitTree = (components) => [
+  {
+    component: "grid-row",
+    components: [{ component: "grid-column", width: "two-thirds", components }],
+  },
+];
+
+const contentComponents = (pageModel) =>
+  pageModel.components[0].components[0].components;
+
+const sectionComponents = (section) => contentComponents(section);
+
 describe("read-only Agreement document", () => {
   let agreements;
   let client;
@@ -93,9 +123,16 @@ describe("read-only Agreement document", () => {
         print: true,
         watermark: { text: "DRAFT" },
       },
-      actions: [],
     });
-    expect(payload.components).toEqual(
+    expect(payload.agreement.identifiers.sbi).toBe(sbi);
+    expect(payload.agreement.applicant).toEqual({
+      business: { name: "Gotham City Pigs Ltd" },
+      customer: { name: { first: "Bruce", last: "Wayne" } },
+    });
+    expect(payload.agreement.applicant.business.address).toBeUndefined();
+    expect(payload.agreement.applicant.customer.name.title).toBeUndefined();
+    expect(payload.agreement.applicant.customer.name.middle).toBeUndefined();
+    expect(contentComponents(payload)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           component: "notification-banner",
@@ -114,7 +151,7 @@ describe("read-only Agreement document", () => {
     ).toEqual({
       id: "pigs-and-funding",
       title: "Pigs and funding",
-      components: [
+      components: explicitTree([
         {
           component: "table",
           head: [
@@ -128,19 +165,19 @@ describe("read-only Agreement document", () => {
           component: "summary-list",
           rows: [{ label: "Total funding", text: "£50" }],
         },
-      ],
+      ]),
     });
     expect(
-      payload.sections.find(({ id }) => id === "payment-schedule"),
+      sectionComponents(
+        payload.sections.find(({ id }) => id === "payment-schedule"),
+      ),
     ).toEqual(
-      expect.objectContaining({
-        components: expect.arrayContaining([
-          expect.objectContaining({
-            component: "table",
-            rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
-          }),
-        ]),
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          component: "table",
+          rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
+        }),
+      ]),
     );
   });
 
@@ -161,22 +198,21 @@ describe("read-only Agreement document", () => {
     expect(response.statusCode).toBe(200);
     expect(payload.agreement.state).toBe("accepted");
     expect(payload.page.watermark).toBeUndefined();
-    expect(payload.actions).toEqual([]);
-    expect(payload.components).not.toEqual(
+    expect(payload).not.toHaveProperty("actions");
+    expect(contentComponents(payload)).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ component: "notification-banner" }),
       ]),
     );
-    expect(payload.sections).toEqual(
+    expect(
+      sectionComponents(
+        payload.sections.find(({ id }) => id === "payment-schedule"),
+      ),
+    ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "payment-schedule",
-          components: expect.arrayContaining([
-            expect.objectContaining({
-              component: "table",
-              rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
-            }),
-          ]),
+          component: "table",
+          rows: [[{ text: "6 November 2026" }, { text: "£50" }]],
         }),
       ]),
     );

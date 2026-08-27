@@ -4,14 +4,7 @@ import { findAvailableClaimsUseCase } from "../use-cases/find-available-claims.u
 import { getAvailableClaimsRoute } from "./get-available-claims.route.js";
 
 vi.mock("../use-cases/find-available-claims.use-case.js");
-vi.mock("../../common/logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
-}));
+vi.mock("../../common/logger.js");
 
 const availableClaim = {
   code: "ENT_CS_CAPITAL_PA3",

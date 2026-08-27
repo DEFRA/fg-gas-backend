@@ -55,6 +55,55 @@ describe("resolveComponents", () => {
     ]);
   });
 
+  it("resolves a structured href for a url nested inside display components", async () => {
+    const components = [
+      {
+        component: "unordered-list",
+        items: [
+          {
+            component: "paragraph",
+            items: [
+              { text: "your " },
+              {
+                component: "url",
+                href: {
+                  urlTemplate: "/agreements/{agreementNumber}/document",
+                  params: {
+                    agreementNumber: "$.agreement.agreementNumber",
+                  },
+                },
+                text: "agreement document",
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: { agreementNumber: "PMF823153883" },
+    });
+
+    expect(result).toEqual([
+      {
+        component: "unordered-list",
+        items: [
+          {
+            component: "paragraph",
+            items: [
+              { text: "your " },
+              {
+                component: "url",
+                href: "/agreements/PMF823153883/document",
+                text: "agreement document",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
   it("applies format outside of a table, on any resolved component", async () => {
     const components = [
       {
@@ -417,6 +466,81 @@ describe("resolveComponents repeated content", () => {
     );
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("resolveComponents explicit component trees", () => {
+  it("rejects a structural node without child components", async () => {
+    await expect(
+      resolveComponents([{ component: "grid-row" }], {}),
+    ).rejects.toThrow('A "grid-row" component must configure "components"');
+  });
+
+  it("preserves structural nodes while resolving nested components with table-row scope", async () => {
+    const components = [
+      {
+        component: "grid-row",
+        components: [
+          {
+            component: "grid-column",
+            width: "full",
+            components: [
+              {
+                component: "form",
+                action: "accept",
+                components: [
+                  {
+                    component: "table",
+                    rowsRef: "$.agreement.actions",
+                    rows: [{ text: "@.description" }],
+                  },
+                  {
+                    component: "conditional",
+                    condition: "jsonata:$.agreement.state = 'offered'",
+                    whenTrue: {
+                      component: "paragraph",
+                      text: "Offer available",
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const result = await resolveComponents(components, {
+      agreement: {
+        state: "offered",
+        actions: [{ description: "Hedgerow" }],
+      },
+    });
+
+    expect(result).toEqual([
+      {
+        component: "grid-row",
+        components: [
+          {
+            component: "grid-column",
+            width: "full",
+            components: [
+              {
+                component: "form",
+                action: "accept",
+                components: [
+                  {
+                    component: "table",
+                    rows: [[{ text: "Hedgerow" }]],
+                  },
+                  { component: "paragraph", text: "Offer available" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
   });
 });
 

@@ -11,9 +11,7 @@ import {
   resolveGrantForSubmission,
 } from "./resolve-current-grant.use-case.js";
 
-vi.mock("../../common/logger.js", () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
+vi.mock("../../common/logger.js");
 vi.mock("../repositories/config-version.repository.js");
 vi.mock("../repositories/grant.repository.js");
 vi.mock("../repositories/application.repository.js");
