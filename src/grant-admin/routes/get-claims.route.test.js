@@ -24,11 +24,13 @@ const template = {
     },
   },
   maxEntitlements: 1,
-  availableAt: {
-    phase: "PRE_AWARD",
-    stage: "ASSESSMENT",
-    status: "APPLICATION_RECEIVED",
-  },
+  availableAt: [
+    {
+      phase: "PRE_AWARD",
+      stage: "ASSESSMENT",
+      status: "APPLICATION_RECEIVED",
+    },
+  ],
   claim: {
     limits: { maximumClaims: 1, allowsPartialClaims: false },
     requiresApproval: false,

@@ -56,7 +56,7 @@ const createTemplate = (overrides = {}) => ({
     },
   },
   maxEntitlements: 1,
-  availableAt: position,
+  availableAt: [position],
   ...overrides,
 });
 
@@ -127,7 +127,7 @@ describe("resolve entitlements use case", () => {
   // available everywhere within its phase.
   it("returns a template that declares only the phase the application is in", async () => {
     givenGrantWith([
-      createTemplate({ availableAt: { phase: position.phase } }),
+      createTemplate({ availableAt: [{ phase: position.phase }] }),
     ]);
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });
@@ -139,7 +139,7 @@ describe("resolve entitlements use case", () => {
   it("excludes templates available at another status", async () => {
     givenGrantWith([
       createTemplate({
-        availableAt: { ...position, status: "IN_REVIEW" },
+        availableAt: [{ ...position, status: "IN_REVIEW" }],
       }),
     ]);
 
@@ -159,7 +159,7 @@ describe("resolve entitlements use case", () => {
       }),
     );
     givenGrantWith([
-      createTemplate({ availableAt: { phase: position.phase } }),
+      createTemplate({ availableAt: [{ phase: position.phase }] }),
     ]);
 
     const result = await resolveEntitlementsUseCase({ code, clientRef });

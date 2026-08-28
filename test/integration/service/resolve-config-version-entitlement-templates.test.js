@@ -97,7 +97,7 @@ const entitlementTemplate = {
     },
   },
   maxEntitlements: 1,
-  availableAt,
+  availableAt: [availableAt],
   help: {
     summary: "How is the claim amount calculated?",
     content: [
@@ -192,7 +192,7 @@ describe("config broker entitlementTemplates ingestion", () => {
         {
           claimCode: "ENT_TRACTOR",
           name: "Tractor entitlement",
-          availableAt,
+          availableAt: [availableAt],
         },
       ],
     });
@@ -234,11 +234,13 @@ describe("config broker entitlementTemplates ingestion", () => {
       entitlementTemplates: [
         {
           ...entitlementTemplate,
-          availableAt: {
-            phase: "PHASE_CLAIM",
-            stage: "STAGE_CLAIM_COMPLETE",
-            status: "STATUS_UNKNOWN",
-          },
+          availableAt: [
+            {
+              phase: "PHASE_CLAIM",
+              stage: "STAGE_CLAIM_COMPLETE",
+              status: "STATUS_UNKNOWN",
+            },
+          ],
         },
       ],
     });
