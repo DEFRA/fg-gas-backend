@@ -8,7 +8,7 @@ import { lockForUpdate } from "../repositories/application.repository.js";
 import {
   countByClaimCode,
   duplicateClientClaimRef,
-  findByClientClaimRef,
+  existsByClientClaimRef,
   insert,
 } from "../repositories/claim.repository.js";
 import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
@@ -21,7 +21,7 @@ vi.mock("../repositories/claim.repository.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    findByClientClaimRef: vi.fn(),
+    existsByClientClaimRef: vi.fn(),
     countByClaimCode: vi.fn(),
     insert: vi.fn(),
   };
@@ -100,7 +100,7 @@ describe("submitClaimUseCase", () => {
     resolveCurrentGrantUseCase.mockResolvedValue({
       grant: createGrantWithClaimableAt(),
     });
-    findByClientClaimRef.mockResolvedValue(null);
+    existsByClientClaimRef.mockResolvedValue(false);
     countByClaimCode.mockResolvedValue(0);
     insert.mockResolvedValue(new ObjectId("64b0c0c0c0c0c0c0c0c0c0c0"));
   });
@@ -134,9 +134,7 @@ describe("submitClaimUseCase", () => {
   });
 
   it("returns created false when the clientClaimRef already exists", async () => {
-    findByClientClaimRef.mockResolvedValue({
-      clientClaimRef: payload.metadata.clientClaimRef,
-    });
+    existsByClientClaimRef.mockResolvedValue(true);
 
     const result = await submitClaimUseCase({
       grantCode,
@@ -145,6 +143,7 @@ describe("submitClaimUseCase", () => {
     });
 
     expect(insert).not.toHaveBeenCalled();
+    expect(resolveCurrentGrantUseCase).not.toHaveBeenCalled();
     expect(result).toEqual({ created: false });
   });
 

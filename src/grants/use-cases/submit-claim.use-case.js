@@ -5,7 +5,7 @@ import { lockForUpdate } from "../repositories/application.repository.js";
 import {
   countByClaimCode,
   duplicateClientClaimRef,
-  findByClientClaimRef,
+  existsByClientClaimRef,
   insert,
 } from "../repositories/claim.repository.js";
 import { resolveCurrentGrantUseCase } from "./resolve-current-grant.use-case.js";
@@ -76,12 +76,12 @@ const existingClaimResult = async (
   { code, clientRef, clientClaimRef },
   session,
 ) => {
-  const existing = await findByClientClaimRef(
+  const exists = await existsByClientClaimRef(
     { code, clientRef, clientClaimRef },
     session,
   );
 
-  return existing ? { created: false } : null;
+  return exists ? { created: false } : null;
 };
 
 const assertApplicationIsClaimable = (application, template) => {
@@ -102,7 +102,6 @@ const assertUnderClaimLimit = async (
 };
 
 const persistNewClaim = async ({ grantCode, clientRef, payload }, session) => {
-  const now = new Date().toISOString();
   const insertedId = await insert(
     {
       code: grantCode,
@@ -111,8 +110,6 @@ const persistNewClaim = async ({ grantCode, clientRef, payload }, session) => {
       clientClaimRef: payload.metadata.clientClaimRef,
       metadata: payload.metadata,
       claim: payload.claim,
-      createdAt: now,
-      updatedAt: now,
     },
     session,
   );
@@ -131,11 +128,6 @@ const submitNewClaim = async (
   { grantCode, clientRef, payload, application },
   session,
 ) => {
-  const template = await resolveClaimTemplate(
-    grantCode,
-    application,
-    payload.metadata.claimCode,
-  );
   const replay = await existingClaimResult(
     {
       code: grantCode,
@@ -148,6 +140,12 @@ const submitNewClaim = async (
   if (replay) {
     return replay;
   }
+
+  const template = await resolveClaimTemplate(
+    grantCode,
+    application,
+    payload.metadata.claimCode,
+  );
 
   assertApplicationIsClaimable(application, template);
   await assertUnderClaimLimit(

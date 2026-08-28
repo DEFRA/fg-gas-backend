@@ -14,10 +14,3 @@ export const up = async (db) => {
     { name: claimCodeIndex },
   );
 };
-
-export const down = async (db) => {
-  const claims = db.collection("claims");
-
-  await claims.dropIndex(clientClaimRefIndex);
-  await claims.dropIndex(claimCodeIndex);
-};

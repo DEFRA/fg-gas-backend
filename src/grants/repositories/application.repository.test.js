@@ -454,7 +454,7 @@ describe("lockForUpdate", () => {
 
     expect(findOneAndUpdate).toHaveBeenCalledWith(
       { clientRef: "application-1", code: "grant-1" },
-      { $set: { updatedAt: expect.any(String) } },
+      { $inc: { claimSubmissionLockVersion: 1 } },
       { session, returnDocument: "after" },
     );
     expect(result.clientRef).toBe("application-1");

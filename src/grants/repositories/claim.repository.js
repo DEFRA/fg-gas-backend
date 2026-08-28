@@ -7,13 +7,18 @@ const DUPLICATE_KEY_ERROR_CODE = 11000;
 
 export const duplicateClientClaimRef = Symbol("duplicateClientClaimRef");
 
-export const findByClientClaimRef = async (
+export const existsByClientClaimRef = async (
   { code, clientRef, clientClaimRef },
   session,
-) =>
-  db
+) => {
+  const doc = await db
     .collection(collection)
-    .findOne({ code, clientRef, clientClaimRef }, { session });
+    .findOne(
+      { code, clientRef, clientClaimRef },
+      { session, projection: { _id: 1 } },
+    );
+  return doc !== null;
+};
 
 export const countByClaimCode = async (
   { code, clientRef, claimCode },
@@ -23,11 +28,25 @@ export const countByClaimCode = async (
     .collection(collection)
     .countDocuments({ code, clientRef, claimCode }, { session });
 
-export const insert = async (claim, session) => {
+export const insert = async (
+  { code, clientRef, claimCode, clientClaimRef, metadata, claim },
+  session,
+) => {
+  const now = new Date().toISOString();
   try {
-    const result = await db.collection(collection).insertOne(claim, {
-      session,
-    });
+    const result = await db.collection(collection).insertOne(
+      {
+        code,
+        clientRef,
+        claimCode,
+        clientClaimRef,
+        metadata,
+        claim,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { session },
+    );
     return result.insertedId;
   } catch (error) {
     if (

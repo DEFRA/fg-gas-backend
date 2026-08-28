@@ -119,7 +119,7 @@ export const lockForUpdate = async ({ clientRef, code }, session) => {
     .collection(collection)
     .findOneAndUpdate(
       { clientRef, code },
-      { $set: { updatedAt: new Date().toISOString() } },
+      { $inc: { claimSubmissionLockVersion: 1 } },
       { session, returnDocument: "after" },
     );
 
