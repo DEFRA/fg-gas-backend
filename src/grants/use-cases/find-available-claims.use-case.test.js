@@ -60,7 +60,7 @@ const createTemplate = (overrides = {}) => ({
     },
   },
   maxEntitlements: 1,
-  availableAt: position,
+  availableAt: [position],
   ...overrides,
 });
 
@@ -233,7 +233,7 @@ describe("find available claims use case", () => {
     it("returns empty availableClaims when no templates match position (AC3)", async () => {
       givenGrantWith([
         createTemplate({
-          availableAt: { ...position, status: "IN_REVIEW" },
+          availableAt: [{ ...position, status: "IN_REVIEW" }],
         }),
       ]);
       findExistingEntitlements.mockResolvedValue([createEntitlement()]);

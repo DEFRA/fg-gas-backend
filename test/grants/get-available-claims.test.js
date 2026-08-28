@@ -68,7 +68,7 @@ const template = (overrides = {}) => ({
     },
   },
   maxEntitlements: 1,
-  availableAt: position,
+  availableAt: [position],
   ...overrides,
 });
 
@@ -192,7 +192,7 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
     it("excludes entitlements when application is in a different phase", async () => {
       await seed({
         entitlementTemplates: [
-          template({ availableAt: { phase: position.phase } }),
+          template({ availableAt: [{ phase: position.phase }] }),
         ],
         currentPhase: "POST_AWARD",
       });

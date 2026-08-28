@@ -49,7 +49,7 @@ const createTemplate = (overrides = {}) => ({
     },
   },
   maxEntitlements: 1,
-  availableAt: position,
+  availableAt: [position],
   ...overrides,
 });
 
@@ -126,7 +126,7 @@ describe("find claims use case", () => {
   // available everywhere within its phase.
   it("returns a template that declares only the phase the application is in", async () => {
     givenGrantWith([
-      createTemplate({ availableAt: { phase: position.phase } }),
+      createTemplate({ availableAt: [{ phase: position.phase }] }),
     ]);
 
     const result = await findClaimsUseCase({ code, clientRef });
@@ -138,7 +138,7 @@ describe("find claims use case", () => {
   it("excludes templates available at another status", async () => {
     givenGrantWith([
       createTemplate({
-        availableAt: { ...position, status: "IN_REVIEW" },
+        availableAt: [{ ...position, status: "IN_REVIEW" }],
       }),
     ]);
 
@@ -158,7 +158,7 @@ describe("find claims use case", () => {
       }),
     );
     givenGrantWith([
-      createTemplate({ availableAt: { phase: position.phase } }),
+      createTemplate({ availableAt: [{ phase: position.phase }] }),
     ]);
 
     const result = await findClaimsUseCase({ code, clientRef });
