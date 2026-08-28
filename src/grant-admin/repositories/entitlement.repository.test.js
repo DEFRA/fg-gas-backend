@@ -11,7 +11,9 @@ const entitlement = {
   code: "woodland",
   claimCode: "ENT_CS_CAPITAL_PA3",
   instanceNumber: 1,
+  configVersion: "1.1.0",
   data: { totalHectares: 455000 },
+  createdAt: "2026-08-28T10:00:00.000Z",
 };
 
 describe("insertEntitlement", () => {
@@ -22,6 +24,21 @@ describe("insertEntitlement", () => {
     await insertEntitlement(entitlement);
 
     expect(db.collection).toHaveBeenCalledWith(collection);
+    expect(insertOne).toHaveBeenCalledWith(
+      { _id: entitlement.id, ...entitlement },
+      { session: undefined },
+    );
+  });
+
+  it("does not persist fields outside the entitlement document", async () => {
+    const insertOne = vi.fn().mockResolvedValue({ insertedId: entitlement.id });
+    db.collection.mockReturnValue({ insertOne });
+
+    await insertEntitlement({
+      ...entitlement,
+      domainOnlyField: "must not be stored",
+    });
+
     expect(insertOne).toHaveBeenCalledWith(
       { _id: entitlement.id, ...entitlement },
       { session: undefined },

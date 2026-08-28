@@ -11,7 +11,14 @@ const isSlotConflict = (error) =>
 
 const toDocument = (entitlement) => ({
   _id: entitlement.id,
-  ...structuredClone(entitlement),
+  id: entitlement.id,
+  clientRef: entitlement.clientRef,
+  code: entitlement.code,
+  claimCode: entitlement.claimCode,
+  instanceNumber: entitlement.instanceNumber,
+  configVersion: entitlement.configVersion,
+  data: structuredClone(entitlement.data),
+  createdAt: entitlement.createdAt,
 });
 
 export const insertEntitlement = async (entitlement, session) => {
