@@ -154,11 +154,13 @@ describe("Grant", () => {
           },
         },
         maxEntitlements: 1,
-        availableAt: {
-          phase: "PRE_AWARD",
-          stage: "ASSESSMENT",
-          status: "APPLICATION_RECEIVED",
-        },
+        availableAt: [
+          {
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "APPLICATION_RECEIVED",
+          },
+        ],
         claim: {
           limits: { maximumClaims: 1, allowsPartialClaims: false },
           requiresApproval: false,
@@ -203,10 +205,12 @@ describe("Grant", () => {
             entitlementTemplates: [
               {
                 ...entitlementTemplates[0],
-                availableAt: {
-                  ...entitlementTemplates[0].availableAt,
-                  [segment]: "UNKNOWN",
-                },
+                availableAt: [
+                  {
+                    ...entitlementTemplates[0].availableAt[0],
+                    [segment]: "UNKNOWN",
+                  },
+                ],
               },
             ],
           }),
@@ -221,8 +225,8 @@ describe("Grant", () => {
     // A partial availableAt is checked only as deep as it goes, so a phase-only
     // template is valid whenever the phase itself exists.
     it.each([
-      ["phase only", { phase: "PRE_AWARD" }],
-      ["phase and stage", { phase: "PRE_AWARD", stage: "ASSESSMENT" }],
+      ["phase only", [{ phase: "PRE_AWARD" }]],
+      ["phase and stage", [{ phase: "PRE_AWARD", stage: "ASSESSMENT" }]],
     ])(
       "accepts an entitlement template available at a %s",
       (_, availableAt) => {
@@ -235,8 +239,12 @@ describe("Grant", () => {
     );
 
     it.each([
-      ["phase", { phase: "UNKNOWN" }, "UNKNOWN"],
-      ["stage", { phase: "PRE_AWARD", stage: "UNKNOWN" }, "PRE_AWARD:UNKNOWN"],
+      ["phase", [{ phase: "UNKNOWN" }], "UNKNOWN"],
+      [
+        "stage",
+        [{ phase: "PRE_AWARD", stage: "UNKNOWN" }],
+        "PRE_AWARD:UNKNOWN",
+      ],
     ])(
       "throws when a partial position names a %s that does not exist in phases",
       (_, availableAt, position) => {
@@ -251,6 +259,30 @@ describe("Grant", () => {
         );
       },
     );
+
+    it("throws when a claimableAt position does not exist in phases", () => {
+      expect(() =>
+        createTestGrant({
+          entitlementTemplates: [
+            {
+              ...entitlementTemplates[0],
+              claim: {
+                ...entitlementTemplates[0].claim,
+                claimableAt: [
+                  {
+                    phase: "PRE_AWARD",
+                    stage: "ASSESSMENT",
+                    status: "UNKNOWN",
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ).toThrow(
+        /is claimable at position "PRE_AWARD:ASSESSMENT:UNKNOWN" which does not match any position/,
+      );
+    });
 
     it("throws when two entitlement templates share a claim code", () => {
       expect(() =>
@@ -287,11 +319,13 @@ describe("Grant", () => {
       const inReview = {
         claimCode: "ENT_TRACTOR",
         name: "Tractor entitlement",
-        availableAt: {
-          phase: "PRE_AWARD",
-          stage: "ASSESSMENT",
-          status: "IN_REVIEW",
-        },
+        availableAt: [
+          {
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "IN_REVIEW",
+          },
+        ],
       };
 
       it("returns only the templates available at the given position", () => {

@@ -55,7 +55,7 @@ const template = (overrides = {}) => ({
     },
   },
   maxEntitlements: 1,
-  availableAt: position,
+  availableAt: [position],
   ...overrides,
 });
 
@@ -129,7 +129,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
       claimCode,
       materialised: false,
       maxEntitlements: 1,
-      availableAt: position,
+      availableAt: [position],
     });
     expect(response.payload.claimableEntitlements).toEqual([]);
     expect(response.payload.claims).toEqual([]);
@@ -138,7 +138,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
   it("returns a template that declares only the phase the application is in", async () => {
     await seed({
       entitlementTemplates: [
-        template({ availableAt: { phase: position.phase } }),
+        template({ availableAt: [{ phase: position.phase }] }),
       ],
     });
 
@@ -165,7 +165,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
   it("excludes a template when the application is in another phase", async () => {
     await seed({
       entitlementTemplates: [
-        template({ availableAt: { phase: position.phase } }),
+        template({ availableAt: [{ phase: position.phase }] }),
       ],
       currentPhase: "POST_AWARD",
     });

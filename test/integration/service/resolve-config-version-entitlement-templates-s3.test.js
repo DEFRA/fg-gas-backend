@@ -94,11 +94,13 @@ const entitlementTemplate = {
     },
   },
   maxEntitlements: 1,
-  availableAt: {
-    phase: "PHASE_PRE_AWARD",
-    stage: "STAGE_PREPARE_CLAIM",
-    status: "STATUS_PREPARING_CLAIM",
-  },
+  availableAt: [
+    {
+      phase: "PHASE_PRE_AWARD",
+      stage: "STAGE_PREPARE_CLAIM",
+      status: "STATUS_PREPARING_CLAIM",
+    },
+  ],
   claim: {
     limits: { maximumClaims: 1, allowsPartialClaims: false },
     requiresApproval: false,
@@ -183,11 +185,13 @@ describe("config broker entitlementTemplates ingestion (real S3)", () => {
       entitlementTemplates: [
         {
           ...entitlementTemplate,
-          availableAt: {
-            phase: "PHASE_CLAIM",
-            stage: "STAGE_CLAIM_COMPLETE",
-            status: "STATUS_UNKNOWN",
-          },
+          availableAt: [
+            {
+              phase: "PHASE_CLAIM",
+              stage: "STAGE_CLAIM_COMPLETE",
+              status: "STATUS_UNKNOWN",
+            },
+          ],
         },
       ],
     });

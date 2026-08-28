@@ -443,11 +443,13 @@ describe("entitlementTemplates", () => {
         },
       },
       maxEntitlements: 1,
-      availableAt: {
-        phase: "PHASE_PRE_AWARD",
-        stage: "STAGE_PREPARE_CLAIM",
-        status: "STATUS_PREPARING_CLAIM",
-      },
+      availableAt: [
+        {
+          phase: "PHASE_PRE_AWARD",
+          stage: "STAGE_PREPARE_CLAIM",
+          status: "STATUS_PREPARING_CLAIM",
+        },
+      ],
       claim: {
         limits: { maximumClaims: 1, allowsPartialClaims: false },
         requiresApproval: false,
@@ -590,11 +592,13 @@ describe("entitlementTemplates", () => {
           materialised: true,
           fields: null,
           maxEntitlements: 1,
-          availableAt: {
-            phase: "PHASE_PRE_AWARD",
-            stage: "STAGE_PREPARE_CLAIM",
-            status: "STATUS_PREPARING_CLAIM",
-          },
+          availableAt: [
+            {
+              phase: "PHASE_PRE_AWARD",
+              stage: "STAGE_PREPARE_CLAIM",
+              status: "STATUS_PREPARING_CLAIM",
+            },
+          ],
           claim: null,
         },
       ],

@@ -56,11 +56,13 @@ describe("replaceGrantUseCase", () => {
           },
         },
         maxEntitlements: 1,
-        availableAt: {
-          phase: "PRE_AWARD",
-          stage: "ASSESSMENT",
-          status: "APPLICATION_RECEIVED",
-        },
+        availableAt: [
+          {
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "APPLICATION_RECEIVED",
+          },
+        ],
         claim: {
           limits: { maximumClaims: 1, allowsPartialClaims: false },
           requiresApproval: false,
@@ -123,11 +125,13 @@ describe("replaceGrantUseCase", () => {
           {
             claimCode: "ENT_TRACTOR",
             name: "Tractor entitlement",
-            availableAt: {
-              phase: "PRE_AWARD",
-              stage: "ASSESSMENT",
-              status: "APPLICATION_RECEIVED",
-            },
+            availableAt: [
+              {
+                phase: "PRE_AWARD",
+                stage: "ASSESSMENT",
+                status: "APPLICATION_RECEIVED",
+              },
+            ],
           },
         ],
       }),

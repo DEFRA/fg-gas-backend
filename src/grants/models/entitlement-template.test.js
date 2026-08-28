@@ -33,17 +33,21 @@ const validProps = {
     },
   },
   maxEntitlements: 1,
-  availableAt: {
-    phase: "PHASE_PRE_AWARD",
-    stage: "STAGE_PREPARE_CLAIM",
-    status: "STATUS_PREPARING_CLAIM",
-  },
+  availableAt: [
+    {
+      phase: "PHASE_PRE_AWARD",
+      stage: "STAGE_PREPARE_CLAIM",
+      status: "STATUS_PREPARING_CLAIM",
+    },
+  ],
   claim: {
     limits: { maximumClaims: 1, allowsPartialClaims: false },
     requiresApproval: false,
     requiresEvidence: false,
   },
 };
+
+const availableAtPosition = validProps.availableAt[0];
 
 describe("EntitlementTemplate", () => {
   it("constructs from valid props", () => {
@@ -81,11 +85,13 @@ describe("EntitlementTemplate", () => {
     const materialisedProps = {
       claimCode: "ENT_TRACTOR",
       name: "Tractor entitlement",
-      availableAt: {
-        phase: "PHASE_CLAIM",
-        stage: "STAGE_AWAITING_CLAIM",
-        status: "STATUS_AWAITING_CLAIM",
-      },
+      availableAt: [
+        {
+          phase: "PHASE_CLAIM",
+          stage: "STAGE_AWAITING_CLAIM",
+          status: "STATUS_AWAITING_CLAIM",
+        },
+      ],
     };
 
     it("constructs from the minimal set of fields a materialised template needs", () => {
@@ -295,7 +301,7 @@ describe("EntitlementTemplate", () => {
     it("returns true for the configured position", () => {
       const template = new EntitlementTemplate(validProps);
 
-      expect(template.isAvailableAt(validProps.availableAt)).toBe(true);
+      expect(template.isAvailableAt(availableAtPosition)).toBe(true);
     });
 
     it.each(["phase", "stage", "status"])(
@@ -305,7 +311,7 @@ describe("EntitlementTemplate", () => {
 
         expect(
           template.isAvailableAt({
-            ...validProps.availableAt,
+            ...availableAtPosition,
             [segment]: "SOMETHING_ELSE",
           }),
         ).toBe(false);
@@ -323,12 +329,12 @@ describe("EntitlementTemplate", () => {
     it("matches any stage and status when only a phase is declared", () => {
       const template = new EntitlementTemplate({
         ...validProps,
-        availableAt: { phase: validProps.availableAt.phase },
+        availableAt: [{ phase: availableAtPosition.phase }],
       });
 
       expect(
         template.isAvailableAt({
-          phase: validProps.availableAt.phase,
+          phase: availableAtPosition.phase,
           stage: "ANY_STAGE",
           status: "ANY_STATUS",
         }),
@@ -338,23 +344,23 @@ describe("EntitlementTemplate", () => {
     it("still requires the phase to match when only a phase is declared", () => {
       const template = new EntitlementTemplate({
         ...validProps,
-        availableAt: { phase: validProps.availableAt.phase },
+        availableAt: [{ phase: availableAtPosition.phase }],
       });
 
       expect(
         template.isAvailableAt({
           phase: "SOMETHING_ELSE",
-          stage: validProps.availableAt.stage,
-          status: validProps.availableAt.status,
+          stage: availableAtPosition.stage,
+          status: availableAtPosition.status,
         }),
       ).toBe(false);
     });
 
     it("matches any status when a phase and stage are declared", () => {
-      const { phase, stage } = validProps.availableAt;
+      const { phase, stage } = availableAtPosition;
       const template = new EntitlementTemplate({
         ...validProps,
-        availableAt: { phase, stage },
+        availableAt: [{ phase, stage }],
       });
 
       expect(
@@ -363,6 +369,69 @@ describe("EntitlementTemplate", () => {
       expect(
         template.isAvailableAt({ phase, stage: "OTHER", status: "ANY_STATUS" }),
       ).toBe(false);
+    });
+
+    it("returns true when any listed position matches", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        availableAt: [
+          availableAtPosition,
+          {
+            phase: "PHASE_CLAIM",
+            stage: "STAGE_AWAITING_CLAIM",
+            status: "STATUS_AWAITING_CLAIM",
+          },
+        ],
+      });
+
+      expect(
+        template.isAvailableAt({
+          phase: "PHASE_CLAIM",
+          stage: "STAGE_AWAITING_CLAIM",
+          status: "STATUS_AWAITING_CLAIM",
+        }),
+      ).toBe(true);
+    });
+  });
+
+  describe("isClaimableAt", () => {
+    const claimableAtPosition = {
+      phase: "PHASE_CLAIM",
+      stage: "STAGE_AWAITING_CLAIM",
+      status: "STATUS_AWAITING_CLAIM",
+    };
+
+    const withClaimableAt = (claimableAt) =>
+      new EntitlementTemplate({
+        ...validProps,
+        claim: { ...validProps.claim, claimableAt },
+      });
+
+    it("returns true for a configured claimable position", () => {
+      const template = withClaimableAt([claimableAtPosition]);
+
+      expect(template.isClaimableAt(claimableAtPosition)).toBe(true);
+    });
+
+    it("returns false when the application is not at a claimable position", () => {
+      const template = withClaimableAt([claimableAtPosition]);
+
+      expect(template.isClaimableAt(availableAtPosition)).toBe(false);
+    });
+
+    it("returns false when claimableAt is absent", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(template.isClaimableAt(claimableAtPosition)).toBe(false);
+    });
+
+    it("returns true when any listed claimable position matches", () => {
+      const template = withClaimableAt([
+        availableAtPosition,
+        claimableAtPosition,
+      ]);
+
+      expect(template.isClaimableAt(claimableAtPosition)).toBe(true);
     });
   });
 
@@ -377,11 +446,13 @@ describe("EntitlementTemplate", () => {
       const template = new EntitlementTemplate({
         claimCode: "ENT_TRACTOR",
         name: "Tractor entitlement",
-        availableAt: {
-          phase: "PHASE_CLAIM",
-          stage: "STAGE_AWAITING_CLAIM",
-          status: "STATUS_AWAITING_CLAIM",
-        },
+        availableAt: [
+          {
+            phase: "PHASE_CLAIM",
+            stage: "STAGE_AWAITING_CLAIM",
+            status: "STATUS_AWAITING_CLAIM",
+          },
+        ],
       });
 
       expect(template.inputFieldNames()).toEqual([]);

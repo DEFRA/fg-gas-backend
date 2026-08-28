@@ -82,11 +82,38 @@ export class Grant {
   // PHASE_CLAIM gap went unnoticed. Reject it at ingest instead.
   #assertEntitlementTemplatePositionsExist() {
     for (const template of this.entitlementTemplates) {
-      if (!this.#positionExists(template.availableAt)) {
-        throw Boom.badImplementation(
-          `Entitlement template "${template.claimCode}" is available at position "${formatPosition(template.availableAt)}" which does not match any position in "phases"`,
-        );
-      }
+      this.#assertTemplatePositionsExist(template);
+    }
+  }
+
+  #assertTemplatePositionsExist(template) {
+    this.#assertPositionsExist(
+      template.claimCode,
+      "available at",
+      template.availableAt,
+    );
+    this.#assertPositionsExist(
+      template.claimCode,
+      "claimable at",
+      this.#claimableAtPositions(template),
+    );
+  }
+
+  #claimableAtPositions(template) {
+    return template.claim?.claimableAt ?? [];
+  }
+
+  #assertPositionsExist(claimCode, relation, positions) {
+    for (const position of positions) {
+      this.#assertPositionExists(claimCode, relation, position);
+    }
+  }
+
+  #assertPositionExists(claimCode, relation, position) {
+    if (!this.#positionExists(position)) {
+      throw Boom.badImplementation(
+        `Entitlement template "${claimCode}" is ${relation} position "${formatPosition(position)}" which does not match any position in "phases"`,
+      );
     }
   }
 

@@ -38,18 +38,31 @@ export class EntitlementTemplate {
   }
 
   isAvailableAt(position) {
+    return this.#matchesAnyPosition(this.availableAt, position);
+  }
+
+  isClaimableAt(position) {
+    return this.#matchesAnyPosition(this.claim?.claimableAt ?? [], position);
+  }
+
+  #matchesAnyPosition(positions, position) {
     if (!position) {
       return false;
     }
 
-    const matches = (declared, actual) =>
-      declared == null || declared === actual;
-    const { phase, stage, status } = this.availableAt;
+    return positions.some((declared) =>
+      this.#positionMatches(declared, position),
+    );
+  }
+
+  #positionMatches(declared, actual) {
+    const matches = (declaredPart, actualPart) =>
+      declaredPart == null || declaredPart === actualPart;
 
     return (
-      phase === position.phase &&
-      matches(stage, position.stage) &&
-      matches(status, position.status)
+      declared.phase === actual.phase &&
+      matches(declared.stage, actual.stage) &&
+      matches(declared.status, actual.status)
     );
   }
 

@@ -108,8 +108,12 @@ describe("grants", () => {
           method: "get",
           path: "/grants/{grantCode}/entitlements/{clientRef}/available-claims",
         },
+        {
+          method: "post",
+          path: "/grants/{grantCode}/applications/{clientRef}/claims",
+        },
       ]),
     );
-    expect(routePaths).toHaveLength(9);
+    expect(routePaths).toHaveLength(10);
   });
 });

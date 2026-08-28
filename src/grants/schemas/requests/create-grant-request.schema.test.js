@@ -46,11 +46,13 @@ const validEntitlementTemplate = {
     },
   },
   maxEntitlements: 1,
-  availableAt: {
-    phase: "PRE_AWARD",
-    stage: "ASSESSMENT",
-    status: "APPLICATION_RECEIVED",
-  },
+  availableAt: [
+    {
+      phase: "PRE_AWARD",
+      stage: "ASSESSMENT",
+      status: "APPLICATION_RECEIVED",
+    },
+  ],
   claim: {
     limits: { maximumClaims: 1, allowsPartialClaims: false },
     requiresApproval: false,
@@ -319,11 +321,13 @@ it("accepts a materialised entitlement template that carries nothing but its pos
       {
         claimCode: "ENT_TRACTOR",
         name: "Tractor entitlement",
-        availableAt: {
-          phase: "PRE_AWARD",
-          stage: "ASSESSMENT",
-          status: "APPLICATION_RECEIVED",
-        },
+        availableAt: [
+          {
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "APPLICATION_RECEIVED",
+          },
+        ],
       },
     ],
   });
