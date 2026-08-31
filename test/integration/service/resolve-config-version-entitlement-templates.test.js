@@ -111,7 +111,7 @@ const entitlementTemplate = {
     },
   },
   maxEntitlements: 1,
-  availableAt,
+  availableAt: [availableAt],
   claim: {
     limits: { maximumClaims: 1, allowsPartialClaims: false },
     requiresApproval: false,
@@ -199,7 +199,7 @@ describe("config broker entitlementTemplates ingestion", () => {
         {
           claimCode: "ENT_TRACTOR",
           name: "Tractor entitlement",
-          availableAt,
+          availableAt: [availableAt],
         },
       ],
     });
@@ -241,11 +241,13 @@ describe("config broker entitlementTemplates ingestion", () => {
       entitlementTemplates: [
         {
           ...entitlementTemplate,
-          availableAt: {
-            phase: "PHASE_CLAIM",
-            stage: "STAGE_CLAIM_COMPLETE",
-            status: "STATUS_UNKNOWN",
-          },
+          availableAt: [
+            {
+              phase: "PHASE_CLAIM",
+              stage: "STAGE_CLAIM_COMPLETE",
+              status: "STATUS_UNKNOWN",
+            },
+          ],
         },
       ],
     });
