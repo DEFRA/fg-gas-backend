@@ -160,9 +160,10 @@ const mapItem = (version, item, index) => {
   });
 };
 
+const woodlandSuffix = " WMP";
 const woodlandName = (agreementName) =>
-  agreementName?.toUpperCase().endsWith(" WMP")
-    ? agreementName.slice(0, -4)
+  agreementName?.toUpperCase().endsWith(woodlandSuffix)
+    ? agreementName.slice(0, -woodlandSuffix.length)
     : agreementName;
 
 const buildApplication = ({ version, applicant, parcels, items }) =>
