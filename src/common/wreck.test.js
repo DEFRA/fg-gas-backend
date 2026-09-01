@@ -9,6 +9,11 @@ vi.mock("@defra/hapi-tracing");
 describe("wreck", () => {
   let server;
 
+  it("uses the configured ten-second HTTP client timeout", () => {
+    expect(config.httpClient.timeoutMs).toBe(10_000);
+    expect(wreck._defaults.timeout).toBe(config.httpClient.timeoutMs);
+  });
+
   beforeEach(() => {
     server = http
       .createServer((req, res) => {
