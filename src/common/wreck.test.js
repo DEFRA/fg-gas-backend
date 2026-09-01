@@ -24,6 +24,11 @@ describe("wreck", () => {
     server.close();
   });
 
+  it("uses the configured ten-second HTTP client timeout", () => {
+    expect(config.httpClient.timeoutMs).toBe(10_000);
+    expect(wreck._defaults.timeout).toBe(config.httpClient.timeoutMs);
+  });
+
   it("adds a trace id header when in async scope", async () => {
     getTraceId.mockReturnValue("test-trace-id");
 
