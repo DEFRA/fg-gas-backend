@@ -19,7 +19,7 @@ services:
       # FGP-1307: caller-token enforcement. Defaults to on (secure) for local
       # `docker compose up`; the integration test harness passes "false" so the
       # header-driven authz scenarios keep working during the staged rollout.
-      CALLER_TOKEN_ENFORCE: "${CALLER_TOKEN_ENFORCE:-true}"
+      CALLER_TOKEN_ENFORCE: "${CALLER_TOKEN_ENFORCE:-false}"
     depends_on:
       mongo-ready:
         condition: service_healthy

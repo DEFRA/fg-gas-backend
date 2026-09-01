@@ -41,7 +41,7 @@ describe("config caller-token (FGP-1307)", () => {
 
     expect(callerToken.defaultKid).toBe("agreements-hs256-1");
     expect(callerToken.keyring).toEqual({});
-    expect(callerToken.enforce).toBe(true);
+    expect(callerToken.enforce).toBe(false);
   });
 
   it("uses a custom default kid when provided", async () => {
@@ -52,12 +52,12 @@ describe("config caller-token (FGP-1307)", () => {
     expect(callerToken.defaultKid).toBe("agreements-hs256-9");
   });
 
-  it("turns enforcement off when CALLER_TOKEN_ENFORCE is false", async () => {
-    process.env.CALLER_TOKEN_ENFORCE = "false";
+  it("turns enforcement on when CALLER_TOKEN_ENFORCE is true", async () => {
+    process.env.CALLER_TOKEN_ENFORCE = "true";
 
     const callerToken = await loadCallerTokenConfig();
 
-    expect(callerToken.enforce).toBe(false);
+    expect(callerToken.enforce).toBe(true);
   });
 
   it("parses a valid JSON object keyring", async () => {

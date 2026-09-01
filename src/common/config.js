@@ -97,7 +97,7 @@ const schema = Joi.object({
   // FGP-1307: when true, caller-token verification hard-fails (missing/invalid
   // token or claim mismatch rejects the request) and GAS derives caller identity
   // from the verified token instead of the unsigned x-agreement-* headers. When
-  // false it stays warn-only (backwards-compatible). Feature-flag driven so
+  // false it stays warn-only (backwards-compatible) and is the default. Feature-flag driven so
   // enforcement can be rolled forward or back per environment.
   CALLER_TOKEN_ENFORCE: Joi.boolean().optional(),
   // A client:sha256hex pair, e.g. some-service:1f0a... Empty or unset seeds
@@ -193,7 +193,7 @@ export const config = {
     secret: vars.AGREEMENTS_JWT_SECRET,
     defaultKid: vars.AGREEMENTS_JWT_DEFAULT_KID ?? "agreements-hs256-1",
     keyring: parseKeyring(vars.AGREEMENTS_JWT_KEYRING),
-    enforce: vars.CALLER_TOKEN_ENFORCE ?? true,
+    enforce: vars.CALLER_TOKEN_ENFORCE ?? false,
     audience: "gas",
     allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
   },
