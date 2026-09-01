@@ -1,11 +1,13 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { findAgreementBySourceIdentity } from "../../agreements/repositories/agreement.repository.js";
 import { insertEntitlement } from "../repositories/entitlement.repository.js";
 import { createEntitlementUseCase } from "./create-entitlement.use-case.js";
 import { resolveEntitlementsUseCase } from "./resolve-entitlements.use-case.js";
 
 vi.mock("./resolve-entitlements.use-case.js");
 vi.mock("../repositories/entitlement.repository.js");
+vi.mock("../../agreements/repositories/agreement.repository.js");
 
 const code = "woodland";
 const clientRef = "wmp-abc-123";
@@ -16,6 +18,15 @@ const template = {
   name: "PA3 entitlement",
   materialised: false,
   maxEntitlements: 1,
+  fields: {
+    totalHectares: { input: true, unitType: "decimal" },
+    actionCode: { input: false, value: "PA3", unitType: "string" },
+    actionVersion: {
+      input: false,
+      value: "jsonata: $.agreement.actions[code='PA3'].version",
+      unitType: "string",
+    },
+  },
 };
 
 const application = { clientRef, currentConfigVersion: "1.1.0" };
@@ -45,6 +56,9 @@ const givenEntitlements = ({ offerable = [template], existing = [] } = {}) =>
 describe("create entitlement use case", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    findAgreementBySourceIdentity.mockResolvedValue({
+      actions: [{ code: "PA3", version: "1.2.3" }],
+    });
   });
 
   it("persists and returns the entitlement", async () => {
@@ -63,7 +77,11 @@ describe("create entitlement use case", () => {
       claimCode,
       instanceNumber: 1,
       configVersion: "1.1.0",
-      data: { totalHectares: 455000 },
+      data: {
+        totalHectares: 455000,
+        actionCode: "PA3",
+        actionVersion: "1.2.3",
+      },
     });
     expect(entitlement.id).toBeDefined();
     expect(entitlement.createdAt).toBeDefined();

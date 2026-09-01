@@ -1,6 +1,9 @@
 import Boom from "@hapi/boom";
+import { findAgreementBySourceIdentity } from "../../agreements/repositories/agreement.repository.js";
+import { resolveRefs } from "../../common/resolve-refs.js";
 import { Entitlement } from "../models/entitlement.js";
 import { insertEntitlement } from "../repositories/entitlement.repository.js";
+import { toApplicationContext } from "../services/application-context.js";
 import { resolveEntitlementsUseCase } from "./resolve-entitlements.use-case.js";
 
 const HTTP_STATUS_NOT_FOUND = 404;
@@ -102,6 +105,45 @@ const flattenData = (data) =>
   Object.fromEntries(
     Object.entries(data).map(([name, field]) => [name, field.value]),
   );
+
+const fixedFields = (template) =>
+  Object.entries(template.fields ?? {}).filter(([, field]) => !field.input);
+
+const needsResolution = (value) =>
+  typeof value === "string" &&
+  (value.startsWith("jsonata:") || /[$@]\./.test(value));
+
+const resolveFixedData = async ({ template, application, code, clientRef }) => {
+  const fields = fixedFields(template);
+
+  if (fields.length === 0) {
+    return {};
+  }
+
+  const valuesNeedResolution = fields.some(([, field]) =>
+    needsResolution(field.value),
+  );
+  const agreement = valuesNeedResolution
+    ? await findAgreementBySourceIdentity({ code, clientRef })
+    : undefined;
+  const applicationContext = toApplicationContext(application);
+  const context = {
+    ...applicationContext,
+    application: applicationContext,
+    agreement,
+  };
+
+  return Object.fromEntries(
+    await Promise.all(
+      fields.map(async ([name, field]) => [
+        name,
+        valuesNeedResolution && needsResolution(field.value)
+          ? await resolveRefs(field.value, { context })
+          : field.value,
+      ]),
+    ),
+  );
+};
 // A unique database slot is the authority on capacity. If another request claims the slot selected from this read,
 // resolve again and try the next available slot. This could use template.maxEntitlements; for now, retry
 // once only.
@@ -144,7 +186,11 @@ export const createEntitlementUseCase = async ({
       claimCode,
       instanceNumber,
       configVersion: application.currentConfigVersion,
-      data: flattenData(data),
+      // Fixed values are controlled by the template, never by the caller.
+      data: {
+        ...flattenData(data),
+        ...(await resolveFixedData({ template, application, code, clientRef })),
+      },
     });
 
     if ((await insertEntitlement(entitlement)) !== false) {
