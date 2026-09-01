@@ -33,8 +33,6 @@ const normaliseDecimal = (value) => {
   return `${sign}${digits}e${exponent}`;
 };
 
-// Optional legacy fields make this flat mapping exceed the branch limit.
-// eslint-disable-next-line complexity
 const toNumber = (value) => {
   if (value === undefined || value === null) {
     return undefined;
@@ -129,10 +127,23 @@ const sourceItems = (version) => {
     : (version.application?.agreement ?? []);
 };
 
+const sourceParcelActions = (version) => [
+  ...(version.actionApplications ?? []).map((action, index) => ({
+    action,
+    path: `actionApplications.${index}`,
+  })),
+  ...(version.application?.parcel ?? []).flatMap((parcel, parcelIndex) =>
+    (parcel.actions ?? []).map((action, actionIndex) => ({
+      action,
+      path: `application.parcel.${parcelIndex}.actions.${actionIndex}`,
+    })),
+  ),
+];
+
 const matchingActionValues = (version, item, field) => [
   ...new Set(
-    (version.application?.parcel ?? [])
-      .flatMap((parcel) => parcel.actions ?? [])
+    sourceParcelActions(version)
+      .map(({ action }) => action)
       .filter((action) => action.code === item.code)
       .map((action) => action.appliedFor?.[field])
       .filter((value) => value !== undefined && value !== null)
@@ -292,6 +303,74 @@ const valuesFrom = (agreement) => ({
   paymentSchedule: agreement.paymentSchedule,
 });
 
+const sameValue = (left, right) => left?.toString() === right?.toString();
+
+// Optional legacy payment shapes make this validation exceed the branch limit.
+// eslint-disable-next-line complexity
+const sourcePaymentIssues = (version) => {
+  const payment = version.payment ?? {};
+  const totals = [
+    payment.annualTotalPence,
+    payment.agreementTotalPence,
+    payment.payments?.[0]?.totalPaymentPence,
+  ].filter((value) => value !== undefined && value !== null);
+  const issues = totals.every((value) => sameValue(value, totals[0]))
+    ? []
+    : [{ path: "payment", reason: "woodland.payment-total.mismatch" }];
+
+  if (payment.payments !== undefined && !Array.isArray(payment.payments)) {
+    issues.push({
+      path: "payment.payments",
+      reason: "woodland.payment-schedule.unsupported",
+    });
+  } else if (payment.payments?.length > 1) {
+    issues.push({
+      path: "payment.payments",
+      reason: "woodland.payment-schedule.unsupported",
+    });
+  }
+
+  return issues;
+};
+
+// Both legacy item representations must agree when they coexist.
+// eslint-disable-next-line complexity
+const sourceItemIssues = (version) => {
+  const paymentItems = entries(version.payment?.agreementLevelItems);
+  const applicationItems = version.application?.agreement ?? [];
+
+  if (paymentItems.length === 0 || applicationItems.length === 0) {
+    return [];
+  }
+
+  const applicationByCode = new Map(
+    applicationItems.map((item) => [item.code, item]),
+  );
+  const sharedFields = ["description", "annualPaymentPence"];
+  const consistent =
+    paymentItems.length === applicationItems.length &&
+    paymentItems.every((item) => {
+      const other = applicationByCode.get(item.code);
+      return (
+        other &&
+        sharedFields.every((field) => sameValue(item[field], other[field]))
+      );
+    });
+
+  return consistent
+    ? []
+    : [{ path: "items", reason: "woodland.items.source-mismatch" }];
+};
+
+const sourceActionIssues = (version, agreement) => {
+  const itemCodes = new Set(agreement.items.map(({ code }) => code));
+  return sourceParcelActions(version).flatMap(({ action, path }) =>
+    itemCodes.has(action.code)
+      ? []
+      : [{ path, reason: "woodland.action.unmapped" }],
+  );
+};
+
 // eslint-disable-next-line complexity
 const wmpIssues = (agreement) => {
   const issues = [];
@@ -346,7 +425,7 @@ const wmpIssues = (agreement) => {
   return issues;
 };
 
-export const validateMappedWoodlandVersion = (agreement) => {
+export const validateMappedWoodlandVersion = (agreement, sourceVersion) => {
   const options = {
     abortEarly: false,
     allowUnknown: false,
@@ -374,5 +453,8 @@ export const validateMappedWoodlandVersion = (agreement) => {
     ...detailsToIssues(metadata.error),
     ...detailsToIssues(values.error),
     ...wmpIssues(agreement),
+    ...(sourceVersion ? sourcePaymentIssues(sourceVersion) : []),
+    ...(sourceVersion ? sourceItemIssues(sourceVersion) : []),
+    ...(sourceVersion ? sourceActionIssues(sourceVersion, agreement) : []),
   ];
 };

@@ -152,7 +152,7 @@ describe("mapLegacyWoodlandVersion", () => {
       },
       totalAgreementPaymentPence: 166200,
     });
-    expect(validateMappedWoodlandVersion(mapped)).toEqual([]);
+    expect(validateMappedWoodlandVersion(mapped, sourceVersion)).toEqual([]);
   });
 
   it("uses legacy metadata and Map fallbacks without changing source values", () => {
@@ -317,6 +317,67 @@ describe("mapLegacyWoodlandVersion", () => {
         {
           path: "parcels.0.area.quantity",
           reason: "woodland.quantity.not-exact",
+        },
+      ]),
+    );
+  });
+
+  it("uses legacy parcel actions to resolve items without creating GAS actions", () => {
+    const version = {
+      ...sourceVersion,
+      actionApplications: [
+        { code: "PA3", appliedFor: { quantity: 55.4, unit: "ha" } },
+      ],
+      application: {
+        parcel: [
+          {
+            ...sourceVersion.application.parcel[0],
+            actions: [],
+          },
+        ],
+      },
+    };
+    const mapped = map(version);
+
+    expect(mapped.actions).toEqual([]);
+    expect(mapped.items[0]).toMatchObject({ quantity: 55.4, unit: "ha" });
+    expect(validateMappedWoodlandVersion(mapped, version)).toEqual([]);
+  });
+
+  it("rejects unreconciled source actions, item shapes, and payment totals", () => {
+    const version = {
+      ...sourceVersion,
+      actionApplications: [
+        { code: "UNMAPPED", appliedFor: { quantity: 1, unit: "ha" } },
+      ],
+      application: {
+        ...sourceVersion.application,
+        agreement: [
+          {
+            code: "PA3",
+            description: "Different description",
+            annualPaymentPence: 166200,
+          },
+        ],
+      },
+      payment: {
+        ...sourceVersion.payment,
+        annualTotalPence: 1,
+        payments: [{ totalPaymentPence: 2 }, { totalPaymentPence: 3 }],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toEqual(
+      expect.arrayContaining([
+        { path: "payment", reason: "woodland.payment-total.mismatch" },
+        {
+          path: "payment.payments",
+          reason: "woodland.payment-schedule.unsupported",
+        },
+        { path: "items", reason: "woodland.items.source-mismatch" },
+        {
+          path: "actionApplications.0",
+          reason: "woodland.action.unmapped",
         },
       ]),
     );

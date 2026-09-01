@@ -103,11 +103,10 @@ GAS performs the following steps in one request:
 1. Fetch the complete Woodland agreement-number list.
 2. For each agreement, request source versions in pages of 100.
 3. Map each source Version through the same pure mapper used by apply.
-4. Validate the mapped Agreement snapshot against the approved Woodland definition and GAS domain rules.
-5. Check version order, required identifiers, lifecycle state, dates, parcels, items, quantities, amounts and timestamps.
-6. Check GAS for target conflicts without writing.
-7. Log a PII-safe structured result for every source record.
-8. Return a small summary.
+4. Confirm the approved Woodland definition version exists, then validate the mapped snapshot against GAS domain rules and migration-specific Woodland rules. The definition is executable workflow configuration, not a snapshot schema, so the migration must not run its creation processes.
+5. Check required identifiers, lifecycle state, dates, parcels, items, quantities, amounts and timestamps. The Agreements source endpoint owns version ordering against `Grant.versions`; GAS consumes its ordered pages.
+6. Log a PII-safe structured result for every source record.
+7. Return a small summary.
 
 Example summary:
 
@@ -132,7 +131,7 @@ Apply has a validation phase and a write phase.
 
 ### Validation phase
 
-Apply repeats the complete dry-run mapping and validation. It refuses to write if any source record is unmappable, any diagnostic remains unresolved, the source order is inconsistent, or a target conflict exists.
+Apply repeats the complete dry-run mapping and validation. Before writing, it also checks GAS for target conflicts. It refuses to write if any source record is unmappable, any diagnostic remains unresolved, the source order is inconsistent, or a target conflict exists.
 
 During the production apply, legacy Woodland writes are paused. This makes the paginated source view stable for the duration of validation and import.
 
@@ -172,7 +171,7 @@ Before apply is implemented, the mapping must confirm:
 - `Grant.versions` as the authoritative version order.
 - Agreement, Grant and Version timestamps used for `createdAt`, `updatedAt`, `versionedAt` and `acceptedAt`.
 - Parcel identifiers and displayed area or quantity fields.
-- Agreement-level payment items and parcel action items.
+- Agreement-level payment items and parcel action items. Woodland maps these to Agreement items and application land parcels; it does not create Agreement actions.
 - Source item codes, quantities, units, annual amounts and totals.
 - Applicant and business identifiers.
 - The approved Woodland GAS configuration version.

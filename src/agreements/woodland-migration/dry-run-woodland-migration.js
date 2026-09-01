@@ -79,15 +79,27 @@ const validateVersion = ({ agreementNumber, page, sourceVersion, version }) => {
     });
     return [
       ...sourceIssues(agreementNumber, page),
-      ...validateMappedWoodlandVersion(mapped),
+      ...validateMappedWoodlandVersion(mapped, sourceVersion),
     ];
   } catch {
     return [{ path: "value", reason: "mapping.failed" }];
   }
 };
 
+const countReasons = (counts, issues) => {
+  for (const { reason } of issues) {
+    counts[reason] = (counts[reason] ?? 0) + 1;
+  }
+};
+
+const mergeReasonCounts = (target, source) => {
+  for (const [reason, count] of Object.entries(source)) {
+    target[reason] = (target[reason] ?? 0) + count;
+  }
+};
+
 const processPage = (agreementNumber, page, firstVersion) => {
-  let failures = 0;
+  const result = { versions: page.versions.length, failures: 0, reasons: {} };
 
   page.versions.forEach((sourceVersion, index) => {
     const version = firstVersion + index;
@@ -97,15 +109,16 @@ const processPage = (agreementNumber, page, firstVersion) => {
       sourceVersion,
       version,
     });
-    failures += Number(issues.length > 0);
+    result.failures += Number(issues.length > 0);
+    countReasons(result.reasons, issues);
     logVersion({ agreementNumber, version, issues });
   });
 
-  return { versions: page.versions.length, failures };
+  return result;
 };
 
 const processAgreement = async (agreementNumber) => {
-  const result = { versions: 0, failures: 0 };
+  const result = { versions: 0, failures: 0, reasons: {} };
 
   for await (const page of fetchWoodlandAgreementVersionPages(
     agreementNumber,
@@ -113,47 +126,68 @@ const processAgreement = async (agreementNumber) => {
     const pageResult = processPage(agreementNumber, page, result.versions + 1);
     result.versions += pageResult.versions;
     result.failures += pageResult.failures;
+    mergeReasonCounts(result.reasons, pageResult.reasons);
   }
 
   if (result.versions === 0) {
     result.failures = 1;
+    result.reasons["source.versions.empty"] = 1;
     logEmptyAgreement(agreementNumber);
   }
 
   return result;
 };
 
-export const dryRunWoodlandMigration = async () => {
-  await loadAgreementDefinition({
-    code: "woodland",
-    configVersion: config.woodlandMigration.configVersion,
-    resolution: "exact",
-  });
-  const agreementNumbers = await fetchWoodlandAgreementNumbers();
-  const summary = {
-    valid: true,
-    agreements: agreementNumbers.length,
-    versions: 0,
-    failures: 0,
-  };
-
-  for (const agreementNumber of agreementNumbers) {
-    const result = await processAgreement(agreementNumber);
-    summary.versions += result.versions;
-    summary.failures += result.failures;
-  }
-
-  summary.valid = summary.failures === 0;
+const logCompleted = (summary, reasons, aborted = false) => {
+  const passed = Math.max(0, summary.versions - summary.failures);
   logger.info(
     {
       event: {
         action: "woodland-migration-dry-run-completed",
         outcome: summary.valid ? "success" : "failure",
-        reason: `agreements=${summary.agreements} versions=${summary.versions} failures=${summary.failures}`,
+        reason: `agreements=${summary.agreements} versions=${summary.versions} passed=${passed} failures=${summary.failures} aborted=${aborted} reasons=${JSON.stringify(reasons)}`,
       },
     },
     "Woodland migration dry-run completed",
   );
+};
 
-  return summary;
+export const dryRunWoodlandMigration = async () => {
+  const summary = {
+    valid: false,
+    agreements: 0,
+    versions: 0,
+    failures: 0,
+  };
+  const reasons = {};
+
+  logger.info(
+    { event: { action: "woodland-migration-dry-run-started" } },
+    "Woodland migration dry-run started",
+  );
+
+  try {
+    await loadAgreementDefinition({
+      code: "woodland",
+      configVersion: config.woodlandMigration.configVersion,
+      resolution: "exact",
+    });
+    const agreementNumbers = await fetchWoodlandAgreementNumbers();
+    summary.agreements = agreementNumbers.length;
+
+    for (const agreementNumber of agreementNumbers) {
+      const result = await processAgreement(agreementNumber);
+      summary.versions += result.versions;
+      summary.failures += result.failures;
+      mergeReasonCounts(reasons, result.reasons);
+    }
+
+    summary.valid = summary.failures === 0;
+    logCompleted(summary, reasons);
+    return summary;
+  } catch (error) {
+    reasons["run.failed"] = 1;
+    logCompleted(summary, reasons, true);
+    throw error;
+  }
 };

@@ -120,13 +120,53 @@ describe("dryRunWoodlandMigration", () => {
           }),
         },
         {
+          event: { action: "woodland-migration-dry-run-started" },
+        },
+        {
           event: {
             action: "woodland-migration-dry-run-completed",
             outcome: "failure",
-            reason: "agreements=2 versions=3 failures=2",
+            reason:
+              'agreements=2 versions=3 passed=1 failures=2 aborted=false reasons={"items.invalid":1,"source.versions.empty":1}',
           },
         },
       ]),
+    );
+  });
+
+  it("does not report negative passed versions for an empty agreement", async () => {
+    fetchWoodlandAgreementNumbers.mockResolvedValue(["WMP0002"]);
+
+    await dryRunWoodlandMigration();
+
+    expect(logger.info).toHaveBeenLastCalledWith(
+      {
+        event: {
+          action: "woodland-migration-dry-run-completed",
+          outcome: "failure",
+          reason:
+            'agreements=1 versions=0 passed=0 failures=1 aborted=false reasons={"source.versions.empty":1}',
+        },
+      },
+      "Woodland migration dry-run completed",
+    );
+  });
+
+  it("logs a final failure when the run aborts", async () => {
+    fetchWoodlandAgreementNumbers.mockRejectedValue(new Error("source failed"));
+
+    await expect(dryRunWoodlandMigration()).rejects.toThrow("source failed");
+
+    expect(logger.info).toHaveBeenLastCalledWith(
+      {
+        event: {
+          action: "woodland-migration-dry-run-completed",
+          outcome: "failure",
+          reason:
+            'agreements=0 versions=0 passed=0 failures=0 aborted=true reasons={"run.failed":1}',
+        },
+      },
+      "Woodland migration dry-run completed",
     );
   });
 });
