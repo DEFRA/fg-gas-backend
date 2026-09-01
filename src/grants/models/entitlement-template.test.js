@@ -50,6 +50,45 @@ const validProps = {
 const availableAtPosition = validProps.availableAt[0];
 
 describe("EntitlementTemplate", () => {
+  describe("help", () => {
+    const withHelp = (help) => new EntitlementTemplate({ ...validProps, help });
+
+    it("keeps guidance written as paragraphs and lists", () => {
+      const help = {
+        summary: "How is the claim amount calculated?",
+        content: [
+          { text: "Threshold payments for eligible land in hectares (ha):" },
+          { items: ["0.5ha to 50ha: flat rate of \u00a31,500"] },
+        ],
+      };
+
+      expect(withHelp(help).help).toEqual(help);
+    });
+
+    it("is absent when the definition carries none", () => {
+      expect(new EntitlementTemplate(validProps).help).toBeUndefined();
+    });
+
+    it("reads null as absent", () => {
+      expect(withHelp(null).help).toBeUndefined();
+    });
+
+    it("rejects a block that is both a paragraph and a list", () => {
+      expect(() =>
+        withHelp({
+          summary: "Both",
+          content: [{ text: "a", items: ["b"] }],
+        }),
+      ).toThrow(/Invalid entitlement template/);
+    });
+
+    it("rejects guidance with nothing in it", () => {
+      expect(() => withHelp({ summary: "Empty", content: [] })).toThrow(
+        /Invalid entitlement template/,
+      );
+    });
+  });
+
   it("constructs from valid props", () => {
     const template = new EntitlementTemplate(validProps);
 
