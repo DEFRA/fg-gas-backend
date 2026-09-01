@@ -4,7 +4,7 @@ import { config } from "./config.js";
 
 export const wreck = Wreck.defaults({
   events: true,
-  timeout: 3000,
+  timeout: config.httpClient.timeoutMs,
 });
 
 wreck.events.on("preRequest", (uri) => {
