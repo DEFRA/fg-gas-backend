@@ -1,6 +1,7 @@
 import { config } from "../common/config.js";
 import { registerInternalCommandHandler } from "../common/internal-command-bus.js";
 import { internalCommandTypes } from "../common/internal-command-types.js";
+import { dryRunWoodlandMigrationRoute } from "./migrations/woodland/dry-run-woodland-migration.route.js";
 import { getAgreementByNumberRoute } from "./routes/get-agreement-by-number.route.js";
 import { getCurrentAgreementRoute } from "./routes/get-current-agreement.route.js";
 import { invokeAgreementActionRoute } from "./routes/invoke-agreement-action.route.js";
@@ -10,6 +11,13 @@ import { handleUpdateAgreementStatusCommandUseCase } from "./use-cases/handle-up
 
 const canHandleAgreementCommand = ({ data }) =>
   config.managedAgreementGrantCodes.includes(data.code);
+
+const woodlandMigrationIsConfigured = () =>
+  Boolean(
+    config.woodlandMigration.sourceUrl &&
+    config.woodlandMigration.token &&
+    config.woodlandMigration.configVersion,
+  );
 
 export const agreements = {
   name: "agreements",
@@ -30,6 +38,9 @@ export const agreements = {
       getAgreementByNumberRoute,
       prepareAgreementActionRoute,
       invokeAgreementActionRoute,
+      ...(woodlandMigrationIsConfigured()
+        ? [dryRunWoodlandMigrationRoute]
+        : []),
     ]);
   },
 };

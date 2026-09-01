@@ -1,5 +1,6 @@
 import hapi from "@hapi/hapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { config } from "../common/config.js";
 import {
   canHandleInternalCommand,
   clearInternalCommandHandlers,
@@ -11,8 +12,11 @@ import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-a
 import { handleUpdateAgreementStatusCommandUseCase } from "./use-cases/handle-update-agreement-status-command.use-case.js";
 
 describe("agreements", () => {
+  const originalMigrationConfig = { ...config.woodlandMigration };
+
   afterEach(() => {
     clearInternalCommandHandlers();
+    Object.assign(config.woodlandMigration, originalMigrationConfig);
     vi.resetAllMocks();
   });
 
@@ -49,6 +53,30 @@ describe("agreements", () => {
       method: "get",
       path: "/agreements/render",
     });
+    expect(routes).not.toContainEqual({
+      method: "post",
+      path: "/admin/migrations/woodland/dry-run",
+    });
+  });
+
+  it("registers the temporary Woodland dry-run route when configured", async () => {
+    Object.assign(config.woodlandMigration, {
+      sourceUrl: "https://agreements.example.test",
+      token: "migration-token",
+      configVersion: "1.0.0",
+    });
+    const server = hapi.server();
+
+    await server.register(agreements);
+
+    expect(server.table()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          method: "post",
+          path: "/admin/migrations/woodland/dry-run",
+        }),
+      ]),
+    );
   });
 
   it("registers the internal handler for agreement.create commands", async () => {
@@ -86,14 +114,17 @@ describe("agreements", () => {
   it.each([
     internalCommandTypes.AGREEMENT_CREATE,
     internalCommandTypes.AGREEMENT_STATUS_UPDATE,
-  ])("leaves grants outside the allowlist to the external service for %s", async (type) => {
-    const server = hapi.server();
-    await server.register(agreements);
+  ])(
+    "leaves grants outside the allowlist to the external service for %s",
+    async (type) => {
+      const server = hapi.server();
+      await server.register(agreements);
 
-    await expect(
-      canHandleInternalCommand(type, {
-        data: { code: "woodland", currentConfigVersion: "1.0.0" },
-      }),
-    ).resolves.toBe(false);
-  });
+      await expect(
+        canHandleInternalCommand(type, {
+          data: { code: "woodland", currentConfigVersion: "1.0.0" },
+        }),
+      ).resolves.toBe(false);
+    },
+  );
 });

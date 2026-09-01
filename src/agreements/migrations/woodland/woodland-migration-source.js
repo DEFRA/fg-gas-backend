@@ -1,0 +1,96 @@
+import Boom from "@hapi/boom";
+import Joi from "joi";
+import { BSON } from "mongodb";
+import { config } from "../../../common/config.js";
+import { wreck } from "../../../common/wreck.js";
+
+const requestTimeout = 30_000;
+const successStatus = (statusCode) => statusCode >= 200 && statusCode < 300;
+
+const agreementNumbersSchema = Joi.object({
+  agreementNumbers: Joi.array()
+    .items(Joi.string().pattern(/^WMP/))
+    .unique()
+    .required(),
+});
+
+const versionPageSchema = Joi.object({
+  agreement: Joi.object().unknown(true).required(),
+  grant: Joi.object().unknown(true).required(),
+  versions: Joi.array().items(Joi.object().unknown(true)).max(100).required(),
+  nextOffset: Joi.number().integer().min(1).allow(null).required(),
+});
+
+const sourceError = () =>
+  Boom.badGateway("Woodland migration source request failed");
+
+const sourceUrl = (path) =>
+  new URL(path, config.woodlandMigration.sourceUrl).toString();
+
+const get = async (path) => {
+  let response;
+
+  try {
+    response = await wreck.get(sourceUrl(path), {
+      headers: {
+        authorization: `Bearer ${config.woodlandMigration.token}`,
+      },
+      json: true,
+      timeout: requestTimeout,
+    });
+  } catch {
+    throw sourceError();
+  }
+
+  if (!successStatus(response.statusCode)) {
+    throw sourceError();
+  }
+
+  return response.payload;
+};
+
+const requireValid = (schema, value) => {
+  const result = schema.validate(value, {
+    abortEarly: false,
+    allowUnknown: false,
+    convert: false,
+  });
+
+  if (result.error) {
+    throw sourceError();
+  }
+
+  return result.value;
+};
+
+export const fetchWoodlandAgreementNumbers = async () => {
+  const payload = await get("/internal/migrations/woodland/agreements");
+  return requireValid(agreementNumbersSchema, payload).agreementNumbers;
+};
+
+// eslint-disable-next-line complexity
+export const fetchWoodlandAgreementVersionPages = async function* (
+  agreementNumber,
+) {
+  let offset = 0;
+
+  do {
+    const path = `/internal/migrations/woodland/agreements/${encodeURIComponent(agreementNumber)}/versions?offset=${offset}`;
+    let page;
+
+    try {
+      page = BSON.EJSON.deserialize(await get(path));
+    } catch {
+      throw sourceError();
+    }
+
+    page = requireValid(versionPageSchema, page);
+
+    if (page.nextOffset !== null && page.nextOffset <= offset) {
+      throw sourceError();
+    }
+
+    yield page;
+    offset = page.nextOffset;
+  } while (offset !== null);
+};
