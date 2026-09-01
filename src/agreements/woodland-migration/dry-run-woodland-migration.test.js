@@ -101,13 +101,32 @@ describe("dryRunWoodlandMigration", () => {
     });
   });
 
-  it("logs only hashed record IDs and version ordinals", async () => {
+  it("logs diagnostics in CDP-indexed ECS fields without source identifiers", async () => {
     await dryRunWoodlandMigration();
 
-    const logs = JSON.stringify(logger.info.mock.calls);
+    const contexts = logger.info.mock.calls.map(([context]) => context);
+    const logs = JSON.stringify(contexts);
     expect(logs).not.toContain("WMP0001");
     expect(logs).not.toContain("WMP0002");
-    expect(logs).toContain("woodland-migration-dry-run-completed");
-    expect(logs).toContain('"version":3');
+    expect(contexts.every((context) => context.event)).toBe(true);
+    expect(contexts.some((context) => context.migration)).toBe(false);
+    expect(contexts).toEqual(
+      expect.arrayContaining([
+        {
+          event: expect.objectContaining({
+            action: "woodland-migration-dry-run-version",
+            reference: expect.stringMatching(/:3$/),
+            outcome: "success",
+          }),
+        },
+        {
+          event: {
+            action: "woodland-migration-dry-run-completed",
+            outcome: "failure",
+            reason: "agreements=2 versions=3 failures=2",
+          },
+        },
+      ]),
+    );
   });
 });

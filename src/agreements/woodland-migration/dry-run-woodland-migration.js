@@ -20,29 +20,48 @@ const sourceIssues = (agreementNumber, page) =>
     ? []
     : [{ path: "agreementNumber", reason: "source.identity.mismatch" }];
 
+const eventTextMaxLength = 256;
+const issueReason = ({ path, reason }) =>
+  `${path}:${reason}`.slice(0, eventTextMaxLength);
+const versionReference = (agreementNumber, version) =>
+  `${recordId(agreementNumber)}:${version}`;
+
 const logVersion = ({ agreementNumber, version, issues }) => {
-  logger.info(
-    {
-      event: { action: "woodland-migration-dry-run-version" },
-      migration: {
-        recordId: recordId(agreementNumber),
-        version,
-        valid: issues.length === 0,
-        issues,
+  const event = {
+    action: "woodland-migration-dry-run-version",
+    reference: versionReference(agreementNumber, version),
+  };
+
+  if (issues.length === 0) {
+    logger.info(
+      { event: { ...event, outcome: "success" } },
+      "Woodland migration dry-run version passed validation",
+    );
+    return;
+  }
+
+  for (const issue of issues) {
+    logger.info(
+      {
+        event: {
+          ...event,
+          outcome: "failure",
+          reason: issueReason(issue),
+        },
       },
-    },
-    "Woodland migration dry-run checked a version",
-  );
+      "Woodland migration dry-run version failed validation",
+    );
+  }
 };
 
 const logEmptyAgreement = (agreementNumber) => {
   logger.info(
     {
-      event: { action: "woodland-migration-dry-run-agreement" },
-      migration: {
-        recordId: recordId(agreementNumber),
-        valid: false,
-        issues: [{ path: "versions", reason: "source.versions.empty" }],
+      event: {
+        action: "woodland-migration-dry-run-agreement",
+        reference: recordId(agreementNumber),
+        outcome: "failure",
+        reason: "versions:source.versions.empty",
       },
     },
     "Woodland migration dry-run found no versions",
@@ -127,8 +146,11 @@ export const dryRunWoodlandMigration = async () => {
   summary.valid = summary.failures === 0;
   logger.info(
     {
-      event: { action: "woodland-migration-dry-run-completed" },
-      migration: summary,
+      event: {
+        action: "woodland-migration-dry-run-completed",
+        outcome: summary.valid ? "success" : "failure",
+        reason: `agreements=${summary.agreements} versions=${summary.versions} failures=${summary.failures}`,
+      },
     },
     "Woodland migration dry-run completed",
   );
