@@ -318,12 +318,10 @@ const sourcePaymentIssues = (version) => {
     ? []
     : [{ path: "payment", reason: "woodland.payment-total.mismatch" }];
 
-  if (payment.payments !== undefined && !Array.isArray(payment.payments)) {
-    issues.push({
-      path: "payment.payments",
-      reason: "woodland.payment-schedule.unsupported",
-    });
-  } else if (payment.payments?.length > 1) {
+  if (
+    (payment.payments !== undefined && !Array.isArray(payment.payments)) ||
+    payment.payments?.length > 1
+  ) {
     issues.push({
       path: "payment.payments",
       reason: "woodland.payment-schedule.unsupported",
