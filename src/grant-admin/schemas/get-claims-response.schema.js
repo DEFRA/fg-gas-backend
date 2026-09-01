@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { entitlementTemplates } from "../../grants/schemas/grant/entitlement-template.js";
+import { entitlementTemplate } from "../../grants/schemas/grant/entitlement-template.js";
 
 // One labelled field of the page header: the label and type the grant
 // configured, with the reference in "text" replaced by what it pointed at. A
@@ -27,10 +27,23 @@ const banner = Joi.object({
   summary: Joi.object().pattern(Joi.string(), bannerField).optional(),
 }).label("ClaimsPageBanner");
 
+// An available template as answered here: the grant definition's template plus
+// how many entitlements already exist against it.
+export const availableEntitlement = entitlementTemplate
+  .keys({
+    createdCount: Joi.number().integer().min(0).required(),
+  })
+  .label("AvailableEntitlement");
+
+const availableEntitlements = Joi.array()
+  .items(availableEntitlement)
+  .unique("claimCode")
+  .label("AvailableEntitlements");
+
 // claimableEntitlements and claims are stubbed as empty by the use case until entitlement instances are written, so neither has a shape to pin down yet.
 export const getClaimsResponseSchema = Joi.object({
   banner: banner.required(),
-  availableEntitlements: entitlementTemplates,
+  availableEntitlements,
   claimableEntitlements: Joi.array(),
   claims: Joi.array(),
 });

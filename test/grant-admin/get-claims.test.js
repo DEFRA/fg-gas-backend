@@ -176,14 +176,19 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
     expect(response.payload.availableEntitlements).toEqual([]);
   });
 
-  it("excludes a template that has reached maxEntitlements", async () => {
+  it("still lists a template that has reached maxEntitlements", async () => {
     await seed({ entitlementTemplates: [template({ maxEntitlements: 1 })] });
     await entitlements.insertOne({ clientRef, code, claimCode });
 
     const response = await getClaims();
 
     expect(response.res.statusCode).toBe(200);
-    expect(response.payload.availableEntitlements).toEqual([]);
+    expect(response.payload.availableEntitlements).toHaveLength(1);
+    expect(response.payload.availableEntitlements[0]).toMatchObject({
+      claimCode,
+      maxEntitlements: 1,
+      createdCount: 1,
+    });
   });
 
   it("returns an empty list when the grant defines no templates", async () => {

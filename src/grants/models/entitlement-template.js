@@ -24,6 +24,7 @@ export class EntitlementTemplate {
       fields,
       maxEntitlements,
       availableAt,
+      help,
       claim,
     } = value;
 
@@ -34,6 +35,7 @@ export class EntitlementTemplate {
     this.fields = fields;
     this.maxEntitlements = maxEntitlements;
     this.availableAt = availableAt;
+    this.help = help;
     this.claim = claim;
   }
 
