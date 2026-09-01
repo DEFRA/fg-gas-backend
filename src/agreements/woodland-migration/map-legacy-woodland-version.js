@@ -1,6 +1,6 @@
 import Joi from "joi";
-import { Agreement } from "../../models/agreement.js";
-import { agreementValueSchema } from "../../schemas/agreement-value.schema.js";
+import { Agreement } from "../models/agreement.js";
+import { agreementValueSchema } from "../schemas/agreement-value.schema.js";
 
 const supportedStates = ["offered", "accepted"];
 
@@ -97,7 +97,7 @@ const splitParcelId = ({ sheetId, parcelId = "" }) => {
 
   const separator = parcelId.indexOf("-");
   return separator < 1
-    ? { sheetId: undefined, parcelId }
+    ? { parcelId }
     : {
         sheetId: parcelId.slice(0, separator),
         parcelId: parcelId.slice(separator + 1),
@@ -160,7 +160,10 @@ const mapItem = (version, item, index) => {
   });
 };
 
-const woodlandName = (agreementName) => agreementName?.replace(/\s+WMP$/i, "");
+const woodlandName = (agreementName) =>
+  agreementName?.toUpperCase().endsWith(" WMP")
+    ? agreementName.slice(0, -4)
+    : agreementName;
 
 const buildApplication = ({ version, applicant, parcels, items }) =>
   compact({

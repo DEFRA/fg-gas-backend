@@ -20,9 +20,20 @@ const grant = {
 const applicant = {
   business: {
     name: "Oakridge Estate",
-    address: { line1: "Farm House", postalCode: "YO1 1AA" },
+    address: {
+      line1: "Farm House",
+      line2: "Estate Road",
+      line3: "North Estate",
+      line4: "York",
+      line5: "North Yorkshire",
+      street: "Estate Road",
+      city: "York",
+      postalCode: "YO1 1AA",
+    },
   },
-  customer: { name: { first: "Alex", last: "Farmer" } },
+  customer: {
+    name: { title: "Ms", first: "Alex", middle: "J", last: "Farmer" },
+  },
 };
 
 const sourceVersion = {
@@ -142,6 +153,147 @@ describe("mapLegacyWoodlandVersion", () => {
       totalAgreementPaymentPence: 166200,
     });
     expect(validateMappedWoodlandVersion(mapped)).toEqual([]);
+  });
+
+  it("uses legacy metadata and Map fallbacks without changing source values", () => {
+    const mapped = mapLegacyWoodlandVersion({
+      agreement: {
+        agreementNumber: agreement.agreementNumber,
+        clientRef: "agreement-client",
+      },
+      grant: {
+        ...grant,
+        clientRef: "grant-client",
+        createdAt: "2026-04-01T10:00:00.000Z",
+      },
+      sourceVersion: {
+        ...sourceVersion,
+        agreementName: "Woodland plan",
+        clientRef: undefined,
+        code: undefined,
+        updatedAt: undefined,
+        application: {
+          parcel: [
+            {
+              parcelId: "INVALID",
+              area: {
+                unit: "ha",
+                quantity: Decimal128.fromString("0.00"),
+              },
+            },
+          ],
+        },
+        payment: {
+          ...sourceVersion.payment,
+          agreementTotalPence: 0,
+          annualTotalPence: 0,
+          agreementLevelItems: new Map([
+            [
+              "1",
+              {
+                code: "PA3",
+                description: "Woodland management plan",
+                quantity: Decimal128.fromString("0.00"),
+                annualPaymentPence: 0,
+              },
+            ],
+          ]),
+        },
+      },
+      version: 1,
+      configVersion: "1.0.0",
+    });
+
+    expect(mapped).toMatchObject({
+      code: "woodland",
+      clientRef: "grant-client",
+      name: "Woodland plan",
+      createdAt: "2026-04-01T10:00:00.000Z",
+      updatedAt: "2026-04-01T10:00:00.000Z",
+      items: [{ quantity: 0, unit: "ha", totalAmountPence: 0 }],
+    });
+  });
+
+  it("reports an incomplete offered version without inventing values", () => {
+    const mapped = map({
+      agreementName: "Incomplete WMP",
+      correlationId: "incomplete-correlation-id",
+      clientRef: agreement.clientRef,
+      identifiers: sourceVersion.identifiers,
+      scheme: "WMP",
+      status: "offered",
+      applicant: {},
+      application: { parcel: [] },
+      payment: { agreementTotalPence: 1 },
+      updatedAt: "not-a-date",
+    });
+
+    expect(validateMappedWoodlandVersion(mapped)).toEqual(
+      expect.arrayContaining([
+        { path: "parcels", reason: "woodland.parcels.empty" },
+        { path: "items", reason: "woodland.items.empty" },
+        {
+          path: "application",
+          reason: "woodland.acceptance-input.unresolved",
+        },
+        {
+          path: "totalAmountPence",
+          reason: "woodland.payment-total.mismatch",
+        },
+      ]),
+    );
+  });
+
+  it("maps the older application agreement-item and split parcel shape", () => {
+    const mapped = map({
+      ...sourceVersion,
+      status: "offered",
+      signatureDate: undefined,
+      application: {
+        agreement: [
+          {
+            code: "PA3",
+            description: "Woodland management plan",
+            annualPaymentPence: 166200,
+          },
+        ],
+        parcel: [
+          {
+            sheetId: "SD7560",
+            parcelId: "SD7560-9193",
+            actions: [],
+          },
+          {
+            sheetId: "SD5848",
+            parcelId: "9205",
+            actions: [],
+          },
+        ],
+      },
+      payment: {
+        ...sourceVersion.payment,
+        agreementLevelItems: {},
+      },
+    });
+
+    expect(mapped.parcels).toEqual([
+      {
+        id: "SD7560-9193",
+        sheetId: "SD7560",
+        parcelId: "9193",
+        area: undefined,
+      },
+      {
+        id: "SD5848-9205",
+        sheetId: "SD5848",
+        parcelId: "9205",
+        area: undefined,
+      },
+    ]);
+    expect(mapped.items[0]).toMatchObject({
+      code: "PA3",
+      totalAmountPence: 166200,
+    });
   });
 
   it("rejects Decimal128 quantities the GAS number domain cannot preserve", () => {

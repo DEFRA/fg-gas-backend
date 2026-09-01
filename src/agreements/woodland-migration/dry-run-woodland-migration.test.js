@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { config } from "../../../common/config.js";
-import { logger } from "../../../common/logger.js";
-import { loadAgreementDefinition } from "../../use-cases/load-agreement-definition.js";
+import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
+import { loadAgreementDefinition } from "../use-cases/load-agreement-definition.js";
 import { dryRunWoodlandMigration } from "./dry-run-woodland-migration.js";
 import {
   mapLegacyWoodlandVersion,
@@ -12,8 +12,8 @@ import {
   fetchWoodlandAgreementVersionPages,
 } from "./woodland-migration-source.js";
 
-vi.mock("../../../common/logger.js");
-vi.mock("../../use-cases/load-agreement-definition.js");
+vi.mock("../../common/logger.js");
+vi.mock("../use-cases/load-agreement-definition.js");
 vi.mock("./map-legacy-woodland-version.js");
 vi.mock("./woodland-migration-source.js");
 
@@ -73,6 +73,32 @@ describe("dryRunWoodlandMigration", () => {
       expect.objectContaining({ version: 3, configVersion: "1.0.0" }),
     );
     expect(fetchWoodlandAgreementVersionPages).toHaveBeenCalledTimes(2);
+  });
+
+  it("counts source identity and mapping failures", async () => {
+    fetchWoodlandAgreementNumbers.mockResolvedValue(["WMP0001"]);
+    fetchWoodlandAgreementVersionPages.mockImplementation(() =>
+      (async function* () {
+        yield {
+          agreement: { agreementNumber: "WMP0001" },
+          grant: { agreementNumber: "WMP9999" },
+          versions: [{ valid: true }, { valid: true }],
+          nextOffset: null,
+        };
+      })(),
+    );
+    mapLegacyWoodlandVersion
+      .mockImplementationOnce(() => {
+        throw new Error("sensitive mapping value");
+      })
+      .mockImplementation(({ sourceVersion }) => sourceVersion);
+
+    await expect(dryRunWoodlandMigration()).resolves.toEqual({
+      valid: false,
+      agreements: 1,
+      versions: 2,
+      failures: 2,
+    });
   });
 
   it("logs only hashed record IDs and version ordinals", async () => {

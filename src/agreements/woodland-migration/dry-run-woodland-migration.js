@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { config } from "../../../common/config.js";
-import { logger } from "../../../common/logger.js";
-import { loadAgreementDefinition } from "../../use-cases/load-agreement-definition.js";
+import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
+import { loadAgreementDefinition } from "../use-cases/load-agreement-definition.js";
 import {
   mapLegacyWoodlandVersion,
   validateMappedWoodlandVersion,
@@ -49,8 +49,61 @@ const logEmptyAgreement = (agreementNumber) => {
   );
 };
 
-// Paging keeps memory bounded; flattening the loops would require buffering.
-// eslint-disable-next-line complexity
+const validateVersion = ({ agreementNumber, page, sourceVersion, version }) => {
+  try {
+    const mapped = mapLegacyWoodlandVersion({
+      agreement: page.agreement,
+      grant: page.grant,
+      sourceVersion,
+      version,
+      configVersion: config.woodlandMigration.configVersion,
+    });
+    return [
+      ...sourceIssues(agreementNumber, page),
+      ...validateMappedWoodlandVersion(mapped),
+    ];
+  } catch {
+    return [{ path: "value", reason: "mapping.failed" }];
+  }
+};
+
+const processPage = (agreementNumber, page, firstVersion) => {
+  let failures = 0;
+
+  page.versions.forEach((sourceVersion, index) => {
+    const version = firstVersion + index;
+    const issues = validateVersion({
+      agreementNumber,
+      page,
+      sourceVersion,
+      version,
+    });
+    failures += Number(issues.length > 0);
+    logVersion({ agreementNumber, version, issues });
+  });
+
+  return { versions: page.versions.length, failures };
+};
+
+const processAgreement = async (agreementNumber) => {
+  const result = { versions: 0, failures: 0 };
+
+  for await (const page of fetchWoodlandAgreementVersionPages(
+    agreementNumber,
+  )) {
+    const pageResult = processPage(agreementNumber, page, result.versions + 1);
+    result.versions += pageResult.versions;
+    result.failures += pageResult.failures;
+  }
+
+  if (result.versions === 0) {
+    result.failures = 1;
+    logEmptyAgreement(agreementNumber);
+  }
+
+  return result;
+};
+
 export const dryRunWoodlandMigration = async () => {
   await loadAgreementDefinition({
     code: "woodland",
@@ -66,43 +119,9 @@ export const dryRunWoodlandMigration = async () => {
   };
 
   for (const agreementNumber of agreementNumbers) {
-    let agreementVersions = 0;
-
-    for await (const page of fetchWoodlandAgreementVersionPages(
-      agreementNumber,
-    )) {
-      for (const sourceVersion of page.versions) {
-        summary.versions += 1;
-        agreementVersions += 1;
-        let issues;
-
-        try {
-          const mapped = mapLegacyWoodlandVersion({
-            agreement: page.agreement,
-            grant: page.grant,
-            sourceVersion,
-            version: agreementVersions,
-            configVersion: config.woodlandMigration.configVersion,
-          });
-          issues = [
-            ...sourceIssues(agreementNumber, page),
-            ...validateMappedWoodlandVersion(mapped),
-          ];
-        } catch {
-          issues = [{ path: "value", reason: "mapping.failed" }];
-        }
-
-        if (issues.length > 0) {
-          summary.failures += 1;
-        }
-        logVersion({ agreementNumber, version: agreementVersions, issues });
-      }
-    }
-
-    if (agreementVersions === 0) {
-      summary.failures += 1;
-      logEmptyAgreement(agreementNumber);
-    }
+    const result = await processAgreement(agreementNumber);
+    summary.versions += result.versions;
+    summary.failures += result.failures;
   }
 
   summary.valid = summary.failures === 0;

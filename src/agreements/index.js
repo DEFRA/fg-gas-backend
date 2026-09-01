@@ -1,13 +1,13 @@
 import { config } from "../common/config.js";
 import { registerInternalCommandHandler } from "../common/internal-command-bus.js";
 import { internalCommandTypes } from "../common/internal-command-types.js";
-import { dryRunWoodlandMigrationRoute } from "./migrations/woodland/dry-run-woodland-migration.route.js";
 import { getAgreementByNumberRoute } from "./routes/get-agreement-by-number.route.js";
 import { getCurrentAgreementRoute } from "./routes/get-current-agreement.route.js";
 import { invokeAgreementActionRoute } from "./routes/invoke-agreement-action.route.js";
 import { prepareAgreementActionRoute } from "./routes/prepare-agreement-action.route.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 import { handleUpdateAgreementStatusCommandUseCase } from "./use-cases/handle-update-agreement-status-command.use-case.js";
+import { dryRunWoodlandMigrationRoute } from "./woodland-migration/dry-run-woodland-migration.route.js";
 
 const canHandleAgreementCommand = ({ data }) =>
   config.managedAgreementGrantCodes.includes(data.code);

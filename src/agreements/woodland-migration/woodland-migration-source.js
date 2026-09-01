@@ -1,11 +1,14 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
 import { BSON } from "mongodb";
-import { config } from "../../../common/config.js";
-import { wreck } from "../../../common/wreck.js";
+import { config } from "../../common/config.js";
+import { wreck } from "../../common/wreck.js";
 
 const requestTimeout = 30_000;
-const successStatus = (statusCode) => statusCode >= 200 && statusCode < 300;
+const successStatusMin = 200;
+const successStatusMax = 300;
+const successStatus = (statusCode) =>
+  statusCode >= successStatusMin && statusCode < successStatusMax;
 
 const agreementNumbersSchema = Joi.object({
   agreementNumbers: Joi.array()

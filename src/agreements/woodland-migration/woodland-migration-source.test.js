@@ -1,13 +1,13 @@
 import { Decimal128 } from "mongodb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { config } from "../../../common/config.js";
-import { wreck } from "../../../common/wreck.js";
+import { config } from "../../common/config.js";
+import { wreck } from "../../common/wreck.js";
 import {
   fetchWoodlandAgreementNumbers,
   fetchWoodlandAgreementVersionPages,
 } from "./woodland-migration-source.js";
 
-vi.mock("../../../common/wreck.js", () => ({
+vi.mock("../../common/wreck.js", () => ({
   wreck: { get: vi.fn() },
 }));
 
@@ -92,6 +92,51 @@ describe("Woodland migration source", () => {
     wreck.get.mockResolvedValue(response({ agreementNumbers: ["FPTT0001"] }));
 
     await expect(fetchWoodlandAgreementNumbers()).rejects.toMatchObject({
+      message: "Woodland migration source request failed",
+      output: { statusCode: 502 },
+    });
+  });
+
+  it("rejects source network and HTTP errors", async () => {
+    wreck.get.mockRejectedValueOnce(new Error("network secret"));
+    await expect(fetchWoodlandAgreementNumbers()).rejects.toMatchObject({
+      message: "Woodland migration source request failed",
+      output: { statusCode: 502 },
+    });
+
+    wreck.get.mockResolvedValueOnce(response({}, 503));
+    await expect(fetchWoodlandAgreementNumbers()).rejects.toMatchObject({
+      message: "Woodland migration source request failed",
+      output: { statusCode: 502 },
+    });
+  });
+
+  it("rejects a source offset that does not move forward", async () => {
+    wreck.get
+      .mockResolvedValueOnce(
+        response({
+          agreement: { agreementNumber: "WMP0001" },
+          grant: { agreementNumber: "WMP0001" },
+          versions: [{}],
+          nextOffset: 100,
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          agreement: { agreementNumber: "WMP0001" },
+          grant: { agreementNumber: "WMP0001" },
+          versions: [{}],
+          nextOffset: 100,
+        }),
+      );
+
+    const readPages = async () => {
+      for await (const page of fetchWoodlandAgreementVersionPages("WMP0001")) {
+        expect(page).toBeDefined();
+      }
+    };
+
+    await expect(readPages()).rejects.toMatchObject({
       message: "Woodland migration source request failed",
       output: { statusCode: 502 },
     });
