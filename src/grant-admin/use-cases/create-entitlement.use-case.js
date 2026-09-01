@@ -106,6 +106,41 @@ const flattenData = (data) =>
     Object.entries(data).map(([name, field]) => [name, field.value]),
   );
 
+const fieldNamesNotIn = (fieldNames, expectedFieldNames) =>
+  fieldNames.filter((name) => !expectedFieldNames.includes(name));
+
+const dataProblem = (kind, fieldNames) =>
+  fieldNames.length > 0 && `${kind} fields: ${fieldNames.join(", ")}`;
+
+const assertDataMatchesTemplate = ({ template, data, claimCode }) => {
+  const inputFieldNames = template.inputFieldNames();
+  const submittedFieldNames = Object.keys(data);
+  const missingFieldNames = fieldNamesNotIn(
+    inputFieldNames,
+    submittedFieldNames,
+  );
+  const unexpectedFieldNames = fieldNamesNotIn(
+    submittedFieldNames,
+    inputFieldNames,
+  );
+
+  if (missingFieldNames.length + unexpectedFieldNames.length === 0) {
+    return;
+  }
+
+  const problems = [
+    dataProblem("missing", missingFieldNames),
+    dataProblem("unexpected", unexpectedFieldNames),
+  ].filter(Boolean);
+
+  throw withErrorCode(
+    Boom.badData(
+      `Entitlement data for claim code '${claimCode}' does not match the template: ${problems.join("; ")}.`,
+    ),
+    "INVALID_ENTITLEMENT_DATA",
+  );
+};
+
 const fixedFields = (template) =>
   Object.entries(template.fields ?? {}).filter(([, field]) => !field.input);
 
@@ -167,6 +202,8 @@ export const createEntitlementUseCase = async ({
       clientRef,
       claimCode,
     });
+
+    assertDataMatchesTemplate({ template, data, claimCode });
 
     assertCapacity({ template, existing, claimCode });
 

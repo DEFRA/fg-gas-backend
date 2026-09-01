@@ -27,6 +27,11 @@ const template = {
       unitType: "string",
     },
   },
+  inputFieldNames() {
+    return Object.entries(this.fields)
+      .filter(([, field]) => field.input)
+      .map(([name]) => name);
+  },
 };
 
 const application = { clientRef, currentConfigVersion: "1.1.0" };
@@ -148,6 +153,48 @@ describe("create entitlement use case", () => {
         },
       },
     });
+  });
+
+  it("refuses data containing a field that is not an input in the template", async () => {
+    givenEntitlements();
+
+    await expect(
+      createEntitlementUseCase({
+        ...request,
+        data: { ...request.data, arbitrary: { value: "value" } },
+      }),
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 422,
+        payload: {
+          errorCode: "INVALID_ENTITLEMENT_DATA",
+          message: `Entitlement data for claim code '${claimCode}' does not match the template: unexpected fields: arbitrary.`,
+        },
+      },
+    });
+    expect(insertEntitlement).not.toHaveBeenCalled();
+  });
+
+  it("refuses data missing an input field from the template", async () => {
+    const templateWithTwoInputs = {
+      ...template,
+      fields: {
+        ...template.fields,
+        reference: { input: true, unitType: "string" },
+      },
+    };
+    givenEntitlements({ offerable: [templateWithTwoInputs] });
+
+    await expect(createEntitlementUseCase(request)).rejects.toMatchObject({
+      output: {
+        statusCode: 422,
+        payload: {
+          errorCode: "INVALID_ENTITLEMENT_DATA",
+          message: `Entitlement data for claim code '${claimCode}' does not match the template: missing fields: reference.`,
+        },
+      },
+    });
+    expect(insertEntitlement).not.toHaveBeenCalled();
   });
 
   it("refuses a claim code at its entitlement limit", async () => {
