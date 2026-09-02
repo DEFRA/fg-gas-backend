@@ -121,7 +121,7 @@ Example summary:
 
 Dry-run discards each page after validation. It creates no Agreement, AgreementVersion, payment, evidence record, event or migration-state record.
 
-Logs must not contain client references, raw agreement numbers, applicant data or legacy envelopes. Record references in logs use an opaque digest and a version ordinal. The final log entry states whether the run completed and includes counts by outcome and diagnostic reason.
+Logs must not contain client references, applicant data or legacy envelopes. Record references use the agreement number and version ordinal so operators can trace failures to source records. The final log entry states whether the run completed and includes counts by outcome and diagnostic reason.
 
 CDP only indexes its [streamlined ECS field set](https://github.com/DEFRA/cdp-documentation/blob/main/how-to/logging.md#current-streamlined-ecs-schema-on-cdp) in OpenSearch. Migration diagnostics therefore use nested `event.action`, `event.reference`, `event.outcome` and string `event.reason` fields. They do not use a custom `migration` object, which CDP would retain only in the raw S3 log and drop from OpenSearch.
 

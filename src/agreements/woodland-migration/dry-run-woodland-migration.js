@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { loadAgreementDefinition } from "../use-cases/load-agreement-definition.js";
@@ -11,9 +10,6 @@ import {
   fetchWoodlandAgreementVersionPages,
 } from "./woodland-migration-source.js";
 
-const recordId = (agreementNumber) =>
-  createHash("sha256").update(agreementNumber).digest("hex").slice(0, 16);
-
 const sourceIssues = (agreementNumber, page) =>
   page.agreement.agreementNumber === agreementNumber &&
   page.grant.agreementNumber === agreementNumber
@@ -24,7 +20,7 @@ const eventTextMaxLength = 256;
 const issueReason = ({ path, reason }) =>
   `${path}:${reason}`.slice(0, eventTextMaxLength);
 const versionReference = (agreementNumber, version) =>
-  `${recordId(agreementNumber)}:${version}`;
+  `${agreementNumber}:${version}`;
 
 const logVersion = ({ agreementNumber, version, issues }) => {
   const event = {
@@ -59,7 +55,7 @@ const logEmptyAgreement = (agreementNumber) => {
     {
       event: {
         action: "woodland-migration-dry-run-agreement",
-        reference: recordId(agreementNumber),
+        reference: agreementNumber,
         outcome: "failure",
         reason: "versions:source.versions.empty",
       },

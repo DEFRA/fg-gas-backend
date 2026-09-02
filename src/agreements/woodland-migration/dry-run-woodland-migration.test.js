@@ -101,13 +101,10 @@ describe("dryRunWoodlandMigration", () => {
     });
   });
 
-  it("logs diagnostics in CDP-indexed ECS fields without source identifiers", async () => {
+  it("logs diagnostics in CDP-indexed ECS fields with agreement references", async () => {
     await dryRunWoodlandMigration();
 
     const contexts = logger.info.mock.calls.map(([context]) => context);
-    const logs = JSON.stringify(contexts);
-    expect(logs).not.toContain("WMP0001");
-    expect(logs).not.toContain("WMP0002");
     expect(contexts.every((context) => context.event)).toBe(true);
     expect(contexts.some((context) => context.migration)).toBe(false);
     expect(contexts).toEqual(
@@ -115,8 +112,15 @@ describe("dryRunWoodlandMigration", () => {
         {
           event: expect.objectContaining({
             action: "woodland-migration-dry-run-version",
-            reference: expect.stringMatching(/:3$/),
+            reference: "WMP0001:3",
             outcome: "success",
+          }),
+        },
+        {
+          event: expect.objectContaining({
+            action: "woodland-migration-dry-run-agreement",
+            reference: "WMP0002",
+            outcome: "failure",
           }),
         },
         {
