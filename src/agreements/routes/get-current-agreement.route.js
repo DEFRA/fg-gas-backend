@@ -2,6 +2,7 @@ import { agreementIdentityHeadersSchema } from "../schemas/requests/agreement-ac
 import { getCurrentAgreementQuerySchema } from "../schemas/requests/get-current-agreement-query.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
 import { getCurrentAgreementPageModelUseCase } from "../use-cases/get-current-agreement-page-model.use-case.js";
+import { resolveAgreementAccess } from "../services/resolve-agreement-access.js";
 
 export const getCurrentAgreementRoute = {
   method: "GET",
@@ -18,11 +19,7 @@ export const getCurrentAgreementRoute = {
   },
   async handler(request, h) {
     const { mode } = request.query;
-    const {
-      "x-agreement-code": code,
-      "x-agreement-client-ref": clientRef,
-      "x-agreement-sbi": sbi,
-    } = request.headers;
+    const { code, clientRef, sbi } = resolveAgreementAccess(request);
     const { pageModel, etag } = await getCurrentAgreementPageModelUseCase({
       code,
       clientRef,

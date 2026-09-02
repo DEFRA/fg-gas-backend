@@ -16,6 +16,10 @@ services:
       GRANT_FUNDING_CALCULATOR_URL: "${GRANT_FUNDING_CALCULATOR_URL}"
       VIEW_AGREEMENT_URI: "${VIEW_AGREEMENT_URI}"
       GAS_MANAGED_AGREEMENT_GRANT_CODES: "${GAS_MANAGED_AGREEMENT_GRANT_CODES}"
+      # FGP-1307: caller-token enforcement. Defaults to on (secure) for local
+      # `docker compose up`; the integration test harness passes "false" so the
+      # header-driven authz scenarios keep working during the staged rollout.
+      CALLER_TOKEN_ENFORCE: "${CALLER_TOKEN_ENFORCE:-false}"
     depends_on:
       mongo-ready:
         condition: service_healthy

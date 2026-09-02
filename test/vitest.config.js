@@ -43,6 +43,11 @@ export default defineConfig({
       LOG_FORMAT: "pino-pretty",
       TRACING_HEADER: "x-cdp-request-id",
       ENVIRONMENT: "local",
+      // FGP-1307: these integration tests drive caller identity through the
+      // x-agreement-* headers (varying source/sbi/code per scenario). Caller-token
+      // enforcement is exercised by the auth unit tests; keep the integration
+      // suite in warn-only mode so it continues to validate route behaviour.
+      CALLER_TOKEN_ENFORCE: "false",
       VIEW_AGREEMENT_URI: "http://localhost:3000",
       GAS_MANAGED_AGREEMENT_GRANT_CODES: "pigs-might-fly,test-code-1",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:

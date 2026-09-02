@@ -84,6 +84,11 @@ export const setup = async ({ globalConfig }) => {
         VIEW_AGREEMENT_URI: env.VIEW_AGREEMENT_URI,
         GAS_MANAGED_AGREEMENT_GRANT_CODES:
           env.GAS_MANAGED_AGREEMENT_GRANT_CODES,
+        // FGP-1307: keep the containerised GAS in warn-only mode so the
+        // header-driven authz scenarios in these tests are not rejected with a
+        // 401 by caller-token enforcement (which is covered by the auth unit
+        // tests). Sourced from test/vitest.config.js.
+        CALLER_TOKEN_ENFORCE: env.CALLER_TOKEN_ENFORCE,
         GAS__SNS__AUDIT_TOPIC_ARN: env.GAS__SNS__AUDIT_TOPIC_ARN,
         GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
           env.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,

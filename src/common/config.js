@@ -12,6 +12,24 @@ const CALLER_TOKEN_ALLOWED_ISSUERS = Object.freeze([
   "agreements-pdf",
 ]);
 
+// FGP-1307: parse the optional caller-token keyring (JSON object of kid -> secret)
+// from its environment string. An unset or malformed value fails closed (empty
+// keyring) so a bad config cannot silently make an attacker-chosen kid verifiable.
+const isPlainObject = (value) =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const parseKeyring = (raw) => {
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return isPlainObject(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 const schema = Joi.object({
   NODE_ENV: Joi.string().allow("development", "production", "test"),
   SERVICE_NAME: Joi.string(),
@@ -73,6 +91,20 @@ const schema = Joi.object({
   // not call fg-cw-backend can boot without them.
   CW_BACKEND_URL: Joi.string().uri().optional(),
   CW_BACKEND_TOKEN: Joi.string().optional(),
+  // FGP-1307: logical key id the default AGREEMENTS_JWT_SECRET is stored under,
+  // and the kid assumed when an incoming caller token carries no kid header
+  // (e.g. grants-ui, intentionally left as-is for now).
+  AGREEMENTS_JWT_DEFAULT_KID: Joi.string().optional(),
+  // FGP-1307: optional JSON object of additional caller-token verification
+  // secrets keyed by kid, e.g. {"agreements-hs256-2":"<secret>"}. Supports key
+  // rotation via kid overlap alongside AGREEMENTS_JWT_SECRET.
+  AGREEMENTS_JWT_KEYRING: Joi.string().allow("").optional(),
+  // FGP-1307: when true, caller-token verification hard-fails (missing/invalid
+  // token or claim mismatch rejects the request) and GAS derives caller identity
+  // from the verified token instead of the unsigned x-agreement-* headers. When
+  // false it stays warn-only (backwards-compatible) and is the default. Feature-flag driven so
+  // enforcement can be rolled forward or back per environment.
+  CALLER_TOKEN_ENFORCE: Joi.boolean().optional(),
   // A client:sha256hex pair, e.g. some-service:1f0a... Empty or unset seeds
   // nothing and removes nothing. Deliberately not validated here: the shape is
   // enforced in src/auth/seed-access-token.js, where a bad value warns and
@@ -167,6 +199,9 @@ export const config = {
   // warn-only rollout.
   callerToken: {
     secret: vars.AGREEMENTS_JWT_SECRET,
+    defaultKid: vars.AGREEMENTS_JWT_DEFAULT_KID ?? "agreements-hs256-1",
+    keyring: parseKeyring(vars.AGREEMENTS_JWT_KEYRING),
+    enforce: vars.CALLER_TOKEN_ENFORCE ?? false,
     audience: "gas",
     allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
   },

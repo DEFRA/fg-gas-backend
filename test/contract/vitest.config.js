@@ -27,6 +27,11 @@ export default defineConfig({
       AWS_ENDPOINT_URL: `http://localhost:${FLOCI_PORT}`,
       AWS_ACCESS_KEY_ID: "test",
       AWS_SECRET_ACCESS_KEY: "test",
+      // FGP-1307: contract verification replays consumer requests that carry the
+      // x-agreement-* headers but no caller token. Caller-token enforcement is
+      // covered by the auth unit tests; keep provider verification in warn-only
+      // mode so existing consumer contracts continue to verify.
+      CALLER_TOKEN_ENFORCE: "false",
       VIEW_AGREEMENT_URI: "http://localhost:3000",
       FIFO_LOCK_TTL_MS: 5000,
       CASE_STAGE_UPDATES_QUEUE_URL: `http://sqs.eu-west-2.127.0.0.1:${FLOCI_PORT}/000000000000/case_stage_updated_fifo.fifo`,
