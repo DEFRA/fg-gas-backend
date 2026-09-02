@@ -1,6 +1,8 @@
+import { ObjectId } from "mongodb";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { db } from "../../common/mongo-client.js";
+import { paginate } from "../../common/paginate.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 
 const collection = "outbox";
@@ -8,6 +10,43 @@ const collection = "outbox";
 const MAX_RETRIES = config.outbox.outboxMaxRetries;
 const EXPIRES_IN_MS = config.outbox.outboxExpiresMs;
 const NUMBER_OF_RECORDS = config.outbox.outboxClaimMaxRecords;
+
+// Generic outbox fields plus the handful of event subfields the list derives
+// its id, type and trace link from. Never the full `event`, `event.data`, or
+// `claimedBy`.
+const listProjection = {
+  _id: 1,
+  target: 1,
+  "event.id": 1,
+  "event.type": 1,
+  "event.traceparent": 1,
+  "event.audit.entities.entity": 1,
+  "event.audit.entities.action": 1,
+  status: 1,
+  completionAttempts: 1,
+  publicationDate: 1,
+  lastResubmissionDate: 1,
+  completionDate: 1,
+  segregationRef: 1,
+};
+
+// publicationDate is a native Date on every outbox document
+// (models/outbox.js:37), so the cursor carries it as an ISO string.
+const listCodecs = {
+  publicationDate: {
+    encode: (value) => (value instanceof Date ? value.toISOString() : value),
+    decode: (value) => new Date(value),
+  },
+  _id: {
+    encode: (id) => id.toString(),
+    decode: (hex) => ObjectId.createFromHexString(hex),
+  },
+};
+
+// Extracted so `findPage` stays inside the configured complexity max of 4.
+const listFilter = (status) => (status ? { status } : {});
+
+const listSort = { publicationDate: -1, _id: -1 };
 
 export const deadLetterEvent = async (event) => {
   const results = await db.collection(collection).updateOne(
@@ -166,3 +205,19 @@ export const updateDeadEvents = async () => {
   );
   return results;
 };
+
+export const findPage = async ({
+  cursor,
+  direction = "forward",
+  pageSize = 20,
+  status,
+} = {}) =>
+  paginate(db.collection(collection), {
+    filter: listFilter(status),
+    sort: listSort,
+    codecs: listCodecs,
+    cursor,
+    direction,
+    pageSize,
+    project: listProjection,
+  });

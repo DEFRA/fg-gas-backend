@@ -32,7 +32,13 @@ export class Outbox {
     }
 
     this._id = props._id;
-    this.publicationDate = props.publicationDate || new Date();
+    // Always a BSON Date: a document read back with a legacy *string*
+    // publicationDate must not be written out as a string again, or it would
+    // re-introduce the mixed-type keyset fault that
+    // migrations/20260901130000-normalise-event-sort-keys.js exists to fix.
+    this.publicationDate = props.publicationDate
+      ? new Date(props.publicationDate)
+      : new Date();
     this.target = props.target;
     this.event = props.event;
     this.lastResubmissionDate = props.lastResubmissionDate;

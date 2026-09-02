@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
@@ -8,6 +9,7 @@ import {
   claimEvents,
   deadLetterEvent,
   findNextMessage,
+  findPage,
   insertMany,
   update,
   updateDeadEvents,
@@ -295,6 +297,213 @@ describe("outbox.repository", () => {
           },
         },
       );
+    });
+  });
+
+  describe("findPage", () => {
+    const mockFindChain = (docs) => {
+      const chain = {
+        project: vi.fn().mockReturnThis(),
+        sort: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        toArray: vi.fn().mockResolvedValue(docs),
+      };
+      const find = vi.fn().mockReturnValue(chain);
+      db.collection.mockReturnValue({ find });
+      return { find, chain };
+    };
+
+    const decodeCursor = (cursor) =>
+      JSON.parse(Buffer.from(cursor, "base64url").toString());
+
+    const listProjection = {
+      _id: 1,
+      target: 1,
+      "event.id": 1,
+      "event.type": 1,
+      "event.traceparent": 1,
+      "event.audit.entities.entity": 1,
+      "event.audit.entities.action": 1,
+      status: 1,
+      completionAttempts: 1,
+      publicationDate: 1,
+      lastResubmissionDate: 1,
+      completionDate: 1,
+      segregationRef: 1,
+    };
+
+    const id = "665f1c2e9a1b2c3d4e5f6a7b";
+    const publicationDate = new Date("2026-06-16T10:00:00.000Z");
+
+    it("queries the outbox newest-first with the _id tie-breaker", async () => {
+      const { find, chain } = mockFindChain([]);
+
+      await findPage();
+
+      expect(find).toHaveBeenCalledWith({});
+      expect(chain.sort).toHaveBeenCalledWith({
+        publicationDate: -1,
+        _id: -1,
+      });
+      expect(chain.limit).toHaveBeenCalledWith(21);
+    });
+
+    it("requests pageSize + 1 documents", async () => {
+      const { chain } = mockFindChain([]);
+
+      await findPage({ pageSize: 5 });
+
+      expect(chain.limit).toHaveBeenCalledWith(6);
+    });
+
+    it("projects only the generic list fields and the derivable event subfields", async () => {
+      const { chain } = mockFindChain([]);
+
+      await findPage();
+
+      expect(chain.project).toHaveBeenCalledWith(listProjection);
+    });
+
+    it("never projects the full event, event.data, audit details or claim fields", async () => {
+      const { chain } = mockFindChain([]);
+
+      await findPage();
+
+      const projection = chain.project.mock.calls[0][0];
+      for (const field of [
+        "event",
+        "event.data",
+        "claimedBy",
+        "claimedAt",
+        "claimExpiresAt",
+        "event.audit.entities.entityid",
+        "event.audit.details",
+      ]) {
+        expect(projection).not.toHaveProperty(field);
+      }
+    });
+
+    it("projects no event key beyond id, type, traceparent and the two audit entity keys", async () => {
+      const { chain } = mockFindChain([]);
+
+      await findPage();
+
+      const eventKeys = Object.keys(chain.project.mock.calls[0][0]).filter(
+        (key) => key.startsWith("event"),
+      );
+
+      expect(eventKeys).toEqual([
+        "event.id",
+        "event.type",
+        "event.traceparent",
+        "event.audit.entities.entity",
+        "event.audit.entities.action",
+      ]);
+    });
+
+    it("applies the status filter when given", async () => {
+      const { find } = mockFindChain([]);
+
+      await findPage({ status: OutboxStatus.FAILED });
+
+      expect(find).toHaveBeenCalledWith({ status: "FAILED" });
+    });
+
+    it("returns every status when no filter is given", async () => {
+      const { find } = mockFindChain([]);
+
+      await findPage({});
+
+      expect(find).toHaveBeenCalledWith({});
+    });
+
+    it("encodes a Date publicationDate as ISO in the cursor", async () => {
+      mockFindChain([
+        { _id: ObjectId.createFromHexString(id), publicationDate },
+      ]);
+
+      const result = await findPage();
+
+      expect(decodeCursor(result.pagination.startCursor)).toEqual({
+        publicationDate: "2026-06-16T10:00:00.000Z",
+        _id: id,
+      });
+    });
+
+    it("decodes the cursor back to a Date for the paging filter", async () => {
+      const cursor = Buffer.from(
+        JSON.stringify({
+          publicationDate: "2026-06-16T10:00:00.000Z",
+          _id: id,
+        }),
+      ).toString("base64url");
+      const { find } = mockFindChain([]);
+
+      await findPage({ cursor });
+
+      const filter = find.mock.calls[0][0];
+      expect(filter.$or[0].publicationDate.$lt).toEqual(
+        new Date("2026-06-16T10:00:00.000Z"),
+      );
+      expect(filter.$or[1]._id.$lt).toBeInstanceOf(ObjectId);
+    });
+
+    it("rejects a tampered cursor", async () => {
+      mockFindChain([]);
+
+      await expect(findPage({ cursor: "!!!not-base64!!!" })).rejects.toThrow(
+        "Cannot decode cursor",
+      );
+
+      mockFindChain([]);
+
+      const nonHex = Buffer.from(
+        JSON.stringify({
+          publicationDate: "2026-06-16T10:00:00.000Z",
+          _id: "nope",
+        }),
+      ).toString("base64url");
+
+      await expect(findPage({ cursor: nonHex })).rejects.toThrow(
+        "Cannot decode cursor",
+      );
+    });
+
+    it("reverses order for a backward page", async () => {
+      const older = {
+        _id: ObjectId.createFromHexString("665f1c2e9a1b2c3d4e5f6a7a"),
+        publicationDate: new Date("2026-06-16T09:00:00.000Z"),
+      };
+      const newer = { _id: ObjectId.createFromHexString(id), publicationDate };
+      const { chain } = mockFindChain([older, newer]);
+
+      const result = await findPage({ direction: "backward" });
+
+      expect(chain.sort).toHaveBeenCalledWith({ publicationDate: 1, _id: 1 });
+      expect(result.data).toEqual([newer, older]);
+    });
+
+    it("returns audit rows with only entity and action", async () => {
+      const auditDoc = {
+        _id: ObjectId.createFromHexString(id),
+        target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit",
+        event: {
+          audit: {
+            entities: [{ entity: "APPLICATION", action: "CREATE" }],
+          },
+        },
+        status: OutboxStatus.COMPLETED,
+        completionAttempts: 1,
+        publicationDate,
+        segregationRef: "ref-1",
+      };
+      mockFindChain([auditDoc]);
+
+      const result = await findPage();
+
+      expect(result.data).toEqual([auditDoc]);
+      expect(result.data[0].event).not.toHaveProperty("id");
+      expect(result.data[0].event).not.toHaveProperty("type");
     });
   });
 });

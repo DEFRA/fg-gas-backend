@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import * as path from "node:path";
 import { styleText } from "node:util";
 import { DockerComposeEnvironment, Wait } from "testcontainers";
+import { startCwStub, stopCwStub } from "./helpers/cw-stub.js";
 import { ensureQueues } from "./helpers/sqs.js";
 
 let environment;
@@ -68,11 +69,15 @@ export const setup = async ({ globalConfig }) => {
   const composeFilePath = path.resolve(import.meta.dirname, "..");
 
   const fundingCalculatorUrl = await startFundingCalculator();
+  // Started before the stack so GAS boots with CW_BACKEND_URL already pointing
+  // at it. Tests drive it over its control endpoints; see helpers/cw-stub.js.
+  await startCwStub(Number(env.CW_STUB_PORT), env.CW_BACKEND_TOKEN);
+
   try {
-    environment = await new DockerComposeEnvironment(
-      composeFilePath,
+    environment = await new DockerComposeEnvironment(composeFilePath, [
       "compose.yml",
-    )
+      "compose/compose.test-cw.yml",
+    ])
       .withBuild()
       .withEnvironment({
         GAS_PORT: env.GAS_PORT,
@@ -89,11 +94,15 @@ export const setup = async ({ globalConfig }) => {
           env.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
         GAS__SNS__CREATE_PAYMENT_TOPIC_ARN:
           env.GAS__SNS__CREATE_PAYMENT_TOPIC_ARN,
+        CW_BACKEND_URL: `http://host.docker.internal:${env.CW_STUB_PORT}`,
+        CW_BACKEND_TOKEN: env.CW_BACKEND_TOKEN,
+        HTTP_CLIENT_TIMEOUT_MS: env.HTTP_CLIENT_TIMEOUT_MS,
       })
       .withWaitStrategy("gas", Wait.forHttp("/health"))
       .up();
   } catch (error) {
     await stopFundingCalculator();
+    await stopCwStub();
     throw error;
   }
 
@@ -120,4 +129,5 @@ export const setup = async ({ globalConfig }) => {
 export const teardown = async () => {
   await environment?.down();
   await stopFundingCalculator();
+  await stopCwStub();
 };

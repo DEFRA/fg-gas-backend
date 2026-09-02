@@ -138,11 +138,43 @@ describe("Outbox model", () => {
 
     const newDoc = out.toDocument();
     expect(newDoc._id).toBe("68f0cbf0680515dd0e0359d2");
-    expect(newDoc.publicationDate).toBe("2025-10-16T10:41:52.964Z");
+    // Normalised to a Date on the way through the model: a legacy string must
+    // never be written back as a string. See the mixed-type keyset fault in
+    // migrations/20260901130000-normalise-event-sort-keys.js.
+    expect(newDoc.publicationDate).toBeInstanceOf(Date);
+    expect(newDoc.publicationDate).toEqual(
+      new Date("2025-10-16T10:41:52.964Z"),
+    );
     expect(newDoc.target).toBe(
       "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_agreement",
     );
     expect(newDoc.event).toBe(out.event);
+  });
+
+  it("converts a string publicationDate to a Date", () => {
+    const obj = new Outbox({
+      publicationDate: "2025-10-16T10:41:52.964Z",
+      event: { clientRef: "1234" },
+      target: "arn:some:target",
+      segregationRef: "seg-ref-1",
+    });
+
+    expect(obj.publicationDate).toBeInstanceOf(Date);
+    expect(obj.publicationDate).toEqual(new Date("2025-10-16T10:41:52.964Z"));
+    expect(obj.toDocument().publicationDate).toBeInstanceOf(Date);
+  });
+
+  it("leaves a Date publicationDate as an equivalent Date", () => {
+    const date = new Date("2025-10-16T10:41:52.964Z");
+    const obj = new Outbox({
+      publicationDate: date,
+      event: { clientRef: "1234" },
+      target: "arn:some:target",
+      segregationRef: "seg-ref-1",
+    });
+
+    expect(obj.publicationDate).toBeInstanceOf(Date);
+    expect(obj.publicationDate).toEqual(date);
   });
 
   it("should throw Boom error when required fields are missing", () => {
