@@ -49,6 +49,11 @@ const schema = Joi.object({
   MONGO_URI: Joi.string(),
   MONGO_DATABASE: Joi.string(),
   TRACING_HEADER: Joi.string(),
+  HTTP_CLIENT_TIMEOUT_MS: Joi.number()
+    .integer()
+    .positive()
+    .optional()
+    .default(10_000),
   AWS_REGION: Joi.string(),
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
   ENVIRONMENT: Joi.string(),
@@ -137,6 +142,9 @@ export const config = {
   mongoUri: vars.MONGO_URI,
   mongoDatabase: vars.MONGO_DATABASE,
   tracingHeader: vars.TRACING_HEADER,
+  httpClient: {
+    timeoutMs: vars.HTTP_CLIENT_TIMEOUT_MS,
+  },
   viewAgreementUri: vars.VIEW_AGREEMENT_URI,
   managedAgreementGrantCodes: vars.GAS_MANAGED_AGREEMENT_GRANT_CODES.split(",")
     .map((code) => code.trim())

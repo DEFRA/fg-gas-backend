@@ -1,14 +1,6 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   ConfigVersion,
   FetchStatus,
@@ -36,12 +28,6 @@ beforeAll(async () => {
   const db = client.db(env.MONGO_DATABASE);
   grants = db.collection("grants");
   configVersions = db.collection("config_versions");
-});
-
-beforeEach(() => {
-  // Mongo collections are purged by the global test/cleanup.js beforeEach.
-  // Mocks are not: the integration vitest config sets no clearMocks.
-  vi.clearAllMocks();
 });
 
 afterAll(async () => {
@@ -112,6 +98,13 @@ const entitlementTemplate = {
   },
   maxEntitlements: 1,
   availableAt: [availableAt],
+  help: {
+    summary: "How is the claim amount calculated?",
+    content: [
+      { text: "Threshold payments for eligible land in hectares (ha):" },
+      { items: ["0.5ha to 50ha: flat rate of \u00a31,500"] },
+    ],
+  },
   claim: {
     limits: { maximumClaims: 1, allowsPartialClaims: false },
     requiresApproval: false,

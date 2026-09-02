@@ -1,10 +1,26 @@
+import Boom from "@hapi/boom";
 import hapi from "@hapi/hapi";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { findClaimsUseCase } from "../use-cases/find-claims.use-case.js";
-import { getClaimsRoute } from "./get-claims.route.js";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { findClaimUseCase } from "../use-cases/find-claim.use-case.js";
+import { getClaimRoute } from "./get-claim.route.js";
 
-vi.mock("../use-cases/find-claims.use-case.js");
-vi.mock("../../common/logger.js");
+vi.mock("../use-cases/find-claim.use-case.js");
+vi.mock("../../common/logger.js", () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
 
 const template = {
   claimCode: "ENT_CS_CAPITAL_PA3",
@@ -45,70 +61,78 @@ const banner = {
   },
 };
 
-const url = (code, clientRef) =>
-  `/grant-admin/grants/${code}/applications/${clientRef}/claims`;
+const url = (code, clientRef, claimCode) =>
+  `/grant-admin/grants/${code}/applications/${clientRef}/claims/${claimCode}`;
 
-describe("getClaimsRoute", () => {
+describe("getClaimRoute", () => {
   let server;
 
   beforeAll(async () => {
     server = hapi.server();
-    server.route(getClaimsRoute);
+    server.route(getClaimRoute);
     await server.initialize();
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
   afterAll(async () => {
     await server.stop();
   });
 
-  it("returns the claims data for code and clientRef", async () => {
+  it("returns the claims data and the template for the claim code", async () => {
     const code = "grant-1";
     const clientRef = "ref-1234";
+    const claimCode = template.claimCode;
 
-    findClaimsUseCase.mockResolvedValue({
+    findClaimUseCase.mockResolvedValue({
       banner,
       availableEntitlements: [template],
       claimableEntitlements: [],
       claims: [],
+      entitlementTemplate: template,
     });
 
     const result = await server.inject({
       method: "GET",
-      url: url(code, clientRef),
+      url: url(code, clientRef, claimCode),
     });
 
     expect(result.statusCode).toEqual(200);
-    expect(findClaimsUseCase).toHaveBeenCalledWith({
+    expect(findClaimUseCase).toHaveBeenCalledWith({
       code,
       clientRef,
+      claimCode,
     });
     expect(result.result).toEqual({
       banner,
       availableEntitlements: [template],
       claimableEntitlements: [],
       claims: [],
+      entitlementTemplate: template,
     });
   });
 
-  it("returns empty lists when nothing is available", async () => {
-    findClaimsUseCase.mockResolvedValue({
-      banner,
-      availableEntitlements: [],
-      claimableEntitlements: [],
-      claims: [],
-    });
+  it("returns 409 when the claim code already has an entitlement", async () => {
+    findClaimUseCase.mockRejectedValue(Boom.conflict("already exists"));
 
     const result = await server.inject({
       method: "GET",
-      url: url("grant-1", "ref-1234"),
+      url: url("grant-1", "ref-1234", template.claimCode),
     });
 
-    expect(result.statusCode).toEqual(200);
-    expect(result.result).toEqual({
-      banner,
-      availableEntitlements: [],
-      claimableEntitlements: [],
-      claims: [],
+    expect(result.statusCode).toEqual(409);
+  });
+
+  it("returns 404 when the claim code is not available", async () => {
+    findClaimUseCase.mockRejectedValue(Boom.notFound("not available"));
+
+    const result = await server.inject({
+      method: "GET",
+      url: url("grant-1", "ref-1234", "ENT_UNKNOWN"),
     });
+
+    expect(result.statusCode).toEqual(404);
   });
 });
