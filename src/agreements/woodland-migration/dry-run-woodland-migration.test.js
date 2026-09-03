@@ -160,6 +160,58 @@ describe("dryRunWoodlandMigration", () => {
     );
   });
 
+  it("rejects conflicting values used by mapping fallbacks", async () => {
+    fetchWoodlandAgreementNumbers.mockResolvedValue(["WMP0001"]);
+    fetchWoodlandAgreementVersionPages.mockImplementation(() =>
+      (async function* () {
+        yield {
+          agreement: { agreementNumber: "WMP0001", code: "woodland" },
+          grant: { agreementNumber: "WMP0001", code: "other" },
+          versions: [
+            {
+              valid: true,
+              code: "woodland",
+              scheme: "WMP",
+              schemeCode: "OTHER",
+              agreementName: "Woodland plan",
+              name: "Different plan",
+            },
+          ],
+          nextOffset: null,
+        };
+      })(),
+    );
+
+    await expect(dryRunWoodlandMigration()).resolves.toEqual({
+      valid: false,
+      agreements: 1,
+      versions: 1,
+      failures: 1,
+    });
+    expect(logger.info.mock.calls.map(([context]) => context)).toEqual(
+      expect.arrayContaining([
+        {
+          event: expect.objectContaining({
+            outcome: "failure",
+            reason: "code:source.value.mismatch",
+          }),
+        },
+        {
+          event: expect.objectContaining({
+            outcome: "failure",
+            reason: "schemeCode:source.value.mismatch",
+          }),
+        },
+        {
+          event: expect.objectContaining({
+            outcome: "failure",
+            reason: "name:source.value.mismatch",
+          }),
+        },
+      ]),
+    );
+  });
+
   it("logs diagnostics in CDP-indexed ECS fields with agreement references", async () => {
     await dryRunWoodlandMigration();
 

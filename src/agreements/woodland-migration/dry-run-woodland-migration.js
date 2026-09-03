@@ -15,6 +15,11 @@ const identityIssue = (path) => ({
   reason: "source.identity.mismatch",
 });
 
+const sourceValueIssue = (path) => ({
+  path,
+  reason: "source.value.mismatch",
+});
+
 const hasConflictingValues = (values) => {
   const observed = values
     .filter((value) => value !== undefined && value !== null)
@@ -40,6 +45,15 @@ const identityFieldIssues = (page, sourceVersion) =>
     hasConflictingValues(values) ? [identityIssue(path)] : [],
   );
 
+const mappedFieldIssues = (page, sourceVersion) =>
+  [
+    ["code", [page.agreement.code, page.grant.code, sourceVersion.code]],
+    ["schemeCode", [sourceVersion.scheme, sourceVersion.schemeCode]],
+    ["name", [sourceVersion.agreementName, sourceVersion.name]],
+  ].flatMap(([path, values]) =>
+    hasConflictingValues(values) ? [sourceValueIssue(path)] : [],
+  );
+
 const sourceIssues = (agreementNumber, page, sourceVersion) => [
   ...(hasConflictingValues([
     agreementNumber,
@@ -49,6 +63,7 @@ const sourceIssues = (agreementNumber, page, sourceVersion) => [
     ? [identityIssue("agreementNumber")]
     : []),
   ...identityFieldIssues(page, sourceVersion),
+  ...mappedFieldIssues(page, sourceVersion),
 ];
 
 const eventTextMaxLength = 256;
