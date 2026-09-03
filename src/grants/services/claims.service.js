@@ -196,7 +196,7 @@ const auditDataBuilder = (args, result) => {
   });
 };
 
-const insertClaim = async ({ command, claimable }, session) => {
+const insertClaim = async ({ command }, session) => {
   const insertedId = await insert(
     {
       code: command.code,
@@ -280,11 +280,9 @@ const submitInTransaction = async (
     return replay;
   }
 
-  const claimable = await claimableWithCapacity(
-    { command, grant, application },
-    session,
-  );
-  return insertClaimWithAudit({ command, claimable }, session);
+  await claimableWithCapacity({ command, grant, application }, session);
+
+  return insertClaimWithAudit({ command }, session);
 };
 
 const replayAfterDuplicate = async (error, command) => {

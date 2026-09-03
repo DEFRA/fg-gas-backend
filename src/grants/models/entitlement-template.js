@@ -102,12 +102,12 @@ export class EntitlementTemplate {
   }
 
   #submittedDataMatches(submittedData) {
-    const expected = this.inputFieldNames().sort();
-    const submitted = Object.keys(submittedData ?? {}).sort();
+    const expected = this.inputFieldNames();
+    const submitted = Object.keys(submittedData ?? {});
 
     return (
       expected.length === submitted.length &&
-      expected.every((fieldName, index) => fieldName === submitted[index])
+      expected.every((fieldName) => submitted.includes(fieldName))
     );
   }
 
@@ -131,5 +131,7 @@ export class EntitlementTemplate {
     if (instances.length >= this.maxEntitlements) {
       return EntitlementCreationRejection.CAPACITY_REACHED;
     }
+
+    return undefined;
   }
 }

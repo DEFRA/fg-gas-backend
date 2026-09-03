@@ -16,7 +16,9 @@ export const buildClaimsView = async ({
   };
 };
 
-const toAvailableEntitlement = ({ remainingCapacity, ...option }) => option;
+// remainingCapacity is destructured only to keep it out of the view model.
+const toAvailableEntitlement = ({ remainingCapacity: _ignored, ...option }) =>
+  option;
 
 export const toEntitlement = (entitlement) => structuredClone(entitlement);
 

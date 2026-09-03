@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
+import { buildAuditEvent } from "../../common/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
 import {
@@ -16,8 +17,18 @@ import { listClaimableEntitlements, submitClaim } from "./claims.service.js";
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../common/with-audit.js", () => ({
-  buildAuditEvent: vi.fn(),
-  withAudit: (fn) => fn,
+  buildAuditEvent: vi.fn((event) => event),
+  withAudit:
+    (fn, dataBuilder) =>
+    async (...args) => {
+      let result;
+      try {
+        result = await fn(...args);
+        return result;
+      } finally {
+        dataBuilder(args, result);
+      }
+    },
 }));
 vi.mock("../../common/mongo-errors.js", () => ({
   isMongoDuplicateKeyError: vi.fn((error) => error?.duplicate),
@@ -96,6 +107,103 @@ describe("claims.service", () => {
     existsByClientClaimRef.mockResolvedValue(false);
     countByClaimCode.mockResolvedValue(0);
     insert.mockResolvedValue(new ObjectId("64b0c0c0c0c0c0c0c0c0c0c0"));
+  });
+
+  it.each([
+    ["grant code", { grantCode: "other-grant" }, /grant code provided/],
+    ["client reference", { clientRef: "other-ref" }, /client reference/],
+    // The path/payload guard runs before any promise is returned, so this
+    // throws synchronously rather than rejecting.
+  ])("refuses a payload whose %s does not match the path", (_l, o, m) => {
+    const mismatched = {
+      ...payload,
+      metadata: { ...payload.metadata, ...o },
+    };
+
+    expect(() => submitClaim({ code, clientRef, payload: mismatched })).toThrow(
+      m,
+    );
+    expect(withTransaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the grant cannot be resolved", async () => {
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: null });
+
+    await expect(
+      submitClaim({ code, clientRef, payload }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+  });
+
+  it("refuses when the claim code is not defined by the grant", async () => {
+    const other = {
+      ...payload,
+      metadata: { ...payload.metadata, claimCode: "ENT_UNKNOWN" },
+    };
+
+    await expect(
+      submitClaim({ code, clientRef, payload: other }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+  });
+
+  it("refuses when the application disappears before the lock", async () => {
+    lockForUpdate.mockResolvedValue(null);
+
+    await expect(
+      submitClaim({ code, clientRef, payload }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+  });
+
+  it("refuses a claim at a position the entitlement is not claimable at", async () => {
+    lockForUpdate.mockResolvedValue(
+      application({ currentStage: "AWARD", currentStatus: "OFFER_ACCEPTED" }),
+    );
+
+    await expect(
+      submitClaim({ code, clientRef, payload }),
+    ).rejects.toMatchObject({ output: { statusCode: 409 } });
+  });
+
+  it("offers nothing for a template that configures no claim block", async () => {
+    const noClaim = grant();
+    delete noClaim.entitlementTemplates[0].claim;
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: noClaim });
+
+    await expect(
+      listClaimableEntitlements({ code, clientRef }),
+    ).resolves.toEqual([]);
+  });
+
+  it("audits a submitted claim against the inserted claim id", async () => {
+    await submitClaim({ code, clientRef, payload });
+
+    expect(buildAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entity: "CLAIM",
+        action: "SUBMIT",
+        entityid: "64b0c0c0c0c0c0c0c0c0c0c0",
+        details: expect.objectContaining({ code, clientRef, claimCode }),
+      }),
+    );
+  });
+
+  it("builds no audit event when the claim write fails", async () => {
+    insert.mockRejectedValue(new Error("write failed"));
+
+    await expect(submitClaim({ code, clientRef, payload })).rejects.toThrow(
+      "write failed",
+    );
+    expect(buildAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("returns the existing claim when a concurrent submission won in-session", async () => {
+    existsByClientClaimRef
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    await expect(submitClaim({ code, clientRef, payload })).resolves.toEqual({
+      created: false,
+    });
+    expect(insert).not.toHaveBeenCalled();
   });
 
   it("lists materialised and persisted claimable entitlements", async () => {

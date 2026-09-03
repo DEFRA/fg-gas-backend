@@ -70,6 +70,7 @@ const template = {
   help: undefined,
   claim: undefined,
   isAvailableAt: vi.fn(() => true),
+  inputFieldNames: vi.fn(() => ["hectares"]),
   assessEntitlementCreation: vi.fn(() => ({
     allowed: true,
     nextInstanceNumber: 1,
@@ -108,6 +109,7 @@ describe("EntitlementService", () => {
       nextInstanceNumber: 1,
     });
     template.isAvailableAt.mockReturnValue(true);
+    template.inputFieldNames.mockReturnValue(["hectares"]);
   });
 
   it("returns a plain overview DTO", async () => {
@@ -140,6 +142,130 @@ describe("EntitlementService", () => {
       applicationContext: { answers: { hectares: 3 } },
       claimsPage: grant.pages.claims,
     });
+  });
+
+  it("returns the creation option for an available template", async () => {
+    await expect(getEntitlementCreationDetails(command)).resolves.toMatchObject(
+      {
+        claimCode: command.claimCode,
+        name: template.name,
+        createdCount: 0,
+        remainingCapacity: 1,
+      },
+    );
+  });
+
+  it("rethrows a non-404 failure from the application lookup", async () => {
+    findApplicationByClientRefAndCodeUseCase.mockRejectedValue(
+      Boom.badGateway("upstream down"),
+    );
+
+    await expect(createEntitlement(command)).rejects.toMatchObject({
+      output: { statusCode: 502 },
+    });
+  });
+
+  it("maps a claim code the grant does not define to INVALID_CLAIM_CODE", async () => {
+    grant.findEntitlementTemplate.mockReturnValue(undefined);
+
+    await expect(createEntitlement(command)).rejects.toMatchObject({
+      output: {
+        statusCode: 422,
+        payload: {
+          errorCode: "INVALID_CLAIM_CODE",
+          message: expect.stringContaining("is not defined for grant code"),
+        },
+      },
+    });
+  });
+
+  it("maps a template the application cannot use to INVALID_CLAIM_CODE", async () => {
+    template.assessEntitlementCreation.mockReturnValue({
+      allowed: false,
+      reason: "WRONG_POSITION",
+    });
+
+    await expect(createEntitlement(command)).rejects.toMatchObject({
+      output: {
+        statusCode: 422,
+        payload: {
+          errorCode: "INVALID_CLAIM_CODE",
+          message: expect.stringContaining("is not available for application"),
+        },
+      },
+    });
+  });
+
+  it("names the missing and unexpected fields when submitted data does not match", async () => {
+    template.assessEntitlementCreation.mockReturnValue({
+      allowed: false,
+      reason: "INVALID_ENTITLEMENT_DATA",
+    });
+
+    await expect(
+      createEntitlement({ ...command, data: { unexpected: { value: 1 } } }),
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 422,
+        payload: {
+          errorCode: "INVALID_ENTITLEMENT_DATA",
+          message: expect.stringContaining(
+            "missing fields: hectares; unexpected fields: unexpected",
+          ),
+        },
+      },
+    });
+  });
+
+  it("maps a full template to ENTITLEMENT_LIMIT_EXCEEDED", async () => {
+    template.assessEntitlementCreation.mockReturnValue({
+      allowed: false,
+      reason: "CAPACITY_REACHED",
+    });
+
+    await expect(createEntitlement(command)).rejects.toMatchObject({
+      output: {
+        statusCode: 409,
+        payload: { errorCode: "ENTITLEMENT_LIMIT_EXCEEDED" },
+      },
+    });
+  });
+
+  it("maps an application that disappears before the lock to 404", async () => {
+    lockForUpdate.mockResolvedValue(null);
+
+    await expect(createEntitlement(command)).rejects.toMatchObject({
+      output: {
+        statusCode: 404,
+        payload: { errorCode: "APPLICATION_NOT_FOUND" },
+      },
+    });
+  });
+
+  it("takes a literal fixed field without consulting the agreement", async () => {
+    await createEntitlement(command);
+
+    expect(loadEntitlementReferenceContext).not.toHaveBeenCalled();
+    expect(Entitlement.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { hectares: 3, fixed: "yes" } }),
+    );
+  });
+
+  it("resolves no fixed data when the template has only input fields", async () => {
+    const inputOnly = {
+      ...template,
+      fields: { hectares: { input: true, label: "Hectares" } },
+    };
+    resolveCurrentGrantUseCase.mockResolvedValue({
+      grant: { ...grant, findEntitlementTemplate: vi.fn(() => inputOnly) },
+    });
+
+    await createEntitlement(command);
+
+    expect(loadEntitlementReferenceContext).not.toHaveBeenCalled();
+    expect(Entitlement.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { hectares: 3 } }),
+    );
   });
 
   it("rejects creation details once the option is at capacity", async () => {

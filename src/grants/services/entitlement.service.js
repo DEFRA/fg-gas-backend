@@ -22,6 +22,7 @@ import {
 } from "../use-cases/resolve-current-grant.use-case.js";
 
 const retries = 1;
+const httpNotFound = 404;
 
 const retryReasons = {
   SLOT_TAKEN: "SLOT_TAKEN",
@@ -55,7 +56,7 @@ const mapApplicationNotFound = async (command) => {
       command.code,
     );
   } catch (error) {
-    if (error.isBoom && error.output.statusCode === 404) {
+    if (error.isBoom && error.output.statusCode === httpNotFound) {
       throw applicationNotFound(command);
     }
 
@@ -269,9 +270,11 @@ const invalidClaimCode = ({ code, clientRef, claimCode, grant }) => {
   );
 };
 
+const byName = (a, b) => a.localeCompare(b);
+
 const invalidDataMessage = ({ template, data, claimCode }) => {
-  const expected = template.inputFieldNames().sort();
-  const submitted = Object.keys(data).sort();
+  const expected = template.inputFieldNames().sort(byName);
+  const submitted = Object.keys(data).sort(byName);
   const missing = expected.filter((name) => !submitted.includes(name));
   const unexpected = submitted.filter((name) => !expected.includes(name));
   const problems = [
