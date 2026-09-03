@@ -3,6 +3,7 @@ import { getAgreementDocumentQuerySchema } from "../schemas/requests/get-current
 import { agreementNumberParamsSchema } from "../schemas/requests/invoke-agreement-action-request.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
 import { getAgreementDocumentPageModelUseCase } from "../use-cases/get-agreement-document-page-model.use-case.js";
+import { resolveAgreementAccess } from "../services/resolve-agreement-access.js";
 
 export const getAgreementByNumberRoute = {
   method: "GET",
@@ -18,13 +19,10 @@ export const getAgreementByNumberRoute = {
     response: { schema: agreementPageModelResponseSchema },
   },
   async handler(request, h) {
+    const { source, code, sbi } = resolveAgreementAccess(request);
     const { pageModel, etag } = await getAgreementDocumentPageModelUseCase({
       agreementNumber: request.params.agreementNumber,
-      access: {
-        source: request.headers["x-agreement-source"],
-        code: request.headers["x-agreement-code"],
-        sbi: request.headers["x-agreement-sbi"],
-      },
+      access: { source, code, sbi },
     });
 
     return h.response(pageModel).header("ETag", etag);
