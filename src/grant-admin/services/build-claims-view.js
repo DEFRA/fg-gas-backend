@@ -4,14 +4,14 @@ export const buildClaimsView = async ({
   claimsPage,
   applicationContext,
   creationOptions,
-  entitlements,
+  claimableEntitlements,
 }) => {
   const banner = await buildBanner({ claimsPage, applicationContext });
 
   return {
     banner,
     availableEntitlements: creationOptions.map(toAvailableEntitlement),
-    claimableEntitlements: entitlements.map(toEntitlement),
+    claimableEntitlements: claimableEntitlements.map(toEntitlement),
     claims: [],
   };
 };

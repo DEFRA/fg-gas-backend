@@ -6,7 +6,6 @@ import { buildAuditEvent } from "../../common/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
 import {
-  countByClaimCode,
   countByEntitlement,
   existsByClientClaimRef,
   insert,
@@ -115,7 +114,6 @@ describe("claims.service", () => {
     resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
     findExistingEntitlements.mockResolvedValue([persistedEntitlement]);
     existsByClientClaimRef.mockResolvedValue(false);
-    countByClaimCode.mockResolvedValue(0);
     countByEntitlement.mockResolvedValue(0);
     insert.mockResolvedValue(new ObjectId("64b0c0c0c0c0c0c0c0c0c0c0"));
   });
@@ -230,7 +228,7 @@ describe("claims.service", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
-  it("lists materialised and persisted claimable entitlements", async () => {
+  it("lists persisted claimable entitlements", async () => {
     const persisted = {
       id: "entitlement-1",
       code,
@@ -251,18 +249,14 @@ describe("claims.service", () => {
         instanceNumber: 2,
       }),
     ]);
+  });
 
+  it("does not list materialised claimable entitlements", async () => {
     resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(true) });
     findExistingEntitlements.mockResolvedValue([]);
     await expect(
       listClaimableEntitlements({ code, clientRef }),
-    ).resolves.toEqual([
-      expect.objectContaining({
-        source: "materialised",
-        entitlementId: null,
-        instanceNumber: null,
-      }),
-    ]);
+    ).resolves.toEqual([]);
   });
 
   it("does not offer a persisted template with no entitlement", async () => {
@@ -302,23 +296,6 @@ describe("claims.service", () => {
     ).resolves.toEqual([
       expect.objectContaining({ entitlementId: "entitlement-2" }),
     ]);
-  });
-
-  it("counts a materialised target by claim code, having no entitlement", async () => {
-    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(true) });
-    findExistingEntitlements.mockResolvedValue([]);
-    countByClaimCode.mockResolvedValue(0);
-
-    await expect(
-      listClaimableEntitlements({ code, clientRef }),
-    ).resolves.toEqual([
-      expect.objectContaining({ source: "materialised", entitlementId: null }),
-    ]);
-    expect(countByClaimCode).toHaveBeenCalledWith({
-      code,
-      clientRef,
-      claimCode,
-    });
   });
 
   it("persists a claim after lock-free and transactional replay checks", async () => {
@@ -437,7 +414,7 @@ describe("claims.service", () => {
     const twoClaims = grant(true);
     twoClaims.entitlementTemplates[0].claim.limits.maximumClaims = 2;
     resolveCurrentGrantUseCase.mockResolvedValue({ grant: twoClaims });
-    countByClaimCode.mockResolvedValue(1);
+    countByEntitlement.mockResolvedValue(1);
     await expect(
       submitClaim({ code, clientRef, payload }),
     ).resolves.toMatchObject({ created: true });

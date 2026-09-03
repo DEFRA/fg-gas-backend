@@ -52,7 +52,7 @@ describe("build claims view", () => {
       answers: { answer1: "test" },
     },
     creationOptions: [],
-    entitlements: [],
+    claimableEntitlements: [],
     ...overrides,
   });
 
@@ -80,7 +80,6 @@ describe("build claims view", () => {
     expect(result.availableEntitlements).toEqual([template]);
   });
 
-  // Both are stubbed until entitlement instances are written.
   it("returns nothing claimable when nothing has been created", async () => {
     const result = await buildClaimsView(
       overview({ creationOptions: [template] }),
@@ -90,11 +89,13 @@ describe("build claims view", () => {
     expect(result.claims).toEqual([]);
   });
 
-  it("returns the entitlements that already exist as claimable", async () => {
-    const existing = [{ id: "ent-1", claimCode: "ENT_PA3" }];
+  it("returns the supplied claimable entitlements", async () => {
+    const claimable = [{ entitlementId: "ent-1", code: "ENT_PA3" }];
 
-    const result = await buildClaimsView(overview({ entitlements: existing }));
+    const result = await buildClaimsView(
+      overview({ claimableEntitlements: claimable }),
+    );
 
-    expect(result.claimableEntitlements).toEqual(existing);
+    expect(result.claimableEntitlements).toEqual(claimable);
   });
 });

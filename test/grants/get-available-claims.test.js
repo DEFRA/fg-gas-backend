@@ -193,7 +193,7 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
       expect(response.payload.availableClaims).toEqual([]);
     });
 
-    it("includes materialised templates", async () => {
+    it("excludes materialised templates", async () => {
       await seed({
         entitlementTemplates: [
           template({ materialised: true, fields: undefined }),
@@ -203,16 +203,7 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
       const response = await getAvailableClaims();
 
       expect(response.res.statusCode).toBe(200);
-      expect(response.payload.availableClaims).toEqual([
-        {
-          code: claimCode,
-          entitlementId: null,
-          name: "PA3 Woodland Management Plan entitlement",
-          description:
-            "The maximum eligible woodland area that can be claimed.",
-          data: {},
-        },
-      ]);
+      expect(response.payload.availableClaims).toEqual([]);
     });
 
     it("excludes entitlements when application is in a different phase", async () => {

@@ -9,6 +9,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { listClaimableEntitlements } from "../../grants/services/claims.service.js";
 import {
   getEntitlementCreationDetails,
   getEntitlementOverview,
@@ -16,6 +17,7 @@ import {
 import { getClaimRoute } from "./get-claim.route.js";
 
 vi.mock("../../grants/services/entitlement.service.js");
+vi.mock("../../grants/services/claims.service.js");
 vi.mock("../../common/logger.js", () => ({
   logger: {
     info: vi.fn(),
@@ -93,9 +95,9 @@ describe("getClaimRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [template],
-      entitlements: [],
     });
     getEntitlementCreationDetails.mockResolvedValue(template);
+    listClaimableEntitlements.mockResolvedValue([]);
 
     const result = await server.inject({
       method: "GET",
@@ -112,6 +114,7 @@ describe("getClaimRoute", () => {
       clientRef,
       claimCode,
     });
+    expect(listClaimableEntitlements).toHaveBeenCalledWith({ code, clientRef });
     expect(result.result).toEqual({
       banner,
       availableEntitlements: [template],
@@ -126,11 +129,11 @@ describe("getClaimRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
-      entitlements: [],
     });
     getEntitlementCreationDetails.mockRejectedValue(
       Boom.conflict("already exists"),
     );
+    listClaimableEntitlements.mockResolvedValue([]);
 
     const result = await server.inject({
       method: "GET",
@@ -145,11 +148,11 @@ describe("getClaimRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
-      entitlements: [],
     });
     getEntitlementCreationDetails.mockRejectedValue(
       Boom.notFound("not available"),
     );
+    listClaimableEntitlements.mockResolvedValue([]);
 
     const result = await server.inject({
       method: "GET",

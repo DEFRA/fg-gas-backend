@@ -51,10 +51,20 @@ const availableEntitlements = Joi.array()
   .unique("claimCode")
   .label("AvailableEntitlements");
 
-// claimableEntitlements and claims are stubbed as empty by the use case until entitlement instances are written, so neither has a shape to pin down yet.
+const claimableEntitlement = Joi.object({
+  source: Joi.string().valid("persisted").required(),
+  code: Joi.string().required(),
+  name: Joi.string().required(),
+  description: Joi.string().allow(null).required(),
+  data: Joi.object().unknown().required(),
+  entitlementId: Joi.string().required(),
+  instanceNumber: Joi.number().integer().min(1).required(),
+  claim: Joi.object().unknown().required(),
+}).label("ClaimableEntitlement");
+
 export const getClaimsResponseSchema = Joi.object({
   banner: banner.required(),
   availableEntitlements,
-  claimableEntitlements: Joi.array(),
+  claimableEntitlements: Joi.array().items(claimableEntitlement).required(),
   claims: Joi.array(),
 });

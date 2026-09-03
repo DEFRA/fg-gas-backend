@@ -6,7 +6,6 @@ import { withTransaction } from "../../common/with-transaction.js";
 import { ClaimableEntitlement } from "../models/claimable-entitlement.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
 import {
-  countByClaimCode,
   countByEntitlement,
   existsByClientClaimRef,
   insert,
@@ -53,13 +52,6 @@ const resolveGrant = async ({ code, pinnedVersion }) => {
   return grant;
 };
 
-const materialisedCandidate = (template, application) =>
-  ClaimableEntitlement.fromMaterialised({
-    template,
-    code: application.code,
-    clientRef: application.clientRef,
-  });
-
 const persistedCandidates = (template, existing) =>
   existing
     .filter((entitlement) => entitlement.claimCode === template.claimCode)
@@ -67,18 +59,16 @@ const persistedCandidates = (template, existing) =>
       ClaimableEntitlement.fromPersisted({ entitlement, template }),
     );
 
-const candidatesForTemplate = ({ template, application, existing }) => {
+const candidatesForTemplate = ({ template, existing }) => {
   if (!template.claim) {
     return [];
   }
-  return template.materialised
-    ? [materialisedCandidate(template, application)]
-    : persistedCandidates(template, existing);
+  return template.materialised ? [] : persistedCandidates(template, existing);
 };
 
-const candidatesFor = ({ grant, application, existing }) =>
+const candidatesFor = ({ grant, existing }) =>
   grant.entitlementTemplates.flatMap((template) =>
-    candidatesForTemplate({ template, application, existing }),
+    candidatesForTemplate({ template, existing }),
   );
 
 const claimableFor = ({ grant, application, existing, entitlementId }) => {
@@ -156,21 +146,12 @@ const toClaimableDto = (claimable) => ({
   claim: structuredClone(claimable.claim),
 });
 
-// A persisted claimable has its own budget, scoped to the entitlement the claim
-// names. A materialised one has no entitlement to scope to, so it still counts
-// every claim under the code.
 const countClaimsFor = (claimable) =>
-  claimable.entitlement
-    ? countByEntitlement({
-        code: claimable.code,
-        clientRef: claimable.clientRef,
-        entitlementId: claimable.entitlement.id,
-      })
-    : countByClaimCode({
-        code: claimable.code,
-        clientRef: claimable.clientRef,
-        claimCode: claimable.claimCode,
-      });
+  countByEntitlement({
+    code: claimable.code,
+    clientRef: claimable.clientRef,
+    entitlementId: claimable.entitlement.id,
+  });
 
 const isAvailable = async (claimable, position) =>
   claimable.canAcceptClaim(position, await countClaimsFor(claimable)).allowed;
@@ -188,7 +169,7 @@ export const listClaimableEntitlements = async ({ code, clientRef }) => {
   const position = application.currentPosition();
 
   const available = await Promise.all(
-    candidatesFor({ grant, application, existing }).map(async (claimable) =>
+    candidatesFor({ grant, existing }).map(async (claimable) =>
       (await isAvailable(claimable, position)) ? claimable : null,
     ),
   );

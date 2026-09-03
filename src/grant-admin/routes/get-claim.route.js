@@ -1,6 +1,7 @@
 import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
+import { listClaimableEntitlements } from "../../grants/services/claims.service.js";
 import {
   getEntitlementCreationDetails,
   getEntitlementOverview,
@@ -35,13 +36,15 @@ export const getClaimRoute = {
       `Get claim for application with code ${code}, claimCode ${claimCode} and clientRef ${clientRef}`,
     );
 
-    const [overview, creationDetails] = await Promise.all([
-      getEntitlementOverview({ code, clientRef }),
-      getEntitlementCreationDetails({ code, clientRef, claimCode }),
-    ]);
+    const [overview, creationDetails, claimableEntitlements] =
+      await Promise.all([
+        getEntitlementOverview({ code, clientRef }),
+        getEntitlementCreationDetails({ code, clientRef, claimCode }),
+        listClaimableEntitlements({ code, clientRef }),
+      ]);
 
     return {
-      ...(await buildClaimsView(overview)),
+      ...(await buildClaimsView({ ...overview, claimableEntitlements })),
       entitlementTemplate: toEntitlementTemplate(creationDetails),
     };
   },
