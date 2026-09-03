@@ -3,6 +3,7 @@ import { Agreement } from "../models/agreement.js";
 import { agreementValueSchema } from "../schemas/agreement-value.schema.js";
 
 const supportedStates = ["offered", "accepted"];
+const supportedItemUnits = new Set(["ha", "%"]);
 
 const compact = (value) =>
   Object.fromEntries(
@@ -200,7 +201,7 @@ const mapItem = (version, item, index) => {
     description: item.description,
     version: item.version?.toString(),
     quantity,
-    unit: quantity === undefined ? undefined : (unit ?? "ha"),
+    unit: quantity === undefined ? undefined : unit,
     totalAmountPence: item.agreementTotalPence ?? item.annualPaymentPence,
   });
 };
@@ -537,7 +538,7 @@ const sourceItemIssues = (version) => {
     : [{ path: "items", reason: "woodland.items.source-mismatch" }];
 };
 
-const sourceActionIssues = (version, agreement) => {
+const sourceActionCodeIssues = (version, agreement) => {
   const itemCodes = new Set(agreement.items.map(({ code }) => code));
   return sourceActions(version).flatMap(({ action, path }) =>
     itemCodes.has(action.code)
@@ -546,9 +547,91 @@ const sourceActionIssues = (version, agreement) => {
   );
 };
 
+const actionReferencesParcel = (action, parcel) =>
+  [parcel.sheetId, parcel.id].includes(action.sheetId) &&
+  [parcel.parcelId, parcel.id].includes(action.parcelId);
+
+const sourceActionParcelIssues = (version, agreement) =>
+  sourceActionApplications(version).flatMap(({ action, path }) =>
+    agreement.parcels.some((parcel) => actionReferencesParcel(action, parcel))
+      ? []
+      : [{ path, reason: "woodland.action.parcel-unresolved" }],
+  );
+
+const sourceActionIssues = (version, agreement) => [
+  ...sourceActionCodeIssues(version, agreement),
+  ...sourceActionParcelIssues(version, agreement),
+];
+
+const acceptedAgreementDateIssues = (agreement) =>
+  agreement.state === "accepted"
+    ? ["startDate", "endDate"].flatMap((path) =>
+        agreement[path] === undefined
+          ? [{ path, reason: "woodland.agreement-date.unresolved" }]
+          : [],
+      )
+    : [];
+
+const invalidParcelQuantity = (quantity) =>
+  !Number.isFinite(quantity) || quantity <= 0;
+const invalidItemQuantity = (quantity) =>
+  !Number.isFinite(quantity) || quantity < 0;
+
+const quantityIssues = (quantity, path, invalid) => {
+  if (quantity === undefined) {
+    return [{ path, reason: "woodland.quantity.unresolved" }];
+  }
+  if (Number.isNaN(quantity)) {
+    return [{ path, reason: "woodland.quantity.not-exact" }];
+  }
+  if (invalid(quantity)) {
+    return [{ path, reason: "woodland.quantity.invalid" }];
+  }
+  return [];
+};
+
+const parcelIssues = (parcel, index) => {
+  const area = parcel.area ?? {};
+  return [
+    ...quantityIssues(
+      area.quantity,
+      `parcels.${index}.area.quantity`,
+      invalidParcelQuantity,
+    ),
+    ...(area.unit === "ha"
+      ? []
+      : [
+          {
+            path: `parcels.${index}.area.unit`,
+            reason: "woodland.unit.unsupported",
+          },
+        ]),
+  ];
+};
+
+const itemIssues = (item, index) => [
+  ...quantityIssues(
+    item.quantity,
+    `items.${index}.quantity`,
+    invalidItemQuantity,
+  ),
+  ...(supportedItemUnits.has(item.unit)
+    ? []
+    : [
+        {
+          path: `items.${index}.unit`,
+          reason: "woodland.unit.unsupported",
+        },
+      ]),
+];
+
 // eslint-disable-next-line complexity
 const wmpIssues = (agreement) => {
-  const issues = [];
+  const issues = [
+    ...acceptedAgreementDateIssues(agreement),
+    ...agreement.parcels.flatMap(parcelIssues),
+    ...agreement.items.flatMap(itemIssues),
+  ];
 
   if (agreement.parcels.length === 0) {
     issues.push({ path: "parcels", reason: "woodland.parcels.empty" });
@@ -557,32 +640,24 @@ const wmpIssues = (agreement) => {
     issues.push({ path: "items", reason: "woodland.items.empty" });
   }
 
-  agreement.parcels.forEach((parcel, index) => {
-    if (Number.isNaN(parcel.area?.quantity)) {
-      issues.push({
-        path: `parcels.${index}.area.quantity`,
-        reason: "woodland.quantity.not-exact",
-      });
-    }
-  });
-
-  agreement.items.forEach((item, index) => {
-    const reason = Number.isNaN(item.quantity)
-      ? "woodland.quantity.not-exact"
-      : "woodland.quantity.unresolved";
-    if (item.quantity === undefined || Number.isNaN(item.quantity)) {
-      issues.push({ path: `items.${index}.quantity`, reason });
-    }
-  });
-
-  if (
-    agreement.state === "offered" &&
-    (agreement.application.hectaresTenOrOverYearsOld === undefined ||
-      agreement.application.hectaresUnderTenYearsOld === undefined)
-  ) {
+  const schemeAreas = [
+    agreement.application.hectaresTenOrOverYearsOld,
+    agreement.application.hectaresUnderTenYearsOld,
+  ];
+  if (schemeAreas.some((value) => value === undefined)) {
     issues.push({
       path: "application",
       reason: "woodland.acceptance-input.unresolved",
+    });
+  }
+  if (
+    schemeAreas.some(
+      (value) => value !== undefined && (!Number.isFinite(value) || value < 0),
+    )
+  ) {
+    issues.push({
+      path: "application",
+      reason: "woodland.acceptance-input.invalid",
     });
   }
 

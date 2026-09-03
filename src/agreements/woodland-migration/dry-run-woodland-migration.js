@@ -10,11 +10,46 @@ import {
   fetchWoodlandAgreementVersionPages,
 } from "./woodland-migration-source.js";
 
-const sourceIssues = (agreementNumber, page) =>
-  page.agreement.agreementNumber === agreementNumber &&
-  page.grant.agreementNumber === agreementNumber
-    ? []
-    : [{ path: "agreementNumber", reason: "source.identity.mismatch" }];
+const identityIssue = (path) => ({
+  path,
+  reason: "source.identity.mismatch",
+});
+
+const hasConflictingValues = (values) => {
+  const observed = values
+    .filter((value) => value !== undefined && value !== null)
+    .map((value) => value.toString());
+  return new Set(observed).size > 1;
+};
+
+const identityFieldIssues = (page, sourceVersion) =>
+  [
+    [
+      "clientRef",
+      [page.agreement.clientRef, page.grant.clientRef, sourceVersion.clientRef],
+    ],
+    [
+      "identifiers.sbi",
+      [page.agreement.sbi, page.grant.sbi, sourceVersion.identifiers?.sbi],
+    ],
+    [
+      "identifiers.frn",
+      [page.agreement.frn, page.grant.frn, sourceVersion.identifiers?.frn],
+    ],
+  ].flatMap(([path, values]) =>
+    hasConflictingValues(values) ? [identityIssue(path)] : [],
+  );
+
+const sourceIssues = (agreementNumber, page, sourceVersion) => [
+  ...(hasConflictingValues([
+    agreementNumber,
+    page.agreement.agreementNumber,
+    page.grant.agreementNumber,
+  ])
+    ? [identityIssue("agreementNumber")]
+    : []),
+  ...identityFieldIssues(page, sourceVersion),
+];
 
 const eventTextMaxLength = 256;
 const issueReason = ({ path, reason }) =>
@@ -74,7 +109,7 @@ const validateVersion = ({ agreementNumber, page, sourceVersion, version }) => {
       configVersion: config.woodlandMigration.configVersion,
     });
     return [
-      ...sourceIssues(agreementNumber, page),
+      ...sourceIssues(agreementNumber, page, sourceVersion),
       ...validateMappedWoodlandVersion(mapped, sourceVersion),
     ];
   } catch {

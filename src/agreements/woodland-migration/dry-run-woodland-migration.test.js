@@ -101,6 +101,65 @@ describe("dryRunWoodlandMigration", () => {
     });
   });
 
+  it("rejects conflicting identities across Agreement, Grant, and Version", async () => {
+    fetchWoodlandAgreementNumbers.mockResolvedValue(["WMP0001"]);
+    fetchWoodlandAgreementVersionPages.mockImplementation(() =>
+      (async function* () {
+        yield {
+          agreement: {
+            agreementNumber: "WMP0001",
+            clientRef: "agreement-client",
+            sbi: "111111111",
+            frn: "1111111111",
+          },
+          grant: {
+            agreementNumber: "WMP0001",
+            clientRef: "grant-client",
+            sbi: "222222222",
+            frn: "2222222222",
+          },
+          versions: [
+            {
+              valid: true,
+              clientRef: "version-client",
+              identifiers: { sbi: "333333333", frn: "3333333333" },
+            },
+          ],
+          nextOffset: null,
+        };
+      })(),
+    );
+
+    await expect(dryRunWoodlandMigration()).resolves.toEqual({
+      valid: false,
+      agreements: 1,
+      versions: 1,
+      failures: 1,
+    });
+    expect(logger.info.mock.calls.map(([context]) => context)).toEqual(
+      expect.arrayContaining([
+        {
+          event: expect.objectContaining({
+            outcome: "failure",
+            reason: "clientRef:source.identity.mismatch",
+          }),
+        },
+        {
+          event: expect.objectContaining({
+            outcome: "failure",
+            reason: "identifiers.sbi:source.identity.mismatch",
+          }),
+        },
+        {
+          event: expect.objectContaining({
+            outcome: "failure",
+            reason: "identifiers.frn:source.identity.mismatch",
+          }),
+        },
+      ]),
+    );
+  });
+
   it("logs diagnostics in CDP-indexed ECS fields with agreement references", async () => {
     await dryRunWoodlandMigration();
 

@@ -220,8 +220,9 @@ describe("mapLegacyWoodlandVersion", () => {
       name: "Woodland plan",
       createdAt: "2026-04-01T10:00:00.000Z",
       updatedAt: "2026-04-01T10:00:00.000Z",
-      items: [{ quantity: 0, unit: "ha", totalAmountPence: 0 }],
+      items: [{ quantity: 0, totalAmountPence: 0 }],
     });
+    expect(mapped.items[0].unit).toBeUndefined();
   });
 
   it("reports an incomplete offered version without inventing values", () => {
@@ -249,6 +250,79 @@ describe("mapLegacyWoodlandVersion", () => {
         {
           path: "totalAmountPence",
           reason: "woodland.payment-total.mismatch",
+        },
+      ]),
+    );
+  });
+
+  it("rejects accepted versions without agreement dates", () => {
+    const version = {
+      ...sourceVersion,
+      payment: {
+        ...sourceVersion.payment,
+        agreementStartDate: null,
+        agreementEndDate: null,
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toEqual(
+      expect.arrayContaining([
+        {
+          path: "startDate",
+          reason: "woodland.agreement-date.unresolved",
+        },
+        {
+          path: "endDate",
+          reason: "woodland.agreement-date.unresolved",
+        },
+      ]),
+    );
+  });
+
+  it("rejects accepted versions without Woodland scheme areas", () => {
+    const version = { ...sourceVersion, schemeData: undefined };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "application",
+        reason: "woodland.acceptance-input.unresolved",
+      },
+    );
+  });
+
+  it("rejects negative Woodland areas and quantities", () => {
+    const version = {
+      ...sourceVersion,
+      schemeData: { oldWoodlandAreaHa: -1, newWoodlandAreaHa: -2 },
+      application: {
+        parcel: [
+          {
+            ...sourceVersion.application.parcel[0],
+            area: { unit: "ha", quantity: -3 },
+            actions: [
+              {
+                ...sourceVersion.application.parcel[0].actions[0],
+                appliedFor: { unit: "ha", quantity: -4 },
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toEqual(
+      expect.arrayContaining([
+        {
+          path: "parcels.0.area.quantity",
+          reason: "woodland.quantity.invalid",
+        },
+        {
+          path: "items.0.quantity",
+          reason: "woodland.quantity.invalid",
+        },
+        {
+          path: "application",
+          reason: "woodland.acceptance-input.invalid",
         },
       ]),
     );
@@ -306,6 +380,46 @@ describe("mapLegacyWoodlandVersion", () => {
     });
   });
 
+  it("rejects a parcel without a displayed area", () => {
+    const version = {
+      ...sourceVersion,
+      application: {
+        parcel: [{ ...sourceVersion.application.parcel[0], area: undefined }],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "parcels.0.area.quantity",
+        reason: "woodland.quantity.unresolved",
+      },
+    );
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["non-hectare", "acres"],
+  ])("rejects a parcel with a %s area unit", (_scenario, unit) => {
+    const version = {
+      ...sourceVersion,
+      application: {
+        parcel: [
+          {
+            ...sourceVersion.application.parcel[0],
+            area: { ...sourceVersion.application.parcel[0].area, unit },
+          },
+        ],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "parcels.0.area.unit",
+        reason: "woodland.unit.unsupported",
+      },
+    );
+  });
+
   it("rejects Decimal128 quantities the GAS number domain cannot preserve", () => {
     const version = {
       ...sourceVersion,
@@ -332,11 +446,48 @@ describe("mapLegacyWoodlandVersion", () => {
     );
   });
 
+  it.each([
+    ["missing", undefined],
+    ["unsupported", "acres"],
+  ])("rejects an item with a %s unit", (_scenario, unit) => {
+    const version = {
+      ...sourceVersion,
+      application: {
+        parcel: [
+          {
+            ...sourceVersion.application.parcel[0],
+            actions: [
+              {
+                ...sourceVersion.application.parcel[0].actions[0],
+                appliedFor: {
+                  ...sourceVersion.application.parcel[0].actions[0].appliedFor,
+                  unit,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "items.0.unit",
+        reason: "woodland.unit.unsupported",
+      },
+    );
+  });
+
   it("uses legacy parcel actions to resolve items without creating GAS actions", () => {
     const version = {
       ...sourceVersion,
       actionApplications: [
-        { code: "PA3", appliedFor: { quantity: 55.4, unit: "ha" } },
+        {
+          code: "PA3",
+          sheetId: "SD7560",
+          parcelId: "SD7560-9193",
+          appliedFor: { quantity: 55.4, unit: "ha" },
+        },
       ],
       application: {
         parcel: [
@@ -354,19 +505,40 @@ describe("mapLegacyWoodlandVersion", () => {
     expect(validateMappedWoodlandVersion(mapped, version)).toEqual([]);
   });
 
+  it("rejects an action application that references an unknown parcel", () => {
+    const version = {
+      ...sourceVersion,
+      actionApplications: [
+        {
+          code: "PA3",
+          sheetId: "NZ9999",
+          parcelId: "9999",
+          appliedFor: { quantity: 55.4, unit: "ha" },
+        },
+      ],
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "actionApplications.0",
+        reason: "woodland.action.parcel-unresolved",
+      },
+    );
+  });
+
   it("keeps item quantities separate from producer parcel-area applications", () => {
     const version = {
       ...sourceVersion,
       actionApplications: [
         {
           code: "PA3",
-          sheetId: "SD7560",
+          sheetId: "SD7560-9193",
           parcelId: "SD7560-9193",
           appliedFor: { quantity: 25.3874, unit: "ha" },
         },
         {
           code: "PA3",
-          sheetId: "SD5848",
+          sheetId: "SD5848-9205",
           parcelId: "SD5848-9205",
           appliedFor: { quantity: 169.8586, unit: "ha" },
         },
