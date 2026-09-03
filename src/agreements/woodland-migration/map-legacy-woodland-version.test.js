@@ -279,6 +279,27 @@ describe("mapLegacyWoodlandVersion", () => {
     );
   });
 
+  it("rejects calendar-invalid dates without normalising them", () => {
+    const version = {
+      ...sourceVersion,
+      updatedAt: "2026-02-30T12:00:00.000Z",
+      payment: {
+        ...sourceVersion.payment,
+        agreementStartDate: "2026-02-30",
+      },
+    };
+    const mapped = map(version);
+
+    expect(mapped.updatedAt).toBe("2026-02-30T12:00:00.000Z");
+    expect(mapped.startDate).toBe("2026-02-30");
+    expect(validateMappedWoodlandVersion(mapped, version)).toEqual(
+      expect.arrayContaining([
+        { path: "updatedAt", reason: "date.calendar" },
+        { path: "startDate", reason: "date.calendar" },
+      ]),
+    );
+  });
+
   it("rejects accepted versions without Woodland scheme areas", () => {
     const version = { ...sourceVersion, schemeData: undefined };
 
@@ -525,6 +546,33 @@ describe("mapLegacyWoodlandVersion", () => {
       },
     );
   });
+
+  it.each([
+    ["quantity", { quantity: 999, unit: "ha" }],
+    ["unit", { quantity: 25.3874, unit: "acres" }],
+  ])(
+    "rejects a parcel action whose %s differs from its parcel",
+    (field, appliedFor) => {
+      const version = {
+        ...sourceVersion,
+        actionApplications: [
+          {
+            code: "PA3",
+            sheetId: "SD7560",
+            parcelId: "SD7560-9193",
+            appliedFor,
+          },
+        ],
+      };
+
+      expect(
+        validateMappedWoodlandVersion(map(version), version),
+      ).toContainEqual({
+        path: `actionApplications.0.appliedFor.${field}`,
+        reason: `woodland.action.parcel-${field}-mismatch`,
+      });
+    },
+  );
 
   it("keeps item quantities separate from producer parcel-area applications", () => {
     const version = {

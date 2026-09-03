@@ -1,4 +1,5 @@
 import { Agreement } from "../models/agreement.js";
+import { isCalendarDate } from "../schemas/agreement-value.schema.js";
 import {
   sourceActionApplications,
   sourceApplicationParcelActions,
@@ -48,10 +49,27 @@ const toNumber = (value) => {
     : Number.NaN;
 };
 
+const calendarDateFrom = (value) =>
+  typeof value === "string"
+    ? value.match(/^(\d{4}-\d{2}-\d{2})(?:T.*)?$/)?.[1]
+    : undefined;
+
+const hasInvalidCalendarDate = (value) => {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const calendarDate = calendarDateFrom(value);
+  return !calendarDate || !isCalendarDate(calendarDate);
+};
+
 // eslint-disable-next-line complexity
 const toIsoString = (value) => {
   if (value === undefined || value === null) {
     return undefined;
+  }
+  if (hasInvalidCalendarDate(value)) {
+    return value;
   }
 
   const date = value instanceof Date ? value : new Date(value);

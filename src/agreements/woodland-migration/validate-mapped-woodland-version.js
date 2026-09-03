@@ -1,16 +1,26 @@
 import Joi from "joi";
-import { agreementValueSchema } from "../schemas/agreement-value.schema.js";
+import {
+  agreementValueSchema,
+  isCalendarDate,
+} from "../schemas/agreement-value.schema.js";
 import {
   entries,
   isKeyedCollection,
   sourceActionApplications,
   sourceActions,
+  sourceApplicationParcelActions,
   sourceItemEntries,
 } from "./woodland-migration-source-values.js";
 
 const supportedStates = ["offered", "accepted"];
 const supportedItemUnits = new Set(["ha", "%"]);
 const PAYMENT_TOTAL_MISMATCH = "woodland.payment-total.mismatch";
+
+const timestampSchema = Joi.string()
+  .isoDate()
+  .custom((value, helpers) =>
+    isCalendarDate(value.slice(0, 10)) ? value : helpers.error("date.calendar"),
+  );
 
 const metadataSchema = Joi.object({
   agreementNumber: Joi.string().pattern(/^WMP/).required(),
@@ -30,11 +40,11 @@ const metadataSchema = Joi.object({
   state: Joi.string()
     .valid(...supportedStates)
     .required(),
-  createdAt: Joi.string().isoDate().required(),
-  updatedAt: Joi.string().isoDate().required(),
+  createdAt: timestampSchema.required(),
+  updatedAt: timestampSchema.required(),
   acceptedAt: Joi.when("state", {
     is: "accepted",
-    then: Joi.string().isoDate().required(),
+    then: timestampSchema.required(),
     otherwise: Joi.forbidden(),
   }),
 });
@@ -294,12 +304,36 @@ const actionReferencesParcel = (action, parcel) =>
   [parcel.sheetId, parcel.id].includes(action.sheetId) &&
   [parcel.parcelId, parcel.id].includes(action.parcelId);
 
-const sourceActionParcelIssues = (version, agreement) =>
-  sourceActionApplications(version).flatMap(({ action, path }) =>
-    agreement.parcels.some((parcel) => actionReferencesParcel(action, parcel))
+const actionParcelValueIssues = (action, parcel, path) =>
+  ["quantity", "unit"].flatMap((field) =>
+    sameValue(action.appliedFor?.[field], parcel.area?.[field])
       ? []
-      : [{ path, reason: "woodland.action.parcel-unresolved" }],
+      : [
+          {
+            path: `${path}.appliedFor.${field}`,
+            reason: `woodland.action.parcel-${field}-mismatch`,
+          },
+        ],
   );
+
+const sourceActionParcelIssues = (version, agreement) => {
+  const compareParcelValues =
+    sourceApplicationParcelActions(version).length > 0;
+
+  return sourceActionApplications(version).flatMap(({ action, path }) => {
+    const parcel = agreement.parcels.find((candidate) =>
+      actionReferencesParcel(action, candidate),
+    );
+
+    if (!parcel) {
+      return [{ path, reason: "woodland.action.parcel-unresolved" }];
+    }
+
+    return compareParcelValues
+      ? actionParcelValueIssues(action, parcel, path)
+      : [];
+  });
+};
 
 const sourceActionIssues = (version, agreement) => [
   ...sourceActionCodeIssues(version, agreement),

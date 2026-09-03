@@ -47,6 +47,15 @@ describe("Woodland migration source", () => {
     );
   });
 
+  it("rejects an empty Woodland agreement list", async () => {
+    wreck.get.mockResolvedValue(response({ agreementNumbers: [] }));
+
+    await expect(fetchWoodlandAgreementNumbers()).rejects.toMatchObject({
+      message: "Woodland migration source request failed",
+      output: { statusCode: 502 },
+    });
+  });
+
   it("pages internally and deserializes exact BSON decimal values", async () => {
     wreck.get
       .mockResolvedValueOnce(

@@ -13,6 +13,7 @@ const successStatus = (statusCode) =>
 const agreementNumbersSchema = Joi.object({
   agreementNumbers: Joi.array()
     .items(Joi.string().pattern(/^WMP/))
+    .min(1)
     .unique()
     .required(),
 });
