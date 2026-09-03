@@ -127,25 +127,42 @@ const sourceItems = (version) => {
     : (version.application?.agreement ?? []);
 };
 
-const sourceParcelActions = (version) => [
-  ...(version.actionApplications ?? []).map((action, index) => ({
+const sourceActionApplications = (version) =>
+  (version.actionApplications ?? []).map((action, index) => ({
     action,
     path: `actionApplications.${index}`,
-  })),
-  ...(version.application?.parcel ?? []).flatMap((parcel, parcelIndex) =>
+  }));
+
+const sourceApplicationParcelActions = (version) =>
+  (version.application?.parcel ?? []).flatMap((parcel, parcelIndex) =>
     (parcel.actions ?? []).map((action, actionIndex) => ({
       action,
       path: `application.parcel.${parcelIndex}.actions.${actionIndex}`,
     })),
-  ),
+  );
+
+const sourceActions = (version) => [
+  ...sourceActionApplications(version),
+  ...sourceApplicationParcelActions(version),
 ];
+
+// Current producer parcel actions carry agreement-item values, whereas
+// actionApplications carry parcel areas. Older records may only have the latter.
+const matchingItemActions = (version, item) => {
+  const parcelActions = sourceApplicationParcelActions(version).filter(
+    ({ action }) => action.code === item.code,
+  );
+  return parcelActions.length > 0
+    ? parcelActions
+    : sourceActionApplications(version).filter(
+        ({ action }) => action.code === item.code,
+      );
+};
 
 const matchingActionValues = (version, item, field) => [
   ...new Set(
-    sourceParcelActions(version)
-      .map(({ action }) => action)
-      .filter((action) => action.code === item.code)
-      .map((action) => action.appliedFor?.[field])
+    matchingItemActions(version, item)
+      .map(({ action }) => action.appliedFor?.[field])
       .filter((value) => value !== undefined && value !== null)
       .map((value) => (field === "quantity" ? toNumber(value) : value)),
   ),
@@ -362,7 +379,7 @@ const sourceItemIssues = (version) => {
 
 const sourceActionIssues = (version, agreement) => {
   const itemCodes = new Set(agreement.items.map(({ code }) => code));
-  return sourceParcelActions(version).flatMap(({ action, path }) =>
+  return sourceActions(version).flatMap(({ action, path }) =>
     itemCodes.has(action.code)
       ? []
       : [{ path, reason: "woodland.action.unmapped" }],

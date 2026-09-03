@@ -344,6 +344,45 @@ describe("mapLegacyWoodlandVersion", () => {
     expect(validateMappedWoodlandVersion(mapped, version)).toEqual([]);
   });
 
+  it("keeps item quantities separate from producer parcel-area applications", () => {
+    const version = {
+      ...sourceVersion,
+      actionApplications: [
+        {
+          code: "PA3",
+          sheetId: "SD7560",
+          parcelId: "SD7560-9193",
+          appliedFor: { quantity: 25.3874, unit: "ha" },
+        },
+        {
+          code: "PA3",
+          sheetId: "SD5848",
+          parcelId: "SD5848-9205",
+          appliedFor: { quantity: 169.8586, unit: "ha" },
+        },
+      ],
+      application: {
+        parcel: [
+          sourceVersion.application.parcel[0],
+          {
+            parcelId: "SD5848-9205",
+            area: { quantity: 169.8586, unit: "ha" },
+            actions: [
+              {
+                code: "PA3",
+                appliedFor: { quantity: 55.4, unit: "ha" },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const mapped = map(version);
+
+    expect(mapped.items[0]).toMatchObject({ quantity: 55.4, unit: "ha" });
+    expect(validateMappedWoodlandVersion(mapped, version)).toEqual([]);
+  });
+
   it("rejects unreconciled source actions, item shapes, and payment totals", () => {
     const version = {
       ...sourceVersion,
