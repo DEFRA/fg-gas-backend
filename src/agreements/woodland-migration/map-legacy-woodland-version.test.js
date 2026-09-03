@@ -75,8 +75,10 @@ const sourceVersion = {
   payment: {
     agreementStartDate: "2026-06-01",
     agreementEndDate: "2029-05-31",
+    frequency: "OneOff",
     annualTotalPence: 166200,
     agreementTotalPence: 166200,
+    parcelItems: {},
     agreementLevelItems: {
       1: {
         code: "PA3",
@@ -85,6 +87,14 @@ const sourceVersion = {
         annualPaymentPence: 166200,
       },
     },
+    payments: [
+      {
+        totalPaymentPence: 166200,
+        paymentDate: null,
+        correlationId: "payment-correlation-id",
+        lineItems: [{ agreementLevelItemId: 1, paymentPence: 166200 }],
+      },
+    ],
   },
 };
 
@@ -381,6 +391,251 @@ describe("mapLegacyWoodlandVersion", () => {
 
     expect(mapped.items[0]).toMatchObject({ quantity: 55.4, unit: "ha" });
     expect(validateMappedWoodlandVersion(mapped, version)).toEqual([]);
+  });
+
+  it("rejects an unsupported Woodland payment frequency", () => {
+    const version = {
+      ...sourceVersion,
+      payment: { ...sourceVersion.payment, frequency: "Quarterly" },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment.frequency",
+        reason: "woodland.payment-frequency.unsupported",
+      },
+    );
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["non-empty", { 1: { code: "PA3" } }],
+  ])("rejects %s parcel-level payment items", (_scenario, parcelItems) => {
+    const version = {
+      ...sourceVersion,
+      payment: { ...sourceVersion.payment, parcelItems },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment.parcelItems",
+        reason: "woodland.parcel-items.unsupported",
+      },
+    );
+  });
+
+  it.each([
+    ["missing", []],
+    ["malformed", {}],
+    [
+      "multiple",
+      [sourceVersion.payment.payments[0], sourceVersion.payment.payments[0]],
+    ],
+  ])("rejects %s Woodland payments", (_scenario, payments) => {
+    const version = {
+      ...sourceVersion,
+      payment: { ...sourceVersion.payment, payments },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment.payments",
+        reason: "woodland.payment-schedule.unsupported",
+      },
+    );
+  });
+
+  it("rejects a malformed payment line collection", () => {
+    const version = {
+      ...sourceVersion,
+      payment: {
+        ...sourceVersion.payment,
+        payments: [{ ...sourceVersion.payment.payments[0], lineItems: {} }],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment.payments.0.lineItems",
+        reason: "woodland.payment-line-item.unresolved",
+      },
+    );
+  });
+
+  it("rejects a payment line that references an unknown agreement item", () => {
+    const version = {
+      ...sourceVersion,
+      payment: {
+        ...sourceVersion.payment,
+        payments: [
+          {
+            ...sourceVersion.payment.payments[0],
+            lineItems: [{ agreementLevelItemId: 999, paymentPence: 166200 }],
+          },
+        ],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment.payments.0.lineItems.0",
+        reason: "woodland.payment-line-item.unresolved",
+      },
+    );
+  });
+
+  it("rejects a payment line that references a parcel item", () => {
+    const version = {
+      ...sourceVersion,
+      payment: {
+        ...sourceVersion.payment,
+        payments: [
+          {
+            ...sourceVersion.payment.payments[0],
+            lineItems: [
+              {
+                agreementLevelItemId: 1,
+                parcelItemId: 1,
+                paymentPence: 166200,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment.payments.0.lineItems.0",
+        reason: "woodland.payment-line-item.unresolved",
+      },
+    );
+  });
+
+  it("rejects a payment line amount that differs from its agreement item", () => {
+    const version = {
+      ...sourceVersion,
+      payment: {
+        ...sourceVersion.payment,
+        payments: [
+          {
+            ...sourceVersion.payment.payments[0],
+            lineItems: [{ agreementLevelItemId: 1, paymentPence: 1 }],
+          },
+        ],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment.payments.0.lineItems.0.paymentPence",
+        reason: "woodland.payment-line-item.amount-mismatch",
+      },
+    );
+  });
+
+  it("rejects duplicate payment references to an agreement item", () => {
+    const lineItem = sourceVersion.payment.payments[0].lineItems[0];
+    const version = {
+      ...sourceVersion,
+      payment: {
+        ...sourceVersion.payment,
+        payments: [
+          {
+            ...sourceVersion.payment.payments[0],
+            lineItems: [lineItem, lineItem],
+          },
+        ],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment.payments.0.lineItems.1",
+        reason: "woodland.payment-line-item.unresolved",
+      },
+    );
+  });
+
+  it("rejects an agreement item omitted from the payment lines", () => {
+    const version = {
+      ...sourceVersion,
+      payment: {
+        ...sourceVersion.payment,
+        payments: [{ ...sourceVersion.payment.payments[0], lineItems: [] }],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment.payments.0.lineItems",
+        reason: "woodland.payment-line-item.unresolved",
+      },
+    );
+  });
+
+  it("rejects a payment whose lines do not sum to its total", () => {
+    const version = {
+      ...sourceVersion,
+      payment: {
+        ...sourceVersion.payment,
+        agreementLevelItems: {
+          1: {
+            ...sourceVersion.payment.agreementLevelItems[1],
+            annualPaymentPence: 100,
+          },
+        },
+        payments: [
+          {
+            ...sourceVersion.payment.payments[0],
+            lineItems: [{ agreementLevelItemId: 1, paymentPence: 100 }],
+          },
+        ],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment",
+        reason: "woodland.payment-total.mismatch",
+      },
+    );
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["negative", -1],
+    ["fractional", 1.5],
+    ["unsafe", Number.MAX_SAFE_INTEGER + 1],
+  ])("rejects %s Woodland payment amounts", (_scenario, amount) => {
+    const version = {
+      ...sourceVersion,
+      payment: {
+        ...sourceVersion.payment,
+        annualTotalPence: amount,
+        agreementTotalPence: amount,
+        agreementLevelItems: {
+          1: {
+            ...sourceVersion.payment.agreementLevelItems[1],
+            annualPaymentPence: amount,
+          },
+        },
+        payments: [
+          {
+            ...sourceVersion.payment.payments[0],
+            totalPaymentPence: amount,
+            lineItems: [{ agreementLevelItemId: 1, paymentPence: amount }],
+          },
+        ],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "payment.annualTotalPence",
+        reason: "woodland.payment-amount.invalid",
+      },
+    );
   });
 
   it("rejects unreconciled source actions, item shapes, and payment totals", () => {

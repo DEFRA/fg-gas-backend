@@ -116,16 +116,33 @@ const mapParcel = (parcel) => {
   };
 };
 
-const entries = (value) =>
-  value instanceof Map ? [...value.values()] : Object.values(value ?? {});
+const keyedEntries = (value) =>
+  value instanceof Map ? [...value.entries()] : Object.entries(value ?? {});
 
-// eslint-disable-next-line complexity
-const sourceItems = (version) => {
-  const paymentItems = entries(version.payment?.agreementLevelItems);
+const entries = (value) => keyedEntries(value).map(([, entry]) => entry);
+
+const isKeyedCollection = (value) =>
+  value instanceof Map ||
+  (value !== null && typeof value === "object" && !Array.isArray(value));
+
+const paymentItemEntries = (version) =>
+  keyedEntries(version.payment?.agreementLevelItems);
+
+const applicationItemEntries = (version) =>
+  (version.application?.agreement ?? []).map((item, index) => [
+    String(index + 1),
+    item,
+  ]);
+
+const sourceItemEntries = (version) => {
+  const paymentItems = paymentItemEntries(version);
   return paymentItems.length > 0
     ? paymentItems
-    : (version.application?.agreement ?? []);
+    : applicationItemEntries(version);
 };
+
+const sourceItems = (version) =>
+  sourceItemEntries(version).map(([, item]) => item);
 
 const sourceActionApplications = (version) =>
   (version.actionApplications ?? []).map((action, index) => ({
@@ -322,6 +339,110 @@ const valuesFrom = (agreement) => ({
 
 const sameValue = (left, right) => left?.toString() === right?.toString();
 
+const validPence = (value) => Number.isSafeInteger(value) && value >= 0;
+
+const singlePayment = (payment) => {
+  if (!Array.isArray(payment.payments) || payment.payments.length !== 1) {
+    return undefined;
+  }
+  return payment.payments[0];
+};
+
+const paymentLineItems = (payment) =>
+  Array.isArray(payment?.lineItems) ? payment.lineItems : [];
+
+const sourceItemAmountEntries = (version) =>
+  sourceItemEntries(version).map(([id, item]) => [
+    `items.${id}.totalAmountPence`,
+    item.agreementTotalPence ?? item.annualPaymentPence,
+  ]);
+
+const sourcePaymentAmountEntries = (version) => {
+  const payment = version.payment ?? {};
+  const sourcePayment = singlePayment(payment);
+  const amounts = [
+    ["payment.annualTotalPence", payment.annualTotalPence],
+    ["payment.agreementTotalPence", payment.agreementTotalPence],
+    ...sourceItemAmountEntries(version),
+  ];
+
+  if (sourcePayment) {
+    amounts.push(
+      ["payment.payments.0.totalPaymentPence", sourcePayment.totalPaymentPence],
+      ...paymentLineItems(sourcePayment).map((lineItem, index) => [
+        `payment.payments.0.lineItems.${index}.paymentPence`,
+        lineItem.paymentPence,
+      ]),
+    );
+  }
+
+  return amounts;
+};
+
+const sourcePaymentAmountIssues = (version) =>
+  sourcePaymentAmountEntries(version).flatMap(([path, value]) =>
+    validPence(value)
+      ? []
+      : [{ path, reason: "woodland.payment-amount.invalid" }],
+  );
+
+const unresolvedLineIssue = (path) => ({
+  path,
+  reason: "woodland.payment-line-item.unresolved",
+});
+
+const sourceItemAmount = (item) =>
+  item.agreementTotalPence ?? item.annualPaymentPence;
+
+const unresolvedPaymentLine = (lineItem, itemId, item, referencedIds) =>
+  !item || referencedIds.has(itemId) || lineItem.parcelItemId !== undefined;
+
+const paymentLineIssues = ({ lineItem, index, itemsById, referencedIds }) => {
+  const path = `payment.payments.0.lineItems.${index}`;
+  const itemId = String(lineItem.agreementLevelItemId);
+  const item = itemsById.get(itemId);
+
+  if (unresolvedPaymentLine(lineItem, itemId, item, referencedIds)) {
+    return [unresolvedLineIssue(path)];
+  }
+
+  referencedIds.add(itemId);
+  return sameValue(lineItem.paymentPence, sourceItemAmount(item))
+    ? []
+    : [
+        {
+          path: `${path}.paymentPence`,
+          reason: "woodland.payment-line-item.amount-mismatch",
+        },
+      ];
+};
+
+const sourcePaymentFor = (version) => singlePayment(version.payment ?? {});
+
+const sourcePaymentLineIssues = (version) => {
+  const sourcePayment = sourcePaymentFor(version);
+  if (!sourcePayment) {
+    return [];
+  }
+  if (!Array.isArray(sourcePayment.lineItems)) {
+    return [unresolvedLineIssue("payment.payments.0.lineItems")];
+  }
+
+  const itemsById = new Map(
+    sourceItemEntries(version).map(([id, item]) => [String(id), item]),
+  );
+  const referencedIds = new Set();
+  const issues = sourcePayment.lineItems.flatMap((lineItem, index) =>
+    paymentLineIssues({ lineItem, index, itemsById, referencedIds }),
+  );
+
+  if (referencedIds.size !== itemsById.size) {
+    issues.push(unresolvedLineIssue("payment.payments.0.lineItems"));
+  }
+
+  return issues;
+};
+
 // Optional legacy payment shapes make this validation exceed the branch limit.
 // eslint-disable-next-line complexity
 const sourcePaymentIssues = (version) => {
@@ -335,16 +456,55 @@ const sourcePaymentIssues = (version) => {
     ? []
     : [{ path: "payment", reason: "woodland.payment-total.mismatch" }];
 
+  if (payment.frequency !== "OneOff") {
+    issues.push({
+      path: "payment.frequency",
+      reason: "woodland.payment-frequency.unsupported",
+    });
+  }
+
   if (
-    (payment.payments !== undefined && !Array.isArray(payment.payments)) ||
-    payment.payments?.length > 1
+    !isKeyedCollection(payment.parcelItems) ||
+    entries(payment.parcelItems).length > 0
   ) {
+    issues.push({
+      path: "payment.parcelItems",
+      reason: "woodland.parcel-items.unsupported",
+    });
+  }
+
+  if (!Array.isArray(payment.payments) || payment.payments.length !== 1) {
     issues.push({
       path: "payment.payments",
       reason: "woodland.payment-schedule.unsupported",
     });
   }
 
+  const lineItems = payment.payments?.[0]?.lineItems;
+  if (
+    Array.isArray(lineItems) &&
+    lineItems.every(({ paymentPence }) => Number.isSafeInteger(paymentPence))
+  ) {
+    const lineTotal = lineItems.reduce(
+      (total, { paymentPence }) => total + BigInt(paymentPence),
+      0n,
+    );
+    if (
+      lineTotal.toString() !==
+        payment.payments[0].totalPaymentPence?.toString() &&
+      !issues.some(({ path }) => path === "payment")
+    ) {
+      issues.push({
+        path: "payment",
+        reason: "woodland.payment-total.mismatch",
+      });
+    }
+  }
+
+  issues.push(
+    ...sourcePaymentAmountIssues(version),
+    ...sourcePaymentLineIssues(version),
+  );
   return issues;
 };
 
