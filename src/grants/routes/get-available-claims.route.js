@@ -5,8 +5,17 @@ import { code as grantCode } from "../schemas/grant/code.js";
 import { availableClaimsResponseSchema } from "../schemas/responses/available-claims-response.schema.js";
 import { listClaimableEntitlements } from "../services/claims.service.js";
 
-const toAvailableClaim = ({ code, name, description, data }) => ({
+// entitlementId crosses the boundary so a caller can name its target when it
+// submits; instanceNumber and source stay internal.
+const toAvailableClaim = ({
   code,
+  entitlementId,
+  name,
+  description,
+  data,
+}) => ({
+  code,
+  entitlementId,
   name,
   description,
   data,

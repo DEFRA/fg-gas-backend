@@ -66,8 +66,10 @@ describe("getAvailableClaimsRoute", () => {
       code: grantCode,
       clientRef,
     });
+    // entitlementId crosses the boundary so the caller can name its target on
+    // submit; source and instanceNumber stay internal.
     expect(result.result).toEqual({
-      availableClaims: [availableClaim],
+      availableClaims: [{ ...availableClaim, entitlementId: "entitlement-1" }],
     });
   });
 

@@ -7,6 +7,7 @@ import { ClaimableEntitlement } from "../models/claimable-entitlement.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
 import {
   countByClaimCode,
+  countByEntitlement,
   existsByClientClaimRef,
   insert,
 } from "../repositories/claim.repository.js";
@@ -80,25 +81,37 @@ const candidatesFor = ({ grant, application, existing }) =>
     candidatesForTemplate({ template, application, existing }),
   );
 
-const claimableFor = ({ grant, application, existing, claimCode }) => {
-  const template = grant.findEntitlementTemplate(claimCode);
-  if (!template) {
+const claimableFor = ({ grant, application, existing, entitlementId }) => {
+  const entitlement = existing.find(
+    (candidate) => candidate.id === entitlementId,
+  );
+
+  if (!entitlement) {
     throw Boom.notFound(
-      `Entitlement template with claimCode "${claimCode}" not found for grant "${application.code}"`,
+      `Entitlement "${entitlementId}" not found for application "${application.clientRef}"`,
     );
   }
-  const candidates = candidatesForTemplate({ template, application, existing });
-  if (candidates.length === 0) {
+
+  const template = grant.findEntitlementTemplate(entitlement.claimCode);
+
+  if (!template?.claim) {
     throw Boom.notFound(
-      `Entitlement with claimCode "${claimCode}" not found for application "${application.clientRef}"`,
+      `Entitlement template with claimCode "${entitlement.claimCode}" not found for grant "${application.code}"`,
     );
   }
-  if (candidates.length > 1) {
-    throw Boom.badImplementation(
-      `Claim code "${claimCode}" does not identify a single entitlement.`,
+
+  return ClaimableEntitlement.fromPersisted({ entitlement, template });
+};
+
+// The claim code is still on the request, so a caller that names an
+// entitlement belonging to a different code is told rather than silently
+// having its metadata ignored.
+const assertClaimCodeMatches = (claimable, claimCode) => {
+  if (claimable.claimCode !== claimCode) {
+    throw Boom.badData(
+      `Entitlement "${claimable.entitlement.id}" is for claim code "${claimable.claimCode}", not "${claimCode}".`,
     );
   }
-  return candidates[0];
 };
 
 const dataValue = (field, value) => value ?? field.value ?? null;
@@ -143,12 +156,21 @@ const toClaimableDto = (claimable) => ({
   claim: structuredClone(claimable.claim),
 });
 
+// A persisted claimable has its own budget, scoped to the entitlement the claim
+// names. A materialised one has no entitlement to scope to, so it still counts
+// every claim under the code.
 const countClaimsFor = (claimable) =>
-  countByClaimCode({
-    code: claimable.code,
-    clientRef: claimable.clientRef,
-    claimCode: claimable.claimCode,
-  });
+  claimable.entitlement
+    ? countByEntitlement({
+        code: claimable.code,
+        clientRef: claimable.clientRef,
+        entitlementId: claimable.entitlement.id,
+      })
+    : countByClaimCode({
+        code: claimable.code,
+        clientRef: claimable.clientRef,
+        claimCode: claimable.claimCode,
+      });
 
 const isAvailable = async (claimable, position) =>
   claimable.canAcceptClaim(position, await countClaimsFor(claimable)).allowed;
@@ -203,6 +225,7 @@ const insertClaim = async ({ command }, session) => {
       clientRef: command.clientRef,
       claimCode: command.payload.metadata.claimCode,
       clientClaimRef: command.payload.metadata.clientClaimRef,
+      entitlementId: command.payload.metadata.entitlementId,
       metadata: command.payload.metadata,
       claim: command.payload.claim,
     },
@@ -240,13 +263,15 @@ const claimableWithCapacity = async (
     grant,
     application,
     existing,
-    claimCode: command.payload.metadata.claimCode,
+    entitlementId: command.payload.metadata.entitlementId,
   });
-  const count = await countByClaimCode(
+  assertClaimCodeMatches(claimable, command.payload.metadata.claimCode);
+
+  const count = await countByEntitlement(
     {
       code: command.code,
       clientRef: command.clientRef,
-      claimCode: claimable.claimCode,
+      entitlementId: claimable.entitlement.id,
     },
     session,
   );

@@ -164,17 +164,7 @@ export const entitlementTemplate = Joi.object({
   // rather than the definition.
   fields: absentAsNull(Joi.object().pattern(Joi.string(), field).min(1)),
 
-  maxEntitlements: Joi.number()
-    .integer()
-    .min(1)
-    .default(1)
-    .optional()
-    .when("claim.claimableAt", {
-      is: Joi.array().min(1).required(),
-      then: Joi.valid(1).messages({
-        "any.only": `"maxEntitlements" must be 1 when "claim.claimableAt" is configured`,
-      }),
-    }),
+  maxEntitlements: Joi.number().integer().min(1).default(1).optional(),
 
   availableAt: availableAt.required(),
 

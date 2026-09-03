@@ -7,6 +7,7 @@ import { withTransaction } from "../../common/with-transaction.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
 import {
   countByClaimCode,
+  countByEntitlement,
   existsByClientClaimRef,
   insert,
 } from "../repositories/claim.repository.js";
@@ -54,12 +55,21 @@ const position = {
   stage: "ASSESSMENT",
   status: "APPLICATION_RECEIVED",
 };
+const entitlementId = "entitlement-1";
+const persistedEntitlement = {
+  id: entitlementId,
+  code,
+  clientRef,
+  claimCode,
+  instanceNumber: 1,
+};
 const payload = {
   metadata: {
     code,
     grantCode: code,
     clientRef,
     claimCode,
+    entitlementId,
     clientClaimRef: "claim-1",
   },
   claim: { claimAmountPence: 100 },
@@ -102,10 +112,11 @@ describe("claims.service", () => {
     withTransaction.mockImplementation((callback) => callback(session));
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application());
     lockForUpdate.mockResolvedValue(application());
-    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant() });
-    findExistingEntitlements.mockResolvedValue([]);
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
+    findExistingEntitlements.mockResolvedValue([persistedEntitlement]);
     existsByClientClaimRef.mockResolvedValue(false);
     countByClaimCode.mockResolvedValue(0);
+    countByEntitlement.mockResolvedValue(0);
     insert.mockResolvedValue(new ObjectId("64b0c0c0c0c0c0c0c0c0c0c0"));
   });
 
@@ -134,15 +145,28 @@ describe("claims.service", () => {
     ).rejects.toMatchObject({ output: { statusCode: 404 } });
   });
 
-  it("refuses when the claim code is not defined by the grant", async () => {
+  it("refuses an entitlement id that does not belong to the application", async () => {
     const other = {
       ...payload,
-      metadata: { ...payload.metadata, claimCode: "ENT_UNKNOWN" },
+      metadata: { ...payload.metadata, entitlementId: "entitlement-missing" },
     };
 
     await expect(
       submitClaim({ code, clientRef, payload: other }),
     ).rejects.toMatchObject({ output: { statusCode: 404 } });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("refuses a claim code that does not match the entitlement named", async () => {
+    const other = {
+      ...payload,
+      metadata: { ...payload.metadata, claimCode: "ENT_OTHER" },
+    };
+
+    await expect(
+      submitClaim({ code, clientRef, payload: other }),
+    ).rejects.toMatchObject({ output: { statusCode: 422 } });
+    expect(insert).not.toHaveBeenCalled();
   });
 
   it("refuses when the application disappears before the lock", async () => {
@@ -243,17 +267,53 @@ describe("claims.service", () => {
 
   it("does not offer a persisted template with no entitlement", async () => {
     resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
+    findExistingEntitlements.mockResolvedValue([]);
     await expect(
       listClaimableEntitlements({ code, clientRef }),
     ).resolves.toEqual([]);
   });
 
-  it("excludes targets whose claim limit has been reached", async () => {
-    countByClaimCode.mockResolvedValue(1);
+  it("excludes a persisted target whose own claim limit has been reached", async () => {
+    countByEntitlement.mockResolvedValue(1);
 
     await expect(
       listClaimableEntitlements({ code, clientRef }),
     ).resolves.toEqual([]);
+    expect(countByEntitlement).toHaveBeenCalledWith({
+      code,
+      clientRef,
+      entitlementId,
+    });
+  });
+
+  // Sibling entitlements under one claim code hold separate budgets, so one
+  // reaching its limit must not hide the other.
+  it("keeps offering a sibling entitlement that has claims of its own left", async () => {
+    findExistingEntitlements.mockResolvedValue([
+      persistedEntitlement,
+      { ...persistedEntitlement, id: "entitlement-2", instanceNumber: 2 },
+    ]);
+    countByEntitlement.mockImplementation(async ({ entitlementId: id }) =>
+      id === entitlementId ? 1 : 0,
+    );
+
+    await expect(
+      listClaimableEntitlements({ code, clientRef }),
+    ).resolves.toEqual([
+      expect.objectContaining({ entitlementId: "entitlement-2" }),
+    ]);
+  });
+
+  it("counts a materialised target by claim code, having no entitlement", async () => {
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(true) });
+    findExistingEntitlements.mockResolvedValue([]);
+    countByClaimCode.mockResolvedValue(0);
+
+    await expect(
+      listClaimableEntitlements({ code, clientRef }),
+    ).resolves.toEqual([
+      expect.objectContaining({ source: "materialised", entitlementId: null }),
+    ]);
     expect(countByClaimCode).toHaveBeenCalledWith({
       code,
       clientRef,
@@ -261,7 +321,7 @@ describe("claims.service", () => {
     });
   });
 
-  it("persists a materialised claim after lock-free and transactional replay checks", async () => {
+  it("persists a claim after lock-free and transactional replay checks", async () => {
     await expect(submitClaim({ code, clientRef, payload })).resolves.toEqual({
       created: true,
       claimId: "64b0c0c0c0c0c0c0c0c0c0c0",
@@ -278,52 +338,63 @@ describe("claims.service", () => {
     );
   });
 
-  it("rejects a persisted template when its entitlement is absent", async () => {
-    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
+  it("rejects a claim when the application holds no entitlements", async () => {
+    findExistingEntitlements.mockResolvedValue([]);
+
     await expect(submitClaim({ code, clientRef, payload })).rejects.toThrow(
-      /Entitlement with claimCode/,
+      /Entitlement "entitlement-1" not found/,
     );
     expect(insert).not.toHaveBeenCalled();
   });
 
-  // The claim limit for a persisted entitlement is counted by claim code, which
-  // is equivalent to counting per entitlement only because a claimable template
-  // is limited to one instance. The claim request cannot name an instance.
-  it("applies the limit to a persisted entitlement, counted by claim code", async () => {
-    const persisted = {
-      id: "entitlement-1",
-      code,
-      clientRef,
-      claimCode,
-      instanceNumber: 1,
-    };
-    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
-    findExistingEntitlements.mockResolvedValue([persisted]);
-    countByClaimCode.mockResolvedValue(1);
+  // The limit is per entitlement now the claim names its target, so a second
+  // entitlement under the same claim code carries its own budget. This is the
+  // case the single-instance guard used to make impossible.
+  it("counts the claim limit against the named entitlement only", async () => {
+    findExistingEntitlements.mockResolvedValue([
+      persistedEntitlement,
+      { ...persistedEntitlement, id: "entitlement-2", instanceNumber: 2 },
+    ]);
+    countByEntitlement.mockResolvedValue(1);
+
     await expect(submitClaim({ code, clientRef, payload })).rejects.toThrow(
       /Maximum number of claims/,
     );
-    expect(countByClaimCode).toHaveBeenCalledWith(
-      { code, clientRef, claimCode },
+    expect(countByEntitlement).toHaveBeenCalledWith(
+      { code, clientRef, entitlementId },
       session,
     );
   });
 
-  it("refuses to submit when a claim code does not identify a single entitlement", async () => {
-    const instance = (instanceNumber) => ({
-      id: `entitlement-${instanceNumber}`,
-      code,
-      clientRef,
-      claimCode,
-      instanceNumber,
-    });
-    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
-    findExistingEntitlements.mockResolvedValue([instance(1), instance(2)]);
+  it("accepts a claim against a second entitlement for the same claim code", async () => {
+    findExistingEntitlements.mockResolvedValue([
+      persistedEntitlement,
+      { ...persistedEntitlement, id: "entitlement-2", instanceNumber: 2 },
+    ]);
 
     await expect(
-      submitClaim({ code, clientRef, payload }),
-    ).rejects.toMatchObject({ output: { statusCode: 500 } });
-    expect(insert).not.toHaveBeenCalled();
+      submitClaim({
+        code,
+        clientRef,
+        payload: {
+          ...payload,
+          metadata: { ...payload.metadata, entitlementId: "entitlement-2" },
+        },
+      }),
+    ).resolves.toMatchObject({ created: true });
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ entitlementId: "entitlement-2" }),
+      session,
+    );
+  });
+
+  it("records the entitlement the claim was submitted against", async () => {
+    await submitClaim({ code, clientRef, payload });
+
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ entitlementId }),
+      session,
+    );
   });
 
   it("retries after a configuration change before the application lock", async () => {

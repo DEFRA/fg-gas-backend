@@ -307,7 +307,7 @@ it("rejects entitlementTemplates with duplicate claim codes", () => {
   expect(error.message).toContain("contains a duplicate value");
 });
 
-it("rejects a claimable entitlement template with multiple instances", () => {
+it("accepts a claimable entitlement template with multiple instances", () => {
   const { error } = createGrantRequestSchema.validate({
     code: "test",
     metadata: {
@@ -335,9 +335,7 @@ it("rejects a claimable entitlement template with multiple instances", () => {
     ],
   });
 
-  expect(error.message).toContain(
-    '"maxEntitlements" must be 1 when "claim.claimableAt" is configured',
-  );
+  expect(error).toBeUndefined();
 });
 
 it("accepts a materialised entitlement template that carries nothing but its position", () => {

@@ -15,6 +15,18 @@ export const existsByClientClaimRef = async (
   return doc !== null;
 };
 
+// Per-entitlement claim limits: a claim names its target, so the count is
+// scoped to that entitlement rather than to every claim under the code.
+export const countByEntitlement = async (
+  { code, clientRef, entitlementId },
+  session,
+) =>
+  db
+    .collection(collection)
+    .countDocuments({ code, clientRef, entitlementId }, { session });
+
+// Used when listing what is claimable, where the question is how many claims
+// exist under a code rather than against one entitlement.
 export const countByClaimCode = async (
   { code, clientRef, claimCode },
   session,
@@ -24,7 +36,15 @@ export const countByClaimCode = async (
     .countDocuments({ code, clientRef, claimCode }, { session });
 
 export const insert = async (
-  { code, clientRef, claimCode, clientClaimRef, metadata, claim },
+  {
+    code,
+    clientRef,
+    claimCode,
+    clientClaimRef,
+    entitlementId,
+    metadata,
+    claim,
+  },
   session,
 ) => {
   const now = new Date().toISOString();
@@ -34,6 +54,7 @@ export const insert = async (
       clientRef,
       claimCode,
       clientClaimRef,
+      entitlementId,
       metadata,
       claim,
       createdAt: now,

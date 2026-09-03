@@ -30,6 +30,7 @@ afterAll(async () => {
 const code = "grant-1";
 const clientRef = "client-ref-1";
 const claimCode = "ENT_CS_CAPITAL_PA3";
+const entitlementId = "3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 
 const position = {
   phase: ApplicationPhase.PreAward,
@@ -104,6 +105,7 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
     it("returns persisted available claims with merged template metadata", async () => {
       await seed({ entitlementTemplates: [template()] });
       await entitlements.insertOne({
+        id: entitlementId,
         clientRef,
         code,
         claimCode,
@@ -120,6 +122,7 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
       expect(response.payload.availableClaims).toHaveLength(1);
       expect(response.payload.availableClaims[0]).toMatchObject({
         code: claimCode,
+        entitlementId,
         name: "PA3 Woodland Management Plan entitlement",
         description: "The maximum eligible woodland area that can be claimed.",
         data: {
@@ -140,6 +143,7 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
     it("returns available claims with merged template metadata when entitlements exist (AC1 + AC2)", async () => {
       await seed({ entitlementTemplates: [template()] });
       await entitlements.insertOne({
+        id: entitlementId,
         clientRef,
         code,
         claimCode,
@@ -156,6 +160,7 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
       expect(response.payload.availableClaims).toHaveLength(1);
       expect(response.payload.availableClaims[0]).toMatchObject({
         code: claimCode,
+        entitlementId,
         name: "PA3 Woodland Management Plan entitlement",
         data: {
           totalHectares: {
@@ -201,6 +206,7 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
       expect(response.payload.availableClaims).toEqual([
         {
           code: claimCode,
+          entitlementId: null,
           name: "PA3 Woodland Management Plan entitlement",
           description:
             "The maximum eligible woodland area that can be claimed.",

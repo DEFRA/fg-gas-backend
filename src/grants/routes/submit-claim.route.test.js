@@ -20,6 +20,7 @@ const payload = {
     grantCode: "woodland",
     clientRef: "wmp-6hb-j8e",
     claimCode: "ENT_CS_CAPITAL_PA3",
+    entitlementId: "8cef007b-af1e-4cdc-bf4c-948b6bf85d05",
     clientClaimRef: "WMP-6HB-J8E-C0001",
     sbi: "113593357",
     crn: "1100943757",

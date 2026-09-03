@@ -9,8 +9,10 @@ const slotIndexFields = ["clientRef", "code", "claimCode", "instanceNumber"];
 const isSlotConflict = (error) =>
   slotIndexFields.every((field) => error.keyPattern?.[field] === 1);
 
+// Mongo assigns _id. The entitlement's own id is a randomUUID minted by the
+// model and is the identifier callers use, so the two are kept apart: nothing
+// outside this repository should depend on the database key.
 const toDocument = (entitlement) => ({
-  _id: entitlement.id,
   id: entitlement.id,
   clientRef: entitlement.clientRef,
   code: entitlement.code,
