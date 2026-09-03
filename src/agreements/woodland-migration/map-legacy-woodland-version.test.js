@@ -1,4 +1,4 @@
-import { Decimal128 } from "mongodb";
+import { Decimal128, Long } from "mongodb";
 import { describe, expect, it } from "vitest";
 import {
   mapLegacyWoodlandVersion,
@@ -485,31 +485,34 @@ describe("mapLegacyWoodlandVersion", () => {
     );
   });
 
-  it("rejects Decimal128 quantities the GAS number domain cannot preserve", () => {
-    const version = {
-      ...sourceVersion,
-      application: {
-        parcel: [
-          {
-            ...sourceVersion.application.parcel[0],
-            area: {
-              unit: "ha",
-              quantity: Decimal128.fromString("4.757500000000000001"),
+  it.each([
+    ["Decimal128", Decimal128.fromString("4.757500000000000001")],
+    ["Long", Long.fromString("9007199254740993")],
+  ])(
+    "rejects %s quantities the GAS number domain cannot preserve",
+    (_type, quantity) => {
+      const version = {
+        ...sourceVersion,
+        application: {
+          parcel: [
+            {
+              ...sourceVersion.application.parcel[0],
+              area: { unit: "ha", quantity },
             },
-          },
-        ],
-      },
-    };
-
-    expect(validateMappedWoodlandVersion(map(version))).toEqual(
-      expect.arrayContaining([
-        {
-          path: "parcels.0.area.quantity",
-          reason: "woodland.quantity.not-exact",
+          ],
         },
-      ]),
-    );
-  });
+      };
+
+      expect(validateMappedWoodlandVersion(map(version))).toEqual(
+        expect.arrayContaining([
+          {
+            path: "parcels.0.area.quantity",
+            reason: "woodland.quantity.not-exact",
+          },
+        ]),
+      );
+    },
+  );
 
   it.each([
     ["missing", undefined],

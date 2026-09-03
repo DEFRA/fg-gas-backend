@@ -1,6 +1,6 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
-import { BSON } from "mongodb";
+import { BSON, Double, Int32, Long } from "mongodb";
 import { config } from "../../common/config.js";
 import { wreck } from "../../common/wreck.js";
 
@@ -67,6 +67,49 @@ const requireValid = (schema, value) => {
   return result.value;
 };
 
+const safeLongValue = (value) => {
+  const number = value.toNumber();
+  return Number.isSafeInteger(number) && BigInt(number) === value.toBigInt()
+    ? number
+    : value;
+};
+
+const runtimeBsonNumber = (value) => {
+  if (value instanceof Long) {
+    return safeLongValue(value);
+  }
+  if (value instanceof Int32) {
+    return value.valueOf();
+  }
+  if (value instanceof Double) {
+    return value.valueOf();
+  }
+  return null;
+};
+
+const toRuntimeObject = (value) =>
+  value?.constructor === Object
+    ? Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [
+          key,
+          toRuntimeSourceValue(entry),
+        ]),
+      )
+    : value;
+
+const toRuntimeSourceValue = (value) => {
+  const number = runtimeBsonNumber(value);
+  if (number !== null) {
+    return number;
+  }
+  return Array.isArray(value)
+    ? value.map(toRuntimeSourceValue)
+    : toRuntimeObject(value);
+};
+
+const deserializeSource = (value) =>
+  toRuntimeSourceValue(BSON.EJSON.deserialize(value, { relaxed: false }));
+
 export const fetchWoodlandAgreementNumbers = async () => {
   const payload = await get("/internal/migrations/woodland/agreements");
   return requireValid(agreementNumbersSchema, payload).agreementNumbers;
@@ -83,7 +126,7 @@ export const fetchWoodlandAgreementVersionPages = async function* (
     let page;
 
     try {
-      page = BSON.EJSON.deserialize(await get(path));
+      page = deserializeSource(await get(path));
     } catch {
       throw sourceError();
     }

@@ -1,4 +1,4 @@
-import { Decimal128 } from "mongodb";
+import { Decimal128, Long } from "mongodb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { wreck } from "../../common/wreck.js";
@@ -56,7 +56,7 @@ describe("Woodland migration source", () => {
     });
   });
 
-  it("pages internally and deserializes exact BSON decimal values", async () => {
+  it("pages internally and deserializes BSON numbers without losing precision", async () => {
     wreck.get
       .mockResolvedValueOnce(
         response({
@@ -67,6 +67,10 @@ describe("Woodland migration source", () => {
               displayedQuantity: {
                 $numberDecimal: "4.757500000000000001",
               },
+              sourceInt32: { $numberInt: "42" },
+              sourceDouble: { $numberDouble: "42.0" },
+              sourceLong: { $numberLong: "42" },
+              sourceLargeLong: { $numberLong: "9007199254740993" },
             },
           ],
           nextOffset: 100,
@@ -86,11 +90,15 @@ describe("Woodland migration source", () => {
       pages.push(page);
     }
 
+    const [version] = pages[0].versions;
     expect(pages).toHaveLength(2);
-    expect(pages[0].versions[0].displayedQuantity).toBeInstanceOf(Decimal128);
-    expect(pages[0].versions[0].displayedQuantity.toString()).toBe(
-      "4.757500000000000001",
-    );
+    expect(version.displayedQuantity).toBeInstanceOf(Decimal128);
+    expect(version.displayedQuantity.toString()).toBe("4.757500000000000001");
+    expect(version.sourceInt32).toBe(42);
+    expect(version.sourceDouble).toBe(42);
+    expect(version.sourceLong).toBe(42);
+    expect(version.sourceLargeLong).toBeInstanceOf(Long);
+    expect(version.sourceLargeLong.toString()).toBe("9007199254740993");
     expect(wreck.get.mock.calls.map(([url]) => url)).toEqual([
       "https://agreements.example.test/internal/migrations/woodland/agreements/WMP0001/versions?offset=0",
       "https://agreements.example.test/internal/migrations/woodland/agreements/WMP0001/versions?offset=100",
