@@ -133,7 +133,8 @@ export const fetchWoodlandAgreementVersionPages = async function* (
 
     page = requireValid(versionPageSchema, page);
 
-    if (page.nextOffset !== null && page.nextOffset <= offset) {
+    const expectedNextOffset = offset + page.versions.length;
+    if (page.nextOffset !== null && page.nextOffset !== expectedNextOffset) {
       throw sourceError();
     }
 

@@ -169,7 +169,7 @@ Before apply is implemented, the mapping must confirm:
 
 - The complete set of legacy lifecycle statuses and their GAS states.
 - `Grant.versions` as the authoritative version order.
-- Agreement, Grant and Version timestamps used for `createdAt`, `updatedAt`, `versionedAt` and `acceptedAt`.
+- Timestamp mapping: Agreement `createdAt` (falling back to Grant then Version) becomes snapshot `createdAt`; Version `updatedAt` becomes snapshot `updatedAt`; Version `createdAt` becomes `AgreementVersion.versionedAt`; and an accepted Version's `signatureDate` becomes snapshot `acceptedAt`.
 - Parcel identifiers and displayed area or quantity fields.
 - Agreement-level payment items and parcel action items. Woodland maps these to Agreement items and application land parcels; it does not create Agreement actions.
 - Source item codes, quantities, units, annual amounts and totals.

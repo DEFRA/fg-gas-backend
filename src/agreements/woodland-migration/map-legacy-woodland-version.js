@@ -1,3 +1,4 @@
+import { AgreementVersion } from "../models/agreement-version.js";
 import { Agreement } from "../models/agreement.js";
 import { isCalendarDate } from "../schemas/agreement-value.schema.js";
 import {
@@ -178,7 +179,7 @@ export const mapLegacyWoodlandVersion = ({
     agreement.createdAt ?? grant.createdAt ?? sourceVersion.createdAt,
   );
 
-  return new Agreement({
+  const mappedAgreement = new Agreement({
     agreementNumber: agreement.agreementNumber,
     version,
     code: sourceVersion.code ?? grant.code,
@@ -210,6 +211,13 @@ export const mapLegacyWoodlandVersion = ({
       state === "accepted"
         ? toIsoString(sourceVersion.signatureDate)
         : undefined,
+  });
+
+  return new AgreementVersion({
+    agreementNumber: mappedAgreement.agreementNumber,
+    version: mappedAgreement.version,
+    snapshot: mappedAgreement,
+    versionedAt: toIsoString(sourceVersion.createdAt),
   });
 };
 /* eslint-enable complexity */

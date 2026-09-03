@@ -51,6 +51,7 @@ const metadataSchema = Joi.object({
     then: timestampSchema.required(),
     otherwise: Joi.forbidden(),
   }),
+  versionedAt: timestampSchema.required(),
 });
 
 const detailsToIssues = (error) =>
@@ -511,7 +512,11 @@ const sourceVersionIssues = (sourceVersion, agreement) => {
   ];
 };
 
-export const validateMappedWoodlandVersion = (agreement, sourceVersion) => {
+export const validateMappedWoodlandVersion = (
+  agreementVersion,
+  sourceVersion,
+) => {
+  const agreement = agreementVersion.snapshot;
   const options = {
     abortEarly: false,
     allowUnknown: false,
@@ -532,6 +537,7 @@ export const validateMappedWoodlandVersion = (agreement, sourceVersion) => {
       createdAt: agreement.createdAt,
       updatedAt: agreement.updatedAt,
       acceptedAt: agreement.acceptedAt,
+      versionedAt: agreementVersion.versionedAt,
     },
     options,
   );

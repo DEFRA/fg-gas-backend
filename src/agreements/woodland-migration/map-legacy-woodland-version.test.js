@@ -49,6 +49,7 @@ const sourceVersion = {
   scheme: "WMP",
   status: "accepted",
   signatureDate: new Date("2026-05-10T12:00:00.000Z"),
+  createdAt: new Date("2026-05-01T09:00:00.000Z"),
   updatedAt: new Date("2026-05-10T12:00:00.000Z"),
   schemeData: { oldWoodlandAreaHa: 18, newWoodlandAreaHa: 2 },
   applicant,
@@ -108,9 +109,15 @@ const map = (version = sourceVersion) =>
   });
 
 describe("mapLegacyWoodlandVersion", () => {
-  it("maps a legacy accepted version into the current GAS Agreement domain", () => {
-    const mapped = map();
+  it("maps a legacy accepted version and its historical timestamp", () => {
+    const mappedVersion = map();
+    const mapped = mappedVersion.snapshot;
 
+    expect(mappedVersion).toMatchObject({
+      agreementNumber: "WMP665383470",
+      version: 2,
+      versionedAt: "2026-05-01T09:00:00.000Z",
+    });
     expect(mapped).toMatchObject({
       agreementNumber: "WMP665383470",
       version: 2,
@@ -162,7 +169,9 @@ describe("mapLegacyWoodlandVersion", () => {
       },
       totalAgreementPaymentPence: 166200,
     });
-    expect(validateMappedWoodlandVersion(mapped, sourceVersion)).toEqual([]);
+    expect(validateMappedWoodlandVersion(mappedVersion, sourceVersion)).toEqual(
+      [],
+    );
   });
 
   it("maps diagnosed legacy scheme and agreement-name aliases", () => {
@@ -175,7 +184,7 @@ describe("mapLegacyWoodlandVersion", () => {
     };
     const mapped = map(version);
 
-    expect(mapped).toMatchObject({
+    expect(mapped.snapshot).toMatchObject({
       schemeCode: "WMP",
       name: "Oakridge Estate WMP",
       application: { woodlandName: "Oakridge Estate" },
@@ -247,7 +256,7 @@ describe("mapLegacyWoodlandVersion", () => {
       configVersion: "1.0.0",
     });
 
-    expect(mapped).toMatchObject({
+    expect(mapped.snapshot).toMatchObject({
       code: "woodland",
       clientRef: "grant-client",
       name: "Woodland plan",
@@ -255,7 +264,7 @@ describe("mapLegacyWoodlandVersion", () => {
       updatedAt: undefined,
       items: [{ quantity: 0, totalAmountPence: 0 }],
     });
-    expect(mapped.items[0].unit).toBeUndefined();
+    expect(mapped.snapshot.items[0].unit).toBeUndefined();
   });
 
   it("reports an incomplete offered version without inventing values", () => {
@@ -316,12 +325,29 @@ describe("mapLegacyWoodlandVersion", () => {
     const version = { ...sourceVersion, updatedAt: undefined };
     const mapped = map(version);
 
-    expect(mapped.updatedAt).toBeUndefined();
+    expect(mapped.snapshot.updatedAt).toBeUndefined();
     expect(validateMappedWoodlandVersion(mapped, version)).toContainEqual({
       path: "updatedAt",
       reason: "any.required",
     });
   });
+
+  it.each([
+    ["missing", undefined, "any.required"],
+    ["invalid", "2026-02-30T09:00:00.000Z", "date.calendar"],
+  ])(
+    "rejects a %s version creation timestamp without inventing one",
+    (_scenario, createdAt, reason) => {
+      const version = { ...sourceVersion, createdAt };
+      const mapped = map(version);
+
+      expect(mapped.versionedAt).toBe(createdAt);
+      expect(validateMappedWoodlandVersion(mapped, version)).toContainEqual({
+        path: "versionedAt",
+        reason,
+      });
+    },
+  );
 
   it("rejects calendar-invalid dates without normalising them", () => {
     const version = {
@@ -334,8 +360,8 @@ describe("mapLegacyWoodlandVersion", () => {
     };
     const mapped = map(version);
 
-    expect(mapped.updatedAt).toBe("2026-02-30T12:00:00.000Z");
-    expect(mapped.startDate).toBe("2026-02-30");
+    expect(mapped.snapshot.updatedAt).toBe("2026-02-30T12:00:00.000Z");
+    expect(mapped.snapshot.startDate).toBe("2026-02-30");
     expect(validateMappedWoodlandVersion(mapped, version)).toEqual(
       expect.arrayContaining([
         { path: "updatedAt", reason: "date.calendar" },
@@ -425,7 +451,7 @@ describe("mapLegacyWoodlandVersion", () => {
       },
     });
 
-    expect(mapped.parcels).toEqual([
+    expect(mapped.snapshot.parcels).toEqual([
       {
         id: "SD7560-9193",
         sheetId: "SD7560",
@@ -439,7 +465,7 @@ describe("mapLegacyWoodlandVersion", () => {
         area: undefined,
       },
     ]);
-    expect(mapped.items[0]).toMatchObject({
+    expect(mapped.snapshot.items[0]).toMatchObject({
       code: "PA3",
       totalAmountPence: 166200,
     });
@@ -568,8 +594,11 @@ describe("mapLegacyWoodlandVersion", () => {
     };
     const mapped = map(version);
 
-    expect(mapped.actions).toEqual([]);
-    expect(mapped.items[0]).toMatchObject({ quantity: 55.4, unit: "ha" });
+    expect(mapped.snapshot.actions).toEqual([]);
+    expect(mapped.snapshot.items[0]).toMatchObject({
+      quantity: 55.4,
+      unit: "ha",
+    });
     expect(validateMappedWoodlandVersion(mapped, version)).toEqual([]);
   });
 
@@ -682,7 +711,10 @@ describe("mapLegacyWoodlandVersion", () => {
     };
     const mapped = map(version);
 
-    expect(mapped.items[0]).toMatchObject({ quantity: 55.4, unit: "ha" });
+    expect(mapped.snapshot.items[0]).toMatchObject({
+      quantity: 55.4,
+      unit: "ha",
+    });
     expect(validateMappedWoodlandVersion(mapped, version)).toEqual([]);
   });
 

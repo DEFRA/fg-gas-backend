@@ -72,6 +72,7 @@ describe("Woodland migration source", () => {
               sourceLong: { $numberLong: "42" },
               sourceLargeLong: { $numberLong: "9007199254740993" },
             },
+            ...Array.from({ length: 99 }, () => ({})),
           ],
           nextOffset: 100,
         }),
@@ -128,34 +129,33 @@ describe("Woodland migration source", () => {
     });
   });
 
-  it("rejects a source offset that does not move forward", async () => {
-    wreck.get
-      .mockResolvedValueOnce(
+  it.each([
+    ["skips records", [{}], 2],
+    ["overlaps records", [{}, {}], 1],
+  ])(
+    "rejects a source offset that %s",
+    async (_scenario, versions, nextOffset) => {
+      wreck.get.mockResolvedValueOnce(
         response({
           agreement: { agreementNumber: "WMP0001" },
           grant: { agreementNumber: "WMP0001" },
-          versions: [{}],
-          nextOffset: 100,
-        }),
-      )
-      .mockResolvedValueOnce(
-        response({
-          agreement: { agreementNumber: "WMP0001" },
-          grant: { agreementNumber: "WMP0001" },
-          versions: [{}],
-          nextOffset: 100,
+          versions,
+          nextOffset,
         }),
       );
 
-    const readPages = async () => {
-      for await (const page of fetchWoodlandAgreementVersionPages("WMP0001")) {
-        expect(page).toBeDefined();
-      }
-    };
+      const readPages = async () => {
+        for await (const page of fetchWoodlandAgreementVersionPages(
+          "WMP0001",
+        )) {
+          expect(page).toBeDefined();
+        }
+      };
 
-    await expect(readPages()).rejects.toMatchObject({
-      message: "Woodland migration source request failed",
-      output: { statusCode: 502 },
-    });
-  });
+      await expect(readPages()).rejects.toMatchObject({
+        message: "Woodland migration source request failed",
+        output: { statusCode: 502 },
+      });
+    },
+  );
 });
