@@ -9,10 +9,10 @@ import {
   it,
   vi,
 } from "vitest";
-import { submitClaimUseCase } from "../use-cases/submit-claim.use-case.js";
+import { submitClaim } from "../services/claims.service.js";
 import { submitClaimRoute } from "./submit-claim.route.js";
 
-vi.mock("../use-cases/submit-claim.use-case.js");
+vi.mock("../services/claims.service.js");
 vi.mock("../../common/logger.js");
 
 const payload = {
@@ -50,7 +50,7 @@ describe("submitClaimRoute", () => {
   });
 
   it("returns 201 with the created claimId", async () => {
-    submitClaimUseCase.mockResolvedValue({
+    submitClaim.mockResolvedValue({
       created: true,
       claimId: "64b0c0c0c0c0c0c0c0c0c0c0",
     });
@@ -63,8 +63,8 @@ describe("submitClaimRoute", () => {
 
     expect(statusCode).toBe(201);
     expect(result).toEqual({ claimId: "64b0c0c0c0c0c0c0c0c0c0c0" });
-    expect(submitClaimUseCase).toHaveBeenCalledWith({
-      grantCode: "woodland",
+    expect(submitClaim).toHaveBeenCalledWith({
+      code: "woodland",
       clientRef: "wmp-6hb-j8e",
       payload: {
         ...payload,
@@ -77,7 +77,7 @@ describe("submitClaimRoute", () => {
   });
 
   it("returns 200 with an empty body for an idempotent retry", async () => {
-    submitClaimUseCase.mockResolvedValue({ created: false });
+    submitClaim.mockResolvedValue({ created: false });
 
     const { statusCode, result } = await server.inject({
       method: "POST",
@@ -97,11 +97,11 @@ describe("submitClaimRoute", () => {
     });
 
     expect(statusCode).toBe(400);
-    expect(submitClaimUseCase).not.toHaveBeenCalled();
+    expect(submitClaim).not.toHaveBeenCalled();
   });
 
   it("returns 409 when the use case rejects the application state", async () => {
-    submitClaimUseCase.mockRejectedValue(
+    submitClaim.mockRejectedValue(
       Boom.conflict(
         "Application is not in a valid state to accept claims for this entitlement.",
       ),

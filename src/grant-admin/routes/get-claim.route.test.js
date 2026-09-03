@@ -9,10 +9,13 @@ import {
   it,
   vi,
 } from "vitest";
-import { findClaimUseCase } from "../use-cases/find-claim.use-case.js";
+import {
+  getEntitlementCreationDetails,
+  getEntitlementOverview,
+} from "../../grants/services/entitlement.service.js";
 import { getClaimRoute } from "./get-claim.route.js";
 
-vi.mock("../use-cases/find-claim.use-case.js");
+vi.mock("../../grants/services/entitlement.service.js");
 vi.mock("../../common/logger.js", () => ({
   logger: {
     info: vi.fn(),
@@ -86,13 +89,13 @@ describe("getClaimRoute", () => {
     const clientRef = "ref-1234";
     const claimCode = template.claimCode;
 
-    findClaimUseCase.mockResolvedValue({
-      banner,
-      availableEntitlements: [template],
-      claimableEntitlements: [],
-      claims: [],
-      entitlementTemplate: template,
+    getEntitlementOverview.mockResolvedValue({
+      claimsPage: { details: { banner } },
+      applicationContext: {},
+      creationOptions: [template],
+      entitlements: [],
     });
+    getEntitlementCreationDetails.mockResolvedValue(template);
 
     const result = await server.inject({
       method: "GET",
@@ -100,7 +103,11 @@ describe("getClaimRoute", () => {
     });
 
     expect(result.statusCode).toEqual(200);
-    expect(findClaimUseCase).toHaveBeenCalledWith({
+    expect(getEntitlementOverview).toHaveBeenCalledWith({
+      code,
+      clientRef,
+    });
+    expect(getEntitlementCreationDetails).toHaveBeenCalledWith({
       code,
       clientRef,
       claimCode,
@@ -115,7 +122,15 @@ describe("getClaimRoute", () => {
   });
 
   it("returns 409 when the claim code already has an entitlement", async () => {
-    findClaimUseCase.mockRejectedValue(Boom.conflict("already exists"));
+    getEntitlementOverview.mockResolvedValue({
+      claimsPage: { details: { banner } },
+      applicationContext: {},
+      creationOptions: [],
+      entitlements: [],
+    });
+    getEntitlementCreationDetails.mockRejectedValue(
+      Boom.conflict("already exists"),
+    );
 
     const result = await server.inject({
       method: "GET",
@@ -126,7 +141,15 @@ describe("getClaimRoute", () => {
   });
 
   it("returns 404 when the claim code is not available", async () => {
-    findClaimUseCase.mockRejectedValue(Boom.notFound("not available"));
+    getEntitlementOverview.mockResolvedValue({
+      claimsPage: { details: { banner } },
+      applicationContext: {},
+      creationOptions: [],
+      entitlements: [],
+    });
+    getEntitlementCreationDetails.mockRejectedValue(
+      Boom.notFound("not available"),
+    );
 
     const result = await server.inject({
       method: "GET",

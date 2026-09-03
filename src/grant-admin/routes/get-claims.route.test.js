@@ -1,9 +1,9 @@
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { findClaimsUseCase } from "../use-cases/find-claims.use-case.js";
+import { getEntitlementOverview } from "../../grants/services/entitlement.service.js";
 import { getClaimsRoute } from "./get-claims.route.js";
 
-vi.mock("../use-cases/find-claims.use-case.js");
+vi.mock("../../grants/services/entitlement.service.js");
 vi.mock("../../common/logger.js");
 
 const template = {
@@ -65,11 +65,11 @@ describe("getClaimsRoute", () => {
     const code = "grant-1";
     const clientRef = "ref-1234";
 
-    findClaimsUseCase.mockResolvedValue({
-      banner,
-      availableEntitlements: [template],
-      claimableEntitlements: [],
-      claims: [],
+    getEntitlementOverview.mockResolvedValue({
+      claimsPage: { details: { banner } },
+      applicationContext: {},
+      creationOptions: [template],
+      entitlements: [],
     });
 
     const result = await server.inject({
@@ -78,7 +78,7 @@ describe("getClaimsRoute", () => {
     });
 
     expect(result.statusCode).toEqual(200);
-    expect(findClaimsUseCase).toHaveBeenCalledWith({
+    expect(getEntitlementOverview).toHaveBeenCalledWith({
       code,
       clientRef,
     });
@@ -91,11 +91,11 @@ describe("getClaimsRoute", () => {
   });
 
   it("returns empty lists when nothing is available", async () => {
-    findClaimsUseCase.mockResolvedValue({
-      banner,
-      availableEntitlements: [],
-      claimableEntitlements: [],
-      claims: [],
+    getEntitlementOverview.mockResolvedValue({
+      claimsPage: { details: { banner } },
+      applicationContext: {},
+      creationOptions: [],
+      entitlements: [],
     });
 
     const result = await server.inject({

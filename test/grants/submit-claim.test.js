@@ -20,7 +20,7 @@ const entitlementTemplate = {
   claimCode: "ENT_CS_CAPITAL_PA3",
   name: "PA3 Woodland Management Plan entitlement",
   description: "The maximum eligible woodland area that can be claimed.",
-  materialised: false,
+  materialised: true,
   fields: {
     totalHectares: {
       input: true,
@@ -225,6 +225,23 @@ describe("POST /grants/{grantCode}/applications/{clientRef}/claims", () => {
       expect(error.data.payload.statusCode).toBe(400);
       expect(error.data.payload.message).toBe(
         "The grant code provided in the path parameters does not match the grant code specified in the payload metadata.",
+      );
+    }
+  });
+
+  it("returns 400 when the path clientRef does not match the payload", async () => {
+    const code = `claim-grant-${randomUUID().slice(0, 8)}`;
+    const clientRef = await seedGrantAndApplication(code);
+
+    try {
+      await wreck.post(`/grants/${code}/applications/${clientRef}/claims`, {
+        payload: claimPayload(code, "other-client-ref", "WMP-C0001"),
+      });
+      throw new Error("expected 400");
+    } catch (error) {
+      expect(error.data.payload.statusCode).toBe(400);
+      expect(error.data.payload.message).toBe(
+        "The client reference provided in the path parameters does not match the client reference specified in the payload metadata.",
       );
     }
   });

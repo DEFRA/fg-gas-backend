@@ -1,5 +1,13 @@
 import Boom from "@hapi/boom";
 import { entitlementTemplate } from "../schemas/grant/entitlement-template.js";
+import { Entitlement } from "./entitlement.js";
+
+export const EntitlementCreationRejection = {
+  WRONG_POSITION: "WRONG_POSITION",
+  MATERIALISED_TEMPLATE: "MATERIALISED_TEMPLATE",
+  INVALID_ENTITLEMENT_DATA: "INVALID_ENTITLEMENT_DATA",
+  CAPACITY_REACHED: "CAPACITY_REACHED",
+};
 
 export class EntitlementTemplate {
   static validationSchema = entitlementTemplate;
@@ -47,6 +55,22 @@ export class EntitlementTemplate {
     return this.#matchesAnyPosition(this.claim?.claimableAt ?? [], position);
   }
 
+  assessEntitlementCreation(position, existing, submittedData) {
+    const instances = existing.filter(
+      (entitlement) => entitlement.claimCode === this.claimCode,
+    );
+    const reason = this.#creationRejection(position, instances, submittedData);
+
+    if (reason) {
+      return { allowed: false, reason };
+    }
+
+    return {
+      allowed: true,
+      nextInstanceNumber: Entitlement.nextInstanceNumber(instances),
+    };
+  }
+
   #matchesAnyPosition(positions, position) {
     if (!position) {
       return false;
@@ -75,5 +99,37 @@ export class EntitlementTemplate {
     return Object.entries(this.fields ?? {})
       .filter(([, field]) => field.input)
       .map(([name]) => name);
+  }
+
+  #submittedDataMatches(submittedData) {
+    const expected = this.inputFieldNames().sort();
+    const submitted = Object.keys(submittedData ?? {}).sort();
+
+    return (
+      expected.length === submitted.length &&
+      expected.every((fieldName, index) => fieldName === submitted[index])
+    );
+  }
+
+  #creationRejection(position, instances, submittedData) {
+    if (!this.isAvailableAt(position)) {
+      return EntitlementCreationRejection.WRONG_POSITION;
+    }
+
+    return this.#templateCreationRejection(instances, submittedData);
+  }
+
+  #templateCreationRejection(instances, submittedData) {
+    if (this.materialised) {
+      return EntitlementCreationRejection.MATERIALISED_TEMPLATE;
+    }
+
+    if (!this.#submittedDataMatches(submittedData)) {
+      return EntitlementCreationRejection.INVALID_ENTITLEMENT_DATA;
+    }
+
+    if (instances.length >= this.maxEntitlements) {
+      return EntitlementCreationRejection.CAPACITY_REACHED;
+    }
   }
 }

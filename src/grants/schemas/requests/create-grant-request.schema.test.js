@@ -307,6 +307,39 @@ it("rejects entitlementTemplates with duplicate claim codes", () => {
   expect(error.message).toContain("contains a duplicate value");
 });
 
+it("rejects a claimable entitlement template with multiple instances", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    entitlementTemplates: [
+      {
+        ...validEntitlementTemplate,
+        maxEntitlements: 2,
+        claim: {
+          ...validEntitlementTemplate.claim,
+          claimableAt: [
+            {
+              phase: "PRE_AWARD",
+              stage: "ASSESSMENT",
+              status: "APPLICATION_RECEIVED",
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  expect(error.message).toContain(
+    '"maxEntitlements" must be 1 when "claim.claimableAt" is configured',
+  );
+});
+
 it("accepts a materialised entitlement template that carries nothing but its position", () => {
   const { error, value } = createGrantRequestSchema.validate({
     code: "test",

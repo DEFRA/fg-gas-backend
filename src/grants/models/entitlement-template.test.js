@@ -497,4 +497,77 @@ describe("EntitlementTemplate", () => {
       expect(template.inputFieldNames()).toEqual([]);
     });
   });
+
+  describe("assessEntitlementCreation", () => {
+    const submittedData = { totalHectares: { value: 10 } };
+
+    it("allows creation at an available position with the lowest free instance number", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        maxEntitlements: 3,
+      });
+
+      expect(
+        template.assessEntitlementCreation(
+          availableAtPosition,
+          [
+            { claimCode: validProps.claimCode, instanceNumber: 1 },
+            { claimCode: validProps.claimCode, instanceNumber: 3 },
+            { claimCode: "ENT_OTHER", instanceNumber: 2 },
+          ],
+          submittedData,
+        ),
+      ).toEqual({ allowed: true, nextInstanceNumber: 2 });
+    });
+
+    it("rejects creation outside its available position", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(
+        template.assessEntitlementCreation(
+          { ...availableAtPosition, status: "OTHER_STATUS" },
+          [],
+          submittedData,
+        ),
+      ).toEqual({ allowed: false, reason: "WRONG_POSITION" });
+    });
+
+    it("rejects creation from a materialised template", () => {
+      const template = new EntitlementTemplate({
+        claimCode: "ENT_TRACTOR",
+        name: "Tractor entitlement",
+        availableAt: [availableAtPosition],
+      });
+
+      expect(
+        template.assessEntitlementCreation(availableAtPosition, [], {}),
+      ).toEqual({ allowed: false, reason: "MATERIALISED_TEMPLATE" });
+    });
+
+    it("rejects data with missing or unexpected input fields", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(
+        template.assessEntitlementCreation(availableAtPosition, [], {}),
+      ).toEqual({ allowed: false, reason: "INVALID_ENTITLEMENT_DATA" });
+      expect(
+        template.assessEntitlementCreation(availableAtPosition, [], {
+          ...submittedData,
+          unexpected: { value: "value" },
+        }),
+      ).toEqual({ allowed: false, reason: "INVALID_ENTITLEMENT_DATA" });
+    });
+
+    it("rejects creation when its capacity is reached", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(
+        template.assessEntitlementCreation(
+          availableAtPosition,
+          [{ claimCode: validProps.claimCode, instanceNumber: 1 }],
+          submittedData,
+        ),
+      ).toEqual({ allowed: false, reason: "CAPACITY_REACHED" });
+    });
+  });
 });

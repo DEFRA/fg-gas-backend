@@ -72,4 +72,41 @@ describe("POST /grants", () => {
       message: `Grant with code "${grant1.code}" version "${grant1.version}" already exists`,
     });
   });
+
+  it("rejects a claimable entitlement template with multiple instances", async () => {
+    let response;
+
+    try {
+      await wreck.post("/grants", {
+        json: true,
+        payload: {
+          ...grant1,
+          entitlementTemplates: [
+            {
+              claimCode: "ENT_CLAIMABLE",
+              name: "Claimable entitlement",
+              maxEntitlements: 2,
+              availableAt: [{ phase: "PRE_AWARD" }],
+              claim: {
+                claimableAt: [{ phase: "PRE_AWARD" }],
+              },
+            },
+          ],
+        },
+      });
+    } catch (error) {
+      response = error.data.payload;
+    }
+
+    expect(response).toEqual({
+      statusCode: 400,
+      error: "Bad Request",
+      message:
+        '"maxEntitlements" must be 1 when "claim.claimableAt" is configured',
+      validation: {
+        keys: ["entitlementTemplates.0.maxEntitlements"],
+        source: "payload",
+      },
+    });
+  });
 });

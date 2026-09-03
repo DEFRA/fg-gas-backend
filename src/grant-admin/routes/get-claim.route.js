@@ -1,9 +1,16 @@
 import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
+import {
+  getEntitlementCreationDetails,
+  getEntitlementOverview,
+} from "../../grants/services/entitlement.service.js";
 import { code as grantCode } from "../schemas/code.js";
 import { getClaimResponseSchema } from "../schemas/get-claim-response.schema.js";
-import { findClaimUseCase } from "../use-cases/find-claim.use-case.js";
+import {
+  buildClaimsView,
+  toEntitlementTemplate,
+} from "../services/build-claims-view.js";
 
 export const getClaimRoute = {
   method: "GET",
@@ -28,10 +35,14 @@ export const getClaimRoute = {
       `Get claim for application with code ${code}, claimCode ${claimCode} and clientRef ${clientRef}`,
     );
 
-    return findClaimUseCase({
-      code,
-      clientRef,
-      claimCode,
-    });
+    const [overview, creationDetails] = await Promise.all([
+      getEntitlementOverview({ code, clientRef }),
+      getEntitlementCreationDetails({ code, clientRef, claimCode }),
+    ]);
+
+    return {
+      ...(await buildClaimsView(overview)),
+      entitlementTemplate: toEntitlementTemplate(creationDetails),
+    };
   },
 };

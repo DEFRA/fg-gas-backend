@@ -1,17 +1,23 @@
 import { buildBanner } from "./build-banner.js";
 
 export const buildClaimsView = async ({
-  grant,
-  application,
-  offerable,
-  existing = [],
+  claimsPage,
+  applicationContext,
+  creationOptions,
+  entitlements,
 }) => {
-  const banner = await buildBanner({ grant, application, page: "claims" });
+  const banner = await buildBanner({ claimsPage, applicationContext });
 
   return {
     banner,
-    availableEntitlements: offerable,
-    claimableEntitlements: existing,
+    availableEntitlements: creationOptions.map(toAvailableEntitlement),
+    claimableEntitlements: entitlements.map(toEntitlement),
     claims: [],
   };
 };
+
+const toAvailableEntitlement = ({ remainingCapacity, ...option }) => option;
+
+export const toEntitlement = (entitlement) => structuredClone(entitlement);
+
+export const toEntitlementTemplate = toAvailableEntitlement;
