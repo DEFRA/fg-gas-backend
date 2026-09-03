@@ -9,7 +9,9 @@ import {
   sourceActionApplications,
   sourceActions,
   sourceApplicationParcelActions,
+  sourceItemActionValues,
   sourceItemEntries,
+  toExactNumber,
 } from "./woodland-migration-source-values.js";
 
 const supportedStates = ["offered", "accepted"];
@@ -37,6 +39,8 @@ const metadataSchema = Joi.object({
   })
     .unknown(true)
     .required(),
+  schemeCode: Joi.string().required(),
+  name: Joi.string().required(),
   state: Joi.string()
     .valid(...supportedStates)
     .required(),
@@ -72,6 +76,14 @@ const valuesFrom = (agreement) => ({
 
 const sameValue = (left, right) => left?.toString() === right?.toString();
 
+const presentValues = (values) =>
+  values.filter((value) => value !== undefined && value !== null);
+
+const hasConflictingValues = (
+  values,
+  normalise = (value) => value.toString(),
+) => new Set(presentValues(values).map(normalise)).size > 1;
+
 const validPence = (value) => Number.isSafeInteger(value) && value >= 0;
 
 const singlePayment = (payment) => {
@@ -89,6 +101,18 @@ const sourceItemAmountEntries = (version) =>
     `items.${id}.totalAmountPence`,
     item.agreementTotalPence ?? item.annualPaymentPence,
   ]);
+
+const sourceItemPaymentAmountIssues = (version) =>
+  sourceItemEntries(version).flatMap(([id, item]) =>
+    hasConflictingValues([item.agreementTotalPence, item.annualPaymentPence])
+      ? [
+          {
+            path: `items.${id}.totalAmountPence`,
+            reason: "woodland.item-payment-amount.source-mismatch",
+          },
+        ]
+      : [],
+  );
 
 const sourcePaymentAmountEntries = (version) => {
   const payment = version.payment ?? {};
@@ -291,6 +315,27 @@ const sourceItemIssues = (version) => {
     : [{ path: "items", reason: "woodland.items.source-mismatch" }];
 };
 
+const sourceItemActionValueIssues = (version) =>
+  sourceItemEntries(version).flatMap(([id, item]) =>
+    ["quantity", "unit"].flatMap((field) => {
+      const values = [
+        item[field],
+        ...sourceItemActionValues(version, item, field),
+      ];
+      const normalise =
+        field === "quantity" ? toExactNumber : (value) => value.toString();
+
+      return hasConflictingValues(values, normalise)
+        ? [
+            {
+              path: `items.${id}.${field}`,
+              reason: `woodland.item-${field}.source-mismatch`,
+            },
+          ]
+        : [];
+    }),
+  );
+
 const sourceActionCodeIssues = (version, agreement) => {
   const itemCodes = new Set(agreement.items.map(({ code }) => code));
   return sourceActions(version).flatMap(({ action, path }) =>
@@ -452,6 +497,20 @@ const wmpIssues = (agreement) => {
   return issues;
 };
 
+const sourceVersionIssues = (sourceVersion, agreement) => {
+  if (!sourceVersion) {
+    return [];
+  }
+
+  return [
+    ...sourcePaymentIssues(sourceVersion),
+    ...sourceItemPaymentAmountIssues(sourceVersion),
+    ...sourceItemIssues(sourceVersion),
+    ...sourceItemActionValueIssues(sourceVersion),
+    ...sourceActionIssues(sourceVersion, agreement),
+  ];
+};
+
 export const validateMappedWoodlandVersion = (agreement, sourceVersion) => {
   const options = {
     abortEarly: false,
@@ -467,6 +526,8 @@ export const validateMappedWoodlandVersion = (agreement, sourceVersion) => {
       configVersion: agreement.configVersion,
       correlationId: agreement.correlationId,
       identifiers: agreement.identifiers,
+      schemeCode: agreement.schemeCode,
+      name: agreement.name,
       state: agreement.state,
       createdAt: agreement.createdAt,
       updatedAt: agreement.updatedAt,
@@ -480,8 +541,6 @@ export const validateMappedWoodlandVersion = (agreement, sourceVersion) => {
     ...detailsToIssues(metadata.error),
     ...detailsToIssues(values.error),
     ...wmpIssues(agreement),
-    ...(sourceVersion ? sourcePaymentIssues(sourceVersion) : []),
-    ...(sourceVersion ? sourceItemIssues(sourceVersion) : []),
-    ...(sourceVersion ? sourceActionIssues(sourceVersion, agreement) : []),
+    ...sourceVersionIssues(sourceVersion, agreement),
   ];
 };

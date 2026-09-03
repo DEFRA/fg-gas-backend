@@ -165,6 +165,39 @@ describe("mapLegacyWoodlandVersion", () => {
     expect(validateMappedWoodlandVersion(mapped, sourceVersion)).toEqual([]);
   });
 
+  it("maps diagnosed legacy scheme and agreement-name aliases", () => {
+    const version = {
+      ...sourceVersion,
+      agreementName: undefined,
+      name: "Oakridge Estate WMP",
+      scheme: undefined,
+      schemeCode: "WMP",
+    };
+    const mapped = map(version);
+
+    expect(mapped).toMatchObject({
+      schemeCode: "WMP",
+      name: "Oakridge Estate WMP",
+      application: { woodlandName: "Oakridge Estate" },
+    });
+    expect(validateMappedWoodlandVersion(mapped, version)).toEqual([]);
+  });
+
+  it("rejects missing Woodland scheme and agreement-name metadata", () => {
+    const version = {
+      ...sourceVersion,
+      agreementName: undefined,
+      scheme: undefined,
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toEqual(
+      expect.arrayContaining([
+        { path: "schemeCode", reason: "any.required" },
+        { path: "name", reason: "any.required" },
+      ]),
+    );
+  });
+
   it("uses legacy metadata and Map fallbacks without changing source values", () => {
     const mapped = mapLegacyWoodlandVersion({
       agreement: {
@@ -219,7 +252,7 @@ describe("mapLegacyWoodlandVersion", () => {
       clientRef: "grant-client",
       name: "Woodland plan",
       createdAt: "2026-04-01T10:00:00.000Z",
-      updatedAt: "2026-04-01T10:00:00.000Z",
+      updatedAt: undefined,
       items: [{ quantity: 0, totalAmountPence: 0 }],
     });
     expect(mapped.items[0].unit).toBeUndefined();
@@ -277,6 +310,17 @@ describe("mapLegacyWoodlandVersion", () => {
         },
       ]),
     );
+  });
+
+  it("rejects a missing version update timestamp without inventing one", () => {
+    const version = { ...sourceVersion, updatedAt: undefined };
+    const mapped = map(version);
+
+    expect(mapped.updatedAt).toBeUndefined();
+    expect(validateMappedWoodlandVersion(mapped, version)).toContainEqual({
+      path: "updatedAt",
+      reason: "any.required",
+    });
   });
 
   it("rejects calendar-invalid dates without normalising them", () => {
@@ -526,6 +570,32 @@ describe("mapLegacyWoodlandVersion", () => {
     expect(validateMappedWoodlandVersion(mapped, version)).toEqual([]);
   });
 
+  it.each([
+    ["quantity", 1],
+    ["unit", "%"],
+  ])(
+    "rejects conflicting item and parcel-action %s evidence",
+    (field, value) => {
+      const item = sourceVersion.payment.agreementLevelItems[1];
+      const version = {
+        ...sourceVersion,
+        payment: {
+          ...sourceVersion.payment,
+          agreementLevelItems: {
+            1: { ...item, [field]: value },
+          },
+        },
+      };
+
+      expect(
+        validateMappedWoodlandVersion(map(version), version),
+      ).toContainEqual({
+        path: `items.1.${field}`,
+        reason: `woodland.item-${field}.source-mismatch`,
+      });
+    },
+  );
+
   it("rejects an action application that references an unknown parcel", () => {
     const version = {
       ...sourceVersion,
@@ -750,6 +820,29 @@ describe("mapLegacyWoodlandVersion", () => {
       {
         path: "payment.payments.0.lineItems.0.paymentPence",
         reason: "woodland.payment-line-item.amount-mismatch",
+      },
+    );
+  });
+
+  it("rejects conflicting annual and agreement item amounts", () => {
+    const version = {
+      ...sourceVersion,
+      payment: {
+        ...sourceVersion.payment,
+        agreementLevelItems: {
+          1: {
+            ...sourceVersion.payment.agreementLevelItems[1],
+            agreementTotalPence: 166200,
+            annualPaymentPence: 100,
+          },
+        },
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "items.1.totalAmountPence",
+        reason: "woodland.item-payment-amount.source-mismatch",
       },
     );
   });

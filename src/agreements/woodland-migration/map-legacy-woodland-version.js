@@ -1,9 +1,9 @@
 import { Agreement } from "../models/agreement.js";
 import { isCalendarDate } from "../schemas/agreement-value.schema.js";
 import {
-  sourceActionApplications,
-  sourceApplicationParcelActions,
+  sourceItemActionValues,
   sourceItems,
+  toExactNumber,
 } from "./woodland-migration-source-values.js";
 
 export { validateMappedWoodlandVersion } from "./validate-mapped-woodland-version.js";
@@ -12,42 +12,6 @@ const compact = (value) =>
   Object.fromEntries(
     Object.entries(value).filter(([, property]) => property !== undefined),
   );
-
-// eslint-disable-next-line complexity
-const normaliseDecimal = (value) => {
-  const [, sign, integer, fraction = "", sourceExponent = "0"] =
-    value.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:e([+-]?\d+))?$/i) ?? [];
-
-  if (integer === undefined) {
-    return undefined;
-  }
-
-  let digits = `${integer}${fraction}`.replace(/^0+/, "") || "0";
-  let exponent = Number(sourceExponent) - fraction.length;
-
-  if (digits === "0") {
-    return digits;
-  }
-
-  while (digits.endsWith("0")) {
-    digits = digits.slice(0, -1);
-    exponent += 1;
-  }
-
-  return `${sign}${digits}e${exponent}`;
-};
-
-const toNumber = (value) => {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  const source = value.toString();
-  const number = Number(source);
-  return normaliseDecimal(source) === normaliseDecimal(number.toString())
-    ? number
-    : Number.NaN;
-};
 
 const calendarDateFrom = (value) =>
   typeof value === "string"
@@ -130,32 +94,18 @@ const mapParcel = (parcel) => {
     ...id,
     area: parcel.area
       ? {
-          quantity: toNumber(parcel.area.quantity),
+          quantity: toExactNumber(parcel.area.quantity),
           unit: parcel.area.unit,
         }
       : undefined,
   };
 };
 
-// Current producer parcel actions carry agreement-item values, whereas
-// actionApplications carry parcel areas. Older records may only have the latter.
-const matchingItemActions = (version, item) => {
-  const parcelActions = sourceApplicationParcelActions(version).filter(
-    ({ action }) => action.code === item.code,
-  );
-  return parcelActions.length > 0
-    ? parcelActions
-    : sourceActionApplications(version).filter(
-        ({ action }) => action.code === item.code,
-      );
-};
-
 const matchingActionValues = (version, item, field) => [
   ...new Set(
-    matchingItemActions(version, item)
-      .map(({ action }) => action.appliedFor?.[field])
-      .filter((value) => value !== undefined && value !== null)
-      .map((value) => (field === "quantity" ? toNumber(value) : value)),
+    sourceItemActionValues(version, item, field).map((value) =>
+      field === "quantity" ? toExactNumber(value) : value,
+    ),
   ),
 ];
 
@@ -164,7 +114,7 @@ const only = (values) => (values.length === 1 ? values[0] : undefined);
 // eslint-disable-next-line complexity
 const mapItem = (version, item, index) => {
   const quantity =
-    toNumber(item.quantity) ??
+    toExactNumber(item.quantity) ??
     only(matchingActionValues(version, item, "quantity"));
   const unit = item.unit ?? only(matchingActionValues(version, item, "unit"));
 
@@ -184,10 +134,11 @@ const woodlandName = (agreementName) =>
   agreementName?.toUpperCase().endsWith(woodlandSuffix)
     ? agreementName.slice(0, -woodlandSuffix.length)
     : agreementName;
+const sourceAgreementName = (version) => version.agreementName ?? version.name;
 
 const buildApplication = ({ version, applicant, parcels, items }) =>
   compact({
-    woodlandName: woodlandName(version.agreementName),
+    woodlandName: woodlandName(sourceAgreementName(version)),
     applicant,
     landParcels: parcels.map((parcel) => ({
       parcelId: parcel.id,
@@ -236,8 +187,8 @@ export const mapLegacyWoodlandVersion = ({
     configVersion,
     correlationId: sourceVersion.correlationId,
     identifiers: sourceVersion.identifiers,
-    schemeCode: sourceVersion.scheme,
-    name: sourceVersion.agreementName,
+    schemeCode: sourceVersion.scheme ?? sourceVersion.schemeCode,
+    name: sourceVersion.agreementName ?? sourceVersion.name,
     applicant,
     application: buildApplication({
       version: sourceVersion,
@@ -254,7 +205,7 @@ export const mapLegacyWoodlandVersion = ({
     totalAmountPence: sourceVersion.payment?.agreementTotalPence,
     state,
     createdAt,
-    updatedAt: toIsoString(sourceVersion.updatedAt ?? createdAt),
+    updatedAt: toIsoString(sourceVersion.updatedAt),
     acceptedAt:
       state === "accepted"
         ? toIsoString(sourceVersion.signatureDate)

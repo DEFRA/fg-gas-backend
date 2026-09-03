@@ -26,6 +26,42 @@ export const sourceItemEntries = (version) => {
 export const sourceItems = (version) =>
   sourceItemEntries(version).map(([, item]) => item);
 
+// eslint-disable-next-line complexity
+const normaliseDecimal = (value) => {
+  const [, sign, integer, fraction = "", sourceExponent = "0"] =
+    value.match(/^([+-]?)(\d+)(?:\.(\d*))?(?:e([+-]?\d+))?$/i) ?? [];
+
+  if (integer === undefined) {
+    return undefined;
+  }
+
+  let digits = `${integer}${fraction}`.replace(/^0+/, "") || "0";
+  let exponent = Number(sourceExponent) - fraction.length;
+
+  if (digits === "0") {
+    return digits;
+  }
+
+  while (digits.endsWith("0")) {
+    digits = digits.slice(0, -1);
+    exponent += 1;
+  }
+
+  return `${sign}${digits}e${exponent}`;
+};
+
+export const toExactNumber = (value) => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  const source = value.toString();
+  const number = Number(source);
+  return normaliseDecimal(source) === normaliseDecimal(number.toString())
+    ? number
+    : Number.NaN;
+};
+
 export const sourceActionApplications = (version) =>
   (version.actionApplications ?? []).map((action, index) => ({
     action,
@@ -44,3 +80,21 @@ export const sourceActions = (version) => [
   ...sourceActionApplications(version),
   ...sourceApplicationParcelActions(version),
 ];
+
+// Current producer parcel actions carry agreement-item values, whereas
+// actionApplications carry parcel areas. Older records may only have the latter.
+const sourceItemActions = (version, item) => {
+  const parcelActions = sourceApplicationParcelActions(version).filter(
+    ({ action }) => action.code === item.code,
+  );
+  return parcelActions.length > 0
+    ? parcelActions
+    : sourceActionApplications(version).filter(
+        ({ action }) => action.code === item.code,
+      );
+};
+
+export const sourceItemActionValues = (version, item, field) =>
+  sourceItemActions(version, item)
+    .map(({ action }) => action.appliedFor?.[field])
+    .filter((value) => value !== undefined && value !== null);
