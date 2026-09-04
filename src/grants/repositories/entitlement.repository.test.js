@@ -17,17 +17,17 @@ const entitlement = {
 };
 
 describe("insertEntitlement", () => {
-  it("stores the entitlement with its id as _id", async () => {
+  it("stores the entitlement and leaves _id to Mongo", async () => {
     const insertOne = vi.fn().mockResolvedValue({ insertedId: entitlement.id });
     db.collection.mockReturnValue({ insertOne });
 
     await insertEntitlement(entitlement);
 
     expect(db.collection).toHaveBeenCalledWith(collection);
-    expect(insertOne).toHaveBeenCalledWith(
-      { _id: entitlement.id, ...entitlement },
-      { session: undefined },
-    );
+    expect(insertOne).toHaveBeenCalledWith(entitlement, {
+      session: undefined,
+    });
+    expect(insertOne.mock.calls[0][0]).not.toHaveProperty("_id");
   });
 
   it("does not persist fields outside the entitlement document", async () => {
@@ -39,10 +39,10 @@ describe("insertEntitlement", () => {
       domainOnlyField: "must not be stored",
     });
 
-    expect(insertOne).toHaveBeenCalledWith(
-      { _id: entitlement.id, ...entitlement },
-      { session: undefined },
-    );
+    expect(insertOne).toHaveBeenCalledWith(entitlement, {
+      session: undefined,
+    });
+    expect(insertOne.mock.calls[0][0]).not.toHaveProperty("_id");
   });
 
   it("throws Boom.conflict when the id already exists", async () => {

@@ -3,7 +3,23 @@ import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
 import { code as grantCode } from "../schemas/grant/code.js";
 import { availableClaimsResponseSchema } from "../schemas/responses/available-claims-response.schema.js";
-import { findAvailableClaimsUseCase } from "../use-cases/find-available-claims.use-case.js";
+import { listClaimableEntitlements } from "../services/claims.service.js";
+
+// entitlementId crosses the boundary so a caller can name its target when it
+// submits; instanceNumber and source stay internal.
+const toAvailableClaim = ({
+  code,
+  entitlementId,
+  name,
+  description,
+  data,
+}) => ({
+  code,
+  entitlementId,
+  name,
+  description,
+  data,
+});
 
 export const getAvailableClaimsRoute = {
   method: "GET",
@@ -27,8 +43,11 @@ export const getAvailableClaimsRoute = {
       `Get available claims for grant ${code} and clientRef ${clientRef}`,
     );
 
-    const result = await findAvailableClaimsUseCase({ code, clientRef });
+    const claimableEntitlements = await listClaimableEntitlements({
+      code,
+      clientRef,
+    });
 
-    return result;
+    return { availableClaims: claimableEntitlements.map(toAvailableClaim) };
   },
 };

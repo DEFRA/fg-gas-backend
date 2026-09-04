@@ -1,5 +1,4 @@
 import Joi from "joi";
-import { entitlementTemplate } from "../../grants/schemas/grant/entitlement-template.js";
 
 // One labelled field of the page header: the label and type the grant
 // configured, with the reference in "text" replaced by what it pointed at. A
@@ -29,6 +28,18 @@ const banner = Joi.object({
 
 // An available template as answered here: the grant definition's template plus
 // how many entitlements already exist against it.
+const entitlementTemplate = Joi.object({
+  claimCode: Joi.string().required(),
+  name: Joi.string().required(),
+  description: Joi.string().allow(null),
+  materialised: Joi.boolean().required(),
+  fields: Joi.object().allow(null),
+  maxEntitlements: Joi.number().integer().min(1).required(),
+  availableAt: Joi.array().min(1).required(),
+  help: Joi.object().allow(null),
+  claim: Joi.object().allow(null),
+}).unknown(false);
+
 export const availableEntitlement = entitlementTemplate
   .keys({
     createdCount: Joi.number().integer().min(0).required(),
@@ -40,10 +51,20 @@ const availableEntitlements = Joi.array()
   .unique("claimCode")
   .label("AvailableEntitlements");
 
-// claimableEntitlements and claims are stubbed as empty by the use case until entitlement instances are written, so neither has a shape to pin down yet.
+const claimableEntitlement = Joi.object({
+  source: Joi.string().valid("persisted").required(),
+  code: Joi.string().required(),
+  name: Joi.string().required(),
+  description: Joi.string().allow(null).required(),
+  data: Joi.object().unknown().required(),
+  entitlementId: Joi.string().required(),
+  instanceNumber: Joi.number().integer().min(1).required(),
+  claim: Joi.object().unknown().required(),
+}).label("ClaimableEntitlement");
+
 export const getClaimsResponseSchema = Joi.object({
   banner: banner.required(),
   availableEntitlements,
-  claimableEntitlements: Joi.array(),
+  claimableEntitlements: Joi.array().items(claimableEntitlement).required(),
   claims: Joi.array(),
 });

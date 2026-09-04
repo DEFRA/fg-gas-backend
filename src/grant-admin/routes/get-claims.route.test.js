@@ -1,9 +1,11 @@
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { findClaimsUseCase } from "../use-cases/find-claims.use-case.js";
+import { listClaimableEntitlements } from "../../grants/services/claims.service.js";
+import { getEntitlementOverview } from "../../grants/services/entitlement.service.js";
 import { getClaimsRoute } from "./get-claims.route.js";
 
-vi.mock("../use-cases/find-claims.use-case.js");
+vi.mock("../../grants/services/entitlement.service.js");
+vi.mock("../../grants/services/claims.service.js");
 vi.mock("../../common/logger.js");
 
 const template = {
@@ -45,6 +47,21 @@ const banner = {
   },
 };
 
+const claimableEntitlement = {
+  source: "persisted",
+  code: "ENT_CS_CAPITAL_PA3",
+  name: "PA3 Woodland Management Plan entitlement",
+  description: "The maximum eligible woodland area that can be claimed.",
+  data: {},
+  entitlementId: "entitlement-1",
+  instanceNumber: 1,
+  claim: {
+    limits: { maximumClaims: 1, allowsPartialClaims: false },
+    requiresApproval: false,
+    requiresEvidence: false,
+  },
+};
+
 const url = (code, clientRef) =>
   `/grant-admin/grants/${code}/applications/${clientRef}/claims`;
 
@@ -65,12 +82,12 @@ describe("getClaimsRoute", () => {
     const code = "grant-1";
     const clientRef = "ref-1234";
 
-    findClaimsUseCase.mockResolvedValue({
-      banner,
-      availableEntitlements: [template],
-      claimableEntitlements: [],
-      claims: [],
+    getEntitlementOverview.mockResolvedValue({
+      claimsPage: { details: { banner } },
+      applicationContext: {},
+      creationOptions: [template],
     });
+    listClaimableEntitlements.mockResolvedValue([claimableEntitlement]);
 
     const result = await server.inject({
       method: "GET",
@@ -78,25 +95,26 @@ describe("getClaimsRoute", () => {
     });
 
     expect(result.statusCode).toEqual(200);
-    expect(findClaimsUseCase).toHaveBeenCalledWith({
+    expect(getEntitlementOverview).toHaveBeenCalledWith({
       code,
       clientRef,
     });
+    expect(listClaimableEntitlements).toHaveBeenCalledWith({ code, clientRef });
     expect(result.result).toEqual({
       banner,
       availableEntitlements: [template],
-      claimableEntitlements: [],
+      claimableEntitlements: [claimableEntitlement],
       claims: [],
     });
   });
 
   it("returns empty lists when nothing is available", async () => {
-    findClaimsUseCase.mockResolvedValue({
-      banner,
-      availableEntitlements: [],
-      claimableEntitlements: [],
-      claims: [],
+    getEntitlementOverview.mockResolvedValue({
+      claimsPage: { details: { banner } },
+      applicationContext: {},
+      creationOptions: [],
     });
+    listClaimableEntitlements.mockResolvedValue([]);
 
     const result = await server.inject({
       method: "GET",

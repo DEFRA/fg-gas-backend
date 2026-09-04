@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createTestApplication } from "../../../test/helpers/applications.js";
-import { createTestGrant } from "../../../test/helpers/grants.js";
 import { buildClaimsView } from "./build-claims-view.js";
 
 vi.mock("../../common/logger.js", () => ({
@@ -41,21 +39,25 @@ const template = {
 };
 
 describe("build claims view", () => {
-  let application;
-  let grant;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    application = createTestApplication({ clientRef, code });
-    grant = createTestGrant({ entitlementTemplates: [], pages: claimsPage });
+  });
+
+  const overview = (overrides = {}) => ({
+    claimsPage: claimsPage.claims,
+    applicationContext: {
+      clientRef,
+      code,
+      identifiers: { sbi: "sbi-1" },
+      answers: { answer1: "test" },
+    },
+    creationOptions: [],
+    claimableEntitlements: [],
+    ...overrides,
   });
 
   it("returns the banner the grant configures, resolved", async () => {
-    const { banner } = await buildClaimsView({
-      grant,
-      application,
-      offerable: [],
-    });
+    const { banner } = await buildClaimsView(overview());
 
     expect(banner.title.text).toBe("test");
     expect(banner.summary.applicationId.text).toBe(clientRef);
@@ -64,46 +66,36 @@ describe("build claims view", () => {
 
   // A page headed by nothing tells a case officer less than an honest 404.
   it("refuses a grant that configures no claims page", async () => {
-    delete grant.pages;
-
     await expect(
-      buildClaimsView({ grant, application, available: [] }),
+      buildClaimsView(overview({ claimsPage: undefined })),
     ).rejects.toMatchObject({ output: { statusCode: 404 } });
   });
 
   it("returns the entitlements alongside it", async () => {
-    const result = await buildClaimsView({
-      grant,
-      application,
-      offerable: [template],
-    });
+    const result = await buildClaimsView(
+      overview({ creationOptions: [template] }),
+    );
 
     expect(result.banner).toBeDefined();
     expect(result.availableEntitlements).toEqual([template]);
   });
 
-  // Both are stubbed until entitlement instances are written.
   it("returns nothing claimable when nothing has been created", async () => {
-    const result = await buildClaimsView({
-      grant,
-      application,
-      offerable: [template],
-    });
+    const result = await buildClaimsView(
+      overview({ creationOptions: [template] }),
+    );
 
     expect(result.claimableEntitlements).toEqual([]);
     expect(result.claims).toEqual([]);
   });
 
-  it("returns the entitlements that already exist as claimable", async () => {
-    const existing = [{ id: "ent-1", claimCode: "ENT_PA3" }];
+  it("returns the supplied claimable entitlements", async () => {
+    const claimable = [{ entitlementId: "ent-1", code: "ENT_PA3" }];
 
-    const result = await buildClaimsView({
-      grant,
-      application,
-      offerable: [],
-      existing,
-    });
+    const result = await buildClaimsView(
+      overview({ claimableEntitlements: claimable }),
+    );
 
-    expect(result.claimableEntitlements).toEqual(existing);
+    expect(result.claimableEntitlements).toEqual(claimable);
   });
 });

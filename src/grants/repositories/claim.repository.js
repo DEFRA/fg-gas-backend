@@ -1,11 +1,6 @@
-import { MongoServerError } from "mongodb";
 import { db } from "../../common/mongo-client.js";
 
 export const collection = "claims";
-
-const DUPLICATE_KEY_ERROR_CODE = 11000;
-
-export const duplicateClientClaimRef = Symbol("duplicateClientClaimRef");
 
 export const existsByClientClaimRef = async (
   { code, clientRef, clientClaimRef },
@@ -20,6 +15,18 @@ export const existsByClientClaimRef = async (
   return doc !== null;
 };
 
+// Per-entitlement claim limits: a claim names its target, so the count is
+// scoped to that entitlement rather than to every claim under the code.
+export const countByEntitlement = async (
+  { code, clientRef, entitlementId },
+  session,
+) =>
+  db
+    .collection(collection)
+    .countDocuments({ code, clientRef, entitlementId }, { session });
+
+// Used when listing what is claimable, where the question is how many claims
+// exist under a code rather than against one entitlement.
 export const countByClaimCode = async (
   { code, clientRef, claimCode },
   session,
@@ -29,33 +36,31 @@ export const countByClaimCode = async (
     .countDocuments({ code, clientRef, claimCode }, { session });
 
 export const insert = async (
-  { code, clientRef, claimCode, clientClaimRef, metadata, claim },
+  {
+    code,
+    clientRef,
+    claimCode,
+    clientClaimRef,
+    entitlementId,
+    metadata,
+    claim,
+  },
   session,
 ) => {
   const now = new Date().toISOString();
-  try {
-    const result = await db.collection(collection).insertOne(
-      {
-        code,
-        clientRef,
-        claimCode,
-        clientClaimRef,
-        metadata,
-        claim,
-        createdAt: now,
-        updatedAt: now,
-      },
-      { session },
-    );
-    return result.insertedId;
-  } catch (error) {
-    if (
-      error instanceof MongoServerError &&
-      error.code === DUPLICATE_KEY_ERROR_CODE
-    ) {
-      return duplicateClientClaimRef;
-    }
-
-    throw error;
-  }
+  const result = await db.collection(collection).insertOne(
+    {
+      code,
+      clientRef,
+      claimCode,
+      clientClaimRef,
+      entitlementId,
+      metadata,
+      claim,
+      createdAt: now,
+      updatedAt: now,
+    },
+    { session },
+  );
+  return result.insertedId;
 };

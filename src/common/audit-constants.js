@@ -2,6 +2,8 @@ export const auditEntities = {
   GRANT: "GRANT",
   APPLICATION: "APPLICATION",
   AGREEMENT: "AGREEMENT",
+  ENTITLEMENT: "ENTITLEMENT",
+  CLAIM: "CLAIM",
 };
 
 export const auditActions = {
@@ -18,6 +20,8 @@ export const auditActions = {
   ACCEPT_AGREEMENT: "ACCEPT_AGREEMENT",
   WITHDRAW_AGREEMENT: "WITHDRAW_AGREEMENT",
   APPLY_AGREEMENT_TERMINATION: "APPLY_AGREEMENT_TERMINATION",
+  CREATE: "CREATE",
+  SUBMIT: "SUBMIT",
 };
 
 export const auditStatus = {

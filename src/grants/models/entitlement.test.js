@@ -53,4 +53,30 @@ describe("Entitlement", () => {
 
     expect(entitlement.rogue).toBeUndefined();
   });
+
+  describe("nextInstanceNumber", () => {
+    it("returns one when there are no existing entitlements", () => {
+      expect(Entitlement.nextInstanceNumber([])).toBe(1);
+    });
+
+    it("returns the lowest unused positive instance number", () => {
+      expect(
+        Entitlement.nextInstanceNumber([
+          { instanceNumber: 1 },
+          { instanceNumber: 3 },
+          { instanceNumber: 4 },
+        ]),
+      ).toBe(2);
+    });
+
+    it("ignores missing and non-integer instance numbers", () => {
+      expect(
+        Entitlement.nextInstanceNumber([
+          { instanceNumber: 2 },
+          { instanceNumber: 1.5 },
+          {},
+        ]),
+      ).toBe(1);
+    });
+  });
 });

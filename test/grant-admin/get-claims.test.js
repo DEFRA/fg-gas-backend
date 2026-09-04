@@ -90,7 +90,6 @@ const seed = async (options = {}) => {
   await grants.insertOne(
     new GrantDocument(createTestGrant({ code, entitlementTemplates, pages })),
   );
-
   await applications.insertOne(
     Application.new({
       clientRef,
@@ -116,6 +115,12 @@ const getClaims = () =>
   wreck.get(`/grant-admin/grants/${code}/applications/${clientRef}/claims`, {
     json: true,
   });
+
+const getClaim = (candidateClaimCode = claimCode) =>
+  wreck.get(
+    `/grant-admin/grants/${code}/applications/${clientRef}/claims/${candidateClaimCode}`,
+    { json: true },
+  );
 
 describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () => {
   it("returns a template whose availableAt fully matches the application position", async () => {
@@ -263,6 +268,87 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
 
     await expect(getClaims()).rejects.toMatchObject({
       output: { statusCode: 500 },
+    });
+  });
+});
+
+describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims/{claimCode}", () => {
+  it("returns the current detail-route body for an available entitlement", async () => {
+    await seed({ entitlementTemplates: [template()] });
+
+    const response = await getClaim();
+
+    expect(response.res.statusCode).toBe(200);
+    expect(response.payload).toMatchObject({
+      availableEntitlements: [
+        {
+          claimCode,
+          name: "PA3 Woodland Management Plan entitlement",
+          createdCount: 0,
+        },
+      ],
+      claimableEntitlements: [],
+      claims: [],
+      entitlementTemplate: {
+        claimCode,
+        name: "PA3 Woodland Management Plan entitlement",
+        createdCount: 0,
+      },
+    });
+  });
+
+  it("returns 404 when the entitlement is not available", async () => {
+    await seed({ entitlementTemplates: [template()] });
+
+    await expect(getClaim("ENT_UNKNOWN")).rejects.toMatchObject({
+      output: { statusCode: 404 },
+    });
+  });
+
+  // The three decisions this route owns beyond the list: a template that exists
+  // but cannot be created from, and one already at capacity.
+  it("returns 404 for a template the application's position does not reach", async () => {
+    await seed({
+      entitlementTemplates: [
+        template({ availableAt: [{ phase: position.phase }] }),
+      ],
+      currentPhase: "POST_AWARD",
+    });
+
+    await expect(getClaim()).rejects.toMatchObject({
+      output: { statusCode: 404 },
+    });
+  });
+
+  it("returns 404 for a materialised template, which nothing creates", async () => {
+    await seed({
+      entitlementTemplates: [
+        template({ materialised: true, fields: undefined }),
+      ],
+    });
+
+    await expect(getClaim()).rejects.toMatchObject({
+      output: { statusCode: 404 },
+    });
+  });
+
+  it("returns 409 once the template is at capacity", async () => {
+    await seed({ entitlementTemplates: [template({ maxEntitlements: 1 })] });
+    await entitlements.insertOne({ clientRef, code, claimCode });
+
+    await expect(getClaim()).rejects.toMatchObject({
+      output: { statusCode: 409 },
+    });
+  });
+
+  it("heads the detail page with the same banner as the list", async () => {
+    await seed({ entitlementTemplates: [template()] });
+
+    const response = await getClaim();
+
+    expect(response.payload.banner.title).toEqual({
+      text: "Elmwood Land Co",
+      type: "string",
     });
   });
 });

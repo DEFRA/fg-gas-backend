@@ -135,6 +135,23 @@ export class Application {
     };
   }
 
+  referenceContext() {
+    const answers = (this.phases ?? []).reduce(
+      (merged, phase) => ({ ...merged, ...(phase.answers ?? {}) }),
+      {},
+    );
+
+    return {
+      clientRef: this.clientRef,
+      code: this.code,
+      phase: this.currentPhase,
+      stage: this.currentStage,
+      status: this.currentStatus,
+      identifiers: this.identifiers ?? {},
+      answers,
+    };
+  }
+
   addAgreement(agreement) {
     if (this.agreements[agreement.agreementRef]) {
       throw Boom.conflict(

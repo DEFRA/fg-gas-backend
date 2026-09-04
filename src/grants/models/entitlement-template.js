@@ -1,5 +1,13 @@
 import Boom from "@hapi/boom";
 import { entitlementTemplate } from "../schemas/grant/entitlement-template.js";
+import { Entitlement } from "./entitlement.js";
+
+export const EntitlementCreationRejection = {
+  WRONG_POSITION: "WRONG_POSITION",
+  MATERIALISED_TEMPLATE: "MATERIALISED_TEMPLATE",
+  INVALID_ENTITLEMENT_DATA: "INVALID_ENTITLEMENT_DATA",
+  CAPACITY_REACHED: "CAPACITY_REACHED",
+};
 
 export class EntitlementTemplate {
   static validationSchema = entitlementTemplate;
@@ -47,6 +55,22 @@ export class EntitlementTemplate {
     return this.#matchesAnyPosition(this.claim?.claimableAt ?? [], position);
   }
 
+  assessEntitlementCreation(position, existing, submittedData) {
+    const instances = existing.filter(
+      (entitlement) => entitlement.claimCode === this.claimCode,
+    );
+    const reason = this.#creationRejection(position, instances, submittedData);
+
+    if (reason) {
+      return { allowed: false, reason };
+    }
+
+    return {
+      allowed: true,
+      nextInstanceNumber: Entitlement.nextInstanceNumber(instances),
+    };
+  }
+
   #matchesAnyPosition(positions, position) {
     if (!position) {
       return false;
@@ -75,5 +99,99 @@ export class EntitlementTemplate {
     return Object.entries(this.fields ?? {})
       .filter(([, field]) => field.input)
       .map(([name]) => name);
+  }
+
+  invalidInputFieldNames(submittedData) {
+    const submitted = Object.keys(submittedData ?? {});
+
+    return this.inputFieldNames().filter(
+      (fieldName) =>
+        submitted.includes(fieldName) &&
+        !this.#submittedValueMatches(
+          this.fields[fieldName],
+          submittedData[fieldName]?.value,
+        ),
+    );
+  }
+
+  #submittedDataMatches(submittedData) {
+    const expected = this.inputFieldNames();
+    const submitted = Object.keys(submittedData ?? {});
+
+    return (
+      expected.length === submitted.length &&
+      expected.every((fieldName) => submitted.includes(fieldName)) &&
+      this.invalidInputFieldNames(submittedData).length === 0
+    );
+  }
+
+  #submittedValueMatches(field, value) {
+    return field.unitType === "decimal"
+      ? this.#decimalValueMatches(field, value)
+      : this.#stringValueMatches(field, value);
+  }
+
+  #decimalValueMatches(field, value) {
+    return (
+      this.#isFiniteNumber(value) &&
+      this.#withinRange(value, field.minValue, field.maxValue) &&
+      this.#decimalPlaces(value) <= field.decimalPlaces
+    );
+  }
+
+  #stringValueMatches(field, value) {
+    return (
+      typeof value === "string" &&
+      this.#withinRange(value.length, field.minLength, field.maxLength)
+    );
+  }
+
+  #isFiniteNumber(value) {
+    return typeof value === "number" && Number.isFinite(value);
+  }
+
+  #withinRange(value, minimum, maximum) {
+    return (
+      this.#meetsMinimum(value, minimum) && this.#meetsMaximum(value, maximum)
+    );
+  }
+
+  #meetsMinimum(value, minimum) {
+    return minimum == null || value >= minimum;
+  }
+
+  #meetsMaximum(value, maximum) {
+    return maximum == null || value <= maximum;
+  }
+
+  #decimalPlaces(value) {
+    const [coefficient, exponent] = value.toString().toLowerCase().split("e");
+    const decimals = (coefficient.split(".")[1] ?? "").length;
+
+    return Math.max(0, decimals - Number(exponent ?? 0));
+  }
+
+  #creationRejection(position, instances, submittedData) {
+    if (!this.isAvailableAt(position)) {
+      return EntitlementCreationRejection.WRONG_POSITION;
+    }
+
+    return this.#templateCreationRejection(instances, submittedData);
+  }
+
+  #templateCreationRejection(instances, submittedData) {
+    if (this.materialised) {
+      return EntitlementCreationRejection.MATERIALISED_TEMPLATE;
+    }
+
+    if (!this.#submittedDataMatches(submittedData)) {
+      return EntitlementCreationRejection.INVALID_ENTITLEMENT_DATA;
+    }
+
+    if (instances.length >= this.maxEntitlements) {
+      return EntitlementCreationRejection.CAPACITY_REACHED;
+    }
+
+    return undefined;
   }
 }

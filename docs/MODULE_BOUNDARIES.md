@@ -2,17 +2,20 @@
 
 ## Bounded Contexts
 
-| Module       | Path              | Description                                                       |
-| ------------ | ----------------- | ----------------------------------------------------------------- |
-| `grants`     | `src/grants/`     | Grants and Application sub-domain (grant lifecycle, applications) |
-| `agreements` | `src/agreements/` | Agreements domain (separate bounded context)                      |
-| `payments`   | `src/payments/`   | Payments domain (Payments, claim IDs, invoice numbering)          |
-| `auth`       | `src/auth/`       | Authentication and authorisation                                  |
-| `common`     | `src/common/`     | Shared infrastructure (logger, database, messaging clients)       |
+| Module        | Path               | Description                                                       |
+| ------------- | ------------------ | ----------------------------------------------------------------- |
+| `grants`      | `src/grants/`      | Grants and Application sub-domain (grant lifecycle, applications) |
+| `agreements`  | `src/agreements/`  | Agreements domain (separate bounded context)                      |
+| `payments`    | `src/payments/`    | Payments domain (Payments, claim IDs, invoice numbering)          |
+| `grant-admin` | `src/grant-admin/` | Inbound admin adapter for Entitlement and Claim operations        |
+| `auth`        | `src/auth/`        | Authentication and authorisation                                  |
+| `common`      | `src/common/`      | Shared infrastructure (logger, database, messaging clients)       |
 
 ## Forbidden Imports
 
-`agreements`, `grants` and `payments` must not directly import each other's internals (models, repositories, use-cases, services, routes, schemas, etc.). The boundary is enforced in both directions. Direct cross-module imports create hidden coupling that prevents either context from evolving independently.
+`agreements`, `grants` and `payments` must not directly import each other's internals (models, repositories, use-cases, services, routes, schemas, etc.). The boundary is enforced in both directions, except for explicitly documented reviewed seams below. Direct cross-module imports create hidden coupling that prevents either context from evolving independently.
+
+`grant-admin` is an inbound adapter, not a peer domain module. It validates and maps HTTP/UI concerns but does not access Grants models, repositories, schemas, use cases, or general services. Its only Grants entry points for entitlement and claim work are `grants/services/entitlement.service.js` and `grants/services/claims.service.js`. `grants` never imports from `grant-admin`, and `grant-admin` does not import from `agreements`.
 
 `payments` knows nothing about the modules that source a Payment: it never imports `agreements` or `grants`, and it takes the identifiers it needs as plain values.
 
@@ -22,13 +25,25 @@ This is enforced by the `import-x/no-restricted-paths` rule in `eslint.config.js
 
 When Agreements needs to collaborate with Grants, use one of these approved seams:
 
-| Seam                       | How                                                                                         |
-| -------------------------- | ------------------------------------------------------------------------------------------- |
-| **HTTP / REST API**        | Call the Grants HTTP endpoints; do not share route handlers or controllers                  |
-| **Events**                 | Publish to or consume from SNS/SQS topics; event shapes live in `src/*/events/`             |
-| **Commands**               | Send commands via the message bus; command shapes live in `src/*/commands/`                 |
-| **Inbox / Outbox records** | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox |
-| **Shared infrastructure**  | Import from `src/common/` (logger, DB client, messaging helpers)                            |
+| Seam                                      | How                                                                                                                                                                                                          |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **HTTP / REST API**                       | Call the Grants HTTP endpoints; do not share route handlers or controllers                                                                                                                                   |
+| **Events**                                | Publish to or consume from SNS/SQS topics; event shapes live in `src/*/events/`                                                                                                                              |
+| **Commands**                              | Send commands via the message bus; command shapes live in `src/*/commands/`                                                                                                                                  |
+| **Inbox / Outbox records**                | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox                                                                                                                  |
+| **Shared infrastructure**                 | Import from `src/common/` (logger, DB client, messaging helpers)                                                                                                                                             |
+| **Grants → Agreements reference context** | `grants` may call the reviewed Agreements query interface for a plain reference-resolution context. The query accepts the active Mongo session; it does not expose an Agreements repository or domain model. |
+
+### Grant Admin entry points
+
+Grant Admin enters the Grants application layer through two named services:
+
+| Caller        | Entry point                              | Responsibility                                    |
+| ------------- | ---------------------------------------- | ------------------------------------------------- |
+| `grant-admin` | `grants/services/entitlement.service.js` | Entitlement overview and creation operations      |
+| `grant-admin` | `grants/services/claims.service.js`      | Claimable-entitlement lookup and Claim submission |
+
+These services return plain DTOs at the adapter boundary. Grant Admin may compose those DTOs into its banner and view models, but it must not receive or return Grants domain objects.
 
 ### Payment entry points
 

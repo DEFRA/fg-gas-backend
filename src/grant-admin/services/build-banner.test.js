@@ -37,7 +37,16 @@ const banner = {
   },
 };
 
-const build = (grant) => buildBanner({ grant, application, page: "claims" });
+const build = (grant) =>
+  buildBanner({
+    claimsPage: grant.pages?.claims,
+    applicationContext: {
+      clientRef: application.clientRef,
+      code: application.code,
+      identifiers: application.identifiers,
+      answers: application.phases[0].answers,
+    },
+  });
 
 describe("buildBanner", () => {
   beforeEach(() => {
@@ -109,7 +118,7 @@ describe("buildBanner", () => {
   // A page headed by nothing tells a case officer less than an honest 404 does.
   it("refuses a page the grant configures no banner for", async () => {
     await expect(build({ code: "woodland", pages: undefined })).rejects.toThrow(
-      'Grant "woodland" configures no "claims" page',
+      'Grant configures no "claims" page',
     );
     await expect(
       build({ code: "woodland", pages: { payments: {} } }),
