@@ -16,6 +16,10 @@ export const submitClaimRequestSchema = Joi.object({
     grantCode: code.required(),
     clientRef,
     claimCode: Joi.string().required(),
+    // Which entitlement the claim is against. Required: a claim code alone
+    // cannot identify one once an application holds several entitlements for
+    // the same code.
+    entitlementId: Joi.string().required(),
     clientClaimRef: clientClaimRef.required(),
     sbi,
     frn,

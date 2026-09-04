@@ -497,4 +497,161 @@ describe("EntitlementTemplate", () => {
       expect(template.inputFieldNames()).toEqual([]);
     });
   });
+
+  describe("assessEntitlementCreation", () => {
+    const submittedData = { totalHectares: { value: 10 } };
+
+    it("allows creation at an available position with the lowest free instance number", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        maxEntitlements: 3,
+      });
+
+      expect(
+        template.assessEntitlementCreation(
+          availableAtPosition,
+          [
+            { claimCode: validProps.claimCode, instanceNumber: 1 },
+            { claimCode: validProps.claimCode, instanceNumber: 3 },
+            { claimCode: "ENT_OTHER", instanceNumber: 2 },
+          ],
+          submittedData,
+        ),
+      ).toEqual({ allowed: true, nextInstanceNumber: 2 });
+    });
+
+    it("rejects creation outside its available position", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(
+        template.assessEntitlementCreation(
+          { ...availableAtPosition, status: "OTHER_STATUS" },
+          [],
+          submittedData,
+        ),
+      ).toEqual({ allowed: false, reason: "WRONG_POSITION" });
+    });
+
+    it("rejects creation from a materialised template", () => {
+      const template = new EntitlementTemplate({
+        claimCode: "ENT_TRACTOR",
+        name: "Tractor entitlement",
+        availableAt: [availableAtPosition],
+      });
+
+      expect(
+        template.assessEntitlementCreation(availableAtPosition, [], {}),
+      ).toEqual({ allowed: false, reason: "MATERIALISED_TEMPLATE" });
+    });
+
+    it("rejects data with missing or unexpected input fields", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(
+        template.assessEntitlementCreation(availableAtPosition, [], {}),
+      ).toEqual({ allowed: false, reason: "INVALID_ENTITLEMENT_DATA" });
+      expect(
+        template.assessEntitlementCreation(availableAtPosition, [], {
+          ...submittedData,
+          unexpected: { value: "value" },
+        }),
+      ).toEqual({ allowed: false, reason: "INVALID_ENTITLEMENT_DATA" });
+    });
+
+    it("accepts a decimal value on its inclusive boundaries", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        fields: {
+          totalHectares: {
+            ...validProps.fields.totalHectares,
+            maxValue: 12.5,
+          },
+        },
+      });
+
+      expect(
+        template.assessEntitlementCreation(availableAtPosition, [], {
+          totalHectares: { value: 0.5 },
+        }),
+      ).toMatchObject({ allowed: true });
+      expect(
+        template.assessEntitlementCreation(availableAtPosition, [], {
+          totalHectares: { value: 12.5 },
+        }),
+      ).toMatchObject({ allowed: true });
+    });
+
+    it("rejects decimal values with the wrong type, range or precision", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        fields: {
+          totalHectares: {
+            ...validProps.fields.totalHectares,
+            maxValue: 12.5,
+          },
+        },
+      });
+
+      for (const value of ["12.5", 0.4999, 12.5001, 1.12345]) {
+        expect(
+          template.assessEntitlementCreation(availableAtPosition, [], {
+            totalHectares: { value },
+          }),
+        ).toEqual({ allowed: false, reason: "INVALID_ENTITLEMENT_DATA" });
+      }
+    });
+
+    it("identifies input fields with invalid values", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(
+        template.invalidInputFieldNames({
+          totalHectares: { value: "not a decimal" },
+        }),
+      ).toEqual(["totalHectares"]);
+    });
+
+    it("enforces string field type and length constraints", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        fields: {
+          actionCode: {
+            input: true,
+            label: "Action code",
+            unitType: "string",
+            minLength: 2,
+            maxLength: 4,
+          },
+        },
+      });
+
+      for (const value of ["AB", "ABCD"]) {
+        expect(
+          template.assessEntitlementCreation(availableAtPosition, [], {
+            actionCode: { value },
+          }),
+        ).toMatchObject({ allowed: true });
+      }
+
+      for (const value of [12, "A", "ABCDE"]) {
+        expect(
+          template.assessEntitlementCreation(availableAtPosition, [], {
+            actionCode: { value },
+          }),
+        ).toEqual({ allowed: false, reason: "INVALID_ENTITLEMENT_DATA" });
+      }
+    });
+
+    it("rejects creation when its capacity is reached", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(
+        template.assessEntitlementCreation(
+          availableAtPosition,
+          [{ claimCode: validProps.claimCode, instanceNumber: 1 }],
+          submittedData,
+        ),
+      ).toEqual({ allowed: false, reason: "CAPACITY_REACHED" });
+    });
+  });
 });

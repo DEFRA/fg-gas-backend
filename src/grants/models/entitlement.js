@@ -52,4 +52,20 @@ export class Entitlement {
   }) {
     return new Entitlement({ ...props, id, createdAt });
   }
+
+  static nextInstanceNumber(existing) {
+    const used = new Set(
+      existing
+        .map((entitlement) => entitlement.instanceNumber)
+        .filter(Number.isInteger),
+    );
+
+    let instanceNumber = 1;
+
+    while (used.has(instanceNumber)) {
+      instanceNumber += 1;
+    }
+
+    return instanceNumber;
+  }
 }

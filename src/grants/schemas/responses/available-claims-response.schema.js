@@ -12,6 +12,8 @@ const availableClaimDataField = Joi.object({
 
 const availableClaim = Joi.object({
   code: Joi.string().required(),
+  // Null for a materialised claimable, which cannot yet be claimed against.
+  entitlementId: Joi.string().allow(null).required(),
   name: Joi.string().required(),
   description: Joi.string().allow(null).optional(),
   data: Joi.object().pattern(Joi.string(), availableClaimDataField).required(),

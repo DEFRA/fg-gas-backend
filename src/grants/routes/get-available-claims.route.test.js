@@ -1,9 +1,9 @@
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { findAvailableClaimsUseCase } from "../use-cases/find-available-claims.use-case.js";
+import { listClaimableEntitlements } from "../services/claims.service.js";
 import { getAvailableClaimsRoute } from "./get-available-claims.route.js";
 
-vi.mock("../use-cases/find-available-claims.use-case.js");
+vi.mock("../services/claims.service.js");
 vi.mock("../../common/logger.js");
 
 const availableClaim = {
@@ -46,9 +46,15 @@ describe("getAvailableClaimsRoute", () => {
     const grantCode = "woodland";
     const clientRef = "ref-1234";
 
-    findAvailableClaimsUseCase.mockResolvedValue({
-      availableClaims: [availableClaim],
-    });
+    listClaimableEntitlements.mockResolvedValue([
+      {
+        ...availableClaim,
+        source: "persisted",
+        entitlementId: "entitlement-1",
+        instanceNumber: 1,
+        claim: { limits: { maximumClaims: 1 } },
+      },
+    ]);
 
     const result = await server.inject({
       method: "GET",
@@ -56,19 +62,19 @@ describe("getAvailableClaimsRoute", () => {
     });
 
     expect(result.statusCode).toEqual(200);
-    expect(findAvailableClaimsUseCase).toHaveBeenCalledWith({
+    expect(listClaimableEntitlements).toHaveBeenCalledWith({
       code: grantCode,
       clientRef,
     });
+    // entitlementId crosses the boundary so the caller can name its target on
+    // submit; source and instanceNumber stay internal.
     expect(result.result).toEqual({
-      availableClaims: [availableClaim],
+      availableClaims: [{ ...availableClaim, entitlementId: "entitlement-1" }],
     });
   });
 
   it("returns empty list when nothing is available", async () => {
-    findAvailableClaimsUseCase.mockResolvedValue({
-      availableClaims: [],
-    });
+    listClaimableEntitlements.mockResolvedValue([]);
 
     const result = await server.inject({
       method: "GET",
