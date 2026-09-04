@@ -2,7 +2,7 @@ import Joi from "joi";
 
 export const penceSchema = Joi.number().integer().strict();
 
-const isCalendarDate = (value) => {
+export const isCalendarDate = (value) => {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(0);
   date.setUTCHours(0, 0, 0, 0);

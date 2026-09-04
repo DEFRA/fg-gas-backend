@@ -46,6 +46,7 @@ describe("single Agreement repository", () => {
     const findOne = vi.fn().mockResolvedValue({
       _id: agreement.agreementNumber,
       ...structuredClone(agreement),
+      migration: { name: "woodland", sourceChecksum: "internal" },
     });
     db.collection.mockReturnValue({ findOne });
     const session = {};
@@ -61,6 +62,7 @@ describe("single Agreement repository", () => {
       { session, readPreference: "primary" },
     );
     expect(result).toEqual(agreement);
+    expect(result).not.toHaveProperty("migration");
   });
 
   it("reads an idempotent action result from the primary", async () => {
@@ -72,7 +74,13 @@ describe("single Agreement repository", () => {
       versionedAt: "2026-07-18T09:15:00.000Z",
       actionExecution: { name: "accept", idempotencyKey },
     });
-    const findOne = vi.fn().mockResolvedValue(structuredClone(version));
+    const document = structuredClone(version);
+    document.snapshot.legacy = {
+      source: "legacy-agreements",
+      checksum: "internal",
+      envelope: { applicant: "private" },
+    };
+    const findOne = vi.fn().mockResolvedValue(document);
     db.collection.mockReturnValue({ findOne });
     const session = {};
 
@@ -91,6 +99,7 @@ describe("single Agreement repository", () => {
       { session, readPreference: "primary" },
     );
     expect(result).toEqual(version);
+    expect(result.snapshot).not.toHaveProperty("legacy");
   });
 
   it("finds the current Agreement by code and client reference", async () => {
