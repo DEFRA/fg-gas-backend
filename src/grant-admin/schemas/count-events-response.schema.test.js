@@ -8,7 +8,6 @@ const allSix = () => ({
   RESUBMITTED: 4,
   COMPLETED: 5,
   DEAD_LETTER: 6,
-  PARKED: 0,
 });
 
 const aResponse = (overrides = {}) => ({

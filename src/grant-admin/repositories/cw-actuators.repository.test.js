@@ -7,15 +7,12 @@ import {
   countCwInbox,
   countCwOutbox,
   describeError,
-  findCwDeadLetterIds,
   findCwEvent,
   findCwInboxPage,
   findCwOutboxPage,
   isCwConfigured,
   notConfiguredMessage,
-  parkCwEvent,
   redriveCwEvent,
-  unparkCwEvent,
 } from "./cw-actuators.repository.js";
 
 const { cwBackend } = vi.hoisted(() => ({
@@ -570,18 +567,6 @@ describe("countCwInbox / countCwOutbox", () => {
 
 const postedUrl = () => new URL(wreck.post.mock.calls[0][0]);
 
-const page = (data, hasNextPage = false) => ({
-  payload: {
-    data,
-    pagination: {
-      startCursor: "a",
-      endCursor: "cursor-1",
-      hasNextPage,
-      hasPreviousPage: false,
-    },
-  },
-});
-
 describe("the error filter reaches Caseworking", () => {
   it("forwards `error` on the list query", async () => {
     wreck.get.mockResolvedValue(envelope());
@@ -682,51 +667,7 @@ describe("breakdownCwInbox / breakdownCwOutbox", () => {
   });
 });
 
-describe("findCwDeadLetterIds", () => {
-  it("walks the list endpoint with status=DEAD_LETTER and collects ids", async () => {
-    wreck.get.mockResolvedValue(page([{ _id: "a" }, { _id: "b" }]));
-
-    expect(await findCwDeadLetterIds("inbox", {}, 500)).toEqual(["a", "b"]);
-    expect(calledUrl().searchParams.get("status")).toBe("DEAD_LETTER");
-  });
-
-  it("forwards the rest of the filter", async () => {
-    wreck.get.mockResolvedValue(page([]));
-
-    await findCwDeadLetterIds("inbox", { q: "GLD-9B2", error: "boom" }, 500);
-
-    expect(calledUrl().searchParams.get("q")).toBe("GLD-9B2");
-    expect(calledUrl().searchParams.get("error")).toBe("boom");
-  });
-
-  it("follows the cursor while there is another page and budget left", async () => {
-    wreck.get
-      .mockResolvedValueOnce(page([{ _id: "a" }], true))
-      .mockResolvedValueOnce(page([{ _id: "b" }], false));
-
-    expect(await findCwDeadLetterIds("inbox", {}, 500)).toEqual(["a", "b"]);
-    expect(wreck.get).toHaveBeenCalledTimes(2);
-    expect(new URL(wreck.get.mock.calls[1][0]).searchParams.get("cursor")).toBe(
-      "cursor-1",
-    );
-  });
-
-  it("stops at the limit, and never returns more ids than asked for", async () => {
-    wreck.get.mockResolvedValue(page([{ _id: "a" }, { _id: "b" }], true));
-
-    expect(await findCwDeadLetterIds("inbox", {}, 1)).toEqual(["a"]);
-    expect(wreck.get).toHaveBeenCalledTimes(1);
-  });
-
-  it("stops when the pager says there is nothing more", async () => {
-    wreck.get.mockResolvedValue(page([], false));
-
-    expect(await findCwDeadLetterIds("outbox", {}, 500)).toEqual([]);
-    expect(wreck.get).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("redriveCwEvent / parkCwEvent / unparkCwEvent actor", () => {
+describe("redriveCwEvent actor", () => {
   it("sends `by` as a query parameter on a redrive", async () => {
     wreck.post.mockResolvedValue({ payload: {} });
 
@@ -754,77 +695,5 @@ describe("redriveCwEvent / parkCwEvent / unparkCwEvent actor", () => {
     await redriveCwEvent("inbox", ID, { by: "a b&c" });
 
     expect(postedUrl().searchParams.get("by")).toBe("a b&c");
-  });
-
-  it("posts the park reason as a body and the actor as a query parameter", async () => {
-    wreck.post.mockResolvedValue({ payload: {} });
-
-    await parkCwEvent("outbox", ID, { reason: "poison", by: "donatas" });
-
-    expect(postedUrl().pathname).toBe(`/actuators/outbox/${ID}/park`);
-    expect(postedUrl().searchParams.get("by")).toBe("donatas");
-    expect(wreck.post.mock.calls[0][1].payload).toEqual({ reason: "poison" });
-  });
-
-  it("posts an unpark with no body at all", async () => {
-    wreck.post.mockResolvedValue({ payload: {} });
-
-    await unparkCwEvent("inbox", ID, { by: "donatas" });
-
-    expect(postedUrl().pathname).toBe(`/actuators/inbox/${ID}/unpark`);
-    expect(wreck.post.mock.calls[0][1]).not.toHaveProperty("payload");
-  });
-
-  it("turns a Caseworking 404 into a 404", async () => {
-    wreck.post.mockRejectedValue(Boom.notFound("nope"));
-
-    await expect(
-      parkCwEvent("inbox", ID, { reason: "x" }),
-    ).rejects.toMatchObject({ output: { statusCode: 404 } });
-  });
-
-  it("turns a park conflict into a 409 naming DEAD_LETTER as the expected status", async () => {
-    const conflict = Boom.conflict("nope");
-    conflict.data = { payload: { status: "COMPLETED" } };
-    wreck.post.mockRejectedValue(conflict);
-
-    const error = await parkCwEvent("inbox", ID, { reason: "x" }).catch(
-      (e) => e,
-    );
-
-    expect(error.output.statusCode).toBe(409);
-    expect(error.output.payload.status).toBe("COMPLETED");
-    expect(error.message).toContain("not DEAD_LETTER");
-  });
-
-  it("turns an unpark conflict into a 409 naming PARKED as the expected status", async () => {
-    const conflict = Boom.conflict("nope");
-    conflict.data = { payload: { status: "DEAD_LETTER" } };
-    wreck.post.mockRejectedValue(conflict);
-
-    const error = await unparkCwEvent("inbox", ID).catch((e) => e);
-
-    expect(error.output.statusCode).toBe(409);
-    expect(error.message).toContain("not PARKED");
-  });
-
-  it("reads PARKED back out of a conflict body, so a park/unpark race reads correctly", async () => {
-    const conflict = Boom.conflict("nope");
-    conflict.data = { payload: { status: "PARKED" } };
-    wreck.post.mockRejectedValue(conflict);
-
-    const error = await parkCwEvent("inbox", ID, { reason: "x" }).catch(
-      (e) => e,
-    );
-
-    expect(error.output.payload.status).toBe("PARKED");
-  });
-
-  it("is a 502 when Caseworking is not configured", async () => {
-    cwBackend.url = undefined;
-
-    await expect(unparkCwEvent("inbox", ID)).rejects.toMatchObject({
-      output: { statusCode: 502 },
-    });
   });
 });

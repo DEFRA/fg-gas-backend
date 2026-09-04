@@ -43,7 +43,6 @@ const ZERO = {
   RESUBMITTED: 0,
   COMPLETED: 0,
   DEAD_LETTER: 0,
-  PARKED: 0,
 };
 
 const counts = (overrides) => ({ ...ZERO, ...overrides });
@@ -67,7 +66,7 @@ describe("countEventsUseCase", () => {
     });
   });
 
-  it("always answers with every status, PARKED included", async () => {
+  it("always answers with every status", async () => {
     const { counts: result } = await countEventsUseCase({});
 
     expect(Object.keys(result)).toEqual([
@@ -77,7 +76,6 @@ describe("countEventsUseCase", () => {
       "RESUBMITTED",
       "COMPLETED",
       "DEAD_LETTER",
-      "PARKED",
     ]);
   });
 

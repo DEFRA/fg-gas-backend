@@ -165,15 +165,22 @@ describe("findEventsQuerySchema from and to", () => {
   });
 });
 
-describe("findEventsQuerySchema PARKED", () => {
-  it("accepts PARKED as a status, so an operator can list what they have parked", () => {
-    expect(
-      findEventsQuerySchema.validate({ status: "PARKED" }).error,
-    ).toBeUndefined();
+describe("findEventsQuerySchema status", () => {
+  it("is the six statuses GAS is the single enum authority for", () => {
+    expect(EVENT_STATUSES).toEqual([
+      "PUBLISHED",
+      "PROCESSING",
+      "FAILED",
+      "RESUBMITTED",
+      "COMPLETED",
+      "DEAD_LETTER",
+    ]);
   });
 
-  it("has PARKED in the enum GAS is the single authority for", () => {
-    expect(EVENT_STATUSES).toContain("PARKED");
+  it("rejects PARKED - the status was removed, so filtering by it is a 400", () => {
+    expect(
+      findEventsQuerySchema.validate({ status: "PARKED" }).error,
+    ).toBeDefined();
   });
 });
 

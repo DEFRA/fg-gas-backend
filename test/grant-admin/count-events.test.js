@@ -30,7 +30,6 @@ const ZERO = {
   RESUBMITTED: 0,
   COMPLETED: 0,
   DEAD_LETTER: 0,
-  PARKED: 0,
 };
 
 const counts = (overrides = {}) => ({ ...ZERO, ...overrides });

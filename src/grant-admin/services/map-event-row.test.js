@@ -138,7 +138,6 @@ describe("map-event-row", () => {
       lastFailureAt: null,
       lastError: null,
       completedAt: null,
-      parked: null,
     });
   });
 

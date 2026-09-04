@@ -47,18 +47,6 @@ const toLastError = (value) =>
       }
     : null;
 
-// Rebuilt from its three contract keys, exactly as `lastError` is: a `parked`
-// object written by an older or newer service version must not fail response
-// validation for the whole page. Null on every row that is not PARKED.
-const toParked = (value) =>
-  value
-    ? {
-        at: toIso(value.at),
-        reason: String(value.reason ?? ""),
-        by: orNull(value.by),
-      }
-    : null;
-
 // Same rebuild for the redrive record. Detail only.
 const toLastRedrive = (value) =>
   value ? { at: toIso(value.at), by: orNull(value.by) } : null;
@@ -156,7 +144,6 @@ const buildRow = ({ service, box, intermediate, createdAtIso }) => ({
   lastFailureAt: orNull(intermediate.lastFailureAt),
   lastError: intermediate.lastError,
   completedAt: orNull(intermediate.completedAt),
-  parked: intermediate.parked,
 });
 
 export const normaliseGasInbox = (doc, maxAttempts) => ({
@@ -174,7 +161,6 @@ export const normaliseGasInbox = (doc, maxAttempts) => ({
   lastFailureAt: toIso(doc.lastResubmissionDate),
   lastError: toLastError(doc.lastError),
   completedAt: toIso(doc.completionDate),
-  parked: toParked(doc.parked),
   lastRedrive: toLastRedrive(doc.lastRedrive),
 });
 
@@ -196,8 +182,7 @@ export const normaliseGasOutbox = (doc, maxAttempts) => {
     lastFailureAt: toIso(doc.lastResubmissionDate),
     lastError: toLastError(doc.lastError),
     completedAt: toIso(doc.completionDate),
-    parked: toParked(doc.parked),
-    lastRedrive: toLastRedrive(doc.lastRedrive),
+      lastRedrive: toLastRedrive(doc.lastRedrive),
   };
 };
 
@@ -216,7 +201,6 @@ export const normaliseCwInbox = (row) => ({
   lastFailureAt: orNull(row.lastFailureAt),
   lastError: toLastError(row.lastError),
   completedAt: orNull(row.completedAt),
-  parked: toParked(row.parked),
   lastRedrive: toLastRedrive(row.lastRedrive),
 });
 
@@ -235,7 +219,6 @@ export const normaliseCwOutbox = (row) => ({
   lastFailureAt: orNull(row.lastFailureAt),
   lastError: toLastError(row.lastError),
   completedAt: orNull(row.completedAt),
-  parked: toParked(row.parked),
   lastRedrive: toLastRedrive(row.lastRedrive),
 });
 

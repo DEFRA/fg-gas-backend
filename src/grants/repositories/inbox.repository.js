@@ -8,12 +8,6 @@ import {
 import { toSourceFacets } from "../../common/event-facets.js";
 import { buildEventListFilter } from "../../common/event-list-filter.js";
 import {
-  PARK_FROM_STATUS,
-  UNPARK_FROM_STATUS,
-  parkUpdate,
-  unparkUpdate,
-} from "../../common/event-park.js";
-import {
   REDRIVE_FROM_STATUS,
   redriveUpdate,
 } from "../../common/event-redrive.js";
@@ -24,10 +18,7 @@ import {
 } from "../../common/last-error.js";
 import { db } from "../../common/mongo-client.js";
 import { paginate } from "../../common/paginate.js";
-import {
-  statusGroupStage,
-  toStatusCounts,
-} from "../../common/status-counts.js";
+import { statusGroupStage } from "../../common/status-counts.js";
 import { Inbox, InboxStatus } from "../models/inbox.js";
 
 const collection = "inbox";
@@ -51,9 +42,8 @@ const listProjection = {
   completionDate: 1,
   lastError: 1,
   segregationRef: 1,
-  // Operator state, projected onto every list row: the frontend renders a
-  // "parked" badge with its reason, and `lastRedrive` says who last redrove.
-  parked: 1,
+  // Operator state, projected onto every list row: `lastRedrive` says who last
+  // redrove it.
   lastRedrive: 1,
 };
 
@@ -157,15 +147,7 @@ export const processExpiredEvents = async () => {
   await db.collection(collection).updateMany(
     {
       claimExpiresAt: { $lt: new Date() },
-      // PARKED is excluded as well as the two terminal statuses: an
-      // operator parked this row on purpose and no sweep may move it.
-      status: {
-        $nin: [
-          InboxStatus.DEAD_LETTER,
-          InboxStatus.COMPLETED,
-          InboxStatus.PARKED,
-        ],
-      },
+      status: { $nin: [InboxStatus.DEAD_LETTER, InboxStatus.COMPLETED] },
     },
     {
       $set: {
@@ -192,10 +174,7 @@ export const updateDeadEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {
       completionAttempts: { $gte: MAX_RETRIES },
-      // `$nin`, not `$ne`: `$ne: DEAD_LETTER` matched PARKED rows too and
-      // would have dragged poison an operator parked straight back into
-      // DEAD_LETTER on the next tick.
-      status: { $nin: [InboxStatus.DEAD_LETTER, InboxStatus.PARKED] },
+      status: { $ne: InboxStatus.DEAD_LETTER },
     },
     {
       $set: {
@@ -213,7 +192,6 @@ export const updateDeadEvents = async () => {
 export const updateFailedEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {
-      // Selects FAILED alone, so PARKED is out of scope by construction.
       status: InboxStatus.FAILED,
     },
     {
@@ -294,20 +272,10 @@ export const findPage = async ({
     project: listProjection,
   });
 
-// How many rows sit in each status for the same selection the list would
-// show, minus the cursor: the counts describe the whole filtered box, not one
-// page. `status` is deliberately not a parameter - grouping BY status is the
-// point. See common/status-counts.js for the accepted cost of the scan.
-export const countByStatus = async (filter = {}) =>
-  toStatusCounts(
-    await db
-      .collection(collection)
-      .aggregate([{ $match: listFilter(filter) }, statusGroupStage()])
-      .toArray(),
-  );
-
 // This source's contribution to the faceted counts: the status split for
-// everything the operator asked for - see common/event-facets.js.
+// everything the operator asked for. `status` is deliberately not a parameter
+// - grouping BY status is the point. See common/event-facets.js, and
+// common/status-counts.js for the accepted cost of the scan.
 export const countFacets = async (filter = {}) =>
   toSourceFacets(
     await db
@@ -348,37 +316,9 @@ export const redriveById = (id, { by } = {}) =>
       { returnDocument: "after", projection: listProjection },
     );
 
-// Park and unpark, the same single conditional update the redrive is: the
-// expected status IS the precondition, so a concurrent change matches nothing
-// and the caller reports a 409 rather than clobbering it.
-//
-// PARKED is terminal for the pollers - see the PARKED exclusions in the claim,
-// claim-expiry and dead-letter filters above, and the tests that run those
-// real filters against a parked document.
-export const parkById = (id, { reason, by } = {}) =>
-  db
-    .collection(collection)
-    .findOneAndUpdate(
-      { _id: toId(id), status: PARK_FROM_STATUS },
-      parkUpdate({ reason, by }),
-      { returnDocument: "after", projection: listProjection },
-    );
-
-export const unparkById = (id) =>
-  db
-    .collection(collection)
-    .findOneAndUpdate(
-      { _id: toId(id), status: UNPARK_FROM_STATUS },
-      unparkUpdate(),
-      {
-        returnDocument: "after",
-        projection: listProjection,
-      },
-    );
-
 // How the dead letters in this box group by (failure message, event type).
 // Scoped to DEAD_LETTER here rather than by the caller so the breakdown can
-// never accidentally count a PARKED or a still-retrying row.
+// never accidentally count a still-retrying row.
 export const breakdown = async (filter = {}) =>
   toBreakdownGroups(
     await db
@@ -392,19 +332,3 @@ export const breakdown = async (filter = {}) =>
       )
       .toArray(),
   );
-
-// The ids of the dead letters a redrive-by-filter would act on, newest first
-// and capped. Ids only, and collected BEFORE any redrive runs: redriving moves
-// a row out of DEAD_LETTER, so a skip/cursor walk over a shrinking result set
-// would silently skip rows.
-export const findDeadLetterIds = async (filter = {}, limit = 0) =>
-  (
-    await db
-      .collection(collection)
-      .find(listFilter({ ...filter, status: REDRIVE_FROM_STATUS }), {
-        projection: { _id: 1 },
-        sort: listSort,
-        limit,
-      })
-      .toArray()
-  ).map((doc) => doc._id.toString());

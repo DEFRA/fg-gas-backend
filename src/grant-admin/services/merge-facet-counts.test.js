@@ -10,7 +10,7 @@ const facets = (statusCounts) => ({ counts: statusCounts });
 // `service` filter selects - the merge does no selecting of its own now.
 const gasBoxes = () => [
   facets(counts({ FAILED: 2, COMPLETED: 1 })),
-  facets(counts({ FAILED: 1, PARKED: 4 })),
+  facets(counts({ FAILED: 1, RESUBMITTED: 4 })),
 ];
 
 const fourSources = () => [
@@ -22,7 +22,7 @@ const fourSources = () => [
 describe("mergeFacetCounts", () => {
   it("sums every source into the status counts", () => {
     expect(mergeFacetCounts(fourSources()).counts).toEqual(
-      counts({ FAILED: 3, COMPLETED: 8, PARKED: 4, DEAD_LETTER: 6 }),
+      counts({ FAILED: 3, COMPLETED: 8, RESUBMITTED: 4, DEAD_LETTER: 6 }),
     );
   });
 
@@ -32,11 +32,11 @@ describe("mergeFacetCounts", () => {
     const merged = mergeFacetCounts(gasBoxes());
 
     expect(merged.counts).toEqual(
-      counts({ FAILED: 3, COMPLETED: 1, PARKED: 4 }),
+      counts({ FAILED: 3, COMPLETED: 1, RESUBMITTED: 4 }),
     );
   });
 
-  // One block, and nothing derived from it. `total` was the seven numbers in
+  // One block, and nothing derived from it. `total` was the six numbers in
   // `counts` added up and sent beside them, which is a figure that can only
   // ever agree with them or be a bug; the caller adds them up instead. The two
   // service-shaped blocks went before it.
@@ -53,7 +53,7 @@ describe("mergeFacetCounts", () => {
     expect(mergeFacetCounts([])).toEqual({ counts: zeroCounts() });
   });
 
-  it("always answers with every status, PARKED included", () => {
+  it("always answers with every status", () => {
     expect(Object.keys(mergeFacetCounts([]).counts)).toEqual(
       Object.keys(zeroCounts()),
     );

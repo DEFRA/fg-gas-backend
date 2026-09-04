@@ -8,7 +8,7 @@ import {
 } from "./status-counts.js";
 
 describe("EVENT_STATUSES", () => {
-  it("is every status an inbox/outbox row can hold, PARKED included", () => {
+  it("is every status an inbox/outbox row can hold", () => {
     expect(EVENT_STATUSES).toEqual([
       "PUBLISHED",
       "PROCESSING",
@@ -16,13 +16,12 @@ describe("EVENT_STATUSES", () => {
       "RESUBMITTED",
       "COMPLETED",
       "DEAD_LETTER",
-      "PARKED",
     ]);
   });
 });
 
 describe("zeroCounts", () => {
-  it("has every key at zero, PARKED included", () => {
+  it("has every key at zero", () => {
     expect(zeroCounts()).toEqual({
       PUBLISHED: 0,
       PROCESSING: 0,
@@ -30,7 +29,6 @@ describe("zeroCounts", () => {
       RESUBMITTED: 0,
       COMPLETED: 0,
       DEAD_LETTER: 0,
-      PARKED: 0,
     });
   });
 
@@ -56,7 +54,6 @@ describe("toStatusCounts", () => {
       RESUBMITTED: 0,
       COMPLETED: 7,
       DEAD_LETTER: 0,
-      PARKED: 0,
     });
   });
 
@@ -64,7 +61,6 @@ describe("toStatusCounts", () => {
     expect(toStatusCounts([{ _id: "DEAD_LETTER", count: 1 }])).toEqual({
       ...zeroCounts(),
       DEAD_LETTER: 1,
-      PARKED: 0,
     });
   });
 
@@ -99,7 +95,6 @@ describe("sumCounts", () => {
       RESUBMITTED: 0,
       COMPLETED: 1,
       DEAD_LETTER: 0,
-      PARKED: 0,
     });
   });
 

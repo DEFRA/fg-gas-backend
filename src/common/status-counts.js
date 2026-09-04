@@ -1,4 +1,4 @@
-// The seven statuses an inbox/outbox row can hold, and the arithmetic the counts
+// The six statuses an inbox/outbox row can hold, and the arithmetic the counts
 // endpoints do on them.
 //
 // TRADEOFF - counting is a `$match` + `$group` aggregation over the same
@@ -15,12 +15,6 @@ export const EVENT_STATUSES = [
   "RESUBMITTED",
   "COMPLETED",
   "DEAD_LETTER",
-  // Terminal and operator-set: a poison message an operator has taken out of
-  // the retry loop by hand. NO poller sweep may ever select it - see the
-  // PARKED exclusions in both repositories' claim and sweep filters, and the
-  // tests that run those real filters against a parked document. Only
-  // `unpark` moves a row out of PARKED, back to DEAD_LETTER.
-  "PARKED",
 ];
 
 // Every key always present: the frontend renders one number per status, and a

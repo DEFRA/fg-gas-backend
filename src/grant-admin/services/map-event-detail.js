@@ -43,8 +43,7 @@ export const toEventDetail = ({ service, box, doc, maxAttempts }) => {
     // endpoint answers with the same three-key entries.
     attemptHistory: toAttemptHistory(doc.attemptHistory),
     // Who last put this row back in front of the poller, and when. Detail
-    // only: the list rows carry `parked` (an operator needs to see poison at a
-    // glance) but not this.
+    // only - the list rows deliberately stay narrow.
     lastRedrive: intermediate.lastRedrive,
     publicationDate: toIso(doc.publicationDate),
     completionDate: toIso(doc.completionDate),

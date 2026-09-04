@@ -23,7 +23,6 @@ const ticketEvent = {
     at: "2026-06-16T10:16:05.000Z",
   },
   completedAt: null,
-  parked: null,
 };
 
 const payload = (overrides = {}) => ({
@@ -58,7 +57,6 @@ describe("findEventsResponseSchema", () => {
             lastFailureAt: null,
             lastError: null,
             completedAt: null,
-            parked: null,
           },
         ],
       }),
@@ -276,55 +274,6 @@ describe("findEventsResponseSchema lastError", () => {
     expect(
       findEventsResponseSchema.validate(payload({ events: [withoutLastError] }))
         .error,
-    ).toBeDefined();
-  });
-});
-
-describe("findEventsResponseSchema parked", () => {
-  it("accepts a parked row with its reason and actor", () => {
-    const { error } = findEventsResponseSchema.validate(
-      payload({
-        events: [
-          {
-            ...ticketEvent,
-            status: "PARKED",
-            parked: {
-              at: "2026-06-16T11:00:00.000Z",
-              reason: "poison payload",
-              by: "donatas",
-            },
-          },
-        ],
-      }),
-    );
-
-    expect(error).toBeUndefined();
-  });
-
-  it("accepts an unattributed park", () => {
-    const { error } = findEventsResponseSchema.validate(
-      payload({
-        events: [
-          {
-            ...ticketEvent,
-            parked: {
-              at: "2026-06-16T11:00:00.000Z",
-              reason: "poison",
-              by: null,
-            },
-          },
-        ],
-      }),
-    );
-
-    expect(error).toBeUndefined();
-  });
-
-  it("requires the key, so a projection gap fails a test rather than rendering as a blank", () => {
-    const { parked, ...event } = ticketEvent;
-
-    expect(
-      findEventsResponseSchema.validate(payload({ events: [event] })).error,
     ).toBeDefined();
   });
 });

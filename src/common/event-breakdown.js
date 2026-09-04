@@ -3,9 +3,9 @@
 // fg-cw-backend so a group means the same thing whichever service produced it.
 //
 // SCOPE - always DEAD_LETTER, and only DEAD_LETTER. The breakdown answers "what
-// is stuck", so a PARKED row (deliberately taken out of the loop) and a row
-// that is merely retrying are both out of scope. `status` is therefore not a
-// parameter: it is pinned by the caller's filter.
+// is stuck", so a row that is merely retrying has not failed for good yet and
+// is out of scope. `status` is therefore not a parameter: it is pinned by the
+// caller's filter.
 //
 // TRADEOFF - the same accepted collection scan the counts endpoint pays, and
 // for the same reason (see status-counts.js). `$sort` on the grouped count

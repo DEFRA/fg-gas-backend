@@ -24,12 +24,6 @@ export const auditActions = {
   APPLY_AGREEMENT_TERMINATION: "APPLY_AGREEMENT_TERMINATION",
   VIEW_EVENT: "VIEW_EVENT",
   REDRIVE_EVENT: "REDRIVE_EVENT",
-  // ONE audit event per redrive-by-filter call, summarising the filter and the
-  // counts - not one per row. A bulk redrive is a single operator decision and
-  // is audited as one, or a 500-row redrive would bury the audit log.
-  REDRIVE_EVENTS: "REDRIVE_EVENTS",
-  PARK_EVENT: "PARK_EVENT",
-  UNPARK_EVENT: "UNPARK_EVENT",
 };
 
 export const auditStatus = {

@@ -37,14 +37,6 @@ const emptyBox = () => ({
   detail: null,
   redrive: null,
   redriveConflictStatus: null,
-  // Single-event park/unpark control (FGP-1392 UX4). `park`/`unpark` are the
-  // list rows those endpoints answer with; null means 404.
-  // `parkConflictStatus`/`unparkConflictStatus` make them answer 409 with that
-  // status, exactly as the real actuator does for a row in the wrong status.
-  park: null,
-  unpark: null,
-  parkConflictStatus: null,
-  unparkConflictStatus: null,
   // Per-status counts control (FGP-1392 counts). What
   // GET /actuators/{box}/counts answers with; the six-key zero-fill is the
   // real actuator's job, so the stub answers with exactly what a test set.
@@ -55,7 +47,6 @@ const emptyBox = () => ({
     RESUBMITTED: 0,
     COMPLETED: 0,
     DEAD_LETTER: 0,
-    PARKED: 0,
   },
   // Failure-breakdown control (FGP-1392 UX4). What
   // GET /actuators/{box}/breakdown answers with; the merge, the display
@@ -125,9 +116,8 @@ const respondForMode = (box, response) => {
   return send(response, OK, { data: box.data, pagination: box.pagination });
 };
 
-// The request body is recorded as well as the query string: park sends its
-// reason as a body and its actor as a query parameter, and the tests assert on
-// both halves of that contract.
+// The request body is recorded as well as the query string, so a test can
+// assert that a redrive sends its actor and nothing else.
 const record = async (name, request) => {
   const url = new URL(request.url, "http://stub.local");
 
@@ -243,47 +233,11 @@ const handleBreakdown = async (name, request, response) => {
   return send(response, OK, { groups: box.groups });
 };
 
-// POST /actuators/{box}/{id}/park and .../unpark - one updated list row, or
-// 409/404, exactly as redrive answers.
-const handleTransition = async (name, id, action, request, response) => {
-  await record(name, request);
-
-  if (!isAuthorised(request)) {
-    return send(response, UNAUTHORIZED, { message: "bad token" });
-  }
-
-  const box = state[name];
-
-  if (box.mode !== "ok") {
-    return respondForMode(box, response);
-  }
-
-  const conflict = box[`${action}ConflictStatus`];
-
-  if (conflict) {
-    return send(response, CONFLICT, {
-      statusCode: CONFLICT,
-      error: "Conflict",
-      message: `event is ${conflict}`,
-      status: conflict,
-    });
-  }
-
-  if (!box[action]) {
-    return send(response, NOT_FOUND, { message: "Not found" });
-  }
-
-  return send(response, OK, { ...box[action], _id: id });
-};
-
 const COUNTS_PATH = /^\/actuators\/(inbox|outbox)\/counts$/;
 
 const BREAKDOWN_PATH = /^\/actuators\/(inbox|outbox)\/breakdown$/;
 
-const EVENT_PATH =
-  /^\/actuators\/(inbox|outbox)\/([^/]+)(?:\/(redrive|park|unpark))?$/;
-
-const TRANSITIONS = { park: "park", unpark: "unpark" };
+const EVENT_PATH = /^\/actuators\/(inbox|outbox)\/([^/]+)(?:\/(redrive))?$/;
 
 const routeEvent = (pathname, request, response) => {
   const match = EVENT_PATH.exec(pathname);
@@ -296,10 +250,6 @@ const routeEvent = (pathname, request, response) => {
 
   if (action === "redrive") {
     return handleRedrive(name, id, request, response);
-  }
-
-  if (TRANSITIONS[action]) {
-    return handleTransition(name, id, action, request, response);
   }
 
   return handleDetail(name, id, request, response);

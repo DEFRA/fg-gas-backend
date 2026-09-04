@@ -36,7 +36,6 @@ const aDeadInboxDoc = (overrides = {}) => ({
   completionDate: null,
   lastError: { name: "Error", message: "No handler found", at: null },
   attemptHistory: [],
-  parked: null,
   lastRedrive: null,
   claimedBy: null,
   claimedAt: null,
@@ -56,7 +55,6 @@ const aDeadOutboxDoc = (overrides = {}) => ({
   completionDate: null,
   lastError: { name: "Error", message: "publish failed", at: null },
   attemptHistory: [],
-  parked: null,
   lastRedrive: null,
   claimedBy: null,
   claimedAt: null,
@@ -163,21 +161,6 @@ describe("GET /grant-admin/events/breakdown", () => {
       aDeadInboxDoc({ segregationRef: ref, status: "COMPLETED" }),
       aDeadInboxDoc({ segregationRef: ref, status: "FAILED" }),
     ]);
-
-    const { payload } = await breakdown({ q: ref });
-
-    expect(payload.groups[0].count).toBe(1);
-  });
-
-  it("excludes a PARKED row - parked poison is not stuck work", async () => {
-    const ref = seg();
-    const doc = aDeadInboxDoc({ segregationRef: ref });
-    await inbox.insertMany([doc, aDeadInboxDoc({ segregationRef: ref })]);
-
-    await wreck.post(
-      `/grant-admin/events/gas/inbox/${doc._id.toHexString()}/park`,
-      { payload: { reason: "poison" } },
-    );
 
     const { payload } = await breakdown({ q: ref });
 

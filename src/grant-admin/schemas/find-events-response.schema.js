@@ -14,16 +14,6 @@ export const eventLastErrorSchema = Joi.object({
   at: Joi.string().isoDate().allow(null).required(),
 }).label("EventLastError");
 
-// Set by park/unpark, and projected onto every list row so the frontend can
-// render a "parked" badge with its reason. Present and null on every row that
-// is not PARKED - never a missing key. `by` is the operator GAS forwarded from
-// the `x-actor` header, null when nobody named themselves.
-export const eventParkedSchema = Joi.object({
-  at: Joi.string().isoDate().allow(null).required(),
-  reason: Joi.string().allow("").required(),
-  by: Joi.string().allow(null).required(),
-}).label("EventParked");
-
 // The most recent redrive of this row. Detail only - the list rows deliberately
 // stay narrow.
 export const eventLastRedriveSchema = Joi.object({
@@ -61,10 +51,9 @@ export const eventRowSchema = Joi.object({
   target: Joi.string().allow(null).required(),
   segregationRef: Joi.string().allow(null).required(),
   // Validated as a free string, not an enum: the documented values are
-  // PUBLISHED, PROCESSING, FAILED, RESUBMITTED, COMPLETED, DEAD_LETTER and
-  // PARKED, but one unexpected document must not fail response validation and
-  // 500 the whole page. The frontend renders anything unrecognised with a
-  // ghost badge.
+  // PUBLISHED, PROCESSING, FAILED, RESUBMITTED, COMPLETED and DEAD_LETTER, but
+  // one unexpected document must not fail response validation and 500 the
+  // whole page. The frontend renders anything unrecognised with a ghost badge.
   status: Joi.string().required().example("DEAD_LETTER"),
   // Attempts actually MADE, never granted: both services increment it in the
   // same operation that records a failure, so it equals the number of
@@ -83,7 +72,6 @@ export const eventRowSchema = Joi.object({
   lastFailureAt: Joi.string().isoDate().allow(null).required(),
   lastError: eventLastErrorSchema.allow(null).required(),
   completedAt: Joi.string().isoDate().allow(null).required(),
-  parked: eventParkedSchema.allow(null).required(),
 }).label("Event");
 
 // Opaque, composite and versioned: one keyset position per source. Null on an

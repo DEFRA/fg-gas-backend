@@ -44,8 +44,7 @@ const breakdownAll = (selected, filter) =>
 
 // What is stuck, and how much of it. Scope is DEAD_LETTER and only
 // DEAD_LETTER, pinned inside each box's own repository rather than passed in:
-// a PARKED row has been taken out of the retry loop on purpose and is not
-// stuck, and a row that is still retrying has not failed for good yet.
+// a row that is still retrying has not failed for good yet.
 //
 // The filter is exactly the counts filter, so the groups always add up to the
 // DEAD_LETTER number the counts endpoint reports for the same selection.

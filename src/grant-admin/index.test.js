@@ -39,19 +39,7 @@ describe("grant-admin", () => {
       },
       {
         method: "post",
-        path: "/grant-admin/events/redrive-query",
-      },
-      {
-        method: "post",
-        path: "/grant-admin/events/{service}/{box}/{id}/unpark",
-      },
-      {
-        method: "post",
         path: "/grant-admin/events/{service}/{box}/{id}/redrive",
-      },
-      {
-        method: "post",
-        path: "/grant-admin/events/{service}/{box}/{id}/park",
       },
     ]);
   });
@@ -74,8 +62,8 @@ describe("grant-admin", () => {
 });
 
 describe("grant-admin route conflicts", () => {
-  // `/events/breakdown` and `/events/redrive-query` are single-segment paths
-  // and `/events/{service}/{box}/{id}` is a three-segment one, so they cannot
+  // `/events/breakdown` and `/events/counts` are single-segment paths and
+  // `/events/{service}/{box}/{id}` is a three-segment one, so they cannot
   // collide - but the router, not a comment, is what proves it.
   it("routes /events/breakdown to the breakdown route, not the detail route", async () => {
     const server = hapi.server();
@@ -95,15 +83,6 @@ describe("grant-admin route conflicts", () => {
     );
   });
 
-  it("routes /events/redrive-query to the bulk redrive route", async () => {
-    const server = hapi.server();
-    await server.register(grantAdmin);
-
-    expect(server.match("post", "/grant-admin/events/redrive-query").path).toBe(
-      "/grant-admin/events/redrive-query",
-    );
-  });
-
   it("still routes a three-segment detail path to the detail route", async () => {
     const server = hapi.server();
     await server.register(grantAdmin);
@@ -114,19 +93,5 @@ describe("grant-admin route conflicts", () => {
         "/grant-admin/events/gas/inbox/665f1c2e9a1b2c3d4e5f6a7b",
       ).path,
     ).toBe("/grant-admin/events/{service}/{box}/{id}");
-  });
-
-  it("routes park and unpark to their own routes", async () => {
-    const server = hapi.server();
-    await server.register(grantAdmin);
-
-    const id = "665f1c2e9a1b2c3d4e5f6a7b";
-
-    expect(
-      server.match("post", `/grant-admin/events/gas/inbox/${id}/park`).path,
-    ).toBe("/grant-admin/events/{service}/{box}/{id}/park");
-    expect(
-      server.match("post", `/grant-admin/events/gas/inbox/${id}/unpark`).path,
-    ).toBe("/grant-admin/events/{service}/{box}/{id}/unpark");
   });
 });

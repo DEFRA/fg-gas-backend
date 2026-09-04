@@ -33,7 +33,6 @@ const event = {
   lastFailureAt: "2026-06-16T10:16:05.000Z",
   lastError: null,
   completedAt: null,
-  parked: null,
 };
 
 const emptyPage = {

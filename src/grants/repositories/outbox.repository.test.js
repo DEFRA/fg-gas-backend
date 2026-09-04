@@ -7,7 +7,6 @@ import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 import {
   claimEvents,
-  countByStatus,
   countFacets,
   deadLetterEvent,
   findById,
@@ -192,7 +191,6 @@ describe("outbox.repository", () => {
             lastResubmissionDate: undefined,
             lastError: null,
             attemptHistory: [],
-            parked: null,
             lastRedrive: null,
             publicationDate: expect.any(Date),
             segregationRef: "seg-ref-1",
@@ -219,11 +217,7 @@ describe("outbox.repository", () => {
             $lt: expect.any(Date),
           },
           status: {
-            $nin: [
-              OutboxStatus.DEAD_LETTER,
-              OutboxStatus.COMPLETED,
-              OutboxStatus.PARKED,
-            ],
+            $nin: [OutboxStatus.DEAD_LETTER, OutboxStatus.COMPLETED],
           },
         },
         {
@@ -318,7 +312,7 @@ describe("outbox.repository", () => {
       expect(updateMany).toBeCalledWith(
         {
           completionAttempts: { $gte: MAX_RETRIES },
-          status: { $nin: [OutboxStatus.DEAD_LETTER, OutboxStatus.PARKED] },
+          status: { $ne: OutboxStatus.DEAD_LETTER },
         },
         {
           $set: {
@@ -363,7 +357,6 @@ describe("outbox.repository", () => {
       completionDate: 1,
       lastError: 1,
       segregationRef: 1,
-      parked: 1,
       lastRedrive: 1,
     };
 
@@ -624,7 +617,6 @@ describe("outbox.repository detail and redrive", () => {
     completionDate: 1,
     lastError: 1,
     segregationRef: 1,
-    parked: 1,
     lastRedrive: 1,
   };
 
@@ -782,62 +774,6 @@ describe("outbox.repository findPage from/to", () => {
   });
 });
 
-describe("outbox.repository countByStatus", () => {
-  it("matches the list's filter and groups by status", async () => {
-    const aggregate = mockAggregate([]);
-
-    await countByStatus({ from: FROM, to: TO });
-
-    expect(aggregate).toHaveBeenCalledWith([
-      {
-        $match: {
-          publicationDate: { $gte: new Date(FROM), $lte: new Date(TO) },
-        },
-      },
-      { $group: { _id: "$status", count: { $sum: 1 } } },
-    ]);
-  });
-
-  it("counts the whole box when nothing is filtered", async () => {
-    const aggregate = mockAggregate([]);
-
-    await countByStatus();
-
-    expect(aggregate.mock.calls[0][0][0]).toEqual({ $match: {} });
-  });
-
-  it("zero-fills every status the aggregation did not emit", async () => {
-    mockAggregate([
-      { _id: "FAILED", count: 3 },
-      { _id: "DEAD_LETTER", count: 1 },
-    ]);
-
-    expect(await countByStatus()).toEqual({
-      PUBLISHED: 0,
-      PROCESSING: 0,
-      FAILED: 3,
-      RESUBMITTED: 0,
-      COMPLETED: 0,
-      DEAD_LETTER: 1,
-      PARKED: 0,
-    });
-  });
-
-  it("answers all zeros for an empty box", async () => {
-    mockAggregate([]);
-
-    expect(await countByStatus()).toEqual({
-      PUBLISHED: 0,
-      PROCESSING: 0,
-      FAILED: 0,
-      RESUBMITTED: 0,
-      COMPLETED: 0,
-      DEAD_LETTER: 0,
-      PARKED: 0,
-    });
-  });
-});
-
 describe("outbox.repository countFacets", () => {
   it("matches the same rows as the list and groups them by status", async () => {
     const aggregate = mockAggregate([]);
@@ -873,7 +809,6 @@ describe("outbox.repository countFacets", () => {
         RESUBMITTED: 0,
         COMPLETED: 0,
         DEAD_LETTER: 0,
-        PARKED: 0,
       },
     });
   });

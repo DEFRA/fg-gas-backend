@@ -7,9 +7,6 @@ export const EVENT_STATUSES = [
   "RESUBMITTED",
   "COMPLETED",
   "DEAD_LETTER",
-  // Terminal and operator-set: poison an operator has taken out of the retry
-  // loop by hand. No poller sweep can select it - see common/event-park.js.
-  "PARKED",
 ];
 
 export const EVENT_SERVICES = ["gas", "caseworking"];

@@ -1,9 +1,5 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
-import {
-  PARK_FROM_STATUS,
-  UNPARK_FROM_STATUS,
-} from "../../common/event-park.js";
 import { REDRIVE_FROM_STATUS } from "../../common/event-redrive.js";
 import { wreck } from "../../common/wreck.js";
 
@@ -157,42 +153,6 @@ export const breakdownCwInbox = async (options) =>
 export const breakdownCwOutbox = async (options) =>
   breakdownCwBox("outbox", options);
 
-// How many rows one page of the dead-letter walk asks for. Small enough that a
-// filter matching thousands of rows does not build one enormous response, big
-// enough that the default limit of 500 is ten round trips rather than 500.
-const DEAD_LETTER_PAGE_SIZE = 50;
-
-const nextCursor = (page) =>
-  page.pagination?.hasNextPage ? (page.pagination.endCursor ?? null) : null;
-
-// The ids of the Caseworking dead letters a redrive-by-filter would act on,
-// walked with the SAME keyset pager the list uses so the selection matches
-// what the operator saw. Ids only, and all of them collected before any
-// redrive runs: redriving moves a row out of DEAD_LETTER, so a cursor walk
-// interleaved with redrives would silently skip rows.
-//
-// Deliberately does not catch, like the rest of the list path: the use case
-// turns a rejection into a `sourceError` for this box.
-export const findCwDeadLetterIds = async (box, options, limit) => {
-  const ids = [];
-  let cursor = null;
-
-  do {
-    const page = await findCwPage(box, {
-      ...options,
-      status: REDRIVE_FROM_STATUS,
-      direction: "forward",
-      pageSize: DEAD_LETTER_PAGE_SIZE,
-      cursor,
-    });
-
-    ids.push(...page.data.map((row) => row._id));
-    cursor = nextCursor(page);
-  } while (cursor && ids.length < limit);
-
-  return ids.slice(0, limit);
-};
-
 // ---------------------------------------------------------------------------
 // Single-event reads and redrives. Unlike the list, the detail view has no
 // partial mode: a Caseworking failure is a 502 with a fixed one-liner, so
@@ -209,7 +169,6 @@ const KNOWN_STATUSES = [
   "RESUBMITTED",
   "COMPLETED",
   "DEAD_LETTER",
-  "PARKED",
 ];
 
 const parseJson = (raw) => {
@@ -269,16 +228,15 @@ const toFailure = (error, label, expected) => {
   return Boom.badGateway(`Caseworking is unavailable: ${describeError(error)}`);
 };
 
-// A body is sent only when there is one - park has a `reason`, redrive and
-// unpark have nothing to say - so an unattributed redrive is byte-identical to
-// what GAS sent before this change.
-const requestOptions = (body) => ({
+// No request body on either call: a read has nothing to say and a redrive
+// carries its actor in the query string, so an unattributed redrive is
+// byte-identical to what GAS sent before actors existed.
+const requestOptions = () => ({
   json: true,
   headers: { authorization: `Bearer ${config.cwBackend.token}` },
-  ...(body ? { payload: body } : {}),
 });
 
-const cwRequest = async (method, path, label, options = {}) => {
+const cwRequest = async (method, path, label) => {
   if (!isCwConfigured()) {
     throw Boom.badGateway(`Caseworking is ${notConfiguredMessage()}`);
   }
@@ -286,16 +244,14 @@ const cwRequest = async (method, path, label, options = {}) => {
   try {
     const { payload } = await wreck[method](
       new URL(path, config.cwBackend.url).toString(),
-      requestOptions(options.payload),
+      requestOptions(),
     );
 
     return payload;
   } catch (error) {
-    throw toFailure(error, label, expectedOf(options));
+    throw toFailure(error, label, REDRIVE_FROM_STATUS);
   }
 };
-
-const expectedOf = (options) => options.expected ?? REDRIVE_FROM_STATUS;
 
 const eventPath = (box, id) => `/actuators/${box}/${encodeURIComponent(id)}`;
 
@@ -306,9 +262,9 @@ export const findCwEvent = (box, id) =>
   cwRequest("get", eventPath(box, id), labelFor(box, id));
 
 // `by` - the operator GAS read from the `x-actor` header - travels as a query
-// parameter on all three mutations, so Caseworking takes the actor exactly one
-// way. Omitted entirely when nobody named themselves, so an unattributed call
-// is byte-identical to what GAS sent before actors existed.
+// parameter on the redrive. Omitted entirely when nobody named themselves, so
+// an unattributed call is byte-identical to what GAS sent before actors
+// existed.
 const withActor = (path, by) =>
   by ? `${path}?by=${encodeURIComponent(by)}` : path;
 
@@ -318,28 +274,4 @@ export const redriveCwEvent = (box, id, { by } = {}) =>
     "post",
     withActor(`${eventPath(box, id)}/redrive`, by),
     labelFor(box, id),
-  );
-
-// PARK - DEAD_LETTER -> PARKED, with the operator's reason. A 409 comes back
-// as a 409 naming the status that blocked it, exactly as a redrive conflict does.
-export const parkCwEvent = (box, id, { reason, by } = {}) =>
-  cwRequest(
-    "post",
-    withActor(`${eventPath(box, id)}/park`, by),
-    labelFor(box, id),
-    {
-      payload: { reason },
-      expected: PARK_FROM_STATUS,
-    },
-  );
-
-// UNPARK - PARKED -> DEAD_LETTER.
-export const unparkCwEvent = (box, id, { by } = {}) =>
-  cwRequest(
-    "post",
-    withActor(`${eventPath(box, id)}/unpark`, by),
-    labelFor(box, id),
-    {
-      expected: UNPARK_FROM_STATUS,
-    },
   );

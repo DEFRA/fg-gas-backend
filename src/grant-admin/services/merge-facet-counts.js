@@ -9,7 +9,7 @@ import { sumCounts } from "../../common/status-counts.js";
 // facet rather than a count of the page.
 //
 // It used to answer with a `total` beside it, which was `counts` added up. A
-// number derived from seven numbers in the same object is not a second fact,
+// number derived from six numbers in the same object is not a second fact,
 // it is a second chance to disagree with the first, so the caller does the
 // addition.
 //

@@ -15,9 +15,6 @@ export const OutboxStatus = {
   COMPLETED: "COMPLETED",
   RESUBMITTED: "RESUBMITTED",
   DEAD_LETTER: "DEAD_LETTER",
-  // Terminal and operator-set: poison, taken out of the retry loop by hand.
-  // No poller sweep may select it - see common/event-park.js.
-  PARKED: "PARKED",
 };
 
 export class Outbox {
@@ -70,9 +67,6 @@ export class Outbox {
     this.completionAttempts = props.completionAttempts ?? 0;
     this.status = props.status || OutboxStatus.PUBLISHED;
     this.completionDate = props.completionDate;
-    // Set by park/unpark. `{ at, reason, by }` while the row is PARKED, null
-    // otherwise - unparking clears it rather than archiving it.
-    this.parked = props.parked ?? null;
     // `{ at, by }` for the most recent redrive of this row, so the detail view
     // can say who put it back in front of the poller. Null until redriven.
     this.lastRedrive = props.lastRedrive ?? null;
@@ -123,7 +117,6 @@ export class Outbox {
       completionAttempts: this.completionAttempts,
       status: this.status,
       completionDate: this.completionDate,
-      parked: this.parked,
       lastRedrive: this.lastRedrive,
       claimedAt: this.claimedAt,
       claimedBy: this.claimedBy,
@@ -149,7 +142,6 @@ export class Outbox {
       completionAttempts: doc.completionAttempts,
       status: doc.status,
       completionDate: doc.completionDate,
-      parked: doc.parked,
       lastRedrive: doc.lastRedrive,
       claimedAt: doc.claimedAt,
       claimedBy: doc.claimedBy,

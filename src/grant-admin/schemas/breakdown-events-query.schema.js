@@ -12,10 +12,9 @@ import {
 // same rows or the groups would not add up to the DEAD_LETTER count above them.
 //
 // There is deliberately no `status`: the breakdown is always and only over
-// DEAD_LETTER rows. A PARKED row has been taken out of the retry loop on
-// purpose and is not "stuck"; a row that is still retrying has not failed for
-// good yet. And no `error` either - filtering a breakdown by one error message
-// would answer a question the breakdown already answers.
+// DEAD_LETTER rows - a row that is still retrying has not failed for good yet.
+// And no `error` either - filtering a breakdown by one error message would
+// answer a question the breakdown already answers.
 export const breakdownEventsQuerySchema = Joi.object({
   service: Joi.string()
     .valid(...EVENT_SERVICES)

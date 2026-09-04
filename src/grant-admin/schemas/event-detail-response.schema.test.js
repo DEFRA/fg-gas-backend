@@ -23,7 +23,6 @@ const aRow = (overrides = {}) => ({
   lastFailureAt: null,
   lastError: null,
   completedAt: null,
-  parked: null,
   ...overrides,
 });
 
@@ -219,10 +218,9 @@ describe("eventDetailResponseSchema lastRedrive", () => {
     expect(eventDetailResponseSchema.validate(detail).error).toBeDefined();
   });
 
-  it("is detail only - a list row carries `parked` but never `lastRedrive`", () => {
+  it("is detail only - a list row never carries `lastRedrive`", () => {
     expect(
       Object.keys(eventRowSchema.describe().keys).includes("lastRedrive"),
     ).toBe(false);
-    expect(Object.keys(eventRowSchema.describe().keys)).toContain("parked");
   });
 });
