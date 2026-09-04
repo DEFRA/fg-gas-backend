@@ -14,10 +14,9 @@ const compact = (value) =>
     Object.entries(value).filter(([, property]) => property !== undefined),
   );
 
+const calendarDatePattern = /^(\d{4}-\d{2}-\d{2})(?:T.*)?$/;
 const calendarDateFrom = (value) =>
-  typeof value === "string"
-    ? value.match(/^(\d{4}-\d{2}-\d{2})(?:T.*)?$/)?.[1]
-    : undefined;
+  typeof value === "string" ? calendarDatePattern.exec(value)?.[1] : undefined;
 
 const hasInvalidCalendarDate = (value) => {
   if (typeof value !== "string") {

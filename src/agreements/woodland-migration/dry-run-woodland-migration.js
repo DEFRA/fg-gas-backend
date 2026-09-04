@@ -139,7 +139,7 @@ const validateVersion = ({ agreementNumber, page, sourceVersion, version }) => {
     };
   } catch {
     return {
-      agreementVersion: undefined,
+      agreementVersion: null,
       issues: [{ path: "value", reason: "mapping.failed" }],
     };
   }
@@ -267,7 +267,7 @@ export const prepareWoodlandMigration = async ({
     agreements: 0,
     versions: 0,
     failures: 0,
-    sourceChecksum: undefined,
+    sourceChecksum: null,
   };
   const reasons = {};
   const preparedAgreements = [];

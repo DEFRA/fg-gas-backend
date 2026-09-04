@@ -153,7 +153,96 @@ const isMigrationOwned = (document) =>
   document.migration?.name === migrationName &&
   document.migration?.source === woodlandMigrationSource;
 
-/* eslint-disable complexity */
+const requireKnownHistories = (histories, preparedNumbers) => {
+  for (const agreementNumber of histories.keys()) {
+    if (!preparedNumbers.has(agreementNumber)) {
+      throw conflict();
+    }
+  }
+};
+
+const hasUnexpectedOwnedDocument = (document, preparedNumbers) =>
+  isMigrationOwned(document) && !preparedNumbers.has(document._id);
+
+const hasIdentityConflict = (document, expectedByIdentity) => {
+  const expectedNumber = expectedByIdentity.get(
+    `${document.code}:${document.clientRef}`,
+  );
+  return Boolean(expectedNumber && expectedNumber !== document._id);
+};
+
+const requireCompatibleCurrentDocuments = (
+  currentDocuments,
+  preparedNumbers,
+  expectedByIdentity,
+) => {
+  const incompatible = currentDocuments.some(
+    (document) =>
+      hasUnexpectedOwnedDocument(document, preparedNumbers) ||
+      hasIdentityConflict(document, expectedByIdentity),
+  );
+  if (incompatible) {
+    throw conflict();
+  }
+};
+
+const isUnchangedMigration = (existing, preparedAgreement, existingVersions) =>
+  existing.migration.mappingVersion === woodlandMigrationMappingVersion &&
+  existing.migration.sourceChecksum === preparedAgreement.sourceChecksum &&
+  currentAgreementMatches(existing, preparedAgreement) &&
+  historyMatches(preparedAgreement, existingVersions);
+
+const requireInsertableHistory = (existingVersions) => {
+  if (existingVersions.length > 0) {
+    throw conflict();
+  }
+  return "insert";
+};
+
+const requireMatchingOwner = (existing, preparedAgreement) => {
+  if (
+    !isMigrationOwned(existing) ||
+    `${existing.code}:${existing.clientRef}` !==
+      preparedIdentity(preparedAgreement)
+  ) {
+    throw conflict();
+  }
+};
+
+const versionsFor = (preparedAgreement, histories) =>
+  histories.get(preparedAgreement.agreementNumber) ?? [];
+
+const targetDecision = (preparedAgreement, currentByNumber, histories) => {
+  const existing = currentByNumber.get(preparedAgreement.agreementNumber);
+  const existingVersions = versionsFor(preparedAgreement, histories);
+
+  if (!existing) {
+    return requireInsertableHistory(existingVersions);
+  }
+
+  requireMatchingOwner(existing, preparedAgreement);
+  return isUnchangedMigration(existing, preparedAgreement, existingVersions)
+    ? "skip"
+    : "replace";
+};
+
+const buildTargetDecisions = (
+  preparedAgreements,
+  currentByNumber,
+  histories,
+) => {
+  const decisions = { insert: [], replace: [], skip: [] };
+  for (const preparedAgreement of preparedAgreements) {
+    const decision = targetDecision(
+      preparedAgreement,
+      currentByNumber,
+      histories,
+    );
+    decisions[decision].push(preparedAgreement);
+  }
+  return decisions;
+};
+
 export const inspectWoodlandMigrationTargets = async (
   preparedAgreements,
   session,
@@ -182,61 +271,14 @@ export const inspectWoodlandMigrationTargets = async (
     preparedAgreements.map(({ agreementNumber }) => agreementNumber),
   );
 
-  for (const agreementNumber of histories.keys()) {
-    if (!preparedNumbers.has(agreementNumber)) {
-      throw conflict();
-    }
-  }
-
-  for (const document of currentDocuments) {
-    if (isMigrationOwned(document) && !preparedNumbers.has(document._id)) {
-      throw conflict();
-    }
-    const expectedNumber = expectedByIdentity.get(
-      `${document.code}:${document.clientRef}`,
-    );
-    if (expectedNumber && expectedNumber !== document._id) {
-      throw conflict();
-    }
-  }
-
-  const decisions = { insert: [], replace: [], skip: [] };
-  for (const preparedAgreement of preparedAgreements) {
-    const existing = currentByNumber.get(preparedAgreement.agreementNumber);
-    const existingVersions =
-      histories.get(preparedAgreement.agreementNumber) ?? [];
-
-    if (!existing) {
-      if (existingVersions.length > 0) {
-        throw conflict();
-      }
-      decisions.insert.push(preparedAgreement);
-      continue;
-    }
-
-    if (
-      !isMigrationOwned(existing) ||
-      `${existing.code}:${existing.clientRef}` !==
-        preparedIdentity(preparedAgreement)
-    ) {
-      throw conflict();
-    }
-
-    if (
-      existing.migration.mappingVersion === woodlandMigrationMappingVersion &&
-      existing.migration.sourceChecksum === preparedAgreement.sourceChecksum &&
-      currentAgreementMatches(existing, preparedAgreement) &&
-      historyMatches(preparedAgreement, existingVersions)
-    ) {
-      decisions.skip.push(preparedAgreement);
-    } else {
-      decisions.replace.push(preparedAgreement);
-    }
-  }
-
-  return decisions;
+  requireKnownHistories(histories, preparedNumbers);
+  requireCompatibleCurrentDocuments(
+    currentDocuments,
+    preparedNumbers,
+    expectedByIdentity,
+  );
+  return buildTargetDecisions(preparedAgreements, currentByNumber, histories);
 };
-/* eslint-enable complexity */
 
 const writeAgreement = async (preparedAgreement, replace, session) => {
   const agreements = db.collection(agreementsCollection);

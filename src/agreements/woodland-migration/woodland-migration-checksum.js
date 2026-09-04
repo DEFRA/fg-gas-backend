@@ -11,7 +11,7 @@ const canonicalise = (value) => {
   if (value !== null && value?.constructor === Object) {
     return Object.fromEntries(
       Object.keys(value)
-        .sort()
+        .sort((left, right) => left.localeCompare(right, "en"))
         .map((key) => [key, canonicalise(value[key])]),
     );
   }
