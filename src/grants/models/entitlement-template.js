@@ -107,8 +107,61 @@ export class EntitlementTemplate {
 
     return (
       expected.length === submitted.length &&
-      expected.every((fieldName) => submitted.includes(fieldName))
+      expected.every(
+        (fieldName) =>
+          submitted.includes(fieldName) &&
+          this.#submittedValueMatches(
+            this.fields[fieldName],
+            submittedData[fieldName]?.value,
+          ),
+      )
     );
+  }
+
+  #submittedValueMatches(field, value) {
+    return field.unitType === "decimal"
+      ? this.#decimalValueMatches(field, value)
+      : this.#stringValueMatches(field, value);
+  }
+
+  #decimalValueMatches(field, value) {
+    return (
+      this.#isFiniteNumber(value) &&
+      this.#withinRange(value, field.minValue, field.maxValue) &&
+      this.#decimalPlaces(value) <= field.decimalPlaces
+    );
+  }
+
+  #stringValueMatches(field, value) {
+    return (
+      typeof value === "string" &&
+      this.#withinRange(value.length, field.minLength, field.maxLength)
+    );
+  }
+
+  #isFiniteNumber(value) {
+    return typeof value === "number" && Number.isFinite(value);
+  }
+
+  #withinRange(value, minimum, maximum) {
+    return (
+      this.#meetsMinimum(value, minimum) && this.#meetsMaximum(value, maximum)
+    );
+  }
+
+  #meetsMinimum(value, minimum) {
+    return minimum == null || value >= minimum;
+  }
+
+  #meetsMaximum(value, maximum) {
+    return maximum == null || value <= maximum;
+  }
+
+  #decimalPlaces(value) {
+    const [coefficient, exponent] = value.toString().toLowerCase().split("e");
+    const decimals = (coefficient.split(".")[1] ?? "").length;
+
+    return Math.max(0, decimals - Number(exponent ?? 0));
   }
 
   #creationRejection(position, instances, submittedData) {
