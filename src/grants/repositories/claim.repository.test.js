@@ -4,6 +4,7 @@ import { db } from "../../common/mongo-client.js";
 import {
   collection,
   countByClaimCode,
+  countByEntitlement,
   existsByClientClaimRef,
   insert,
 } from "./claim.repository.js";
@@ -77,6 +78,31 @@ describe("claim.repository", () => {
       { session },
     );
     expect(result).toBe(2);
+  });
+
+  it("counts claims by entitlement", async () => {
+    const session = {};
+    const countDocuments = vi.fn().mockResolvedValue(1);
+    db.collection.mockReturnValue({ countDocuments });
+
+    const result = await countByEntitlement(
+      {
+        code: "woodland",
+        clientRef: "wmp-6hb-j8e",
+        entitlementId: "entitlement-1",
+      },
+      session,
+    );
+
+    expect(countDocuments).toHaveBeenCalledWith(
+      {
+        code: "woodland",
+        clientRef: "wmp-6hb-j8e",
+        entitlementId: "entitlement-1",
+      },
+      { session },
+    );
+    expect(result).toBe(1);
   });
 
   it("inserts a claim with timestamps and returns the inserted id", async () => {

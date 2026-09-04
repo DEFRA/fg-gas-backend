@@ -228,6 +228,70 @@ describe("claims.service", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
+  it("returns a decimal field in its real units, not as stored", async () => {
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
+    findExistingEntitlements.mockResolvedValue([
+      { ...persistedEntitlement, data: { area: 100000 } },
+    ]);
+
+    const [claimable] = await listClaimableEntitlements({ code, clientRef });
+
+    expect(claimable.data.area).toEqual({
+      value: 1000,
+      decimalPlaces: 2,
+      minValue: null,
+      maxValue: null,
+    });
+  });
+
+  it.each([
+    [100000, 4, 10],
+    [1561025, 4, 156.1025],
+    [7, 2, 0.07],
+    [0, 4, 0],
+    [123, 0, 123],
+    [-12345, 4, -1.2345],
+  ])("unscales %i at % idp to %f", async (stored, decimalPlaces, expected) => {
+    const scaled = grant(false);
+    scaled.entitlementTemplates[0].fields.area.decimalPlaces = decimalPlaces;
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: scaled });
+    findExistingEntitlements.mockResolvedValue([
+      { ...persistedEntitlement, data: { area: stored } },
+    ]);
+
+    const [claimable] = await listClaimableEntitlements({ code, clientRef });
+
+    expect(claimable.data.area.value).toBe(expected);
+  });
+
+  it("refuses a claim whose template configures no claim block", async () => {
+    const noClaim = grant(false);
+    delete noClaim.entitlementTemplates[0].claim;
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: noClaim });
+
+    await expect(
+      submitClaim({ code, clientRef, payload }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("returns a non-decimal field unscaled", async () => {
+    const withString = grant(false);
+    withString.entitlementTemplates[0].fields.actionCode = {
+      input: false,
+      value: "PA3",
+      unitType: "string",
+    };
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: withString });
+    findExistingEntitlements.mockResolvedValue([
+      { ...persistedEntitlement, data: { area: 100000, actionCode: "PA3" } },
+    ]);
+
+    const [claimable] = await listClaimableEntitlements({ code, clientRef });
+
+    expect(claimable.data.actionCode).toEqual({ value: "PA3" });
+  });
+
   it("lists persisted claimable entitlements", async () => {
     const persisted = {
       id: "entitlement-1",
