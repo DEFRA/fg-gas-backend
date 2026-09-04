@@ -71,6 +71,7 @@ const template = {
   claim: undefined,
   isAvailableAt: vi.fn(() => true),
   inputFieldNames: vi.fn(() => ["hectares"]),
+  invalidInputFieldNames: vi.fn(() => []),
   assessEntitlementCreation: vi.fn(() => ({
     allowed: true,
     nextInstanceNumber: 1,
@@ -110,6 +111,7 @@ describe("EntitlementService", () => {
     });
     template.isAvailableAt.mockReturnValue(true);
     template.inputFieldNames.mockReturnValue(["hectares"]);
+    template.invalidInputFieldNames.mockReturnValue([]);
   });
 
   it("returns a plain overview DTO", async () => {
@@ -211,6 +213,26 @@ describe("EntitlementService", () => {
           errorCode: "INVALID_ENTITLEMENT_DATA",
           message: expect.stringContaining(
             "missing fields: hectares; unexpected fields: unexpected",
+          ),
+        },
+      },
+    });
+  });
+
+  it("names invalid values when submitted field names match the template", async () => {
+    template.assessEntitlementCreation.mockReturnValue({
+      allowed: false,
+      reason: "INVALID_ENTITLEMENT_DATA",
+    });
+    template.invalidInputFieldNames.mockReturnValue(["hectares"]);
+
+    await expect(createEntitlement(command)).rejects.toMatchObject({
+      output: {
+        statusCode: 422,
+        payload: {
+          errorCode: "INVALID_ENTITLEMENT_DATA",
+          message: expect.stringContaining(
+            "Field 'hectares' has an invalid value",
           ),
         },
       },

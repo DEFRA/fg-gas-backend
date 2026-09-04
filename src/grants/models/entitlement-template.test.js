@@ -601,6 +601,16 @@ describe("EntitlementTemplate", () => {
       }
     });
 
+    it("identifies input fields with invalid values", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(
+        template.invalidInputFieldNames({
+          totalHectares: { value: "not a decimal" },
+        }),
+      ).toEqual(["totalHectares"]);
+    });
+
     it("enforces string field type and length constraints", () => {
       const template = new EntitlementTemplate({
         ...validProps,

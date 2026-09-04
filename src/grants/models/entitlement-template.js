@@ -101,20 +101,27 @@ export class EntitlementTemplate {
       .map(([name]) => name);
   }
 
+  invalidInputFieldNames(submittedData) {
+    const submitted = Object.keys(submittedData ?? {});
+
+    return this.inputFieldNames().filter(
+      (fieldName) =>
+        submitted.includes(fieldName) &&
+        !this.#submittedValueMatches(
+          this.fields[fieldName],
+          submittedData[fieldName]?.value,
+        ),
+    );
+  }
+
   #submittedDataMatches(submittedData) {
     const expected = this.inputFieldNames();
     const submitted = Object.keys(submittedData ?? {});
 
     return (
       expected.length === submitted.length &&
-      expected.every(
-        (fieldName) =>
-          submitted.includes(fieldName) &&
-          this.#submittedValueMatches(
-            this.fields[fieldName],
-            submittedData[fieldName]?.value,
-          ),
-      )
+      expected.every((fieldName) => submitted.includes(fieldName)) &&
+      this.invalidInputFieldNames(submittedData).length === 0
     );
   }
 

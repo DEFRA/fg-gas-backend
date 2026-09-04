@@ -272,6 +272,11 @@ const invalidClaimCode = ({ code, clientRef, claimCode, grant }) => {
 
 const byName = (a, b) => a.localeCompare(b);
 
+const invalidValuesMessage = (fieldNames) =>
+  fieldNames.length === 1
+    ? `Field '${fieldNames[0]}' has an invalid value`
+    : `Fields '${fieldNames.join("', '")}' have invalid values`;
+
 const invalidDataMessage = ({ template, data, claimCode }) => {
   const expected = template.inputFieldNames().sort(byName);
   const submitted = Object.keys(data).sort(byName);
@@ -281,8 +286,10 @@ const invalidDataMessage = ({ template, data, claimCode }) => {
     missing.length > 0 && `missing fields: ${missing.join(", ")}`,
     unexpected.length > 0 && `unexpected fields: ${unexpected.join(", ")}`,
   ].filter(Boolean);
+  const invalidFields = template.invalidInputFieldNames(data);
+  const detail = problems.join("; ") || invalidValuesMessage(invalidFields);
 
-  return `Entitlement data for claim code '${claimCode}' does not match the template: ${problems.join("; ")}.`;
+  return `Entitlement data for claim code '${claimCode}' does not match the template: ${detail}.`;
 };
 
 const rejectedCreation = ({ reason, template, command }) => {
