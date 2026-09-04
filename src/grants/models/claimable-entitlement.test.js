@@ -75,6 +75,59 @@ describe("ClaimableEntitlement", () => {
     ).toEqual({ allowed: false, reason: "WRONG_POSITION" });
   });
 
+  it("rejects a claim made without a position", () => {
+    const claimable = ClaimableEntitlement.fromMaterialised({
+      template,
+      code: "woodland",
+      clientRef: "wmp-123",
+    });
+
+    expect(claimable.canAcceptClaim(undefined, 0)).toEqual({
+      allowed: false,
+      reason: "WRONG_POSITION",
+    });
+  });
+
+  it("rejects a claim when the template configures no claimable position", () => {
+    const noClaimableAt = new EntitlementTemplate({
+      claimCode: "ENT_PA3",
+      name: "PA3 entitlement",
+      availableAt: [position],
+      claim: { limits: { maximumClaims: 2 } },
+    });
+    const claimable = ClaimableEntitlement.fromMaterialised({
+      template: noClaimableAt,
+      code: "woodland",
+      clientRef: "wmp-123",
+    });
+
+    expect(claimable.canAcceptClaim(position, 0)).toEqual({
+      allowed: false,
+      reason: "WRONG_POSITION",
+    });
+  });
+
+  it("allows a single claim when the template configures no limits", () => {
+    const noLimits = new EntitlementTemplate({
+      claimCode: "ENT_PA3",
+      name: "PA3 entitlement",
+      availableAt: [position],
+      claim: { claimableAt: [position] },
+    });
+    const claimable = ClaimableEntitlement.fromMaterialised({
+      template: noLimits,
+      code: "woodland",
+      clientRef: "wmp-123",
+    });
+
+    expect(claimable.maximumClaims).toBe(1);
+    expect(claimable.canAcceptClaim(position, 0)).toEqual({ allowed: true });
+    expect(claimable.canAcceptClaim(position, 1)).toEqual({
+      allowed: false,
+      reason: "MAXIMUM_CLAIMS_REACHED",
+    });
+  });
+
   it("rejects a claim when its limit is reached", () => {
     const claimable = ClaimableEntitlement.fromMaterialised({
       template,

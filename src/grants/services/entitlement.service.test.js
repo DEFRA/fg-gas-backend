@@ -411,6 +411,33 @@ describe("EntitlementService", () => {
     expect(insertEntitlement).not.toHaveBeenCalled();
   });
 
+  it("rethrows a resolution failure that is not an unresolved reference", async () => {
+    const needsAgreement = {
+      ...template,
+      fields: {
+        hectares: { input: true, label: "Hectares", unitType: "decimal" },
+        actionVersion: {
+          input: false,
+          value: "jsonata: $.agreement.actions[",
+          unitType: "string",
+        },
+      },
+    };
+    resolveCurrentGrantUseCase.mockResolvedValue({
+      grant: {
+        ...grant,
+        findEntitlementTemplate: vi.fn(() => needsAgreement),
+        findEntitlementTemplatesAvailableAt: vi.fn(() => [needsAgreement]),
+      },
+    });
+    loadEntitlementReferenceContext.mockResolvedValue({ agreement: {} });
+
+    await expect(createEntitlement(command)).rejects.not.toMatchObject({
+      output: { payload: { errorCode: "ENTITLEMENT_DATA_UNRESOLVED" } },
+    });
+    expect(insertEntitlement).not.toHaveBeenCalled();
+  });
+
   it("maps a missing application to the Admin contract error", async () => {
     findApplicationByClientRefAndCodeUseCase.mockRejectedValue(
       Boom.notFound("Application missing"),

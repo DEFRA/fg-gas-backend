@@ -127,7 +127,7 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
         description: "The maximum eligible woodland area that can be claimed.",
         data: {
           totalHectares: {
-            value: 455000,
+            value: 45.5,
             decimalPlaces: 4,
             minValue: 0.5,
             maxValue: null,
@@ -164,7 +164,7 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
         name: "PA3 Woodland Management Plan entitlement",
         data: {
           totalHectares: {
-            value: 455000,
+            value: 45.5,
             decimalPlaces: 4,
             minValue: 0.5,
             maxValue: null,

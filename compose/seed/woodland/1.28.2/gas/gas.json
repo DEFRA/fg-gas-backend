@@ -49,6 +49,21 @@
           "status": "STATUS_PREPARING_CLAIM"
         }
       ],
+      "help": {
+        "summary": "How is the claim amount calculated?",
+        "content": [
+          {
+            "text": "Threshold payments for eligible land in hectares (ha):"
+          },
+          {
+            "items": [
+              "0.5 hectares (ha) to 50ha: flat rate of £1,500",
+              "51ha to 100ha: flat rate of £1,500 for the first 50ha, plus £30 for each additional hectare up to and including 100ha",
+              "more than 100ha: flat rate of £3,000, plus £15 for each additional hectare over 100ha"
+            ]
+          }
+        ]
+      },
       "claim": {
         "claimableAt": [
           {
@@ -57,7 +72,10 @@
             "status": "STATUS_AWAITING_CLAIM"
           }
         ],
-        "limits": { "maximumClaims": 1, "allowsPartialClaims": false },
+        "limits": {
+          "maximumClaims": 1,
+          "allowsPartialClaims": false
+        },
         "requiresApproval": false,
         "requiresEvidence": false
       }
