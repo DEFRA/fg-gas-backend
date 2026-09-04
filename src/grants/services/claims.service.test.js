@@ -263,6 +263,34 @@ describe("claims.service", () => {
     expect(claimable.data.area.value).toBe(expected);
   });
 
+  it("refuses a claim whose template configures no claim block", async () => {
+    const noClaim = grant(false);
+    delete noClaim.entitlementTemplates[0].claim;
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: noClaim });
+
+    await expect(
+      submitClaim({ code, clientRef, payload }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("returns a non-decimal field unscaled", async () => {
+    const withString = grant(false);
+    withString.entitlementTemplates[0].fields.actionCode = {
+      input: false,
+      value: "PA3",
+      unitType: "string",
+    };
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: withString });
+    findExistingEntitlements.mockResolvedValue([
+      { ...persistedEntitlement, data: { area: 100000, actionCode: "PA3" } },
+    ]);
+
+    const [claimable] = await listClaimableEntitlements({ code, clientRef });
+
+    expect(claimable.data.actionCode).toEqual({ value: "PA3" });
+  });
+
   it("lists persisted claimable entitlements", async () => {
     const persisted = {
       id: "entitlement-1",
