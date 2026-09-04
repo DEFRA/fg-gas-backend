@@ -22,6 +22,8 @@ describe("dryRunWoodlandMigrationRoute", () => {
       agreements: 50,
       versions: 5274,
       failures: 0,
+      sourceChecksum:
+        "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     };
     dryRunWoodlandMigration.mockResolvedValue(summary);
 

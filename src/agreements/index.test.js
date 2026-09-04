@@ -57,6 +57,10 @@ describe("agreements", () => {
       method: "post",
       path: "/admin/migrations/woodland/dry-run",
     });
+    expect(routes).not.toContainEqual({
+      method: "post",
+      path: "/admin/migrations/woodland/apply",
+    });
   });
 
   it("registers the temporary Woodland dry-run route when configured", async () => {
@@ -74,6 +78,10 @@ describe("agreements", () => {
         expect.objectContaining({
           method: "post",
           path: "/admin/migrations/woodland/dry-run",
+        }),
+        expect.objectContaining({
+          method: "post",
+          path: "/admin/migrations/woodland/apply",
         }),
       ]),
     );

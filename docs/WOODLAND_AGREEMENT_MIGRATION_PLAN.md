@@ -35,7 +35,7 @@ Operator
    v
 fg-grants-platform-admin
    |
-   | Existing GAS service bearer token
+   | Dedicated migration-operator bearer token for apply
    v
 fg-gas-backend
    |
@@ -58,7 +58,7 @@ GET /internal/migrations/woodland/agreements
 GET /internal/migrations/woodland/agreements/{agreementNumber}/versions?offset={offset}
 ```
 
-The list endpoint returns all Woodland agreement numbers. About 50 numbers are expected, so this response is not paginated.
+The list endpoint returns all Woodland agreement numbers. The production diagnostic observed 70 numbers, so this response is not paginated.
 
 The versions endpoint:
 
@@ -77,9 +77,9 @@ POST /admin/migrations/woodland/dry-run
 POST /admin/migrations/woodland/apply
 ```
 
-Both endpoints use normal GAS service authentication. They are registered only while the GAS-to-Agreements migration token is configured.
+Both endpoints use normal GAS service authentication. Apply additionally requires the dedicated `woodland-migration-operator` service identity. They are registered only while the GAS-to-Agreements migration token is configured.
 
-The endpoints have no agreement filter, run identifier, paging parameters or persisted migration-run state.
+The endpoints have no agreement filter, run identifier, paging parameters or persisted migration-run state. Dry-run returns a source checksum. Apply requires that checksum, the reviewed agreement and version counts, and the literal confirmation `APPLY_WOODLAND_MIGRATION`; it repeats preparation and refuses to write if any approved value changed.
 
 ### Grants Platform Admin
 
@@ -94,7 +94,7 @@ The page is restricted to `FCP.GrantOperationsAdmin` and provides:
 1. A dry-run action that displays the GAS summary and points operators to the detailed GAS logs.
 2. A separate apply confirmation action that displays the reconciliation result.
 
-The frontend calls GAS with its existing server-side `GAS_SERVICE_TOKEN`. It does not call Agreements directly.
+The frontend calls GAS server-side. Dry-run may use its existing `GAS_SERVICE_TOKEN`; apply must use a credential seeded with the `woodland-migration-operator` identity. The frontend does not call Agreements directly.
 
 ## Dry-run
 
@@ -113,9 +113,10 @@ Example summary:
 ```json
 {
   "valid": true,
-  "agreements": 50,
-  "versions": 5274,
-  "failures": 0
+  "agreements": 70,
+  "versions": 70,
+  "failures": 0,
+  "sourceChecksum": "sha256:..."
 }
 ```
 
@@ -131,7 +132,7 @@ Apply has a validation phase and a write phase.
 
 ### Validation phase
 
-Apply repeats the complete dry-run mapping and validation. Before writing, it also checks GAS for target conflicts. It refuses to write if any source record is unmappable, any diagnostic remains unresolved, the source order is inconsistent, or a target conflict exists.
+Apply repeats the complete dry-run mapping and validation. Before writing, it also checks GAS for target conflicts and compares the newly calculated source checksum and counts with the approved dry-run values in the request. It refuses to write if any source record is unmappable, any diagnostic remains unresolved, the source order is inconsistent, an approved value changed, or a target conflict exists.
 
 During the production apply, legacy Woodland writes are paused. This makes the paginated source view stable for the duration of validation and import.
 
@@ -165,7 +166,7 @@ The migration writes through a dedicated repository path. It must not invoke nor
 
 The final field mapping depends on the results of FGP-1370 and [Agreements API PR 468](https://github.com/DEFRA/farming-grants-agreements-api/pull/468).
 
-Before apply is implemented, the mapping must confirm:
+The mapping uses the following confirmed source values and rejects unsupported alternatives:
 
 - The complete set of legacy lifecycle statuses and their GAS states.
 - `Grant.versions` as the authoritative version order.
@@ -191,7 +192,7 @@ Each imported snapshot contains an internal legacy envelope similar to:
 }
 ```
 
-The exact envelope shape will be fixed with the mapping. GAS computes the checksum from a deterministic representation and verifies it after persistence. Public response schemas, page models, events and logs must explicitly exclude the envelope.
+The envelope stores the untouched Extended JSON objects received from Agreements. GAS computes the checksum from a deterministic, key-sorted representation and verifies it after persistence. Public domain models deliberately omit the internal `legacy` property, preventing response schemas, page models and events from exposing the envelope.
 
 ## Rerun behaviour
 
@@ -205,12 +206,12 @@ Apply computes an agreement-level checksum from all source inputs used by the ma
 | GAS agreement exists without the migration marker | Abort before any write. |
 | Incomplete migration-owned data exists after an interrupted apply | Remove that agreement's incomplete migration data and rebuild it. |
 
-The agreement-level checksum is an optimisation and idempotency marker. The per-snapshot envelope checksum is migration evidence. Neither is required during dry-run.
+The agreement-level checksum is an optimisation and idempotency marker. The per-snapshot envelope checksum is migration evidence. Dry-run calculates both without persisting them and returns the aggregate checksum as the approval hand-off to apply.
 
 ## Security and privacy
 
 - Admin users authenticate through Entra and require `FCP.GrantOperationsAdmin`.
-- Grants Platform Admin presents its existing service token to GAS.
+- Dry-run accepts normal GAS service authentication; apply accepts only the dedicated `woodland-migration-operator` service credential.
 - GAS stores the raw migration token in its CDP secrets.
 - Agreements stores only the SHA-256 hash of that token in its CDP secrets.
 - Tokens are never sent to the browser or written to logs.
@@ -314,11 +315,11 @@ Lower environments use their matching Agreements API. They do not read productio
 ## Delivery order
 
 1. Agreements API: migration authentication, list endpoint and paginated versions endpoint.
-2. GAS: pure legacy mapper and dry-run endpoint.
-3. Deploy to DEV and prove the 5,000-version path.
-4. GAS: apply, evidence, idempotency, conflict handling and reconciliation.
-5. Grants Platform Admin: temporary dry-run and apply page.
-6. Rehearse all lower environments.
+2. GAS: shared preparation, dry-run, checksum-gated apply, evidence, idempotency, conflict handling and reconciliation.
+3. Deploy to DEV and prove dry-run, first apply, unchanged rerun, changed-source rebuild and the 5,000-version path.
+4. Grants Platform Admin or the dedicated operator credential: reviewed dry-run and explicit apply invocation.
+5. Rehearse all lower environments.
+6. Deploy the source and GAS paths to production once with their operational gates configured.
 7. Run the production maintenance window.
 8. Disable and remove temporary migration access.
 

@@ -124,9 +124,11 @@ export const fetchWoodlandAgreementVersionPages = async function* (
   do {
     const path = `/internal/migrations/woodland/agreements/${encodeURIComponent(agreementNumber)}/versions?offset=${offset}`;
     let page;
+    let sourcePage;
 
     try {
-      page = deserializeSource(await get(path));
+      sourcePage = await get(path);
+      page = deserializeSource(structuredClone(sourcePage));
     } catch {
       throw sourceError();
     }
@@ -138,7 +140,14 @@ export const fetchWoodlandAgreementVersionPages = async function* (
       throw sourceError();
     }
 
-    yield page;
+    yield {
+      ...page,
+      legacySource: {
+        agreement: sourcePage.agreement,
+        grant: sourcePage.grant,
+        versions: sourcePage.versions,
+      },
+    };
     offset = page.nextOffset;
   } while (offset !== null);
 };

@@ -100,6 +100,9 @@ describe("Woodland migration source", () => {
     expect(version.sourceLong).toBe(42);
     expect(version.sourceLargeLong).toBeInstanceOf(Long);
     expect(version.sourceLargeLong.toString()).toBe("9007199254740993");
+    expect(pages[0].legacySource.versions[0].displayedQuantity).toEqual({
+      $numberDecimal: "4.757500000000000001",
+    });
     expect(wreck.get.mock.calls.map(([url]) => url)).toEqual([
       "https://agreements.example.test/internal/migrations/woodland/agreements/WMP0001/versions?offset=0",
       "https://agreements.example.test/internal/migrations/woodland/agreements/WMP0001/versions?offset=100",

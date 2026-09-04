@@ -13,6 +13,9 @@ export const dryRunWoodlandMigrationRoute = {
         agreements: Joi.number().integer().min(0).required(),
         versions: Joi.number().integer().min(0).required(),
         failures: Joi.number().integer().min(0).required(),
+        sourceChecksum: Joi.string()
+          .pattern(/^sha256:[0-9a-f]{64}$/)
+          .required(),
       }),
     },
   },

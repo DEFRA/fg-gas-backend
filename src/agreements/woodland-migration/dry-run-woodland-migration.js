@@ -1,10 +1,15 @@
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { loadAgreementDefinition } from "../use-cases/load-agreement-definition.js";
+import { loadAgreementDefinitionReadOnly } from "../use-cases/load-agreement-definition.js";
 import {
   mapLegacyWoodlandVersion,
   validateMappedWoodlandVersion,
 } from "./map-legacy-woodland-version.js";
+import {
+  createAgreementSourceChecksum,
+  createLegacyEvidence,
+  createMigrationSourceChecksum,
+} from "./woodland-migration-checksum.js";
 import {
   fetchWoodlandAgreementNumbers,
   fetchWoodlandAgreementVersionPages,
@@ -71,17 +76,19 @@ const issueReason = ({ path, reason }) =>
   `${path}:${reason}`.slice(0, eventTextMaxLength);
 const versionReference = (agreementNumber, version) =>
   `${agreementNumber}:${version}`;
+const migrationAction = (mode, subject) =>
+  `woodland-migration-${mode}-${subject}`;
 
-const logVersion = ({ agreementNumber, version, issues }) => {
+const logVersion = ({ agreementNumber, version, issues, mode }) => {
   const event = {
-    action: "woodland-migration-dry-run-version",
+    action: migrationAction(mode, "version"),
     reference: versionReference(agreementNumber, version),
   };
 
   if (issues.length === 0) {
     logger.info(
       { event: { ...event, outcome: "success" } },
-      "Woodland migration dry-run version passed validation",
+      "Woodland migration version passed validation",
     );
     return;
   }
@@ -95,40 +102,46 @@ const logVersion = ({ agreementNumber, version, issues }) => {
           reason: issueReason(issue),
         },
       },
-      "Woodland migration dry-run version failed validation",
+      "Woodland migration version failed validation",
     );
   }
 };
 
-const logEmptyAgreement = (agreementNumber) => {
+const logEmptyAgreement = (agreementNumber, mode) => {
   logger.info(
     {
       event: {
-        action: "woodland-migration-dry-run-agreement",
+        action: migrationAction(mode, "agreement"),
         reference: agreementNumber,
         outcome: "failure",
         reason: "versions:source.versions.empty",
       },
     },
-    "Woodland migration dry-run found no versions",
+    "Woodland migration found no versions",
   );
 };
 
 const validateVersion = ({ agreementNumber, page, sourceVersion, version }) => {
   try {
-    const mapped = mapLegacyWoodlandVersion({
+    const agreementVersion = mapLegacyWoodlandVersion({
       agreement: page.agreement,
       grant: page.grant,
       sourceVersion,
       version,
       configVersion: config.woodlandMigration.configVersion,
     });
-    return [
-      ...sourceIssues(agreementNumber, page, sourceVersion),
-      ...validateMappedWoodlandVersion(mapped, sourceVersion),
-    ];
+    return {
+      agreementVersion,
+      issues: [
+        ...sourceIssues(agreementNumber, page, sourceVersion),
+        ...validateMappedWoodlandVersion(agreementVersion, sourceVersion),
+      ],
+    };
   } catch {
-    return [{ path: "value", reason: "mapping.failed" }];
+    return {
+      agreementVersion: undefined,
+      issues: [{ path: "value", reason: "mapping.failed" }],
+    };
   }
 };
 
@@ -144,76 +157,129 @@ const mergeReasonCounts = (target, source) => {
   }
 };
 
-const processPage = (agreementNumber, page, firstVersion) => {
-  const result = { versions: page.versions.length, failures: 0, reasons: {} };
+// eslint-disable-next-line complexity
+const legacyEnvelope = (page, sourceVersion, index) => ({
+  agreement: page.legacySource?.agreement ?? page.agreement,
+  grant: page.legacySource?.grant ?? page.grant,
+  version: page.legacySource?.versions?.[index] ?? sourceVersion,
+});
+
+const processPage = ({
+  agreementNumber,
+  page,
+  firstVersion,
+  mode,
+  retainVersions,
+}) => {
+  const result = {
+    versions: page.versions.length,
+    failures: 0,
+    reasons: {},
+    preparedVersions: [],
+    versionChecksums: [],
+  };
 
   page.versions.forEach((sourceVersion, index) => {
     const version = firstVersion + index;
-    const issues = validateVersion({
+    const evidence = createLegacyEvidence(
+      legacyEnvelope(page, sourceVersion, index),
+    );
+    const { agreementVersion, issues } = validateVersion({
       agreementNumber,
       page,
       sourceVersion,
       version,
     });
     result.failures += Number(issues.length > 0);
+    result.versionChecksums.push(evidence.checksum);
     countReasons(result.reasons, issues);
-    logVersion({ agreementNumber, version, issues });
+    logVersion({ agreementNumber, version, issues, mode });
+
+    if (retainVersions && agreementVersion) {
+      result.preparedVersions.push({ agreementVersion, evidence });
+    }
   });
 
   return result;
 };
 
-const processAgreement = async (agreementNumber) => {
-  const result = { versions: 0, failures: 0, reasons: {} };
+const processAgreement = async ({ agreementNumber, mode, retainVersions }) => {
+  const result = {
+    versions: 0,
+    failures: 0,
+    reasons: {},
+    preparedVersions: [],
+    versionChecksums: [],
+  };
 
   for await (const page of fetchWoodlandAgreementVersionPages(
     agreementNumber,
   )) {
-    const pageResult = processPage(agreementNumber, page, result.versions + 1);
+    const pageResult = processPage({
+      agreementNumber,
+      page,
+      firstVersion: result.versions + 1,
+      mode,
+      retainVersions,
+    });
     result.versions += pageResult.versions;
     result.failures += pageResult.failures;
+    result.preparedVersions.push(...pageResult.preparedVersions);
+    result.versionChecksums.push(...pageResult.versionChecksums);
     mergeReasonCounts(result.reasons, pageResult.reasons);
   }
 
   if (result.versions === 0) {
     result.failures = 1;
     result.reasons["source.versions.empty"] = 1;
-    logEmptyAgreement(agreementNumber);
+    logEmptyAgreement(agreementNumber, mode);
   }
 
+  result.sourceChecksum = createAgreementSourceChecksum({
+    agreementNumber,
+    configVersion: config.woodlandMigration.configVersion,
+    versionChecksums: result.versionChecksums,
+  });
   return result;
 };
 
-const logCompleted = (summary, reasons, aborted = false) => {
+const logCompleted = (summary, reasons, mode, aborted = false) => {
   const passed = Math.max(0, summary.versions - summary.failures);
   logger.info(
     {
       event: {
-        action: "woodland-migration-dry-run-completed",
+        action: migrationAction(mode, "completed"),
         outcome: summary.valid ? "success" : "failure",
-        reason: `agreements=${summary.agreements} versions=${summary.versions} passed=${passed} failures=${summary.failures} aborted=${aborted} reasons=${JSON.stringify(reasons)}`,
+        reason: `agreements=${summary.agreements} versions=${summary.versions} passed=${passed} failures=${summary.failures} aborted=${aborted} checksum=${summary.sourceChecksum ?? "unavailable"} reasons=${JSON.stringify(reasons)}`,
       },
     },
-    "Woodland migration dry-run completed",
+    "Woodland migration validation completed",
   );
 };
 
-export const dryRunWoodlandMigration = async () => {
+/* eslint-disable complexity */
+export const prepareWoodlandMigration = async ({
+  mode = "dry-run",
+  retainVersions = false,
+} = {}) => {
   const summary = {
     valid: false,
     agreements: 0,
     versions: 0,
     failures: 0,
+    sourceChecksum: undefined,
   };
   const reasons = {};
+  const preparedAgreements = [];
+  const agreementChecksums = [];
 
   logger.info(
-    { event: { action: "woodland-migration-dry-run-started" } },
-    "Woodland migration dry-run started",
+    { event: { action: migrationAction(mode, "started") } },
+    "Woodland migration validation started",
   );
 
   try {
-    await loadAgreementDefinition({
+    await loadAgreementDefinitionReadOnly({
       code: "woodland",
       configVersion: config.woodlandMigration.configVersion,
       resolution: "exact",
@@ -222,18 +288,45 @@ export const dryRunWoodlandMigration = async () => {
     summary.agreements = agreementNumbers.length;
 
     for (const agreementNumber of agreementNumbers) {
-      const result = await processAgreement(agreementNumber);
+      const result = await processAgreement({
+        agreementNumber,
+        mode,
+        retainVersions,
+      });
       summary.versions += result.versions;
       summary.failures += result.failures;
+      agreementChecksums.push(result.sourceChecksum);
       mergeReasonCounts(reasons, result.reasons);
+
+      if (retainVersions) {
+        preparedAgreements.push({
+          agreementNumber,
+          sourceChecksum: result.sourceChecksum,
+          versions: result.preparedVersions,
+        });
+      }
     }
 
+    summary.sourceChecksum = createMigrationSourceChecksum({
+      configVersion: config.woodlandMigration.configVersion,
+      agreementChecksums,
+    });
     summary.valid = summary.failures === 0;
-    logCompleted(summary, reasons);
-    return summary;
+    logCompleted(summary, reasons, mode);
+    return {
+      summary,
+      reasons,
+      preparedAgreements,
+    };
   } catch (error) {
     reasons["run.failed"] = 1;
-    logCompleted(summary, reasons, true);
+    logCompleted(summary, reasons, mode, true);
     throw error;
   }
+};
+/* eslint-enable complexity */
+
+export const dryRunWoodlandMigration = async () => {
+  const { summary } = await prepareWoodlandMigration();
+  return summary;
 };

@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { loadAgreementDefinition } from "../use-cases/load-agreement-definition.js";
-import { dryRunWoodlandMigration } from "./dry-run-woodland-migration.js";
+import { loadAgreementDefinitionReadOnly } from "../use-cases/load-agreement-definition.js";
+import {
+  dryRunWoodlandMigration,
+  prepareWoodlandMigration,
+} from "./dry-run-woodland-migration.js";
 import {
   mapLegacyWoodlandVersion,
   validateMappedWoodlandVersion,
@@ -61,8 +64,9 @@ describe("dryRunWoodlandMigration", () => {
       agreements: 2,
       versions: 3,
       failures: 2,
+      sourceChecksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
     });
-    expect(loadAgreementDefinition).toHaveBeenCalledWith({
+    expect(loadAgreementDefinitionReadOnly).toHaveBeenCalledWith({
       code: "woodland",
       configVersion: "1.0.0",
       resolution: "exact",
@@ -73,6 +77,67 @@ describe("dryRunWoodlandMigration", () => {
       expect.objectContaining({ version: 3, configVersion: "1.0.0" }),
     );
     expect(fetchWoodlandAgreementVersionPages).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains mapped versions with untouched source evidence for apply", async () => {
+    const agreementVersion = {
+      agreementNumber: "WMP0001",
+      version: 1,
+      snapshot: { agreementNumber: "WMP0001" },
+      versionedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const sourceEvidence = {
+      agreement: { agreementNumber: "WMP0001" },
+      grant: { agreementNumber: "WMP0001" },
+      versions: [{ quantity: { $numberDecimal: "4.7500" } }],
+    };
+    fetchWoodlandAgreementNumbers.mockResolvedValue(["WMP0001"]);
+    fetchWoodlandAgreementVersionPages.mockImplementation(() =>
+      (async function* () {
+        yield {
+          agreement: sourceEvidence.agreement,
+          grant: sourceEvidence.grant,
+          versions: [{ valid: true }],
+          legacySource: sourceEvidence,
+          nextOffset: null,
+        };
+      })(),
+    );
+    mapLegacyWoodlandVersion.mockReturnValue(agreementVersion);
+    validateMappedWoodlandVersion.mockReturnValue([]);
+
+    const result = await prepareWoodlandMigration({
+      mode: "apply-validation",
+      retainVersions: true,
+    });
+
+    expect(result.summary).toMatchObject({
+      valid: true,
+      agreements: 1,
+      versions: 1,
+      failures: 0,
+      sourceChecksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+    });
+    expect(result.preparedAgreements).toEqual([
+      {
+        agreementNumber: "WMP0001",
+        sourceChecksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+        versions: [
+          {
+            agreementVersion,
+            evidence: {
+              source: "legacy-agreements",
+              checksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+              envelope: {
+                agreement: sourceEvidence.agreement,
+                grant: sourceEvidence.grant,
+                version: sourceEvidence.versions[0],
+              },
+            },
+          },
+        ],
+      },
+    ]);
   });
 
   it("counts source identity and mapping failures", async () => {
@@ -98,6 +163,7 @@ describe("dryRunWoodlandMigration", () => {
       agreements: 1,
       versions: 2,
       failures: 2,
+      sourceChecksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
     });
   });
 
@@ -135,6 +201,7 @@ describe("dryRunWoodlandMigration", () => {
       agreements: 1,
       versions: 1,
       failures: 1,
+      sourceChecksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
     });
     expect(logger.info.mock.calls.map(([context]) => context)).toEqual(
       expect.arrayContaining([
@@ -187,6 +254,7 @@ describe("dryRunWoodlandMigration", () => {
       agreements: 1,
       versions: 1,
       failures: 1,
+      sourceChecksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
     });
     expect(logger.info.mock.calls.map(([context]) => context)).toEqual(
       expect.arrayContaining([
@@ -241,8 +309,9 @@ describe("dryRunWoodlandMigration", () => {
           event: {
             action: "woodland-migration-dry-run-completed",
             outcome: "failure",
-            reason:
-              'agreements=2 versions=3 passed=1 failures=2 aborted=false reasons={"items.invalid":1,"source.versions.empty":1}',
+            reason: expect.stringMatching(
+              /^agreements=2 versions=3 passed=1 failures=2 aborted=false checksum=sha256:[0-9a-f]{64} reasons=\{"items.invalid":1,"source\.versions\.empty":1\}$/,
+            ),
           },
         },
       ]),
@@ -259,11 +328,12 @@ describe("dryRunWoodlandMigration", () => {
         event: {
           action: "woodland-migration-dry-run-completed",
           outcome: "failure",
-          reason:
-            'agreements=1 versions=0 passed=0 failures=1 aborted=false reasons={"source.versions.empty":1}',
+          reason: expect.stringMatching(
+            /^agreements=1 versions=0 passed=0 failures=1 aborted=false checksum=sha256:[0-9a-f]{64} reasons=\{"source\.versions\.empty":1\}$/,
+          ),
         },
       },
-      "Woodland migration dry-run completed",
+      "Woodland migration validation completed",
     );
   });
 
@@ -278,10 +348,10 @@ describe("dryRunWoodlandMigration", () => {
           action: "woodland-migration-dry-run-completed",
           outcome: "failure",
           reason:
-            'agreements=0 versions=0 passed=0 failures=0 aborted=true reasons={"run.failed":1}',
+            'agreements=0 versions=0 passed=0 failures=0 aborted=true checksum=unavailable reasons={"run.failed":1}',
         },
       },
-      "Woodland migration dry-run completed",
+      "Woodland migration validation completed",
     );
   });
 });
