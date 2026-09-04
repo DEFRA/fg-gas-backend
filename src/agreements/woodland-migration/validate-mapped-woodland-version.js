@@ -386,6 +386,23 @@ const sourceActionIssues = (version, agreement) => [
   ...sourceActionParcelIssues(version, agreement),
 ];
 
+const hasConflictingParcelIdentity = ({ sheetId, parcelId }) =>
+  Boolean(
+    sheetId && parcelId?.includes("-") && !parcelId.startsWith(`${sheetId}-`),
+  );
+
+const sourceParcelIdentityIssues = (version) =>
+  (version.application?.parcel ?? []).flatMap((parcel, index) =>
+    hasConflictingParcelIdentity(parcel)
+      ? [
+          {
+            path: `application.parcel.${index}.parcelId`,
+            reason: "woodland.parcel-identity.source-mismatch",
+          },
+        ]
+      : [],
+  );
+
 const acceptedAgreementDateIssues = (agreement) =>
   agreement.state === "accepted"
     ? ["startDate", "endDate"].flatMap((path) =>
@@ -509,6 +526,7 @@ const sourceVersionIssues = (sourceVersion, agreement) => {
     ...sourceItemIssues(sourceVersion),
     ...sourceItemActionValueIssues(sourceVersion),
     ...sourceActionIssues(sourceVersion, agreement),
+    ...sourceParcelIdentityIssues(sourceVersion),
   ];
 };
 

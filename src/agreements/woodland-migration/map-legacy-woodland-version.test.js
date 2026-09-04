@@ -471,6 +471,28 @@ describe("mapLegacyWoodlandVersion", () => {
     });
   });
 
+  it("rejects conflicting split and composite parcel identifiers", () => {
+    const version = {
+      ...sourceVersion,
+      application: {
+        parcel: [
+          {
+            ...sourceVersion.application.parcel[0],
+            sheetId: "SD1111",
+            parcelId: "SD2222-3333",
+          },
+        ],
+      },
+    };
+
+    expect(validateMappedWoodlandVersion(map(version), version)).toContainEqual(
+      {
+        path: "application.parcel.0.parcelId",
+        reason: "woodland.parcel-identity.source-mismatch",
+      },
+    );
+  });
+
   it("rejects a parcel without a displayed area", () => {
     const version = {
       ...sourceVersion,
