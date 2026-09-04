@@ -250,6 +250,7 @@ describe("claims.service", () => {
     [7, 2, 0.07],
     [0, 4, 0],
     [123, 0, 123],
+    [-12345, 4, -1.2345],
   ])("unscales %i at % idp to %f", async (stored, decimalPlaces, expected) => {
     const scaled = grant(false);
     scaled.entitlementTemplates[0].fields.area.decimalPlaces = decimalPlaces;

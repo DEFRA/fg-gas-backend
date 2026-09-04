@@ -116,7 +116,7 @@ const unscaleDecimalAsText = (value, decimalPlaces) => {
 
 const unscaled = (value, decimalPlaces) =>
   typeof value === "number"
-    ? unscaleDecimalAsText(value, decimalPlaces ?? 0)
+    ? unscaleDecimalAsText(value, decimalPlaces)
     : value;
 
 const decimalDataField = (field, value) => ({
