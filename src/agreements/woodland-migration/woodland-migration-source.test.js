@@ -38,7 +38,7 @@ describe("Woodland migration source", () => {
       "WMP0002",
     ]);
     expect(wreck.get).toHaveBeenCalledWith(
-      "https://agreements.example.test/internal/migrations/woodland/agreements",
+      "https://agreements.example.test/internal/migrations/agreements?code=woodland",
       {
         headers: { authorization: "Bearer migration-secret" },
         json: true,
@@ -104,8 +104,8 @@ describe("Woodland migration source", () => {
       $numberDecimal: "4.757500000000000001",
     });
     expect(wreck.get.mock.calls.map(([url]) => url)).toEqual([
-      "https://agreements.example.test/internal/migrations/woodland/agreements/WMP0001/versions?offset=0",
-      "https://agreements.example.test/internal/migrations/woodland/agreements/WMP0001/versions?offset=100",
+      "https://agreements.example.test/internal/migrations/agreements/WMP0001/versions?offset=0",
+      "https://agreements.example.test/internal/migrations/agreements/WMP0001/versions?offset=100",
     ]);
   });
 
@@ -127,6 +127,33 @@ describe("Woodland migration source", () => {
 
     wreck.get.mockResolvedValueOnce(response({}, 503));
     await expect(fetchWoodlandAgreementNumbers()).rejects.toMatchObject({
+      message: "Woodland migration source request failed",
+      output: { statusCode: 502 },
+    });
+  });
+
+  it("rejects an empty page that does not advance the offset", async () => {
+    wreck.get
+      .mockResolvedValueOnce(
+        response({
+          agreement: { agreementNumber: "WMP0001" },
+          grant: { agreementNumber: "WMP0001" },
+          versions: Array.from({ length: 100 }, () => ({})),
+          nextOffset: 100,
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          agreement: { agreementNumber: "WMP0001" },
+          grant: { agreementNumber: "WMP0001" },
+          versions: [],
+          nextOffset: 100,
+        }),
+      );
+
+    const pages = fetchWoodlandAgreementVersionPages("WMP0001");
+    await expect(pages.next()).resolves.toMatchObject({ done: false });
+    await expect(pages.next()).rejects.toMatchObject({
       message: "Woodland migration source request failed",
       output: { statusCode: 502 },
     });

@@ -111,7 +111,7 @@ const deserializeSource = (value) =>
   toRuntimeSourceValue(BSON.EJSON.deserialize(value, { relaxed: false }));
 
 export const fetchWoodlandAgreementNumbers = async () => {
-  const payload = await get("/internal/migrations/woodland/agreements");
+  const payload = await get("/internal/migrations/agreements?code=woodland");
   return requireValid(agreementNumbersSchema, payload).agreementNumbers;
 };
 
@@ -122,7 +122,7 @@ export const fetchWoodlandAgreementVersionPages = async function* (
   let offset = 0;
 
   do {
-    const path = `/internal/migrations/woodland/agreements/${encodeURIComponent(agreementNumber)}/versions?offset=${offset}`;
+    const path = `/internal/migrations/agreements/${encodeURIComponent(agreementNumber)}/versions?offset=${offset}`;
     let page;
     let sourcePage;
 
@@ -136,7 +136,10 @@ export const fetchWoodlandAgreementVersionPages = async function* (
     page = requireValid(versionPageSchema, page);
 
     const expectedNextOffset = offset + page.versions.length;
-    if (page.nextOffset !== null && page.nextOffset !== expectedNextOffset) {
+    if (
+      page.nextOffset !== null &&
+      (page.nextOffset !== expectedNextOffset || page.nextOffset <= offset)
+    ) {
       throw sourceError();
     }
 

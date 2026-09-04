@@ -12,7 +12,7 @@ Use separate credentials for the two authentication boundaries. Generate a new p
 
 | Value                               | Location                                | Secret | Purpose                                    |
 | ----------------------------------- | --------------------------------------- | ------ | ------------------------------------------ |
-| `WOODLAND_MIGRATION_TOKEN_HASH`     | Agreements API                          | Yes    | Authenticates GAS to the source API        |
+| `MIGRATION_SOURCE_TOKEN_HASH`       | Agreements API                          | Yes    | Authenticates GAS to the source API        |
 | `WOODLAND_MIGRATION_TOKEN`          | GAS                                     | Yes    | Raw token matching the source API hash     |
 | `WOODLAND_MIGRATION_SOURCE_URL`     | GAS                                     | No     | Agreements API base URL                    |
 | `WOODLAND_MIGRATION_CONFIG_VERSION` | GAS                                     | No     | Exact approved Woodland definition version |
@@ -36,7 +36,7 @@ Use separate credentials for the two authentication boundaries. Generate a new p
 
 Prove the configuration gates in a lower environment before the coordinated production release. Production does not need a separate disabled-code deployment.
 
-- [ ] Deploy PR 470 with `WOODLAND_MIGRATION_TOKEN_HASH` unset in a lower environment.
+- [ ] Deploy PR 470 with `MIGRATION_SOURCE_TOKEN_HASH` unset in a lower environment.
 - [ ] Deploy PR 626 with all `WOODLAND_MIGRATION_*` settings unset in the same lower environment.
 - [ ] Confirm both services are healthy.
 - [ ] Confirm the temporary source routes and GAS dry-run/apply routes are unavailable.
@@ -60,7 +60,7 @@ The command prints a line containing `fg-gas-backend:<HASH>` and then the raw to
 Configure the Agreements API secret:
 
 ```text
-WOODLAND_MIGRATION_TOKEN_HASH=<64-character lowercase hash>
+MIGRATION_SOURCE_TOKEN_HASH=<64-character lowercase hash>
 ```
 
 Configure the matching GAS secret:
@@ -73,7 +73,7 @@ WOODLAND_MIGRATION_TOKEN=<raw token>
 
 ### Agreements API
 
-- [ ] Set `WOODLAND_MIGRATION_TOKEN_HASH` as a CDP secret.
+- [ ] Set `MIGRATION_SOURCE_TOKEN_HASH` as a CDP secret.
 - [ ] Confirm it is exactly 64 lowercase hexadecimal characters.
 - [ ] Stage the secret for the coordinated production deployment.
 
@@ -143,7 +143,7 @@ echo
 
 curl --fail-with-body \
   --header "Authorization: Bearer ${WOODLAND_MIGRATION_TOKEN}" \
-  "https://farming-grants-agreements-api.prod.cdp-int.defra.cloud/internal/migrations/woodland/agreements"
+  "https://farming-grants-agreements-api.prod.cdp-int.defra.cloud/internal/migrations/agreements?code=woodland"
 
 unset WOODLAND_MIGRATION_TOKEN
 ```
@@ -273,13 +273,13 @@ An unchanged rerun is safe and should return `inserted: 0`, `replaced: 0`, and `
 | GAS returns `502`                     | Source URL, raw migration token, Agreements API hash, source availability and source response shape |
 | GAS returns `500`                     | The exact Woodland configuration version exists and is usable; inspect the aborted completion log   |
 | GAS returns `200` with `valid: false` | Inspect each per-version diagnostic and resolve every reason before proceeding                      |
-| Agreements API returns `401`          | The raw `WOODLAND_MIGRATION_TOKEN` and `WOODLAND_MIGRATION_TOKEN_HASH` do not match                 |
+| Agreements API returns `401`          | The raw `WOODLAND_MIGRATION_TOKEN` and `MIGRATION_SOURCE_TOKEN_HASH` do not match                   |
 
 ## 11. Disable temporary access
 
 If this run is only a rehearsal, remove migration access immediately rather than leaving the temporary routes enabled.
 
-- [ ] Remove `WOODLAND_MIGRATION_TOKEN_HASH` from Agreements API configuration.
+- [ ] Remove `MIGRATION_SOURCE_TOKEN_HASH` from Agreements API configuration.
 - [ ] Remove `WOODLAND_MIGRATION_SOURCE_URL`, `WOODLAND_MIGRATION_TOKEN` and `WOODLAND_MIGRATION_CONFIG_VERSION` from GAS.
 - [ ] Redeploy Agreements API and GAS.
 - [ ] Confirm the source routes and GAS dry-run/apply routes now return `404`.

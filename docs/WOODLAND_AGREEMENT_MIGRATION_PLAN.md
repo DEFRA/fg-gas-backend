@@ -11,20 +11,20 @@ The migration must be safe to run again. Unchanged agreements must cause no GAS 
 
 ## Decisions
 
-| Area | Decision |
-| --- | --- |
-| Direction | GAS pulls legacy data from Agreements. GAS owns the target model, mapping, validation and writes. |
-| Production access | All source reads use authenticated HTTP. No production database or terminal access is required. |
-| Trigger | Operators use a temporary page in `fg-grants-platform-admin`. The page calls GAS server-side. |
-| Execution | GAS handles the migration synchronously and pages through source versions internally. |
-| Memory | GAS holds at most one page of source versions at a time. |
-| Selection | Every Woodland agreement is processed. There is no agreement filter. |
-| Dry-run | Map and validate every record, write structured diagnostics, return a summary, and persist no GAS agreement data. |
-| Apply | Validate every source record before starting any GAS write. Import only after validation succeeds. |
-| Reruns | Store a source checksum on each migrated agreement. Skip it when the source checksum is unchanged. |
-| Evidence | Store an untouched, checksummed legacy envelope inside every migrated snapshot. |
-| Activation | Migration and configuration deployment do not route Woodland to GAS. Activation is a separate approved cutover step. |
-| Temporary controls | Remove or disable the source routes, GAS routes, admin page and migration secrets after cutover. |
+| Area               | Decision                                                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Direction          | GAS pulls legacy data from Agreements. GAS owns the target model, mapping, validation and writes.                    |
+| Production access  | All source reads use authenticated HTTP. No production database or terminal access is required.                      |
+| Trigger            | Operators use a temporary page in `fg-grants-platform-admin`. The page calls GAS server-side.                        |
+| Execution          | GAS handles the migration synchronously and pages through source versions internally.                                |
+| Memory             | GAS holds at most one page of source versions at a time.                                                             |
+| Selection          | GAS requests `code=woodland` and processes every returned agreement. There is no per-agreement filter.               |
+| Dry-run            | Map and validate every record, write structured diagnostics, return a summary, and persist no GAS agreement data.    |
+| Apply              | Validate every source record before starting any GAS write. Import only after validation succeeds.                   |
+| Reruns             | Store a source checksum on each migrated agreement. Skip it when the source checksum is unchanged.                   |
+| Evidence           | Store an untouched, checksummed legacy envelope inside every migrated snapshot.                                      |
+| Activation         | Migration and configuration deployment do not route Woodland to GAS. Activation is a separate approved cutover step. |
+| Temporary controls | Remove or disable the source routes, GAS routes, admin page and migration secrets after cutover.                     |
 
 ## Architecture
 
@@ -54,8 +54,8 @@ The migration is not a startup function. Cross-service work must not delay readi
 ### Agreements API
 
 ```http
-GET /internal/migrations/woodland/agreements
-GET /internal/migrations/woodland/agreements/{agreementNumber}/versions?offset={offset}
+GET /internal/migrations/agreements?code=woodland
+GET /internal/migrations/agreements/{agreementNumber}/versions?offset={offset}
 ```
 
 The list endpoint returns all Woodland agreement numbers. The production diagnostic observed 70 numbers, so this response is not paginated.
@@ -198,12 +198,12 @@ The envelope stores the untouched Extended JSON objects received from Agreements
 
 Apply computes an agreement-level checksum from all source inputs used by the mapper.
 
-| Target state | Result |
-| --- | --- |
-| No GAS agreement exists | Import it. |
-| Migration-owned agreement has the same checksum | No-op. |
-| Migration-owned agreement has a different checksum | Replace it from the complete validated source. |
-| GAS agreement exists without the migration marker | Abort before any write. |
+| Target state                                                      | Result                                                            |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------- |
+| No GAS agreement exists                                           | Import it.                                                        |
+| Migration-owned agreement has the same checksum                   | No-op.                                                            |
+| Migration-owned agreement has a different checksum                | Replace it from the complete validated source.                    |
+| GAS agreement exists without the migration marker                 | Abort before any write.                                           |
 | Incomplete migration-owned data exists after an interrupted apply | Remove that agreement's incomplete migration data and rebuild it. |
 
 The agreement-level checksum is an optimisation and idempotency marker. The per-snapshot envelope checksum is migration evidence. Dry-run calculates both without persisting them and returns the aggregate checksum as the approval hand-off to apply.
@@ -323,16 +323,9 @@ Lower environments use their matching Agreements API. They do not read productio
 7. Run the production maintenance window.
 8. Disable and remove temporary migration access.
 
-## Clarifications required before implementation is complete
+## Confirmations required before implementation is complete
 
-FGP-1372 currently says both "offline migrator" and "migration calls no external service." Production has no terminal or source-database access, so this plan interprets:
-
-- "Offline" as outside normal agreement workflows and run during a controlled maintenance window, not as a CLI or startup migration.
-- "No external service" as no business-service calls other than the required read-only source calls to Agreements API.
-
-The ticket should state those exceptions explicitly.
-
-The team must also confirm:
+The team must confirm:
 
 1. The final mapping from FGP-1370 and PR 468.
 2. The exact procedure for pausing legacy Woodland writes.
