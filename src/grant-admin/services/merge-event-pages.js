@@ -74,11 +74,52 @@ const boundaries = (tuples, isForward) => ({
   oldest: isForward ? tuples.at(-1) : tuples[0],
 });
 
-// A source that contributed no rows to this page - outranked, filtered out or
-// failed - keeps its incoming slice unchanged for both cursors.
-const sliceFor = ({ key, tuples, isForward, incoming }) => {
-  if (tuples.length === 0) {
+// A source page's own rows are DESC whichever way we travelled - `paginate`
+// re-reverses a backward read before returning it - so the candidate nearest
+// the incoming cursor is the FIRST row going forward and the LAST going
+// backward.
+const nearestCandidate = (page, isForward) =>
+  isForward ? page.tuples[0] : page.tuples.at(-1);
+
+// What a source that contributed NO rows to this page answers with. The two
+// cursors need different answers, and giving them the same one is the bug
+// behind "Newer, then Older, does not come back to the same rows".
+//
+// The direction we travelled is the easy half: nothing of this source was
+// consumed, so the next page the same way has to resume exactly where this one
+// started - the incoming slice, unchanged.
+//
+// The OPPOSITE direction is the half that was wrong. The incoming slice is
+// this source's boundary row on the page we came FROM, and that row has to
+// come back when the operator turns round. Keyset reads are strictly
+// exclusive, so reading from the incoming slice skips precisely that row.
+// What we want is the candidate this source *did* return nearest its cursor:
+// reading from that one is exclusive of it and therefore lands back on the
+// boundary row, which is the first thing the page we came from showed.
+//
+// A source that answered with nothing at all has no such candidate - its
+// stream ends at the incoming slice - so the far end is the honest position.
+// `null` reads from the newest going older and from the oldest going newer,
+// and in both cases the boundary row is the first one it reaches.
+const unconsumedSlice = ({ key, isForward, incoming, page }) => {
+  // No page at all: the source was not selected, or its read failed. We know
+  // nothing about where it sits, so both cursors keep what they came with -
+  // resetting one would restart the source from the far end of its stream.
+  if (!page) {
     return { start: incoming, end: incoming };
+  }
+
+  const nearest = nearestCandidate(page, isForward);
+  const opposite = nearest ? encodeSourceCursor(key, nearest) : null;
+
+  return isForward
+    ? { start: opposite, end: incoming }
+    : { start: incoming, end: opposite };
+};
+
+const sliceFor = ({ key, tuples, isForward, incoming, page }) => {
+  if (tuples.length === 0) {
+    return unconsumedSlice({ key, isForward, incoming, page });
   }
 
   const { newest, oldest } = boundaries(tuples, isForward);
@@ -89,9 +130,13 @@ const sliceFor = ({ key, tuples, isForward, incoming }) => {
   };
 };
 
-const buildSlices = ({ slices, takenByKey, isForward }) => {
+const byKey = (pages) =>
+  Object.fromEntries(pages.map((page) => [page.key, page]));
+
+const buildSlices = ({ slices, takenByKey, pages, isForward }) => {
   const start = {};
   const end = {};
+  const pageByKey = byKey(pages);
 
   for (const key of SOURCE_KEYS) {
     const slice = sliceFor({
@@ -99,6 +144,7 @@ const buildSlices = ({ slices, takenByKey, isForward }) => {
       tuples: takenByKey[key] ?? [],
       isForward,
       incoming: slices[key],
+      page: pageByKey[key],
     });
 
     start[key] = slice.start;
@@ -133,7 +179,7 @@ export const buildPagination = ({
 }) => {
   const isForward = isForwardDirection(direction);
   const takenByKey = groupByKey(taken);
-  const { start, end } = buildSlices({ slices, takenByKey, isForward });
+  const { start, end } = buildSlices({ slices, takenByKey, pages, isForward });
   const remaining = anyRemaining(pages, takenByKey, isForward);
 
   return {

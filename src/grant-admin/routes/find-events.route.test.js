@@ -31,7 +31,9 @@ const event = {
   traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
   createdAt: "2026-06-16T10:00:00.000Z",
   lastFailureAt: "2026-06-16T10:16:05.000Z",
+  lastError: null,
   completedAt: null,
+  parked: null,
 };
 
 const emptyPage = {
@@ -156,7 +158,7 @@ describe("findEventsRoute", () => {
     expect(result.statusCode).toEqual(502);
   });
 
-  it("responds 200 for a row whose status is outside the six documented values", async () => {
+  it("responds 200 for a row whose status is outside the documented values", async () => {
     findEventsUseCase.mockResolvedValue(
       page({ events: [{ ...event, status: "SOMETHING_ELSE" }] }),
     );
@@ -193,5 +195,114 @@ describe("findEventsRoute", () => {
 
     expect(result.statusCode).toEqual(200);
     expect(result.result).toEqual(emptyPage);
+  });
+});
+
+describe("findEventsRoute q", () => {
+  let server;
+
+  beforeAll(async () => {
+    server = hapi.server();
+    server.route(findEventsRoute);
+    await server.initialize();
+  });
+
+  afterAll(async () => {
+    await server.stop();
+  });
+
+  beforeEach(() => {
+    findEventsUseCase.mockResolvedValue(emptyPage);
+  });
+
+  it("forwards q to the use case", async () => {
+    await server.inject({
+      method: "GET",
+      url: "/grant-admin/events?q=GLD-9B2",
+    });
+
+    expect(findEventsUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "GLD-9B2" }),
+    );
+  });
+
+  it("trims q before the use case sees it", async () => {
+    await server.inject({
+      method: "GET",
+      url: "/grant-admin/events?q=%20%20evt-1%20%20",
+    });
+
+    expect(findEventsUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "evt-1" }),
+    );
+  });
+
+  it("treats a whitespace-only q as absent", async () => {
+    await server.inject({
+      method: "GET",
+      url: "/grant-admin/events?q=%20%20",
+    });
+
+    expect(findEventsUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ q: undefined }),
+    );
+  });
+
+  // The TYPE filter is gone. `kind` is not a known parameter any more, so it
+  // 400s the way any unknown one does rather than being quietly ignored - an
+  // operator on a stale bookmarked URL is told, not silently shown everything.
+  it.each([
+    ["kind=audit", "/grant-admin/events?kind=audit"],
+    ["kind=domain", "/grant-admin/events?kind=domain"],
+    ["an empty kind", "/grant-admin/events?kind="],
+    ["a q over 200 characters", `/grant-admin/events?q=${"a".repeat(201)}`],
+  ])("responds 400 for %s", async (_name, url) => {
+    const result = await server.inject({ method: "GET", url });
+
+    expect(result.statusCode).toEqual(400);
+    expect(findEventsUseCase).not.toHaveBeenCalled();
+  });
+});
+
+describe("findEventsRoute from and to", () => {
+  it("accepts an ISO from and to and rejects from after to", () => {
+    const validate = (query) =>
+      findEventsRoute.options.validate.query.validate(query);
+
+    expect(
+      validate({
+        from: "2026-06-16T00:00:00.000Z",
+        to: "2026-06-16T23:59:59.999Z",
+      }).error,
+    ).toBeUndefined();
+    expect(
+      validate({
+        from: "2026-06-16T23:59:59.999Z",
+        to: "2026-06-16T00:00:00.000Z",
+      }).error,
+    ).toBeDefined();
+  });
+
+  it("passes from and to to the use case", async () => {
+    findEventsUseCase.mockResolvedValue({
+      events: [],
+      pagination: {},
+      sourceErrors: [],
+    });
+
+    await findEventsRoute.handler({
+      query: {
+        direction: "forward",
+        from: "2026-06-16T00:00:00.000Z",
+        to: "2026-06-16T23:59:59.999Z",
+      },
+    });
+
+    expect(findEventsUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: "2026-06-16T00:00:00.000Z",
+        to: "2026-06-16T23:59:59.999Z",
+      }),
+    );
   });
 });

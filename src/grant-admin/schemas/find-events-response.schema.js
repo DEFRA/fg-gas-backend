@@ -3,15 +3,42 @@ import { EVENT_SERVICES } from "./find-events-query.schema.js";
 
 const EVENT_BOXES = ["inbox", "outbox"];
 
+// Why the last attempt failed, as recorded by the service that failed it.
+// Null on every row that has never failed and on every row written before
+// FGP-1392. `name` is an error class ("TypeError") or the sweep that set it
+// ("ClaimExpired"); `message` is truncated to 1024 characters and is never a
+// stack; `at` is null only for a malformed stored value.
+export const eventLastErrorSchema = Joi.object({
+  name: Joi.string().required().example("ClaimExpired"),
+  message: Joi.string().allow("").required(),
+  at: Joi.string().isoDate().allow(null).required(),
+}).label("EventLastError");
+
+// Set by park/unpark, and projected onto every list row so the frontend can
+// render a "parked" badge with its reason. Present and null on every row that
+// is not PARKED - never a missing key. `by` is the operator GAS forwarded from
+// the `x-actor` header, null when nobody named themselves.
+export const eventParkedSchema = Joi.object({
+  at: Joi.string().isoDate().allow(null).required(),
+  reason: Joi.string().allow("").required(),
+  by: Joi.string().allow(null).required(),
+}).label("EventParked");
+
+// The most recent redrive of this row. Detail only - the list rows deliberately
+// stay narrow.
+export const eventLastRedriveSchema = Joi.object({
+  at: Joi.string().isoDate().allow(null).required(),
+  by: Joi.string().allow(null).required(),
+}).label("EventLastRedrive");
+
 // One row of the merged inbox/outbox list. Deliberately generic: never the
 // event payload (`event`, `event.data`), never `claimedBy`, never a full ARN,
 // never an audit `entityid` or `details`, and no business identifier lifted out
-// of a payload - those belong to the Inspect story. There is no `kind`: audit
-// rows are recognised structurally in the mapper and announce themselves
-// through `type` ("audit · <entity>.<action>") and a null `fullType`.
-// Every field is required so a mapping gap fails a test rather than rendering
-// as a blank cell.
-const event = Joi.object({
+// of a payload - those belong to the Inspect story. There is no `kind` and no
+// audit-specific shape: an audit record is not a CloudEvent and simply has no
+// type, so `type` and `fullType` are both null on one. Every field is required
+// so a mapping gap fails a test rather than rendering as a blank cell.
+export const eventRowSchema = Joi.object({
   service: Joi.string()
     .valid(...EVENT_SERVICES)
     .required(),
@@ -20,7 +47,12 @@ const event = Joi.object({
     .required(),
   id: Joi.string().required().example("665f1c2e9a1b2c3d4e5f6a7b"),
   eventId: Joi.string().required(),
-  type: Joi.string().required().example("case.status.updated"),
+  // Null on a row with no stored type at all - an audit record is not a
+  // CloudEvent and has none to state.
+  type: Joi.string()
+    .allow(null)
+    .required()
+    .example("case.status.updated"),
   fullType: Joi.string()
     .allow(null)
     .required()
@@ -29,13 +61,16 @@ const event = Joi.object({
   target: Joi.string().allow(null).required(),
   segregationRef: Joi.string().allow(null).required(),
   // Validated as a free string, not an enum: the documented values are
-  // PUBLISHED, PROCESSING, FAILED, RESUBMITTED, COMPLETED and DEAD_LETTER, but
-  // one unexpected document must not fail response validation and 500 the whole
-  // page. The frontend renders anything unrecognised with a ghost badge.
+  // PUBLISHED, PROCESSING, FAILED, RESUBMITTED, COMPLETED, DEAD_LETTER and
+  // PARKED, but one unexpected document must not fail response validation and
+  // 500 the whole page. The frontend renders anything unrecognised with a
+  // ghost badge.
   status: Joi.string().required().example("DEAD_LETTER"),
-  // Never null: both models default completionAttempts to 1 on insert, GAS knows its own
-  // caps from config and CW returns maxAttempts per row (required in Plan 03's schema).
-  attempts: Joi.number().integer().min(1).required(),
+  // Attempts actually MADE, never granted: both services increment it in the
+  // same operation that records a failure, so it equals the number of
+  // attempt-history entries accrued since the row was last redriven. Zero on a
+  // freshly inserted row and on a freshly redriven one, hence the floor of 0.
+  attempts: Joi.number().integer().min(0).required(),
   maxAttempts: Joi.number().integer().min(1).required(),
   // The OpenSearch `trace.id` for this event, already extracted from the W3C
   // traceparent where there was one. Null when the event carries no trace at
@@ -46,7 +81,9 @@ const event = Joi.object({
     .example("4bf92f3577b34da6a3ce929d0e0e4736"),
   createdAt: Joi.string().isoDate().required(),
   lastFailureAt: Joi.string().isoDate().allow(null).required(),
+  lastError: eventLastErrorSchema.allow(null).required(),
   completedAt: Joi.string().isoDate().allow(null).required(),
+  parked: eventParkedSchema.allow(null).required(),
 }).label("Event");
 
 // Opaque, composite and versioned: one keyset position per source. Null on an
@@ -61,7 +98,7 @@ const pagination = Joi.object({
 // A source that could not be read - either service, either box. `message` is a
 // fixed one-liner ("timeout", "HTTP 401", "not configured", "read failed") and
 // never a response body.
-const sourceError = Joi.object({
+export const eventSourceErrorSchema = Joi.object({
   service: Joi.string()
     .valid(...EVENT_SERVICES)
     .required(),
@@ -72,7 +109,7 @@ const sourceError = Joi.object({
 }).label("EventSourceError");
 
 export const findEventsResponseSchema = Joi.object({
-  events: Joi.array().items(event).required(),
+  events: Joi.array().items(eventRowSchema).required(),
   pagination: pagination.required(),
-  sourceErrors: Joi.array().items(sourceError).required(),
+  sourceErrors: Joi.array().items(eventSourceErrorSchema).required(),
 }).label("FindEventsResponse");

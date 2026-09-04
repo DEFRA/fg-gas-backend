@@ -194,7 +194,13 @@ describe("buildPagination", () => {
     });
   });
 
-  it("a source that contributed no rows keeps its incoming slice in both cursors", () => {
+  // A source that contributed nothing needs DIFFERENT answers in the two
+  // cursors. Nothing of it was consumed, so travelling on the same way has to
+  // resume where this page started - the incoming slice. But the incoming
+  // slice is this source's boundary row on the page we came FROM, and keyset
+  // reads are strictly exclusive, so handing it back for the opposite
+  // direction skips precisely the row the operator is turning round to see.
+  it("keeps the incoming slice only for the way it was travelling", () => {
     const pages = [
       page("gasInbox", [tuple("gasInbox", 3)]),
       page("cwInbox", []),
@@ -210,7 +216,92 @@ describe("buildPagination", () => {
       hadCursor: true,
     });
 
+    expect(decode(pagination.endCursor).cwInbox).toEqual("INCOMING-CW-INBOX");
+    expect(decode(pagination.startCursor).cwInbox).not.toEqual(
+      "INCOMING-CW-INBOX",
+    );
+  });
+
+  // Its candidates were all outranked - every one of them is past this page -
+  // so the one nearest the cursor is the position the opposite direction has
+  // to read from: exclusive of it, and therefore landing on the boundary row.
+  it("answers the opposite cursor with the candidate nearest the cursor", () => {
+    const pages = [
+      // A full page of newer rows, so every cwInbox candidate is outranked.
+      page(
+        "gasInbox",
+        Array.from({ length: PAGE_SIZE }, (_, i) => tuple("gasInbox", i + 11)),
+      ),
+      // A source page is DESC whichever way we travelled, so going forward the
+      // nearest candidate is the first row.
+      page("cwInbox", [tuple("cwInbox", 3), tuple("cwInbox", 1)]),
+    ];
+    const { taken } = mergePages({ pages, direction: "forward" });
+
+    const pagination = buildPagination({
+      slices: { ...emptySlices(), cwInbox: "INCOMING-CW-INBOX" },
+      pages,
+      taken,
+      direction: "forward",
+      hadCursor: true,
+    });
+
+    expect(taken.every((t) => t.key !== "cwInbox")).toBe(true);
+    expect(sliceOf(pagination.startCursor, "cwInbox")).toEqual({
+      [sortKeyFor("cwInbox")]: "2026-06-16T10:03:00.000Z",
+      _id: hexId(3),
+    });
+  });
+
+  it("takes the nearest candidate from the other end going backward", () => {
+    const pages = [
+      // Backward keeps the OLDEST candidates, so a full page of older rows
+      // outranks every cwInbox candidate above it.
+      page(
+        "gasInbox",
+        Array.from({ length: PAGE_SIZE }, (_, i) => tuple("gasInbox", i + 1)),
+      ),
+      page("cwInbox", [tuple("cwInbox", 30), tuple("cwInbox", 28)]),
+    ];
+    const { taken } = mergePages({ pages, direction: "backward" });
+
+    const pagination = buildPagination({
+      slices: { ...emptySlices(), cwInbox: "INCOMING-CW-INBOX" },
+      pages,
+      taken,
+      direction: "backward",
+      hadCursor: true,
+    });
+
+    expect(taken.every((t) => t.key !== "cwInbox")).toBe(true);
     expect(decode(pagination.startCursor).cwInbox).toEqual("INCOMING-CW-INBOX");
+    // Backward, the nearest candidate is the LAST row of the DESC page.
+    expect(sliceOf(pagination.endCursor, "cwInbox")).toEqual({
+      [sortKeyFor("cwInbox")]: "2026-06-16T10:28:00.000Z",
+      _id: hexId(28),
+    });
+  });
+
+  // Nothing offered at all: this source's stream ends at the incoming slice,
+  // so the far end is the honest position for the opposite direction. `null`
+  // reads from the newest going older and from the oldest going newer, and
+  // either way the boundary row is the first one it reaches.
+  it("answers the opposite cursor with null when the source offered nothing", () => {
+    const pages = [
+      page("gasInbox", [tuple("gasInbox", 3)]),
+      page("cwInbox", []),
+    ];
+    const { taken } = mergePages({ pages, direction: "forward" });
+
+    const pagination = buildPagination({
+      slices: { ...emptySlices(), cwInbox: "INCOMING-CW-INBOX" },
+      pages,
+      taken,
+      direction: "forward",
+      hadCursor: true,
+    });
+
+    expect(decode(pagination.startCursor).cwInbox).toBeNull();
     expect(decode(pagination.endCursor).cwInbox).toEqual("INCOMING-CW-INBOX");
   });
 

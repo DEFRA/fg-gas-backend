@@ -13,6 +13,7 @@ const REQUESTS_PATH = "/__requests";
 const RESET_PATH = "/__reset";
 
 const OK = 200;
+const CONFLICT = 409;
 const UNAUTHORIZED = 401;
 const SERVER_ERROR = 500;
 const NOT_FOUND = 404;
@@ -28,6 +29,39 @@ const emptyBox = () => ({
     hasNextPage: false,
     hasPreviousPage: false,
   },
+  // Single-event control (FGP-1392 detail and redrive). `detail` is the whole
+  // document GET /actuators/{box}/{id} answers with, `redrive` the list row
+  // POST /actuators/{box}/{id}/redrive answers with; null means 404.
+  // `redriveConflictStatus` makes the redrive answer 409 with that status,
+  // exactly as the real actuator does for a row that is no longer DEAD_LETTER.
+  detail: null,
+  redrive: null,
+  redriveConflictStatus: null,
+  // Single-event park/unpark control (FGP-1392 UX4). `park`/`unpark` are the
+  // list rows those endpoints answer with; null means 404.
+  // `parkConflictStatus`/`unparkConflictStatus` make them answer 409 with that
+  // status, exactly as the real actuator does for a row in the wrong status.
+  park: null,
+  unpark: null,
+  parkConflictStatus: null,
+  unparkConflictStatus: null,
+  // Per-status counts control (FGP-1392 counts). What
+  // GET /actuators/{box}/counts answers with; the six-key zero-fill is the
+  // real actuator's job, so the stub answers with exactly what a test set.
+  counts: {
+    PUBLISHED: 0,
+    PROCESSING: 0,
+    FAILED: 0,
+    RESUBMITTED: 0,
+    COMPLETED: 0,
+    DEAD_LETTER: 0,
+    PARKED: 0,
+  },
+  // Failure-breakdown control (FGP-1392 UX4). What
+  // GET /actuators/{box}/breakdown answers with; the merge, the display
+  // shortening and the 20-group cap are all GAS's job, so the stub answers
+  // with exactly what a test set - raw types included.
+  groups: [],
 });
 
 const defaultState = () => ({ inbox: emptyBox(), outbox: emptyBox() });
@@ -91,21 +125,184 @@ const respondForMode = (box, response) => {
   return send(response, OK, { data: box.data, pagination: box.pagination });
 };
 
-const handleActuator = (name, request, response) => {
+// The request body is recorded as well as the query string: park sends its
+// reason as a body and its actor as a query parameter, and the tests assert on
+// both halves of that contract.
+const record = async (name, request) => {
   const url = new URL(request.url, "http://stub.local");
 
   requests.push({
     box: name,
+    method: request.method,
     path: url.pathname,
     query: Object.fromEntries(url.searchParams),
     authorization: request.headers.authorization ?? null,
+    body: request.method === "POST" ? await readBody(request) : null,
   });
+};
 
-  if (request.headers.authorization !== `Bearer ${token}`) {
+const isAuthorised = (request) =>
+  request.headers.authorization === `Bearer ${token}`;
+
+const handleActuator = async (name, request, response) => {
+  await record(name, request);
+
+  if (!isAuthorised(request)) {
     return send(response, UNAUTHORIZED, { message: "bad token" });
   }
 
   return respondForMode(state[name], response);
+};
+
+// GET /actuators/{box}/{id} - the whole document, payload included.
+const handleDetail = async (name, id, request, response) => {
+  await record(name, request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const box = state[name];
+
+  if (box.mode !== "ok") {
+    return respondForMode(box, response);
+  }
+
+  if (!box.detail) {
+    return send(response, NOT_FOUND, { message: "Not found" });
+  }
+
+  return send(response, OK, { ...box.detail, _id: id });
+};
+
+// GET /actuators/{box}/counts - per-status counts for the given filter.
+// Routed BEFORE the /{id} detail path, exactly as the real actuator has to be:
+// "counts" would otherwise be read as an event id.
+const handleCounts = async (name, request, response) => {
+  await record(name, request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const box = state[name];
+
+  if (box.mode !== "ok") {
+    return respondForMode(box, response);
+  }
+
+  return send(response, OK, { counts: box.counts });
+};
+
+// POST /actuators/{box}/{id}/redrive - one updated list row, or 409/404.
+const handleRedrive = async (name, id, request, response) => {
+  await record(name, request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const box = state[name];
+
+  if (box.mode !== "ok") {
+    return respondForMode(box, response);
+  }
+
+  if (box.redriveConflictStatus) {
+    return send(response, CONFLICT, {
+      statusCode: CONFLICT,
+      error: "Conflict",
+      message: `event is ${box.redriveConflictStatus}, not DEAD_LETTER`,
+      status: box.redriveConflictStatus,
+    });
+  }
+
+  if (!box.redrive) {
+    return send(response, NOT_FOUND, { message: "Not found" });
+  }
+
+  return send(response, OK, { ...box.redrive, _id: id });
+};
+
+// GET /actuators/{box}/breakdown - the dead-letter failure groups for one box.
+// Routed BEFORE the /{id} detail path, exactly as the real actuator has to be:
+// "breakdown" would otherwise be read as an event id.
+const handleBreakdown = async (name, request, response) => {
+  await record(name, request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const box = state[name];
+
+  if (box.mode !== "ok") {
+    return respondForMode(box, response);
+  }
+
+  return send(response, OK, { groups: box.groups });
+};
+
+// POST /actuators/{box}/{id}/park and .../unpark - one updated list row, or
+// 409/404, exactly as redrive answers.
+const handleTransition = async (name, id, action, request, response) => {
+  await record(name, request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const box = state[name];
+
+  if (box.mode !== "ok") {
+    return respondForMode(box, response);
+  }
+
+  const conflict = box[`${action}ConflictStatus`];
+
+  if (conflict) {
+    return send(response, CONFLICT, {
+      statusCode: CONFLICT,
+      error: "Conflict",
+      message: `event is ${conflict}`,
+      status: conflict,
+    });
+  }
+
+  if (!box[action]) {
+    return send(response, NOT_FOUND, { message: "Not found" });
+  }
+
+  return send(response, OK, { ...box[action], _id: id });
+};
+
+const COUNTS_PATH = /^\/actuators\/(inbox|outbox)\/counts$/;
+
+const BREAKDOWN_PATH = /^\/actuators\/(inbox|outbox)\/breakdown$/;
+
+const EVENT_PATH =
+  /^\/actuators\/(inbox|outbox)\/([^/]+)(?:\/(redrive|park|unpark))?$/;
+
+const TRANSITIONS = { park: "park", unpark: "unpark" };
+
+const routeEvent = (pathname, request, response) => {
+  const match = EVENT_PATH.exec(pathname);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, name, id, action] = match;
+
+  if (action === "redrive") {
+    return handleRedrive(name, id, request, response);
+  }
+
+  if (TRANSITIONS[action]) {
+    return handleTransition(name, id, action, request, response);
+  }
+
+  return handleDetail(name, id, request, response);
 };
 
 const route = async (request, response) => {
@@ -129,6 +326,22 @@ const route = async (request, response) => {
 
   if (pathname === "/actuators/outbox") {
     return handleActuator("outbox", request, response);
+  }
+
+  const counts = COUNTS_PATH.exec(pathname);
+
+  if (counts) {
+    return handleCounts(counts[1], request, response);
+  }
+
+  const breakdown = BREAKDOWN_PATH.exec(pathname);
+
+  if (breakdown) {
+    return handleBreakdown(breakdown[1], request, response);
+  }
+
+  if (EVENT_PATH.test(pathname)) {
+    return routeEvent(pathname, request, response);
   }
 
   return send(response, NOT_FOUND, { message: "Not found" });

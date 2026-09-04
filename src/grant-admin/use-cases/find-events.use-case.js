@@ -1,19 +1,20 @@
-import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { findPage as findGasInboxPage } from "../../grants/repositories/inbox.repository.js";
 import { findPage as findGasOutboxPage } from "../../grants/repositories/outbox.repository.js";
 import {
-  describeError,
   findCwInboxPage,
   findCwOutboxPage,
-  isCwConfigured,
-  notConfiguredMessage,
 } from "../repositories/cw-actuators.repository.js";
+import { decodeCompositeCursor } from "../services/event-cursor.js";
 import {
-  SOURCE_KEYS,
-  decodeCompositeCursor,
-} from "../services/event-cursor.js";
+  CASEWORKING,
+  GAS,
+  assertGasAvailable,
+  orderErrors,
+  selectSources,
+  splitSettled,
+} from "../services/event-sources.js";
 import {
   normaliseCwInbox,
   normaliseCwOutbox,
@@ -26,9 +27,6 @@ import {
   buildPagination,
   mergePages,
 } from "../services/merge-event-pages.js";
-
-const GAS = "gas";
-const CASEWORKING = "caseworking";
 
 // Fixed order: used for `sourceErrors` ordering and merge tie-breaks.
 const SOURCES = [
@@ -62,39 +60,6 @@ const SOURCES = [
   },
 ];
 
-const isFor = (service) => (source) => !service || source.service === service;
-
-const toSourceError = (source, message) => ({
-  key: source.key,
-  service: source.service,
-  box: source.box,
-  message,
-});
-
-const stripKey = ({ service, box, message }) => ({ service, box, message });
-
-const orderErrors = (errors) =>
-  [...errors]
-    .sort((a, b) => SOURCE_KEYS.indexOf(a.key) - SOURCE_KEYS.indexOf(b.key))
-    .map(stripKey);
-
-// With `service=gas` the Caseworking sources are never selected, so an
-// unconfigured CW backend produces no sourceError at all.
-const selectSources = (service) => {
-  const forService = SOURCES.filter(isFor(service));
-
-  if (isCwConfigured()) {
-    return { selected: forService, sourceErrors: [] };
-  }
-
-  return {
-    selected: forService.filter((source) => source.service !== CASEWORKING),
-    sourceErrors: forService
-      .filter((source) => source.service === CASEWORKING)
-      .map((source) => toSourceError(source, notConfiguredMessage())),
-  };
-};
-
 const toPage = (source, page) => ({
   key: source.key,
   tuples: page.data.map((row) =>
@@ -108,61 +73,25 @@ const toPage = (source, page) => ({
   pagination: page.pagination,
 });
 
-// Asymmetric on purpose: `wreck` hangs the CW response body off its error, so a
-// caseworking failure is logged as a derived one-liner and never as the error
-// object. A GAS failure is our own database - the stack is worth keeping.
-const logSourceFailure = (source, error) => {
-  if (source.service === CASEWORKING) {
-    logger.warn(
-      { service: source.service, box: source.box },
-      `caseworking ${source.box} unavailable: ${describeError(error)}`,
-    );
-
-    return;
-  }
-
-  logger.error(error, `gas ${source.box} read failed`);
-};
-
-const splitResults = (selected, settled) => {
-  const pages = [];
-  const errors = [];
-
-  selected.forEach((source, index) => {
-    const result = settled[index];
-
-    if (result.status === "fulfilled") {
-      pages.push(toPage(source, result.value));
-      return;
-    }
-
-    logSourceFailure(source, result.reason);
-    errors.push(toSourceError(source, describeError(result.reason)));
-  });
-
-  return { pages, errors };
-};
-
-const countFor = (items, service) =>
-  items.filter((item) => item.service === service).length;
-
-// Exactly one GAS source failing is a 200 with a sourceError; both failing
-// leaves nothing worth rendering.
-const assertGasAvailable = (selected, errors) => {
-  const gasSelected = countFor(selected, GAS);
-
-  if (gasSelected > 0 && gasSelected === countFor(errors, GAS)) {
-    throw Boom.badGateway("Events could not be loaded from GAS");
-  }
-};
-
-const fetchAll = (selected, { slices, direction, status }) =>
+// `q` and the `from`/`to` range are applied per source and OR-ed by
+// the merge: a GAS outbox hit and a Caseworking inbox hit for the same `q`
+// both appear on the page. Each source applies the range to its own sort key,
+// which is the same key the merge orders by, so a time-boxed page stays in
+// one order.
+const fetchAll = (
+  selected,
+  { slices, direction, status, q, error, from, to },
+) =>
   Promise.allSettled(
     selected.map((source) =>
       source.fetch({
         cursor: slices[source.key],
         direction,
         status,
+        q,
+        error,
+        from,
+        to,
         pageSize: PAGE_SIZE,
       }),
     ),
@@ -173,16 +102,28 @@ export const findEventsUseCase = async ({
   direction,
   status,
   service,
+  q,
+  error,
+  from,
+  to,
 }) => {
   logger.info(`Find events (direction ${direction})`);
 
   // Decoded before any I/O, so a tampered cursor is a clean 400 rather than a
   // rejection swallowed into sourceErrors by the fan-out.
   const slices = decodeCompositeCursor(cursor);
-  const { selected, sourceErrors } = selectSources(service);
+  const { selected, sourceErrors } = selectSources(service, SOURCES);
 
-  const settled = await fetchAll(selected, { slices, direction, status });
-  const { pages, errors } = splitResults(selected, settled);
+  const settled = await fetchAll(selected, {
+    slices,
+    direction,
+    status,
+    q,
+    error,
+    from,
+    to,
+  });
+  const { results: pages, errors } = splitSettled(selected, settled, toPage);
 
   assertGasAvailable(selected, errors);
 

@@ -95,7 +95,8 @@ describe("Outbox model", () => {
     expect(obj.target).toBe("arn:some:target");
     expect(obj.event.clientRef).toBe("1234");
     expect(obj.status).toBe(OutboxStatus.PUBLISHED);
-    expect(obj.completionAttempts).toBe(1);
+    // zero attempts MADE, not one granted - see ATTEMPT ARITHMETIC in the model
+    expect(obj.completionAttempts).toBe(0);
     expect(obj.publicationDate).toEqual(date);
   });
 
@@ -223,5 +224,170 @@ describe("Outbox model", () => {
     expect(obj).toBeInstanceOf(Outbox);
     obj.markAsComplete();
     expect(obj.status).toBe(OutboxStatus.COMPLETED);
+  });
+});
+
+describe("outbox model lastError", () => {
+  const outbox = (props = {}) =>
+    new Outbox({
+      target: "arn:aws:sns:eu-west-2:000000000000:mock-topic",
+      event: { id: "evt-1" },
+      segregationRef: "ref-1",
+      ...props,
+    });
+
+  it("defaults lastError to null", () => {
+    expect(outbox().lastError).toBeNull();
+  });
+
+  it("records the caught error's name and message on markAsFailed", () => {
+    const obj = outbox();
+
+    obj.markAsFailed(new Error("Topic does not exist"));
+
+    expect(obj.lastError).toEqual({
+      name: "Error",
+      message: "Topic does not exist",
+      at: expect.any(String),
+    });
+  });
+
+  it("truncates a very long failure message to 1024 characters", () => {
+    const obj = outbox();
+
+    obj.markAsFailed(new Error("y".repeat(4000)));
+
+    expect(obj.lastError.message).toHaveLength(1024);
+  });
+
+  it("keeps the previous lastError when markAsFailed is called with no error", () => {
+    const obj = outbox({
+      lastError: {
+        name: "Error",
+        message: "earlier",
+        at: "2026-06-16T10:00:00.000Z",
+      },
+    });
+
+    obj.markAsFailed();
+
+    expect(obj.lastError.message).toEqual("earlier");
+  });
+
+  it("carries lastError through toDocument and fromDocument", () => {
+    const lastError = {
+      name: "ClaimExpired",
+      message: "claim expired before completion",
+      at: "2026-06-16T10:00:00.000Z",
+    };
+
+    const document = outbox({ lastError }).toDocument();
+
+    expect(document.lastError).toEqual(lastError);
+    expect(Outbox.fromDocument(document).lastError).toEqual(lastError);
+  });
+
+  it("reads a legacy document with no lastError as null", () => {
+    const document = outbox().toDocument();
+    delete document.lastError;
+
+    expect(Outbox.fromDocument(document).lastError).toBeNull();
+  });
+});
+
+describe("Outbox attemptHistory", () => {
+  const failed = (times, error = new Error("boom")) => {
+    const event = Outbox.createMock();
+
+    for (let i = 0; i < times; i++) {
+      event.markAsFailed(error);
+    }
+
+    return event;
+  };
+
+  it("starts empty on a new event", () => {
+    expect(Outbox.createMock().attemptHistory).toEqual([]);
+  });
+
+  it("reads a row written before attempt history existed as empty", () => {
+    const event = Outbox.fromDocument({
+      ...Outbox.createMock().toDocument(),
+      attemptHistory: undefined,
+    });
+
+    expect(event.attemptHistory).toEqual([]);
+  });
+
+  it("appends one entry per failure, oldest first", () => {
+    const event = failed(1);
+
+    expect(event.attemptHistory).toEqual([
+      { at: expect.any(String), name: "Error", message: "boom" },
+    ]);
+  });
+
+  it("keeps only the ten most recent entries", () => {
+    const event = Outbox.createMock();
+
+    for (let i = 0; i < 14; i++) {
+      event.markAsFailed(new Error(`attempt-${i}`));
+    }
+
+    expect(event.attemptHistory).toHaveLength(10);
+    expect(event.attemptHistory.at(0).message).toBe("attempt-4");
+    expect(event.attemptHistory.at(-1).message).toBe("attempt-13");
+  });
+
+  it("truncates an entry's message to 512 characters", () => {
+    const event = failed(1, new Error("x".repeat(2000)));
+
+    expect(event.attemptHistory.at(-1).message).toHaveLength(512);
+  });
+
+  it("records the same reason as lastError", () => {
+    const event = failed(1, new TypeError("kaput"));
+
+    expect(event.attemptHistory.at(-1)).toMatchObject({
+      name: "TypeError",
+      message: "kaput",
+    });
+    expect(event.lastError).toMatchObject({
+      name: "TypeError",
+      message: "kaput",
+    });
+  });
+
+  it("appends nothing when markAsFailed is called with no error", () => {
+    const event = failed(2);
+
+    event.markAsFailed();
+
+    expect(event.attemptHistory).toHaveLength(2);
+  });
+
+  it("leaves the history intact on markAsComplete", () => {
+    const event = failed(2);
+
+    event.markAsComplete();
+
+    expect(event.status).toBe(OutboxStatus.COMPLETED);
+    expect(event.attemptHistory).toHaveLength(2);
+  });
+
+  it("carries the history onto the document it writes", () => {
+    const event = failed(1);
+
+    expect(event.toDocument().attemptHistory).toEqual(event.attemptHistory);
+  });
+
+  it("reads a stored history back off a document", () => {
+    const stored = [{ at: null, name: "ClaimExpired", message: "gone" }];
+    const event = Outbox.fromDocument({
+      ...Outbox.createMock().toDocument(),
+      attemptHistory: stored,
+    });
+
+    expect(event.attemptHistory).toEqual(stored);
   });
 });

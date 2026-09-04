@@ -2,6 +2,10 @@ export const auditEntities = {
   GRANT: "GRANT",
   APPLICATION: "APPLICATION",
   AGREEMENT: "AGREEMENT",
+  // one inbox/outbox row, either service. Admin-only: the event list and
+  // detail views are audited because the detail view returns event payloads
+  // and redrive changes state.
+  EVENT: "EVENT",
 };
 
 export const auditActions = {
@@ -18,6 +22,14 @@ export const auditActions = {
   ACCEPT_AGREEMENT: "ACCEPT_AGREEMENT",
   WITHDRAW_AGREEMENT: "WITHDRAW_AGREEMENT",
   APPLY_AGREEMENT_TERMINATION: "APPLY_AGREEMENT_TERMINATION",
+  VIEW_EVENT: "VIEW_EVENT",
+  REDRIVE_EVENT: "REDRIVE_EVENT",
+  // ONE audit event per redrive-by-filter call, summarising the filter and the
+  // counts - not one per row. A bulk redrive is a single operator decision and
+  // is audited as one, or a 500-row redrive would bury the audit log.
+  REDRIVE_EVENTS: "REDRIVE_EVENTS",
+  PARK_EVENT: "PARK_EVENT",
+  UNPARK_EVENT: "UNPARK_EVENT",
 };
 
 export const auditStatus = {

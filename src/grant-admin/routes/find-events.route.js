@@ -16,7 +16,8 @@ export const findEventsRoute = {
     response: { schema: findEventsResponseSchema },
   },
   async handler(request) {
-    const { cursor, direction, status, service } = request.query;
+    const { cursor, direction, status, service, q, error, from, to } =
+      request.query;
 
     logger.info(`Find events (direction ${direction})`);
 
@@ -25,6 +26,10 @@ export const findEventsRoute = {
       direction,
       status,
       service,
+      q,
+      error,
+      from,
+      to,
     });
 
     logger.info(`Finished: Find events (${page.events.length} rows)`);

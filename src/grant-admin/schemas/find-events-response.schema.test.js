@@ -17,7 +17,13 @@ const ticketEvent = {
   traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
   createdAt: "2026-06-16T10:00:00.000Z",
   lastFailureAt: "2026-06-16T10:16:05.000Z",
+  lastError: {
+    name: "ClaimExpired",
+    message: "claim expired before completion",
+    at: "2026-06-16T10:16:05.000Z",
+  },
   completedAt: null,
+  parked: null,
 };
 
 const payload = (overrides = {}) => ({
@@ -39,7 +45,7 @@ describe("findEventsResponseSchema", () => {
     expect(error).toBeUndefined();
   });
 
-  it("accepts null source, target, segregationRef, fullType, lastFailureAt and completedAt", () => {
+  it("accepts null source, target, segregationRef, fullType, lastFailureAt, lastError and completedAt", () => {
     const { error } = findEventsResponseSchema.validate(
       payload({
         events: [
@@ -50,7 +56,9 @@ describe("findEventsResponseSchema", () => {
             segregationRef: null,
             fullType: null,
             lastFailureAt: null,
+            lastError: null,
             completedAt: null,
+            parked: null,
           },
         ],
       }),
@@ -59,7 +67,7 @@ describe("findEventsResponseSchema", () => {
     expect(error).toBeUndefined();
   });
 
-  it("accepts a status outside the six documented values", () => {
+  it("accepts a status outside the documented values", () => {
     const { error } = findEventsResponseSchema.validate(
       payload({ events: [{ ...ticketEvent, status: "SOMETHING_ELSE" }] }),
     );
@@ -81,6 +89,23 @@ describe("findEventsResponseSchema", () => {
     );
 
     expect(error).toBeDefined();
+  });
+
+  // An audit record is not a CloudEvent and has no type to state.
+  it("accepts a null type", () => {
+    const { error } = findEventsResponseSchema.validate(
+      payload({ events: [{ ...ticketEvent, type: null, fullType: null }] }),
+    );
+
+    expect(error).toBeUndefined();
+  });
+
+  it("still requires the type key itself, so a mapping gap fails a test", () => {
+    const { type, ...rest } = ticketEvent;
+
+    expect(
+      findEventsResponseSchema.validate(payload({ events: [rest] })).error,
+    ).toBeDefined();
   });
 
   it("requires traceId on every event", () => {
@@ -148,10 +173,10 @@ describe("findEventsResponseSchema", () => {
     expect(error).toBeDefined();
   });
 
-  it("rejects attempts below 1 and non-integer maxAttempts", () => {
+  it("rejects attempts below 0 and non-integer maxAttempts", () => {
     expect(
       findEventsResponseSchema.validate(
-        payload({ events: [{ ...ticketEvent, attempts: 0 }] }),
+        payload({ events: [{ ...ticketEvent, attempts: -1 }] }),
       ).error,
     ).toBeDefined();
 
@@ -160,6 +185,17 @@ describe("findEventsResponseSchema", () => {
         payload({ events: [{ ...ticketEvent, maxAttempts: 2.5 }] }),
       ).error,
     ).toBeDefined();
+  });
+
+  // a redriven row sits at 0 attempts until the resubmission sweep $inc-s it
+  it("accepts a redriven row with 0 attempts", () => {
+    expect(
+      findEventsResponseSchema.validate(
+        payload({
+          events: [{ ...ticketEvent, attempts: 0, status: "RESUBMITTED" }],
+        }),
+      ).error,
+    ).toBeUndefined();
   });
 
   it("accepts an empty page with null cursors", () => {
@@ -188,5 +224,107 @@ describe("findEventsResponseSchema", () => {
     );
 
     expect(error).toBeUndefined();
+  });
+});
+
+describe("findEventsResponseSchema lastError", () => {
+  const withLastError = (lastError) =>
+    findEventsResponseSchema.validate(
+      payload({ events: [{ ...ticketEvent, lastError }] }),
+    );
+
+  it("accepts a null lastError", () => {
+    expect(withLastError(null).error).toBeUndefined();
+  });
+
+  it("accepts a lastError with a null at", () => {
+    expect(
+      withLastError({ name: "Error", message: "boom", at: null }).error,
+    ).toBeUndefined();
+  });
+
+  it("accepts an empty message", () => {
+    expect(
+      withLastError({
+        name: "Error",
+        message: "",
+        at: "2026-06-16T10:16:05.000Z",
+      }).error,
+    ).toBeUndefined();
+  });
+
+  it("rejects a lastError missing its name", () => {
+    expect(
+      withLastError({ message: "boom", at: "2026-06-16T10:16:05.000Z" }).error,
+    ).toBeDefined();
+  });
+
+  it("rejects an extra key such as a stack", () => {
+    expect(
+      withLastError({
+        name: "Error",
+        message: "boom",
+        at: "2026-06-16T10:16:05.000Z",
+        stack: "SECRET",
+      }).error,
+    ).toBeDefined();
+  });
+
+  it("rejects an event with no lastError key at all", () => {
+    const { lastError, ...withoutLastError } = ticketEvent;
+
+    expect(
+      findEventsResponseSchema.validate(payload({ events: [withoutLastError] }))
+        .error,
+    ).toBeDefined();
+  });
+});
+
+describe("findEventsResponseSchema parked", () => {
+  it("accepts a parked row with its reason and actor", () => {
+    const { error } = findEventsResponseSchema.validate(
+      payload({
+        events: [
+          {
+            ...ticketEvent,
+            status: "PARKED",
+            parked: {
+              at: "2026-06-16T11:00:00.000Z",
+              reason: "poison payload",
+              by: "donatas",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(error).toBeUndefined();
+  });
+
+  it("accepts an unattributed park", () => {
+    const { error } = findEventsResponseSchema.validate(
+      payload({
+        events: [
+          {
+            ...ticketEvent,
+            parked: {
+              at: "2026-06-16T11:00:00.000Z",
+              reason: "poison",
+              by: null,
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(error).toBeUndefined();
+  });
+
+  it("requires the key, so a projection gap fails a test rather than rendering as a blank", () => {
+    const { parked, ...event } = ticketEvent;
+
+    expect(
+      findEventsResponseSchema.validate(payload({ events: [event] })).error,
+    ).toBeDefined();
   });
 });

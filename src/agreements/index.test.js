@@ -86,14 +86,17 @@ describe("agreements", () => {
   it.each([
     internalCommandTypes.AGREEMENT_CREATE,
     internalCommandTypes.AGREEMENT_STATUS_UPDATE,
-  ])("leaves grants outside the allowlist to the external service for %s", async (type) => {
-    const server = hapi.server();
-    await server.register(agreements);
+  ])(
+    "leaves grants outside the allowlist to the external service for %s",
+    async (type) => {
+      const server = hapi.server();
+      await server.register(agreements);
 
-    await expect(
-      canHandleInternalCommand(type, {
-        data: { code: "woodland", currentConfigVersion: "1.0.0" },
-      }),
-    ).resolves.toBe(false);
-  });
+      await expect(
+        canHandleInternalCommand(type, {
+          data: { code: "woodland", currentConfigVersion: "1.0.0" },
+        }),
+      ).resolves.toBe(false);
+    },
+  );
 });

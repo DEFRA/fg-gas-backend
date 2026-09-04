@@ -6,6 +6,7 @@ import {
   normaliseCwOutbox,
   normaliseGasInbox,
   normaliseGasOutbox,
+  toAttemptHistory,
   toEventTuple,
 } from "./map-event-row.js";
 
@@ -135,7 +136,9 @@ describe("map-event-row", () => {
       traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
       createdAt: "2026-06-16T10:00:00.000Z",
       lastFailureAt: null,
+      lastError: null,
       completedAt: null,
+      parked: null,
     });
   });
 
@@ -184,7 +187,10 @@ describe("map-event-row", () => {
     expect(row.type).toEqual("io.onsite.agreement.create-payment");
   });
 
-  it("derives audit · APPLICATION.SUBMIT_APPLICATION and a null fullType for a GAS audit outbox row", () => {
+  // An audit record is not a CloudEvent: it genuinely has no type, so nothing
+  // is synthesised for it. It goes through the SAME derivation as every other
+  // row and simply comes out null, which the frontend renders as an absence.
+  it("derives a null type and fullType for a GAS audit outbox row", () => {
     const { row } = gasOutboxTuple({
       event: {
         audit: {
@@ -193,19 +199,31 @@ describe("map-event-row", () => {
       },
     });
 
-    expect(row.type).toEqual("audit · APPLICATION.SUBMIT_APPLICATION");
+    expect(row.type).toBeNull();
     expect(row.fullType).toBeNull();
   });
 
-  it("derives the same for a CW audit row from auditEntities alone, with no audit ARN in config", () => {
-    const { row } = cwOutboxTuple({
-      eventId: null,
-      type: null,
-      auditEntities: [{ entity: "APPLICATION", action: "SUBMIT_APPLICATION" }],
-    });
+  it("derives the same for a CW audit row, which carries no type either", () => {
+    const { row } = cwOutboxTuple({ eventId: null, type: null });
 
-    expect(row.type).toEqual("audit · APPLICATION.SUBMIT_APPLICATION");
+    expect(row.type).toBeNull();
     expect(row.fullType).toBeNull();
+  });
+
+  // Nothing about a row's audit-ness is read any more: the entities array is
+  // never looked at, and a row carrying one is mapped like any other.
+  it("never reads auditEntities, on either wire shape", () => {
+    const entities = [{ entity: "APPLICATION", action: "SUBMIT_APPLICATION" }];
+
+    expect(
+      cwOutboxTuple({ type: null, auditEntities: entities }).row.type,
+    ).toBeNull();
+    expect(
+      cwOutboxTuple({
+        type: "cloud.defra.prd.fg-cw-backend.case.create",
+        auditEntities: entities,
+      }).row.type,
+    ).toEqual("case.create");
   });
 
   it("falls back to _id for eventId on an audit row", () => {
@@ -216,18 +234,18 @@ describe("map-event-row", () => {
     expect(row.eventId).toEqual(HEX_ID);
   });
 
-  it("returns type - for an audit row with an empty entities array, and still returns the row", () => {
+  it("returns a null type for an audit row with an empty entities array, and still returns the row", () => {
     const { row } = gasOutboxTuple({ event: { audit: { entities: [] } } });
 
-    expect(row.type).toEqual("-");
+    expect(row.type).toBeNull();
     expect(row.fullType).toBeNull();
     expect(row.id).toEqual(HEX_ID);
   });
 
-  it("returns type - for an outbox row with no type and no audit entities", () => {
+  it("returns a null type for an outbox row with no stored type at all", () => {
     const { row } = gasOutboxTuple({ event: { id: "evt-1" } });
 
-    expect(row.type).toEqual("-");
+    expect(row.type).toBeNull();
     expect(row.fullType).toBeNull();
   });
 
@@ -454,6 +472,7 @@ describe("map-event-row", () => {
 
     expect(serialised).not.toContain("claimedBy");
     expect(serialised).not.toContain("kind");
+    expect(serialised).not.toContain("auditEntities");
     expect(serialised).not.toContain("SECRET-REF");
     expect(row).not.toHaveProperty("event");
   });
@@ -475,5 +494,121 @@ describe("map-event-row", () => {
     expect(JSON.stringify(row)).not.toMatch(
       /SECRET-SUBJECT|SECRET-SOURCE|SECRET-REF|123456789/,
     );
+  });
+});
+
+describe("map-event-row lastError", () => {
+  const lastError = {
+    name: "ClaimExpired",
+    message: "claim expired before completion",
+    at: "2026-06-16T10:16:05.000Z",
+  };
+
+  it("is null on every source when the document has no lastError", () => {
+    expect(gasInboxTuple().row.lastError).toBeNull();
+    expect(gasOutboxTuple().row.lastError).toBeNull();
+    expect(cwInboxTuple().row.lastError).toBeNull();
+    expect(cwOutboxTuple().row.lastError).toBeNull();
+  });
+
+  it("passes a GAS inbox lastError through unchanged", () => {
+    expect(gasInboxTuple({ lastError }).row.lastError).toEqual(lastError);
+  });
+
+  it("passes a GAS outbox lastError through unchanged", () => {
+    expect(gasOutboxTuple({ lastError }).row.lastError).toEqual(lastError);
+  });
+
+  it("passes a Caseworking lastError through unchanged", () => {
+    expect(cwInboxTuple({ lastError }).row.lastError).toEqual(lastError);
+    expect(cwOutboxTuple({ lastError }).row.lastError).toEqual(lastError);
+  });
+
+  it("rebuilds a lastError missing its name and message rather than failing the page", () => {
+    const row = gasOutboxTuple({
+      lastError: { at: "2026-06-16T10:16:05.000Z" },
+    }).row;
+
+    expect(row.lastError).toEqual({
+      name: "Error",
+      message: "",
+      at: "2026-06-16T10:16:05.000Z",
+    });
+  });
+
+  it("returns a null at for an unparseable stored timestamp", () => {
+    const row = gasOutboxTuple({
+      lastError: { name: "Error", message: "boom", at: "not-a-date" },
+    }).row;
+
+    expect(row.lastError.at).toBeNull();
+  });
+
+  it("drops any extra key a stored lastError carries", () => {
+    const row = gasOutboxTuple({
+      lastError: { ...lastError, stack: "SECRET-STACK" },
+    }).row;
+
+    expect(Object.keys(row.lastError)).toEqual(["name", "message", "at"]);
+  });
+
+  it("validates a row carrying a lastError against the response schema", () => {
+    const { error } = findEventsResponseSchema.validate({
+      events: [gasOutboxTuple({ lastError }).row],
+      pagination: {
+        startCursor: null,
+        endCursor: null,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      sourceErrors: [],
+    });
+
+    expect(error).toBeUndefined();
+  });
+});
+
+describe("toAttemptHistory", () => {
+  it("is an empty array for a missing or malformed history", () => {
+    expect(toAttemptHistory(undefined)).toEqual([]);
+    expect(toAttemptHistory(null)).toEqual([]);
+    expect(toAttemptHistory("nope")).toEqual([]);
+  });
+
+  it("rebuilds each entry from at, name and message only", () => {
+    expect(
+      toAttemptHistory([
+        {
+          at: "2026-06-16T10:05:00.000Z",
+          name: "TypeError",
+          message: "boom",
+          stack: "SECRET-STACK",
+        },
+      ]),
+    ).toEqual([
+      { at: "2026-06-16T10:05:00.000Z", name: "TypeError", message: "boom" },
+    ]);
+  });
+
+  it("normalises a Date at into an ISO string and an unparseable one into null", () => {
+    expect(
+      toAttemptHistory([{ at: new Date("2026-06-16T10:05:00.000Z") }]).at(0).at,
+    ).toBe("2026-06-16T10:05:00.000Z");
+    expect(toAttemptHistory([{ at: "not a date" }]).at(0).at).toBeNull();
+  });
+
+  it("defaults a missing name to Error and a missing message to empty", () => {
+    expect(toAttemptHistory([{}])).toEqual([
+      { at: null, name: "Error", message: "" },
+    ]);
+  });
+
+  it("keeps only the ten most recent entries", () => {
+    const history = toAttemptHistory(
+      Array.from({ length: 14 }, (_, i) => ({ message: `${i}` })),
+    );
+
+    expect(history).toHaveLength(10);
+    expect(history.at(0).message).toBe("4");
   });
 });

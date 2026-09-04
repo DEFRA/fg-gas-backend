@@ -7,10 +7,15 @@ import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 import {
   claimEvents,
+  countByStatus,
+  countFacets,
   deadLetterEvent,
+  findById,
   findNextMessage,
   findPage,
+  findStatusById,
   insertMany,
+  redriveById,
   update,
   updateDeadEvents,
   updateExpiredEvents,
@@ -69,7 +74,7 @@ describe("outbox.repository", () => {
         {
           status: OutboxStatus.PUBLISHED,
           claimedBy: null,
-          completionAttempts: { $lte: config.outbox.outboxMaxRetries },
+          completionAttempts: { $lt: config.outbox.outboxMaxRetries },
           segregationRef: { $nin: ["locked_ref"] },
         },
         { sort: { publicationDate: 1 } },
@@ -185,6 +190,10 @@ describe("outbox.repository", () => {
             completionDate: undefined,
             event: {},
             lastResubmissionDate: undefined,
+            lastError: null,
+            attemptHistory: [],
+            parked: null,
+            lastRedrive: null,
             publicationDate: expect.any(Date),
             segregationRef: "seg-ref-1",
             status: "PROCESSING",
@@ -209,14 +218,38 @@ describe("outbox.repository", () => {
           claimExpiresAt: {
             $lt: expect.any(Date),
           },
-          status: { $nin: [OutboxStatus.DEAD_LETTER, OutboxStatus.COMPLETED] },
+          status: {
+            $nin: [
+              OutboxStatus.DEAD_LETTER,
+              OutboxStatus.COMPLETED,
+              OutboxStatus.PARKED,
+            ],
+          },
         },
         {
           $set: {
             status: OutboxStatus.FAILED,
+            lastError: {
+              name: "ClaimExpired",
+              message: "claim expired before completion",
+              at: expect.any(String),
+            },
             claimedAt: null,
             claimedBy: null,
             claimExpiresAt: null,
+          },
+          $inc: { completionAttempts: 1 },
+          $push: {
+            attemptHistory: {
+              $each: [
+                {
+                  at: expect.any(String),
+                  name: "ClaimExpired",
+                  message: "claim expired before completion",
+                },
+              ],
+              $slice: -10,
+            },
           },
         },
       );
@@ -267,7 +300,6 @@ describe("outbox.repository", () => {
             claimExpiresAt: null,
             claimedBy: null,
           },
-          $inc: { completionAttempts: 1 },
         },
       );
     });
@@ -286,7 +318,7 @@ describe("outbox.repository", () => {
       expect(updateMany).toBeCalledWith(
         {
           completionAttempts: { $gte: MAX_RETRIES },
-          status: { $ne: OutboxStatus.DEAD_LETTER },
+          status: { $nin: [OutboxStatus.DEAD_LETTER, OutboxStatus.PARKED] },
         },
         {
           $set: {
@@ -329,7 +361,10 @@ describe("outbox.repository", () => {
       publicationDate: 1,
       lastResubmissionDate: 1,
       completionDate: 1,
+      lastError: 1,
       segregationRef: 1,
+      parked: 1,
+      lastRedrive: 1,
     };
 
     const id = "665f1c2e9a1b2c3d4e5f6a7b";
@@ -505,5 +540,353 @@ describe("outbox.repository", () => {
       expect(result.data[0].event).not.toHaveProperty("id");
       expect(result.data[0].event).not.toHaveProperty("type");
     });
+  });
+});
+
+describe("outbox.repository findPage search", () => {
+  const mockFind = () => {
+    const chain = {
+      project: vi.fn().mockReturnThis(),
+      sort: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      toArray: vi.fn().mockResolvedValue([]),
+    };
+    const find = vi.fn().mockReturnValue(chain);
+    db.collection.mockReturnValue({ find });
+    return { find, chain };
+  };
+
+  const filterFor = async (options) => {
+    const { find } = mockFind();
+    await findPage(options);
+    return find.mock.calls[0][0];
+  };
+
+  it("projects lastError so the admin list can show why a row failed", async () => {
+    const { chain } = mockFind();
+
+    await findPage();
+
+    expect(chain.project.mock.calls[0][0]).toHaveProperty("lastError", 1);
+  });
+
+  it("matches q against event.id, segregationRef and its prefix", async () => {
+    const filter = await filterFor({ q: "evt-1" });
+
+    expect(filter.$or).toContainEqual({ "event.id": "evt-1" });
+    expect(filter.$or).toContainEqual({ segregationRef: "evt-1" });
+    expect(filter.$or).toContainEqual({
+      segregationRef: { $regex: "^evt-1", $options: "i" },
+    });
+  });
+
+  it("escapes regex metacharacters in q", async () => {
+    expect((await filterFor({ q: "GLD.9B2+x" })).$or).toContainEqual({
+      segregationRef: { $regex: "^GLD\\.9B2\\+x", $options: "i" },
+    });
+  });
+
+  // The TYPE filter is gone: the outbox no longer splits domain from audit for
+  // SELECTION. Audit rows are still recognised structurally for DISPLAY, in
+  // grant-admin/services/map-event-row.js.
+  it("ignores a kind key rather than filtering on it", async () => {
+    expect(await filterFor({ kind: "audit" })).toEqual({});
+    expect(await filterFor({ kind: "domain" })).toEqual({});
+  });
+
+  it("combines status and q with $and", async () => {
+    const filter = await filterFor({ status: "FAILED", q: "evt-1" });
+
+    expect(filter.$and).toHaveLength(2);
+    expect(filter.$and[0]).toEqual({ status: "FAILED" });
+  });
+
+  it("ignores a whitespace-only q", async () => {
+    expect(await filterFor({ q: "  " })).toEqual({});
+  });
+});
+
+describe("outbox.repository detail and redrive", () => {
+  const ID = "665f1c2e9a1b2c3d4e5f6a7b";
+
+  const listProjection = {
+    _id: 1,
+    target: 1,
+    "event.id": 1,
+    "event.type": 1,
+    "event.traceparent": 1,
+    "event.audit.entities.entity": 1,
+    "event.audit.entities.action": 1,
+    status: 1,
+    completionAttempts: 1,
+    publicationDate: 1,
+    lastResubmissionDate: 1,
+    completionDate: 1,
+    lastError: 1,
+    segregationRef: 1,
+    parked: 1,
+    lastRedrive: 1,
+  };
+
+  it("reads the whole document by id, projecting the claim token away", async () => {
+    const doc = { _id: new ObjectId(ID), event: { id: "evt-1" } };
+    const findOne = vi.fn().mockResolvedValue(doc);
+    db.collection.mockReturnValue({ findOne });
+
+    expect(await findById(ID)).toBe(doc);
+    expect(findOne).toHaveBeenCalledWith(
+      { _id: new ObjectId(ID) },
+      { projection: { claimedBy: 0 } },
+    );
+  });
+
+  it("returns null when there is no such row", async () => {
+    db.collection.mockReturnValue({
+      findOne: vi.fn().mockResolvedValue(null),
+    });
+
+    expect(await findById(ID)).toBeNull();
+  });
+
+  it("reads only the status for the 404-vs-409 decision", async () => {
+    const findOne = vi.fn().mockResolvedValue({ status: "COMPLETED" });
+    db.collection.mockReturnValue({ findOne });
+
+    expect(await findStatusById(ID)).toBe("COMPLETED");
+    expect(findOne).toHaveBeenCalledWith(
+      { _id: new ObjectId(ID) },
+      { projection: { status: 1 } },
+    );
+  });
+
+  it("returns a null status for an unknown id", async () => {
+    db.collection.mockReturnValue({
+      findOne: vi.fn().mockResolvedValue(null),
+    });
+
+    expect(await findStatusById(ID)).toBeNull();
+  });
+
+  it("redrives with a single conditional update filtered on DEAD_LETTER", async () => {
+    const findOneAndUpdate = vi.fn().mockResolvedValue(null);
+    db.collection.mockReturnValue({ findOneAndUpdate });
+
+    await redriveById(ID);
+
+    expect(findOneAndUpdate).toHaveBeenCalledTimes(1);
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: new ObjectId(ID), status: OutboxStatus.DEAD_LETTER },
+      {
+        $set: {
+          status: OutboxStatus.RESUBMITTED,
+          completionAttempts: 0,
+          lastRedrive: { at: expect.any(String), by: null },
+          claimedBy: null,
+          claimedAt: null,
+          claimExpiresAt: null,
+        },
+      },
+      { returnDocument: "after", projection: listProjection },
+    );
+  });
+
+  it("answers with the updated document in the payload-free list projection", async () => {
+    const updated = { _id: new ObjectId(ID), status: OutboxStatus.RESUBMITTED };
+    db.collection.mockReturnValue({
+      findOneAndUpdate: vi.fn().mockResolvedValue(updated),
+    });
+
+    expect(await redriveById(ID)).toBe(updated);
+  });
+
+  it("returns null when the conditional update matched nothing", async () => {
+    db.collection.mockReturnValue({
+      findOneAndUpdate: vi.fn().mockResolvedValue(null),
+    });
+
+    expect(await redriveById(ID)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Time range and per-status counts (the events admin surface)
+// ---------------------------------------------------------------------------
+
+const FROM = "2026-06-16T00:00:00.000Z";
+const TO = "2026-06-16T23:59:59.999Z";
+
+const mockRangeFind = () => {
+  const chain = {
+    project: vi.fn().mockReturnThis(),
+    sort: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    toArray: vi.fn().mockResolvedValue([]),
+  };
+  const find = vi.fn().mockReturnValue(chain);
+
+  db.collection.mockReturnValue({ find });
+
+  return find;
+};
+
+const mockAggregate = (rows) => {
+  const aggregate = vi.fn().mockReturnValue({
+    toArray: vi.fn().mockResolvedValue(rows),
+  });
+
+  db.collection.mockReturnValue({ aggregate });
+
+  return aggregate;
+};
+
+describe("outbox.repository findPage from/to", () => {
+  it("filters on publicationDate coerced to a Date, inclusive at both ends", async () => {
+    const find = mockRangeFind();
+
+    await findPage({ from: FROM, to: TO });
+
+    expect(find).toHaveBeenCalledWith({
+      publicationDate: { $gte: new Date(FROM), $lte: new Date(TO) },
+    });
+  });
+
+  it("accepts each bound on its own", async () => {
+    const find = mockRangeFind();
+
+    await findPage({ from: FROM });
+
+    expect(find).toHaveBeenCalledWith({
+      publicationDate: { $gte: new Date(FROM) },
+    });
+  });
+
+  it("filters on nothing when no bound is given", async () => {
+    const find = mockRangeFind();
+
+    await findPage({});
+
+    expect(find).toHaveBeenCalledWith({});
+  });
+
+  it("combines the range with the other filters", async () => {
+    const find = mockRangeFind();
+
+    await findPage({ status: "FAILED", from: FROM });
+
+    expect(find).toHaveBeenCalledWith({
+      $and: [
+        { status: "FAILED" },
+        { publicationDate: { $gte: new Date(FROM) } },
+      ],
+    });
+  });
+});
+
+describe("outbox.repository countByStatus", () => {
+  it("matches the list's filter and groups by status", async () => {
+    const aggregate = mockAggregate([]);
+
+    await countByStatus({ from: FROM, to: TO });
+
+    expect(aggregate).toHaveBeenCalledWith([
+      {
+        $match: {
+          publicationDate: { $gte: new Date(FROM), $lte: new Date(TO) },
+        },
+      },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+  });
+
+  it("counts the whole box when nothing is filtered", async () => {
+    const aggregate = mockAggregate([]);
+
+    await countByStatus();
+
+    expect(aggregate.mock.calls[0][0][0]).toEqual({ $match: {} });
+  });
+
+  it("zero-fills every status the aggregation did not emit", async () => {
+    mockAggregate([
+      { _id: "FAILED", count: 3 },
+      { _id: "DEAD_LETTER", count: 1 },
+    ]);
+
+    expect(await countByStatus()).toEqual({
+      PUBLISHED: 0,
+      PROCESSING: 0,
+      FAILED: 3,
+      RESUBMITTED: 0,
+      COMPLETED: 0,
+      DEAD_LETTER: 1,
+      PARKED: 0,
+    });
+  });
+
+  it("answers all zeros for an empty box", async () => {
+    mockAggregate([]);
+
+    expect(await countByStatus()).toEqual({
+      PUBLISHED: 0,
+      PROCESSING: 0,
+      FAILED: 0,
+      RESUBMITTED: 0,
+      COMPLETED: 0,
+      DEAD_LETTER: 0,
+      PARKED: 0,
+    });
+  });
+});
+
+describe("outbox.repository countFacets", () => {
+  it("matches the same rows as the list and groups them by status", async () => {
+    const aggregate = mockAggregate([]);
+
+    await countFacets({ from: FROM, to: TO });
+
+    expect(aggregate).toHaveBeenCalledWith([
+      {
+        $match: {
+          publicationDate: { $gte: new Date(FROM), $lte: new Date(TO) },
+        },
+      },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+  });
+
+  it("counts the whole box when nothing is filtered", async () => {
+    const aggregate = mockAggregate([]);
+
+    await countFacets();
+
+    expect(aggregate.mock.calls[0][0][0]).toEqual({ $match: {} });
+  });
+
+  it("zero-fills the status block for an empty box", async () => {
+    mockAggregate([]);
+
+    expect(await countFacets()).toEqual({
+      counts: {
+        PUBLISHED: 0,
+        PROCESSING: 0,
+        FAILED: 0,
+        RESUBMITTED: 0,
+        COMPLETED: 0,
+        DEAD_LETTER: 0,
+        PARKED: 0,
+      },
+    });
+  });
+
+  it("counts the rows the $group emits into their statuses", async () => {
+    mockAggregate([
+      { _id: "FAILED", count: 5 },
+      { _id: "COMPLETED", count: 5 },
+    ]);
+
+    const { counts } = await countFacets();
+
+    expect(counts.FAILED).toBe(5);
+    expect(counts.COMPLETED).toBe(5);
   });
 });

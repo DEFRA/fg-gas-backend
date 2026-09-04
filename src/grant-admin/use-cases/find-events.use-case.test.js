@@ -357,3 +357,132 @@ describe("findEventsUseCase", () => {
     });
   });
 });
+
+describe("findEventsUseCase q", () => {
+  beforeEach(() => {
+    isCwConfigured.mockReturnValue(true);
+    findGasInboxPage.mockResolvedValue(emptyPage());
+    findGasOutboxPage.mockResolvedValue(emptyPage());
+    findCwInboxPage.mockResolvedValue(emptyPage());
+    findCwOutboxPage.mockResolvedValue(emptyPage());
+  });
+
+  it("applies q to every selected source", async () => {
+    await findEventsUseCase({ direction: "forward", q: "GLD-9B2" });
+
+    for (const fetch of [
+      findGasInboxPage,
+      findGasOutboxPage,
+      findCwInboxPage,
+      findCwOutboxPage,
+    ]) {
+      expect(fetch).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "GLD-9B2" }),
+      );
+    }
+  });
+
+  it("forwards q to Caseworking alongside status and the cursor slice", async () => {
+    await findEventsUseCase({
+      direction: "forward",
+      status: "FAILED",
+      q: "evt-1",
+    });
+
+    expect(findCwInboxPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "FAILED",
+        q: "evt-1",
+        direction: "forward",
+      }),
+    );
+  });
+
+  it("passes q through as undefined when it is not given", async () => {
+    await findEventsUseCase({ direction: "forward" });
+
+    expect(findGasInboxPage).toHaveBeenCalledWith(
+      expect.objectContaining({ q: undefined }),
+    );
+  });
+
+  // The TYPE filter is gone: nothing about a row's kind reaches a source.
+  it("never sends a kind to any source", async () => {
+    await findEventsUseCase({ direction: "forward", q: "GLD-9B2" });
+
+    for (const fetch of [
+      findGasInboxPage,
+      findGasOutboxPage,
+      findCwInboxPage,
+      findCwOutboxPage,
+    ]) {
+      expect(fetch.mock.calls[0][0]).not.toHaveProperty("kind");
+    }
+  });
+
+  it("merges hits from more than one source for the same q", async () => {
+    findGasOutboxPage.mockResolvedValue(pageOf([gasOutboxDoc(2)]));
+    findCwInboxPage.mockResolvedValue(pageOf([cwRow(1)]));
+
+    const { events } = await findEventsUseCase({
+      direction: "forward",
+      q: "evt-2",
+    });
+
+    expect(events).toHaveLength(2);
+  });
+});
+
+describe("findEventsUseCase from and to", () => {
+  const emptyPage = () => ({
+    data: [],
+    pagination: {
+      startCursor: null,
+      endCursor: null,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    },
+  });
+
+  const FROM = "2026-06-16T00:00:00.000Z";
+  const TO = "2026-06-16T23:59:59.999Z";
+
+  beforeEach(() => {
+    isCwConfigured.mockReturnValue(true);
+    findGasInboxPage.mockResolvedValue(emptyPage());
+    findGasOutboxPage.mockResolvedValue(emptyPage());
+    findCwInboxPage.mockResolvedValue(emptyPage());
+    findCwOutboxPage.mockResolvedValue(emptyPage());
+  });
+
+  it("forwards both bounds to every source, GAS and Caseworking alike", async () => {
+    await findEventsUseCase({ direction: "forward", from: FROM, to: TO });
+
+    for (const fetch of [
+      findGasInboxPage,
+      findGasOutboxPage,
+      findCwInboxPage,
+      findCwOutboxPage,
+    ]) {
+      expect(fetch).toHaveBeenCalledWith(
+        expect.objectContaining({ from: FROM, to: TO }),
+      );
+    }
+  });
+
+  it("forwards a single bound", async () => {
+    await findEventsUseCase({ direction: "forward", from: FROM });
+
+    expect(findCwInboxPage).toHaveBeenCalledWith(
+      expect.objectContaining({ from: FROM, to: undefined }),
+    );
+  });
+
+  it("passes no bounds through when none were given", async () => {
+    await findEventsUseCase({ direction: "forward" });
+
+    expect(findGasInboxPage).toHaveBeenCalledWith(
+      expect.objectContaining({ from: undefined, to: undefined }),
+    );
+  });
+});
