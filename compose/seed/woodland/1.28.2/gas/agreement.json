@@ -1,0 +1,1344 @@
+{
+  "agreementNumberPrefix": "WMP",
+  "code": "woodland",
+  "processDefinitions": {
+    "CALCULATE_WMP_AGREEMENT_DATES": {
+      "type": "endpoint",
+      "endpoint": {
+        "method": "POST",
+        "path": "/api/v1/wmp/payments/calculate",
+        "service": "LAND_GRANTS"
+      },
+      "request": {
+        "body": {
+          "parcelIds": "jsonata:[$.agreement.application.landParcels.parcelId]",
+          "oldWoodlandAreaHa": "$.agreement.application.hectaresTenOrOverYearsOld",
+          "newWoodlandAreaHa": "$.agreement.application.hectaresUnderTenYearsOld"
+        }
+      },
+      "output": {
+        "startDate": "$.response.payment.agreementStartDate",
+        "endDate": "$.response.payment.agreementEndDate"
+      }
+    }
+  },
+  "create": {
+    "target": "offered",
+    "application": "$.input.answers",
+    "values": {
+      "schemeCode": "WMP",
+      "name": "jsonata:$trim($.application.woodlandName) & ' WMP'",
+      "applicant": {
+        "business": {
+          "name": "$.application.applicant.business.name",
+          "address": {
+            "line1": "$.application.applicant.business.address.line1",
+            "line2": "$.application.applicant.business.address.line2",
+            "line3": "$.application.applicant.business.address.line3",
+            "line4": "$.application.applicant.business.address.line4",
+            "line5": "$.application.applicant.business.address.line5",
+            "street": "$.application.applicant.business.address.street",
+            "city": "$.application.applicant.business.address.city",
+            "postalCode": "$.application.applicant.business.address.postalCode"
+          }
+        },
+        "customer": {
+          "name": {
+            "title": "$.application.applicant.customer.name.title",
+            "first": "$.application.applicant.customer.name.first",
+            "middle": "$.application.applicant.customer.name.middle",
+            "last": "$.application.applicant.customer.name.last"
+          }
+        }
+      },
+      "parcels": {
+        "itemsRef": "$.application.landParcels",
+        "items": {
+          "id": "@.parcelId",
+          "sheetId": "jsonata:$substringBefore(@.parcelId, '-')",
+          "parcelId": "jsonata:$substringAfter(@.parcelId, '-')",
+          "area": {
+            "quantity": "@.areaHa",
+            "unit": "ha"
+          }
+        }
+      },
+      "items": {
+        "itemsRef": "$.application.payments.agreement",
+        "items": {
+          "ref": "@.code",
+          "code": "@.code",
+          "description": "@.description",
+          "version": "1",
+          "quantity": "@.quantity",
+          "unit": "jsonata:@.quantity != null ? (@.unit ? @.unit : 'ha')",
+          "totalAmountPence": "@.agreementTotalPence"
+        }
+      },
+      "actions": [],
+      "totalAmountPence": "$.application.totalAgreementPaymentPence"
+    }
+  },
+  "states": {
+    "offered": {
+      "page": "offered",
+      "on": {
+        "accept": {
+          "target": "accepted",
+          "page": "accept",
+          "validation": {
+            "required": [
+              {
+                "name": "confirm",
+                "value": "confirmed",
+                "href": "#confirm",
+                "message": "Select the checkbox to confirm you accept this agreement offer"
+              }
+            ]
+          },
+          "processes": ["CALCULATE_WMP_AGREEMENT_DATES"],
+          "values": {
+            "schemeCode": "$.agreement.schemeCode",
+            "name": "$.agreement.name",
+            "applicant": "$.agreement.applicant",
+            "application": "$.agreement.application",
+            "parcels": "$.agreement.parcels",
+            "actions": "$.agreement.actions",
+            "items": "$.agreement.items",
+            "totalAmountPence": "$.agreement.totalAmountPence",
+            "startDate": "$.outputs.CALCULATE_WMP_AGREEMENT_DATES.startDate",
+            "endDate": "$.outputs.CALCULATE_WMP_AGREEMENT_DATES.endDate"
+          }
+        }
+      }
+    },
+    "accepted": {
+      "page": "accepted"
+    }
+  },
+  "pages": {
+    "document": {
+      "title": "Woodland Management Plan PA3 agreement document",
+      "layout": "document",
+      "contents": true,
+      "print": true,
+      "watermarks": {
+        "offered": "DRAFT"
+      },
+      "components": [
+        {
+          "component": "grid-row",
+          "components": [
+            {
+              "component": "grid-column",
+              "width": "full",
+              "components": [
+                {
+                  "component": "notification-banner",
+                  "condition": "jsonata:$.agreement.state = 'offered'",
+                  "title": "This is a draft version of your agreement",
+                  "items": [
+                    {
+                      "component": "paragraph",
+                      "text": "You will receive the final agreement once you accept your agreement offer."
+                    },
+                    {
+                      "component": "paragraph",
+                      "items": [
+                        {
+                          "text": "Your agreement will start on the first day of the month after you accept your offer and end on the agreement end date, subject to the provisions for early termination set out in the "
+                        },
+                        {
+                          "component": "url",
+                          "href": "https://www.gov.uk/government/publications/capital-grants-agreements-terms-and-conditions-2026/capital-grants-agreements-terms-and-conditions-2026",
+                          "text": "Capital grants agreements: Terms and Conditions 2026",
+                          "classes": "govuk-link",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "component": "heading",
+                  "level": 1,
+                  "text": "Woodland Management Plan PA3 agreement document"
+                },
+                {
+                  "component": "description-list",
+                  "classes": "govuk-body dataset-info",
+                  "rows": [
+                    {
+                      "label": {
+                        "text": "Agreement holder",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "$.agreement.applicant.business.name",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "SBI",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "$.agreement.identifiers.sbi",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "Address",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "jsonata:$join([$.agreement.applicant.business.address.line1, $.agreement.applicant.business.address.line2, $.agreement.applicant.business.address.line3, $.agreement.applicant.business.address.line4, $.agreement.applicant.business.address.line5, $.agreement.applicant.business.address.street, $.agreement.applicant.business.address.city, $.agreement.applicant.business.address.postalCode][$ != null and $ != ''], ', ')",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "Agreement name",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "$.agreement.name",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "Agreement number",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "$.agreement.agreementNumber",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "Agreement start date",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "XXXXX",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "Agreement end date",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "XXXXX",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    }
+                  ],
+                  "condition": "jsonata:$.agreement.state = 'offered'"
+                },
+                {
+                  "component": "description-list",
+                  "classes": "govuk-body dataset-info",
+                  "rows": [
+                    {
+                      "label": {
+                        "text": "Agreement holder",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "$.agreement.applicant.business.name",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "SBI",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "$.agreement.identifiers.sbi",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "Address",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "jsonata:$join([$.agreement.applicant.business.address.line1, $.agreement.applicant.business.address.line2, $.agreement.applicant.business.address.line3, $.agreement.applicant.business.address.line4, $.agreement.applicant.business.address.line5, $.agreement.applicant.business.address.street, $.agreement.applicant.business.address.city, $.agreement.applicant.business.address.postalCode][$ != null and $ != ''], ', ')",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "Agreement name",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "$.agreement.name",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "Agreement number",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "$.agreement.agreementNumber",
+                        "classes": "govuk-!-font-weight-regular"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "Agreement start date",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "$.agreement.startDate",
+                        "classes": "govuk-!-font-weight-regular",
+                        "format": "dateLong"
+                      }
+                    },
+                    {
+                      "label": {
+                        "text": "Agreement end date",
+                        "classes": "govuk-!-font-weight-bold"
+                      },
+                      "value": {
+                        "text": "$.agreement.endDate",
+                        "classes": "govuk-!-font-weight-regular",
+                        "format": "dateLong"
+                      }
+                    }
+                  ],
+                  "condition": "jsonata:$.agreement.state = 'accepted'"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "id": "intro",
+          "title": "Introduction and overview",
+          "components": [
+            {
+              "component": "paragraph",
+              "text": "This is the Countryside Stewardship Woodland Management Plan (WMP) agreement document. It sets out the agreement holder specific details for a Countryside Stewardship WMP agreement. The agreement document should be read in conjunction with the following documents (which together form the Countryside Stewardship Agreement):"
+            },
+            {
+              "component": "unordered-list",
+              "classes": "govuk-list govuk-list--bullet govuk-!-padding-left-8",
+              "items": [
+                {
+                  "component": "url",
+                  "href": "https://www.gov.uk/government/publications/capital-grants-agreements-terms-and-conditions-2026/capital-grants-agreements-terms-and-conditions-2026",
+                  "text": "the Capital grants agreements: terms and conditions 2026",
+                  "classes": "govuk-link",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer"
+                },
+                {
+                  "text": "The supporting documents specified in this agreement document"
+                }
+              ]
+            },
+            {
+              "component": "paragraph",
+              "text": "All elements and details in this agreement document are binding on the agreement holder, unless it expressly says they are \"not binding\"."
+            },
+            {
+              "component": "heading",
+              "level": 3,
+              "text": "Objectives (not binding)"
+            },
+            {
+              "component": "paragraph",
+              "items": [
+                {
+                  "text": "Produce a WMP in accordance with the requirements of the "
+                },
+                {
+                  "component": "url",
+                  "href": "https://www.gov.uk/government/publications/pa3-woodland-management-plan-2026",
+                  "text": "PA3: Woodland management plan 2026",
+                  "classes": "govuk-link",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer"
+                },
+                {
+                  "text": " on GOV.UK. You must submit your plan to the Forestry Commission for approval."
+                }
+              ]
+            },
+            {
+              "component": "heading",
+              "level": 3,
+              "text": "Outcomes"
+            },
+            {
+              "component": "paragraph",
+              "items": [
+                {
+                  "text": "Produce a UK Forestry Standard (UKFS) compliant WMP, plan of operations and plan maps using the Forestry Commission template and associated guidance notes from the "
+                },
+                {
+                  "component": "url",
+                  "href": "https://www.gov.uk/government/publications/pa3-woodland-management-plan-2026/applicants-guide-pa3-woodland-management-plan-2026",
+                  "text": "Applicant's guide: PA3 Woodland Management Plan 2026 ",
+                  "classes": "govuk-link",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer"
+                },
+                {
+                  "text": " on GOV.UK. A full account of historical features, important habitats, landscape and tree features must be included."
+                }
+              ]
+            },
+            {
+              "component": "paragraph",
+              "text": "Where a felling licence is required, the plan of operations will include all proposed thinning and felling for the next 10 years, as well as the necessary detail to meet the requirements of all relevant legislation."
+            },
+            {
+              "component": "paragraph",
+              "text": "If the area covered by the WMP includes a Site of Special Scientific Interest (SSSI), Natural England will need to be consulted over its content while it is being drafted. Proposals must be agreed by the Forestry Commission and Natural England, and a supplementary notice of operations for the SSSI may need to be completed. If the supplementary notice is not included in the WMP, the applicant will be required to seek consent from Natural England separately."
+            },
+            {
+              "component": "paragraph",
+              "text": "If the WMP includes a scheduled monument or areas covered by Registered Parks or Gardens Grade II, Historic England will need to be consulted. This should be done during drafting to determine what actions may be required by Historic England to give full consent to operations included in the WMP."
+            },
+            {
+              "component": "paragraph",
+              "text": "Once your Countryside Stewardship agreement has been issued, the draft WMP must be submitted for approval to your local Forestry Commission admin hub. Submit your draft WMP in electronic form with supporting maps and photographs, accompanied by a completed plan submission proforma."
+            },
+            {
+              "component": "paragraph",
+              "text": "The maps supplied with the draft WMP should include further detail in line with the technical guidance available (see above). You are strongly advised to submit your plan to the Forestry Commission within one year from the start of your Countryside Stewardship agreement. Plans submitted later than this risk not being approved within the three-year Countryside Stewardship agreement period."
+            },
+            {
+              "component": "paragraph",
+              "text": "All relevant persons that have a direct interest in the land within the WMP should be allowed to see the draft plan (for example, gamekeepers or other central or local government organisations). This is so that, where appropriate, they can advise on any conflict and allow adjustments to the WMP within the three-year Countryside Stewardship agreement period."
+            }
+          ]
+        },
+        {
+          "id": "parties",
+          "title": "Parties to the agreement",
+          "components": [
+            {
+              "component": "paragraph",
+              "text": "This agreement is between:"
+            },
+            {
+              "component": "paragraph",
+              "items": [
+                {
+                  "text": "jsonata:$join([$.agreement.applicant.customer.name.title, $.agreement.applicant.customer.name.first, $.agreement.applicant.customer.name.middle, $.agreement.applicant.customer.name.last][$ != null and $ != ''], ' ')"
+                },
+                {
+                  "text": ", of "
+                },
+                {
+                  "text": "$.agreement.applicant.business.name"
+                },
+                {
+                  "text": ", "
+                },
+                {
+                  "text": "jsonata:$join([$.agreement.applicant.business.address.line1, $.agreement.applicant.business.address.line2, $.agreement.applicant.business.address.line3, $.agreement.applicant.business.address.line4, $.agreement.applicant.business.address.line5, $.agreement.applicant.business.address.street, $.agreement.applicant.business.address.city, $.agreement.applicant.business.address.postalCode][$ != null and $ != ''], ', ')"
+                },
+                {
+                  "text": " (the agreement holder), and the Rural Payments Agency, PO Box 324, Worksop, S95 1DF (the Authority acting as a delivery body on behalf of the Department for Environment, Food and Rural Affairs)."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "land",
+          "title": "Land covered by the agreement",
+          "components": [
+            {
+              "component": "paragraph",
+              "text": "The \"Agreement Land\" comprises the following land parcels."
+            },
+            {
+              "component": "table",
+              "classes": "govuk-table--small-text-until-tablet",
+              "head": [
+                {
+                  "text": "Parcel Number"
+                },
+                {
+                  "text": "Total parcel area (ha)"
+                }
+              ],
+              "rowsRef": "$.agreement.parcels",
+              "rows": [
+                {
+                  "text": "@.id"
+                },
+                {
+                  "text": "@.area.quantity"
+                }
+              ]
+            },
+            {
+              "component": "paragraph",
+              "text": "The Countryside Stewardship terms and conditions contain separate obligations in relation to the \"Agreement Land\"."
+            }
+          ]
+        },
+        {
+          "id": "items",
+          "title": "Summary of Capital items",
+          "components": [
+            {
+              "component": "paragraph",
+              "text": "The following is a summary of the capital items which the agreement holder is required to deliver under the agreement:"
+            },
+            {
+              "component": "table",
+              "classes": "govuk-table--small-text-until-tablet table-bordered",
+              "head": [
+                {
+                  "text": "Item code"
+                },
+                {
+                  "text": "Item title"
+                },
+                {
+                  "text": "Total parcel area (ha)"
+                }
+              ],
+              "rowsRef": "$.agreement.items",
+              "rows": [
+                {
+                  "text": "@.code"
+                },
+                {
+                  "text": "@.description"
+                },
+                {
+                  "text": "@.quantity"
+                }
+              ]
+            },
+            {
+              "component": "heading",
+              "level": 3,
+              "text": "Aim (not binding) "
+            },
+            {
+              "component": "paragraph",
+              "text": "To produce a WMP for sustainable forest management in accordance with the UK Forestry Standard."
+            },
+            {
+              "component": "heading",
+              "level": 3,
+              "text": "Eligibility"
+            },
+            {
+              "component": "ordered-list",
+              "classes": "govuk-list govuk-list--number govuk-!-padding-left-8",
+              "items": [
+                {
+                  "text": "Any woodland holding over 0.5ha in area that does not currently have a management plan in place. The plan shall cover all the woodland on the holding."
+                },
+                {
+                  "text": "The WMP must cover all the woodland on the holding, including all newly-planted woodland. The amount paid will be calculated on the entire eligible area of woodland on the holding. This calculation can include up to an additional 20% of newly-planted woodland (this means woodland that is under 10 years old at the time of application). Areas over 20% will be deducted from the total area for payment but must still be covered in the management plan."
+                }
+              ]
+            },
+            {
+              "component": "paragraph",
+              "items": [
+                {
+                  "text": "You can find more information about eligibility in the "
+                },
+                {
+                  "component": "url",
+                  "href": "https://www.gov.uk/government/publications/pa3-woodland-management-plan-2026/applicants-guide-pa3-woodland-management-plan-2026#whocan-apply-and-what-land-is-eligible",
+                  "text": "Applicant’s guide: PA3 Woodland management plan 2026 guidance on ",
+                  "classes": "govuk-link",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer"
+                },
+                {
+                  "text": " on GOV.UK."
+                }
+              ]
+            },
+            {
+              "component": "heading",
+              "level": 3,
+              "text": "Specifications"
+            },
+            {
+              "component": "paragraph",
+              "text": "Create the management plan using the Forestry Commission template (available on the Forestry Commission website or by request)."
+            }
+          ]
+        },
+        {
+          "id": "payment",
+          "title": "Payments",
+          "components": [
+            {
+              "component": "paragraph",
+              "text": "The following table sets out the anticipated total payments payable to the agreement holder as long as they comply with the agreement."
+            },
+            {
+              "component": "paragraph",
+              "items": [
+                {
+                  "text": "These figures are correct as at the agreement start date and may vary as a result of the processes set out in the Countryside Stewardship terms and conditions and "
+                },
+                {
+                  "component": "url",
+                  "href": "https://www.gov.uk/government/publications/pa3-woodland-management-plan-2026/applicants-guide-pa3-woodland-management-plan-2026#whocan-apply-and-what-land-is-eligible",
+                  "text": "Applicant’s guide: PA3 Woodland management plan 2026 guidance. ",
+                  "classes": "govuk-link",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer"
+                }
+              ]
+            },
+            {
+              "component": "paragraph",
+              "text": "Examples of where the figures may change include amendments to change the size of a parcel and adjustments to a payment rate to eliminate greening double funding."
+            },
+            {
+              "component": "paragraph",
+              "items": [
+                {
+                  "text": "These figures are provided to help the agreement holder determine what publicity obligations will apply to them. For further details on publicity obligations, please see the "
+                },
+                {
+                  "component": "url",
+                  "href": "https://www.gov.uk/government/publications/capital-grants-agreements-terms-and-conditions-2026/capital-grants-agreements-terms-and-conditions-2026",
+                  "text": "Capital grants agreements: terms and conditions 2026. ",
+                  "classes": "govuk-link",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer"
+                }
+              ]
+            },
+            {
+              "component": "table",
+              "classes": "govuk-table--small-text-until-tablet table-bordered",
+              "head": [
+                {
+                  "text": "Agreement total"
+                }
+              ],
+              "rowsRef": "jsonata:[$.agreement]",
+              "rows": [
+                {
+                  "text": "@.totalAmountPence",
+                  "format": "poundsFromPence",
+                  "classes": "govuk-!-font-weight-bold"
+                }
+              ]
+            },
+            {
+              "component": "paragraph",
+              "text": "The capital items must be completed by the relevant agreement end date and the relevant grant must be claimed by agreement end date. The grant paid will be based on the value included in the payment claim, but will not exceed the agreement total indicated above. Refer to the Countryside Stewardship terms and conditions, claim form and associated instructions for details of the minimum claim value and what constitutes a valid capital claim."
+            }
+          ]
+        },
+        {
+          "id": "schedule",
+          "title": "Agreement duration",
+          "components": [
+            {
+              "component": "paragraph",
+              "text": "The agreement will commence on the agreement start date and end on the agreement end date, subject to the provisions for early termination set out in the Countryside Stewardship terms and conditions."
+            },
+            {
+              "component": "description-list",
+              "classes": "govuk-body dataset-info dataset-info--nowrap-labels",
+              "rows": [
+                {
+                  "label": {
+                    "text": "Agreement Start Date:",
+                    "classes": "govuk-!-font-weight-regular"
+                  },
+                  "value": {
+                    "text": "XXXXX",
+                    "classes": "govuk-!-font-weight-bold"
+                  }
+                },
+                {
+                  "label": {
+                    "text": "Agreement End Date:",
+                    "classes": "govuk-!-font-weight-regular"
+                  },
+                  "value": {
+                    "text": "XXXXX",
+                    "classes": "govuk-!-font-weight-bold"
+                  }
+                }
+              ],
+              "condition": "jsonata:$.agreement.state = 'offered'"
+            },
+            {
+              "component": "description-list",
+              "classes": "govuk-body dataset-info dataset-info--nowrap-labels",
+              "rows": [
+                {
+                  "label": {
+                    "text": "Agreement Start Date:",
+                    "classes": "govuk-!-font-weight-regular"
+                  },
+                  "value": {
+                    "text": "$.agreement.startDate",
+                    "classes": "govuk-!-font-weight-bold",
+                    "format": "dateLong"
+                  }
+                },
+                {
+                  "label": {
+                    "text": "Agreement End Date:",
+                    "classes": "govuk-!-font-weight-regular"
+                  },
+                  "value": {
+                    "text": "$.agreement.endDate",
+                    "classes": "govuk-!-font-weight-bold",
+                    "format": "dateLong"
+                  }
+                }
+              ],
+              "condition": "jsonata:$.agreement.state = 'accepted'"
+            }
+          ]
+        },
+        {
+          "id": "signature",
+          "title": "Electronic signature",
+          "components": [
+            {
+              "component": "paragraph",
+              "items": [
+                {
+                  "text": "The agreement comprising this agreement document, the terms and conditions and the actions has been accepted by "
+                },
+                {
+                  "text": "jsonata:$join([$.agreement.applicant.customer.name.title, $.agreement.applicant.customer.name.first, $.agreement.applicant.customer.name.middle, $.agreement.applicant.customer.name.last][$ != null and $ != ''], ' ')"
+                },
+                {
+                  "text": " – "
+                },
+                {
+                  "text": "$.agreement.applicant.business.name"
+                },
+                {
+                  "text": " on "
+                },
+                {
+                  "text": "$.agreement.acceptedAt",
+                  "format": "dateLong"
+                }
+              ],
+              "condition": "jsonata:$.agreement.state = 'accepted'"
+            },
+            {
+              "component": "paragraph",
+              "items": [
+                {
+                  "text": "The agreement comprising this agreement document, the terms and conditions and the actions has been accepted by "
+                },
+                {
+                  "text": "jsonata:$join([$.agreement.applicant.customer.name.title, $.agreement.applicant.customer.name.first, $.agreement.applicant.customer.name.middle, $.agreement.applicant.customer.name.last][$ != null and $ != ''], ' ')"
+                },
+                {
+                  "text": " – "
+                },
+                {
+                  "text": "$.agreement.applicant.business.name"
+                }
+              ],
+              "condition": "jsonata:$.agreement.state = 'offered'"
+            }
+          ]
+        },
+        {
+          "id": "protection",
+          "title": "Data protection",
+          "components": [
+            {
+              "component": "paragraph",
+              "text": "The Department for Environment, Food and Rural Affairs (Defra) is the data controller for personal data you give to RPA. For information on how we handle personal data see Condition 18 of the terms and conditions."
+            }
+          ]
+        }
+      ]
+    },
+    "offered": {
+      "title": "Review your agreement offer",
+      "components": [
+        {
+          "component": "grid-row",
+          "components": [
+            {
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "heading",
+                  "level": 1,
+                  "text": "Review your agreement offer"
+                },
+                {
+                  "component": "paragraph",
+                  "text": "If you accept this agreement offer, the resulting agreement will be between Defra and:"
+                },
+                {
+                  "component": "paragraph",
+                  "items": [
+                    {
+                      "text": "$.agreement.applicant.business.name"
+                    },
+                    {
+                      "component": "line-break"
+                    },
+                    {
+                      "text": "jsonata:$join([$.agreement.applicant.business.address.line1, $.agreement.applicant.business.address.line2, $.agreement.applicant.business.address.line3, $.agreement.applicant.business.address.line4, $.agreement.applicant.business.address.line5, $.agreement.applicant.business.address.street, $.agreement.applicant.business.address.city, $.agreement.applicant.business.address.postalCode][$ != null and $ != ''], ', ')"
+                    },
+                    {
+                      "component": "line-break"
+                    },
+                    {
+                      "text": "SBI: "
+                    },
+                    {
+                      "text": "$.agreement.identifiers.sbi"
+                    }
+                  ]
+                },
+                {
+                  "component": "paragraph",
+                  "text": "Your agreement start date will be the 1st of the month after the agreement is signed."
+                },
+                {
+                  "component": "paragraph",
+                  "text": "The rules which apply to your agreement, which you must follow when you enter your agreement are set out in:"
+                },
+                {
+                  "component": "unordered-list",
+                  "items": [
+                    {
+                      "component": "container",
+                      "items": [
+                        {
+                          "text": "the "
+                        },
+                        {
+                          "component": "url",
+                          "href": "https://www.gov.uk/government/publications/pa3-woodland-management-plan-2026/applicants-guide-pa3-woodland-management-plan-2026",
+                          "text": "Applicant's guide: PA3 Woodland management plan 2026 (opens in new tab)",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "container",
+                      "items": [
+                        {
+                          "text": "the "
+                        },
+                        {
+                          "component": "url",
+                          "href": "https://www.gov.uk/government/publications/capital-grants-agreements-terms-and-conditions-2026/capital-grants-agreements-terms-and-conditions-2026",
+                          "text": "Capital grants agreements: terms and conditions 2026 (opens in new tab)",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "container",
+                      "items": [
+                        {
+                          "text": "the "
+                        },
+                        {
+                          "component": "url",
+                          "href": "https://www.gov.uk/government/publications/pa3-woodland-management-plan-2026/agreement-holders-guide-pa3-woodland-management-plan-2026",
+                          "text": "Agreement holder's guide: PA3 Woodland management plan 2026 (opens in new tab)",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "component": "paragraph",
+                  "items": [
+                    {
+                      "component": "url",
+                      "href": {
+                        "urlTemplate": "/agreements/{agreementNumber}/document",
+                        "params": {
+                          "agreementNumber": "$.agreement.agreementNumber"
+                        }
+                      },
+                      "text": "View a printable version of your draft agreement (opens in new tab)",
+                      "target": "_blank"
+                    }
+                  ]
+                },
+                {
+                  "component": "heading",
+                  "level": 2,
+                  "text": "Payments"
+                },
+                {
+                  "component": "paragraph",
+                  "text": "If you accept this agreement offer, you will receive a one-off payment to produce a Woodland Management Plan for sustainable Forest Management in accordance with the UK Forestry Standard."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "component": "grid-row",
+          "components": [
+            {
+              "component": "grid-column",
+              "width": "full",
+              "components": [
+                {
+                  "component": "table",
+                  "head": [
+                    {
+                      "text": "Action"
+                    },
+                    {
+                      "text": "Code"
+                    },
+                    {
+                      "text": "Grant payment amount"
+                    }
+                  ],
+                  "rowsRef": "$.agreement.items",
+                  "rows": [
+                    {
+                      "text": "@.description"
+                    },
+                    {
+                      "text": "@.code"
+                    },
+                    {
+                      "text": "@.totalAmountPence",
+                      "format": "poundsFromPence"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "component": "grid-row",
+          "components": [
+            {
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "button",
+                  "action": "accept",
+                  "text": "Continue"
+                },
+                {
+                  "component": "details",
+                  "summaryItems": [
+                    {
+                      "text": "If you need to make an update"
+                    }
+                  ],
+                  "items": [
+                    {
+                      "component": "paragraph",
+                      "text": "Contact the Rural Payments Agency (RPA) if you have a query."
+                    },
+                    {
+                      "component": "unordered-list",
+                      "classes": "govuk-list",
+                      "items": [
+                        {
+                          "text": "Phone: 03000 200 301"
+                        },
+                        {
+                          "text": "Monday to Friday, 8:30am to 5pm (except bank holidays)"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "paragraph",
+                      "items": [
+                        {
+                          "component": "url",
+                          "href": "https://www.gov.uk/call-charges",
+                          "text": "Find out about call charges (opens in new tab)",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "paragraph",
+                      "items": [
+                        {
+                          "text": "Email: "
+                        },
+                        {
+                          "component": "url",
+                          "href": "mailto:ruralpayments@defra.gov.uk",
+                          "text": "ruralpayments@defra.gov.uk"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "paragraph",
+                      "text": "The RPA responds to email queries within 10 working days."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "accept": {
+      "title": "Accept your agreement offer",
+      "components": [
+        {
+          "component": "grid-row",
+          "components": [
+            {
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "heading",
+                  "level": 1,
+                  "text": "Accept your agreement offer"
+                },
+                {
+                  "component": "paragraph",
+                  "text": "Your agreement will consist of the:"
+                },
+                {
+                  "component": "unordered-list",
+                  "items": [
+                    {
+                      "component": "url",
+                      "href": {
+                        "urlTemplate": "/agreements/{agreementNumber}/document",
+                        "params": {
+                          "agreementNumber": "$.agreement.agreementNumber"
+                        }
+                      },
+                      "text": "draft agreement document (opens in new tab)",
+                      "target": "_blank",
+                      "rel": "noopener noreferrer"
+                    },
+                    {
+                      "component": "container",
+                      "items": [
+                        {
+                          "text": "the "
+                        },
+                        {
+                          "component": "url",
+                          "href": "https://www.gov.uk/government/publications/capital-grants-agreements-terms-and-conditions-2026",
+                          "text": "Capital grants agreements: terms and conditions 2026 (opens in new tab)",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "component": "paragraph",
+                  "text": "By accepting this offer, you confirm on your own behalf or, where applicable, on behalf of the agreement holder, that:"
+                },
+                {
+                  "component": "unordered-list",
+                  "classes": "govuk-list govuk-list--bullet govuk-!-padding-left-8",
+                  "items": [
+                    {
+                      "text": "you will comply with the obligations under your agreement"
+                    },
+                    {
+                      "text": "the information you gave and the declarations you made in your application remain true and accurate to the best of your knowledge and belief"
+                    },
+                    {
+                      "text": "you have full capacity and authority to enter into the agreement"
+                    },
+                    {
+                      "text": "you are not aware of any circumstances which would render you ineligible or otherwise prevent you from complying with your obligation under the agreement"
+                    },
+                    {
+                      "text": "your obligations under the agreement do not and will not duplicate or conflict in whole or in part with any other legal or contractual obligations you are subject to"
+                    },
+                    {
+                      "text": "you will at all times comply with all relevant law (as defined in the Capital grants agreements: terms and conditions) in the performance of your obligations under the agreement"
+                    }
+                  ]
+                },
+                {
+                  "component": "paragraph",
+                  "text": "Check the Capital grants agreements: terms and conditions to understand what can happen if you deliberately give wrong or incomplete information, or do not report changes as soon as possible."
+                },
+                {
+                  "component": "paragraph",
+                  "text": "In addition to the confirmations above, if you are accepting this offer on behalf of the agreement holder, you confirm you are duly authorised and have the capacity to:"
+                },
+                {
+                  "component": "unordered-list",
+                  "items": [
+                    {
+                      "text": "accept this agreement on the agreement holder's behalf"
+                    },
+                    {
+                      "text": "enter into the agreement on the agreement holder's behalf"
+                    }
+                  ]
+                },
+                {
+                  "component": "form",
+                  "components": [
+                    {
+                      "component": "checkboxes",
+                      "idPrefix": "confirm",
+                      "name": "confirm",
+                      "items": [
+                        {
+                          "value": "confirmed",
+                          "text": "I confirm I have read the information in this section and accept this agreement offer. I accept it either on my own or my organisation's behalf, or as someone duly authorised to act on behalf of the agreement holder."
+                        }
+                      ]
+                    },
+                    {
+                      "component": "button",
+                      "text": "Accept offer"
+                    }
+                  ],
+                  "action": "accept"
+                },
+                {
+                  "component": "details",
+                  "summaryItems": [
+                    {
+                      "text": "If you need to make an update"
+                    }
+                  ],
+                  "items": [
+                    {
+                      "component": "paragraph",
+                      "text": "Contact the Rural Payments Agency for help."
+                    },
+                    {
+                      "component": "unordered-list",
+                      "classes": "govuk-list",
+                      "items": [
+                        {
+                          "text": "Phone: 03000 200 301"
+                        },
+                        {
+                          "text": "Monday to Friday, 8:30am to 5pm (except bank holidays)"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "paragraph",
+                      "items": [
+                        {
+                          "component": "url",
+                          "href": "https://www.gov.uk/call-charges",
+                          "text": "Find out about call charges (opens in new tab)",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "paragraph",
+                      "items": [
+                        {
+                          "text": "Email: "
+                        },
+                        {
+                          "component": "url",
+                          "href": "mailto:ruralpayments@defra.gov.uk",
+                          "text": "ruralpayments@defra.gov.uk"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "paragraph",
+                      "text": "The RPA responds to email queries within 10 working days."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "backLink": {
+        "text": "Back",
+        "href": "/agreements/current"
+      }
+    },
+    "accepted": {
+      "title": "Offer accepted",
+      "components": [
+        {
+          "component": "grid-row",
+          "components": [
+            {
+              "component": "grid-column",
+              "width": "two-thirds",
+              "components": [
+                {
+                  "component": "panel",
+                  "title": "Agreement offer accepted",
+                  "items": [
+                    {
+                      "text": "The start date for this agreement is"
+                    },
+                    {
+                      "component": "line-break"
+                    },
+                    {
+                      "text": "$.agreement.startDate",
+                      "format": "dateLong"
+                    }
+                  ]
+                },
+                {
+                  "component": "paragraph",
+                  "text": "Your agreement number is $.agreement.agreementNumber."
+                },
+                {
+                  "component": "paragraph",
+                  "text": "You can view:"
+                },
+                {
+                  "component": "unordered-list",
+                  "items": [
+                    {
+                      "component": "container",
+                      "items": [
+                        {
+                          "text": "your "
+                        },
+                        {
+                          "component": "url",
+                          "href": {
+                            "urlTemplate": "/agreements/{agreementNumber}/document",
+                            "params": {
+                              "agreementNumber": "$.agreement.agreementNumber"
+                            }
+                          },
+                          "text": "agreement document",
+                          "classes": "govuk-link",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer"
+                        }
+                      ]
+                    },
+                    {
+                      "component": "container",
+                      "items": [
+                        {
+                          "text": "the "
+                        },
+                        {
+                          "component": "url",
+                          "href": "https://www.gov.uk/government/publications/capital-grants-agreements-terms-and-conditions-2026",
+                          "text": "Capital grants agreements: terms and conditions 2026",
+                          "classes": "govuk-link"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "component": "heading",
+                  "level": 2,
+                  "size": "m",
+                  "text": "If you need help"
+                },
+                {
+                  "component": "paragraph",
+                  "text": "Contact the Rural Payments Agency (RPA) by phone or email."
+                },
+                {
+                  "component": "unordered-list",
+                  "classes": "govuk-list",
+                  "items": [
+                    {
+                      "text": "Phone: 03000 200 301"
+                    },
+                    {
+                      "text": "Monday to Friday, 8:30am to 5pm (except bank holidays)"
+                    }
+                  ]
+                },
+                {
+                  "component": "paragraph",
+                  "items": [
+                    {
+                      "component": "url",
+                      "href": "https://www.gov.uk/call-charges",
+                      "text": "Find out about call charges (opens in new tab)",
+                      "classes": "govuk-link",
+                      "target": "_blank",
+                      "rel": "noopener noreferrer"
+                    }
+                  ]
+                },
+                {
+                  "component": "paragraph",
+                  "items": [
+                    {
+                      "text": "Email: "
+                    },
+                    {
+                      "component": "url",
+                      "href": "mailto:ruralpayments@defra.gov.uk",
+                      "text": "ruralpayments@defra.gov.uk",
+                      "classes": "govuk-link"
+                    }
+                  ]
+                },
+                {
+                  "component": "paragraph",
+                  "text": "The RPA responds to email queries within 10 working days."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

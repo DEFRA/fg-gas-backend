@@ -228,6 +228,41 @@ describe("claims.service", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
+  it("returns a decimal field in its real units, not as stored", async () => {
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
+    findExistingEntitlements.mockResolvedValue([
+      { ...persistedEntitlement, data: { area: 100000 } },
+    ]);
+
+    const [claimable] = await listClaimableEntitlements({ code, clientRef });
+
+    expect(claimable.data.area).toEqual({
+      value: 1000,
+      decimalPlaces: 2,
+      minValue: null,
+      maxValue: null,
+    });
+  });
+
+  it.each([
+    [100000, 4, 10],
+    [1561025, 4, 156.1025],
+    [7, 2, 0.07],
+    [0, 4, 0],
+    [123, 0, 123],
+  ])("unscales %i at % idp to %f", async (stored, decimalPlaces, expected) => {
+    const scaled = grant(false);
+    scaled.entitlementTemplates[0].fields.area.decimalPlaces = decimalPlaces;
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: scaled });
+    findExistingEntitlements.mockResolvedValue([
+      { ...persistedEntitlement, data: { area: stored } },
+    ]);
+
+    const [claimable] = await listClaimableEntitlements({ code, clientRef });
+
+    expect(claimable.data.area.value).toBe(expected);
+  });
+
   it("lists persisted claimable entitlements", async () => {
     const persisted = {
       id: "entitlement-1",

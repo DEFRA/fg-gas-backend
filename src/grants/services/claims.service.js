@@ -106,8 +106,21 @@ const assertClaimCodeMatches = (claimable, claimCode) => {
 
 const dataValue = (field, value) => value ?? field.value ?? null;
 
+const unscaleDecimalAsText = (value, decimalPlaces) => {
+  const sign = value < 0 ? "-" : "";
+  const digits = String(Math.abs(value)).padStart(decimalPlaces + 1, "0");
+  const point = digits.length - decimalPlaces;
+
+  return Number(`${sign}${digits.slice(0, point)}.${digits.slice(point)}`);
+};
+
+const unscaled = (value, decimalPlaces) =>
+  typeof value === "number"
+    ? unscaleDecimalAsText(value, decimalPlaces ?? 0)
+    : value;
+
 const decimalDataField = (field, value) => ({
-  value: dataValue(field, value),
+  value: unscaled(dataValue(field, value), field.decimalPlaces),
   decimalPlaces: field.decimalPlaces,
   minValue: field.minValue ?? null,
   maxValue: field.maxValue ?? null,
