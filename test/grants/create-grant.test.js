@@ -72,4 +72,27 @@ describe("POST /grants", () => {
       message: `Grant with code "${grant1.code}" version "${grant1.version}" already exists`,
     });
   });
+
+  it("accepts a claimable entitlement template with multiple instances", async () => {
+    const response = await wreck.post("/grants", {
+      json: true,
+      payload: {
+        ...grant1,
+        code: `${grant1.code}-multi`,
+        entitlementTemplates: [
+          {
+            claimCode: "ENT_CLAIMABLE",
+            name: "Claimable entitlement",
+            maxEntitlements: 2,
+            availableAt: [{ phase: "PRE_AWARD" }],
+            claim: {
+              claimableAt: [{ phase: "PRE_AWARD" }],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response.res.statusCode).toBe(204);
+  });
 });

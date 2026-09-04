@@ -1,10 +1,9 @@
-import { MongoServerError, ObjectId } from "mongodb";
+import { ObjectId } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import {
   collection,
   countByClaimCode,
-  duplicateClientClaimRef,
   existsByClientClaimRef,
   insert,
 } from "./claim.repository.js";
@@ -107,22 +106,22 @@ describe("claim.repository", () => {
     expect(result).toBe(insertedId);
   });
 
-  it("returns duplicateClientClaimRef when the unique index is hit", async () => {
-    const error = new MongoServerError("E11000 duplicate key");
+  it("propagates a duplicate key error so the transaction can abort", async () => {
+    const error = new Error("E11000 duplicate key");
     error.code = 11000;
     db.collection.mockReturnValue({
       insertOne: vi.fn().mockRejectedValue(error),
     });
 
-    const result = await insert({
-      code: "woodland",
-      clientRef: "wmp-6hb-j8e",
-      claimCode: "ENT_CS_CAPITAL_PA3",
-      clientClaimRef: "WMP-6HB-J8E-C0001",
-      metadata: {},
-      claim: {},
-    });
-
-    expect(result).toBe(duplicateClientClaimRef);
+    await expect(
+      insert({
+        code: "woodland",
+        clientRef: "wmp-6hb-j8e",
+        claimCode: "ENT_CS_CAPITAL_PA3",
+        clientClaimRef: "WMP-6HB-J8E-C0001",
+        metadata: {},
+        claim: {},
+      }),
+    ).rejects.toBe(error);
   });
 });

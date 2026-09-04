@@ -2,9 +2,9 @@ import Boom from "@hapi/boom";
 import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
+import { createEntitlement } from "../../grants/services/entitlement.service.js";
 import { code as grantCode } from "../schemas/code.js";
 import { createEntitlementRequestSchema } from "../schemas/create-entitlement-request.schema.js";
-import { createEntitlementUseCase } from "../use-cases/create-entitlement.use-case.js";
 
 const HTTP_STATUS_CREATED = 201;
 
@@ -36,7 +36,7 @@ export const createEntitlementRoute = {
       `Create entitlement for application with code ${code}, claimCode ${payload.claimCode} and clientRef ${clientRef}`,
     );
 
-    const entitlement = await createEntitlementUseCase({
+    const entitlement = await createEntitlement({
       code,
       clientRef,
       claimCode: payload.claimCode,
