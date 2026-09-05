@@ -30,6 +30,7 @@ afterAll(async () => {
 const code = "grant-1";
 const clientRef = "client-ref-1";
 const claimCode = "ENT_CS_CAPITAL_PA3";
+const entitlementId = "3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 
 const position = {
   phase: ApplicationPhase.PreAward,
@@ -69,6 +70,10 @@ const template = (overrides = {}) => ({
   },
   maxEntitlements: 1,
   availableAt: [position],
+  claim: {
+    claimableAt: [position],
+    limits: { maximumClaims: 1 },
+  },
   ...overrides,
 });
 
@@ -96,37 +101,11 @@ const getAvailableClaims = () =>
   });
 
 describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", () => {
-  describe("stubbed mode", () => {
-    it("returns the static stubbed response", async () => {
-      const response = await getAvailableClaims();
-
-      expect(response.res.statusCode).toBe(200);
-      expect(response.payload.availableClaims).toHaveLength(1);
-      expect(response.payload.availableClaims[0]).toMatchObject({
-        code: "ENT_CS_CAPITAL_PA3",
-        name: "PA3 Woodland Management Plan entitlement",
-        description:
-          "The maximum eligible woodland area that can be claimed under PA3.",
-        data: {
-          totalHectares: {
-            value: 455000,
-            decimalPlaces: 4,
-            minValue: 0.5,
-            maxValue: null,
-          },
-          actionCode: { value: "PA3" },
-          actionVersion: { value: "1.2.3" },
-        },
-      });
-    });
-  });
-
-  // Tests below exercise the live resolution path.
-  // Un-skip once IS_STUBBED is set to false.
-  describe.skip("live resolution", () => {
-    it("returns available claims with merged template metadata when entitlements exist (AC1 + AC2)", async () => {
+  describe("live resolution", () => {
+    it("returns persisted available claims with merged template metadata", async () => {
       await seed({ entitlementTemplates: [template()] });
       await entitlements.insertOne({
+        id: entitlementId,
         clientRef,
         code,
         claimCode,
@@ -143,10 +122,49 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
       expect(response.payload.availableClaims).toHaveLength(1);
       expect(response.payload.availableClaims[0]).toMatchObject({
         code: claimCode,
+        entitlementId,
+        name: "PA3 Woodland Management Plan entitlement",
+        description: "The maximum eligible woodland area that can be claimed.",
+        data: {
+          totalHectares: {
+            value: 45.5,
+            decimalPlaces: 4,
+            minValue: 0.5,
+            maxValue: null,
+          },
+          actionCode: { value: "PA3" },
+          actionVersion: { value: "1.2.3" },
+        },
+      });
+    });
+  });
+
+  describe("availability", () => {
+    it("returns available claims with merged template metadata when entitlements exist (AC1 + AC2)", async () => {
+      await seed({ entitlementTemplates: [template()] });
+      await entitlements.insertOne({
+        id: entitlementId,
+        clientRef,
+        code,
+        claimCode,
+        data: {
+          totalHectares: 455000,
+          actionCode: "PA3",
+          actionVersion: "1.2.3",
+        },
+      });
+
+      const response = await getAvailableClaims();
+
+      expect(response.res.statusCode).toBe(200);
+      expect(response.payload.availableClaims).toHaveLength(1);
+      expect(response.payload.availableClaims[0]).toMatchObject({
+        code: claimCode,
+        entitlementId,
         name: "PA3 Woodland Management Plan entitlement",
         data: {
           totalHectares: {
-            value: 455000,
+            value: 45.5,
             decimalPlaces: 4,
             minValue: 0.5,
             maxValue: null,
@@ -181,7 +199,6 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
           template({ materialised: true, fields: undefined }),
         ],
       });
-      await entitlements.insertOne({ clientRef, code, claimCode });
 
       const response = await getAvailableClaims();
 
@@ -212,12 +229,12 @@ describe("GET /grants/{grantCode}/entitlements/{clientRef}/available-claims", ()
     it("returns 404 when application does not exist (AC4)", async () => {
       await seed({ entitlementTemplates: [template()] });
 
-      const response = await wreck.get(
-        `/grants/${code}/entitlements/nonexistent-ref/available-claims`,
-        { json: true },
-      );
-
-      expect(response.res.statusCode).toBe(404);
+      await expect(
+        wreck.get(
+          `/grants/${code}/entitlements/nonexistent-ref/available-claims`,
+          { json: true },
+        ),
+      ).rejects.toMatchObject({ output: { statusCode: 404 } });
     });
   });
 });

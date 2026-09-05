@@ -9,10 +9,10 @@ import {
   it,
   vi,
 } from "vitest";
-import { createEntitlementUseCase } from "../use-cases/create-entitlement.use-case.js";
+import { createEntitlement } from "../../grants/services/entitlement.service.js";
 import { createEntitlementRoute } from "./create-entitlement.route.js";
 
-vi.mock("../use-cases/create-entitlement.use-case.js");
+vi.mock("../../grants/services/entitlement.service.js");
 vi.mock("../../common/logger.js", () => ({
   logger: {
     info: vi.fn(),
@@ -63,12 +63,12 @@ describe("createEntitlementRoute", () => {
   });
 
   it("creates the entitlement and returns it with 201", async () => {
-    createEntitlementUseCase.mockResolvedValue(entitlement);
+    createEntitlement.mockResolvedValue(entitlement);
 
     const result = await server.inject({ method: "POST", url, payload });
 
     expect(result.statusCode).toEqual(201);
-    expect(createEntitlementUseCase).toHaveBeenCalledWith({
+    expect(createEntitlement).toHaveBeenCalledWith({
       code,
       clientRef,
       claimCode,
@@ -85,7 +85,7 @@ describe("createEntitlementRoute", () => {
     });
 
     expect(result.statusCode).toEqual(400);
-    expect(createEntitlementUseCase).not.toHaveBeenCalled();
+    expect(createEntitlement).not.toHaveBeenCalled();
   });
 
   it("refuses a payload whose clientRef does not match the URL", async () => {
@@ -96,7 +96,7 @@ describe("createEntitlementRoute", () => {
     });
 
     expect(result.statusCode).toEqual(400);
-    expect(createEntitlementUseCase).not.toHaveBeenCalled();
+    expect(createEntitlement).not.toHaveBeenCalled();
   });
 
   it("refuses a payload whose grantCode does not match the URL", async () => {
@@ -107,7 +107,7 @@ describe("createEntitlementRoute", () => {
     });
 
     expect(result.statusCode).toEqual(400);
-    expect(createEntitlementUseCase).not.toHaveBeenCalled();
+    expect(createEntitlement).not.toHaveBeenCalled();
   });
 
   it("refuses a payload without data", async () => {
@@ -133,7 +133,7 @@ describe("createEntitlementRoute", () => {
       `Cannot create entitlement '${claimCode}'. Maximum instance limit of 1 has been reached.`,
     );
     boom.output.payload.errorCode = "ENTITLEMENT_LIMIT_EXCEEDED";
-    createEntitlementUseCase.mockRejectedValue(boom);
+    createEntitlement.mockRejectedValue(boom);
 
     const result = await server.inject({ method: "POST", url, payload });
 

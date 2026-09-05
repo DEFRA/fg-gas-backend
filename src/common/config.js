@@ -105,6 +105,9 @@ const schema = Joi.object({
   // false it stays warn-only (backwards-compatible) and is the default. Feature-flag driven so
   // enforcement can be rolled forward or back per environment.
   CALLER_TOKEN_ENFORCE: Joi.boolean().optional(),
+  WOODLAND_MIGRATION_SOURCE_URL: Joi.string().uri().optional(),
+  WOODLAND_MIGRATION_TOKEN: Joi.string().allow("").optional(),
+  WOODLAND_MIGRATION_CONFIG_VERSION: Joi.string().trim().allow("").optional(),
   // A client:sha256hex pair, e.g. some-service:1f0a... Empty or unset seeds
   // nothing and removes nothing. Deliberately not validated here: the shape is
   // enforced in src/auth/seed-access-token.js, where a bad value warns and
@@ -209,5 +212,10 @@ export const config = {
   cwBackend: {
     url: vars.CW_BACKEND_URL,
     token: vars.CW_BACKEND_TOKEN,
+  },
+  woodlandMigration: {
+    sourceUrl: vars.WOODLAND_MIGRATION_SOURCE_URL,
+    token: vars.WOODLAND_MIGRATION_TOKEN,
+    configVersion: vars.WOODLAND_MIGRATION_CONFIG_VERSION,
   },
 };
