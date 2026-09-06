@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { resolveAgreementIdentitySequence } from "./agreement-identity-sequence.js";
+
+const cloneOptional = (value) =>
+  value === undefined ? undefined : structuredClone(value);
 
 export class Agreement {
   constructor({
@@ -9,13 +13,23 @@ export class Agreement {
     configVersion,
     correlationId,
     identifiers,
-    payload,
+    schemeCode,
+    name,
+    applicant,
+    application,
+    startDate,
+    endDate,
+    parcels,
+    actions,
+    items,
+    annualAmountPence,
+    totalAmountPence,
+    paymentSchedule,
+    identitySequence,
     state,
     createdAt,
     updatedAt,
     acceptedAt,
-    paymentCalculation,
-    supplementaryData,
   }) {
     this.agreementNumber = agreementNumber;
     this.version = version;
@@ -24,21 +38,42 @@ export class Agreement {
     this.configVersion = configVersion;
     this.correlationId = correlationId;
     this.identifiers = structuredClone(identifiers);
-    this.payload = structuredClone(payload);
+    this.schemeCode = schemeCode;
+    this.name = name;
+    this.applicant = cloneOptional(applicant);
+    this.application = cloneOptional(application);
+    this.startDate = startDate;
+    this.endDate = endDate;
+    this.parcels = cloneOptional(parcels);
+    this.actions = cloneOptional(actions);
+    this.items = cloneOptional(items);
+    this.annualAmountPence = annualAmountPence;
+    this.totalAmountPence = totalAmountPence;
+    this.paymentSchedule = cloneOptional(paymentSchedule);
+    this.identitySequence = resolveAgreementIdentitySequence({
+      actions,
+      identitySequence,
+      items,
+      paymentSchedule,
+    });
     this.state = state;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.acceptedAt = acceptedAt;
-    this.paymentCalculation = cloneOptional(paymentCalculation);
-    this.supplementaryData = cloneOptional(supplementaryData);
   }
 
-  transition({ target, transitionedAt, changes = {} }) {
-    const transitionChanges = resolveTransitionChanges(this, changes);
+  transition({ target, transitionedAt, values, configVersion }) {
+    const transitionChanges = resolveTransitionChanges({
+      agreement: this,
+      target,
+      transitionedAt,
+    });
 
     return new Agreement({
       ...this,
+      ...values,
       ...transitionChanges,
+      configVersion: configVersion ?? this.configVersion,
       state: target,
       version: this.version + 1,
       updatedAt: transitionedAt,
@@ -50,10 +85,10 @@ export class Agreement {
     code,
     clientRef,
     configVersion,
-    identifiers,
-    payload,
-    state,
     correlationId = randomUUID(),
+    identifiers,
+    values,
+    state,
     createdAt = new Date().toISOString(),
   }) {
     return new Agreement({
@@ -64,7 +99,7 @@ export class Agreement {
       configVersion,
       correlationId,
       identifiers,
-      payload,
+      ...values,
       state,
       createdAt,
       updatedAt: createdAt,
@@ -72,15 +107,9 @@ export class Agreement {
   }
 }
 
-const cloneOptional = (value) =>
-  value === undefined ? undefined : structuredClone(value);
+const resolveAcceptedAt = ({ agreement, target, transitionedAt }) =>
+  agreement.acceptedAt ?? (target === "accepted" ? transitionedAt : undefined);
 
-const preserveAcceptedAt = (agreement, changes) =>
-  agreement.acceptedAt ?? changes.acceptedAt;
-
-const resolveTransitionChanges = (agreement, changes) => ({
-  acceptedAt: preserveAcceptedAt(agreement, changes),
-  paymentCalculation:
-    changes.paymentCalculation ?? agreement.paymentCalculation,
-  supplementaryData: changes.supplementaryData ?? agreement.supplementaryData,
+const resolveTransitionChanges = (options) => ({
+  acceptedAt: resolveAcceptedAt(options),
 });

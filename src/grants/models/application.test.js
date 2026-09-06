@@ -361,6 +361,16 @@ describe("Application", () => {
     );
   });
 
+  it("gets the current position by part", () => {
+    const application = createTestApplication();
+
+    expect(application.currentPosition()).toEqual({
+      phase: ApplicationPhase.PreAward,
+      stage: ApplicationStage.Assessment,
+      status: ApplicationStatus.Received,
+    });
+  });
+
   it("returns null when getting a non-existent agreement", () => {
     const application = createTestApplication();
 
@@ -578,6 +588,46 @@ describe("Application", () => {
     const answers = application.getAnswers();
 
     expect(answers).toEqual({});
+  });
+
+  describe("referenceContext", () => {
+    it("includes identity, position, identifiers, and answers from every phase", () => {
+      const application = createTestApplication({
+        currentPhase: "CLAIM",
+        currentStage: "PREPARE_CLAIM",
+        currentStatus: "PREPARING_CLAIM",
+        phases: [
+          {
+            code: ApplicationPhase.PreAward,
+            answers: { applicant: { name: "Elmwood" }, woodland: "Old" },
+          },
+          { code: "CLAIM", answers: { woodland: "New" } },
+        ],
+      });
+
+      expect(application.referenceContext()).toEqual({
+        clientRef: "application-1",
+        code: "grant-1",
+        phase: "CLAIM",
+        stage: "PREPARE_CLAIM",
+        status: "PREPARING_CLAIM",
+        identifiers: { sbi: "sbi-1", frn: "frn-1", crn: "crn-1" },
+        answers: { applicant: { name: "Elmwood" }, woodland: "New" },
+      });
+    });
+
+    it("uses empty objects when identifiers and phases are absent", () => {
+      const application = new Application({
+        clientRef: "application-1",
+        code: "grant-1",
+        phases: [],
+      });
+
+      expect(application.referenceContext()).toMatchObject({
+        identifiers: {},
+        answers: {},
+      });
+    });
   });
 
   describe("validation", () => {

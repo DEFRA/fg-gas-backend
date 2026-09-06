@@ -1,47 +1,120 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { pmfAgreementDefinitionFixture } from "../../../test/fixtures/pmf-agreement-definition.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
-import { buildAgreementPageModel } from "./build-agreement-page-model.js";
+import {
+  buildAgreementDocumentPageModel,
+  buildAgreementPageModel,
+} from "./build-agreement-page-model.js";
 
-const definition = new AgreementDefinition({
-  code: "test",
-  configVersion: "1",
-  agreementNumberPrefix: "TST",
-  create: { target: "offered" },
-  states: {
-    offered: {
-      page: "offer",
-      on: {
-        print: {
-          target: "offered",
-          validation: {
+const pmfAgreementDefinition = structuredClone(pmfAgreementDefinitionFixture);
+const creationDefinition = {
+  target: "offered",
+  application: {},
+  values: { actions: [], items: [] },
+};
+
+const explicitTree = (components, width) => [
+  {
+    component: "grid-row",
+    components: [
+      {
+        component: "grid-column",
+        ...(width && { width }),
+        components,
+      },
+    ],
+  },
+];
+
+const wrapSections = (sections = []) => {
+  for (const section of sections) {
+    section.components = explicitTree(section.components);
+  }
+};
+
+const withExplicitTrees = (definition) => {
+  for (const page of Object.values(definition.pages)) {
+    page.components = explicitTree(page.components);
+    wrapSections(page.sections);
+  }
+
+  return definition;
+};
+
+const pageContent = ({ components }) => components[0].components[0].components;
+
+const definition = new AgreementDefinition(
+  withExplicitTrees({
+    code: "test",
+    configVersion: "1",
+    agreementNumberPrefix: "TST",
+    create: creationDefinition,
+    states: {
+      accepted: { page: "offer" },
+      offered: {
+        page: "offer",
+        on: {
+          print: {
+            target: "offered",
             page: "document",
-            required: [
-              {
-                name: "confirm",
-                value: "yes",
-                href: "#confirm",
-                message: "Confirm",
-              },
-            ],
+            validation: {
+              required: [
+                {
+                  name: "confirm",
+                  value: "yes",
+                  href: "#confirm",
+                  message: "Confirm",
+                },
+              ],
+            },
           },
         },
       },
     },
-  },
-  pages: {
-    offer: {
-      title: "Offer",
-      components: [{ component: "heading", text: "Agreement offer" }],
-      actions: [],
+    pages: {
+      offer: {
+        title: "Offer",
+        backLink: {
+          text: "Back to agreement",
+          href: {
+            urlTemplate: "/agreements/{agreementNumber}",
+            params: { agreementNumber: "$.agreement.agreementNumber" },
+          },
+        },
+        components: [{ component: "heading", text: "Agreement offer" }],
+      },
+      document: {
+        title: "Document",
+        layout: "document",
+        contents: true,
+        print: true,
+        watermarks: {
+          offered: "DRAFT",
+        },
+        components: [{ component: "heading", text: "Document" }],
+        sections: [
+          {
+            id: "agreement-details",
+            title: "Agreement $.agreement.agreementNumber",
+            components: [
+              {
+                component: "paragraph",
+                text: "SBI $.agreement.identifiers.sbi",
+              },
+            ],
+          },
+          {
+            id: "accepted-only",
+            title: "Acceptance",
+            condition: "jsonata:$.agreement.state = 'accepted'",
+            components: [{ component: "paragraph", text: "Accepted" }],
+          },
+        ],
+        actions: [{ name: "accept", method: "GET", text: "Accept", href: "/" }],
+      },
     },
-    document: {
-      title: "Document",
-      layout: "document",
-      components: [{ component: "heading", text: "Document" }],
-      actions: [{ name: "accept", method: "GET", text: "Accept", href: "/" }],
-    },
-  },
-});
+  }),
+);
 const agreement = {
   agreementNumber: "TST123",
   code: "test",
@@ -55,8 +128,267 @@ const agreement = {
   state: "offered",
   version: 1,
 };
+const createPageProcessDefinition = (callEndpoint) =>
+  new AgreementDefinition(
+    withExplicitTrees({
+      code: "test",
+      configVersion: "1",
+      agreementNumberPrefix: "TST",
+      processDefinitions: {
+        CALCULATE_PAYMENT: {
+          type: "endpoint",
+          endpoint: {
+            method: "POST",
+            path: "/payment-schedule",
+            service: "LAND_GRANTS",
+          },
+          request: {
+            body: {
+              agreementNumber: "$.agreement.agreementNumber",
+            },
+          },
+          output: {
+            totalAmountPence: "$.response.totalAmountPence",
+          },
+        },
+      },
+      create: creationDefinition,
+      states: {
+        offered: {
+          page: "offer",
+          processes: ["CALCULATE_PAYMENT"],
+        },
+        accepted: { page: "accepted" },
+      },
+      pages: {
+        document: {
+          title: "Document",
+          components: [
+            { component: "heading", text: "Document" },
+            {
+              component: "summary-list",
+              condition: "jsonata:$.agreement.state = 'offered'",
+              rows: [
+                {
+                  label: "Total funding",
+                  text: "$.outputs.CALCULATE_PAYMENT.totalAmountPence",
+                  format: "poundsFromPence",
+                },
+              ],
+            },
+          ],
+        },
+        offer: {
+          title: "Offer",
+          components: [
+            {
+              component: "summary-list",
+              rows: [
+                {
+                  label: "Total funding",
+                  text: "$.outputs.CALCULATE_PAYMENT.totalAmountPence",
+                  format: "poundsFromPence",
+                },
+              ],
+            },
+          ],
+        },
+        accepted: {
+          title: "Accepted",
+          components: [{ component: "heading", text: "Accepted" }],
+        },
+      },
+    }),
+    { callEndpoint },
+  );
+
+const offeredValues = {
+  application: { whitePigsCount: 5 },
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      description: "Large White Pig",
+      quantity: 5,
+      unit: "head",
+      ratePence: 1000,
+      totalAmountPence: 5000,
+    },
+  ],
+  items: [],
+  startDate: "2026-08-06",
+  endDate: "2027-08-05",
+  totalAmountPence: 5000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-11",
+        totalAmountPence: 5000,
+        lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+      },
+    ],
+  },
+};
 
 describe("buildAgreementPageModel", () => {
+  it.each([
+    {
+      name: "GET button",
+      components: [
+        {
+          component: "grid-row",
+          components: [
+            {
+              component: "grid-column",
+              components: [
+                {
+                  component: "button",
+                  action: "continue",
+                  text: "Continue",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      expected: {
+        component: "button",
+        href: "/agreements/TST123/actions/continue",
+        text: "Continue",
+      },
+    },
+    {
+      name: "POST form",
+      components: [
+        {
+          component: "grid-row",
+          components: [
+            {
+              component: "grid-column",
+              components: [
+                {
+                  component: "form",
+                  action: "accept",
+                  components: [{ component: "button", text: "Accept" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      expected: {
+        component: "form",
+        method: "POST",
+        formAction: "/agreements/TST123/actions/accept",
+        hiddenFields: [],
+        submissionRequirements: [],
+        components: [{ component: "button", text: "Accept", submit: true }],
+      },
+    },
+  ])(
+    "publishes a resolved $name without an action catalogue",
+    async ({ components, expected }) => {
+      const agreementDefinition = new AgreementDefinition({
+        code: "test",
+        configVersion: "1",
+        agreementNumberPrefix: "TST",
+        create: creationDefinition,
+        states: {
+          offered: {
+            page: "offer",
+            on: { accept: { target: "accepted" } },
+          },
+          accepted: { page: "offer" },
+        },
+        pages: { offer: { title: "Offer", components } },
+      });
+
+      const model = await buildAgreementPageModel({
+        agreement,
+        agreementDefinition,
+        page: "offer",
+        mode: "view",
+      });
+
+      expect(model.components[0].components[0].components).toEqual([expected]);
+      expect(model).not.toHaveProperty("actions");
+      expect(JSON.stringify(model)).not.toContain("actionId");
+    },
+  );
+
+  it("runs configured page Processes on every render and exposes their ephemeral outputs", async () => {
+    const callEndpoint = vi
+      .fn()
+      .mockResolvedValueOnce({ totalAmountPence: 1200 })
+      .mockResolvedValueOnce({ totalAmountPence: 3400 });
+    const agreementDefinition = createPageProcessDefinition(callEndpoint);
+    const render = () =>
+      buildAgreementPageModel({
+        agreement,
+        agreementDefinition,
+        page: "offer",
+        mode: "view",
+      });
+
+    const first = await render();
+    const second = await render();
+
+    expect(first.components).toEqual(
+      explicitTree([
+        {
+          component: "summary-list",
+          rows: [{ label: "Total funding", text: "£12" }],
+        },
+      ]),
+    );
+    expect(second.components).toEqual(
+      explicitTree([
+        {
+          component: "summary-list",
+          rows: [{ label: "Total funding", text: "£34" }],
+        },
+      ]),
+    );
+    expect(callEndpoint).toHaveBeenCalledTimes(2);
+    expect(callEndpoint).toHaveBeenCalledWith(
+      {
+        code: "CALCULATE_PAYMENT",
+        method: "POST",
+        path: "/payment-schedule",
+        service: "LAND_GRANTS",
+      },
+      { BODY: { agreementNumber: "TST123" } },
+    );
+    expect(agreement).not.toHaveProperty("totalAmountPence");
+  });
+
+  it("does not run offered-page Processes after acceptance", async () => {
+    const callEndpoint = vi.fn();
+
+    await buildAgreementPageModel({
+      agreement: { ...agreement, state: "accepted" },
+      agreementDefinition: createPageProcessDefinition(callEndpoint),
+      page: "accepted",
+      mode: "view",
+    });
+
+    expect(callEndpoint).not.toHaveBeenCalled();
+  });
+
+  it("fails the page request when a page Process fails", async () => {
+    const callEndpoint = vi.fn().mockRejectedValue(new Error("unavailable"));
+
+    await expect(
+      buildAgreementPageModel({
+        agreement,
+        agreementDefinition: createPageProcessDefinition(callEndpoint),
+        page: "offer",
+        mode: "view",
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 502 } });
+  });
+
   it("builds presentation from one Agreement", async () => {
     await expect(
       buildAgreementPageModel({
@@ -74,81 +406,504 @@ describe("buildAgreementPageModel", () => {
         state: "offered",
         version: 1,
       },
-      page: { name: "offer", title: "Offer" },
-      components: [{ component: "heading", text: "Agreement offer" }],
-      actions: [],
+      page: {
+        name: "offer",
+        title: "Offer",
+        backLink: {
+          text: "Back to agreement",
+          href: "/agreements/TST123",
+        },
+      },
+      components: explicitTree([
+        { component: "heading", text: "Agreement offer" },
+      ]),
     });
-  });
 
-  it("removes actions in print mode", async () => {
-    const result = await buildAgreementPageModel({
+    const model = await buildAgreementPageModel({
       agreement,
       agreementDefinition: definition,
-      page: "document",
-      mode: "print",
+      page: "offer",
+      mode: "view",
     });
-    expect(result.page.layout).toBe("document");
-    expect(result.actions).toEqual([]);
+    expect(model.agreement).not.toHaveProperty("applicant");
   });
 
-  it("resolves a template from the definition against the agreement", async () => {
-    const templateDefinition = new AgreementDefinition({
-      code: "test",
-      configVersion: "1",
-      agreementNumberPrefix: "TST",
-      create: { target: "offered" },
-      states: { offered: { page: "offer" } },
-      templates: {
-        stateSummary: {
-          offered: {
-            content: [{ component: "status", text: "Draft agreement" }],
-          },
-        },
+  it("projects applicant account display fields on lifecycle and document pages", async () => {
+    const agreementWithApplicant = {
+      ...agreement,
+      applicant: {
+        business: { name: "Gotham City Pigs Ltd" },
+        customer: { name: { first: "Bruce", last: "Wayne" } },
       },
-      pages: {
-        offer: {
-          title: "Offer",
-          components: [
-            {
-              component: "template",
-              templateRef: "$.definition.templates.stateSummary",
-              templateKey: "$.agreement.state",
-            },
-          ],
-          actions: [],
-        },
-      },
-    });
+    };
 
-    await expect(
+    const [lifecycleModel, documentModel] = await Promise.all([
       buildAgreementPageModel({
-        agreement,
-        agreementDefinition: templateDefinition,
+        agreement: agreementWithApplicant,
+        agreementDefinition: definition,
         page: "offer",
         mode: "view",
       }),
-    ).resolves.toMatchObject({
-      components: [{ component: "status", text: "Draft agreement" }],
-    });
+      buildAgreementDocumentPageModel({
+        agreement: agreementWithApplicant,
+        agreementDefinition: definition,
+      }),
+    ]);
+    const applicant = {
+      business: { name: "Gotham City Pigs Ltd" },
+      customer: { name: { first: "Bruce", last: "Wayne" } },
+    };
+
+    expect(lifecycleModel.agreement.applicant).toEqual(applicant);
+    expect(documentModel.agreement.applicant).toEqual(applicant);
   });
 
-  it("returns a controlled internal error, naming the page and agreement but not agreement data, when a valid definition cannot be resolved", async () => {
-    const unresolvableDefinition = new AgreementDefinition({
+  it("removes configured action nodes in print mode", async () => {
+    const printableDefinition = new AgreementDefinition({
       code: "test",
       configVersion: "1",
       agreementNumberPrefix: "TST",
-      create: { target: "offered" },
-      states: { offered: { page: "offer" } },
+      create: creationDefinition,
+      states: { offered: { page: "offer" }, accepted: { page: "offer" } },
       pages: {
         offer: {
           title: "Offer",
-          components: [
-            { component: "paragraph", text: "$.agreement.doesNotExist" },
-          ],
-          actions: [],
+          components: explicitTree([
+            { component: "heading", text: "Agreement offer" },
+            {
+              component: "button",
+              action: "continue",
+              text: "Continue",
+            },
+          ]),
         },
       },
     });
+
+    const result = await buildAgreementPageModel({
+      agreement,
+      agreementDefinition: printableDefinition,
+      page: "offer",
+      mode: "print",
+    });
+
+    expect(result.components).toEqual(
+      explicitTree([{ component: "heading", text: "Agreement offer" }]),
+    );
+    expect(result).not.toHaveProperty("actions");
+    expect(JSON.stringify(result)).not.toContain("actionId");
+  });
+
+  it("runs offered-state Processes when building a draft document", async () => {
+    const callEndpoint = vi.fn().mockResolvedValue({ totalAmountPence: 1200 });
+
+    const model = await buildAgreementDocumentPageModel({
+      agreement,
+      agreementDefinition: createPageProcessDefinition(callEndpoint),
+    });
+
+    expect(pageContent(model)).toContainEqual({
+      component: "summary-list",
+      rows: [{ label: "Total funding", text: "£12" }],
+    });
+    expect(callEndpoint).toHaveBeenCalledOnce();
+  });
+
+  it("does not run offered-state Processes when building an accepted document", async () => {
+    const callEndpoint = vi.fn();
+
+    const model = await buildAgreementDocumentPageModel({
+      agreement: { ...agreement, state: "accepted" },
+      agreementDefinition: createPageProcessDefinition(callEndpoint),
+    });
+
+    expect(model.components).toEqual(
+      explicitTree([{ component: "heading", text: "Document" }]),
+    );
+    expect(callEndpoint).not.toHaveBeenCalled();
+  });
+
+  it("builds pages.document without lifecycle actions", async () => {
+    const result = await buildAgreementDocumentPageModel({
+      agreement,
+      agreementDefinition: definition,
+    });
+
+    expect(result.page).toEqual({
+      name: "document",
+      title: "Document",
+      layout: "document",
+      contents: true,
+      print: true,
+      watermark: { text: "DRAFT" },
+    });
+    expect(result.sections).toEqual([
+      {
+        id: "agreement-details",
+        title: "Agreement TST123",
+        components: explicitTree([
+          { component: "paragraph", text: "SBI 300000000" },
+        ]),
+      },
+    ]);
+    expect(result).not.toHaveProperty("actions");
+  });
+
+  it("omits a watermark when the current state is not mapped", async () => {
+    const result = await buildAgreementDocumentPageModel({
+      agreement: { ...agreement, state: "accepted" },
+      agreementDefinition: definition,
+    });
+
+    expect(result.page.watermark).toBeUndefined();
+    expect(result.sections.at(-1)).toEqual({
+      id: "accepted-only",
+      title: "Acceptance",
+      components: explicitTree([{ component: "paragraph", text: "Accepted" }]),
+    });
+  });
+
+  it("keeps the complete PMF document and a concise accepted page", async () => {
+    const acceptedAgreement = {
+      ...agreement,
+      code: "pigs-might-fly",
+      configVersion: "1.2.0",
+      state: "accepted",
+      acceptedAt: "2026-07-31T15:30:00.000Z",
+      ...offeredValues,
+    };
+    const pmfDefinition = new AgreementDefinition(pmfAgreementDefinition);
+
+    const [documentModel, acceptedModel] = await Promise.all([
+      buildAgreementDocumentPageModel({
+        agreement: acceptedAgreement,
+        agreementDefinition: pmfDefinition,
+      }),
+      buildAgreementPageModel({
+        agreement: acceptedAgreement,
+        agreementDefinition: pmfDefinition,
+        page: "accepted",
+        mode: "view",
+      }),
+    ]);
+
+    expect(documentModel.page.watermark).toBeUndefined();
+    expect(
+      documentModel.sections.find(({ id }) => id === "pigs-and-funding"),
+    ).toEqual({
+      id: "pigs-and-funding",
+      title: "Pigs and funding",
+      components: explicitTree(
+        [
+          {
+            component: "table",
+            head: [
+              { text: "Pig type" },
+              { text: "Number of pigs" },
+              { text: "Funding amount" },
+            ],
+            rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
+          },
+          {
+            component: "summary-list",
+            rows: [{ label: "Total funding", text: "£50" }],
+          },
+        ],
+        "two-thirds",
+      ),
+    });
+    const paymentSchedule = documentModel.sections.find(
+      ({ id }) => id === "payment-schedule",
+    );
+    expect(pageContent(paymentSchedule)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          component: "table",
+          rows: [[{ text: "11 November 2026" }, { text: "£50" }]],
+        }),
+      ]),
+    );
+    expect(acceptedModel.components).toEqual(
+      explicitTree(
+        [
+          {
+            component: "panel",
+            title: "Agreement offer accepted",
+            text: "Agreement number: TST123",
+          },
+          {
+            component: "summary-list",
+            rows: [{ label: "Agreement start date", text: "6 August 2026" }],
+          },
+          {
+            component: "url",
+            href: "/agreements/TST123/document",
+            text: "View and print your agreement (opens in new tab)",
+            target: "_blank",
+          },
+        ],
+        "two-thirds",
+      ),
+    );
+  });
+
+  it("derives PMF document watermarks from future terminal states", async () => {
+    const futureDefinition = structuredClone(pmfAgreementDefinition);
+    futureDefinition.states.terminated = { page: "withdrawn" };
+    futureDefinition.pages.document.watermarks.terminated = "TERMINATED";
+
+    const documentModel = await buildAgreementDocumentPageModel({
+      agreement: {
+        ...agreement,
+        code: "pigs-might-fly",
+        state: "terminated",
+        ...offeredValues,
+      },
+      agreementDefinition: new AgreementDefinition(futureDefinition),
+    });
+
+    expect(documentModel.page.watermark).toEqual({ text: "TERMINATED" });
+  });
+
+  it("renders withdrawn PMF pages without lifecycle actions", async () => {
+    const withdrawnAgreement = {
+      ...agreement,
+      code: "pigs-might-fly",
+      state: "withdrawn",
+      ...offeredValues,
+    };
+    const pmfDefinition = new AgreementDefinition(pmfAgreementDefinition);
+
+    const [documentModel, withdrawnModel] = await Promise.all([
+      buildAgreementDocumentPageModel({
+        agreement: withdrawnAgreement,
+        agreementDefinition: pmfDefinition,
+      }),
+      buildAgreementPageModel({
+        agreement: withdrawnAgreement,
+        agreementDefinition: pmfDefinition,
+        page: "withdrawn",
+        mode: "view",
+      }),
+    ]);
+
+    expect(documentModel.page.watermark).toEqual({ text: "WITHDRAWN" });
+    expect(pageContent(documentModel)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          component: "notification-banner",
+          title: "This agreement offer has been withdrawn",
+        }),
+      ]),
+    );
+    expect(withdrawnModel.page).toMatchObject({
+      watermark: { text: "WITHDRAWN" },
+    });
+    expect(pageContent(withdrawnModel)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          component: "notification-banner",
+          title: "This agreement offer has been withdrawn",
+        }),
+      ]),
+    );
+    expect(withdrawnModel).not.toHaveProperty("actions");
+  });
+
+  it("shows the PMF offer summary without duplicating the payment schedule", async () => {
+    const offeredAgreement = {
+      ...agreement,
+      code: "pigs-might-fly",
+      ...offeredValues,
+    };
+
+    const model = await buildAgreementPageModel({
+      agreement: offeredAgreement,
+      agreementDefinition: new AgreementDefinition(pmfAgreementDefinition),
+      page: "offered",
+      mode: "view",
+    });
+
+    expect(pageContent(model)).toEqual([
+      {
+        component: "heading",
+        level: 1,
+        text: "Review your agreement offer",
+      },
+      {
+        component: "paragraph",
+        text: "Check the details of this test agreement before you continue.",
+      },
+      {
+        component: "summary-list",
+        rows: [
+          { label: "SBI", text: "300000000" },
+          { label: "Agreement number", text: "TST123" },
+        ],
+      },
+      {
+        component: "heading",
+        level: 2,
+        text: "Pigs and funding",
+      },
+      {
+        component: "table",
+        head: [
+          { text: "Pig type" },
+          { text: "Number of pigs" },
+          { text: "Funding amount" },
+        ],
+        rows: [[{ text: "Large White Pig" }, { text: 5 }, { text: "£50" }]],
+      },
+      {
+        component: "summary-list",
+        rows: [
+          { label: "Agreement start date", text: "6 August 2026" },
+          { label: "Agreement end date", text: "5 August 2027" },
+          { label: "Total funding", text: "£50" },
+        ],
+      },
+      {
+        component: "url",
+        href: "/agreements/TST123/document",
+        text: "View the draft agreement (opens in new tab)",
+        target: "_blank",
+        classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
+      },
+      {
+        component: "button",
+        href: "/agreements/TST123/actions/accept",
+        text: "Continue",
+      },
+    ]);
+    expect(model).not.toHaveProperty("actions");
+  });
+
+  it("focuses the PMF acceptance page on declarations and confirmation", async () => {
+    const model = await buildAgreementPageModel({
+      agreement: {
+        ...agreement,
+        code: "pigs-might-fly",
+        ...offeredValues,
+      },
+      agreementDefinition: new AgreementDefinition(pmfAgreementDefinition),
+      page: "accept",
+      mode: "view",
+    });
+
+    expect(pageContent(model)).toEqual([
+      {
+        component: "form",
+        method: "POST",
+        formAction: "/agreements/TST123/actions/accept",
+        hiddenFields: [],
+        submissionRequirements: [{ name: "confirm", value: "confirmed" }],
+        components: [
+          {
+            component: "heading",
+            level: 1,
+            text: "Accept your agreement offer",
+          },
+          {
+            component: "url",
+            href: "/agreements/TST123/document",
+            text: "View the draft agreement (opens in new tab)",
+            target: "_blank",
+            classes: "govuk-link govuk-!-display-block govuk-!-margin-bottom-4",
+          },
+          {
+            component: "paragraph",
+            text: "By accepting this offer, you confirm that:",
+          },
+          {
+            component: "unordered-list",
+            items: [
+              { text: "the information in the agreement is correct" },
+              { text: "you have authority to accept the agreement" },
+              { text: "you understand this is a test grant" },
+            ],
+          },
+          {
+            component: "checkboxes",
+            name: "confirm",
+            items: [
+              {
+                value: "confirmed",
+                text: "I confirm I have read the information in this section and accept this agreement offer.",
+              },
+            ],
+          },
+          {
+            component: "button",
+            text: "Accept agreement offer",
+            submit: true,
+          },
+        ],
+      },
+    ]);
+    expect(model).not.toHaveProperty("actions");
+  });
+
+  it("resolves a template from the definition against the agreement", async () => {
+    const templateDefinition = new AgreementDefinition(
+      withExplicitTrees({
+        code: "test",
+        configVersion: "1",
+        agreementNumberPrefix: "TST",
+        create: creationDefinition,
+        states: { offered: { page: "offer" }, accepted: { page: "offer" } },
+        templates: {
+          stateSummary: {
+            offered: {
+              content: [{ component: "status", text: "Draft agreement" }],
+            },
+          },
+        },
+        pages: {
+          offer: {
+            title: "Offer",
+            components: [
+              {
+                component: "template",
+                templateRef: "$.definition.templates.stateSummary",
+                templateKey: "$.agreement.state",
+              },
+            ],
+          },
+        },
+      }),
+    );
+
+    const model = await buildAgreementPageModel({
+      agreement,
+      agreementDefinition: templateDefinition,
+      page: "offer",
+      mode: "view",
+    });
+
+    expect(pageContent(model)).toEqual([
+      { component: "status", text: "Draft agreement" },
+    ]);
+  });
+
+  it("returns a controlled internal error, naming the page and agreement but not agreement data, when a valid definition cannot be resolved", async () => {
+    const unresolvableDefinition = new AgreementDefinition(
+      withExplicitTrees({
+        code: "test",
+        configVersion: "1",
+        agreementNumberPrefix: "TST",
+        create: creationDefinition,
+        states: { offered: { page: "offer" }, accepted: { page: "offer" } },
+        pages: {
+          offer: {
+            title: "Offer",
+            components: [
+              { component: "paragraph", text: "$.agreement.doesNotExist" },
+            ],
+          },
+        },
+      }),
+    );
 
     const error = await buildAgreementPageModel({
       agreement,

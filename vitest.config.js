@@ -9,7 +9,12 @@ export default defineConfig({
     coverage: {
       reporter: ["text", "lcov", "html"],
       include: ["src/**/*.js"],
-      exclude: ["**/migrations/**", "**/test/**", "**/scripts/**"],
+      exclude: [
+        "**/migrations/**",
+        "**/test/**",
+        "**/scripts/**",
+        "**/__mocks__/**",
+      ],
     },
     env: {
       NODE_ENV: "test",
@@ -25,6 +30,7 @@ export default defineConfig({
       AWS_REGION: "eu-west-2",
       AWS_ENDPOINT_URL: "http://localhost:4566",
       ENVIRONMENT: "local",
+      VIEW_AGREEMENT_URI: "http://localhost:3000",
       OUTBOX_MAX_RETRIES: 5,
       OUTBOX_CLAIM_MAX_RECORDS: 2,
       OUTBOX_EXPIRES_MS: 5000,
@@ -35,11 +41,16 @@ export default defineConfig({
       INBOX_POLL_MS: 250,
       FIFO_LOCK_TTL_MS: 300000,
       GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: "some:arn",
+      GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
       GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: "some:arn",
+      GAS_MANAGED_AGREEMENT_GRANT_CODES: "pigs-might-fly,another-gas-grant",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: "some:arn",
       GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: "some:arn",
       GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: "some:arn",
       GAS__SNS__UPDATE_CASE_STATUS_TOPIC_ARN: "some:arn",
+      GAS__SNS__CREATE_PAYMENT_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
       GRANT_FUNDING_CALCULATOR_URL: "http://grant-funding-calculator.test",
     },
   },

@@ -1,5 +1,11 @@
+import Boom from "@hapi/boom";
+import { EntitlementTemplate } from "./entitlement-template.js";
+
 // Constants for fully qualified status path format: "PHASE:STAGE:STATUS"
 const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
+
+const formatPosition = ({ phase, stage, status }) =>
+  [phase, stage, status].filter((part) => part != null).join(":");
 
 export class Grant {
   constructor({
@@ -10,6 +16,14 @@ export class Grant {
     phases,
     externalStatusMap,
     amendablePositions,
+    // Always a collection, never absent. The repository normalises what it
+    // reads out of Mongo; everything else builds a Grant from a request or a
+    // grant definition, where omitting the block means it has none.
+    entitlementTemplates = [],
+    // How a page built from this grant labels and fills its banner. Absent for
+    // a grant no admin page is configured for, which is every grant until one
+    // is written.
+    pages,
   }) {
     this.code = code;
     this.version = version;
@@ -21,6 +35,104 @@ export class Grant {
     this.phases = phases;
     this.externalStatusMap = externalStatusMap;
     this.amendablePositions = amendablePositions;
+    this.entitlementTemplates = entitlementTemplates.map(
+      (template) => new EntitlementTemplate(template),
+    );
+    this.pages = pages;
+
+    this.#assertEntitlementTemplateClaimCodesUnique();
+    this.#assertEntitlementTemplatePositionsExist();
+  }
+
+  findEntitlementTemplate(claimCode) {
+    return this.entitlementTemplates.find(
+      (template) => template.claimCode === claimCode,
+    );
+  }
+
+  // Every template that could yield an entitlement once an application reaches
+  // the given position. Materialised or not is the caller's business: both
+  // kinds are gated on position alone.
+  findEntitlementTemplatesAvailableAt(position) {
+    return this.entitlementTemplates.filter((template) =>
+      template.isAvailableAt(position),
+    );
+  }
+
+  // findEntitlementTemplate returns the first match, so a duplicated claim code
+  // would silently half-ignore one of the definitions. The array Joi schema
+  // enforces this for the admin API; the S3 ingest path builds each template
+  // individually, so the aggregate has to enforce it too.
+  #assertEntitlementTemplateClaimCodesUnique() {
+    const claimCodes = new Set();
+
+    for (const template of this.entitlementTemplates) {
+      if (claimCodes.has(template.claimCode)) {
+        throw Boom.badImplementation(
+          `Duplicate entitlement template claim code "${template.claimCode}"`,
+        );
+      }
+
+      claimCodes.add(template.claimCode);
+    }
+  }
+
+  // A position that resolves to nothing disables the template silently - it
+  // simply never becomes available - which is how this ticket's own missing
+  // PHASE_CLAIM gap went unnoticed. Reject it at ingest instead.
+  #assertEntitlementTemplatePositionsExist() {
+    for (const template of this.entitlementTemplates) {
+      this.#assertTemplatePositionsExist(template);
+    }
+  }
+
+  #assertTemplatePositionsExist(template) {
+    this.#assertPositionsExist(
+      template.claimCode,
+      "available at",
+      template.availableAt,
+    );
+    this.#assertPositionsExist(
+      template.claimCode,
+      "claimable at",
+      this.#claimableAtPositions(template),
+    );
+  }
+
+  #claimableAtPositions(template) {
+    return template.claim?.claimableAt ?? [];
+  }
+
+  #assertPositionsExist(claimCode, relation, positions) {
+    for (const position of positions) {
+      this.#assertPositionExists(claimCode, relation, position);
+    }
+  }
+
+  #assertPositionExists(claimCode, relation, position) {
+    if (!this.#positionExists(position)) {
+      throw Boom.badImplementation(
+        `Entitlement template "${claimCode}" is ${relation} position "${formatPosition(position)}" which does not match any position in "phases"`,
+      );
+    }
+  }
+
+  // Only the parts the template declares are checked: a phase-only position is
+  // valid as long as the phase exists.
+  #positionExists({ phase, stage, status }) {
+    const foundPhase = this.#findPhase(this.phases, phase);
+    const foundStage = this.#findStage(foundPhase, stage);
+    const foundStatus = this.#findStatus(foundStage, status);
+
+    if (status != null) {
+      return Boolean(foundStatus);
+    }
+
+    if (stage != null) {
+      return Boolean(foundStage);
+    }
+
+    return Boolean(foundPhase);
   }
 
   get hasPhases() {

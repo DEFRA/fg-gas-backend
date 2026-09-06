@@ -19,21 +19,36 @@ describe("Current Agreement route", () => {
         version: 1,
       },
       page: { name: "offered", title: "Review your agreement offer" },
-      components: [],
-      actions: [],
+      components: [
+        {
+          component: "grid-row",
+          components: [
+            {
+              component: "grid-column",
+              components: [{ component: "heading", text: "Offer" }],
+            },
+          ],
+        },
+      ],
     };
     getCurrentAgreementPageModelUseCase.mockResolvedValue({
       agreement: { agreementNumber: "PMF123", version: 1 },
       pageModel,
+      etag: '"PMF123:1:1.2.0"',
     });
 
     const response = await server.inject({
       method: "GET",
-      url: "/agreements/current?code=pigs-might-fly&clientRef=client&sbi=300000000&mode=print",
+      url: "/agreements/current?mode=print",
+      headers: {
+        "x-agreement-code": "pigs-might-fly",
+        "x-agreement-client-ref": "client",
+        "x-agreement-sbi": "300000000",
+      },
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.headers.etag).toBe('"PMF123:1"');
+    expect(response.headers.etag).toBe('"PMF123:1:1.2.0"');
     expect(response.result).toEqual(pageModel);
     expect(getCurrentAgreementPageModelUseCase).toHaveBeenCalledWith({
       code: "pigs-might-fly",
@@ -43,13 +58,11 @@ describe("Current Agreement route", () => {
     });
   });
 
-  it("requires code, client reference and SBI", async () => {
+  it("requires the Agreement identity headers", async () => {
     const server = hapi.server();
     server.route(getCurrentAgreementRoute);
 
-    const response = await server.inject(
-      "/agreements/current?code=pigs-might-fly",
-    );
+    const response = await server.inject("/agreements/current");
 
     expect(response.statusCode).toBe(400);
   });

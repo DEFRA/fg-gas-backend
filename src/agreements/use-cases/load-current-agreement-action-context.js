@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
-export const resolveAgreementAction = (agreementDefinition, options) => {
+const resolveAgreementAction = (agreementDefinition, options) => {
   try {
     return agreementDefinition.resolveAction(options);
   } catch (error) {
@@ -13,19 +13,36 @@ export const resolveAgreementAction = (agreementDefinition, options) => {
   }
 };
 
+const assertCurrentAgreement = (ifMatch, etag) => {
+  if (ifMatch === undefined || ifMatch === etag) {
+    return;
+  }
+
+  const stale = Boom.preconditionFailed("Agreement version is stale");
+  stale.output.headers.location = "/agreements/current";
+  if (etag) {
+    stale.output.headers.etag = etag;
+  }
+  throw stale;
+};
+
 export const loadCurrentAgreementActionContext = async ({
   actionName,
+  agreement,
   agreementNumber,
   session,
+  ifMatch,
 }) => {
-  const { agreement, agreementDefinition } = await loadCurrentAgreementContext({
+  const context = await loadCurrentAgreementContext({
+    agreement,
     agreementNumber,
     session,
   });
-  const action = resolveAgreementAction(agreementDefinition, {
-    state: agreement.state,
+  assertCurrentAgreement(ifMatch, context.etag);
+  const action = resolveAgreementAction(context.agreementDefinition, {
+    state: context.agreement.state,
     action: actionName,
   });
 
-  return { action, agreement, agreementDefinition };
+  return { action, ...context };
 };

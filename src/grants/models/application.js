@@ -126,6 +126,32 @@ export class Application {
     return `${this.currentPhase}:${this.currentStage}:${this.currentStatus}`;
   }
 
+  // The same position as getFullyQualifiedStatus, by part rather than joined,
+  currentPosition() {
+    return {
+      phase: this.currentPhase,
+      stage: this.currentStage,
+      status: this.currentStatus,
+    };
+  }
+
+  referenceContext() {
+    const answers = (this.phases ?? []).reduce(
+      (merged, phase) => ({ ...merged, ...(phase.answers ?? {}) }),
+      {},
+    );
+
+    return {
+      clientRef: this.clientRef,
+      code: this.code,
+      phase: this.currentPhase,
+      stage: this.currentStage,
+      status: this.currentStatus,
+      identifiers: this.identifiers ?? {},
+      answers,
+    };
+  }
+
   addAgreement(agreement) {
     if (this.agreements[agreement.agreementRef]) {
       throw Boom.conflict(

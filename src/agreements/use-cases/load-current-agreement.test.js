@@ -4,6 +4,8 @@ import {
   findAgreementBySourceIdentity,
 } from "../repositories/agreement.repository.js";
 import {
+  loadAgreementDocument,
+  loadAgreementForAction,
   loadCurrentAgreement,
   loadCurrentAgreementByNumber,
 } from "./load-current-agreement.js";
@@ -52,5 +54,125 @@ describe("load current Agreement", () => {
         agreementNumber: agreement.agreementNumber,
       }),
     ).resolves.toBe(agreement);
+  });
+
+  it("loads a customer document when the grant and SBI match", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementDocument({
+        agreementNumber: agreement.agreementNumber,
+        access: {
+          source: "defra",
+          code: agreement.code,
+          sbi: agreement.identifiers.sbi,
+        },
+      }),
+    ).resolves.toBe(agreement);
+  });
+
+  it("does not disclose a numbered document from another SBI account", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementDocument({
+        agreementNumber: agreement.agreementNumber,
+        access: {
+          source: "defra",
+          code: agreement.code,
+          sbi: "999999999",
+        },
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+  });
+
+  it("allows Caseworking to read a document when the grant and SBI match", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementDocument({
+        agreementNumber: agreement.agreementNumber,
+        access: {
+          source: "entra",
+          code: agreement.code,
+          sbi: agreement.identifiers.sbi,
+        },
+      }),
+    ).resolves.toBe(agreement);
+  });
+
+  it("does not disclose a document to Caseworking for another SBI", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementDocument({
+        agreementNumber: agreement.agreementNumber,
+        access: {
+          source: "entra",
+          code: agreement.code,
+          sbi: "999999999",
+        },
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+  });
+
+  it("does not allow an unsupported document access source", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementDocument({
+        agreementNumber: agreement.agreementNumber,
+        access: {
+          source: "unknown",
+          code: agreement.code,
+          sbi: agreement.identifiers.sbi,
+        },
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+  });
+
+  it("does not disclose a numbered document from another grant", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementDocument({
+        agreementNumber: agreement.agreementNumber,
+        access: {
+          source: "defra",
+          code: "another-grant",
+          sbi: agreement.identifiers.sbi,
+        },
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+  });
+
+  it("allows a customer to act on their own Agreement", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementForAction({
+        agreementNumber: agreement.agreementNumber,
+        access: {
+          source: "defra",
+          code: agreement.code,
+          sbi: agreement.identifiers.sbi,
+        },
+      }),
+    ).resolves.toBe(agreement);
+  });
+
+  it("does not allow Caseworking to invoke Agreement actions", async () => {
+    findAgreementByNumber.mockResolvedValue(agreement);
+
+    await expect(
+      loadAgreementForAction({
+        agreementNumber: agreement.agreementNumber,
+        access: {
+          source: "entra",
+          code: agreement.code,
+          sbi: agreement.identifiers.sbi,
+        },
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
   });
 });

@@ -1,44 +1,18 @@
+import { randomUUID } from "node:crypto";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { loadAgreementDefinition } from "../models/agreement-definitions/agreement-definition-loader.js";
 import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
 import {
   findAgreementBySourceIdentity,
   insertAgreementVersion,
   insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
-import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
-import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
-
-const buildInitialAgreement = async (definition, agreement, answers) => {
-  const effectContext = await runAgreementEffects(
-    definition.getCreationEffects(),
-    {
-      agreement,
-      answers,
-      outputs: {},
-      endpoints: definition.getEndpoints(),
-      executedAt: agreement.createdAt,
-      target: agreement.state,
-      version: agreement.version,
-    },
-  );
-
-  const resultingAgreement = new Agreement(effectContext.agreement);
-
-  return {
-    agreement: resultingAgreement,
-    outboundEvents: createOutboxMessages(
-      effectContext.outboxMessageTypes ?? [],
-      resultingAgreement,
-    ),
-  };
-};
+import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
+import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
 const createAgreement = async (event) => {
-  const { clientRef, code, identifiers, metadata, answers } = event.data;
+  const { clientRef, code, currentConfigVersion } = event.data;
   const existingAgreement = await findAgreementBySourceIdentity({
     clientRef,
     code,
@@ -50,22 +24,22 @@ const createAgreement = async (event) => {
 
   const definition = await loadAgreementDefinition({
     code,
-    configVersion: metadata?.configVersion,
+    configVersion: currentConfigVersion,
+    resolution: "creation",
   });
-  const initialAgreement = definition.createAgreement({
-    clientRef,
-    identifiers,
-    payload: answers,
+  const execution = {
+    correlationId: randomUUID(),
+    executedAt: new Date().toISOString(),
+  };
+  const agreement = await definition.createAgreement({
+    input: event.data,
+    execution,
   });
-  const { agreement, outboundEvents } = await buildInitialAgreement(
-    definition,
-    initialAgreement,
-    answers,
-  );
   const agreementVersion = AgreementVersion.create({
     agreement,
     versionedAt: agreement.createdAt,
   });
+  const outboundEvents = createOutboxMessages(["lifecycle"], agreement);
 
   return withTransaction(async (session) => {
     await insertCurrentAgreement(agreement, session);

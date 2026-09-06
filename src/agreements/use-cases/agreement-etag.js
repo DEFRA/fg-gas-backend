@@ -1,2 +1,2 @@
-export const toEtag = (agreement) =>
-  `"${agreement.agreementNumber}:${agreement.version}"`;
+export const toEtag = (agreement, resolvedConfigVersion) =>
+  `"${agreement.agreementNumber}:${agreement.version}:${resolvedConfigVersion}"`;

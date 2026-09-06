@@ -35,25 +35,113 @@ describe("config-version.repository", () => {
         s3Bucket: "bucket",
       });
 
-      await upsert(cv);
+      await upsert(cv, {});
 
       expect(mockCollection.updateOne).toHaveBeenCalledWith(
         { grantCode: "woodland", version: "1.2.3" },
-        expect.objectContaining({
-          $set: expect.objectContaining({
-            major: 1,
-            minor: 2,
-            patch: 3,
-            status: "active",
-          }),
-          $setOnInsert: expect.objectContaining({
-            receivedAt: expect.any(String),
-            fetchStatus: FetchStatus.Pending,
-            fetchAttempts: 0,
-          }),
-        }),
+        [
+          {
+            $set: expect.objectContaining({
+              major: 1,
+              minor: 2,
+              patch: 3,
+              status: "active",
+              "definitions.grant": expect.objectContaining({
+                $mergeObjects: expect.arrayContaining([
+                  expect.objectContaining({
+                    fetchStatus: FetchStatus.Pending,
+                    fetchAttempts: 0,
+                  }),
+                ]),
+              }),
+            }),
+          },
+        ],
         { upsert: true },
       );
+      const [, [{ $set }]] = mockCollection.updateOne.mock.calls[0];
+      expect($set["definitions.agreement"]).toBeUndefined();
+      expect($set["definitions.payment"]).toBeUndefined();
+    });
+
+    it("should include an Agreement location without resetting its fetch state", async () => {
+      const cv = ConfigVersion.new({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        s3Key: "woodland/1.2.3/gas/gas.json",
+        s3Bucket: "bucket",
+      });
+
+      await upsert(cv, {
+        agreementS3Key: "woodland/1.2.3/gas/agreement.json",
+      });
+
+      const [, [{ $set }]] = mockCollection.updateOne.mock.calls[0];
+      expect($set["definitions.agreement"]).toEqual({
+        $mergeObjects: [
+          {
+            fetchStatus: FetchStatus.Pending,
+            fetchAttempts: 0,
+            fetchError: null,
+            fetchedAt: null,
+            lastFetchAttemptAt: null,
+          },
+          { $ifNull: ["$definitions.agreement", {}] },
+          {
+            s3Key: {
+              $literal: "woodland/1.2.3/gas/agreement.json",
+            },
+          },
+        ],
+      });
+      expect($set["definitions.payment"]).toBeUndefined();
+    });
+
+    it("should include a Payment location independently", async () => {
+      const cv = ConfigVersion.new({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        s3Key: "woodland/1.2.3/gas/gas.json",
+        s3Bucket: "bucket",
+      });
+
+      await upsert(cv, {
+        paymentS3Key: "woodland/1.2.3/gas/payment.json",
+      });
+
+      const [, [{ $set }]] = mockCollection.updateOne.mock.calls[0];
+      expect($set["definitions.agreement"]).toBeUndefined();
+      expect($set["definitions.payment"].$mergeObjects).toContainEqual({
+        $ifNull: ["$definitions.payment", {}],
+      });
+      expect($set["definitions.payment"].$mergeObjects).toContainEqual({
+        s3Key: { $literal: "woodland/1.2.3/gas/payment.json" },
+      });
+    });
+
+    it("should include Agreement and Payment locations in the same update", async () => {
+      const cv = ConfigVersion.new({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        s3Key: "woodland/1.2.3/gas/gas.json",
+        s3Bucket: "bucket",
+      });
+
+      await upsert(cv, {
+        agreementS3Key: "woodland/1.2.3/gas/agreement.json",
+        paymentS3Key: "woodland/1.2.3/gas/payment.json",
+      });
+
+      const [, [{ $set }]] = mockCollection.updateOne.mock.calls[0];
+      expect($set["definitions.agreement"].$mergeObjects.at(-1)).toEqual({
+        s3Key: { $literal: "woodland/1.2.3/gas/agreement.json" },
+      });
+      expect($set["definitions.payment"].$mergeObjects.at(-1)).toEqual({
+        s3Key: { $literal: "woodland/1.2.3/gas/payment.json" },
+      });
     });
   });
 
@@ -118,7 +206,10 @@ describe("config-version.repository", () => {
             fetchStatus: FetchStatus.TransientError,
             fetchError: "S3 timeout",
           }),
-          $inc: { fetchAttempts: 1 },
+          $inc: {
+            fetchAttempts: 1,
+            "definitions.grant.fetchAttempts": 1,
+          },
         },
       );
     });
@@ -138,6 +229,16 @@ describe("config-version.repository", () => {
         },
       );
       expect(mockCollection.updateOne.mock.calls[0][1].$inc).toBeUndefined();
+    });
+
+    it("clears the nested attempt counter on success but not the top-level one", async () => {
+      mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 });
+
+      await updateFetchStatus("woodland", "1.2.3", FetchStatus.Fetched);
+
+      const [, update] = mockCollection.updateOne.mock.calls[0];
+      expect(update.$set["definitions.grant.fetchAttempts"]).toBe(0);
+      expect(update.$set.fetchAttempts).toBeUndefined();
     });
   });
 

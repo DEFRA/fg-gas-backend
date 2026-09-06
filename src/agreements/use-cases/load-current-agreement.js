@@ -30,3 +30,35 @@ export const loadCurrentAgreementByNumber = async ({
   agreementNumber,
   session,
 }) => requireAgreement(await findAgreementByNumber(agreementNumber, session));
+
+const isMatchingDocumentAccess = (agreement, access) =>
+  ["defra", "entra"].includes(access.source) &&
+  agreement.code === access.code &&
+  agreement.identifiers.sbi === access.sbi;
+
+const assertDocumentAccess = (agreement, access) =>
+  requireAgreement(isMatchingDocumentAccess(agreement, access) && agreement);
+
+const assertActionAccess = (agreement, access) =>
+  requireAgreement(
+    access.source === "defra" &&
+      isMatchingDocumentAccess(agreement, access) &&
+      agreement,
+  );
+
+const loadAgreementWithAccess = async ({
+  agreementNumber,
+  access,
+  assertAccess,
+  session,
+}) =>
+  assertAccess(
+    await loadCurrentAgreementByNumber({ agreementNumber, session }),
+    access,
+  );
+
+export const loadAgreementDocument = async (options) =>
+  loadAgreementWithAccess({ ...options, assertAccess: assertDocumentAccess });
+
+export const loadAgreementForAction = async (options) =>
+  loadAgreementWithAccess({ ...options, assertAccess: assertActionAccess });

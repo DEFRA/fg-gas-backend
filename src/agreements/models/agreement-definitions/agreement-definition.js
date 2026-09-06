@@ -1,33 +1,48 @@
 import Boom from "@hapi/boom";
 import { AgreementLifecycle } from "../agreement-lifecycle.js";
 import { generateAgreementNumber } from "../agreement-number.js";
-import { Agreement } from "../agreement.js";
 import { requirePersistedAgreementState } from "../require-persisted-agreement-state.js";
+import { compileAgreementActionExecution } from "./compile-agreement-action-execution.js";
+import { compileAgreementCreation } from "./compile-agreement-creation.js";
+import { compileAgreementProcesses } from "./processes/agreement-process-runtime.js";
 import { validateAgreementDefinition } from "./validate.js";
 
 export class AgreementDefinition {
+  #createAgreement;
   #definition;
+  #executeAction;
+  #runProcesses;
 
-  constructor(definition) {
+  constructor(definition, dependencies = {}) {
     this.#definition = validateAgreementDefinition(definition);
-  }
-
-  createAgreement({ clientRef, identifiers, payload }) {
-    return Agreement.create({
-      agreementNumber: generateAgreementNumber({
-        prefix: this.#definition.agreementNumberPrefix,
-      }),
-      code: this.#definition.code,
-      clientRef,
-      configVersion: this.#definition.configVersion,
-      identifiers,
-      payload,
-      state: this.#definition.create.target,
+    const {
+      generateAgreementNumber:
+        agreementNumberGenerator = generateAgreementNumber,
+      ...processDependencies
+    } = dependencies;
+    this.#runProcesses = compileAgreementProcesses(
+      this.#definition,
+      processDependencies,
+    );
+    this.#createAgreement = compileAgreementCreation(this.#definition, {
+      generateAgreementNumber: agreementNumberGenerator,
+      runProcesses: this.#runProcesses,
+    });
+    this.#executeAction = compileAgreementActionExecution(this.#definition, {
+      runProcesses: this.#runProcesses,
     });
   }
 
-  getCreationEffects() {
-    return structuredClone(this.#definition.create.effects ?? []);
+  get configVersion() {
+    return this.#definition.configVersion;
+  }
+
+  async createAgreement(options) {
+    return this.#createAgreement(options);
+  }
+
+  async executeAction(options) {
+    return this.#executeAction(options);
   }
 
   getEndpoints() {
@@ -38,10 +53,32 @@ export class AgreementDefinition {
     return structuredClone(this.#definition.templates ?? {});
   }
 
+  async runPageProcesses({ agreement, page, execution }) {
+    const { outputs, commitOperations } = await this.#runProcesses({
+      location: { type: "page", state: agreement.state, page },
+      context: { agreement, execution },
+    });
+
+    if (commitOperations.length > 0) {
+      throw Boom.badImplementation(
+        "Agreement page Processes produced unsupported commit operations",
+      );
+    }
+
+    return { outputs };
+  }
+
   resolveAction({ state, action }) {
     return new AgreementLifecycle(this.#definition).resolveAction(
       state,
       action,
+    );
+  }
+
+  resolveActionForStatus({ state, status }) {
+    return new AgreementLifecycle(this.#definition).resolveActionForTarget(
+      state,
+      status,
     );
   }
 
@@ -94,8 +131,6 @@ const collectAllowedPages = (stateDefinition) =>
   new Set(
     [
       stateDefinition.page,
-      ...Object.values(stateDefinition.on ?? {}).map(
-        (action) => action.validation?.page,
-      ),
+      ...Object.values(stateDefinition.on ?? {}).map((action) => action.page),
     ].filter(Boolean),
   );

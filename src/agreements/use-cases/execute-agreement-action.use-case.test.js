@@ -10,23 +10,57 @@ import {
   replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
+import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
+import { loadAgreementForAction } from "./load-current-agreement.js";
 
 vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("../services/build-agreement-page-model.js");
-vi.mock("../services/effects/agreement-effect-runner.js");
 vi.mock("./load-current-agreement-action-context.js");
+vi.mock("./load-current-agreement-context.js");
+vi.mock("./load-current-agreement.js");
 
 const options = {
   actionName: "accept",
   agreementNumber: "PMF823153883",
   values: { confirm: "confirmed" },
-  ifMatch: '"PMF823153883:1"',
+  ifMatch: '"PMF823153883:1:1.0.1"',
   idempotencyKey: "9ea924aa-45e9-43a7-888e-c25054ea658c",
+  access: {
+    source: "defra",
+    code: "pigs-might-fly",
+    sbi: "300000069",
+  },
+};
+const offeredAgreementValues = {
+  application: { whitePigsCount: 5 },
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
+  parcels: [],
+  actions: [
+    {
+      id: "action:1",
+      code: "largeWhite",
+      quantity: 5,
+      unit: "head",
+      totalAmountPence: 5000,
+    },
+  ],
+  items: [],
+  totalAmountPence: 5000,
+  paymentSchedule: {
+    instalments: [
+      {
+        id: "instalment:1",
+        dueDate: "2026-11-06",
+        totalAmountPence: 5000,
+        lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+      },
+    ],
+  },
 };
 const agreement = new Agreement({
   agreementNumber: options.agreementNumber,
@@ -36,40 +70,46 @@ const agreement = new Agreement({
   configVersion: "1.0.1",
   correlationId: "correlation",
   identifiers: { sbi: "300000069" },
-  payload: {},
+  ...offeredAgreementValues,
   state: "offered",
   createdAt: "2026-07-17T10:00:00.000Z",
   updatedAt: "2026-07-17T10:00:00.000Z",
 });
 const action = {
-  effects: [
-    {
-      name: "snapshot",
-      params: { acceptedAt: "$.executedAt" },
-    },
-    { name: "publish", params: { event: "lifecycle" } },
-  ],
-  transition: { target: "accepted" },
   validate: vi.fn().mockReturnValue({ valid: true }),
 };
-const agreementDefinition = { getEndpoints: vi.fn().mockReturnValue([]) };
+const agreementDefinition = {
+  executeAction: vi.fn(),
+};
+
+const transitionAgreement = (values = undefined, target = "accepted") =>
+  agreement.transition({
+    target,
+    transitionedAt: "2026-08-20T10:00:00.000Z",
+    values,
+  });
 const session = {};
 
 describe("executeAgreementActionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     findAgreementByNumber.mockResolvedValue(agreement);
+    loadAgreementForAction.mockResolvedValue(agreement);
     findVersionByIdempotencyKey.mockResolvedValue(null);
     loadCurrentAgreementActionContext.mockResolvedValue({
       action,
       agreement,
       agreementDefinition,
+      etag: '"PMF823153883:1:1.0.1"',
     });
-    runAgreementEffects.mockImplementation(async (_effects, context) => ({
-      ...context,
-      agreement: { ...context.agreement, acceptedAt: context.executedAt },
-      outboxMessageTypes: ["lifecycle"],
-    }));
+    loadCurrentAgreementContext.mockResolvedValue({
+      agreement,
+      etag: '"PMF823153883:1:1.0.1"',
+    });
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(),
+      commitOperations: [],
+    });
     replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 1 });
     withTransaction.mockImplementation((callback) => callback(session));
     action.validate.mockReturnValue({ valid: true });
@@ -77,7 +117,7 @@ describe("executeAgreementActionUseCase", () => {
 
   it("atomically replaces current Agreement, records Version and publications", async () => {
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
     expect(replaceCurrentAgreement).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -100,7 +140,7 @@ describe("executeAgreementActionUseCase", () => {
       session,
     );
     expect(saveOutboxEvents).toHaveBeenCalledWith(
-      [
+      expect.arrayContaining([
         expect.objectContaining({
           event: expect.objectContaining({
             data: expect.objectContaining({
@@ -110,20 +150,61 @@ describe("executeAgreementActionUseCase", () => {
             }),
           }),
         }),
-      ],
+      ]),
       session,
     );
   });
 
-  it("returns a completed idempotent action before running effects", async () => {
+  it("does not publish lifecycle for a data-only Agreement update", async () => {
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(undefined, "offered"),
+      commitOperations: [],
+    });
+
+    await executeAgreementActionUseCase(options);
+
+    expect(saveOutboxEvents).toHaveBeenCalledWith([], session);
+  });
+
+  it("preserves every offered value in current state and its Version", async () => {
+    await executeAgreementActionUseCase(options);
+
+    const [accepted] = replaceCurrentAgreement.mock.calls[0];
+    const [version] = insertAgreementVersion.mock.calls[0];
+
+    expect(accepted).toMatchObject(offeredAgreementValues);
+    expect(version.snapshot).toMatchObject(offeredAgreementValues);
+    expect(version.snapshot).toEqual(accepted);
+  });
+
+  it("commits the complete Agreement values materialised by transition Processes", async () => {
+    const agreementValues = {
+      ...offeredAgreementValues,
+      startDate: "2026-09-01",
+      endDate: "2029-08-31",
+    };
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(agreementValues),
+      commitOperations: [],
+    });
+
+    await executeAgreementActionUseCase(options);
+
+    const [accepted] = replaceCurrentAgreement.mock.calls[0];
+    const [version] = insertAgreementVersion.mock.calls[0];
+    expect(accepted).toMatchObject(agreementValues);
+    expect(version.snapshot).toEqual(accepted);
+  });
+
+  it("returns a completed idempotent action before running Processes", async () => {
     findVersionByIdempotencyKey.mockResolvedValue({
       actionExecution: { name: "accept" },
     });
 
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
-    expect(runAgreementEffects).not.toHaveBeenCalled();
+    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
   });
 
   it("rejects stale ETags", async () => {
@@ -133,11 +214,42 @@ describe("executeAgreementActionUseCase", () => {
       output: {
         statusCode: 412,
         headers: {
-          location: "/agreements/PMF823153883",
-          etag: '"PMF823153883:1"',
+          location: "/agreements/current",
+          etag: '"PMF823153883:1:1.0.1"',
         },
       },
     });
+  });
+
+  it("rejects acceptance when a newer compatible config became active", async () => {
+    loadCurrentAgreementActionContext.mockResolvedValue({
+      action,
+      agreement,
+      agreementDefinition,
+      etag: '"PMF823153883:1:1.0.2"',
+    });
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toMatchObject({
+      output: {
+        statusCode: 412,
+        headers: { etag: '"PMF823153883:1:1.0.2"' },
+      },
+    });
+    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing when transition candidate resolution fails", async () => {
+    agreementDefinition.executeAction.mockRejectedValue(
+      new Error("invalid transition candidate"),
+    );
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toThrow(
+      "invalid transition candidate",
+    );
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(replaceCurrentAgreement).not.toHaveBeenCalled();
+    expect(insertAgreementVersion).not.toHaveBeenCalled();
+    expect(saveOutboxEvents).not.toHaveBeenCalled();
   });
 
   it("returns field errors applied to the configured validation page", async () => {
@@ -184,8 +296,9 @@ describe("executeAgreementActionUseCase", () => {
       actions: [],
       values: {},
       errors: [{ href: "#declaration", text: "Agree to the declaration" }],
+      etag: '"PMF823153883:1:1.0.1"',
     });
-    expect(runAgreementEffects).not.toHaveBeenCalled();
+    expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
     expect(withTransaction).not.toHaveBeenCalled();
   });
 
@@ -331,7 +444,7 @@ describe("executeAgreementActionUseCase", () => {
     replaceCurrentAgreement.mockResolvedValue({ modifiedCount: 0 });
 
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
     expect(findAgreementByNumber).not.toHaveBeenCalled();
   });
@@ -349,7 +462,7 @@ describe("executeAgreementActionUseCase", () => {
     );
 
     await expect(executeAgreementActionUseCase(options)).resolves.toEqual({
-      location: "/agreements/PMF823153883",
+      location: "/agreements/current",
     });
   });
 

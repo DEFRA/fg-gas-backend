@@ -23,16 +23,16 @@ const collectValidationErrors = (requirements, values) => {
 export class AgreementAction {
   #from;
   #name;
+  #page;
   #target;
   #validation;
-  #effects;
 
-  constructor({ from, name, target, validation, effects }) {
+  constructor({ from, name, page, target, validation }) {
     this.#from = from;
     this.#name = name;
+    this.#page = page;
     this.#target = target;
     this.#validation = validation;
-    this.#effects = effects;
   }
 
   get transition() {
@@ -44,11 +44,14 @@ export class AgreementAction {
   }
 
   get preparationPage() {
-    return this.#validation?.page;
+    return this.#page;
   }
 
-  get effects() {
-    return structuredClone(this.#effects ?? []);
+  get submissionRequirements() {
+    return (this.#validation?.required ?? []).map(({ name, value }) => ({
+      name,
+      value,
+    }));
   }
 
   validate(values) {
@@ -66,7 +69,7 @@ export class AgreementAction {
 
     return {
       valid: false,
-      page: this.#validation.page,
+      page: this.#page,
       errors,
     };
   }

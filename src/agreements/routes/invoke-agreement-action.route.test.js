@@ -10,6 +10,9 @@ const url = "/agreements/PMF123/actions/accept";
 const headers = {
   "if-match": '"PMF123:1"',
   "idempotency-key": "9ea924aa-45e9-43a7-888e-c25054ea658c",
+  "x-agreement-source": "defra",
+  "x-agreement-code": "pigs-might-fly",
+  "x-agreement-sbi": "300000000",
 };
 
 describe("invokeAgreementActionRoute", () => {
@@ -38,6 +41,11 @@ describe("invokeAgreementActionRoute", () => {
       values: { confirm: "confirmed" },
       ifMatch: '"PMF123:1"',
       idempotencyKey: headers["idempotency-key"],
+      access: {
+        source: "defra",
+        code: "pigs-might-fly",
+        sbi: "300000000",
+      },
     });
   });
 
@@ -54,15 +62,38 @@ describe("invokeAgreementActionRoute", () => {
       page: { name: "accept", title: "Accept" },
       components: [
         {
-          component: "checkboxes",
-          name: "confirmation",
-          errorMessage: { text: "Confirm" },
-          items: [{ value: "confirmed", checked: false }],
+          component: "grid-row",
+          components: [
+            {
+              component: "grid-column",
+              components: [
+                {
+                  component: "form",
+                  method: "POST",
+                  formAction: "/agreements/PMF123/actions/accept",
+                  hiddenFields: [],
+                  components: [
+                    {
+                      component: "checkboxes",
+                      name: "confirmation",
+                      errorMessage: { text: "Confirm" },
+                      items: [{ value: "confirmed", checked: false }],
+                    },
+                    {
+                      component: "button",
+                      text: "Accept",
+                      submit: true,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
         },
       ],
-      actions: [],
       values: {},
       errors: [{ href: "#confirmation", text: "Confirm" }],
+      etag: '"PMF123:1:1.2.0"',
     };
     executeAgreementActionUseCase.mockResolvedValue(validationPage);
 
@@ -74,8 +105,9 @@ describe("invokeAgreementActionRoute", () => {
     });
 
     expect(response.statusCode).toBe(422);
-    expect(response.headers.etag).toBe('"PMF123:1"');
-    expect(response.result).toEqual(validationPage);
+    expect(response.headers.etag).toBe('"PMF123:1:1.2.0"');
+    const { etag, ...responsePage } = validationPage;
+    expect(response.result).toEqual(responsePage);
   });
 
   it("passes action conflicts through", async () => {

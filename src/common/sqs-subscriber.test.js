@@ -7,12 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "./logger.js";
 import { SqsSubscriber } from "./sqs-subscriber.js";
 
-vi.mock("./logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-  },
-}));
+vi.mock("./logger.js");
 
 vi.mock("@aws-sdk/client-sqs");
 

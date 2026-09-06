@@ -1,6 +1,35 @@
 import Joi from "joi";
 import { env } from "node:process";
 
+// FGP-1307: the producer services permitted to mint caller tokens
+// (applicant/grants-ui, caseworker/fg-cw-frontend, PDF/agreements-pdf). This is
+// the same in every environment, so it is a code constant rather than
+// configuration — it cannot be misconfigured to an empty list and needs no
+// cdp-app-config entry.
+const CALLER_TOKEN_ALLOWED_ISSUERS = Object.freeze([
+  "grants-ui",
+  "fg-cw-frontend",
+  "agreements-pdf",
+]);
+
+// FGP-1307: parse the optional caller-token keyring (JSON object of kid -> secret)
+// from its environment string. An unset or malformed value fails closed (empty
+// keyring) so a bad config cannot silently make an attacker-chosen kid verifiable.
+const isPlainObject = (value) =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const parseKeyring = (raw) => {
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return isPlainObject(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 const schema = Joi.object({
   NODE_ENV: Joi.string().allow("development", "production", "test"),
   SERVICE_NAME: Joi.string(),
@@ -20,6 +49,11 @@ const schema = Joi.object({
   MONGO_URI: Joi.string(),
   MONGO_DATABASE: Joi.string(),
   TRACING_HEADER: Joi.string(),
+  HTTP_CLIENT_TIMEOUT_MS: Joi.number()
+    .integer()
+    .positive()
+    .optional()
+    .default(10_000),
   AWS_REGION: Joi.string(),
   AWS_ENDPOINT_URL: Joi.string().uri().optional(),
   ENVIRONMENT: Joi.string(),
@@ -34,6 +68,10 @@ const schema = Joi.object({
   FIFO_LOCK_TTL_MS: Joi.number(),
   GAS__SNS__AUDIT_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
+  GAS_MANAGED_AGREEMENT_GRANT_CODES: Joi.string()
+    .allow("")
+    .optional()
+    .default(""),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: Joi.string().optional(),
@@ -42,7 +80,43 @@ const schema = Joi.object({
   GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SQS__CONFIG_VERSION_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional(),
+  GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN: Joi.string(),
+  GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: Joi.string().optional(),
+  VIEW_AGREEMENT_URI: Joi.string().uri().required(),
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
+  AGREEMENTS_JWT_SECRET: Joi.string().optional(),
+  // Caseworking backend (fg-cw-backend). GAS authenticates to it with a
+  // service access token supplied per environment from the platform secret
+  // store, presented as a bearer token. Both optional so environments that do
+  // not call fg-cw-backend can boot without them.
+  CW_BACKEND_URL: Joi.string().uri().optional(),
+  CW_BACKEND_TOKEN: Joi.string().optional(),
+  // FGP-1307: logical key id the default AGREEMENTS_JWT_SECRET is stored under,
+  // and the kid assumed when an incoming caller token carries no kid header
+  // (e.g. grants-ui, intentionally left as-is for now).
+  AGREEMENTS_JWT_DEFAULT_KID: Joi.string().optional(),
+  // FGP-1307: optional JSON object of additional caller-token verification
+  // secrets keyed by kid, e.g. {"agreements-hs256-2":"<secret>"}. Supports key
+  // rotation via kid overlap alongside AGREEMENTS_JWT_SECRET.
+  AGREEMENTS_JWT_KEYRING: Joi.string().allow("").optional(),
+  // FGP-1307: when true, caller-token verification hard-fails (missing/invalid
+  // token or claim mismatch rejects the request) and GAS derives caller identity
+  // from the verified token instead of the unsigned x-agreement-* headers. When
+  // false it stays warn-only (backwards-compatible) and is the default. Feature-flag driven so
+  // enforcement can be rolled forward or back per environment.
+  CALLER_TOKEN_ENFORCE: Joi.boolean().optional(),
+  WOODLAND_MIGRATION_SOURCE_URL: Joi.string().uri().optional(),
+  WOODLAND_MIGRATION_TOKEN: Joi.string().allow("").optional(),
+  WOODLAND_MIGRATION_CONFIG_VERSION: Joi.string().trim().allow("").optional(),
+  // A client:sha256hex pair, e.g. some-service:1f0a... Empty or unset seeds
+  // nothing and removes nothing. Deliberately not validated here: the shape is
+  // enforced in src/auth/seed-access-token.js, where a bad value warns and
+  // issues nothing rather than stopping the service from booting.
+  SERVICE_ACCESS_TOKEN_HASH: Joi.string()
+    .trim()
+    .lowercase()
+    .allow("")
+    .optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -71,6 +145,13 @@ export const config = {
   mongoUri: vars.MONGO_URI,
   mongoDatabase: vars.MONGO_DATABASE,
   tracingHeader: vars.TRACING_HEADER,
+  httpClient: {
+    timeoutMs: vars.HTTP_CLIENT_TIMEOUT_MS,
+  },
+  viewAgreementUri: vars.VIEW_AGREEMENT_URI,
+  managedAgreementGrantCodes: vars.GAS_MANAGED_AGREEMENT_GRANT_CODES.split(",")
+    .map((code) => code.trim())
+    .filter(Boolean),
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
   cdpEnvironment: vars.ENVIRONMENT,
@@ -92,6 +173,8 @@ export const config = {
   sns: {
     updateAgreementStatusTopicArn:
       vars.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
+    agreementStatusUpdatedTopicArn:
+      vars.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN,
     createAgreementTopicArn: vars.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
     grantApplicationCreatedTopicArn:
       vars.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
@@ -100,6 +183,7 @@ export const config = {
     createNewCaseTopicArn: vars.GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN,
     updateCaseStatusTopicArn: vars.GAS__SNS__UPDATE_CASE_STATUS_TOPIC_ARN,
     auditTopicArn: vars.GAS__SNS__AUDIT_TOPIC_ARN,
+    createPaymentTopicArn: vars.GAS__SNS__CREATE_PAYMENT_TOPIC_ARN,
   },
   sqs: {
     updateStatusQueueUrl: vars.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
@@ -109,5 +193,29 @@ export const config = {
   },
   configBroker: {
     s3Bucket: vars.CONFIG_BROKER_S3_BUCKET,
+  },
+  // FGP-1307: shared secret used to verify the caller token forwarded by
+  // Agreements UI. Audience is "gas" for now (the interim token also carries
+  // "agreements-ui"); this moves to token exchange / per-issuer keys later.
+  // allowedIssuers is the fixed list of producer services permitted to mint
+  // caller tokens; an unrecognised issuer is reported as a warning during the
+  // warn-only rollout.
+  callerToken: {
+    secret: vars.AGREEMENTS_JWT_SECRET,
+    defaultKid: vars.AGREEMENTS_JWT_DEFAULT_KID ?? "agreements-hs256-1",
+    keyring: parseKeyring(vars.AGREEMENTS_JWT_KEYRING),
+    enforce: vars.CALLER_TOKEN_ENFORCE ?? false,
+    audience: "gas",
+    allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
+  },
+  serviceAccessTokenHash: vars.SERVICE_ACCESS_TOKEN_HASH,
+  cwBackend: {
+    url: vars.CW_BACKEND_URL,
+    token: vars.CW_BACKEND_TOKEN,
+  },
+  woodlandMigration: {
+    sourceUrl: vars.WOODLAND_MIGRATION_SOURCE_URL,
+    token: vars.WOODLAND_MIGRATION_TOKEN,
+    configVersion: vars.WOODLAND_MIGRATION_CONFIG_VERSION,
   },
 };
