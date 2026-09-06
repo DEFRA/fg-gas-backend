@@ -236,7 +236,7 @@ describe("POST /grants/{grantCode}/applications/{clientRef}/claims", () => {
       wreck.post(`/grants/${code}/applications/${clientRef}/claims`, {
         payload: claimPayload(code, clientRef, "WMP-C0003", entitlementId),
       }),
-    ).rejects.toMatchObject({ data: { payload: { statusCode: 422 } } });
+    ).rejects.toMatchObject({ data: { payload: { statusCode: 409 } } });
 
     expect(await claims.countDocuments({ code, clientRef })).toBe(2);
   });
@@ -265,7 +265,7 @@ describe("POST /grants/{grantCode}/applications/{clientRef}/claims", () => {
     ).toBe(1);
   });
 
-  it("returns 422 when the maximum claims limit has been reached", async () => {
+  it("returns 409 when the maximum claims limit has been reached", async () => {
     const code = `claim-grant-${randomUUID().slice(0, 8)}`;
     const { clientRef, entitlementId } = await seedGrantAndApplication(code);
 
@@ -277,9 +277,9 @@ describe("POST /grants/{grantCode}/applications/{clientRef}/claims", () => {
       await wreck.post(`/grants/${code}/applications/${clientRef}/claims`, {
         payload: claimPayload(code, clientRef, "WMP-C0002", entitlementId),
       });
-      throw new Error("expected 422");
+      throw new Error("expected 409");
     } catch (error) {
-      expect(error.data.payload.statusCode).toBe(422);
+      expect(error.data.payload.statusCode).toBe(409);
       expect(error.data.payload.message).toBe(
         "Maximum number of claims for this entitlement has been reached.",
       );
