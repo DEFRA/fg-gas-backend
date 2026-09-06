@@ -318,10 +318,14 @@ const replayAfterDuplicate = async (error, command) => {
 const isRetriable = (error) =>
   error instanceof RetryClaimSubmission || isMongoDuplicateKeyError(error);
 
-const exhausted = (command) =>
-  Boom.conflict(
-    `Claim '${command.payload.metadata.clientClaimRef}' could not be submitted because the application changed concurrently. Try again.`,
-  );
+const exhausted = (error, command) =>
+  isMongoDuplicateKeyError(error)
+    ? Boom.conflict(
+        `Claim '${command.payload.metadata.clientClaimRef}' could not be confirmed after a concurrent duplicate submission. Try again.`,
+      )
+    : Boom.conflict(
+        `Claim '${command.payload.metadata.clientClaimRef}' could not be submitted because the application changed concurrently. Try again.`,
+      );
 
 const retryOrThrow = async (error, command, attempt) => {
   const replay = await replayAfterDuplicate(error, command);
@@ -332,7 +336,7 @@ const retryOrThrow = async (error, command, attempt) => {
     throw error;
   }
   if (attempt === retries) {
-    throw exhausted(command);
+    throw exhausted(error, command);
   }
   return submitAttempt(command, attempt + 1);
 };

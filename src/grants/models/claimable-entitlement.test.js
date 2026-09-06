@@ -50,7 +50,7 @@ describe("ClaimableEntitlement", () => {
 
     expect(claimable.type).toBe("persisted");
     expect(claimable.entitlement).toBe(entitlement);
-    expect(claimable.key()).toBe("woodland:wmp-123:ENT_PA3");
+    expect(claimable.key()).toBe("woodland:wmp-123:ENT_PA3:entitlement-1");
   });
 
   it("accepts a claim within its position and limit", () => {

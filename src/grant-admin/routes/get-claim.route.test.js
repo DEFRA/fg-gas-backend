@@ -141,6 +141,8 @@ describe("getClaimRoute", () => {
     });
 
     expect(result.statusCode).toEqual(409);
+    expect(getEntitlementOverview).not.toHaveBeenCalled();
+    expect(listClaimableEntitlements).not.toHaveBeenCalled();
   });
 
   it("returns 404 when the claim code is not available", async () => {
@@ -160,5 +162,7 @@ describe("getClaimRoute", () => {
     });
 
     expect(result.statusCode).toEqual(404);
+    expect(getEntitlementOverview).not.toHaveBeenCalled();
+    expect(listClaimableEntitlements).not.toHaveBeenCalled();
   });
 });

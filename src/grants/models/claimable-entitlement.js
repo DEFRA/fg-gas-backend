@@ -49,7 +49,8 @@ export class ClaimableEntitlement {
   }
 
   key() {
-    return `${this.code}:${this.clientRef}:${this.claimCode}`;
+    const base = `${this.code}:${this.clientRef}:${this.claimCode}`;
+    return this.type === "persisted" ? `${base}:${this.entitlement.id}` : base;
   }
 
   canAcceptClaim(position, count) {

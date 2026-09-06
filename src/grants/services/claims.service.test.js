@@ -477,6 +477,20 @@ describe("claims.service", () => {
     );
   });
 
+  it("returns a duplicate-specific conflict when retries end without a replay", async () => {
+    const duplicate = Object.assign(new Error("duplicate"), {
+      duplicate: true,
+    });
+    insert.mockRejectedValue(duplicate);
+
+    await expect(submitClaim({ code, clientRef, payload })).rejects.toMatchObject(
+      {
+        message: expect.stringMatching(/concurrent duplicate submission/i),
+        output: { statusCode: 409 },
+      },
+    );
+  });
+
   it("allows the final claim slot", async () => {
     const twoClaims = grant(true);
     twoClaims.entitlementTemplates[0].claim.limits.maximumClaims = 2;

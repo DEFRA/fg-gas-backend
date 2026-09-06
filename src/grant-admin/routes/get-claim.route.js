@@ -36,12 +36,15 @@ export const getClaimRoute = {
       `Get claim for application with code ${code}, claimCode ${claimCode} and clientRef ${clientRef}`,
     );
 
-    const [overview, creationDetails, claimableEntitlements] =
-      await Promise.all([
-        getEntitlementOverview({ code, clientRef }),
-        getEntitlementCreationDetails({ code, clientRef, claimCode }),
-        listClaimableEntitlements({ code, clientRef }),
-      ]);
+    const creationDetails = await getEntitlementCreationDetails({
+      code,
+      clientRef,
+      claimCode,
+    });
+    const [overview, claimableEntitlements] = await Promise.all([
+      getEntitlementOverview({ code, clientRef }),
+      listClaimableEntitlements({ code, clientRef }),
+    ]);
 
     return {
       ...(await buildClaimsView({ ...overview, claimableEntitlements })),
