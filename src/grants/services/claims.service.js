@@ -66,8 +66,8 @@ const candidatesForTemplate = ({ template, existing }) => {
   return template.materialised ? [] : persistedCandidates(template, existing);
 };
 
-const candidatesFor = ({ grant, existing }) =>
-  grant.entitlementTemplates.flatMap((template) =>
+const candidatesFor = ({ grant, existing, position }) =>
+  grant.findEntitlementTemplatesAvailableAt(position).flatMap((template) =>
     candidatesForTemplate({ template, existing }),
   );
 
@@ -160,11 +160,13 @@ const toClaimableDto = (claimable) => ({
 });
 
 const countClaimsFor = (claimable) =>
-  countByEntitlement({
-    code: claimable.code,
-    clientRef: claimable.clientRef,
-    entitlementId: claimable.entitlement.id,
-  });
+  claimable.entitlement
+    ? countByEntitlement({
+        code: claimable.code,
+        clientRef: claimable.clientRef,
+        entitlementId: claimable.entitlement.id,
+      })
+    : Promise.resolve(0);
 
 const isAvailable = async (claimable, position) =>
   claimable.canAcceptClaim(position, await countClaimsFor(claimable)).allowed;
@@ -182,7 +184,7 @@ export const listClaimableEntitlements = async ({ code, clientRef }) => {
   const position = application.currentPosition();
 
   const available = await Promise.all(
-    candidatesFor({ grant, existing }).map(async (claimable) =>
+    candidatesFor({ grant, existing, position }).map(async (claimable) =>
       (await isAvailable(claimable, position)) ? claimable : null,
     ),
   );

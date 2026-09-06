@@ -58,7 +58,7 @@ export class ClaimableEntitlement {
       return { allowed: false, reason: "WRONG_POSITION" };
     }
 
-    if (count >= this.maximumClaims) {
+    if ((count ?? 0) >= this.maximumClaims) {
       return { allowed: false, reason: "MAXIMUM_CLAIMS_REACHED" };
     }
 

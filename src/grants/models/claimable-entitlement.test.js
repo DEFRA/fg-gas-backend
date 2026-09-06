@@ -63,6 +63,16 @@ describe("ClaimableEntitlement", () => {
     expect(claimable.canAcceptClaim(position, 1)).toEqual({ allowed: true });
   });
 
+  it("treats an omitted claim count as zero", () => {
+    const claimable = ClaimableEntitlement.fromMaterialised({
+      template,
+      code: "woodland",
+      clientRef: "wmp-123",
+    });
+
+    expect(claimable.canAcceptClaim(position)).toEqual({ allowed: true });
+  });
+
   it("rejects a claim outside its configured position", () => {
     const claimable = ClaimableEntitlement.fromMaterialised({
       template,

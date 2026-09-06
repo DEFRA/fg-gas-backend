@@ -195,6 +195,30 @@ describe("claims.service", () => {
     ).resolves.toEqual([]);
   });
 
+  it("does not offer persisted entitlements for templates unavailable at the current position", async () => {
+    const unavailable = grant(false);
+    unavailable.entitlementTemplates[0].availableAt = [
+      {
+        phase: "POST_AWARD",
+        stage: "PAYMENT",
+        status: "READY_TO_CLAIM",
+      },
+    ];
+    unavailable.entitlementTemplates[0].claim.claimableAt = [
+      {
+        phase: "POST_AWARD",
+        stage: "PAYMENT",
+        status: "READY_TO_CLAIM",
+      },
+    ];
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: unavailable });
+
+    await expect(
+      listClaimableEntitlements({ code, clientRef }),
+    ).resolves.toEqual([]);
+    expect(countByEntitlement).not.toHaveBeenCalled();
+  });
+
   it("audits a submitted claim against the inserted claim id", async () => {
     await submitClaim({ code, clientRef, payload });
 
