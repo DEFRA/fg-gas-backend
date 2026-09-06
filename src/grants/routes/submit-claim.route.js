@@ -4,7 +4,7 @@ import { clientRef as applicationClientRef } from "../../common/schemas/client-r
 import { code as grantCode } from "../schemas/grant/code.js";
 import { submitClaimRequestSchema } from "../schemas/requests/submit-claim-request.schema.js";
 import { submitClaimResponseSchema } from "../schemas/responses/submit-claim-response.schema.js";
-import { submitClaimUseCase } from "../use-cases/submit-claim.use-case.js";
+import { submitClaim } from "../services/claims.service.js";
 
 const statusCodes = {
   ok: 200,
@@ -37,8 +37,8 @@ export const submitClaimRoute = {
       `Submitting claim for grant ${code} and clientRef ${clientRef}`,
     );
 
-    const result = await submitClaimUseCase({
-      grantCode: code,
+    const result = await submitClaim({
+      code,
       clientRef,
       payload: request.payload,
     });
