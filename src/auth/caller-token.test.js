@@ -184,4 +184,67 @@ describe("verifyCallerToken", () => {
       expect(result.warnings).toContain("unknown-issuer");
     });
   });
+
+  describe("kid key selection (FGP-1307)", () => {
+    const makeTokenWithKid = (payload, kid, secret = SECRET) => {
+      const headerB64 = base64url(
+        JSON.stringify({ alg: "HS256", typ: "JWT", kid }),
+      );
+      const payloadB64 = base64url(JSON.stringify(payload));
+      return `${headerB64}.${payloadB64}.${sign(headerB64, payloadB64, secret)}`;
+    };
+
+    it("uses the default secret when the token carries no kid", () => {
+      const result = verifyCallerToken(makeToken(validPayload), SECRET, {
+        nowSec,
+        allowedIssuers: ALLOWED_ISSUERS,
+        defaultKid: "agreements-hs256-1",
+        keyring: {},
+      });
+
+      expect(result.verified).toBe(true);
+    });
+
+    it("uses the default secret when the kid matches the default kid", () => {
+      const token = makeTokenWithKid(validPayload, "agreements-hs256-1");
+      const result = verifyCallerToken(token, SECRET, {
+        nowSec,
+        allowedIssuers: ALLOWED_ISSUERS,
+        defaultKid: "agreements-hs256-1",
+        keyring: {},
+      });
+
+      expect(result.verified).toBe(true);
+    });
+
+    it("verifies a rotated kid using the keyring secret", () => {
+      const rotatedSecret = "rotated-secret";
+      const token = makeTokenWithKid(
+        validPayload,
+        "agreements-hs256-2",
+        rotatedSecret,
+      );
+      const result = verifyCallerToken(token, SECRET, {
+        nowSec,
+        allowedIssuers: ALLOWED_ISSUERS,
+        defaultKid: "agreements-hs256-1",
+        keyring: { "agreements-hs256-2": rotatedSecret },
+      });
+
+      expect(result.verified).toBe(true);
+    });
+
+    it("rejects a token whose kid is not in the keyring", () => {
+      const token = makeTokenWithKid(validPayload, "unknown-kid");
+      const result = verifyCallerToken(token, SECRET, {
+        nowSec,
+        allowedIssuers: ALLOWED_ISSUERS,
+        defaultKid: "agreements-hs256-1",
+        keyring: {},
+      });
+
+      expect(result.verified).toBe(false);
+      expect(result.reason).toBe("unknown-kid");
+    });
+  });
 });

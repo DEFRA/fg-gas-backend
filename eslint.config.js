@@ -119,6 +119,7 @@ export default [
                 "**/publishers/**",
                 "**/services/**",
                 "**/use-cases/**",
+                "**/models/**",
               ],
               message:
                 "Services should only import repositories, use-cases, events, publishers and common",
@@ -133,11 +134,38 @@ export default [
             },
             {
               target: "**/grants/**/!(*.test).js",
-              from: ["**/agreements/**", "**/payments/**"],
+              from: ["**/payments/**"],
               message:
                 "Grants must not import Agreements or Payments domain internals directly. " +
                 "Use HTTP APIs, events, commands, or inbox/outbox records as integration seams. " +
                 "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/grants/**/!(*.test).js",
+              from: ["**/agreements/**"],
+              except: [
+                "**/agreements/use-cases/load-entitlement-reference-context.js",
+              ],
+              message:
+                "Grants may only enter Agreements through its reviewed entitlement reference-context query. " +
+                "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/grant-admin/**/!(*.test).js",
+              from: ["**/grants/**"],
+              except: [
+                "**/grants/services/entitlement.service.js",
+                "**/grants/services/claims.service.js",
+              ],
+              message:
+                "Grant Admin may only enter Grants through its reviewed application services. " +
+                "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/grant-admin/**/!(*.test).js",
+              from: ["**/agreements/**"],
+              message:
+                "Grant Admin must not import Agreements. See docs/MODULE_BOUNDARIES.md.",
             },
             {
               target: "**/payments/**/!(*.test).js",
