@@ -24,9 +24,19 @@ services:
       timeout: 3s
       retries: 60
 
-  localstack:
+  floci:
     volumes:
-      - ../fg-gas-backend/compose/start-localstack.sh:/etc/localstack/init/ready.d/start-gas-localstack.sh
+      # Mounted as an individual file rather than as a directory, because
+      # several repos add scripts to this container and Compose merges volumes
+      # by target path - two repos each mounting a *directory* at the same
+      # target would silently drop one set of scripts.
+      #
+      # Floci pools the scripts from every init directory and runs them ordered
+      # by filename. The 20- prefix sequences gas after the host stack's own
+      # resources. Note 99-ready.sh is deliberately not mounted: the host stack
+      # owns the /tmp/READY marker its healthcheck waits on, and a script that
+      # sorts before the others must not flip it green early.
+      - ../fg-gas-backend/compose/floci/start.d/10-setup-resources.sh:/etc/floci/init/ready.d/20-gas-resources.sh:ro
 
 networks:
   cdp-tenant:

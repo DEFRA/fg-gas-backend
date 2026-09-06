@@ -25,6 +25,13 @@ describe("GET /grants", () => {
     });
 
     expect(response.res.statusCode).toEqual(200);
-    expect(response.payload).toEqual([grant1, grant2, grant3]);
+    // Stored without an entitlementTemplates key, as every grant written before
+    // this block existed is; the repository normalises it to [] on read.
+    expect(response.payload).toEqual(
+      [grant1, grant2, grant3].map((grant) => ({
+        ...grant,
+        entitlementTemplates: [],
+      })),
+    );
   });
 });

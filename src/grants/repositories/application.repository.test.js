@@ -17,6 +17,7 @@ import {
 import {
   findByClientRef,
   findByClientRefAndCode,
+  lockForUpdate,
   save,
   update,
 } from "./application.repository.js";
@@ -108,6 +109,7 @@ describe("save", () => {
         currentStatus: ApplicationStatus.Received,
         clientRef: "application-1",
         code: "grant-1",
+        configVersion: "1.0.0",
         createdAt: "2021-01-01T00:00:00.000Z",
         updatedAt: "2021-01-01T01:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",
@@ -136,6 +138,8 @@ describe("save", () => {
         currentStatus: ApplicationStatus.Received,
         clientRef: "application-1",
         code: "grant-1",
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.0.0",
         createdAt: "2021-01-01T00:00:00.000Z",
         updatedAt: "2021-01-01T01:00:00.000Z",
         submittedAt: "2021-01-01T00:00:00.000Z",
@@ -423,6 +427,47 @@ describe("findByClientRefAndCode", () => {
 
     const result = await findByClientRefAndCode({
       clientRef: "non-existent-client-ref",
+      code: "grant-1",
+    });
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("lockForUpdate", () => {
+  it("returns the locked application", async () => {
+    const session = {};
+    const findOneAndUpdate = vi.fn().mockResolvedValueOnce({
+      clientRef: "application-1",
+      code: "grant-1",
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.Received,
+      phases: [],
+    });
+    db.collection.mockReturnValue({ findOneAndUpdate });
+
+    const result = await lockForUpdate(
+      { clientRef: "application-1", code: "grant-1" },
+      session,
+    );
+
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      { clientRef: "application-1", code: "grant-1" },
+      { $inc: { claimSubmissionLockVersion: 1 } },
+      { session, returnDocument: "after" },
+    );
+    expect(result.clientRef).toBe("application-1");
+    expect(result.code).toBe("grant-1");
+  });
+
+  it("returns null when the application does not exist", async () => {
+    db.collection.mockReturnValue({
+      findOneAndUpdate: vi.fn().mockResolvedValueOnce(null),
+    });
+
+    const result = await lockForUpdate({
+      clientRef: "missing",
       code: "grant-1",
     });
 

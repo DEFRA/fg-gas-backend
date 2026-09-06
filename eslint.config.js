@@ -28,7 +28,13 @@ export default [
       "import-x/no-cycle": "error",
       "import-x/no-extraneous-dependencies": [
         "error",
-        { devDependencies: ["src/**/*.test.js", "test/**"] },
+        {
+          devDependencies: [
+            "src/**/*.test.js",
+            "src/**/__mocks__/**",
+            "test/**",
+          ],
+        },
       ],
       "import-x/no-restricted-paths": [
         "error",
@@ -113,6 +119,7 @@ export default [
                 "**/publishers/**",
                 "**/services/**",
                 "**/use-cases/**",
+                "**/models/**",
               ],
               message:
                 "Services should only import repositories, use-cases, events, publishers and common",
@@ -127,11 +134,57 @@ export default [
             },
             {
               target: "**/grants/**/!(*.test).js",
-              from: ["**/agreements/**"],
+              from: ["**/payments/**"],
               message:
-                "Grants must not import Agreements domain internals directly. " +
+                "Grants must not import Agreements or Payments domain internals directly. " +
                 "Use HTTP APIs, events, commands, or inbox/outbox records as integration seams. " +
                 "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/grants/**/!(*.test).js",
+              from: ["**/agreements/**"],
+              except: [
+                "**/agreements/use-cases/load-entitlement-reference-context.js",
+              ],
+              message:
+                "Grants may only enter Agreements through its reviewed entitlement reference-context query. " +
+                "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/grant-admin/**/!(*.test).js",
+              from: ["**/grants/**"],
+              except: [
+                "**/grants/services/entitlement.service.js",
+                "**/grants/services/claims.service.js",
+              ],
+              message:
+                "Grant Admin may only enter Grants through its reviewed application services. " +
+                "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/grant-admin/**/!(*.test).js",
+              from: ["**/agreements/**"],
+              message:
+                "Grant Admin must not import Agreements. See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/payments/**/!(*.test).js",
+              from: ["src/agreements/**", "src/grants/**"],
+              message:
+                "Payments must not import Agreements or Grants domain internals directly. " +
+                "Payments is entered through its own use cases and knows nothing about " +
+                "the modules that source a Payment. See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/agreements/**/!(*.test).js",
+              from: ["**/payments/**"],
+              except: [
+                "**/payments/use-cases/create-agreement-payment.use-case.js",
+                "**/payments/use-cases/resolve-payment-definition.js",
+              ],
+              message:
+                "Agreements may only enter Payments through its reviewed Payment creation " +
+                "and definition resolution use cases. See docs/MODULE_BOUNDARIES.md.",
             },
           ],
         },

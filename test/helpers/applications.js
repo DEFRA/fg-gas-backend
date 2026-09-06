@@ -5,6 +5,10 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../../src/grants/models/application.js";
+import {
+  ConfigVersion,
+  FetchStatus,
+} from "../../src/grants/models/config-version.js";
 import { wreck } from "./wreck.js";
 
 export const createTestApplication = (overrides = {}) => {
@@ -14,6 +18,7 @@ export const createTestApplication = (overrides = {}) => {
     currentStatus: ApplicationStatus.Received,
     clientRef: "application-1",
     code: "grant-1",
+    configVersion: "1.0.0",
     submittedAt: "2021-01-01T00:00:00.000Z",
     identifiers: {
       sbi: "sbi-1",
@@ -35,9 +40,98 @@ export const createTestApplication = (overrides = {}) => {
   });
 };
 
-export const submitApplication = async () => {
+const createAgreementDefinition = (code) => ({
+  code,
+  agreementNumberPrefix: "TST",
+  create: {
+    target: "offered",
+    application: "$.input.answers",
+    values: { actions: [], items: [] },
+    processes: [],
+  },
+  states: {
+    offered: { page: "offered" },
+    accepted: { page: "accepted" },
+  },
+  pages: {
+    offered: {
+      title: "Offer",
+      components: [{ component: "heading", text: "Offer" }],
+    },
+    accepted: {
+      title: "Accepted",
+      components: [{ component: "heading", text: "Accepted" }],
+    },
+  },
+});
+
+// `withAgreementDefinition: false` seeds a legacy grant: published through the
+// config broker like any other, so it has a config version, but shipping no
+// gas/agreement.json. Its Agreements stay with the external service.
+export const seedConfigVersion = async (
+  db,
+  code,
+  version = "1.0.0",
+  { withAgreementDefinition = true } = {},
+) => {
+  const cv = ConfigVersion.new({
+    grantCode: code,
+    version,
+    status: "active",
+    s3Key: `${code}/${version}/gas/gas.json`,
+    s3Bucket: "config-broker-local",
+  });
+  const doc = cv.toDocument();
+  doc.fetchStatus = FetchStatus.Fetched;
+  doc.fetchedAt = new Date().toISOString();
+  doc.definitions = withAgreementDefinition
+    ? {
+        agreement: {
+          s3Key: `${code}/${version}/gas/agreement.json`,
+          fetchStatus: FetchStatus.Fetched,
+          fetchAttempts: 0,
+          fetchError: null,
+          fetchedAt: doc.fetchedAt,
+          lastFetchAttemptAt: doc.fetchedAt,
+        },
+      }
+    : {};
+  await Promise.all([
+    db
+      .collection("config_versions")
+      .updateOne({ grantCode: code, version }, { $set: doc }, { upsert: true }),
+    withAgreementDefinition
+      ? db
+          .collection("agreements__definitions")
+          .updateOne(
+            { code, version },
+            { $set: { definition: createAgreementDefinition(code) } },
+            { upsert: true },
+          )
+      : db.collection("agreements__definitions").deleteMany({ code, version }),
+  ]);
+
+  // Copy the legacy grant definition to the versioned entry so findStoredGrant resolves it
+  const legacyGrant = await db.collection("grants").findOne({ code });
+  if (legacyGrant) {
+    const { _id, ...grantData } = legacyGrant;
+    await db
+      .collection("grants")
+      .updateOne(
+        { code, version },
+        { $set: { ...grantData, version } },
+        { upsert: true },
+      );
+  }
+};
+
+export const submitApplication = async (
+  db,
+  { withAgreementDefinition, code = "test-code-1" } = {},
+) => {
   const clientRef = `cr-12345-${randomUUID()}`;
-  const code = "test-code-1";
+
+  await seedConfigVersion(db, code, "1.0.0", { withAgreementDefinition });
 
   await wreck.post(`/grants/${code}/applications`, {
     headers: {
@@ -51,6 +145,7 @@ export const submitApplication = async () => {
         frn: "1234567890",
         crn: "1234567890",
         defraId: "1234567890",
+        configVersion: "1.0.0",
       },
       answers: {
         question1: "test answer",

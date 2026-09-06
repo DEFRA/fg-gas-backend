@@ -1,15 +1,18 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { seedConfigVersion } from "../../helpers/applications.js";
 import { wreck } from "../../helpers/wreck.js";
 
 let client;
+let db;
 let grants, applications;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  grants = client.db().collection("grants");
-  applications = client.db().collection("applications");
+  db = client.db();
+  grants = db.collection("grants");
+  applications = db.collection("applications");
 });
 
 afterAll(async () => {
@@ -84,6 +87,9 @@ describe("Simple Grant Service Integration Tests", () => {
     expect(dbGrant.phases[0].stages[0].statuses[0].code).toBe("NEW");
     expect(dbGrant.actions).toHaveLength(1);
 
+    // Seed config version for the grant
+    await seedConfigVersion(db, grantCode);
+
     // Submit application
     const applicationData = {
       metadata: {
@@ -93,6 +99,7 @@ describe("Simple Grant Service Integration Tests", () => {
         frn: "987654321",
         crn: "555666777",
         defraId: "DEF123456",
+        configVersion: "1.0.0",
       },
       answers: {
         farmName: "Test Service Farm",
@@ -159,6 +166,9 @@ describe("Simple Grant Service Integration Tests", () => {
       payload: grantData,
     });
 
+    // Seed config version for the grant
+    await seedConfigVersion(db, grantCode);
+
     // Try invalid application
     const invalidApplicationData = {
       metadata: {
@@ -168,6 +178,7 @@ describe("Simple Grant Service Integration Tests", () => {
         frn: "987654321",
         crn: "555666777",
         defraId: "DEF123456",
+        configVersion: "1.0.0",
       },
       answers: {
         email: "not-an-email", // Invalid email format
@@ -246,7 +257,7 @@ describe("Simple Grant Service Integration Tests", () => {
 
     expect(duplicateError.statusCode).toBe(409);
     expect(duplicateError.message).toContain(
-      `Grant with code "${grantCode}" already exists`,
+      `Grant with code "${grantCode}" version "0.0.0" already exists`,
     );
 
     // Verify only one grant exists

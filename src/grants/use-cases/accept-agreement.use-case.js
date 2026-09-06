@@ -19,7 +19,7 @@ export const auditDataBuilder = (args) => {
       code,
       eventData,
     },
-    messageGroupId: `accept-agreement-${eventData.agreementNumber}`,
+    segregationRef: `accept-agreement-${eventData.agreementNumber}`,
   });
 };
 

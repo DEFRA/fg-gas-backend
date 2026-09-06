@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { pmfAgreementDefinition } from "./pmf.js";
+import { pmfAgreementDefinitionFixture } from "../../../../test/fixtures/pmf-agreement-definition.js";
 import { validateAgreementDefinition } from "./validate.js";
+
+const pmfAgreementDefinition = structuredClone(pmfAgreementDefinitionFixture);
 
 describe("validateAgreementDefinition", () => {
   it("returns the validated definition when it is valid", () => {
     expect(validateAgreementDefinition(pmfAgreementDefinition)).toMatchObject({
       code: "pigs-might-fly",
     });
+  });
+
+  it("is entirely JSON serialisable", () => {
+    expect(JSON.parse(JSON.stringify(pmfAgreementDefinition))).toEqual(
+      pmfAgreementDefinition,
+    );
   });
 
   it("throws an actionable error when the definition is missing required fields", () => {
@@ -33,6 +41,16 @@ describe("validateAgreementDefinition", () => {
     );
   });
 
+  it("throws when there is no accepted state, whatever the grant calls its own", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    definition.states.signed = definition.states.accepted;
+    delete definition.states.accepted;
+
+    expect(() => validateAgreementDefinition(definition)).toThrow(
+      /"states.accepted" is required/,
+    );
+  });
+
   it("throws when an action target does not match any state", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.states.offered.on.accept.target = "also-missing";
@@ -42,12 +60,12 @@ describe("validateAgreementDefinition", () => {
     );
   });
 
-  it("throws when a validation.page does not match any page", () => {
+  it("throws when an action page does not match any page", () => {
     const definition = structuredClone(pmfAgreementDefinition);
-    definition.states.offered.on.accept.validation.page = "missing-page";
+    definition.states.offered.on.accept.page = "missing-page";
 
     expect(() => validateAgreementDefinition(definition)).toThrow(
-      /"states.offered.on.accept.validation.page" \("missing-page"\) does not match any key in "pages"/,
+      /"states.offered.on.accept.page" \("missing-page"\) does not match any key in "pages"/,
     );
   });
 
@@ -55,7 +73,7 @@ describe("validateAgreementDefinition", () => {
     const definition = structuredClone(pmfAgreementDefinition);
     definition.create.target = "missing-state";
     definition.states.offered.on.accept.target = "also-missing";
-    definition.states.offered.on.accept.validation.page = "missing-page";
+    definition.states.offered.on.accept.page = "missing-page";
 
     try {
       validateAgreementDefinition(definition);
@@ -63,7 +81,7 @@ describe("validateAgreementDefinition", () => {
     } catch (error) {
       expect(error.message).toMatch(/create.target/);
       expect(error.message).toMatch(/states.offered.on.accept.target/);
-      expect(error.message).toMatch(/states.offered.on.accept.validation.page/);
+      expect(error.message).toMatch(/states.offered.on.accept.page/);
     }
   });
 });

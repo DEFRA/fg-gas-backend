@@ -28,6 +28,7 @@ export class Application {
     phases: Joi.array().required(),
   });
 
+  // eslint-disable-next-line complexity
   constructor(props) {
     const { error } = Application.validationSchema.validate(props, {
       stripUnknown: true,
@@ -46,6 +47,9 @@ export class Application {
       currentStatus,
       clientRef,
       code,
+      configVersion,
+      originalConfigVersion,
+      currentConfigVersion,
       createdAt,
       updatedAt,
       submittedAt,
@@ -60,6 +64,8 @@ export class Application {
     this.currentStatus = currentStatus;
     this.clientRef = clientRef;
     this.code = code;
+    this.originalConfigVersion = originalConfigVersion ?? configVersion ?? null;
+    this.currentConfigVersion = currentConfigVersion ?? configVersion ?? null;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.submittedAt = submittedAt;
@@ -75,6 +81,7 @@ export class Application {
     currentStatus,
     clientRef,
     code,
+    configVersion,
     submittedAt,
     identifiers,
     metadata,
@@ -88,6 +95,8 @@ export class Application {
       currentStatus,
       clientRef,
       code,
+      originalConfigVersion: configVersion,
+      currentConfigVersion: configVersion,
       submittedAt,
       createdAt,
       updatedAt: createdAt,
@@ -115,6 +124,32 @@ export class Application {
 
   getFullyQualifiedStatus() {
     return `${this.currentPhase}:${this.currentStage}:${this.currentStatus}`;
+  }
+
+  // The same position as getFullyQualifiedStatus, by part rather than joined,
+  currentPosition() {
+    return {
+      phase: this.currentPhase,
+      stage: this.currentStage,
+      status: this.currentStatus,
+    };
+  }
+
+  referenceContext() {
+    const answers = (this.phases ?? []).reduce(
+      (merged, phase) => ({ ...merged, ...(phase.answers ?? {}) }),
+      {},
+    );
+
+    return {
+      clientRef: this.clientRef,
+      code: this.code,
+      phase: this.currentPhase,
+      stage: this.currentStage,
+      status: this.currentStatus,
+      identifiers: this.identifiers ?? {},
+      answers,
+    };
   }
 
   addAgreement(agreement) {

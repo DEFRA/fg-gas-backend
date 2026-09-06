@@ -25,32 +25,87 @@ describe("AgreementLifecycle", () => {
   });
 
   it("resolves the target state for a valid action", () => {
-    expect(lifecycle.resolveAction("offered", "accept")).toEqual({
+    expect(lifecycle.resolveAction("offered", "accept").transition).toEqual({
       from: "offered",
       action: "accept",
       target: "accepted",
     });
   });
 
+  it("resolves an action preparation page", () => {
+    const configured = new AgreementLifecycle({
+      create: { target: "offered" },
+      states: {
+        offered: {
+          on: {
+            accept: { target: "accepted", page: "accept" },
+          },
+        },
+        accepted: {},
+      },
+    });
+
+    expect(configured.resolveAction("offered", "accept").preparationPage).toBe(
+      "accept",
+    );
+  });
+
   it("resolves withdraw and cancel from offered", () => {
-    expect(lifecycle.resolveAction("offered", "withdraw")).toEqual({
+    expect(lifecycle.resolveAction("offered", "withdraw").transition).toEqual({
       from: "offered",
       action: "withdraw",
       target: "withdrawn",
     });
-    expect(lifecycle.resolveAction("offered", "cancel")).toEqual({
+    expect(lifecycle.resolveAction("offered", "cancel").transition).toEqual({
       from: "offered",
       action: "cancel",
       target: "cancelled",
     });
   });
 
-  it("resolves terminate from accepted", () => {
-    expect(lifecycle.resolveAction("accepted", "terminate")).toEqual({
-      from: "accepted",
-      action: "terminate",
-      target: "terminated",
+  it("resolves the configured action for a target state", () => {
+    expect(
+      lifecycle.resolveActionForTarget("offered", "withdrawn").transition,
+    ).toEqual({
+      from: "offered",
+      action: "withdraw",
+      target: "withdrawn",
     });
+  });
+
+  it("rejects a target without a configured transition", () => {
+    expect(() =>
+      lifecycle.resolveActionForTarget("accepted", "withdrawn"),
+    ).toThrow(InvalidAgreementTransitionError);
+  });
+
+  it("rejects an ambiguous target", () => {
+    const ambiguous = new AgreementLifecycle({
+      create: { target: "offered" },
+      states: {
+        offered: {
+          on: {
+            withdraw: { target: "withdrawn" },
+            forceWithdraw: { target: "withdrawn" },
+          },
+        },
+        withdrawn: {},
+      },
+    });
+
+    expect(() =>
+      ambiguous.resolveActionForTarget("offered", "withdrawn"),
+    ).toThrow('configures multiple actions targeting "withdrawn"');
+  });
+
+  it("resolves terminate from accepted", () => {
+    expect(lifecycle.resolveAction("accepted", "terminate").transition).toEqual(
+      {
+        from: "accepted",
+        action: "terminate",
+        target: "terminated",
+      },
+    );
   });
 
   it("rejects an invalid transition with an actionable error", () => {
@@ -74,13 +129,28 @@ describe("AgreementLifecycle", () => {
     );
   });
 
+  it.each(["toString", "__proto__"])(
+    "rejects inherited object property %s as an unavailable action",
+    (action) => {
+      expect(() => lifecycle.resolveAction("offered", action)).toThrow(
+        InvalidAgreementTransitionError,
+      );
+    },
+  );
+
   it("uses the default lifecycle definition by default", () => {
     expect(lifecycle.definition).toBe(defaultAgreementLifecycle);
   });
 
-  it("throws when asked for available actions on an unknown state", () => {
-    expect(() => lifecycle.getAvailableActions("unknown")).toThrow(
-      'Unknown agreement lifecycle state: "unknown"',
-    );
+  it("treats an unknown state as an integrity failure", () => {
+    try {
+      lifecycle.getAvailableActions("unknown");
+      expect.unreachable("expected available action resolution to fail");
+    } catch (error) {
+      expect(error.output.statusCode).toBe(500);
+      expect(error.message).toBe(
+        'Agreement lifecycle has unknown persisted state "unknown"',
+      );
+    }
   });
 });

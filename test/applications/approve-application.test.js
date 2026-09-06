@@ -6,14 +6,18 @@ import { submitApplication } from "../helpers/applications.js";
 import { createGrant } from "../helpers/grants.js";
 import { sendMessage } from "../helpers/sqs.js";
 
+let db;
+let agreements;
 let applications;
 let outbox;
 let client;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  applications = client.db().collection("applications");
-  outbox = client.db().collection("outbox");
+  db = client.db();
+  agreements = db.collection("agreements__agreements");
+  applications = db.collection("applications");
+  outbox = db.collection("outbox");
 });
 
 afterAll(async () => {
@@ -25,7 +29,7 @@ describe("On CaseStatusUpdated", () => {
     const traceparent = "ts-001";
     await createGrant();
 
-    const { clientRef, code } = await submitApplication(applications);
+    const { clientRef, code } = await submitApplication(db);
 
     await expect(applications).toHaveRecord({
       clientRef,
@@ -64,8 +68,10 @@ describe("On CaseStatusUpdated", () => {
       target: env.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
     });
 
-    await expect(outbox).toHaveRecord({
-      target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
+    await expect(agreements).toHaveRecord({
+      clientRef,
+      code,
+      state: "offered",
     });
 
     await expect(
@@ -81,36 +87,49 @@ describe("On CaseStatusUpdated", () => {
       data: {
         clientRef,
         grantCode: "test-code-1",
+        currentConfigVersion: "1.0.0",
         currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
         previousStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
       },
       messageGroupId: `${clientRef}-${code}`,
     });
+  });
 
-    await expect(env.CREATE_AGREEMENT_QUEUE_URL).toHaveReceived({
-      id: expect.any(String),
-      traceparent,
-      type: "cloud.defra.local.fg-gas-backend.agreement.create",
-      source: "fg-gas-backend",
-      time: expect.any(String),
-      specversion: "1.0",
-      datacontenttype: "application/json",
-      data: {
-        clientRef,
-        code,
-        identifiers: {
-          sbi: "123456789",
-          frn: "1234567890",
-          crn: "1234567890",
-        },
-        metadata: {
-          defraId: "1234567890",
-        },
-        answers: {
-          question1: "test answer",
-        },
-      },
-      messageGroupId: `${clientRef}-${code}`,
+  it("sends the Agreement command to the external service for a grant outside the allowlist", async () => {
+    const code = "legacy-test-code";
+    await createGrant(code);
+
+    const { clientRef } = await submitApplication(db, {
+      code,
+      withAgreementDefinition: false,
     });
+
+    await applications.updateOne(
+      { clientRef },
+      { $set: { currentStatus: "IN_REVIEW" } },
+    );
+
+    await sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
+      id: randomUUID(),
+      traceparent: "ts-002",
+      type: "fg.cw-backend.test.case.status.updated",
+      source: "CW",
+      data: {
+        caseRef: clientRef,
+        workflowCode: code,
+        previousStatus: "IN_REVIEW",
+        currentStatus: "PRE_AWARD:REVIEW_APPLICATION:AGREEMENT_GENERATING",
+      },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 500)); // wait for inbox to pick up queue
+
+    await expect(outbox).toHaveRecord({
+      "event.type": "cloud.defra.local.fg-gas-backend.agreement.create",
+      "event.data.clientRef": clientRef,
+      target: env.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
+    });
+
+    expect(await agreements.findOne({ clientRef, code })).toBeNull();
   });
 });

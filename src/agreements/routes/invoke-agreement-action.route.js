@@ -1,0 +1,52 @@
+import {
+  invokeAgreementActionHeadersSchema,
+  invokeAgreementActionParamsSchema,
+  invokeAgreementActionPayloadSchema,
+} from "../schemas/requests/invoke-agreement-action-request.schema.js";
+import { invokeAgreementActionResponseSchema } from "../schemas/responses/invoke-agreement-action-response.schema.js";
+import { executeAgreementActionUseCase } from "../use-cases/execute-agreement-action.use-case.js";
+import { resolveAgreementAccess } from "../services/resolve-agreement-access.js";
+
+const SEE_OTHER_STATUS_CODE = 303;
+const UNPROCESSABLE_CONTENT_STATUS_CODE = 422;
+
+export const invokeAgreementActionRoute = {
+  method: "POST",
+  path: "/agreements/{agreementNumber}/actions/{actionName}",
+  options: {
+    description: "Execute an Agreement lifecycle action",
+    tags: ["api"],
+    validate: {
+      headers: invokeAgreementActionHeadersSchema,
+      params: invokeAgreementActionParamsSchema,
+      payload: invokeAgreementActionPayloadSchema,
+    },
+    response: {
+      status: {
+        [UNPROCESSABLE_CONTENT_STATUS_CODE]:
+          invokeAgreementActionResponseSchema,
+      },
+    },
+  },
+  async handler(request, h) {
+    const { source, code, sbi } = resolveAgreementAccess(request);
+    const result = await executeAgreementActionUseCase({
+      actionName: request.params.actionName,
+      agreementNumber: request.params.agreementNumber,
+      values: request.payload.values,
+      ifMatch: request.headers["if-match"],
+      idempotencyKey: request.headers["idempotency-key"],
+      access: { source, code, sbi },
+    });
+
+    if (result.errors) {
+      const { etag, ...response } = result;
+      return h
+        .response(response)
+        .code(UNPROCESSABLE_CONTENT_STATUS_CODE)
+        .header("etag", etag);
+    }
+
+    return h.redirect(result.location).code(SEE_OTHER_STATUS_CODE);
+  },
+};

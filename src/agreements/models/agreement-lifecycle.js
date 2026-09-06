@@ -1,4 +1,7 @@
+import Boom from "@hapi/boom";
+import { AgreementAction } from "./agreement-action.js";
 import { InvalidAgreementTransitionError } from "./invalid-agreement-transition.error.js";
+import { requirePersistedAgreementState } from "./require-persisted-agreement-state.js";
 
 export const defaultAgreementLifecycle = {
   create: { target: "offered" },
@@ -31,25 +34,64 @@ export class AgreementLifecycle {
   }
 
   getAvailableActions(state) {
-    const stateDefinition = this.definition.states[state];
-    if (!stateDefinition) {
-      throw new Error(`Unknown agreement lifecycle state: "${state}"`);
-    }
+    const stateDefinition = requirePersistedAgreementState({
+      definition: this.definition,
+      state,
+    });
+
     return Object.keys(stateDefinition.on ?? {});
   }
 
-  resolveAction(state, action) {
-    const availableActions = this.getAvailableActions(state);
-    const transition = this.definition.states[state].on?.[action];
+  resolveActionForTarget(state, target) {
+    const stateDefinition = requirePersistedAgreementState({
+      definition: this.definition,
+      state,
+    });
+    const transitions = stateDefinition.on ?? {};
+    const matches = Object.keys(transitions).filter(
+      (action) => transitions[action].target === target,
+    );
 
-    if (!transition) {
+    if (matches.length === 0) {
       throw new InvalidAgreementTransitionError({
         from: state,
-        action,
+        action: `transition to ${target}`,
+        availableActions: Object.keys(transitions),
+      });
+    }
+    if (matches.length > 1) {
+      throw Boom.badImplementation(
+        `Agreement state "${state}" configures multiple actions targeting "${target}"`,
+      );
+    }
+
+    return this.resolveAction(state, matches[0]);
+  }
+
+  resolveAction(state, actionName) {
+    const stateDefinition = requirePersistedAgreementState({
+      definition: this.definition,
+      state,
+    });
+    const transitions = stateDefinition.on ?? {};
+    const availableActions = Object.keys(transitions);
+
+    if (!Object.hasOwn(transitions, actionName)) {
+      throw new InvalidAgreementTransitionError({
+        from: state,
+        action: actionName,
         availableActions,
       });
     }
 
-    return { from: state, action, target: transition.target };
+    const { page, target, validation } = transitions[actionName];
+
+    return new AgreementAction({
+      from: state,
+      name: actionName,
+      page,
+      target,
+      validation,
+    });
   }
 }

@@ -1,0 +1,193 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { processConfigVersionUseCase } from "./process-config-version.use-case.js";
+
+vi.mock("../../common/config.js", () => ({
+  config: {
+    configBroker: {
+      s3Bucket: "config-broker-test",
+    },
+  },
+}));
+
+vi.mock("../../common/logger.js");
+
+const mockUpsert = vi.fn();
+vi.mock("../repositories/config-version.repository.js", () => ({
+  upsert: (...args) => mockUpsert(...args),
+}));
+
+describe("processConfigVersionUseCase", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpsert.mockResolvedValue({ upsertedCount: 1 });
+  });
+
+  it("should upsert a config version with correct fields", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: ["woodland/1.2.3/gas/gas.json", "woodland/1.2.3/metadata.json"],
+    });
+
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    const arg = mockUpsert.mock.calls[0][0];
+    expect(arg.grantCode).toBe("woodland");
+    expect(arg.version).toBe("1.2.3");
+    expect(arg.major).toBe(1);
+    expect(arg.minor).toBe(2);
+    expect(arg.patch).toBe(3);
+    expect(arg.status).toBe("active");
+    expect(arg.s3Key).toBe("woodland/1.2.3/gas/gas.json");
+    expect(arg.s3Bucket).toBe("config-broker-test");
+    expect(arg.fetchStatus).toBe("pending");
+    expect(mockUpsert).toHaveBeenCalledWith(arg, {});
+  });
+
+  it("should record an optional Agreement definition", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/agreement.json",
+      ],
+    });
+
+    expect(mockUpsert.mock.calls[0][1]).toEqual({
+      agreementS3Key: "woodland/1.2.3/gas/agreement.json",
+    });
+  });
+
+  it("should record an optional Payment definition", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/payment.json",
+      ],
+    });
+
+    expect(mockUpsert.mock.calls[0][1]).toEqual({
+      paymentS3Key: "woodland/1.2.3/gas/payment.json",
+    });
+  });
+
+  it("should record Agreement and Payment definitions independently", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/agreement.json",
+        "woodland/1.2.3/gas/payment.json",
+      ],
+    });
+
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    expect(mockUpsert.mock.calls[0][1]).toEqual({
+      agreementS3Key: "woodland/1.2.3/gas/agreement.json",
+      paymentS3Key: "woodland/1.2.3/gas/payment.json",
+    });
+  });
+
+  it("should throw when status is missing", async () => {
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.0.0",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
+      }),
+    ).rejects.toThrow("invalid status");
+  });
+
+  it("should throw when status is not a recognised value", async () => {
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.0.0",
+        status: "published",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
+      }),
+    ).rejects.toThrow("invalid status");
+  });
+
+  it("should throw when grantCode is missing", async () => {
+    await expect(
+      processConfigVersionUseCase({
+        version: "1.0.0",
+        status: "active",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
+      }),
+    ).rejects.toThrow("missing required fields");
+  });
+
+  it("should throw when version is missing", async () => {
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        status: "active",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
+      }),
+    ).rejects.toThrow("missing required fields");
+  });
+
+  it("should throw when manifest is missing", async () => {
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.0.0",
+        status: "active",
+      }),
+    ).rejects.toThrow("manifest");
+  });
+
+  it("should throw when manifest is empty", async () => {
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.0.0",
+        status: "active",
+        manifest: [],
+      }),
+    ).rejects.toThrow("manifest");
+  });
+
+  it("should throw for invalid semver version", async () => {
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "not-a-version",
+        status: "active",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
+      }),
+    ).rejects.toThrow("Invalid semver version");
+  });
+
+  it("should throw for semver with pre-release suffix", async () => {
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.0.0-rc1",
+        status: "active",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
+      }),
+    ).rejects.toThrow("Invalid semver version");
+  });
+
+  it("should handle draft status", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "2.0.0",
+      status: "draft",
+      manifest: ["woodland/2.0.0/gas/gas.json"],
+    });
+
+    const arg = mockUpsert.mock.calls[0][0];
+    expect(arg.status).toBe("draft");
+  });
+});

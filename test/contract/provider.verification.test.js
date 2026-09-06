@@ -21,6 +21,43 @@ vi.mock("../../src/common/mongo-client.js", () => {
         }),
       };
     }
+    // Every interaction pins configVersion 1.0.0, so the grant is resolved
+    // through config_versions rather than the legacy 0.0.0 path. The grants
+    // themselves come from the migrations, not S3, so report the row as already
+    // Fetched: that keeps resolution on the cached branch and never reaches the
+    // (unmocked) S3 client.
+    if (name === "config_versions") {
+      const knownGrants = ["frps-private-beta", "woodland"];
+
+      return {
+        findOne: vi.fn(async (query = {}) => {
+          const { grantCode, major } = query;
+          if (!knownGrants.includes(grantCode)) {
+            return null;
+          }
+          return {
+            grantCode,
+            version: `${major}.0.0`,
+            major,
+            minor: 0,
+            patch: 0,
+            status: "active",
+            s3Key: null,
+            s3Bucket: null,
+            receivedAt: new Date().toISOString(),
+            fetchedAt: new Date().toISOString(),
+            fetchStatus: "fetched",
+            fetchError: null,
+            fetchAttempts: 0,
+            lastFetchAttemptAt: null,
+          };
+        }),
+        updateOne: vi
+          .fn()
+          .mockResolvedValue({ acknowledged: true, matchedCount: 1 }),
+        createIndex: vi.fn().mockResolvedValue({ acknowledged: true }),
+      };
+    }
     if (name === "applications") {
       return {
         findOne: vi.fn(async (query = {}) => {
@@ -31,6 +68,7 @@ vi.mock("../../src/common/mongo-client.js", () => {
               code: "frps-private-beta",
               clientRef: "710-877-8fd",
               currentPhase: "PRE_AWARD",
+              configVersion: "1.0.0",
               currentStage: "REVIEW_APPLICATION",
               currentStatus: "APPLICATION_RECEIVED",
               identifiers: {
@@ -54,6 +92,7 @@ vi.mock("../../src/common/mongo-client.js", () => {
               currentPhase: "PRE_AWARD",
               currentStage: "REVIEW_APPLICATION",
               currentStatus: "APPLICATION_AMEND",
+              configVersion: "1.0.0",
               identifiers: {
                 sbi: "107365747",
                 frn: "1101313269",

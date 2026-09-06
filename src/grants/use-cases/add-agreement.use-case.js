@@ -26,7 +26,7 @@ export const auditDataBuilder = (args) => {
       code,
       agreementDate: date,
     },
-    messageGroupId: `add-agreement-${agreementNumber}`,
+    segregationRef: `add-agreement-${agreementNumber}`,
   });
 };
 
@@ -64,6 +64,7 @@ const addAgreement = async (command, session) => {
   const statusCommand = new UpdateCaseStatusCommand({
     caseRef: clientRef,
     workflowCode: code,
+    configVersion: application.currentConfigVersion,
     newStatus: application.getFullyQualifiedStatus(),
     phase: currentPhase,
     stage: currentStage,

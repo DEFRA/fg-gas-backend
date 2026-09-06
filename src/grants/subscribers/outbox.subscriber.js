@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { config } from "../../common/config.js";
 import { getMessageGroupId } from "../../common/get-message-group-id.js";
+import {
+  dispatchInternally,
+  internalMessageBusTarget,
+} from "../../common/internal-command-bus.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import {
@@ -21,10 +25,6 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
-import {
-  dispatchInternally,
-  isInternalAgreementCommand,
-} from "../services/outbox-dispatch.service.js";
 
 export class OutboxSubscriber {
   static ACTOR = "OUTBOX";
@@ -145,28 +145,35 @@ export class OutboxSubscriber {
     logger.trace(`Marked outbox event as complete: ${event._id}`);
   }
 
-  async sendEvent(event) {
+  async sendEvent(outboxEvent) {
     const {
-      target: topic,
-      event: data,
+      target,
+      segregationRef,
+      event: message,
       event: { messageGroupId },
-    } = event;
+    } = outboxEvent;
     try {
-      if (isInternalAgreementCommand(data)) {
-        logger.info("Deliver outbox event internally to Agreements module");
-        await dispatchInternally(data);
+      if (target === internalMessageBusTarget) {
+        logger.info("Deliver outbox event to the internal message bus");
+        await dispatchInternally(message);
       } else {
-        logger.info(`Send outbox event to ${topic}`);
-        await publish(
-          topic,
-          data,
-          this.getMessageGroupId(messageGroupId, data),
-        );
+        logger.info(`Send outbox event to ${target}`);
+        const fifoOptions = target.endsWith(".fifo")
+          ? {
+              messageGroupId: this.getMessageGroupId(
+                messageGroupId,
+                message,
+                segregationRef,
+              ),
+              deduplicationId: message.id,
+            }
+          : undefined;
+        await publish(target, message, fifoOptions);
       }
-      await this.markEventComplete(event);
+      await this.markEventComplete(outboxEvent);
     } catch (ex) {
-      logger.error(ex);
-      await this.markEventUnsent(event);
+      logger.error(ex, "Error sending outbox event");
+      await this.markEventUnsent(outboxEvent);
     }
   }
 
@@ -177,8 +184,8 @@ export class OutboxSubscriber {
     logger.info("All outbox events processed.");
   }
 
-  getMessageGroupId(id, data) {
-    return getMessageGroupId(id, data);
+  getMessageGroupId(id, data, segregationRef) {
+    return getMessageGroupId(id, data) ?? segregationRef;
   }
 
   async start() {
