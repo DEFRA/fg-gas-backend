@@ -13,6 +13,7 @@ import {
 import {
   clearAgreementDefinitionCaches,
   loadAgreementDefinition,
+  loadAgreementDefinitionReadOnly,
   loadDefinitionForAgreement,
 } from "./load-agreement-definition.js";
 
@@ -76,6 +77,31 @@ describe("loadAgreementDefinition", () => {
     fetchConfigFile.mockResolvedValue(validDefinition);
     insertAgreementDefinition.mockResolvedValue({ insertedId: "definition" });
     updateDefinitionFetchStatus.mockResolvedValue({ modifiedCount: 1 });
+  });
+
+  it("loads an exact definition read-only without recording or caching it", async () => {
+    findConfigDefinition.mockResolvedValue(target("1.0.1"));
+
+    const definition = await loadAgreementDefinitionReadOnly({
+      code: "test-code",
+      configVersion: "1.0.1",
+      resolution: "exact",
+    });
+
+    expect(definition.configVersion).toBe("1.0.1");
+    expect(fetchConfigFile).toHaveBeenCalledWith(
+      "bucket",
+      "test-code/1.0.1/gas/agreement.json",
+    );
+    expect(insertAgreementDefinition).not.toHaveBeenCalled();
+    expect(updateDefinitionFetchStatus).not.toHaveBeenCalled();
+
+    await loadAgreementDefinitionReadOnly({
+      code: "test-code",
+      configVersion: "1.0.1",
+      resolution: "exact",
+    });
+    expect(fetchConfigFile).toHaveBeenCalledTimes(2);
   });
 
   it("loads an exact definition from S3 and records it as fetched", async () => {

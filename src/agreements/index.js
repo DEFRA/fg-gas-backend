@@ -7,9 +7,18 @@ import { invokeAgreementActionRoute } from "./routes/invoke-agreement-action.rou
 import { prepareAgreementActionRoute } from "./routes/prepare-agreement-action.route.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 import { handleUpdateAgreementStatusCommandUseCase } from "./use-cases/handle-update-agreement-status-command.use-case.js";
+import { applyWoodlandMigrationRoute } from "./woodland-migration/apply-woodland-migration.route.js";
+import { dryRunWoodlandMigrationRoute } from "./woodland-migration/dry-run-woodland-migration.route.js";
 
 const canHandleAgreementCommand = ({ data }) =>
   config.managedAgreementGrantCodes.includes(data.code);
+
+const woodlandMigrationIsConfigured = () =>
+  Boolean(
+    config.woodlandMigration.sourceUrl &&
+    config.woodlandMigration.token &&
+    config.woodlandMigration.configVersion,
+  );
 
 export const agreements = {
   name: "agreements",
@@ -30,6 +39,9 @@ export const agreements = {
       getAgreementByNumberRoute,
       prepareAgreementActionRoute,
       invokeAgreementActionRoute,
+      ...(woodlandMigrationIsConfigured()
+        ? [dryRunWoodlandMigrationRoute, applyWoodlandMigrationRoute]
+        : []),
     ]);
   },
 };
