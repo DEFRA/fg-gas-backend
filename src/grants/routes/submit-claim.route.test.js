@@ -9,10 +9,10 @@ import {
   it,
   vi,
 } from "vitest";
-import { submitClaimUseCase } from "../use-cases/submit-claim.use-case.js";
+import { submitClaim } from "../services/claims.service.js";
 import { submitClaimRoute } from "./submit-claim.route.js";
 
-vi.mock("../use-cases/submit-claim.use-case.js");
+vi.mock("../services/claims.service.js");
 vi.mock("../../common/logger.js");
 
 const payload = {
@@ -20,6 +20,7 @@ const payload = {
     grantCode: "woodland",
     clientRef: "wmp-6hb-j8e",
     claimCode: "ENT_CS_CAPITAL_PA3",
+    entitlementId: "8cef007b-af1e-4cdc-bf4c-948b6bf85d05",
     clientClaimRef: "WMP-6HB-J8E-C0001",
     sbi: "113593357",
     crn: "1100943757",
@@ -50,7 +51,7 @@ describe("submitClaimRoute", () => {
   });
 
   it("returns 201 with the created claimId", async () => {
-    submitClaimUseCase.mockResolvedValue({
+    submitClaim.mockResolvedValue({
       created: true,
       claimId: "64b0c0c0c0c0c0c0c0c0c0c0",
     });
@@ -63,8 +64,8 @@ describe("submitClaimRoute", () => {
 
     expect(statusCode).toBe(201);
     expect(result).toEqual({ claimId: "64b0c0c0c0c0c0c0c0c0c0c0" });
-    expect(submitClaimUseCase).toHaveBeenCalledWith({
-      grantCode: "woodland",
+    expect(submitClaim).toHaveBeenCalledWith({
+      code: "woodland",
       clientRef: "wmp-6hb-j8e",
       payload: {
         ...payload,
@@ -77,7 +78,7 @@ describe("submitClaimRoute", () => {
   });
 
   it("returns 200 with an empty body for an idempotent retry", async () => {
-    submitClaimUseCase.mockResolvedValue({ created: false });
+    submitClaim.mockResolvedValue({ created: false });
 
     const { statusCode, result } = await server.inject({
       method: "POST",
@@ -97,11 +98,11 @@ describe("submitClaimRoute", () => {
     });
 
     expect(statusCode).toBe(400);
-    expect(submitClaimUseCase).not.toHaveBeenCalled();
+    expect(submitClaim).not.toHaveBeenCalled();
   });
 
   it("returns 409 when the use case rejects the application state", async () => {
-    submitClaimUseCase.mockRejectedValue(
+    submitClaim.mockRejectedValue(
       Boom.conflict(
         "Application is not in a valid state to accept claims for this entitlement.",
       ),
