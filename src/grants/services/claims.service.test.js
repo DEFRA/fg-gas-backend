@@ -398,8 +398,11 @@ describe("claims.service", () => {
     ]);
     countByEntitlement.mockResolvedValue(1);
 
-    await expect(submitClaim({ code, clientRef, payload })).rejects.toThrow(
-      /Maximum number of claims/,
+    await expect(submitClaim({ code, clientRef, payload })).rejects.toMatchObject(
+      {
+        message: expect.stringMatching(/Maximum number of claims/),
+        output: { statusCode: 409 },
+      },
     );
     expect(countByEntitlement).toHaveBeenCalledWith(
       { code, clientRef, entitlementId },

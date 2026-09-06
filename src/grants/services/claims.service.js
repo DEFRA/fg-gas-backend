@@ -275,7 +275,7 @@ const claimableWithCapacity = async (
   );
   if (!decision.allowed) {
     throw decision.reason === "MAXIMUM_CLAIMS_REACHED"
-      ? Boom.badData(maximumClaimsReached)
+      ? Boom.conflict(maximumClaimsReached)
       : Boom.conflict(applicationNotClaimable);
   }
   return claimable;
