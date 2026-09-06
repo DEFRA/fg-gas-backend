@@ -9,14 +9,7 @@ import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.s
 import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
 import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 
-vi.mock("../common/logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  },
-}));
+vi.mock("../common/logger.js");
 
 vi.mock("../common/mongo-client.js");
 vi.mock("migrate-mongo");
@@ -98,15 +91,29 @@ describe("grants", () => {
       method: r.method,
     }));
 
-    expect(routePaths).toEqual([
-      { method: "post", path: "/grants" },
-      { method: "post", path: "/grants/{code}/applications" },
-      { method: "post", path: "/grants/{code}/actions/{name}/invoke" },
-      { method: "put", path: "/tmp/grants/{code}" },
-      { method: "get", path: "/grants" },
-      { method: "get", path: "/grants/{code}" },
-      { method: "get", path: "/grants/{code}/applications/{clientRef}/status" },
-      { method: "get", path: "/grants/{code}/actions/{name}/invoke" },
-    ]);
+    expect(routePaths).toEqual(
+      expect.arrayContaining([
+        { method: "post", path: "/grants" },
+        { method: "post", path: "/grants/{code}/applications" },
+        { method: "post", path: "/grants/{code}/actions/{name}/invoke" },
+        { method: "put", path: "/tmp/grants/{code}" },
+        { method: "get", path: "/grants" },
+        { method: "get", path: "/grants/{code}" },
+        { method: "get", path: "/grants/{code}/actions/{name}/invoke" },
+        {
+          method: "get",
+          path: "/grants/{code}/applications/{clientRef}/status",
+        },
+        {
+          method: "get",
+          path: "/grants/{grantCode}/entitlements/{clientRef}/available-claims",
+        },
+        {
+          method: "post",
+          path: "/grants/{grantCode}/applications/{clientRef}/claims",
+        },
+      ]),
+    );
+    expect(routePaths).toHaveLength(10);
   });
 });

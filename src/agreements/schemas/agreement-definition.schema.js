@@ -1,21 +1,50 @@
 import Joi from "joi";
-import { handlers } from "../services/effects/agreement-effect-runner.js";
 
-const effect = Joi.object({
-  name: Joi.string()
-    .valid(...Object.keys(handlers))
-    .required(),
-  output: Joi.string().optional(),
-  params: Joi.object().optional(),
-})
-  .unknown(true)
-  .label("Effect");
+const processes = Joi.array().items(Joi.string()).optional().label("Processes");
 
-const effects = Joi.array().items(effect).optional().label("Effects");
+const endpointProcessDefinition = Joi.object({
+  type: Joi.string().valid("endpoint").required(),
+  endpoint: Joi.object({
+    method: Joi.string().valid("GET", "POST").required(),
+    path: Joi.string().required(),
+    service: Joi.string().required(),
+  }).required(),
+  request: Joi.object({
+    body: Joi.object().unknown(true).required(),
+  }).required(),
+  output: Joi.object().min(1).unknown(true).required(),
+}).label("EndpointProcessDefinition");
+
+const handlerProcessDefinition = Joi.object({
+  type: Joi.string().valid("handler").required(),
+  input: Joi.object().unknown(true).optional(),
+}).label("HandlerProcessDefinition");
+
+const unknownProcessDefinition = Joi.object({
+  type: Joi.string().valid("endpoint", "handler").required(),
+}).unknown(true);
+
+const processDefinition = Joi.alternatives()
+  .conditional(".type", {
+    switch: [
+      { is: "endpoint", then: endpointProcessDefinition },
+      { is: "handler", then: handlerProcessDefinition },
+    ],
+    otherwise: unknownProcessDefinition,
+  })
+  .label("ProcessDefinition");
+
+const processDefinitions = Joi.object()
+  .pattern(Joi.string(), processDefinition)
+  .optional()
+  .label("ProcessDefinitions");
 
 const create = Joi.object({
   target: Joi.string().required(),
-  effects,
+  application: Joi.any().required(),
+  values: Joi.object().min(1).unknown(true).optional(),
+  effects: Joi.forbidden(),
+  processes,
 })
   .required()
   .label("Create");
@@ -30,7 +59,6 @@ const requiredValidationField = Joi.object({
   .label("RequiredValidationField");
 
 const validation = Joi.object({
-  page: Joi.string().required(),
   required: Joi.array().items(requiredValidationField).min(1).required(),
 })
   .unknown(true)
@@ -38,50 +66,193 @@ const validation = Joi.object({
 
 const actionTransition = Joi.object({
   target: Joi.string().required(),
+  page: Joi.string().optional(),
   validation: validation.optional(),
-  effects,
+  values: Joi.object().min(1).unknown(true).optional(),
+  effects: Joi.forbidden(),
+  processes,
 })
+  .with("validation", "page")
   .unknown(true)
   .label("ActionTransition");
 
 const state = Joi.object({
   page: Joi.string().optional(),
+  processes,
   on: Joi.object().pattern(Joi.string(), actionTransition).optional(),
 }).label("State");
 
+// The platform uses this state to pin the accepted config version.
 const states = Joi.object()
   .pattern(Joi.string(), state)
+  .keys({ accepted: state.required().label("states.accepted") })
   .min(1)
   .required()
   .label("States");
 
-const component = Joi.object({
+// Resolved at validation time against the "component" id below, so components
+// can nest inside each other without the schema referencing itself too early.
+const componentLink = Joi.link("#component");
+
+const nestedComponents = Joi.array().items(componentLink).min(1);
+
+// Conditions and data references must be a lone reference or a JSONata
+// expression. Anything in between, such as "$.price * $.quantity", is rejected
+// here rather than left to resolve as interpolated text at render time. A lone
+// reference is checked by its characters rather than its grammar: an operator
+// or a space is what separates an expression from a reference, and resolving
+// is what parses the reference properly.
+const reference = Joi.string().pattern(/^(?:jsonata:.+|[$@]\.[\w$.[\]]+)$/s, {
+  name: "reference or jsonata: expression",
+});
+
+// A branch may be a single component or several
+const branch = Joi.alternatives().try(componentLink, nestedComponents);
+
+const pageHref = Joi.alternatives().try(
+  Joi.string(),
+  Joi.object({
+    urlTemplate: Joi.string().required(),
+    params: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
+  }),
+);
+
+const backLink = Joi.object({
+  text: Joi.string().optional(),
+  href: pageHref.required(),
+}).label("BackLink");
+
+const genericComponent = Joi.object({
   component: Joi.string().required(),
+  condition: reference.optional(),
 })
   .unknown(true)
   .label("Component");
 
-const pageHref = Joi.alternatives()
-  .try(
-    Joi.string(),
-    Joi.object({
-      urlTemplate: Joi.string().required(),
-      params: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
-    }),
-  )
-  .label("PageHref");
+const conditionalComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.required(),
+  whenTrue: branch.optional(),
+  whenFalse: branch.optional(),
+}).or("whenTrue", "whenFalse");
 
-const pageAction = Joi.object({
+const repeatComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  itemsRef: reference.required(),
+  items: nestedComponents.required(),
+  beforeContent: nestedComponents.optional(),
+  emptyContent: nestedComponents.optional(),
+});
+
+const templateComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  templateRef: reference.required(),
+  templateKey: Joi.string().required(),
+  dataRef: reference.optional(),
+});
+
+const containerComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  content: nestedComponents.required(),
+});
+
+const tableComponent = Joi.object({
+  component: Joi.string().required(),
+  condition: reference.optional(),
+  rowsRef: reference.required(),
+  rows: Joi.array().items(Joi.object()).min(1).required(),
+}).unknown(true);
+
+const urlComponent = Joi.object({
+  component: Joi.string().valid("url").required(),
+  condition: reference.optional(),
   href: pageHref.required(),
   text: Joi.string().required(),
-})
-  .unknown(true)
-  .label("PageAction");
+}).unknown(true);
+
+const treeComponent = Joi.object({
+  component: Joi.string().valid("grid-row", "grid-column").required(),
+  condition: reference.optional(),
+  components: nestedComponents.required(),
+}).unknown(true);
+
+const action = Joi.string().trim().min(1);
+
+const formComponent = Joi.object({
+  component: Joi.string().valid("form").required(),
+  condition: reference.optional(),
+  action: action.required(),
+  components: nestedComponents.required(),
+}).unknown(true);
+
+// Buttons inside forms submit their parent action, so only validate an action
+// when one is configured. The action binder rejects missing actions on
+// standalone buttons.
+const buttonComponent = Joi.object({
+  component: Joi.string().valid("button").required(),
+  condition: reference.optional(),
+  action: action.optional(),
+}).unknown(true);
+
+const component = Joi.alternatives()
+  .conditional(".component", {
+    switch: [
+      { is: "conditional", then: conditionalComponent },
+      { is: "repeat", then: repeatComponent },
+      { is: "template", then: templateComponent },
+      { is: "component-container", then: containerComponent },
+      { is: "table", then: tableComponent },
+      { is: "url", then: urlComponent },
+      { is: "grid-row", then: treeComponent },
+      { is: "grid-column", then: treeComponent },
+      { is: "form", then: formComponent },
+      { is: "button", then: buttonComponent },
+    ],
+    otherwise: genericComponent,
+  })
+  .id("component");
+
+const templateContent = Joi.object({
+  content: Joi.array().items(component).min(1).required(),
+}).unknown(true);
+
+const templates = Joi.object()
+  .pattern(
+    Joi.string(),
+    Joi.object().pattern(Joi.string(), templateContent).min(1),
+  )
+  .optional()
+  .label("Templates");
+
+const sectionId = Joi.string()
+  .pattern(/^[a-z][a-z0-9-]*$/)
+  .label("SectionId");
+
+const documentSection = Joi.object({
+  id: sectionId.required(),
+  title: Joi.string().required(),
+  condition: reference.optional(),
+  components: Joi.array().items(component).min(1).required(),
+}).label("DocumentSection");
+
+const watermarks = Joi.object()
+  .pattern(Joi.string(), Joi.string().required())
+  .min(1)
+  .label("Watermarks");
 
 const pageDefinition = Joi.object({
   title: Joi.string().required(),
+  layout: Joi.string().valid("document").optional(),
+  contents: Joi.boolean().optional(),
+  print: Joi.boolean().optional(),
+  watermarks: watermarks.optional(),
+  backLink: backLink.optional(),
   components: Joi.array().items(component).min(1).required(),
-  actions: Joi.array().items(pageAction).optional(),
+  processes: Joi.forbidden(),
+  sections: Joi.array().items(documentSection).min(1).unique("id").optional(),
 })
   .unknown(true)
   .label("Page");
@@ -103,14 +274,16 @@ const endpoint = Joi.object({
 
 const endpoints = Joi.array().items(endpoint).optional().label("Endpoints");
 
+// configVersion is platform-owned and added after producer validation.
 export const agreementDefinitionSchema = Joi.object({
   code: Joi.string().required(),
-  configVersion: Joi.string().required(),
   agreementNumberPrefix: Joi.string().required(),
   endpoints,
+  processDefinitions,
   create,
   states,
   pages,
+  templates,
 })
   .required()
   .label("AgreementDefinition");

@@ -25,6 +25,9 @@ describe("GET /grants/{code}", () => {
     });
 
     expect(response.res.statusCode).toEqual(200);
-    expect(response.payload).toEqual(grant2);
+    // The fixtures are stored exactly as a pre-entitlements grant would be,
+    // with no entitlementTemplates key at all. The repository normalises that
+    // to an empty collection on read, so it surfaces here as [].
+    expect(response.payload).toEqual({ ...grant2, entitlementTemplates: [] });
   });
 });

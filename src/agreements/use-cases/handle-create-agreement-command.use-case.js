@@ -1,87 +1,70 @@
-import Boom from "@hapi/boom";
+import { randomUUID } from "node:crypto";
+import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
+import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { getAgreementDefinitionByCode } from "../models/agreement-definitions/index.js";
-import { AgreementItem } from "../models/agreement-item.js";
-import { generateAgreementNumber } from "../models/agreement-number.js";
 import { AgreementVersion } from "../models/agreement-version.js";
-import { Agreement } from "../models/agreement.js";
 import {
-  findByClientRefAndCode,
-  saveAgreement,
-  saveVersion,
+  findAgreementBySourceIdentity,
+  insertAgreementVersion,
+  insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
-import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
+import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
+import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
-const SOURCE_SYSTEM = "GAS";
-
-// Runs create effects (which may include a real, non-idempotent external
-// HTTP call via the callEndpoint effect) and builds version 1. Deliberately
-// called before any transaction is opened: withTransaction retries its whole
-// callback on transient errors, so any external side effect performed inside
-// it would risk firing more than once for the same command.
-const buildInitialVersion = async (definition, agreement, answers) => {
-  const { target, effects = [] } = definition.create;
-
-  const effectContext = await runAgreementEffects(effects, {
-    answers,
-    outputs: {},
-    endpoints: definition.endpoints ?? [],
+const createAgreement = async (event) => {
+  const { clientRef, code, currentConfigVersion } = event.data;
+  const existingAgreement = await findAgreementBySourceIdentity({
+    clientRef,
+    code,
   });
-
-  const snapshotItem = new AgreementItem({
-    ...agreement.items[0],
-    status: target,
-    supplementaryData: effectContext.supplementaryData,
-  });
-
-  return AgreementVersion.new({
-    agreementId: agreement.id,
-    agreementNumber: agreement.agreementNumber,
-    version: 1,
-    snapshot: { ...agreement, items: [snapshotItem] },
-  });
-};
-
-export const handleCreateAgreementCommandUseCase = async (event) => {
-  const { clientRef, code, identifiers, answers } = event.data;
-
-  const existingAgreement = await findByClientRefAndCode(clientRef, code);
 
   if (existingAgreement) {
     return existingAgreement;
   }
 
-  const definition = getAgreementDefinitionByCode(code);
-
-  if (!definition) {
-    throw Boom.badRequest(`Unknown agreement code: "${code}"`);
-  }
-
-  const item = AgreementItem.create({
-    agreementCode: code,
-    clientRef,
-    sourceSystem: SOURCE_SYSTEM,
-    configVersion: definition.configVersion,
-    identifiers,
-    payload: answers,
-    status: definition.create.target,
-  });
-
-  const agreement = Agreement.new({
-    agreementNumber: generateAgreementNumber({
-      prefix: definition.agreementNumberPrefix,
-    }),
+  const definition = await loadAgreementDefinition({
     code,
-    identifiers,
-    items: [item],
+    configVersion: currentConfigVersion,
+    resolution: "creation",
   });
-
-  const version = await buildInitialVersion(definition, agreement, answers);
+  const execution = {
+    correlationId: randomUUID(),
+    executedAt: new Date().toISOString(),
+  };
+  const agreement = await definition.createAgreement({
+    input: event.data,
+    execution,
+  });
+  const agreementVersion = AgreementVersion.create({
+    agreement,
+    versionedAt: agreement.createdAt,
+  });
+  const outboundEvents = createOutboxMessages(["lifecycle"], agreement);
 
   return withTransaction(async (session) => {
-    await saveAgreement(agreement, session);
-    await saveVersion(version, session);
+    await insertCurrentAgreement(agreement, session);
+    await insertAgreementVersion(agreementVersion, session);
+    await saveOutboxEvents(outboundEvents, session);
 
     return agreement;
   });
+};
+
+const hasSourceIdentityKey = (error) =>
+  Boolean(error.keyPattern?.code && error.keyPattern?.clientRef);
+
+const isSourceIdentityConflict = (error) =>
+  isMongoDuplicateKeyError(error) && hasSourceIdentityKey(error);
+
+export const handleCreateAgreementCommandUseCase = async (event) => {
+  try {
+    return await createAgreement(event);
+  } catch (error) {
+    if (!isSourceIdentityConflict(error)) {
+      throw error;
+    }
+
+    const { clientRef, code } = event.data;
+    return findAgreementBySourceIdentity({ clientRef, code });
+  }
 };

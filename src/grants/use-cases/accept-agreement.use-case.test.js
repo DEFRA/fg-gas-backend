@@ -136,7 +136,7 @@ describe("acceptAgreementUseCase", () => {
             endDate: "2027-01-01",
           },
         },
-        messageGroupId: "accept-agreement-agreement-123",
+        segregationRef: "accept-agreement-agreement-123",
         status: "SUCCESS",
       }),
       {},
@@ -176,9 +176,9 @@ describe("auditDataBuilder", () => {
     });
   });
 
-  it("sets messageGroupId to accept-agreement-{agreementNumber}", () => {
+  it("sets segregationRef to accept-agreement-{agreementNumber}", () => {
     const event = auditDataBuilder(args);
 
-    expect(event.messageGroupId).toBe("accept-agreement-agreement-123");
+    expect(event.segregationRef).toBe("accept-agreement-agreement-123");
   });
 });

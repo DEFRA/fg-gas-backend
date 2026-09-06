@@ -66,7 +66,7 @@ describe("create status transition update", () => {
           toStatus: "SOME:STATUS:FOO",
           entityIdKey: "clientRef",
         },
-        messageGroupId: "status-transition-some-client-ref",
+        segregationRef: "status-transition-some-client-ref",
       }),
       session,
     );

@@ -1,5 +1,10 @@
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { config } from "../../common/config.js";
+import {
+  canHandleInternalCommand,
+  internalMessageBusTarget,
+} from "../../common/internal-command-bus.js";
+import { internalCommandTypes } from "../../common/internal-command-types.js";
 import { logger } from "../../common/logger.js";
 import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
 import { CreateAgreementCommand } from "../events/create-agreement.command.js";
@@ -17,9 +22,17 @@ export const auditDataBuilder = (args) => {
       clientRef,
       code,
     },
-    messageGroupId: `create-agreement-${clientRef}`,
+    segregationRef: `create-agreement-${clientRef}`,
   });
 };
+
+const resolveAgreementCommandTarget = async (command) =>
+  (await canHandleInternalCommand(
+    internalCommandTypes.AGREEMENT_CREATE,
+    command,
+  ))
+    ? internalMessageBusTarget
+    : config.sns.createAgreementTopicArn;
 
 const createAgreementCommand = async ({ clientRef, code }, session) => {
   logger.info(
@@ -35,7 +48,7 @@ const createAgreementCommand = async ({ clientRef, code }, session) => {
     [
       new Outbox({
         event: command,
-        target: config.sns.createAgreementTopicArn,
+        target: await resolveAgreementCommandTarget(command),
         segregationRef: Outbox.getSegregationRef(command),
       }),
     ],

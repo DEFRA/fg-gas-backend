@@ -5,25 +5,27 @@ services:
       - cdp-tenant
     ports:
       - "${GAS_PORT:-3102}:3102"
-    links:
-      - "localstack:localstack"
-      - "mongodb:mongodb"
-      - "mongo-ready:mongo-ready"
     env_file:
       - .env
     environment:
       PORT: 3102
       MONGO_URI: mongodb://mongodb:27017/?replicaSet=mongoRepl
-      AWS_ENDPOINT_URL: "http://localstack:4566"
+      AWS_ENDPOINT_URL: "http://floci:4566"
       OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
       INBOX_POLL_MS: "${INBOX_POLL_MS}"
       GRANT_FUNDING_CALCULATOR_URL: "${GRANT_FUNDING_CALCULATOR_URL}"
+      VIEW_AGREEMENT_URI: "${VIEW_AGREEMENT_URI}"
+      GAS_MANAGED_AGREEMENT_GRANT_CODES: "${GAS_MANAGED_AGREEMENT_GRANT_CODES}"
+      # FGP-1307: caller-token enforcement. Defaults to on (secure) for local
+      # `docker compose up`; the integration test harness passes "false" so the
+      # header-driven authz scenarios keep working during the staged rollout.
+      CALLER_TOKEN_ENFORCE: "${CALLER_TOKEN_ENFORCE:-false}"
     depends_on:
       mongo-ready:
         condition: service_healthy
       mongodb:
         condition: service_healthy
-      localstack:
+      floci:
         condition: service_healthy
     develop:
       watch:

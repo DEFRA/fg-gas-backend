@@ -9,6 +9,7 @@ Grant Application Service defines and manages farming grants and applications. I
   - [Node.js](#nodejs)
 - [Local development](#local-development)
   - [Setup](#setup)
+  - [AWS emulation (floci)](#aws-emulation-floci)
   - [Development](#development)
   - [Testing](#testing)
     - [Unit tests](#unit-tests)
@@ -104,40 +105,65 @@ Create a `.env` file in the root of the project. You can use the `.env.example` 
 cp .env.example .env
 ```
 
-## SNS/SQS Message retrieval for local development
+`VIEW_AGREEMENT_URI` is the Agreements UI base used in accepted Agreement
+lifecycle events. Do not include a trailing slash; the Agreement Number is
+appended when the event is created.
 
-To verify an SNS message has been queued locally you will need the aws cli installed and some basic configuration.
+`AGREEMENTS_JWT_SECRET` (FGP-1307) is the shared HS256 secret GAS uses to verify
+the caller token (the `x-encrypted-auth` header) forwarded by Agreements UI on
+the agreement routes. It must match the secret the producer services sign with
+(Caseworking frontend, PDF service and Grants UI). It is supplied per
+environment from the platform secret store and must never be committed. It is
+optional while verification runs in warn-only mode; when absent the caller token
+is reported as unverified but requests are not rejected. The producer issuers
+permitted to mint caller tokens (`grants-ui`, `fg-cw-frontend`, `agreements-pdf`)
+are a fixed code constant rather than configuration — the same list applies in
+every environment, so there is no env var to set and no `cdp-app-config` entry,
+and the allowlist can never be misconfigured to an empty "accept any issuer" list.
 
-### Install Aws Cli
+### AWS emulation (floci)
 
-Install aws cli (https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+SQS and SNS are emulated by [floci](https://floci.io) on `localhost:4566`,
+replacing LocalStack. The rest of the stack (`fg-grants-core`, `fg-cw-backend`)
+uses the same emulator.
 
-### Configure your localstack with aws config
+Queues, topics and subscriptions are created by init scripts mounted into the
+`floci` container. They run in lexical order **by filename**, pooled across every
+repo that mounts one in:
 
-Add the following localstack profile to your `~/.aws/config`
+| Script                  | Mounted by                                 |
+| ----------------------- | ------------------------------------------ |
+| `10-setup-resources.sh` | this repo (`compose/floci/start.d/`)       |
+| `99-ready.sh`           | this repo — writes the `/tmp/READY` marker |
+
+The container's healthcheck waits on `/tmp/READY` rather than on the gateway
+responding, because floci starts serving HTTP before the init scripts have
+finished. Services that `depends_on` floci with `condition: service_healthy`
+therefore never start before their queues exist. If you add a script, give it a
+numeric prefix below `99`.
+
+When gas is pulled into another stack that already runs floci, only
+`10-setup-resources.sh` is mounted and the host stack owns the marker — see
+`compose/ext/compose.gas-ext.example.yml`.
+
+State is in-memory: every `compose up` recreates the resources from scratch.
+
+#### Inspecting queues and topics
+
+The compat image ships the AWS CLI, so the quickest route needs nothing
+installed on the host:
 
 ```bash
-[profile localstack]
-region=eu-west-1
-output=json
-endpoint_url=http://localhost:4566
+docker compose exec floci awslocal sqs list-queues
+docker compose exec floci awslocal sns list-topics
+docker compose exec floci awslocal sqs receive-message \
+  --queue-url $(docker compose exec -T floci awslocal sqs get-queue-url \
+    --queue-name gas__sqs__update_status_fifo.fifo --output text)
 ```
 
-Add the following config to your `~/.aws/credentials`
-
-```bash
-[localstack]
-aws_access_key_id=test
-aws_secret_access_key=test
-```
-
-### Query localstack
-
-Then run the following to fetch messages in the queue. The queue-url should match the output from local stack in your console environment
-
-```bash
-aws sqs receive-message --queue-url http://sqs.eu-west-2.127.0.0.1:4566/000000000000/grant_application_created --profile localstack
-```
+Note that queues dead-letter after a single failed receive by default, so
+peeking at a queue can consume the message. Set `MAX_READS=2` in
+`compose/aws.env` and recreate the stack if you need headroom.
 
 ### Development
 
@@ -190,6 +216,97 @@ When `PACT_USE_LOCAL=true`, tests will read pact files from `tmp/pacts` (for exa
 The GAS API uses simple bearer tokens for service access. Tokens are UUIDv4 values whose SHA‑256 hash is stored in MongoDB in the `access_tokens` collection.
 
 Clients must send the raw token in the `Authorization` header as `Bearer <token>`.
+
+### Issuing a credential to another service
+
+Deployed environments give nobody direct database access, so tokens for other
+services are not inserted by hand. GAS seeds one itself on boot from
+`SERVICE_ACCESS_TOKEN_HASH`, supplied by the platform's secret store, which makes
+issuing and rotating a credential a secret change plus a redeploy.
+
+The value is a single `client:sha256hex` pair:
+
+```
+some-service:4bb35ade...
+```
+
+Only the hash reaches GAS. The raw token lives solely in the calling service's
+own secrets, so GAS cannot mint or impersonate the credentials it accepts - the
+same reason `access_tokens` stores hashes in the first place. Neither value
+belongs in a repository: this repo is public, and callers' repos may be too.
+
+This is an instruction to issue, not a record of who holds a token:
+
+- It affects only the client it names. Other services' tokens are never touched,
+  and neither are tokens minted by hand with `scripts/mint-access-token.js`
+  (reconciliation is scoped to records the seeder created).
+- Unset it and nothing happens. Clearing the secret revokes nobody, so it can be
+  emptied once a credential has been issued.
+- Onboard services one at a time: point it at the next client and redeploy. The
+  previously issued token stays valid.
+
+Seeding never stops GAS starting. A malformed value or a database failure is
+logged and skipped, leaving that client without a working token until the next
+deploy, rather than taking the service down for everyone. Check the logs after a
+deploy - a credential that silently never appeared looks exactly like one that
+was never set.
+
+#### Issue or rotate
+
+Run once **per environment** - never reuse a token across environments, or a dev
+credential authenticates against prod:
+
+```bash
+npm run token:new -- <client-name>
+```
+
+Then in the CDP portal for that environment:
+
+1. `fg-gas-backend` -> Secrets -> `SERVICE_ACCESS_TOKEN_HASH` = the printed
+   `client:hash` pair
+2. Give the raw token to the calling service as its own secret
+3. Redeploy `fg-gas-backend`, then the caller
+
+Setting a new hash for a client that already has one rotates it: a single seeded record
+per client is enforced by a unique index, so the new token replaces the previous
+one on the next boot. Expect 401s between the two redeploys, so deploy GAS
+first.
+
+Locally, set `SERVICE_ACCESS_TOKEN_HASH` in `.env` instead of the portal.
+
+#### Revoke
+
+There is no revoke-by-omission - clearing the secret deliberately does nothing.
+To cut a client off, rotate it to a freshly generated hash and discard the raw
+token: the old token stops working on the next boot and nobody holds the new one.
+Removing the record outright needs database access. Issuing the new hash and
+revoking the old one is a single atomic step, so confirm the deploy logged
+`Seeded access token for <client>` - a failed seed leaves the old token live.
+
+The client name is the identity. Reconciliation is scoped to the client named in
+the secret, so renaming one issues a _second_ credential rather than rotating the
+first, and the original stays valid indefinitely. Cut the old name off the same
+way - point the secret at `<old-name>:<fresh hash>`, redeploy, and discard that
+token - before switching to the new name.
+
+#### Verify
+
+Check the GAS startup logs, which will show one of:
+
+| Log line                                                                    | Meaning                                                                                                                  |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `Seeded access token for <client>`                                          | Issued. A `, replacing the previous one` suffix means the hash changed; without it, the credential was already in place. |
+| `SERVICE_ACCESS_TOKEN_HASH is not a client:sha256hex pair - nothing seeded` | The value is malformed. Nothing was issued or removed.                                                                   |
+| `Failed to seed access token for <client>`                                  | The database write failed. GAS started anyway; retry by redeploying.                                                     |
+| nothing                                                                     | The secret is empty or unset, so there was nothing to do.                                                                |
+
+Then confirm the raw token is accepted:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer <raw token>" \
+  https://fg-gas-backend.<env>.cdp-int.defra.cloud/grants
+```
 
 ### Minting service access tokens
 
@@ -301,6 +418,10 @@ Subscriptions can access use cases.
 Use cases can access repositories, http clients, domain classes and other use cases.
 Use cases should export a single function.
 Repositories can access db.
+
+`src/grants/services/` contains both stateless helpers and transactional application services. The application services coordinate repositories and domain objects for a complete operation, own their Mongo transaction, and pass its session to every participating repository call. `entitlement.service.js` and `claims.service.js` are the Grants entry points for the Grant Admin inbound adapter. Services may import domain models when coordinating those operations; domain models must not import services.
+
+Cross-module data is obtained through a documented integration seam. In particular, Grants can use the reviewed Agreements reference-context query, which returns a plain context using the active Mongo session. It must not import an Agreements repository or domain model.
 
 Routes and subscriptions should never respond with a domain object.
 Domain objects should never access use cases, repositories or subscriptions.

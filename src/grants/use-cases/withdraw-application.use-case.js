@@ -11,6 +11,7 @@ import {
   update,
 } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { resolveAgreementStatusCommandTarget } from "./agreement-status-command.helpers.js";
 
 export const auditDataBuilder = (args) => {
   const { clientRef, code } = args[0];
@@ -22,7 +23,7 @@ export const auditDataBuilder = (args) => {
       clientRef,
       code,
     },
-    messageGroupId: `withdraw-application-${clientRef}`,
+    segregationRef: `withdraw-application-${clientRef}`,
   });
 };
 
@@ -49,7 +50,9 @@ const withdrawApplication = async (command, session) => {
     outboxObjects.push(
       new Outbox({
         event: updateAgreementStatusCommand,
-        target: config.sns.updateAgreementStatusTopicArn,
+        target: await resolveAgreementStatusCommandTarget(
+          updateAgreementStatusCommand,
+        ),
         segregationRef: Outbox.getSegregationRef(updateAgreementStatusCommand),
       }),
     );
@@ -63,6 +66,7 @@ const withdrawApplication = async (command, session) => {
     const statusCommand = new UpdateCaseStatusCommand({
       caseRef: clientRef,
       workflowCode: code,
+      configVersion: application.currentConfigVersion,
       newStatus: application.getFullyQualifiedStatus(),
       phase: currentPhase,
       stage: currentStage,
@@ -79,6 +83,7 @@ const withdrawApplication = async (command, session) => {
     const statusEvent = new ApplicationStatusUpdatedEvent({
       clientRef,
       code,
+      currentConfigVersion: application.currentConfigVersion,
       previousStatus: statusBeforeUpdate,
       currentStatus: application.getFullyQualifiedStatus(),
     });

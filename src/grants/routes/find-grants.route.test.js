@@ -86,6 +86,7 @@ describe("findGrantsRoute", () => {
           startDate: "2023-01-01T00:00:00Z",
         },
         actions: [],
+        entitlementTemplates: [],
         phases: [
           {
             code: "PRE_AWARD",
@@ -110,6 +111,7 @@ describe("findGrantsRoute", () => {
           startDate: "2023-01-01T00:00:00Z",
         },
         actions: [],
+        entitlementTemplates: [],
         phases: [
           {
             code: "PRE_AWARD",

@@ -46,21 +46,12 @@
           "applicant": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "business",
-              "customer"
-            ],
+            "required": ["business", "customer"],
             "properties": {
               "business": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "name",
-                  "reference",
-                  "email",
-                  "phone",
-                  "address"
-                ],
+                "required": ["name", "reference", "email", "phone", "address"],
                 "properties": {
                   "name": {
                     "type": "string"
@@ -71,9 +62,7 @@
                   "email": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": [
-                      "address"
-                    ],
+                    "required": ["address"],
                     "properties": {
                       "address": {
                         "type": "string",
@@ -84,9 +73,7 @@
                   "phone": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": [
-                      "mobile"
-                    ],
+                    "required": ["mobile"],
                     "properties": {
                       "mobile": {
                         "type": "string"
@@ -96,11 +83,7 @@
                   "address": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": [
-                      "city",
-                      "postalCode",
-                      "line1"
-                    ],
+                    "required": ["city", "postalCode", "line1"],
                     "properties": {
                       "city": {
                         "type": "string"
@@ -127,18 +110,12 @@
               "customer": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "name"
-                ],
+                "required": ["name"],
                 "properties": {
                   "name": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": [
-                      "title",
-                      "first",
-                      "last"
-                    ],
+                    "required": ["title", "first", "last"],
                     "properties": {
                       "title": {
                         "type": "string"

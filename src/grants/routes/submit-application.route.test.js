@@ -46,6 +46,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           defraId: "DEFRA123456",
           submittedAt: "2000-01-01T12:00:00Z",
+          configVersion: "1.0.0",
         },
         answers: {
           q1: "John Doe",
@@ -66,6 +67,7 @@ describe("submitApplicationRoute", () => {
         crn: "CRN123456",
         defraId: "DEFRA123456",
         submittedAt: new Date("2000-01-01T12:00:00Z"),
+        configVersion: "1.0.0",
       },
       answers: {
         q1: "John Doe",
@@ -87,6 +89,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           defraId: "DEFRA123456",
           submittedAt: "2000-01-01T12:00:00Z",
+          configVersion: "1.0.0",
         },
         answers: {
           q1: "John Doe",
@@ -108,6 +111,7 @@ describe("submitApplicationRoute", () => {
         crn: "CRN123456",
         defraId: "DEFRA123456",
         submittedAt: new Date("2000-01-01T12:00:00Z"),
+        configVersion: "1.0.0",
       },
       answers: {
         q1: "John Doe",
@@ -128,7 +132,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           wubble: "wobble",
           submittedAt: "2000-01-01T12:00:00Z",
-          configVersion: "0.0.2",
+          configVersion: "1.0.0",
         },
         answers: {
           q1: "John Doe",
@@ -146,7 +150,7 @@ describe("submitApplicationRoute", () => {
         crn: "CRN123456",
         wubble: "wobble",
         submittedAt: new Date("2000-01-01T12:00:00Z"),
-        configVersion: "0.0.2",
+        configVersion: "1.0.0",
       },
       answers: {
         q1: "John Doe",
@@ -179,6 +183,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           defraId: "DEFRA123456",
           submittedAt: "2000-01-01T12:00:00Z",
+          configVersion: "1.0.0",
         },
         answers: {
           q1: "John Doe",
@@ -203,6 +208,7 @@ describe("submitApplicationRoute", () => {
           crn: "CRN123456",
           defraId: "DEFRA123456",
           submittedAt: "invalid-date",
+          configVersion: "1.0.0",
         },
         answers: {
           q1: "John Doe",
