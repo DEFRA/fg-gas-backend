@@ -287,6 +287,17 @@ export const loadAgreementDefinition = async (options) => {
   throw unavailable(options.code, options.configVersion);
 };
 
+// Migration dry-runs must prove that an exact definition is usable without
+// changing the definition cache or shared fetch status.
+export const loadAgreementDefinitionReadOnly = async (options) => {
+  const target = await resolveTarget(options);
+  guardFetchStatus(target);
+  const stored = await loadStored(target);
+  const rawDefinition =
+    stored ?? (await fetchConfigFile(target.s3Bucket, target.s3Key));
+  return compileDefinition(rawDefinition, target.grantCode, target.version);
+};
+
 // Reset module caches between tests.
 export const clearAgreementDefinitionCaches = () => {
   compiledDefinitions.clear();
