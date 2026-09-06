@@ -4,7 +4,6 @@ import {
   resolveRefs,
   UnresolvedReferenceError,
 } from "../../common/resolve-refs.js";
-import { toApplicationContext } from "./application-context.js";
 
 const renderableTypes = new Set(["string", "number", "boolean"]);
 
@@ -61,25 +60,21 @@ const resolveSummary = async (summary, context) => {
   return Object.fromEntries(entries.filter(([, field]) => field !== undefined));
 };
 
-const findBanner = (grant, page) => grant.pages?.[page]?.details?.banner;
-
 const withTitle = (title) => (title ? { title } : {});
 
 /**
  * Grants with no banner are not configured for this page - 404 rather than leaving a
  * broken page for case worker.
  */
-export const buildBanner = async ({ grant, application, page }) => {
-  const banner = findBanner(grant, page);
+export const buildBanner = async ({ claimsPage, applicationContext }) => {
+  const banner = claimsPage?.details?.banner;
 
   if (!banner) {
-    throw Boom.notFound(`Grant "${grant.code}" configures no "${page}" page`);
+    throw Boom.notFound('Grant configures no "claims" page');
   }
 
-  const context = toApplicationContext(application);
-
   return {
-    ...withTitle(await resolveText(banner.title, context, "title")),
-    summary: await resolveSummary(banner.summary, context),
+    ...withTitle(await resolveText(banner.title, applicationContext, "title")),
+    summary: await resolveSummary(banner.summary, applicationContext),
   };
 };
