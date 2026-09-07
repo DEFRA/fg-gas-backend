@@ -13,7 +13,10 @@ vi.mock("../../common/wreck.js", () => ({
 
 const originalConfig = { ...config.woodlandMigration };
 
-const response = (payload, statusCode = 200) => ({ payload, statusCode });
+const response = (payload, statusCode = 200) => ({
+  payload,
+  res: { statusCode },
+});
 
 beforeEach(() => {
   Object.assign(config.woodlandMigration, {
