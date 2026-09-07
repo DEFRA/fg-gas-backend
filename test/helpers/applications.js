@@ -82,20 +82,19 @@ export const seedConfigVersion = async (
     s3Bucket: "config-broker-local",
   });
   const doc = cv.toDocument();
-  doc.fetchStatus = FetchStatus.Fetched;
-  doc.fetchedAt = new Date().toISOString();
-  doc.definitions = withAgreementDefinition
-    ? {
-        agreement: {
-          s3Key: `${code}/${version}/gas/agreement.json`,
-          fetchStatus: FetchStatus.Fetched,
-          fetchAttempts: 0,
-          fetchError: null,
-          fetchedAt: doc.fetchedAt,
-          lastFetchAttemptAt: doc.fetchedAt,
-        },
-      }
-    : {};
+  const fetchedAt = new Date().toISOString();
+  doc.definitions.grant.fetchStatus = FetchStatus.Fetched;
+  doc.definitions.grant.fetchedAt = fetchedAt;
+  if (withAgreementDefinition) {
+    doc.definitions.agreement = {
+      s3Key: `${code}/${version}/gas/agreement.json`,
+      fetchStatus: FetchStatus.Fetched,
+      fetchAttempts: 0,
+      fetchError: null,
+      fetchedAt,
+      lastFetchAttemptAt: fetchedAt,
+    };
+  }
   await Promise.all([
     db
       .collection("config_versions")

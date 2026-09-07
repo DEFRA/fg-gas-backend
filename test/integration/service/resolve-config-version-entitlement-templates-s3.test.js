@@ -172,7 +172,7 @@ describe("config broker entitlementTemplates ingestion (real S3)", () => {
     expect(storedDoc.entitlementTemplates).toEqual([entitlementTemplate]);
 
     const cvDoc = await configVersions.findOne({ grantCode, version });
-    expect(cvDoc.fetchStatus).toBe(FetchStatus.Fetched);
+    expect(cvDoc.definitions.grant.fetchStatus).toBe(FetchStatus.Fetched);
   });
 
   it("rejects and persists nothing when the real S3 object has a reference-integrity error", async () => {
