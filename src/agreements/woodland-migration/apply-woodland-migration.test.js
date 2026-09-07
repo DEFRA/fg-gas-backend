@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import {
+  applyClaimIdCounterInitialisation,
+  assertClaimIdCounterInitialisable,
+  reconcileClaimIdCounterInitialisation,
+} from "../../payments/use-cases/initialise-claim-id-counter.use-case.js";
 import { applyWoodlandMigration } from "./apply-woodland-migration.js";
 import { prepareWoodlandMigration } from "./dry-run-woodland-migration.js";
 import {
@@ -11,6 +16,7 @@ import {
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../common/logger.js");
+vi.mock("../../payments/use-cases/initialise-claim-id-counter.use-case.js");
 vi.mock("./dry-run-woodland-migration.js");
 vi.mock("./woodland-migration.repository.js");
 
@@ -26,6 +32,11 @@ const preparedAgreements = [
   { agreementNumber: "WMP0001" },
   { agreementNumber: "WMP0002" },
 ];
+const preparedClaimIdCounter = {
+  legacySeq: 4325,
+  firstGasSequence: 5000,
+  persistedSeq: 4999,
+};
 const approval = {
   confirmation: "APPLY_WOODLAND_MIGRATION",
   expectedAgreements: 2,
@@ -41,9 +52,16 @@ const session = { id: "session" };
 
 beforeEach(() => {
   vi.resetAllMocks();
-  prepareWoodlandMigration.mockResolvedValue({ summary, preparedAgreements });
+  prepareWoodlandMigration.mockResolvedValue({
+    summary,
+    preparedAgreements,
+    preparedClaimIdCounter,
+  });
   inspectWoodlandMigrationTargets.mockResolvedValue(decisions);
   reconcileWoodlandMigration.mockResolvedValue(undefined);
+  assertClaimIdCounterInitialisable.mockResolvedValue({ action: "lower" });
+  applyClaimIdCounterInitialisation.mockResolvedValue({ action: "lower" });
+  reconcileClaimIdCounterInitialisation.mockResolvedValue(undefined);
   withTransaction.mockImplementation((callback) => callback(session));
 });
 
@@ -72,15 +90,41 @@ describe("applyWoodlandMigration", () => {
       preparedAgreements,
       session,
     );
+    expect(assertClaimIdCounterInitialisable).toHaveBeenCalledWith(
+      preparedClaimIdCounter,
+    );
     expect(writeWoodlandMigration).toHaveBeenCalledWith(decisions, session);
+    expect(applyClaimIdCounterInitialisation).toHaveBeenCalledWith(
+      preparedClaimIdCounter,
+      session,
+    );
+    expect(writeWoodlandMigration.mock.invocationCallOrder[0]).toBeLessThan(
+      applyClaimIdCounterInitialisation.mock.invocationCallOrder[0],
+    );
     expect(reconcileWoodlandMigration).toHaveBeenNthCalledWith(
       1,
       preparedAgreements,
       session,
     );
+    expect(
+      applyClaimIdCounterInitialisation.mock.invocationCallOrder[0],
+    ).toBeLessThan(reconcileWoodlandMigration.mock.invocationCallOrder[0]);
     expect(reconcileWoodlandMigration).toHaveBeenNthCalledWith(
       2,
       preparedAgreements,
+    );
+    expect(reconcileClaimIdCounterInitialisation).toHaveBeenCalledWith(
+      preparedClaimIdCounter,
+    );
+    expect(logger.info).toHaveBeenLastCalledWith(
+      {
+        event: {
+          action: "woodland-migration-apply-completed",
+          outcome: "success",
+          reason: `agreements=2 versions=3 inserted=1 replaced=0 skipped=1 checksum=${sourceChecksum} claimIdCounter=lower persistedSeq=4999`,
+        },
+      },
+      "Woodland migration apply completed",
     );
   });
 
@@ -102,6 +146,7 @@ describe("applyWoodlandMigration", () => {
     prepareWoodlandMigration.mockResolvedValue({
       summary: preparedSummary,
       preparedAgreements,
+      preparedClaimIdCounter,
     });
 
     await expect(applyWoodlandMigration(request)).rejects.toMatchObject({
@@ -124,6 +169,43 @@ describe("applyWoodlandMigration", () => {
 
     expect(withTransaction).not.toHaveBeenCalled();
     expect(writeWoodlandMigration).not.toHaveBeenCalled();
+  });
+
+  it("fails before the transaction when the counter cannot be initialised", async () => {
+    assertClaimIdCounterInitialisable.mockRejectedValue(
+      Object.assign(new Error("payments present"), {
+        output: { statusCode: 409 },
+      }),
+    );
+
+    await expect(applyWoodlandMigration(approval)).rejects.toMatchObject({
+      output: { statusCode: 409 },
+    });
+
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(writeWoodlandMigration).not.toHaveBeenCalled();
+  });
+
+  it("propagates a transactional counter failure without reconciling", async () => {
+    applyClaimIdCounterInitialisation.mockRejectedValue(
+      new Error("counter write failed"),
+    );
+
+    await expect(applyWoodlandMigration(approval)).rejects.toThrow(
+      "counter write failed",
+    );
+
+    expect(reconcileWoodlandMigration).not.toHaveBeenCalled();
+    expect(reconcileClaimIdCounterInitialisation).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenLastCalledWith(
+      {
+        event: {
+          action: "woodland-migration-apply-completed",
+          outcome: "failure",
+        },
+      },
+      "Woodland migration apply failed",
+    );
   });
 
   it("propagates a transactional write failure without reconciling", async () => {

@@ -47,18 +47,19 @@ These services return plain DTOs at the adapter boundary. Grant Admin may compos
 
 ### Payment entry points
 
-Agreement acceptance uses two named Payment use cases:
+Agreement acceptance and the Woodland cutover use three named Payment use cases:
 
-| Caller       | Entry point                                               | Why                                                                                                                                                       |
-| ------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agreements` | `payments/use-cases/resolve-payment-definition.js`        | Resolves and validates the persisted Agreement's exact Payment definition before the transaction starts, so configuration or fetch failures write nothing |
-| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | Creates the Payment in the Agreement action's Mongo session so the Payment, Agreement, Version and lifecycle event commit together                        |
+| Caller       | Entry point                                                  | Why                                                                                                                                                                                               |
+| ------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agreements` | `payments/use-cases/resolve-payment-definition.js`           | Resolves and validates the persisted Agreement's exact Payment definition before the transaction starts, so configuration or fetch failures write nothing                                         |
+| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js`    | Creates the Payment in the Agreement action's Mongo session so the Payment, Agreement, Version and lifecycle event commit together                                                                |
+| `agreements` | `payments/use-cases/initialise-claim-id-counter.use-case.js` | Woodland cutover only: initialises the pre-seeded `claimIds` counter from the derived legacy continuation point inside the migration transaction; rejects payments or an unexpected counter state |
 
 The resolver is a read-only, pre-transaction seam. Config Broker loading and mapping validation stay outside the write transaction. The creation use case is the transactional seam, and the caller passes its session in.
 
 A Payment definition supplies `originalInvoiceNumber` as a top-level lookup or literal mapping. It also supplies `deliveryBody` and `marketingYear` at both Payment and invoice-line levels. Invoice-line values may differ from the Payment-level values, and `payments` preserves them when it builds the Payment. `payments` generates `invoiceNumber`.
 
-Nothing else in `payments` is importable from Agreements. The ESLint zone lists both exceptions explicitly so adding another one is a deliberate, reviewed change.
+Nothing else in `payments` is importable from Agreements. The ESLint zone lists all three exceptions explicitly so adding another one is a deliberate, reviewed change.
 
 `payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from the creation entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.
 

@@ -1,7 +1,7 @@
 # Woodland migration rollout checklist
 
 **Jira:** [FGP-1372](https://eaflood.atlassian.net/browse/FGP-1372)
-**Source API:** [farming-grants-agreements-api PR 470](https://github.com/DEFRA/farming-grants-agreements-api/pull/470)
+**Source API:** [farming-grants-agreements-api PR 470](https://github.com/DEFRA/farming-grants-agreements-api/pull/470) and [PR 483](https://github.com/DEFRA/farming-grants-agreements-api/pull/483)
 **Dry-run and apply:** [fg-gas-backend PR 626](https://github.com/DEFRA/fg-gas-backend/pull/626)
 
 This checklist deploys the read-only dry-run and rerunnable apply paths together. Apply remains operationally gated by the dedicated caller identity, approved dry-run checksum, expected counts and explicit confirmation. Neither endpoint activates Woodland routing.
@@ -23,7 +23,7 @@ Use separate credentials for the two authentication boundaries. Generate a new p
 
 ## 1. Pre-deployment checks
 
-- [ ] Confirm PR 470 and PR 626 have passed their required checks and approvals.
+- [ ] Confirm Agreements API PRs 470 and 483, and GAS PR 626, have passed their required checks and approvals.
 - [ ] Confirm the production diagnostic baseline is recorded: 70 agreements, 70 good, 0 bad.
 - [ ] Confirm the exact approved Woodland GAS configuration version.
 - [ ] Confirm that definition version exists in the target environment's GAS config catalog.
@@ -36,7 +36,7 @@ Use separate credentials for the two authentication boundaries. Generate a new p
 
 Prove the configuration gates in a lower environment before the coordinated production release. Production does not need a separate disabled-code deployment.
 
-- [ ] Deploy PR 470 with `MIGRATION_SOURCE_TOKEN_HASH` unset in a lower environment.
+- [ ] Deploy Agreements API PRs 470 and 483 with `MIGRATION_SOURCE_TOKEN_HASH` unset in a lower environment.
 - [ ] Deploy PR 626 with all `WOODLAND_MIGRATION_*` settings unset in the same lower environment.
 - [ ] Confirm both services are healthy.
 - [ ] Confirm the temporary source routes and GAS dry-run/apply routes are unavailable.
@@ -121,9 +121,9 @@ GAS_SERVICE_TOKEN=<raw token>
 - [ ] Check whether `SERVICE_ACCESS_TOKEN_HASH` already has a value before replacing it.
 - [ ] Record any previous value securely so it can be restored.
 - [ ] Stage `SERVICE_ACCESS_TOKEN_HASH` on GAS exactly as printed.
-- [ ] Deploy the PR 470 image and staged Agreements API secret to production.
+- [ ] Deploy the Agreements API image containing PRs 470 and 483 and the staged Agreements API secret to production.
 - [ ] Deploy the PR 626 image and all staged GAS settings to production once.
-- [ ] Confirm both services are healthy and the temporary routes are registered.
+- [ ] Confirm both services are healthy, the temporary routes are registered, and the Agreements claim-ID counter endpoint is reachable before running dry-run.
 - [ ] Confirm the following GAS startup message appears:
 
 ```text
@@ -150,7 +150,8 @@ unset WOODLAND_MIGRATION_TOKEN
 
 - [ ] Confirm the request returns HTTP 200.
 - [ ] Confirm the list contains the expected 70 Woodland agreement numbers.
-- [ ] Do not proceed if the count differs unexpectedly.
+- [ ] Request `/internal/migrations/claim-id-counter` with the same token; confirm it returns `counter: "claimIds"` and an integer `seq`.
+- [ ] Do not proceed if either source response differs unexpectedly.
 
 ## 7. Invoke the GAS dry-run
 
@@ -194,6 +195,7 @@ Check GAS logs for the execution window.
 - [ ] Exactly one `woodland-migration-dry-run-started` entry exists.
 - [ ] Exactly 70 `woodland-migration-dry-run-version` success entries exist.
 - [ ] No per-version failure entries exist.
+- [ ] One `woodland-migration-dry-run-claim-id-counter` success entry exists; record its `legacySeq`, `firstGasSequence` and `persistedSeq` evidence.
 - [ ] One `woodland-migration-dry-run-completed` entry exists with a success outcome.
 - [ ] The completion entry reports 70 agreements, 70 versions, 70 passed and 0 failures.
 - [ ] No migration log contains applicant data, client references, tokens or source envelopes.
@@ -209,7 +211,8 @@ Do not apply from the earlier rehearsal result. During the approved maintenance 
 - [ ] Take or verify the agreed source backup.
 - [ ] Run dry-run again after writes are paused.
 - [ ] Confirm the final result is valid with the approved 70 agreements and 70 versions.
-- [ ] Record the final `sourceChecksum` and obtain explicit approval for that checksum.
+- [ ] Confirm and record the legacy counter evidence (`legacySeq`, strict next-1,000 `firstGasSequence`, and `persistedSeq` one lower); do not proceed if it is unexpected.
+- [ ] Record the final `sourceChecksum` and obtain explicit approval for that checksum. The checksum binds the legacy counter value.
 - [ ] Keep Woodland routing on the legacy service.
 
 Load the dedicated operator token without putting it in shell history:
@@ -257,6 +260,8 @@ Expected first-apply response:
 - [ ] Confirm the apply completion log reports success and matching counts.
 - [ ] Confirm all 70 current Agreements and 70 AgreementVersions reconcile with the source checksums.
 - [ ] Confirm every persisted snapshot envelope verifies against its checksum.
+- [ ] Confirm the apply completion log records the claim-ID counter decision and persisted sequence.
+- [ ] Confirm the counter was lowered from seed `9,999,999` to the recorded `persistedSeq`, or records the expected rerun no-op; confirm the post-commit counter and zero-payment reconciliation succeeded.
 - [ ] Confirm no payment, Payable, PDF, lifecycle event, audit event or outbox message was produced.
 - [ ] Keep routing disabled until the separate reconciliation and approval are recorded.
 
@@ -264,16 +269,16 @@ An unchanged rerun is safe and should return `inserted: 0`, `replaced: 0`, and `
 
 ## 10. Troubleshooting
 
-| Result                                | Check                                                                                               |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| GAS returns `404`                     | All three GAS migration settings are present and GAS was redeployed                                 |
-| GAS returns `401`                     | `GAS_SERVICE_TOKEN` is the raw caller token and its hash was successfully seeded in GAS             |
-| Apply returns `403`                   | The caller credential is not the dedicated `woodland-migration-operator` identity                   |
-| Apply returns `409`                   | Validation failed, source checksum/counts changed, or existing GAS data conflicts                   |
-| GAS returns `502`                     | Source URL, raw migration token, Agreements API hash, source availability and source response shape |
-| GAS returns `500`                     | The exact Woodland configuration version exists and is usable; inspect the aborted completion log   |
-| GAS returns `200` with `valid: false` | Inspect each per-version diagnostic and resolve every reason before proceeding                      |
-| Agreements API returns `401`          | The raw `WOODLAND_MIGRATION_TOKEN` and `MIGRATION_SOURCE_TOKEN_HASH` do not match                   |
+| Result                                | Check                                                                                                                                                          |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GAS returns `404`                     | All three GAS migration settings are present and GAS was redeployed                                                                                            |
+| GAS returns `401`                     | `GAS_SERVICE_TOKEN` is the raw caller token and its hash was successfully seeded in GAS                                                                        |
+| Apply returns `403`                   | The caller credential is not the dedicated `woodland-migration-operator` identity                                                                              |
+| Apply returns `409`                   | Validation failed, source checksum/counts changed, existing GAS data conflicts, payments present, or a claim-ID counter other than the seed or approved target |
+| GAS returns `502`                     | Source URL, raw migration token, Agreements API hash, source availability and source response shape                                                            |
+| GAS returns `500`                     | The exact Woodland configuration version exists and is usable; inspect the aborted completion log                                                              |
+| GAS returns `200` with `valid: false` | Inspect each per-version diagnostic and resolve every reason before proceeding                                                                                 |
+| Agreements API returns `401`          | The raw `WOODLAND_MIGRATION_TOKEN` and `MIGRATION_SOURCE_TOKEN_HASH` do not match                                                                              |
 
 ## 11. Disable temporary access
 

@@ -5,6 +5,7 @@ import { wreck } from "../../common/wreck.js";
 import {
   fetchWoodlandAgreementNumbers,
   fetchWoodlandAgreementVersionPages,
+  fetchWoodlandClaimIdCounter,
 } from "./woodland-migration-source.js";
 
 vi.mock("../../common/wreck.js", () => ({
@@ -45,6 +46,60 @@ describe("Woodland migration source", () => {
         timeout: 30_000,
       },
     );
+  });
+
+  it("fetches the legacy claim ID counter with the migration token", async () => {
+    wreck.get.mockResolvedValue(response({ counter: "claimIds", seq: 4325 }));
+
+    await expect(fetchWoodlandClaimIdCounter()).resolves.toBe(4325);
+    expect(wreck.get).toHaveBeenCalledWith(
+      "https://agreements.example.test/internal/migrations/claim-id-counter",
+      {
+        headers: { authorization: "Bearer migration-secret" },
+        json: true,
+        timeout: 30_000,
+      },
+    );
+  });
+
+  it("accepts the greatest legacy counter with an exactly representable handoff", async () => {
+    wreck.get.mockResolvedValue(
+      response({ counter: "claimIds", seq: 9_007_199_254_739_999 }),
+    );
+
+    await expect(fetchWoodlandClaimIdCounter()).resolves.toBe(
+      9_007_199_254_739_999,
+    );
+  });
+
+  it.each([
+    { counter: "somethingElse", seq: 4325 },
+    { counter: "claimIds", seq: 4325.5 },
+    { counter: "claimIds", seq: -1 },
+    { counter: "claimIds", seq: "4325" },
+    { counter: "claimIds", seq: 9_007_199_254_740_000 },
+    { counter: "claimIds", seq: Number.MAX_SAFE_INTEGER + 1 },
+  ])("rejects an invalid legacy claim ID counter: %o", async (payload) => {
+    wreck.get.mockResolvedValue(response(payload));
+
+    await expect(fetchWoodlandClaimIdCounter()).rejects.toMatchObject({
+      message: "Woodland migration source request failed",
+      output: { statusCode: 502 },
+    });
+  });
+
+  it("rejects claim ID counter network and HTTP errors", async () => {
+    wreck.get.mockResolvedValueOnce(response({}, 503));
+    await expect(fetchWoodlandClaimIdCounter()).rejects.toMatchObject({
+      message: "Woodland migration source request failed",
+      output: { statusCode: 502 },
+    });
+
+    wreck.get.mockRejectedValueOnce(new Error("network secret"));
+    await expect(fetchWoodlandClaimIdCounter()).rejects.toMatchObject({
+      message: "Woodland migration source request failed",
+      output: { statusCode: 502 },
+    });
   });
 
   it("rejects an empty Woodland agreement list", async () => {

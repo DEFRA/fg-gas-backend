@@ -3,6 +3,7 @@ import Joi from "joi";
 import { BSON, Double, Int32, Long } from "mongodb";
 import { config } from "../../common/config.js";
 import { wreck } from "../../common/wreck.js";
+import { maximumLegacyClaimIdSequence } from "./woodland-migration-checksum.js";
 
 const requestTimeout = 30_000;
 const successStatusMin = 200;
@@ -15,6 +16,15 @@ const agreementNumbersSchema = Joi.object({
     .items(Joi.string().pattern(/^WMP/))
     .min(1)
     .unique()
+    .required(),
+});
+
+const claimIdCounterSchema = Joi.object({
+  counter: Joi.string().valid("claimIds").required(),
+  seq: Joi.number()
+    .integer()
+    .min(0)
+    .max(maximumLegacyClaimIdSequence)
     .required(),
 });
 
@@ -113,6 +123,11 @@ const deserializeSource = (value) =>
 export const fetchWoodlandAgreementNumbers = async () => {
   const payload = await get("/internal/migrations/agreements?code=woodland");
   return requireValid(agreementNumbersSchema, payload).agreementNumbers;
+};
+
+export const fetchWoodlandClaimIdCounter = async () => {
+  const payload = await get("/internal/migrations/claim-id-counter");
+  return requireValid(claimIdCounterSchema, payload).seq;
 };
 
 // eslint-disable-next-line complexity

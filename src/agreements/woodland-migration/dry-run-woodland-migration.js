@@ -9,10 +9,12 @@ import {
   createAgreementSourceChecksum,
   createLegacyEvidence,
   createMigrationSourceChecksum,
+  deriveFirstGasClaimSequence,
 } from "./woodland-migration-checksum.js";
 import {
   fetchWoodlandAgreementNumbers,
   fetchWoodlandAgreementVersionPages,
+  fetchWoodlandClaimIdCounter,
 } from "./woodland-migration-source.js";
 
 const identityIssue = (path) => ({
@@ -286,6 +288,25 @@ export const prepareWoodlandMigration = async ({
     });
     const agreementNumbers = await fetchWoodlandAgreementNumbers();
     summary.agreements = agreementNumbers.length;
+    const claimIdCounterSeq = await fetchWoodlandClaimIdCounter();
+    const firstGasClaimSequence =
+      deriveFirstGasClaimSequence(claimIdCounterSeq);
+    const preparedClaimIdCounter = {
+      legacySeq: claimIdCounterSeq,
+      firstGasSequence: firstGasClaimSequence,
+      persistedSeq: firstGasClaimSequence - 1,
+    };
+
+    logger.info(
+      {
+        event: {
+          action: migrationAction(mode, "claim-id-counter"),
+          outcome: "success",
+          reason: `legacySeq=${preparedClaimIdCounter.legacySeq} firstGasSequence=${preparedClaimIdCounter.firstGasSequence} persistedSeq=${preparedClaimIdCounter.persistedSeq}`,
+        },
+      },
+      "Woodland migration claim ID counter prepared",
+    );
 
     for (const agreementNumber of agreementNumbers) {
       const result = await processAgreement({
@@ -310,6 +331,7 @@ export const prepareWoodlandMigration = async ({
     summary.sourceChecksum = createMigrationSourceChecksum({
       configVersion: config.woodlandMigration.configVersion,
       agreementChecksums,
+      claimIdCounterSeq,
     });
     summary.valid = summary.failures === 0;
     logCompleted(summary, reasons, mode);
@@ -317,6 +339,7 @@ export const prepareWoodlandMigration = async ({
       summary,
       reasons,
       preparedAgreements,
+      preparedClaimIdCounter,
     };
   } catch (error) {
     reasons["run.failed"] = 1;

@@ -13,6 +13,7 @@ import {
 import {
   fetchWoodlandAgreementNumbers,
   fetchWoodlandAgreementVersionPages,
+  fetchWoodlandClaimIdCounter,
 } from "./woodland-migration-source.js";
 
 vi.mock("../../common/logger.js");
@@ -24,6 +25,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   config.woodlandMigration.configVersion = "1.0.0";
   fetchWoodlandAgreementNumbers.mockResolvedValue(["WMP0001", "WMP0002"]);
+  fetchWoodlandClaimIdCounter.mockResolvedValue(4325);
   fetchWoodlandAgreementVersionPages.mockImplementation((agreementNumber) =>
     (async function* () {
       if (agreementNumber === "WMP0001") {
@@ -118,6 +120,11 @@ describe("dryRunWoodlandMigration", () => {
       failures: 0,
       sourceChecksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
     });
+    expect(result.preparedClaimIdCounter).toEqual({
+      legacySeq: 4325,
+      firstGasSequence: 5000,
+      persistedSeq: 4999,
+    });
     expect(result.preparedAgreements).toEqual([
       {
         agreementNumber: "WMP0001",
@@ -138,6 +145,52 @@ describe("dryRunWoodlandMigration", () => {
         ],
       },
     ]);
+  });
+
+  it("prepares an exactly representable handoff at the legacy upper bound", async () => {
+    fetchWoodlandClaimIdCounter.mockResolvedValue(9_007_199_254_739_999);
+
+    const { preparedClaimIdCounter } = await prepareWoodlandMigration({
+      mode: "dry-run",
+      retainVersions: false,
+    });
+
+    expect(preparedClaimIdCounter).toEqual({
+      legacySeq: 9_007_199_254_739_999,
+      firstGasSequence: 9_007_199_254_740_000,
+      persistedSeq: 9_007_199_254_739_999,
+    });
+    expect(Number.isSafeInteger(preparedClaimIdCounter.firstGasSequence)).toBe(
+      true,
+    );
+    expect(
+      preparedClaimIdCounter.firstGasSequence -
+        preparedClaimIdCounter.persistedSeq,
+    ).toBe(1);
+  });
+
+  it("binds the legacy claim ID counter into the source checksum", async () => {
+    const first = await dryRunWoodlandMigration();
+    fetchWoodlandClaimIdCounter.mockResolvedValue(4326);
+
+    const second = await dryRunWoodlandMigration();
+
+    expect(first.sourceChecksum).not.toBe(second.sourceChecksum);
+  });
+
+  it("logs the prepared claim ID counter as migration evidence", async () => {
+    await dryRunWoodlandMigration();
+
+    expect(logger.info).toHaveBeenCalledWith(
+      {
+        event: {
+          action: "woodland-migration-dry-run-claim-id-counter",
+          outcome: "success",
+          reason: "legacySeq=4325 firstGasSequence=5000 persistedSeq=4999",
+        },
+      },
+      "Woodland migration claim ID counter prepared",
+    );
   });
 
   it("counts source identity and mapping failures", async () => {
@@ -349,6 +402,24 @@ describe("dryRunWoodlandMigration", () => {
           outcome: "failure",
           reason:
             'agreements=0 versions=0 passed=0 failures=0 aborted=true checksum=unavailable reasons={"run.failed":1}',
+        },
+      },
+      "Woodland migration validation completed",
+    );
+  });
+
+  it("logs a final failure when the claim ID counter fetch aborts", async () => {
+    fetchWoodlandClaimIdCounter.mockRejectedValue(new Error("source failed"));
+
+    await expect(dryRunWoodlandMigration()).rejects.toThrow("source failed");
+
+    expect(logger.info).toHaveBeenLastCalledWith(
+      {
+        event: {
+          action: "woodland-migration-dry-run-completed",
+          outcome: "failure",
+          reason:
+            'agreements=2 versions=0 passed=0 failures=0 aborted=true checksum=unavailable reasons={"run.failed":1}',
         },
       },
       "Woodland migration validation completed",

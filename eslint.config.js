@@ -180,6 +180,7 @@ export default [
               from: ["**/payments/**"],
               except: [
                 "**/payments/use-cases/create-agreement-payment.use-case.js",
+                "**/payments/use-cases/initialise-claim-id-counter.use-case.js",
                 "**/payments/use-cases/resolve-payment-definition.js",
               ],
               message:

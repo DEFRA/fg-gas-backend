@@ -56,6 +56,7 @@ The migration is not a startup function. Cross-service work must not delay readi
 ```http
 GET /internal/migrations/agreements?code=woodland
 GET /internal/migrations/agreements/{agreementNumber}/versions?offset={offset}
+GET /internal/migrations/claim-id-counter
 ```
 
 The list endpoint returns all Woodland agreement numbers. The production diagnostic observed 70 numbers, so this response is not paginated.
@@ -68,7 +69,7 @@ The versions endpoint:
 - Returns `nextOffset` when another page exists.
 - Never returns all Version documents in one response.
 
-Both routes are registered only while the migration-token hash is configured.
+The claim-ID counter endpoint, delivered by [Agreements API PR 483](https://github.com/DEFRA/farming-grants-agreements-api/pull/483), returns plain JSON `{ "counter": "claimIds", "seq": <safe integer> }`. All three routes are registered only while the migration-token hash is configured.
 
 ### GAS
 
@@ -100,13 +101,14 @@ The frontend calls GAS server-side. Dry-run may use its existing `GAS_SERVICE_TO
 
 GAS performs the following steps in one request:
 
-1. Fetch the complete Woodland agreement-number list.
+1. Fetch the complete Woodland agreement-number list and the legacy `claimIds` counter.
 2. For each agreement, request source versions in pages of 100.
 3. Map each source Version through the same pure mapper used by apply.
 4. Confirm the approved Woodland definition version exists, then validate the mapped snapshot against GAS domain rules and migration-specific Woodland rules. The definition is executable workflow configuration, not a snapshot schema, so the migration must not run its creation processes.
 5. Check required identifiers, lifecycle state, dates, parcels, items, quantities, amounts and timestamps. The Agreements source endpoint owns version ordering against `Grant.versions`; GAS consumes its ordered pages.
-6. Log a PII-safe structured result for every source record.
-7. Return a small summary.
+6. Derive and log the claim-ID handoff evidence, then bind the legacy counter value into the aggregate source checksum.
+7. Log a PII-safe structured result for every source record.
+8. Return a small summary.
 
 Example summary:
 
@@ -121,6 +123,12 @@ Example summary:
 ```
 
 Dry-run discards each page after validation. It creates no Agreement, AgreementVersion, payment, evidence record, event or migration-state record.
+
+### Claim-ID counter handoff
+
+Payments starts with the migration seed `9,999,999`. From the legacy `seq`, GAS derives the next multiple of 1,000 that is strictly greater than that value. It persists one less than that boundary because allocation increments before returning; for example, legacy `4,325` produces a persisted `4,999` and first GAS allocation `5,000`.
+
+The legacy `seq` is an input to `sourceChecksum`, so any counter change after dry-run invalidates approval. Apply fails closed unless there are zero Payments and the counter is either the seed (which it lowers) or already the derived target (a rerun no-op); any other state aborts. The write is in the same Mongo transaction as the agreement migration and, after commit, GAS reconciles the counter and payment count through primary reads.
 
 Logs must not contain client references, applicant data or legacy envelopes. Record references use the agreement number and version ordinal so operators can trace failures to source records. The final log entry states whether the run completed and includes counts by outcome and diagnostic reason.
 
@@ -156,7 +164,7 @@ After every record passes validation, GAS:
 5. Inserts every AgreementVersion in source order and assigns the corresponding GAS version number.
 6. Stores the untouched legacy envelope and its checksum in each snapshot.
 7. Writes the current Agreement from the final source Version.
-8. Reconciles source and target counts and checksums before returning success.
+8. Initialises the claim-ID counter in the same transaction, then reconciles source and target counts, checksums, the counter and payment count before returning success.
 
 Target writes use the existing Mongo transaction helper. The DEV 5,000-version agreement is the transaction-size and duration test. If one transaction cannot safely contain the import, the fallback is an internal pending marker with a final atomic activation step. No imported Woodland record may be served before the whole run reconciles.
 
@@ -285,7 +293,7 @@ Lower environments use their matching Agreements API. They do not read productio
 
 ### Before the maintenance window
 
-- Deploy the Agreements read routes, GAS migration routes and admin page without activating Woodland.
+- Deploy Agreements API PRs 470 and 483, the GAS migration routes and admin page without activating Woodland.
 - Configure the migration secrets in both services and redeploy.
 - Confirm the approved Woodland configuration version exists in GAS.
 - Confirm all lower-environment rehearsals passed.
@@ -298,8 +306,8 @@ Lower environments use their matching Agreements API. They do not read productio
 3. Run dry-run from Grants Platform Admin.
 4. Check the completed summary and GAS diagnostics.
 5. Stop if any diagnostic is unresolved.
-6. Run apply from the separate confirmation action.
-7. Reconcile agreement counts, version counts, lifecycle states and checksums.
+6. Run apply from the separate confirmation action; it initialises the claim-ID counter as part of that transaction, with no separate counter operation.
+7. Reconcile agreement counts, version counts, lifecycle states, checksums, the counter and payment count.
 8. Manually compare the agreed sample of rendered agreements.
 9. Record approval.
 10. Activate Woodland routing to GAS.
