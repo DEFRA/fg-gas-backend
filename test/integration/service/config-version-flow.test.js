@@ -47,7 +47,7 @@ describe("config broker message flow", () => {
       fetchAttempts: 0,
     });
     expect(cvDoc.fetchStatus).toBeUndefined();
-    expect(cvDoc.s3Key).toBeUndefined();
+    expect(cvDoc.s3Key).toBe("woodland/1.2.3/gas/gas.json");
     expect(cvDoc.definitions.agreement).toBeUndefined();
   });
 
@@ -162,7 +162,7 @@ describe("config broker message flow", () => {
     expect(doc.definitions.grant.s3Key).toBe(
       "farm-payments/1.2.6/gas/gas.json",
     );
-    expect(doc.s3Key).toBeUndefined();
+    expect(doc.s3Key).toBe("farm-payments/1.2.6/gas/gas.json");
     expect(doc.definitions.agreement).toMatchObject({
       s3Key: "farm-payments/1.2.6/gas/agreement.json",
       fetchStatus: FetchStatus.Pending,

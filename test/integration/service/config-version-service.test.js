@@ -33,6 +33,7 @@ describe("config-version repository integration", () => {
         major: 1,
         minor: 0,
         patch: 0,
+        s3Key: "woodland/1.0.0/gas/gas.json",
       });
 
       const result = await upsert(cv);
@@ -46,7 +47,7 @@ describe("config-version repository integration", () => {
       expect(doc.definitions.grant.fetchAttempts).toBe(0);
       expect(doc.major).toBe(1);
       expect(doc.fetchStatus).toBeUndefined();
-      expect(doc.s3Key).toBeUndefined();
+      expect(doc.s3Key).toBe("woodland/1.0.0/gas/gas.json");
     });
 
     it("should update existing record on duplicate grantCode+version without throwing", async () => {
@@ -57,6 +58,7 @@ describe("config-version repository integration", () => {
         minor: 0,
         patch: 0,
         status: "draft",
+        s3Key: "woodland/1.0.0/gas/original.json",
       });
       await upsert(cv);
 
@@ -67,6 +69,7 @@ describe("config-version repository integration", () => {
         minor: 0,
         patch: 0,
         status: "active",
+        s3Key: "woodland/1.0.0/gas/replacement.json",
       });
       const result = await upsert(updated);
       expect(result.upsertedCount).toBe(0);
@@ -78,7 +81,11 @@ describe("config-version repository integration", () => {
       });
       expect(doc.status).toBe("active");
       expect(doc.definitions.grant.fetchStatus).toBe(FetchStatus.Pending);
+      expect(doc.definitions.grant.s3Key).toBe(
+        "woodland/1.0.0/gas/replacement.json",
+      );
       expect(doc.fetchStatus).toBeUndefined();
+      expect(doc.s3Key).toBe("woodland/1.0.0/gas/original.json");
     });
   });
 

@@ -62,7 +62,13 @@ describe("config-version.repository", () => {
       const [, [{ $set }]] = mockCollection.updateOne.mock.calls[0];
       expect($set["definitions.agreement"]).toBeUndefined();
       expect($set["definitions.payment"]).toBeUndefined();
-      expect($set.s3Key).toBeUndefined();
+      expect($set.s3Key).toEqual({
+        $cond: [
+          { $eq: [{ $type: "$s3Key" }, "missing"] },
+          { $literal: "woodland/1.2.3/grant-definition.json" },
+          "$s3Key",
+        ],
+      });
       expect($set.fetchStatus).toBeUndefined();
       expect($set.fetchAttempts).toBeUndefined();
     });
