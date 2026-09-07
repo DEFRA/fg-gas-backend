@@ -67,7 +67,10 @@ export class ConfigVersion {
     if (!doc) {
       return null;
     }
-    return new ConfigVersion(doc);
+
+    // The nested Grant state is canonical. Spreading it over the legacy
+    // top-level fields keeps Release A documents readable during rollback.
+    return new ConfigVersion({ ...doc, ...(doc.definitions?.grant ?? {}) });
   }
 
   toDocument() {
@@ -78,14 +81,18 @@ export class ConfigVersion {
       minor: this.minor,
       patch: this.patch,
       status: this.status,
-      s3Key: this.s3Key,
       s3Bucket: this.s3Bucket,
       receivedAt: this.receivedAt,
-      fetchedAt: this.fetchedAt,
-      fetchStatus: this.fetchStatus,
-      fetchError: this.fetchError,
-      fetchAttempts: this.fetchAttempts,
-      lastFetchAttemptAt: this.lastFetchAttemptAt,
+      definitions: {
+        grant: {
+          s3Key: this.s3Key,
+          fetchedAt: this.fetchedAt,
+          fetchStatus: this.fetchStatus,
+          fetchError: this.fetchError,
+          fetchAttempts: this.fetchAttempts,
+          lastFetchAttemptAt: this.lastFetchAttemptAt,
+        },
+      },
     };
   }
 

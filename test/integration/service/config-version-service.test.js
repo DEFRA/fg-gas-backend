@@ -33,6 +33,7 @@ describe("config-version repository integration", () => {
         major: 1,
         minor: 0,
         patch: 0,
+        s3Key: "woodland/1.0.0/gas/gas.json",
       });
 
       const result = await upsert(cv);
@@ -42,9 +43,11 @@ describe("config-version repository integration", () => {
         grantCode: "woodland",
         version: "1.0.0",
       });
-      expect(doc.fetchStatus).toBe(FetchStatus.Pending);
-      expect(doc.fetchAttempts).toBe(0);
+      expect(doc.definitions.grant.fetchStatus).toBe(FetchStatus.Pending);
+      expect(doc.definitions.grant.fetchAttempts).toBe(0);
       expect(doc.major).toBe(1);
+      expect(doc.fetchStatus).toBeUndefined();
+      expect(doc.s3Key).toBe("woodland/1.0.0/gas/gas.json");
     });
 
     it("should update existing record on duplicate grantCode+version without throwing", async () => {
@@ -55,6 +58,7 @@ describe("config-version repository integration", () => {
         minor: 0,
         patch: 0,
         status: "draft",
+        s3Key: "woodland/1.0.0/gas/original.json",
       });
       await upsert(cv);
 
@@ -65,6 +69,7 @@ describe("config-version repository integration", () => {
         minor: 0,
         patch: 0,
         status: "active",
+        s3Key: "woodland/1.0.0/gas/replacement.json",
       });
       const result = await upsert(updated);
       expect(result.upsertedCount).toBe(0);
@@ -75,7 +80,12 @@ describe("config-version repository integration", () => {
         version: "1.0.0",
       });
       expect(doc.status).toBe("active");
-      expect(doc.fetchStatus).toBe(FetchStatus.Pending);
+      expect(doc.definitions.grant.fetchStatus).toBe(FetchStatus.Pending);
+      expect(doc.definitions.grant.s3Key).toBe(
+        "woodland/1.0.0/gas/replacement.json",
+      );
+      expect(doc.fetchStatus).toBeUndefined();
+      expect(doc.s3Key).toBe("woodland/1.0.0/gas/original.json");
     });
   });
 
@@ -102,10 +112,13 @@ describe("config-version repository integration", () => {
         grantCode: "woodland",
         version: "1.0.0",
       });
-      expect(doc.fetchStatus).toBe(FetchStatus.TransientError);
-      expect(doc.fetchError).toBe("S3 timeout");
-      expect(doc.fetchAttempts).toBe(1);
-      expect(doc.lastFetchAttemptAt).toBeTruthy();
+      expect(doc.definitions.grant.fetchStatus).toBe(
+        FetchStatus.TransientError,
+      );
+      expect(doc.definitions.grant.fetchError).toBe("S3 timeout");
+      expect(doc.definitions.grant.fetchAttempts).toBe(1);
+      expect(doc.definitions.grant.lastFetchAttemptAt).toBeTruthy();
+      expect(doc.fetchStatus).toBeUndefined();
     });
 
     it("should set fetchedAt when status is fetched", async () => {
@@ -125,9 +138,36 @@ describe("config-version repository integration", () => {
         grantCode: "woodland",
         version: "1.0.0",
       });
-      expect(doc.fetchStatus).toBe(FetchStatus.Fetched);
-      expect(doc.fetchedAt).toBeTruthy();
-      expect(doc.fetchAttempts).toBe(0);
+      expect(doc.definitions.grant.fetchStatus).toBe(FetchStatus.Fetched);
+      expect(doc.definitions.grant.fetchedAt).toBeTruthy();
+      expect(doc.definitions.grant.fetchAttempts).toBe(0);
+      expect(doc.fetchStatus).toBeUndefined();
+    });
+
+    it("leaves the Release A top-level state unchanged", async () => {
+      const legacyState = {
+        s3Key: "woodland/1.0.0/gas/gas.json",
+        fetchStatus: FetchStatus.Pending,
+        fetchAttempts: 0,
+        fetchError: null,
+        fetchedAt: null,
+        lastFetchAttemptAt: null,
+      };
+      await configVersions.insertOne({
+        grantCode: "woodland",
+        version: "1.0.0",
+        ...legacyState,
+        definitions: { grant: legacyState },
+      });
+
+      await updateFetchStatus("woodland", "1.0.0", FetchStatus.Fetched);
+
+      const doc = await configVersions.findOne({
+        grantCode: "woodland",
+        version: "1.0.0",
+      });
+      expect(doc).toMatchObject(legacyState);
+      expect(doc.definitions.grant.fetchStatus).toBe(FetchStatus.Fetched);
     });
   });
 
