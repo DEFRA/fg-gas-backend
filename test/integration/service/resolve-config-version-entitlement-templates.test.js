@@ -255,6 +255,8 @@ describe("config broker entitlementTemplates ingestion", () => {
     // Latched as permanent so the bad config is not re-fetched and re-thrown
     // on every subsequent request.
     const cvDoc = await configVersions.findOne({ grantCode, version });
-    expect(cvDoc.fetchStatus).toBe(FetchStatus.PermanentError);
+    expect(cvDoc.definitions.grant.fetchStatus).toBe(
+      FetchStatus.PermanentError,
+    );
   });
 });

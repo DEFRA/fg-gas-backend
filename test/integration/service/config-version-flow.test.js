@@ -41,13 +41,13 @@ describe("config broker message flow", () => {
     expect(cvDoc.major).toBe(1);
     expect(cvDoc.minor).toBe(2);
     expect(cvDoc.patch).toBe(3);
-    expect(cvDoc.fetchStatus).toBe(FetchStatus.Pending);
-    expect(cvDoc.s3Key).toBe("woodland/1.2.3/gas/gas.json");
     expect(cvDoc.definitions.grant).toMatchObject({
-      s3Key: cvDoc.s3Key,
+      s3Key: "woodland/1.2.3/gas/gas.json",
       fetchStatus: FetchStatus.Pending,
       fetchAttempts: 0,
     });
+    expect(cvDoc.fetchStatus).toBeUndefined();
+    expect(cvDoc.s3Key).toBeUndefined();
     expect(cvDoc.definitions.agreement).toBeUndefined();
   });
 
@@ -159,7 +159,10 @@ describe("config broker message flow", () => {
       grantCode: "frps-private-beta",
       version: "1.2.6",
     });
-    expect(doc.s3Key).toBe("farm-payments/1.2.6/gas/gas.json");
+    expect(doc.definitions.grant.s3Key).toBe(
+      "farm-payments/1.2.6/gas/gas.json",
+    );
+    expect(doc.s3Key).toBeUndefined();
     expect(doc.definitions.agreement).toMatchObject({
       s3Key: "farm-payments/1.2.6/gas/agreement.json",
       fetchStatus: FetchStatus.Pending,

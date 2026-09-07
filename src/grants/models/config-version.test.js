@@ -190,6 +190,40 @@ describe("ConfigVersion", () => {
       expect(cv._id).toBe("abc123");
     });
 
+    it("uses nested Grant state before stale top-level state", () => {
+      const cv = ConfigVersion.fromDocument({
+        grantCode: "woodland",
+        version: "1.0.0",
+        s3Bucket: "config-broker-local",
+        s3Key: "legacy/key.json",
+        fetchStatus: FetchStatus.Pending,
+        definitions: {
+          grant: {
+            s3Key: "nested/key.json",
+            fetchStatus: FetchStatus.Fetched,
+          },
+        },
+      });
+
+      expect(cv.s3Key).toBe("nested/key.json");
+      expect(cv.fetchStatus).toBe(FetchStatus.Fetched);
+    });
+
+    it("falls back field-by-field to top-level Release A state", () => {
+      const cv = ConfigVersion.fromDocument({
+        grantCode: "woodland",
+        version: "1.0.0",
+        s3Bucket: "config-broker-local",
+        s3Key: "legacy/key.json",
+        fetchStatus: FetchStatus.Fetched,
+        definitions: { grant: { fetchAttempts: 2 } },
+      });
+
+      expect(cv.s3Key).toBe("legacy/key.json");
+      expect(cv.fetchStatus).toBe(FetchStatus.Fetched);
+      expect(cv.fetchAttempts).toBe(2);
+    });
+
     it("should return null for null input", () => {
       expect(ConfigVersion.fromDocument(null)).toBeNull();
     });
@@ -235,6 +269,13 @@ describe("ConfigVersion", () => {
       expect(doc.minor).toBe(1);
       expect(doc.patch).toBe(0);
       expect(doc._id).toBeUndefined();
+      expect(doc.s3Key).toBeUndefined();
+      expect(doc.fetchStatus).toBeUndefined();
+      expect(doc.definitions.grant).toMatchObject({
+        s3Key: "woodland/2.1.0/gas/gas.json",
+        fetchStatus: FetchStatus.Pending,
+        fetchAttempts: 0,
+      });
     });
   });
 

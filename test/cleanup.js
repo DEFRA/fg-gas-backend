@@ -41,6 +41,14 @@ beforeEach(async () => {
         s3Key: "pigs-might-fly/1.0.0/gas/gas.json",
         s3Bucket: "config-broker-local",
         definitions: {
+          grant: {
+            s3Key: "pigs-might-fly/1.0.0/gas/gas.json",
+            fetchStatus: "fetched",
+            fetchAttempts: 0,
+            fetchError: null,
+            fetchedAt: null,
+            lastFetchAttemptAt: null,
+          },
           agreement: {
             s3Key: "pigs-might-fly/1.0.0/gas/agreement.json",
             fetchStatus: "pending",
