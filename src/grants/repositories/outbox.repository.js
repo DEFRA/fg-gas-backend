@@ -1,4 +1,9 @@
 import { config } from "../../common/config.js";
+import {
+  claimExpiredAttempt,
+  claimExpiredError,
+  pushAttemptUpdate,
+} from "../../common/last-error.js";
 import { logger } from "../../common/logger.js";
 import { db } from "../../common/mongo-client.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
@@ -31,7 +36,7 @@ export const findNextMessage = async (lockIds) => {
     {
       status: OutboxStatus.PUBLISHED,
       claimedBy: null,
-      completionAttempts: { $lte: MAX_RETRIES },
+      completionAttempts: { $lt: MAX_RETRIES },
       segregationRef: { $nin: lockIds },
     },
     { sort: { publicationDate: 1 } },
@@ -56,7 +61,7 @@ export const claimEvents = async (claimedBy, segregationRef) => {
           $eq: null,
         },
         completionAttempts: {
-          $lte: MAX_RETRIES,
+          $lt: MAX_RETRIES,
         },
         segregationRef,
       },
@@ -105,10 +110,20 @@ export const updateExpiredEvents = async () => {
     {
       $set: {
         status: OutboxStatus.FAILED,
+        // Nothing threw here - the claim simply outlived its holder - so the
+        // sweep records itself as the reason.
+        lastError: claimExpiredError(),
         claimedAt: null,
         claimExpiresAt: null,
         claimedBy: null,
       },
+      // A sweep, not a model save: this rewrites many rows at once and never
+      // loads an Inbox/Outbox, so the cap is applied by Mongo. `$slice: -10`
+      // on the `$push` keeps the ten most recent entries per row.
+      $push: pushAttemptUpdate(claimExpiredAttempt()),
+      // An expired claim IS a failed attempt, so it is counted in the same
+      // operation that records it - see ATTEMPT ARITHMETIC in models/outbox.js.
+      $inc: { completionAttempts: 1 },
     },
   );
   return results;
@@ -143,7 +158,11 @@ export const updateResubmittedEvents = async () => {
         claimExpiresAt: null,
         claimedBy: null,
       },
-      $inc: { completionAttempts: 1 },
+      // No `$inc` here. This is a state transition, not an attempt: the
+      // counter is raised by `markAsFailed` when an attempt actually fails.
+      // Incrementing here counted attempts GRANTED, which let the dead-letter
+      // sweep (updateDeadEvents) kill a row at the cap before its final
+      // attempt ran - the "5/5 with four history entries" bug.
     },
   );
   return results;

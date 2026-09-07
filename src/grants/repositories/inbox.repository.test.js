@@ -73,7 +73,7 @@ describe("inbox.repository", () => {
       {
         status: { $eq: InboxStatus.PUBLISHED },
         claimedBy: { $eq: null },
-        completionAttempts: { $lte: config.inbox.inboxMaxRetries },
+        completionAttempts: { $lt: config.inbox.inboxMaxRetries },
         segregationRef: { $nin: lockIds },
       },
       { sort: { eventTime: 1 } },
@@ -134,9 +134,27 @@ describe("inbox.repository", () => {
       {
         $set: {
           status: InboxStatus.FAILED,
+          lastError: {
+            name: "ClaimExpired",
+            message: "claim expired before completion",
+            at: expect.any(String),
+          },
           claimedAt: null,
           claimedBy: null,
           claimExpiresAt: null,
+        },
+        $inc: { completionAttempts: 1 },
+        $push: {
+          attemptHistory: {
+            $each: [
+              {
+                at: expect.any(String),
+                name: "ClaimExpired",
+                message: "claim expired before completion",
+              },
+            ],
+            $slice: -10,
+          },
         },
       },
     );
@@ -181,7 +199,6 @@ describe("inbox.repository", () => {
           claimExpiresAt: null,
           claimedBy: null,
         },
-        $inc: { completionAttempts: 1 },
       },
     );
   });

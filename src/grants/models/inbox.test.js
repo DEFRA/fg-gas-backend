@@ -138,3 +138,170 @@ describe("inbox model", () => {
     expect(model._id).toBe(doc._id);
   });
 });
+
+describe("inbox model lastError", () => {
+  const inbox = (props = {}) =>
+    new Inbox({
+      event: { time: new Date().toISOString() },
+      messageId: "msg-1",
+      type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
+      ...props,
+    });
+
+  it("defaults lastError to null", () => {
+    expect(inbox().lastError).toBeNull();
+  });
+
+  it("records the caught error's name and message on markAsFailed", () => {
+    const obj = inbox();
+
+    obj.markAsFailed(new TypeError("cannot read status"));
+
+    expect(obj.lastError).toEqual({
+      name: "TypeError",
+      message: "cannot read status",
+      at: expect.any(String),
+    });
+  });
+
+  it("truncates a very long failure message to 1024 characters", () => {
+    const obj = inbox();
+
+    obj.markAsFailed(new Error("y".repeat(4000)));
+
+    expect(obj.lastError.message).toHaveLength(1024);
+  });
+
+  it("keeps the previous lastError when markAsFailed is called with no error", () => {
+    const obj = inbox({
+      lastError: {
+        name: "Error",
+        message: "earlier",
+        at: "2026-06-16T10:00:00.000Z",
+      },
+    });
+
+    obj.markAsFailed();
+
+    expect(obj.lastError.message).toEqual("earlier");
+  });
+
+  it("carries lastError through toDocument and fromDocument", () => {
+    const lastError = {
+      name: "ClaimExpired",
+      message: "claim expired before completion",
+      at: "2026-06-16T10:00:00.000Z",
+    };
+
+    const document = inbox({ lastError }).toDocument();
+
+    expect(document.lastError).toEqual(lastError);
+    expect(Inbox.fromDocument(document).lastError).toEqual(lastError);
+  });
+
+  it("reads a legacy document with no lastError as null", () => {
+    const document = inbox().toDocument();
+    delete document.lastError;
+
+    expect(Inbox.fromDocument(document).lastError).toBeNull();
+  });
+});
+
+describe("Inbox attemptHistory", () => {
+  const failed = (times, error = new Error("boom")) => {
+    const event = Inbox.createMock();
+
+    for (let i = 0; i < times; i++) {
+      event.markAsFailed(error);
+    }
+
+    return event;
+  };
+
+  it("starts empty on a new event", () => {
+    expect(Inbox.createMock().attemptHistory).toEqual([]);
+  });
+
+  it("reads a row written before attempt history existed as empty", () => {
+    const event = Inbox.fromDocument({
+      ...Inbox.createMock().toDocument(),
+      attemptHistory: undefined,
+    });
+
+    expect(event.attemptHistory).toEqual([]);
+  });
+
+  it("appends one entry per failure, oldest first", () => {
+    const event = failed(1);
+
+    expect(event.attemptHistory).toEqual([
+      { at: expect.any(String), name: "Error", message: "boom" },
+    ]);
+  });
+
+  it("keeps only the ten most recent entries", () => {
+    const event = Inbox.createMock();
+
+    for (let i = 0; i < 14; i++) {
+      event.markAsFailed(new Error(`attempt-${i}`));
+    }
+
+    expect(event.attemptHistory).toHaveLength(10);
+    expect(event.attemptHistory.at(0).message).toBe("attempt-4");
+    expect(event.attemptHistory.at(-1).message).toBe("attempt-13");
+  });
+
+  it("truncates an entry's message to 512 characters", () => {
+    const event = failed(1, new Error("x".repeat(2000)));
+
+    expect(event.attemptHistory.at(-1).message).toHaveLength(512);
+  });
+
+  it("records the same reason as lastError", () => {
+    const event = failed(1, new TypeError("kaput"));
+
+    expect(event.attemptHistory.at(-1)).toMatchObject({
+      name: "TypeError",
+      message: "kaput",
+    });
+    expect(event.lastError).toMatchObject({
+      name: "TypeError",
+      message: "kaput",
+    });
+  });
+
+  it("appends nothing when markAsFailed is called with no error", () => {
+    const event = failed(2);
+
+    event.markAsFailed();
+
+    expect(event.attemptHistory).toHaveLength(2);
+  });
+
+  it("leaves the history intact on markAsComplete", () => {
+    const event = failed(2);
+
+    event.markAsComplete();
+
+    expect(event.status).toBe(InboxStatus.COMPLETED);
+    expect(event.attemptHistory).toHaveLength(2);
+  });
+
+  it("carries the history onto the document it writes", () => {
+    const event = failed(1);
+
+    expect(event.toDocument().attemptHistory).toEqual(event.attemptHistory);
+  });
+
+  it("reads a stored history back off a document", () => {
+    const stored = [{ at: null, name: "ClaimExpired", message: "gone" }];
+    const event = Inbox.fromDocument({
+      ...Inbox.createMock().toDocument(),
+      attemptHistory: stored,
+    });
+
+    expect(event.attemptHistory).toEqual(stored);
+  });
+});

@@ -67,7 +67,7 @@ describe("outbox.repository", () => {
         {
           status: OutboxStatus.PUBLISHED,
           claimedBy: null,
-          completionAttempts: { $lte: config.outbox.outboxMaxRetries },
+          completionAttempts: { $lt: config.outbox.outboxMaxRetries },
           segregationRef: { $nin: ["locked_ref"] },
         },
         { sort: { publicationDate: 1 } },
@@ -183,6 +183,8 @@ describe("outbox.repository", () => {
             completionDate: undefined,
             event: {},
             lastResubmissionDate: undefined,
+            lastError: null,
+            attemptHistory: [],
             publicationDate: expect.any(Date),
             segregationRef: "seg-ref-1",
             status: "PROCESSING",
@@ -212,9 +214,27 @@ describe("outbox.repository", () => {
         {
           $set: {
             status: OutboxStatus.FAILED,
+            lastError: {
+              name: "ClaimExpired",
+              message: "claim expired before completion",
+              at: expect.any(String),
+            },
             claimedAt: null,
             claimedBy: null,
             claimExpiresAt: null,
+          },
+          $inc: { completionAttempts: 1 },
+          $push: {
+            attemptHistory: {
+              $each: [
+                {
+                  at: expect.any(String),
+                  name: "ClaimExpired",
+                  message: "claim expired before completion",
+                },
+              ],
+              $slice: -10,
+            },
           },
         },
       );
@@ -265,7 +285,6 @@ describe("outbox.repository", () => {
             claimExpiresAt: null,
             claimedBy: null,
           },
-          $inc: { completionAttempts: 1 },
         },
       );
     });
