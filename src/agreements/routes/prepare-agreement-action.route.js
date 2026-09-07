@@ -1,7 +1,8 @@
+import { agreementAccessHeadersSchema } from "../schemas/requests/agreement-access-headers.schema.js";
 import { invokeAgreementActionParamsSchema } from "../schemas/requests/invoke-agreement-action-request.schema.js";
 import { agreementPageModelResponseSchema } from "../schemas/responses/agreement-page-model-response.schema.js";
-import { toEtag } from "../use-cases/agreement-etag.js";
 import { prepareAgreementActionUseCase } from "../use-cases/prepare-agreement-action.use-case.js";
+import { resolveAgreementAccess } from "../services/resolve-agreement-access.js";
 
 export const prepareAgreementActionRoute = {
   method: "GET",
@@ -10,6 +11,7 @@ export const prepareAgreementActionRoute = {
     description: "Prepare an Agreement lifecycle action",
     tags: ["api"],
     validate: {
+      headers: agreementAccessHeadersSchema,
       params: invokeAgreementActionParamsSchema,
     },
     response: {
@@ -17,12 +19,13 @@ export const prepareAgreementActionRoute = {
     },
   },
   async handler(request, h) {
-    const pageModel = await prepareAgreementActionUseCase({
+    const { source, code, sbi } = resolveAgreementAccess(request);
+    const { pageModel, etag } = await prepareAgreementActionUseCase({
       actionName: request.params.actionName,
       agreementNumber: request.params.agreementNumber,
+      access: { source, code, sbi },
     });
-    const agreement = pageModel.agreement;
 
-    return h.response(pageModel).header("ETag", toEtag(agreement));
+    return h.response(pageModel).header("ETag", etag);
   },
 };

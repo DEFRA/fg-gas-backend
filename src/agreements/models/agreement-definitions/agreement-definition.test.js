@@ -8,7 +8,8 @@ const validDefinition = {
   agreementNumberPrefix: "TST",
   create: {
     target: "offered",
-    effects: [{ name: "snapshot", params: {} }],
+    application: "$.input.application",
+    values: { actions: [], items: [] },
   },
   states: {
     offered: {
@@ -16,8 +17,8 @@ const validDefinition = {
       on: {
         accept: {
           target: "accepted",
+          page: "accept",
           validation: {
-            page: "accept",
             required: [
               {
                 name: "confirm",
@@ -27,7 +28,6 @@ const validDefinition = {
               },
             ],
           },
-          effects: [{ name: "publish" }],
         },
       },
     },
@@ -46,32 +46,70 @@ const validDefinition = {
 };
 
 describe("AgreementDefinition", () => {
-  it("creates an Agreement in its configured initial state", () => {
-    const definition = new AgreementDefinition(validDefinition);
+  it("creates an Agreement in its configured initial state", async () => {
+    const definition = new AgreementDefinition(validDefinition, {
+      generateAgreementNumber: () => "TST123456789",
+    });
+    const execution = {
+      correlationId: "creation-correlation-id",
+      executedAt: "2026-08-06T12:00:00.000Z",
+    };
 
-    const agreement = definition.createAgreement({
-      clientRef: "xnp-rr3-nfa",
-      identifiers: { sbi: "300000069" },
-      payload: { applicant: "Test Farmer" },
+    const agreement = await definition.createAgreement({
+      input: {
+        code: "test-code",
+        clientRef: "xnp-rr3-nfa",
+        identifiers: { sbi: "300000069" },
+        application: { applicant: "Test Farmer" },
+      },
+      execution,
     });
 
-    expect(agreement.agreementNumber).toMatch(/^TST/);
     expect(agreement).toMatchObject({
+      agreementNumber: "TST123456789",
       version: 1,
       code: "test-code",
       clientRef: "xnp-rr3-nfa",
       configVersion: "0.0.1",
       identifiers: { sbi: "300000069" },
-      payload: { applicant: "Test Farmer" },
+      application: { applicant: "Test Farmer" },
+      actions: [],
+      items: [],
       state: "offered",
-      correlationId: expect.any(String),
-      createdAt: expect.any(String),
-      updatedAt: expect.any(String),
+      correlationId: execution.correlationId,
+      createdAt: execution.executedAt,
+      updatedAt: execution.executedAt,
     });
-    expect(definition.getCreationEffects()).toEqual(
-      validDefinition.create.effects,
-    );
     expect(definition.getEndpoints()).toEqual([]);
+  });
+
+  it("rejects Creation Input for another Agreement Definition", async () => {
+    const definition = new AgreementDefinition(validDefinition);
+
+    await expect(
+      definition.createAgreement({
+        input: { code: "other-code" },
+        execution: {
+          correlationId: "creation-correlation-id",
+          executedAt: "2026-08-06T12:00:00.000Z",
+        },
+      }),
+    ).rejects.toThrow(
+      'Agreement Creation Input code "other-code" does not match Agreement Definition "test-code"',
+    );
+  });
+
+  it("requires a supplied Agreement Correlation ID", async () => {
+    const definition = new AgreementDefinition(validDefinition);
+
+    await expect(
+      definition.createAgreement({
+        input: { code: "test-code" },
+        execution: { executedAt: "2026-08-06T12:00:00.000Z" },
+      }),
+    ).rejects.toThrow(
+      "Agreement creation requires an Agreement Correlation ID",
+    );
   });
 
   it("resolves an action from the persisted state", () => {
@@ -84,6 +122,24 @@ describe("AgreementDefinition", () => {
       from: "offered",
       action: "accept",
       target: "accepted",
+    });
+  });
+
+  it("resolves the configured action for an external target status", () => {
+    const configuration = structuredClone(validDefinition);
+    configuration.states.offered.on.withdraw = { target: "withdrawn" };
+    configuration.states.withdrawn = { page: "offered" };
+    const definition = new AgreementDefinition(configuration);
+
+    expect(
+      definition.resolveActionForStatus({
+        state: "offered",
+        status: "withdrawn",
+      }).transition,
+    ).toEqual({
+      from: "offered",
+      action: "withdraw",
+      target: "withdrawn",
     });
   });
 
@@ -148,7 +204,7 @@ describe("AgreementDefinition", () => {
     );
   });
 
-  it("allows the state page and its action validation pages", () => {
+  it("allows the state page and its action pages", () => {
     const definition = new AgreementDefinition(validDefinition);
 
     expect(() =>

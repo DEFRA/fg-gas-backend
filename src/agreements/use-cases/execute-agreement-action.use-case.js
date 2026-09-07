@@ -1,7 +1,10 @@
 import Boom from "@hapi/boom";
+import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { createAgreementPaymentUseCase } from "../../payments/use-cases/create-agreement-payment.use-case.js";
+import { resolvePaymentDefinition } from "../../payments/use-cases/resolve-payment-definition.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import {
   findAgreementByNumber,
@@ -11,18 +14,34 @@ import {
 } from "../repositories/agreement.repository.js";
 import { applyActionValidation } from "../services/apply-action-validation.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { runAgreementEffects } from "../services/effects/agreement-effect-runner.js";
-import { createOutboxMessages } from "../services/effects/create-outbox-messages.js";
-import { toEtag } from "./agreement-etag.js";
+import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
+import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
+import { loadAgreementForAction } from "./load-current-agreement.js";
 
-const toLocation = (agreementNumber) => `/agreements/${agreementNumber}`;
+const currentAgreementLocation = "/agreements/current";
 
-const staleError = (agreement) => {
+const staleError = (etag) => {
   const error = Boom.preconditionFailed("Agreement version is stale");
-  error.output.headers.location = toLocation(agreement.agreementNumber);
-  error.output.headers.etag = toEtag(agreement);
+  error.output.headers.location = currentAgreementLocation;
+  if (etag) {
+    error.output.headers.etag = etag;
+  }
   return error;
+};
+
+// Preserve the stale response even when its ETag cannot be rebuilt.
+const staleEtag = async (agreement) => {
+  try {
+    const { etag } = await loadCurrentAgreementContext({ agreement });
+    return etag;
+  } catch (error) {
+    logger.warn(
+      error,
+      `Could not build stale ETag for ${agreement.agreementNumber}`,
+    );
+    return null;
+  }
 };
 
 const findCompleted = async (
@@ -40,38 +59,76 @@ const findCompleted = async (
   if (version.actionExecution.name !== actionName) {
     throw Boom.conflict("Idempotency key has already been used");
   }
-  return { location: toLocation(agreementNumber) };
+  return { location: currentAgreementLocation };
 };
 
-const runAction = async ({
-  action,
-  agreement,
-  agreementDefinition,
-  values,
-}) => {
-  const executedAt = new Date().toISOString();
-  const context = await runAgreementEffects(action.effects, {
-    agreement,
-    values,
-    outputs: {},
-    endpoints: agreementDefinition.getEndpoints(),
-    executedAt,
-    target: action.transition.target,
-  });
+const hasPaymentCommitOperation = (commitOperations) => {
+  const unsupported = commitOperations.find(
+    ({ type }) => type !== "create-agreement-payment",
+  );
 
-  const nextAgreement = agreement.transition({
-    target: action.transition.target,
-    transitionedAt: executedAt,
-    changes: context.agreement,
-  });
+  if (unsupported) {
+    throw Boom.badImplementation(
+      `Unsupported Agreement Action commit operation "${unsupported.type}"`,
+    );
+  }
 
-  return {
-    agreement: nextAgreement,
-    events: createOutboxMessages(
-      context.outboxMessageTypes ?? [],
-      nextAgreement,
-    ),
-  };
+  if (commitOperations.length > 1) {
+    throw Boom.badImplementation(
+      "Agreement Action cannot create more than one Payment",
+    );
+  }
+
+  return commitOperations.length === 1;
+};
+
+export const resolveAgreementPayment = ({ agreement, next, execution }) =>
+  hasPaymentCommitOperation(next.commitOperations)
+    ? resolvePaymentDefinition({
+        code: agreement.code,
+        configVersion: next.agreement.configVersion,
+        context: { agreement: next.agreement, execution },
+      })
+    : null;
+
+// Payments owns the claim ID, the Payment document and the message that carries
+// it to the Payment Service; it is handed the action's session so all of them
+// commit with the Agreement, its Version and the lifecycle event, and roll back
+// together when anything before the commit fails. The Payment Service
+// publication comes back to be written to the outbox with the rest.
+const createAgreementPayment = async (
+  { agreement, resolvedPayment },
+  session,
+) => {
+  if (resolvedPayment == null) {
+    return null;
+  }
+
+  return createAgreementPaymentUseCase(
+    {
+      agreementNumber: agreement.agreementNumber,
+      version: agreement.version,
+      agreementCorrelationId: agreement.correlationId,
+      resolved: resolvedPayment,
+    },
+    session,
+  );
+};
+const createLifecyclePublications = (current, next, payment) =>
+  current.state === next.state
+    ? []
+    : createOutboxMessages(["lifecycle"], next, payment);
+
+const createActionPublications = (current, next, paymentResult) => {
+  const lifecyclePublications = createLifecyclePublications(
+    current,
+    next,
+    paymentResult?.payment,
+  );
+
+  return paymentResult
+    ? [...lifecyclePublications, paymentResult.publication]
+    : lifecyclePublications;
 };
 
 const concurrentUpdate = Symbol("concurrentUpdate");
@@ -84,13 +141,20 @@ const hasActionConflictIndex = (keyPattern) =>
 const hasAgreementNumberIndex = (keyPattern) =>
   Boolean(keyPattern?.agreementNumber);
 
+// A raced acceptance normally loses the optimistic version check, but the
+// Payment's unique source index is the backstop that guarantees one Payment per
+// accepted Version even if it does not.
+const hasPaymentSourceIndex = (keyPattern) =>
+  Boolean(keyPattern?.["source.agreementNumber"]);
+
 const isConcurrentActionConflict = (error) =>
   isMongoDuplicateKeyError(error) &&
-  hasAgreementNumberIndex(error.keyPattern) &&
-  hasActionConflictIndex(error.keyPattern);
+  ((hasAgreementNumberIndex(error.keyPattern) &&
+    hasActionConflictIndex(error.keyPattern)) ||
+    hasPaymentSourceIndex(error.keyPattern));
 
 const commitActionTransaction = async (
-  { actionName, current, idempotencyKey, next },
+  { actionName, current, idempotencyKey, next, resolvedPayment },
   session,
 ) => {
   const completed = await findCompleted(
@@ -123,8 +187,16 @@ const commitActionTransaction = async (
     }),
     session,
   );
-  await saveOutboxEvents(next.events, session);
-  return { location: toLocation(current.agreementNumber) };
+  const paymentResult = await createAgreementPayment(
+    { agreement: next.agreement, resolvedPayment },
+    session,
+  );
+  await saveOutboxEvents(
+    createActionPublications(current, next.agreement, paymentResult),
+    session,
+  );
+
+  return { location: currentAgreementLocation };
 };
 
 const resolveConcurrentUpdate = async (options) => {
@@ -137,7 +209,7 @@ const resolveConcurrentUpdate = async (options) => {
   if (!agreement) {
     throw Boom.notFound("Agreement not found");
   }
-  throw staleError(agreement);
+  throw staleError(await staleEtag(agreement));
 };
 
 const toConcurrentOptions = (options) => ({
@@ -146,7 +218,7 @@ const toConcurrentOptions = (options) => ({
   idempotencyKey: options.idempotencyKey,
 });
 
-const commitAction = async (options) => {
+export const commitAgreementAction = async (options) => {
   let result;
 
   try {
@@ -166,15 +238,19 @@ const commitAction = async (options) => {
 };
 
 export const executeAgreementActionUseCase = async (options) => {
+  const authorisedAgreement = await loadAgreementForAction(options);
   const completed = await findCompleted(options);
   if (completed) {
     return completed;
   }
 
-  const { action, agreement, agreementDefinition } =
-    await loadCurrentAgreementActionContext(options);
-  if (options.ifMatch !== toEtag(agreement)) {
-    throw staleError(agreement);
+  const { action, agreement, agreementDefinition, etag } =
+    await loadCurrentAgreementActionContext({
+      ...options,
+      agreement: authorisedAgreement,
+    });
+  if (options.ifMatch !== etag) {
+    throw staleError(etag);
   }
   const validation = action.validate(options.values);
   if (!validation.valid) {
@@ -184,23 +260,37 @@ export const executeAgreementActionUseCase = async (options) => {
       page: validation.page,
       mode: "view",
     });
-    return applyActionValidation({
-      pageModel,
-      values: options.values,
-      errors: validation.errors,
-    });
+    return {
+      ...applyActionValidation({
+        pageModel,
+        values: options.values,
+        errors: validation.errors,
+      }),
+      etag,
+    };
   }
 
-  const next = await runAction({
-    action,
+  const execution = {
+    correlationId: agreement.correlationId,
+    executedAt: new Date().toISOString(),
+  };
+  const next = await agreementDefinition.executeAction({
     agreement,
-    agreementDefinition,
+    actionName: options.actionName,
     values: options.values,
+    execution,
   });
-  return commitAction({
+  const resolvedPayment = await resolveAgreementPayment({
+    agreement,
+    next,
+    execution,
+  });
+
+  return commitAgreementAction({
     actionName: options.actionName,
     current: agreement,
     idempotencyKey: options.idempotencyKey,
     next,
+    resolvedPayment,
   });
 };

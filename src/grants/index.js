@@ -7,12 +7,14 @@ import { applicationStatusRoute } from "./routes/application-status.route.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";
 import { findGrantsRoute } from "./routes/find-grants.route.js";
+import { getAvailableClaimsRoute } from "./routes/get-available-claims.route.js";
 import {
   invokeGetActionRoute,
   invokePostActionRoute,
 } from "./routes/invoke-action.route.js";
 import { replaceGrantRoute } from "./routes/replace-grant.route.js";
 import { submitApplicationRoute } from "./routes/submit-application.route.js";
+import { submitClaimRoute } from "./routes/submit-claim.route.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
@@ -64,6 +66,8 @@ export const grants = {
       invokePostActionRoute,
       submitApplicationRoute,
       applicationStatusRoute,
+      getAvailableClaimsRoute,
+      submitClaimRoute,
     ]);
   },
 };

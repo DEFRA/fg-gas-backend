@@ -1,8 +1,10 @@
 import Joi from "joi";
 import { action } from "../grant/action/action.js";
+import { entitlementTemplates } from "../grant/entitlement-template.js";
 import { externalStatusMap } from "../grant/external-status-map.js";
 import { description } from "../grant/metadata/description.js";
 import { startDate } from "../grant/metadata/start-date.js";
+import { pages } from "../grant/pages.js";
 import { phases } from "../grant/phases.js";
 
 export const grantRequestSchema = Joi.object({
@@ -18,4 +20,6 @@ export const grantRequestSchema = Joi.object({
   phases,
   amendablePositions: Joi.array().items(Joi.string()),
   externalStatusMap: externalStatusMap.optional(),
+  entitlementTemplates: entitlementTemplates.optional(),
+  pages: pages.optional(),
 });

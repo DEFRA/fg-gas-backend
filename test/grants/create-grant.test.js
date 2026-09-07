@@ -38,6 +38,14 @@ describe("POST /grants", () => {
           startDate: Joi.date().validate(grant1.metadata.startDate).value,
         },
         externalStatusMap: null,
+        // A grant that configures no pages serializes to null the same way
+        // externalStatusMap does, because the driver resolves ignoreUndefined
+        // to false.
+        pages: null,
+        // A grant with no templates now stores an empty collection rather than
+        // null: the model always holds one, so that is what reaches the
+        // document. externalStatusMap is untouched and still serializes to null.
+        entitlementTemplates: [],
       },
     ]);
   });
@@ -63,5 +71,28 @@ describe("POST /grants", () => {
       error: "Conflict",
       message: `Grant with code "${grant1.code}" version "${grant1.version}" already exists`,
     });
+  });
+
+  it("accepts a claimable entitlement template with multiple instances", async () => {
+    const response = await wreck.post("/grants", {
+      json: true,
+      payload: {
+        ...grant1,
+        code: `${grant1.code}-multi`,
+        entitlementTemplates: [
+          {
+            claimCode: "ENT_CLAIMABLE",
+            name: "Claimable entitlement",
+            maxEntitlements: 2,
+            availableAt: [{ phase: "PRE_AWARD" }],
+            claim: {
+              claimableAt: [{ phase: "PRE_AWARD" }],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response.res.statusCode).toBe(204);
   });
 });

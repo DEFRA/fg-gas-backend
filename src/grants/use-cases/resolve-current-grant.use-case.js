@@ -75,6 +75,12 @@ const memoResolve = async (memo, key, produce) => {
   return result;
 };
 
+const legacyResolution = async (grantCode) => ({
+  grant: await findByCode(grantCode),
+  resolvedVersion: null,
+  definitionSource: DefinitionSource.MongoDB,
+});
+
 // Resolves the grant definition an application should currently use: the latest
 // active version within the same major as the application's pinned configVersion.
 export const resolveCurrentGrantUseCase = async (
@@ -83,11 +89,7 @@ export const resolveCurrentGrantUseCase = async (
   memo,
 ) => {
   if (!pinnedVersion) {
-    return {
-      grant: await findByCode(grantCode),
-      resolvedVersion: null,
-      definitionSource: DefinitionSource.MongoDB,
-    };
+    return legacyResolution(grantCode);
   }
 
   const major = parseMajor(pinnedVersion);

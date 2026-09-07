@@ -9,6 +9,9 @@ const SQS_URL = `http://sqs.eu-west-2.127.0.0.1:${FLOCI_PORT}/000000000000`;
 
 export default defineConfig({
   test: {
+    restoreMocks: true,
+    clearMocks: true,
+    mockReset: true,
     globalSetup: "./test/setup.js",
     setupFiles: [
       "./test/matchers.js",
@@ -40,6 +43,13 @@ export default defineConfig({
       LOG_FORMAT: "pino-pretty",
       TRACING_HEADER: "x-cdp-request-id",
       ENVIRONMENT: "local",
+      // FGP-1307: these integration tests drive caller identity through the
+      // x-agreement-* headers (varying source/sbi/code per scenario). Caller-token
+      // enforcement is exercised by the auth unit tests; keep the integration
+      // suite in warn-only mode so it continues to validate route behaviour.
+      CALLER_TOKEN_ENFORCE: "false",
+      VIEW_AGREEMENT_URI: "http://localhost:3000",
+      GAS_MANAGED_AGREEMENT_GRANT_CODES: "pigs-might-fly,test-code-1",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created_fifo.fifo",
       GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: `${SQS_URL}/gas__sqs__update_agreement_status_fifo.fifo`,
@@ -52,10 +62,15 @@ export default defineConfig({
       GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__application_status_updated_fifo.fifo",
       CREATE_AGREEMENT_QUEUE_URL: `${SQS_URL}/create_agreement_fifo.fifo`,
+      GAS__SNS__CREATE_PAYMENT_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
+      CREATE_PAYMENT_QUEUE_URL: `${SQS_URL}/create_payment_fifo.fifo`,
       GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_new_case_fifo.fifo",
       GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_agreement_status_fifo.fifo",
+      GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN:
+        "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
       GAS__SQS__CONFIG_VERSION_QUEUE_URL: `${SQS_URL}/gas__sqs__config_version_updated`,
       CONFIG_BROKER_S3_BUCKET: "config-broker-local",
       GAS__SNS__AUDIT_TOPIC_ARN:

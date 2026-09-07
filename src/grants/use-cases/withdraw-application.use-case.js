@@ -11,6 +11,7 @@ import {
   update,
 } from "../repositories/application.repository.js";
 import { insertMany } from "../repositories/outbox.repository.js";
+import { resolveAgreementStatusCommandTarget } from "./agreement-status-command.helpers.js";
 
 export const auditDataBuilder = (args) => {
   const { clientRef, code } = args[0];
@@ -49,7 +50,9 @@ const withdrawApplication = async (command, session) => {
     outboxObjects.push(
       new Outbox({
         event: updateAgreementStatusCommand,
-        target: config.sns.updateAgreementStatusTopicArn,
+        target: await resolveAgreementStatusCommandTarget(
+          updateAgreementStatusCommand,
+        ),
         segregationRef: Outbox.getSegregationRef(updateAgreementStatusCommand),
       }),
     );

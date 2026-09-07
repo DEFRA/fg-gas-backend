@@ -7,15 +7,42 @@ import { ensureQueues } from "./helpers/sqs.js";
 let environment;
 let fundingCalculator;
 
+// Stands in for fg-gss-pmf and deliberately exposes only the retained PMF
+// Payment Schedule contract. A grant-funding call fails with 404.
+const calculatorResponses = {
+  "/paymentSchedule": {
+    payment: {
+      agreementStartDate: "2026-08-01",
+      agreementEndDate: "2027-07-31",
+      agreementTotalPence: 5000,
+      payments: [
+        {
+          dueDate: "2026-11-06",
+          totalAmountPence: 5000,
+          invoiceLines: [
+            {
+              pigType: "largeWhite",
+              description: "Large White Pig",
+              quantity: 5,
+              unitPricePence: 1000,
+              amountPence: 5000,
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
 const startFundingCalculator = () =>
   new Promise((resolve, reject) => {
-    fundingCalculator = createServer((_request, response) => {
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(
-        JSON.stringify({
-          items: [{ description: "Large White", total: 32000 }],
-        }),
-      );
+    fundingCalculator = createServer((request, response) => {
+      const body = calculatorResponses[request.url];
+
+      response.writeHead(body ? 200 : 404, {
+        "content-type": "application/json",
+      });
+      response.end(JSON.stringify(body ?? { message: "Not found" }));
     });
     fundingCalculator.once("error", reject);
     fundingCalculator.listen(0, "0.0.0.0", () => {
@@ -54,9 +81,19 @@ export const setup = async ({ globalConfig }) => {
         OUTBOX_POLL_MS: env.OUTBOX_POLL_MS,
         INBOX_POLL_MS: env.INBOX_POLL_MS,
         GRANT_FUNDING_CALCULATOR_URL: fundingCalculatorUrl,
+        VIEW_AGREEMENT_URI: env.VIEW_AGREEMENT_URI,
+        GAS_MANAGED_AGREEMENT_GRANT_CODES:
+          env.GAS_MANAGED_AGREEMENT_GRANT_CODES,
+        // FGP-1307: keep the containerised GAS in warn-only mode so the
+        // header-driven authz scenarios in these tests are not rejected with a
+        // 401 by caller-token enforcement (which is covered by the auth unit
+        // tests). Sourced from test/vitest.config.js.
+        CALLER_TOKEN_ENFORCE: env.CALLER_TOKEN_ENFORCE,
         GAS__SNS__AUDIT_TOPIC_ARN: env.GAS__SNS__AUDIT_TOPIC_ARN,
         GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
           env.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
+        GAS__SNS__CREATE_PAYMENT_TOPIC_ARN:
+          env.GAS__SNS__CREATE_PAYMENT_TOPIC_ARN,
       })
       .withWaitStrategy("gas", Wait.forHttp("/health"))
       .up();
@@ -72,6 +109,7 @@ export const setup = async ({ globalConfig }) => {
     env.CW__SQS__CREATE_NEW_CASE_QUEUE_URL,
     env.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
     env.CREATE_AGREEMENT_QUEUE_URL,
+    env.CREATE_PAYMENT_QUEUE_URL,
   ]);
 
   if (env.PRINT_LOGS) {

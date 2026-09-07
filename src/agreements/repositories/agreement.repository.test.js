@@ -23,7 +23,19 @@ const agreement = new Agreement({
   configVersion: "1.0.1",
   correlationId: "b5e8b244-6d60-42cd-8da6-3294c7439239",
   identifiers: { sbi: "300000069" },
-  payload: { whitePigsCount: 5 },
+  schemeCode: "WMP",
+  name: "Oakridge Estate WMP",
+  applicant: {
+    business: {
+      name: "Oakridge Estate",
+      address: { line1: "Farm House", postalCode: "YO1 1AA" },
+    },
+    customer: { name: { first: "Alex", last: "Farmer" } },
+  },
+  application: { whitePigsCount: 5 },
+  actions: [{ id: "action:1", code: "largeWhite" }],
+  items: [],
+  totalAmountPence: 5000,
   state: "offered",
   createdAt: "2026-07-17T11:29:00.000Z",
   updatedAt: "2026-07-17T11:29:00.000Z",
@@ -34,6 +46,7 @@ describe("single Agreement repository", () => {
     const findOne = vi.fn().mockResolvedValue({
       _id: agreement.agreementNumber,
       ...structuredClone(agreement),
+      migration: { name: "woodland", sourceChecksum: "internal" },
     });
     db.collection.mockReturnValue({ findOne });
     const session = {};
@@ -49,6 +62,7 @@ describe("single Agreement repository", () => {
       { session, readPreference: "primary" },
     );
     expect(result).toEqual(agreement);
+    expect(result).not.toHaveProperty("migration");
   });
 
   it("reads an idempotent action result from the primary", async () => {
@@ -60,7 +74,13 @@ describe("single Agreement repository", () => {
       versionedAt: "2026-07-18T09:15:00.000Z",
       actionExecution: { name: "accept", idempotencyKey },
     });
-    const findOne = vi.fn().mockResolvedValue(structuredClone(version));
+    const document = structuredClone(version);
+    document.snapshot.legacy = {
+      source: "legacy-agreements",
+      checksum: "internal",
+      envelope: { applicant: "private" },
+    };
+    const findOne = vi.fn().mockResolvedValue(document);
     db.collection.mockReturnValue({ findOne });
     const session = {};
 
@@ -79,6 +99,7 @@ describe("single Agreement repository", () => {
       { session, readPreference: "primary" },
     );
     expect(result).toEqual(version);
+    expect(result.snapshot).not.toHaveProperty("legacy");
   });
 
   it("finds the current Agreement by code and client reference", async () => {
@@ -113,6 +134,18 @@ describe("single Agreement repository", () => {
       { _id: agreement.agreementNumber, ...structuredClone(agreement) },
       { session },
     );
+    expect(document).toMatchObject({
+      schemeCode: "WMP",
+      name: "Oakridge Estate WMP",
+      applicant: {
+        business: { name: "Oakridge Estate" },
+        customer: { name: { first: "Alex", last: "Farmer" } },
+      },
+      application: { whitePigsCount: 5 },
+      actions: [{ id: "action:1", code: "largeWhite" }],
+      items: [],
+      totalAmountPence: 5000,
+    });
     expect(document).not.toHaveProperty("acceptedAt");
     expect(document).not.toHaveProperty("paymentCalculation");
     expect(document).not.toHaveProperty("supplementaryData");
@@ -160,6 +193,18 @@ describe("single Agreement repository", () => {
       },
       { session: undefined },
     );
+    expect(document.snapshot).toMatchObject({
+      schemeCode: "WMP",
+      name: "Oakridge Estate WMP",
+      applicant: {
+        business: { name: "Oakridge Estate" },
+        customer: { name: { first: "Alex", last: "Farmer" } },
+      },
+      application: { whitePigsCount: 5 },
+      actions: [{ id: "action:1", code: "largeWhite" }],
+      items: [],
+      totalAmountPence: 5000,
+    });
     expect(document.snapshot).not.toHaveProperty("acceptedAt");
     expect(document.snapshot).not.toHaveProperty("paymentCalculation");
     expect(document.snapshot).not.toHaveProperty("supplementaryData");

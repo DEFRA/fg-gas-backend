@@ -9,13 +9,7 @@ vi.mock("../../common/config.js", () => ({
   },
 }));
 
-vi.mock("../../common/logger.js", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
+vi.mock("../../common/logger.js");
 
 const mockUpsert = vi.fn();
 vi.mock("../repositories/config-version.repository.js", () => ({
@@ -47,6 +41,58 @@ describe("processConfigVersionUseCase", () => {
     expect(arg.s3Key).toBe("woodland/1.2.3/gas/gas.json");
     expect(arg.s3Bucket).toBe("config-broker-test");
     expect(arg.fetchStatus).toBe("pending");
+    expect(mockUpsert).toHaveBeenCalledWith(arg, {});
+  });
+
+  it("should record an optional Agreement definition", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/agreement.json",
+      ],
+    });
+
+    expect(mockUpsert.mock.calls[0][1]).toEqual({
+      agreementS3Key: "woodland/1.2.3/gas/agreement.json",
+    });
+  });
+
+  it("should record an optional Payment definition", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/payment.json",
+      ],
+    });
+
+    expect(mockUpsert.mock.calls[0][1]).toEqual({
+      paymentS3Key: "woodland/1.2.3/gas/payment.json",
+    });
+  });
+
+  it("should record Agreement and Payment definitions independently", async () => {
+    await processConfigVersionUseCase({
+      grantCode: "woodland",
+      version: "1.2.3",
+      status: "active",
+      manifest: [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/agreement.json",
+        "woodland/1.2.3/gas/payment.json",
+      ],
+    });
+
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    expect(mockUpsert.mock.calls[0][1]).toEqual({
+      agreementS3Key: "woodland/1.2.3/gas/agreement.json",
+      paymentS3Key: "woodland/1.2.3/gas/payment.json",
+    });
   });
 
   it("should throw when status is missing", async () => {

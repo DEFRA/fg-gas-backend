@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { config } from "../../common/config.js";
+import {
+  canHandleInternalCommand,
+  internalMessageBusTarget,
+} from "../../common/internal-command-bus.js";
 import { writeAuditEvent } from "../../common/write-audit-event.js";
 import {
   Agreement,
@@ -23,6 +28,10 @@ import {
   withdrawApplicationUseCase,
 } from "./withdraw-application.use-case.js";
 
+vi.mock("../../common/internal-command-bus.js", async () => {
+  const actual = await vi.importActual("../../common/internal-command-bus.js");
+  return { ...actual, canHandleInternalCommand: vi.fn() };
+});
 vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
@@ -33,6 +42,7 @@ describe("withdrawApplicationUseCase", () => {
   let agreement;
 
   beforeEach(() => {
+    canHandleInternalCommand.mockResolvedValue(true);
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-01-15T10:30:00.000Z"));
   });
@@ -85,6 +95,9 @@ describe("withdrawApplicationUseCase", () => {
 
     expect(insertMany).toHaveBeenCalledTimes(1);
     expect(insertMany.mock.calls[0][0]).toHaveLength(1);
+    expect(insertMany.mock.calls[0][0][0].target).toBe(
+      internalMessageBusTarget,
+    );
     expect(agreement.latestStatus).toBe(Status.Offered);
 
     expect(writeAuditEvent).toHaveBeenCalledWith(
@@ -104,6 +117,29 @@ describe("withdrawApplicationUseCase", () => {
         status: "SUCCESS",
       }),
       session,
+    );
+  });
+
+  it("routes unmanaged agreement withdrawal to the legacy topic", async () => {
+    canHandleInternalCommand.mockResolvedValue(false);
+    const application = new Application({
+      currentPhase: ApplicationPhase.PreAward,
+      currentStage: ApplicationStage.Assessment,
+      currentStatus: ApplicationStatus.WithdrawRequested,
+      clientRef: "test-client-ref",
+      code: "legacy-code",
+      agreements: { "agreement-123": agreement },
+      phases: [],
+    });
+    findByClientRefAndCode.mockResolvedValueOnce(application);
+
+    await withdrawApplicationUseCase({
+      clientRef: "test-client-ref",
+      code: "legacy-code",
+    });
+
+    expect(insertMany.mock.calls[0][0][0].target).toBe(
+      config.sns.updateAgreementStatusTopicArn,
     );
   });
 
