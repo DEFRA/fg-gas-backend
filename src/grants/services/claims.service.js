@@ -93,17 +93,6 @@ const claimableFor = ({ grant, application, existing, entitlementId }) => {
   return ClaimableEntitlement.fromPersisted({ entitlement, template });
 };
 
-// The claim code is still on the request, so a caller that names an
-// entitlement belonging to a different code is told rather than silently
-// having its metadata ignored.
-const assertClaimCodeMatches = (claimable, claimCode) => {
-  if (claimable.claimCode !== claimCode) {
-    throw Boom.badData(
-      `Entitlement "${claimable.entitlement.id}" is for claim code "${claimable.claimCode}", not "${claimCode}".`,
-    );
-  }
-};
-
 const dataValue = (field, value) => value ?? field.value ?? null;
 
 const unscaleDecimalAsText = (value, decimalPlaces) => {
@@ -199,7 +188,7 @@ const auditDataBuilder = (args, result) => {
   if (!result?.created) {
     return null;
   }
-  const [{ command }] = args;
+  const [{ command, claimCode }] = args;
   return buildAuditEvent({
     entity: auditEntities.CLAIM,
     action: auditActions.SUBMIT,
@@ -207,19 +196,19 @@ const auditDataBuilder = (args, result) => {
     details: {
       code: command.code,
       clientRef: command.clientRef,
-      claimCode: command.payload.metadata.claimCode,
+      claimCode,
     },
   });
 };
 
-const insertClaim = async ({ command }, session) => {
+const insertClaim = async ({ command, claimCode }, session) => {
   const insertedId = await insert(
     {
       code: command.code,
       clientRef: command.clientRef,
-      claimCode: command.payload.metadata.claimCode,
+      claimCode,
       clientClaimRef: command.payload.metadata.clientClaimRef,
-      entitlementId: command.payload.metadata.entitlementId,
+      entitlementId: command.payload.claim.entitlementId,
       metadata: command.payload.metadata,
       claim: command.payload.claim,
     },
@@ -257,9 +246,8 @@ const claimableWithCapacity = async (
     grant,
     application,
     existing,
-    entitlementId: command.payload.metadata.entitlementId,
+    entitlementId: command.payload.claim.entitlementId,
   });
-  assertClaimCodeMatches(claimable, command.payload.metadata.claimCode);
 
   const count = await countByEntitlement(
     {
@@ -299,9 +287,15 @@ const submitInTransaction = async (
     return replay;
   }
 
-  await claimableWithCapacity({ command, grant, application }, session);
+  const claimable = await claimableWithCapacity(
+    { command, grant, application },
+    session,
+  );
 
-  return insertClaimWithAudit({ command }, session);
+  return insertClaimWithAudit(
+    { command, claimCode: claimable.claimCode },
+    session,
+  );
 };
 
 const replayAfterDuplicate = async (error, command) => {

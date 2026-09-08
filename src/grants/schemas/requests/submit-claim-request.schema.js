@@ -15,11 +15,10 @@ export const submitClaimRequestSchema = Joi.object({
   metadata: Joi.object({
     grantCode: code.required(),
     clientRef,
-    claimCode: Joi.string().required(),
-    // Which entitlement the claim is against. Required: a claim code alone
-    // cannot identify one once an application holds several entitlements for
-    // the same code.
-    entitlementId: Joi.string().required(),
+    // Dropped from the contract: the claim names its entitlement and the code
+    // is read from that record. Rejected rather than ignored so a caller still
+    // sending one is told its value no longer has any effect.
+    claimCode: Joi.any().forbidden(),
     clientClaimRef: clientClaimRef.required(),
     sbi,
     frn,
@@ -29,7 +28,9 @@ export const submitClaimRequestSchema = Joi.object({
       .message("Config version must be a valid config string (e.g. 1.0.3)")
       .required(),
   }).unknown(true),
-  claim: Joi.object({}).unknown(),
+  claim: Joi.object({
+    entitlementId: Joi.string().required(),
+  }).unknown(),
 })
   .options({
     presence: "required",
