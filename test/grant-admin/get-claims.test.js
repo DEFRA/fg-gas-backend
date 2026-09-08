@@ -59,6 +59,11 @@ const template = (overrides = {}) => ({
   ...overrides,
 });
 
+const claimBlock = {
+  claimableAt: [position],
+  limits: { maximumClaims: 1 },
+};
+
 // The application is stored without a configVersion, so the grant resolves by
 // code at the unversioned sentinel - the same route application-status takes.
 const claimsPage = {
@@ -196,6 +201,46 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
     });
   });
 
+  // The claims page shows what has been created regardless of where the
+  // application has since moved to, so a caseworker keeps full visibility.
+  it("lists a created entitlement from a position it cannot be claimed at", async () => {
+    await seed({
+      entitlementTemplates: [template({ claim: claimBlock })],
+      currentPhase: ApplicationPhase.PostAward,
+    });
+    await entitlements.insertOne({
+      id: "entitlement-1",
+      clientRef,
+      code,
+      claimCode,
+      instanceNumber: 1,
+      data: { totalHectares: 455000 },
+    });
+
+    const response = await getClaims();
+
+    expect(response.res.statusCode).toBe(200);
+    expect(response.payload.claimableEntitlements).toEqual([
+      {
+        source: "persisted",
+        claimCode,
+        name: "PA3 Woodland Management Plan entitlement",
+        description: null,
+        entitlementId: "entitlement-1",
+        instanceNumber: 1,
+        data: {
+          totalHectares: {
+            value: 45.5,
+            decimalPlaces: 4,
+            minValue: 0.5,
+            maxValue: null,
+          },
+        },
+        claim: expect.objectContaining({ claimableAt: [position] }),
+      },
+    ]);
+  });
+
   it("returns an empty list when the grant defines no templates", async () => {
     await seed({ entitlementTemplates: [] });
 
@@ -294,6 +339,39 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims/{claimC
         name: "PA3 Woodland Management Plan entitlement",
         createdCount: 0,
       },
+    });
+  });
+
+  // The detail route carries the same claimable list as the page it is reached
+  // from, so the create form renders below what already exists.
+  it("lists what has been created alongside the template to create from", async () => {
+    await seed({
+      entitlementTemplates: [
+        template({ maxEntitlements: 2, claim: claimBlock }),
+      ],
+    });
+    await entitlements.insertOne({
+      id: "entitlement-1",
+      clientRef,
+      code,
+      claimCode,
+      instanceNumber: 1,
+      data: { totalHectares: 455000 },
+    });
+
+    const response = await getClaim();
+
+    expect(response.res.statusCode).toBe(200);
+    expect(response.payload.claimableEntitlements).toEqual([
+      expect.objectContaining({
+        claimCode,
+        entitlementId: "entitlement-1",
+        instanceNumber: 1,
+      }),
+    ]);
+    expect(response.payload.entitlementTemplate).toMatchObject({
+      claimCode,
+      createdCount: 1,
     });
   });
 

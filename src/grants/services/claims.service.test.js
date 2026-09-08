@@ -13,7 +13,11 @@ import {
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import { resolveCurrentGrantUseCase } from "../use-cases/resolve-current-grant.use-case.js";
-import { listClaimableEntitlements, submitClaim } from "./claims.service.js";
+import {
+  listClaimableEntitlements,
+  listEntitlementsWithClaimCapacity,
+  submitClaim,
+} from "./claims.service.js";
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../common/with-audit.js", () => ({
@@ -195,6 +199,33 @@ describe("claims.service", () => {
     ).resolves.toEqual([]);
   });
 
+  it("excludes an entitlement whose claims are all used up", async () => {
+    countByEntitlement.mockResolvedValue(1);
+
+    await expect(
+      listEntitlementsWithClaimCapacity({ code, clientRef }),
+    ).resolves.toEqual([]);
+  });
+
+  it("lists a persisted entitlement from any application position", async () => {
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
+      application({
+        currentPhase: "POST_AWARD",
+        currentStage: "AGREEMENT",
+        currentStatus: "ACTIVE",
+      }),
+    );
+
+    await expect(
+      listEntitlementsWithClaimCapacity({ code, clientRef }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        claimCode,
+        entitlementId,
+      }),
+    ]);
+  });
+
   it("audits a submitted claim against the inserted claim id", async () => {
     await submitClaim({ code, clientRef, payload });
 
@@ -308,7 +339,7 @@ describe("claims.service", () => {
     ).resolves.toEqual([
       expect.objectContaining({
         source: "persisted",
-        code: claimCode,
+        claimCode,
         entitlementId: "entitlement-1",
         instanceNumber: 2,
       }),

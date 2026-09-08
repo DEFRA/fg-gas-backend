@@ -90,7 +90,7 @@ describe("build claims view", () => {
   });
 
   it("returns the supplied claimable entitlements", async () => {
-    const claimable = [{ entitlementId: "ent-1", code: "ENT_PA3" }];
+    const claimable = [{ entitlementId: "ent-1", claimCode: "ENT_PA3" }];
 
     const result = await buildClaimsView(
       overview({ claimableEntitlements: claimable }),

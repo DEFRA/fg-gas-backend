@@ -151,7 +151,7 @@ const entitlementDetails = (entitlement) =>
 
 const toClaimableDto = (claimable) => ({
   source: claimable.type,
-  code: claimable.claimCode,
+  claimCode: claimable.claimCode,
   name: claimable.name,
   description: claimable.description ?? null,
   data: claimData(claimable),
@@ -166,10 +166,16 @@ const countClaimsFor = (claimable) =>
     entitlementId: claimable.entitlement.id,
   });
 
-const isAvailable = async (claimable, position) =>
-  claimable.canAcceptClaim(position, await countClaimsFor(claimable)).allowed;
+const isClaimableNow = async (claimable, application) =>
+  claimable.canAcceptClaim(
+    application.currentPosition(),
+    await countClaimsFor(claimable),
+  ).allowed;
 
-export const listClaimableEntitlements = async ({ code, clientRef }) => {
+const hasRemainingClaimCapacity = async (claimable) =>
+  (await countClaimsFor(claimable)) < claimable.maximumClaims;
+
+const candidatesForApplication = async ({ code, clientRef }) => {
   const application = await findApplicationByClientRefAndCodeUseCase(
     clientRef,
     code,
@@ -179,16 +185,30 @@ export const listClaimableEntitlements = async ({ code, clientRef }) => {
     pinnedVersion: pinnedVersionOf(application),
   });
   const existing = await findExistingEntitlements(clientRef, code);
-  const position = application.currentPosition();
 
-  const available = await Promise.all(
-    candidatesFor({ grant, existing }).map(async (claimable) =>
-      (await isAvailable(claimable, position)) ? claimable : null,
+  return { application, candidates: candidatesFor({ grant, existing }) };
+};
+
+const listEntitlementsMatching = async ({ code, clientRef }, isEligible) => {
+  const { application, candidates } = await candidatesForApplication({
+    code,
+    clientRef,
+  });
+
+  const matched = await Promise.all(
+    candidates.map(async (claimable) =>
+      (await isEligible(claimable, application)) ? claimable : null,
     ),
   );
 
-  return available.filter(Boolean).map(toClaimableDto);
+  return matched.filter(Boolean).map(toClaimableDto);
 };
+
+export const listClaimableEntitlements = ({ code, clientRef }) =>
+  listEntitlementsMatching({ code, clientRef }, isClaimableNow);
+
+export const listEntitlementsWithClaimCapacity = ({ code, clientRef }) =>
+  listEntitlementsMatching({ code, clientRef }, hasRemainingClaimCapacity);
 
 const existingReplay = ({ code, clientRef, clientClaimRef }, session) =>
   existsByClientClaimRef({ code, clientRef, clientClaimRef }, session).then(

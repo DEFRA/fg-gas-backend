@@ -48,7 +48,10 @@ describe("getAvailableClaimsRoute", () => {
 
     listClaimableEntitlements.mockResolvedValue([
       {
-        ...availableClaim,
+        claimCode: availableClaim.code,
+        name: availableClaim.name,
+        description: availableClaim.description,
+        data: availableClaim.data,
         source: "persisted",
         entitlementId: "entitlement-1",
         instanceNumber: 1,
