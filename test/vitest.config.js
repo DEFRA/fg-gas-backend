@@ -4,6 +4,9 @@ import { defineConfig } from "vite";
 const GAS_PORT = 3001;
 const MONGO_PORT = 27018;
 const FLOCI_PORT = 4567;
+// The in-process fg-cw-backend actuator stub (test/helpers/cw-stub.js). GAS
+// reaches it on host.docker.internal; the tests drive it on localhost.
+const CW_STUB_PORT = 4599;
 
 const SQS_URL = `http://sqs.eu-west-2.127.0.0.1:${FLOCI_PORT}/000000000000`;
 
@@ -30,6 +33,10 @@ export default defineConfig({
       GAS_PORT,
       MONGO_PORT,
       FLOCI_PORT,
+      CW_STUB_PORT,
+      CW_BACKEND_TOKEN: "cw-stub-token",
+      // Shortened from the 10 s default so the "CW times out" case is quick.
+      HTTP_CLIENT_TIMEOUT_MS: "3000",
       PORT: String(GAS_PORT),
       API_URL: `http://localhost:${GAS_PORT}`,
       MONGO_URI: `mongodb://localhost:${MONGO_PORT}/fg-gas-backend?directConnection=true`,
