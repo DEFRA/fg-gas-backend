@@ -276,6 +276,21 @@ describe("handleCreateAgreementCommandUseCase", () => {
             }),
           }),
         }),
+        expect.objectContaining({
+          segregationRef: agreement.agreementNumber,
+          event: expect.objectContaining({
+            correlationId: agreement.correlationId,
+            datetime: agreement.createdAt,
+            eventData: expect.objectContaining({
+              eventType: "AGREEMENT_CREATED",
+              agreementId: agreement.agreementNumber,
+              agreementType: "pigs-might-fly",
+              agreementStatus: "offered",
+              agreementValue: 50,
+              sbi: "300000069",
+            }),
+          }),
+        }),
       ]),
       session,
     );

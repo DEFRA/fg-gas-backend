@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { createAgreementCreatedReportingPublication } from "../events/agreement-reporting.event.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import {
   findAgreementBySourceIdentity,
@@ -39,7 +40,10 @@ const createAgreement = async (event) => {
     agreement,
     versionedAt: agreement.createdAt,
   });
-  const outboundEvents = createOutboxMessages(["lifecycle"], agreement);
+  const outboundEvents = [
+    ...createOutboxMessages(["lifecycle"], agreement),
+    createAgreementCreatedReportingPublication(agreement),
+  ];
 
   return withTransaction(async (session) => {
     await insertCurrentAgreement(agreement, session);
