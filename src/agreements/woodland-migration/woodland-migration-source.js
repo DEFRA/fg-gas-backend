@@ -46,7 +46,7 @@ const get = async (path) => {
     throw sourceError();
   }
 
-  if (!successStatus(response.statusCode)) {
+  if (!successStatus(response.res.statusCode)) {
     throw sourceError();
   }
 
