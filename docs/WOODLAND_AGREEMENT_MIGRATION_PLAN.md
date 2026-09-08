@@ -114,13 +114,15 @@ For example, 70 source agreements containing 50 accepted records would produce t
 {
   "valid": true,
   "agreements": 70,
+  "offeredAgreements": 20,
+  "acceptedAgreements": 50,
   "versions": 120,
   "failures": 0,
   "sourceChecksum": "sha256:..."
 }
 ```
 
-The `versions` count is the number of target AgreementVersion snapshots, including reconstructed offered snapshots. Dry-run discards each page after validation. It creates no Agreement, AgreementVersion, payment, evidence record, event or migration-state record.
+`offeredAgreements` and `acceptedAgreements` count agreements by their final source state. The `versions` count is the number of target AgreementVersion snapshots, including reconstructed offered snapshots. Dry-run discards each page after validation. It creates no Agreement, AgreementVersion, payment, evidence record, event or migration-state record.
 
 Logs must not contain client references, applicant data or legacy envelopes. Record references use the agreement number and version ordinal so operators can trace failures to source records. The final log entry states whether the run completed and includes counts by outcome and diagnostic reason.
 

@@ -270,6 +270,11 @@ const processPage = ({
   return result;
 };
 
+const latestSourceState = (page, previousState) => {
+  const status = page.versions.at(-1)?.status;
+  return typeof status === "string" ? status.toLowerCase() : previousState;
+};
+
 const processAgreement = async ({ agreementNumber, mode, retainVersions }) => {
   const result = {
     versions: 0,
@@ -277,6 +282,7 @@ const processAgreement = async ({ agreementNumber, mode, retainVersions }) => {
     reasons: {},
     preparedVersions: [],
     versionChecksums: [],
+    finalState: null,
   };
 
   for await (const page of fetchWoodlandAgreementVersionPages(
@@ -294,6 +300,7 @@ const processAgreement = async ({ agreementNumber, mode, retainVersions }) => {
     result.preparedVersions.push(...pageResult.preparedVersions);
     result.versionChecksums.push(...pageResult.versionChecksums);
     mergeReasonCounts(result.reasons, pageResult.reasons);
+    result.finalState = latestSourceState(page, result.finalState);
   }
 
   if (result.versions === 0) {
@@ -310,6 +317,15 @@ const processAgreement = async ({ agreementNumber, mode, retainVersions }) => {
   return result;
 };
 
+const countFinalAgreementState = (summary, state) => {
+  if (state === "offered") {
+    summary.offeredAgreements += 1;
+  }
+  if (state === "accepted") {
+    summary.acceptedAgreements += 1;
+  }
+};
+
 const logCompleted = (summary, reasons, mode, aborted = false) => {
   const passed = Math.max(0, summary.versions - summary.failures);
   logger.info(
@@ -317,7 +333,7 @@ const logCompleted = (summary, reasons, mode, aborted = false) => {
       event: {
         action: migrationAction(mode, "completed"),
         outcome: summary.valid ? "success" : "failure",
-        reason: `agreements=${summary.agreements} versions=${summary.versions} passed=${passed} failures=${summary.failures} aborted=${aborted} checksum=${summary.sourceChecksum ?? "unavailable"} reasons=${JSON.stringify(reasons)}`,
+        reason: `agreements=${summary.agreements} offeredAgreements=${summary.offeredAgreements} acceptedAgreements=${summary.acceptedAgreements} versions=${summary.versions} passed=${passed} failures=${summary.failures} aborted=${aborted} checksum=${summary.sourceChecksum ?? "unavailable"} reasons=${JSON.stringify(reasons)}`,
       },
     },
     "Woodland migration validation completed",
@@ -332,6 +348,8 @@ export const prepareWoodlandMigration = async ({
   const summary = {
     valid: false,
     agreements: 0,
+    offeredAgreements: 0,
+    acceptedAgreements: 0,
     versions: 0,
     failures: 0,
     sourceChecksum: null,
@@ -362,6 +380,7 @@ export const prepareWoodlandMigration = async ({
       });
       summary.versions += result.versions;
       summary.failures += result.failures;
+      countFinalAgreementState(summary, result.finalState);
       agreementChecksums.push(result.sourceChecksum);
       mergeReasonCounts(reasons, result.reasons);
 
