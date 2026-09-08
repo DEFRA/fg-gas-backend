@@ -199,6 +199,21 @@ describe("claims.service", () => {
     ).resolves.toEqual([]);
   });
 
+  it("orders entitlements of one claim code by instance number", async () => {
+    findExistingEntitlements.mockResolvedValue([
+      { ...persistedEntitlement, id: "entitlement-3", instanceNumber: 3 },
+      { ...persistedEntitlement, id: "entitlement-1", instanceNumber: 1 },
+      { ...persistedEntitlement, id: "entitlement-2", instanceNumber: 2 },
+    ]);
+
+    const entitlements = await listEntitlementsWithClaimCapacity({
+      code,
+      clientRef,
+    });
+
+    expect(entitlements.map((each) => each.instanceNumber)).toEqual([1, 2, 3]);
+  });
+
   it("excludes an entitlement whose claims are all used up", async () => {
     countByEntitlement.mockResolvedValue(1);
 

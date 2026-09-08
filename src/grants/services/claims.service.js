@@ -52,9 +52,15 @@ const resolveGrant = async ({ code, pinnedVersion }) => {
   return grant;
 };
 
+// instanceNumber is unique only within a claim code, so entitlements are
+// ordered inside their template rather than across the whole list.
+const byInstanceNumber = (one, other) =>
+  one.instanceNumber - other.instanceNumber;
+
 const persistedCandidates = (template, existing) =>
   existing
     .filter((entitlement) => entitlement.claimCode === template.claimCode)
+    .sort(byInstanceNumber)
     .map((entitlement) =>
       ClaimableEntitlement.fromPersisted({ entitlement, template }),
     );
