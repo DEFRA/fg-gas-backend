@@ -19,8 +19,6 @@ const payload = {
   metadata: {
     grantCode: "woodland",
     clientRef: "wmp-6hb-j8e",
-    claimCode: "ENT_CS_CAPITAL_PA3",
-    entitlementId: "8cef007b-af1e-4cdc-bf4c-948b6bf85d05",
     clientClaimRef: "WMP-6HB-J8E-C0001",
     sbi: "113593357",
     crn: "1100943757",
@@ -29,6 +27,7 @@ const payload = {
     submittedAt: "2026-08-07T11:16:05.745Z",
   },
   claim: {
+    entitlementId: "8cef007b-af1e-4cdc-bf4c-948b6bf85d05",
     claimAmountPence: 150000,
   },
 };
@@ -95,6 +94,36 @@ describe("submitClaimRoute", () => {
       method: "POST",
       url: "/grants/INVALID/applications/wmp-6hb-j8e/claims",
       payload,
+    });
+
+    expect(statusCode).toBe(400);
+    expect(submitClaim).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when the claim does not name an entitlement", async () => {
+    const { entitlementId, ...claim } = payload.claim;
+
+    const { statusCode } = await server.inject({
+      method: "POST",
+      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
+      payload: { ...payload, claim },
+    });
+
+    expect(statusCode).toBe(400);
+    expect(submitClaim).not.toHaveBeenCalled();
+  });
+
+  // claimCode left the contract when the claim started naming its entitlement.
+  // A caller still sending one is told, rather than having it quietly ignored
+  // while the stored code is read from the entitlement instead.
+  it("returns 400 when metadata still carries the removed claimCode", async () => {
+    const { statusCode } = await server.inject({
+      method: "POST",
+      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
+      payload: {
+        ...payload,
+        metadata: { ...payload.metadata, claimCode: "ENT_CS_CAPITAL_PA3" },
+      },
     });
 
     expect(statusCode).toBe(400);
