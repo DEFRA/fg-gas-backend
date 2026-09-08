@@ -194,7 +194,7 @@ const targetStatesFor = (sourceVersion) =>
         { state: "offered", derivation: "pre-acceptance" },
         { state: "accepted", derivation: "direct" },
       ]
-    : [{ state: undefined, derivation: "direct" }];
+    : [{ state: null, derivation: "direct" }];
 
 const processTargetVersion = ({
   agreementNumber,
