@@ -212,6 +212,7 @@ Do not apply from the earlier rehearsal result. During the approved maintenance 
 - [ ] Pause legacy Woodland writes.
 - [ ] Take or verify the agreed source backup.
 - [ ] Run dry-run again after writes are paused.
+- [ ] Confirm no GAS deployment occurs between this final dry-run and apply.
 - [ ] Confirm the final result is valid with 70 agreements, `offeredAgreements + acceptedAgreements = 70`, and record the returned target `versions` count.
 - [ ] Record the final `sourceChecksum` and obtain explicit approval for that checksum.
 - [ ] Keep Woodland routing on the legacy service.

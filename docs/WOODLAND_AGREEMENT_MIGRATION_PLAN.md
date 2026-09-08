@@ -136,7 +136,7 @@ Apply has a validation phase and a write phase.
 
 Apply repeats the complete dry-run mapping and validation. Before writing, it also checks GAS for target conflicts and compares the newly calculated source checksum and counts with the approved dry-run values in the request. It refuses to write if any source record is unmappable, any diagnostic remains unresolved, the source order is inconsistent, an approved value changed, or a target conflict exists.
 
-During the production apply, legacy Woodland writes are paused. This makes the paginated source view stable for the duration of validation and import.
+During the production apply, legacy Woodland writes are paused. This makes the paginated source view stable for the duration of validation and import. The approved dry-run and apply run consecutively against the same deployed GAS image, with no deployment between them.
 
 Mapped pages may be spooled to a process-local temporary file so GAS does not retain the full migration in memory or make HTTP calls inside a Mongo transaction. The file:
 
