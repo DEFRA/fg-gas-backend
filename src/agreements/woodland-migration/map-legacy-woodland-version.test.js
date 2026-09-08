@@ -357,6 +357,19 @@ describe("mapLegacyWoodlandVersion", () => {
     );
   });
 
+  it("rejects acceptance before the reconstructed offer", () => {
+    const version = {
+      ...sourceVersion,
+      signatureDate: new Date("2026-04-30T12:00:00.000Z"),
+    };
+    const mapped = map(version);
+
+    expect(validateMappedWoodlandVersion(mapped, version)).toContainEqual({
+      path: "acceptedAt",
+      reason: "woodland.acceptance-timestamp.before-offer",
+    });
+  });
+
   it("rejects a missing version update timestamp without inventing one", () => {
     const version = { ...sourceVersion, updatedAt: undefined };
     const mapped = map(version);

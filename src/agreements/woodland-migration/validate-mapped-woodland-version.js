@@ -412,6 +412,35 @@ const acceptedAgreementDateIssues = (agreement) =>
       )
     : [];
 
+const timestampString = (value) =>
+  value instanceof Date && !Number.isNaN(value.valueOf())
+    ? value.toISOString()
+    : value;
+
+const validTimestampMillis = (value) => {
+  const timestamp = timestampString(value);
+  return timestampSchema.required().validate(timestamp, { convert: false }).error
+    ? undefined
+    : Date.parse(timestamp);
+};
+
+const precedes = (left, right) =>
+  left !== undefined && right !== undefined && left < right;
+
+const acceptedTimestampOrderIssues = (sourceVersion, agreement) =>
+  agreement.state === "accepted" &&
+  precedes(
+    validTimestampMillis(agreement.acceptedAt),
+    validTimestampMillis(sourceVersion.createdAt),
+  )
+    ? [
+        {
+          path: "acceptedAt",
+          reason: "woodland.acceptance-timestamp.before-offer",
+        },
+      ]
+    : [];
+
 const invalidParcelQuantity = (quantity) =>
   !Number.isFinite(quantity) || quantity <= 0;
 const invalidItemQuantity = (quantity) =>
@@ -521,6 +550,7 @@ const sourceVersionIssues = (sourceVersion, agreement) => {
   }
 
   return [
+    ...acceptedTimestampOrderIssues(sourceVersion, agreement),
     ...sourcePaymentIssues(sourceVersion),
     ...sourceItemPaymentAmountIssues(sourceVersion),
     ...sourceItemIssues(sourceVersion),
