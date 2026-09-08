@@ -271,4 +271,58 @@ describe("withAudit", () => {
       );
     });
   });
+
+  // Inside a caller's transaction the audit insert is part of the same commit
+  // as the action, so a swallowed failure would let the action land unaudited.
+  describe("audit failure inside a transaction", () => {
+    const dataBuilder = () => ({ entities: [], details: {} });
+
+    it("rethrows the audit failure when a session is active", async () => {
+      const fn = vi.fn().mockResolvedValue({ ok: true });
+      writeAuditEvent.mockRejectedValue(new Error("outbox insert failed"));
+
+      await expect(
+        withAudit(fn, dataBuilder)("arg0", "my-session"),
+      ).rejects.toThrow("outbox insert failed");
+      // The action ran; it is the transaction's abort that undoes it.
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
+
+    it("swallows the audit failure when there is no session", async () => {
+      const fn = vi.fn().mockResolvedValue({ ok: true });
+      writeAuditEvent.mockRejectedValue(new Error("outbox insert failed"));
+
+      await expect(withAudit(fn, dataBuilder)("arg0")).resolves.toEqual({
+        ok: true,
+      });
+    });
+
+    // NOT closed, and deliberately: a `dataBuilder` answering null is the
+    // caller saying there is nothing to audit - a claims replay that created
+    // nothing, an entitlement that was not written - and both of those callers
+    // are transactional. Throwing here would abort a transaction that did
+    // exactly what it meant to. It is a decision not to audit, unlike a
+    // validation failure, which is an inability to.
+    it("skips the audit without failing when the builder answers null", async () => {
+      const fn = vi.fn().mockResolvedValue({ ok: true });
+      const noAudit = () => null;
+
+      await expect(
+        withAudit(fn, noAudit)("arg0", "my-session"),
+      ).resolves.toEqual({ ok: true });
+      expect(writeAuditEvent).not.toHaveBeenCalled();
+    });
+
+    // The failure path nulls the session precisely so the FAILURE audit is
+    // written outside the aborting transaction - and an audit failure there
+    // must not replace the error the caller actually needs to see.
+    it("keeps the use case's own error when the FAILURE audit also fails", async () => {
+      const fn = vi.fn().mockRejectedValue(new Error("use case failed"));
+      writeAuditEvent.mockRejectedValue(new Error("outbox insert failed"));
+
+      await expect(
+        withAudit(fn, dataBuilder)("arg0", "my-session"),
+      ).rejects.toThrow("use case failed");
+    });
+  });
 });
