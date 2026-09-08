@@ -167,13 +167,18 @@ export const mapLegacyWoodlandVersion = ({
   sourceVersion,
   version,
   configVersion,
+  targetState,
 }) => {
   const applicant = mapApplicant(sourceVersion.applicant);
   const parcels = (sourceVersion.application?.parcel ?? []).map(mapParcel);
   const items = sourceItems(sourceVersion).map((item, index) =>
     mapItem(sourceVersion, item, index),
   );
-  const state = sourceVersion.status?.toLowerCase();
+  const sourceState = sourceVersion.status?.toLowerCase();
+  const state = targetState ?? sourceState;
+  const reconstructingOffer =
+    sourceState === "accepted" && state === "offered";
+  const sourceVersionCreatedAt = toIsoString(sourceVersion.createdAt);
   const createdAt = toIsoString(
     agreement.createdAt ?? grant.createdAt ?? sourceVersion.createdAt,
   );
@@ -196,8 +201,12 @@ export const mapLegacyWoodlandVersion = ({
       parcels,
       items,
     }),
-    startDate: toDate(sourceVersion.payment?.agreementStartDate),
-    endDate: toDate(sourceVersion.payment?.agreementEndDate),
+    startDate: reconstructingOffer
+      ? undefined
+      : toDate(sourceVersion.payment?.agreementStartDate),
+    endDate: reconstructingOffer
+      ? undefined
+      : toDate(sourceVersion.payment?.agreementEndDate),
     parcels,
     actions: [],
     items,
@@ -205,7 +214,9 @@ export const mapLegacyWoodlandVersion = ({
     totalAmountPence: sourceVersion.payment?.agreementTotalPence,
     state,
     createdAt,
-    updatedAt: toIsoString(sourceVersion.updatedAt),
+    updatedAt: reconstructingOffer
+      ? sourceVersionCreatedAt
+      : toIsoString(sourceVersion.updatedAt),
     acceptedAt:
       state === "accepted"
         ? toIsoString(sourceVersion.signatureDate)
@@ -216,7 +227,10 @@ export const mapLegacyWoodlandVersion = ({
     agreementNumber: mappedAgreement.agreementNumber,
     version: mappedAgreement.version,
     snapshot: mappedAgreement,
-    versionedAt: toIsoString(sourceVersion.createdAt),
+    versionedAt:
+      state === "accepted"
+        ? toIsoString(sourceVersion.signatureDate)
+        : sourceVersionCreatedAt,
   });
 };
 /* eslint-enable complexity */

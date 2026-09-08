@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export const woodlandMigrationMappingVersion = 1;
+export const woodlandMigrationMappingVersion = 2;
 export const woodlandMigrationSource = "legacy-agreements";
 
 // eslint-disable-next-line complexity
@@ -23,10 +23,11 @@ export const checksum = (value) =>
     .update(JSON.stringify(canonicalise(value)), "utf8")
     .digest("hex")}`;
 
-export const createLegacyEvidence = (envelope) => {
+export const createLegacyEvidence = (envelope, derivation = "direct") => {
   const untouchedEnvelope = structuredClone(envelope);
   return {
     source: woodlandMigrationSource,
+    derivation,
     checksum: checksum(untouchedEnvelope),
     envelope: untouchedEnvelope,
   };

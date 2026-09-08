@@ -59,7 +59,17 @@ const mappedFieldIssues = (page, sourceVersion) =>
     hasConflictingValues(values) ? [sourceValueIssue(path)] : [],
   );
 
-const sourceIssues = (agreementNumber, page, sourceVersion) => [
+const acceptedSourcePositionIssues = (sourceVersion, isFinalSourceVersion) =>
+  sourceVersion.status?.toLowerCase() === "accepted" && !isFinalSourceVersion
+    ? [{ path: "status", reason: "source.accepted.not-final" }]
+    : [];
+
+const sourceIssues = (
+  agreementNumber,
+  page,
+  sourceVersion,
+  isFinalSourceVersion,
+) => [
   ...(hasConflictingValues([
     agreementNumber,
     page.agreement.agreementNumber,
@@ -69,6 +79,7 @@ const sourceIssues = (agreementNumber, page, sourceVersion) => [
     : []),
   ...identityFieldIssues(page, sourceVersion),
   ...mappedFieldIssues(page, sourceVersion),
+  ...acceptedSourcePositionIssues(sourceVersion, isFinalSourceVersion),
 ];
 
 const eventTextMaxLength = 256;
@@ -121,7 +132,14 @@ const logEmptyAgreement = (agreementNumber, mode) => {
   );
 };
 
-const validateVersion = ({ agreementNumber, page, sourceVersion, version }) => {
+const validateVersion = ({
+  agreementNumber,
+  page,
+  sourceVersion,
+  version,
+  targetState,
+  isFinalSourceVersion,
+}) => {
   try {
     const agreementVersion = mapLegacyWoodlandVersion({
       agreement: page.agreement,
@@ -129,11 +147,17 @@ const validateVersion = ({ agreementNumber, page, sourceVersion, version }) => {
       sourceVersion,
       version,
       configVersion: config.woodlandMigration.configVersion,
+      targetState,
     });
     return {
       agreementVersion,
       issues: [
-        ...sourceIssues(agreementNumber, page, sourceVersion),
+        ...sourceIssues(
+          agreementNumber,
+          page,
+          sourceVersion,
+          isFinalSourceVersion,
+        ),
         ...validateMappedWoodlandVersion(agreementVersion, sourceVersion),
       ],
     };
@@ -164,6 +188,46 @@ const legacyEnvelope = (page, sourceVersion, index) => ({
   version: page.legacySource?.versions?.[index] ?? sourceVersion,
 });
 
+const targetStatesFor = (sourceVersion) =>
+  sourceVersion.status?.toLowerCase() === "accepted"
+    ? [
+        { state: "offered", derivation: "pre-acceptance" },
+        { state: "accepted", derivation: "direct" },
+      ]
+    : [{ state: undefined, derivation: "direct" }];
+
+const processTargetVersion = ({
+  agreementNumber,
+  page,
+  sourceVersion,
+  targetState,
+  derivation,
+  envelope,
+  version,
+  isFinalSourceVersion,
+  mode,
+  retainVersions,
+  result,
+}) => {
+  const evidence = createLegacyEvidence(envelope, derivation);
+  const { agreementVersion, issues } = validateVersion({
+    agreementNumber,
+    page,
+    sourceVersion,
+    version,
+    targetState,
+    isFinalSourceVersion,
+  });
+  result.versions += 1;
+  result.failures += Number(issues.length > 0);
+  countReasons(result.reasons, issues);
+  logVersion({ agreementNumber, version, issues, mode });
+
+  if (retainVersions && agreementVersion) {
+    result.preparedVersions.push({ agreementVersion, evidence });
+  }
+};
+
 const processPage = ({
   agreementNumber,
   page,
@@ -172,7 +236,7 @@ const processPage = ({
   retainVersions,
 }) => {
   const result = {
-    versions: page.versions.length,
+    versions: 0,
     failures: 0,
     reasons: {},
     preparedVersions: [],
@@ -180,23 +244,26 @@ const processPage = ({
   };
 
   page.versions.forEach((sourceVersion, index) => {
-    const version = firstVersion + index;
-    const evidence = createLegacyEvidence(
-      legacyEnvelope(page, sourceVersion, index),
-    );
-    const { agreementVersion, issues } = validateVersion({
-      agreementNumber,
-      page,
-      sourceVersion,
-      version,
-    });
-    result.failures += Number(issues.length > 0);
-    result.versionChecksums.push(evidence.checksum);
-    countReasons(result.reasons, issues);
-    logVersion({ agreementNumber, version, issues, mode });
+    const envelope = legacyEnvelope(page, sourceVersion, index);
+    result.versionChecksums.push(createLegacyEvidence(envelope).checksum);
 
-    if (retainVersions && agreementVersion) {
-      result.preparedVersions.push({ agreementVersion, evidence });
+    for (const { state: targetState, derivation } of targetStatesFor(
+      sourceVersion,
+    )) {
+      processTargetVersion({
+        agreementNumber,
+        page,
+        sourceVersion,
+        targetState,
+        derivation,
+        envelope,
+        version: firstVersion + result.versions,
+        isFinalSourceVersion:
+          page.nextOffset === null && index === page.versions.length - 1,
+        mode,
+        retainVersions,
+        result,
+      });
     }
   });
 

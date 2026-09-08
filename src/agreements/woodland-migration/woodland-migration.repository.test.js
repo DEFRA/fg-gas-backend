@@ -36,6 +36,7 @@ const preparedAgreement = {
       },
       evidence: {
         source: "legacy-agreements",
+        derivation: "direct",
         checksum: evidenceChecksum,
         envelope,
       },
@@ -49,7 +50,7 @@ const ownedCurrent = (overrides = {}) => ({
   migration: {
     name: "woodland",
     source: "legacy-agreements",
-    mappingVersion: 1,
+    mappingVersion: 2,
     sourceChecksum,
   },
   ...overrides,
@@ -63,6 +64,7 @@ const storedVersion = (overrides = {}) => ({
     ...agreement,
     legacy: {
       source: "legacy-agreements",
+      derivation: "direct",
       checksum: evidenceChecksum,
       envelope: { version: { source: true } },
     },
@@ -225,7 +227,7 @@ describe("Woodland migration repository", () => {
         migration: {
           name: "woodland",
           source: "legacy-agreements",
-          mappingVersion: 1,
+          mappingVersion: 2,
           sourceChecksum,
         },
       }),

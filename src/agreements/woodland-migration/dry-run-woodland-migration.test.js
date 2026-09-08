@@ -127,6 +127,7 @@ describe("dryRunWoodlandMigration", () => {
             agreementVersion,
             evidence: {
               source: "legacy-agreements",
+              derivation: "direct",
               checksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
               envelope: {
                 agreement: sourceEvidence.agreement,
@@ -138,6 +139,85 @@ describe("dryRunWoodlandMigration", () => {
         ],
       },
     ]);
+  });
+
+  it("reconstructs offered history before an accepted source version", async () => {
+    const acceptedSource = { valid: true, status: "accepted" };
+    fetchWoodlandAgreementNumbers.mockResolvedValue(["WMP0001"]);
+    fetchWoodlandAgreementVersionPages.mockImplementation(() =>
+      (async function* () {
+        yield {
+          agreement: { agreementNumber: "WMP0001" },
+          grant: { agreementNumber: "WMP0001" },
+          versions: [acceptedSource],
+          nextOffset: null,
+        };
+      })(),
+    );
+    mapLegacyWoodlandVersion.mockImplementation(
+      ({ version, targetState }) => ({
+        agreementNumber: "WMP0001",
+        version,
+        targetState,
+      }),
+    );
+    validateMappedWoodlandVersion.mockReturnValue([]);
+
+    const result = await prepareWoodlandMigration({ retainVersions: true });
+
+    expect(result.summary).toMatchObject({
+      valid: true,
+      agreements: 1,
+      versions: 2,
+      failures: 0,
+    });
+    expect(mapLegacyWoodlandVersion).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ version: 1, targetState: "offered" }),
+    );
+    expect(mapLegacyWoodlandVersion).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ version: 2, targetState: "accepted" }),
+    );
+    expect(
+      result.preparedAgreements[0].versions.map(({ evidence }) =>
+        evidence.derivation,
+      ),
+    ).toEqual(["pre-acceptance", "direct"]);
+  });
+
+  it("rejects an accepted source version before the end of its history", async () => {
+    fetchWoodlandAgreementNumbers.mockResolvedValue(["WMP0001"]);
+    fetchWoodlandAgreementVersionPages.mockImplementation(() =>
+      (async function* () {
+        yield {
+          agreement: { agreementNumber: "WMP0001" },
+          grant: { agreementNumber: "WMP0001" },
+          versions: [{ valid: true, status: "accepted" }],
+          nextOffset: 1,
+        };
+        yield {
+          agreement: { agreementNumber: "WMP0001" },
+          grant: { agreementNumber: "WMP0001" },
+          versions: [{ valid: true, status: "offered" }],
+          nextOffset: null,
+        };
+      })(),
+    );
+
+    const result = await prepareWoodlandMigration();
+
+    expect(result.summary).toMatchObject({
+      valid: false,
+      agreements: 1,
+      versions: 3,
+      failures: 2,
+    });
+    expect(result.reasons).toEqual({ "source.accepted.not-final": 2 });
+    expect(mapLegacyWoodlandVersion).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ version: 3 }),
+    );
   });
 
   it("counts source identity and mapping failures", async () => {
