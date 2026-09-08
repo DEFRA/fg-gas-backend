@@ -7,7 +7,6 @@ import {
 } from "../repositories/agreement.repository.js";
 import {
   checksum,
-  woodlandMigrationMappingVersion,
   woodlandMigrationSource,
 } from "./woodland-migration-checksum.js";
 
@@ -21,7 +20,6 @@ const omitUndefinedProperties = (value) =>
 const migrationMarker = (preparedAgreement) => ({
   name: migrationName,
   source: woodlandMigrationSource,
-  mappingVersion: woodlandMigrationMappingVersion,
   sourceChecksum: preparedAgreement.sourceChecksum,
 });
 
@@ -187,7 +185,6 @@ const requireCompatibleCurrentDocuments = (
 };
 
 const isUnchangedMigration = (existing, preparedAgreement, existingVersions) =>
-  existing.migration.mappingVersion === woodlandMigrationMappingVersion &&
   existing.migration.sourceChecksum === preparedAgreement.sourceChecksum &&
   currentAgreementMatches(existing, preparedAgreement) &&
   historyMatches(preparedAgreement, existingVersions);

@@ -136,6 +136,33 @@ const woodlandName = (agreementName) =>
     : agreementName;
 const sourceAgreementName = (version) => version.agreementName ?? version.name;
 
+// eslint-disable-next-line complexity
+const mapLifecycle = (sourceVersion, targetState) => {
+  const sourceState = sourceVersion.status?.toLowerCase();
+  const state = targetState ?? sourceState;
+  const sourceVersionCreatedAt = toIsoString(sourceVersion.createdAt);
+
+  if (sourceState === "accepted" && state === "offered") {
+    return {
+      state,
+      updatedAt: sourceVersionCreatedAt,
+      versionedAt: sourceVersionCreatedAt,
+    };
+  }
+
+  const acceptedAt =
+    state === "accepted" ? toIsoString(sourceVersion.signatureDate) : undefined;
+  return {
+    state,
+    startDate: toDate(sourceVersion.payment?.agreementStartDate),
+    endDate: toDate(sourceVersion.payment?.agreementEndDate),
+    updatedAt: toIsoString(sourceVersion.updatedAt),
+    acceptedAt,
+    versionedAt:
+      state === "accepted" ? acceptedAt : sourceVersionCreatedAt,
+  };
+};
+
 const buildApplication = ({ version, applicant, parcels, items }) =>
   compact({
     woodlandName: woodlandName(sourceAgreementName(version)),
@@ -167,13 +194,14 @@ export const mapLegacyWoodlandVersion = ({
   sourceVersion,
   version,
   configVersion,
+  targetState,
 }) => {
   const applicant = mapApplicant(sourceVersion.applicant);
   const parcels = (sourceVersion.application?.parcel ?? []).map(mapParcel);
   const items = sourceItems(sourceVersion).map((item, index) =>
     mapItem(sourceVersion, item, index),
   );
-  const state = sourceVersion.status?.toLowerCase();
+  const lifecycle = mapLifecycle(sourceVersion, targetState);
   const createdAt = toIsoString(
     agreement.createdAt ?? grant.createdAt ?? sourceVersion.createdAt,
   );
@@ -196,27 +224,24 @@ export const mapLegacyWoodlandVersion = ({
       parcels,
       items,
     }),
-    startDate: toDate(sourceVersion.payment?.agreementStartDate),
-    endDate: toDate(sourceVersion.payment?.agreementEndDate),
+    startDate: lifecycle.startDate,
+    endDate: lifecycle.endDate,
     parcels,
     actions: [],
     items,
     annualAmountPence: sourceVersion.payment?.annualTotalPence,
     totalAmountPence: sourceVersion.payment?.agreementTotalPence,
-    state,
+    state: lifecycle.state,
     createdAt,
-    updatedAt: toIsoString(sourceVersion.updatedAt),
-    acceptedAt:
-      state === "accepted"
-        ? toIsoString(sourceVersion.signatureDate)
-        : undefined,
+    updatedAt: lifecycle.updatedAt,
+    acceptedAt: lifecycle.acceptedAt,
   });
 
   return new AgreementVersion({
     agreementNumber: mappedAgreement.agreementNumber,
     version: mappedAgreement.version,
     snapshot: mappedAgreement,
-    versionedAt: toIsoString(sourceVersion.createdAt),
+    versionedAt: lifecycle.versionedAt,
   });
 };
 /* eslint-enable complexity */

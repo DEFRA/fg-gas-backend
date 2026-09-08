@@ -20,6 +20,8 @@ describe("dryRunWoodlandMigrationRoute", () => {
     const summary = {
       valid: true,
       agreements: 50,
+      offeredAgreements: 10,
+      acceptedAgreements: 40,
       versions: 5274,
       failures: 0,
       sourceChecksum:

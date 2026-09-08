@@ -102,25 +102,27 @@ GAS performs the following steps in one request:
 
 1. Fetch the complete Woodland agreement-number list.
 2. For each agreement, request source versions in pages of 100.
-3. Map each source Version through the same pure mapper used by apply.
-4. Confirm the approved Woodland definition version exists, then validate the mapped snapshot against GAS domain rules and migration-specific Woodland rules. The definition is executable workflow configuration, not a snapshot schema, so the migration must not run its creation processes.
+3. Map each source Version through the same pure mapper used by apply. An accepted source Version produces a reconstructed offered snapshot followed by the accepted snapshot because the legacy service applied acceptance by mutating its latest Version in place.
+4. Confirm the approved Woodland definition version exists, then validate every mapped snapshot against GAS domain rules and migration-specific Woodland rules. The definition is executable workflow configuration, not a snapshot schema, so the migration must not run its creation processes.
 5. Check required identifiers, lifecycle state, dates, parcels, items, quantities, amounts and timestamps. The Agreements source endpoint owns version ordering against `Grant.versions`; GAS consumes its ordered pages.
-6. Log a PII-safe structured result for every source record.
+6. Log a PII-safe structured result for every target snapshot.
 7. Return a small summary.
 
-Example summary:
+For example, 70 source agreements containing 50 accepted records would produce this summary:
 
 ```json
 {
   "valid": true,
   "agreements": 70,
-  "versions": 70,
+  "offeredAgreements": 20,
+  "acceptedAgreements": 50,
+  "versions": 120,
   "failures": 0,
   "sourceChecksum": "sha256:..."
 }
 ```
 
-Dry-run discards each page after validation. It creates no Agreement, AgreementVersion, payment, evidence record, event or migration-state record.
+`offeredAgreements` and `acceptedAgreements` count agreements by their final source state. The `versions` count is the number of target AgreementVersion snapshots, including reconstructed offered snapshots. Dry-run discards each page after validation. It creates no Agreement, AgreementVersion, payment, evidence record, event or migration-state record.
 
 Logs must not contain client references, applicant data or legacy envelopes. Record references use the agreement number and version ordinal so operators can trace failures to source records. The final log entry states whether the run completed and includes counts by outcome and diagnostic reason.
 
@@ -134,7 +136,7 @@ Apply has a validation phase and a write phase.
 
 Apply repeats the complete dry-run mapping and validation. Before writing, it also checks GAS for target conflicts and compares the newly calculated source checksum and counts with the approved dry-run values in the request. It refuses to write if any source record is unmappable, any diagnostic remains unresolved, the source order is inconsistent, an approved value changed, or a target conflict exists.
 
-During the production apply, legacy Woodland writes are paused. This makes the paginated source view stable for the duration of validation and import.
+During the production apply, legacy Woodland writes are paused. This makes the paginated source view stable for the duration of validation and import. The approved dry-run and apply run consecutively against the same deployed GAS image, with no deployment between them.
 
 Mapped pages may be spooled to a process-local temporary file so GAS does not retain the full migration in memory or make HTTP calls inside a Mongo transaction. The file:
 
@@ -153,9 +155,9 @@ After every record passes validation, GAS:
 2. Skips agreements whose checksum is unchanged.
 3. Rejects an existing agreement that is not marked as created by this migration.
 4. Replaces changed migration-owned agreements from the validated source.
-5. Inserts every AgreementVersion in source order and assigns the corresponding GAS version number.
-6. Stores the untouched legacy envelope and its checksum in each snapshot.
-7. Writes the current Agreement from the final source Version.
+5. Inserts every AgreementVersion in lifecycle order and assigns the corresponding GAS version number.
+6. Stores the untouched legacy envelope and its checksum in each target snapshot.
+7. Writes the current Agreement from the final target Version.
 8. Reconciles source and target counts and checksums before returning success.
 
 Target writes use the existing Mongo transaction helper. The DEV 5,000-version agreement is the transaction-size and duration test. If one transaction cannot safely contain the import, the fallback is an internal pending marker with a final atomic activation step. No imported Woodland record may be served before the whole run reconciles.
@@ -170,7 +172,8 @@ The mapping uses the following confirmed source values and rejects unsupported a
 
 - The complete set of legacy lifecycle statuses and their GAS states.
 - `Grant.versions` as the authoritative version order.
-- Timestamp mapping: Agreement `createdAt` (falling back to Grant then Version) becomes snapshot `createdAt`; Version `updatedAt` becomes snapshot `updatedAt`; Version `createdAt` becomes `AgreementVersion.versionedAt`; and an accepted Version's `signatureDate` becomes snapshot `acceptedAt`.
+- Timestamp mapping: Agreement `createdAt` (falling back to Grant then Version) becomes snapshot `createdAt`. Direct offered Versions use Version `createdAt` as `AgreementVersion.versionedAt` and Version `updatedAt` as snapshot `updatedAt`. For an accepted source Version, its Version `createdAt` anchors the reconstructed offered snapshot; the offered snapshot removes signature and agreement dates. Its `signatureDate` anchors both the accepted snapshot's `acceptedAt` and `AgreementVersion.versionedAt`, while Version `updatedAt` remains the accepted snapshot's `updatedAt`.
+- An accepted source Version must be the final source Version. Missing acceptance timestamps or agreement dates, or a later source Version, fail validation rather than producing invented history.
 - Parcel identifiers and displayed area or quantity fields.
 - Agreement-level payment items and parcel action items. Woodland maps these to Agreement items and application land parcels; it does not create Agreement actions.
 - Source item codes, quantities, units, annual amounts and totals.
@@ -192,7 +195,7 @@ Each imported snapshot contains an internal legacy envelope similar to:
 }
 ```
 
-The envelope stores the untouched Extended JSON objects received from Agreements. GAS computes the checksum from a deterministic, key-sorted representation and verifies it after persistence. Public domain models deliberately omit the internal `legacy` property, preventing response schemas, page models and events from exposing the envelope.
+The envelope stores the untouched Extended JSON objects received from Agreements. A reconstructed offer is identifiable because its target snapshot is `offered` while the retained source Version is `accepted`. GAS computes the checksum from a deterministic, key-sorted representation and verifies it after persistence. Public domain models deliberately omit the internal `legacy` property, preventing response schemas, page models and events from exposing the envelope.
 
 ## Rerun behaviour
 

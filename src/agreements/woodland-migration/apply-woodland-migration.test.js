@@ -18,6 +18,8 @@ const sourceChecksum = `sha256:${"a".repeat(64)}`;
 const summary = {
   valid: true,
   agreements: 2,
+  offeredAgreements: 1,
+  acceptedAgreements: 1,
   versions: 3,
   failures: 0,
   sourceChecksum,
@@ -52,6 +54,8 @@ describe("applyWoodlandMigration", () => {
     await expect(applyWoodlandMigration(approval)).resolves.toEqual({
       valid: true,
       agreements: 2,
+      offeredAgreements: 1,
+      acceptedAgreements: 1,
       versions: 3,
       inserted: 1,
       replaced: 0,
@@ -81,6 +85,16 @@ describe("applyWoodlandMigration", () => {
     expect(reconcileWoodlandMigration).toHaveBeenNthCalledWith(
       2,
       preparedAgreements,
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      {
+        event: {
+          action: "woodland-migration-apply-completed",
+          outcome: "success",
+          reason: `agreements=2 offeredAgreements=1 acceptedAgreements=1 versions=3 inserted=1 replaced=0 skipped=1 checksum=${sourceChecksum}`,
+        },
+      },
+      "Woodland migration apply completed",
     );
   });
 

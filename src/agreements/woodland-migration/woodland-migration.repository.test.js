@@ -49,7 +49,6 @@ const ownedCurrent = (overrides = {}) => ({
   migration: {
     name: "woodland",
     source: "legacy-agreements",
-    mappingVersion: 1,
     sourceChecksum,
   },
   ...overrides,
@@ -225,7 +224,6 @@ describe("Woodland migration repository", () => {
         migration: {
           name: "woodland",
           source: "legacy-agreements",
-          mappingVersion: 1,
           sourceChecksum,
         },
       }),

@@ -2,7 +2,7 @@
 
 **Jira:** [FGP-1372](https://eaflood.atlassian.net/browse/FGP-1372)
 **Source API:** [farming-grants-agreements-api PR 470](https://github.com/DEFRA/farming-grants-agreements-api/pull/470)
-**Dry-run and apply:** [fg-gas-backend PR 626](https://github.com/DEFRA/fg-gas-backend/pull/626)
+**Dry-run and apply:** [fg-gas-backend PR 626](https://github.com/DEFRA/fg-gas-backend/pull/626) and [history reconstruction PR 644](https://github.com/DEFRA/fg-gas-backend/pull/644)
 
 This checklist deploys the read-only dry-run and rerunnable apply paths together. Apply remains operationally gated by the dedicated caller identity, approved dry-run checksum, expected counts and explicit confirmation. Neither endpoint activates Woodland routing.
 
@@ -23,7 +23,7 @@ Use separate credentials for the two authentication boundaries. Generate a new p
 
 ## 1. Pre-deployment checks
 
-- [ ] Confirm PR 470 and PR 626 have passed their required checks and approvals.
+- [ ] Confirm PR 470, PR 626 and PR 644 have passed their required checks and approvals.
 - [ ] Confirm the production diagnostic baseline is recorded: 70 agreements, 70 good, 0 bad.
 - [ ] Confirm the exact approved Woodland GAS configuration version.
 - [ ] Confirm that definition version exists in the target environment's GAS config catalog.
@@ -37,7 +37,7 @@ Use separate credentials for the two authentication boundaries. Generate a new p
 Prove the configuration gates in a lower environment before the coordinated production release. Production does not need a separate disabled-code deployment.
 
 - [ ] Deploy PR 470 with `MIGRATION_SOURCE_TOKEN_HASH` unset in a lower environment.
-- [ ] Deploy PR 626 with all `WOODLAND_MIGRATION_*` settings unset in the same lower environment.
+- [ ] Deploy a GAS image containing PR 626 and PR 644 with all `WOODLAND_MIGRATION_*` settings unset in the same lower environment.
 - [ ] Confirm both services are healthy.
 - [ ] Confirm the temporary source routes and GAS dry-run/apply routes are unavailable.
 - [ ] Confirm normal agreement processing remains unchanged.
@@ -122,7 +122,7 @@ GAS_SERVICE_TOKEN=<raw token>
 - [ ] Record any previous value securely so it can be restored.
 - [ ] Stage `SERVICE_ACCESS_TOKEN_HASH` on GAS exactly as printed.
 - [ ] Deploy the PR 470 image and staged Agreements API secret to production.
-- [ ] Deploy the PR 626 image and all staged GAS settings to production once.
+- [ ] Deploy a GAS image containing PR 626 and PR 644 with all staged GAS settings to production once.
 - [ ] Confirm both services are healthy and the temporary routes are registered.
 - [ ] Confirm the following GAS startup message appears:
 
@@ -171,20 +171,24 @@ unset GAS_SERVICE_TOKEN
 
 No request body or caller-token header is required.
 
-Expected production response based on the pre-migration diagnostic:
+For example, if the final source contains 20 offered and 50 accepted agreements, the response is:
 
 ```json
 {
   "valid": true,
   "agreements": 70,
-  "versions": 70,
+  "offeredAgreements": 20,
+  "acceptedAgreements": 50,
+  "versions": 120,
   "failures": 0,
   "sourceChecksum": "sha256:..."
 }
 ```
 
+Treat the final dry-run's state counts, target version count and checksum—not the example values above—as the approved migration baseline.
+
 - [ ] Record the response and execution timestamp in the approved operational record.
-- [ ] Stop if `valid` is false, either count differs, or any failure is reported.
+- [ ] Stop if `valid` is false, `failures` is not zero, `agreements` is not 70, or `offeredAgreements + acceptedAgreements` is not 70; otherwise record the returned `versions` count and checksum as the baseline.
 - [ ] Do not treat a lost HTTP response as success; inspect the completion log before deciding whether to retry.
 
 ## 8. Verify the result
@@ -192,10 +196,10 @@ Expected production response based on the pre-migration diagnostic:
 Check GAS logs for the execution window.
 
 - [ ] Exactly one `woodland-migration-dry-run-started` entry exists.
-- [ ] Exactly 70 `woodland-migration-dry-run-version` success entries exist.
+- [ ] The number of `woodland-migration-dry-run-version` success entries equals the returned `versions` count.
 - [ ] No per-version failure entries exist.
 - [ ] One `woodland-migration-dry-run-completed` entry exists with a success outcome.
-- [ ] The completion entry reports 70 agreements, 70 versions, 70 passed and 0 failures.
+- [ ] The completion entry reports the returned agreement, final-state and version counts, with every target version passed and 0 failures.
 - [ ] No migration log contains applicant data, client references, tokens or source envelopes.
 - [ ] No Agreement or AgreementVersion migration records were created.
 - [ ] No payment, Payable, PDF, lifecycle event, audit event or outbox message was created by the migration.
@@ -208,7 +212,8 @@ Do not apply from the earlier rehearsal result. During the approved maintenance 
 - [ ] Pause legacy Woodland writes.
 - [ ] Take or verify the agreed source backup.
 - [ ] Run dry-run again after writes are paused.
-- [ ] Confirm the final result is valid with the approved 70 agreements and 70 versions.
+- [ ] Confirm no GAS deployment occurs between this final dry-run and apply.
+- [ ] Confirm the final result is valid with 70 agreements, `offeredAgreements + acceptedAgreements = 70`, and record the returned target `versions` count.
 - [ ] Record the final `sourceChecksum` and obtain explicit approval for that checksum.
 - [ ] Keep Woodland routing on the legacy service.
 
@@ -220,7 +225,7 @@ export GAS_SERVICE_TOKEN
 echo
 ```
 
-Call apply with the exact values from the approved final dry-run:
+Call apply with the exact values from the approved final dry-run. The example below uses the illustrative target version count of 120; replace it with the returned `versions` value.
 
 ```bash
 curl --fail-with-body \
@@ -230,7 +235,7 @@ curl --fail-with-body \
   --data '{
     "confirmation": "APPLY_WOODLAND_MIGRATION",
     "expectedAgreements": 70,
-    "expectedVersions": 70,
+    "expectedVersions": 120,
     "sourceChecksum": "sha256:<checksum-from-final-dry-run>"
   }' \
   "https://fg-gas-backend.prod.cdp-int.defra.cloud/admin/migrations/woodland/apply"
@@ -244,7 +249,9 @@ Expected first-apply response:
 {
   "valid": true,
   "agreements": 70,
-  "versions": 70,
+  "offeredAgreements": 20,
+  "acceptedAgreements": 50,
+  "versions": 120,
   "inserted": 70,
   "replaced": 0,
   "skipped": 0,
@@ -255,7 +262,7 @@ Expected first-apply response:
 - [ ] Confirm the returned checksum exactly matches the approved dry-run checksum.
 - [ ] Confirm inserted + replaced + skipped equals 70.
 - [ ] Confirm the apply completion log reports success and matching counts.
-- [ ] Confirm all 70 current Agreements and 70 AgreementVersions reconcile with the source checksums.
+- [ ] Confirm all 70 current Agreements and the approved target number of AgreementVersions reconcile with the source checksums.
 - [ ] Confirm every persisted snapshot envelope verifies against its checksum.
 - [ ] Confirm no payment, Payable, PDF, lifecycle event, audit event or outbox message was produced.
 - [ ] Keep routing disabled until the separate reconciliation and approval are recorded.

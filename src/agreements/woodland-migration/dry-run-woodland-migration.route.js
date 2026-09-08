@@ -11,6 +11,8 @@ export const dryRunWoodlandMigrationRoute = {
       schema: Joi.object({
         valid: Joi.boolean().required(),
         agreements: Joi.number().integer().min(0).required(),
+        offeredAgreements: Joi.number().integer().min(0).required(),
+        acceptedAgreements: Joi.number().integer().min(0).required(),
         versions: Joi.number().integer().min(0).required(),
         failures: Joi.number().integer().min(0).required(),
         sourceChecksum: Joi.string()

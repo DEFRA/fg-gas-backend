@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 
-export const woodlandMigrationMappingVersion = 1;
 export const woodlandMigrationSource = "legacy-agreements";
 
 // eslint-disable-next-line complexity
@@ -39,7 +38,6 @@ export const createAgreementSourceChecksum = ({
 }) =>
   checksum({
     source: woodlandMigrationSource,
-    mappingVersion: woodlandMigrationMappingVersion,
     configVersion,
     agreementNumber,
     versionChecksums,
@@ -51,7 +49,6 @@ export const createMigrationSourceChecksum = ({
 }) =>
   checksum({
     source: woodlandMigrationSource,
-    mappingVersion: woodlandMigrationMappingVersion,
     configVersion,
     agreementChecksums,
   });

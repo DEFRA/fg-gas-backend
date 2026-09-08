@@ -1,8 +1,5 @@
 import Joi from "joi";
-import {
-  agreementValueSchema,
-  isCalendarDate,
-} from "../schemas/agreement-value.schema.js";
+import { agreementValueSchema } from "../schemas/agreement-value.schema.js";
 import {
   entries,
   isKeyedCollection,
@@ -13,16 +10,14 @@ import {
   sourceItemEntries,
   toExactNumber,
 } from "./woodland-migration-source-values.js";
+import {
+  acceptedTimestampOrderIssues,
+  woodlandTimestampSchema,
+} from "./woodland-migration-timestamps.js";
 
 const supportedStates = ["offered", "accepted"];
 const supportedItemUnits = new Set(["ha", "%"]);
 const PAYMENT_TOTAL_MISMATCH = "woodland.payment-total.mismatch";
-
-const timestampSchema = Joi.string()
-  .isoDate()
-  .custom((value, helpers) =>
-    isCalendarDate(value.slice(0, 10)) ? value : helpers.error("date.calendar"),
-  );
 
 const metadataSchema = Joi.object({
   agreementNumber: Joi.string().pattern(/^WMP/).required(),
@@ -44,14 +39,14 @@ const metadataSchema = Joi.object({
   state: Joi.string()
     .valid(...supportedStates)
     .required(),
-  createdAt: timestampSchema.required(),
-  updatedAt: timestampSchema.required(),
+  createdAt: woodlandTimestampSchema.required(),
+  updatedAt: woodlandTimestampSchema.required(),
   acceptedAt: Joi.when("state", {
     is: "accepted",
-    then: timestampSchema.required(),
+    then: woodlandTimestampSchema.required(),
     otherwise: Joi.forbidden(),
   }),
-  versionedAt: timestampSchema.required(),
+  versionedAt: woodlandTimestampSchema.required(),
 });
 
 const detailsToIssues = (error) =>
@@ -521,6 +516,7 @@ const sourceVersionIssues = (sourceVersion, agreement) => {
   }
 
   return [
+    ...acceptedTimestampOrderIssues(sourceVersion, agreement),
     ...sourcePaymentIssues(sourceVersion),
     ...sourceItemPaymentAmountIssues(sourceVersion),
     ...sourceItemIssues(sourceVersion),

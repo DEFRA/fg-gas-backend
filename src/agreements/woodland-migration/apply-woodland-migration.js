@@ -32,6 +32,8 @@ const requireApprovedSource = (summary, approval) => {
 const resultFrom = (summary, decisions) => ({
   valid: true,
   agreements: summary.agreements,
+  offeredAgreements: summary.offeredAgreements,
+  acceptedAgreements: summary.acceptedAgreements,
   versions: summary.versions,
   inserted: decisions.insert.length,
   replaced: decisions.replace.length,
@@ -76,7 +78,7 @@ export const applyWoodlandMigration = async (approval) => {
         event: {
           action: "woodland-migration-apply-completed",
           outcome: "success",
-          reason: `agreements=${result.agreements} versions=${result.versions} inserted=${result.inserted} replaced=${result.replaced} skipped=${result.skipped} checksum=${result.sourceChecksum}`,
+          reason: `agreements=${result.agreements} offeredAgreements=${result.offeredAgreements} acceptedAgreements=${result.acceptedAgreements} versions=${result.versions} inserted=${result.inserted} replaced=${result.replaced} skipped=${result.skipped} checksum=${result.sourceChecksum}`,
         },
       },
       "Woodland migration apply completed",
