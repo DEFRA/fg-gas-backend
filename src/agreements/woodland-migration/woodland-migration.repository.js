@@ -120,12 +120,8 @@ const versionsByAgreement = (documents) => {
   return grouped;
 };
 
-const legacyEvidenceMetadataMatches = (stored, expected) =>
-  stored?.source === woodlandMigrationSource &&
-  stored.derivation === expected.derivation;
-
 const legacyEvidenceMatches = (stored, expected) =>
-  legacyEvidenceMetadataMatches(stored, expected) &&
+  stored?.source === woodlandMigrationSource &&
   stored.checksum === expected.checksum &&
   checksum(stored.envelope) === stored.checksum;
 

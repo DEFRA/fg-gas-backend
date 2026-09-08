@@ -26,17 +26,12 @@ describe("Woodland migration checksums", () => {
 
     expect(evidence).toMatchObject({
       source: "legacy-agreements",
-      derivation: "direct",
       checksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
       envelope: {
         version: { quantity: { $numberDecimal: "4.7500" } },
       },
     });
     expect(checksum(evidence.envelope)).toBe(evidence.checksum);
-    expect(createLegacyEvidence(evidence.envelope, "pre-acceptance")).toEqual({
-      ...evidence,
-      derivation: "pre-acceptance",
-    });
   });
 
   it("changes aggregate checksums with source order and configuration", () => {

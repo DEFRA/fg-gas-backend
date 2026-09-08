@@ -190,18 +190,14 @@ const legacyEnvelope = (page, sourceVersion, index) => ({
 
 const targetStatesFor = (sourceVersion) =>
   sourceVersion.status?.toLowerCase() === "accepted"
-    ? [
-        { state: "offered", derivation: "pre-acceptance" },
-        { state: "accepted", derivation: "direct" },
-      ]
-    : [{ state: null, derivation: "direct" }];
+    ? ["offered", "accepted"]
+    : [null];
 
 const processTargetVersion = ({
   agreementNumber,
   page,
   sourceVersion,
   targetState,
-  derivation,
   envelope,
   version,
   isFinalSourceVersion,
@@ -209,7 +205,7 @@ const processTargetVersion = ({
   retainVersions,
   result,
 }) => {
-  const evidence = createLegacyEvidence(envelope, derivation);
+  const evidence = createLegacyEvidence(envelope);
   const { agreementVersion, issues } = validateVersion({
     agreementNumber,
     page,
@@ -247,15 +243,12 @@ const processPage = ({
     const envelope = legacyEnvelope(page, sourceVersion, index);
     result.versionChecksums.push(createLegacyEvidence(envelope).checksum);
 
-    for (const { state: targetState, derivation } of targetStatesFor(
-      sourceVersion,
-    )) {
+    for (const targetState of targetStatesFor(sourceVersion)) {
       processTargetVersion({
         agreementNumber,
         page,
         sourceVersion,
         targetState,
-        derivation,
         envelope,
         version: firstVersion + result.versions,
         isFinalSourceVersion:

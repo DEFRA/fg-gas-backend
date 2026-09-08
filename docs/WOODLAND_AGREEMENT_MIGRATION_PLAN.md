@@ -156,7 +156,7 @@ After every record passes validation, GAS:
 3. Rejects an existing agreement that is not marked as created by this migration.
 4. Replaces changed migration-owned agreements from the validated source.
 5. Inserts every AgreementVersion in lifecycle order and assigns the corresponding GAS version number.
-6. Stores the untouched legacy envelope, its checksum and whether the target snapshot was directly mapped or reconstructed as the pre-acceptance offer.
+6. Stores the untouched legacy envelope and its checksum in each target snapshot.
 7. Writes the current Agreement from the final target Version.
 8. Reconciles source and target counts and checksums before returning success.
 
@@ -186,7 +186,6 @@ Each imported snapshot contains an internal legacy envelope similar to:
 ```js
 {
   source: "legacy-agreements",
-  derivation: "direct", // or "pre-acceptance"
   checksum: "sha256:...",
   envelope: {
     agreement: {},
@@ -196,7 +195,7 @@ Each imported snapshot contains an internal legacy envelope similar to:
 }
 ```
 
-The envelope stores the untouched Extended JSON objects received from Agreements. GAS computes the checksum from a deterministic, key-sorted representation and verifies it after persistence. Public domain models deliberately omit the internal `legacy` property, preventing response schemas, page models and events from exposing the envelope.
+The envelope stores the untouched Extended JSON objects received from Agreements. A reconstructed offer is identifiable because its target snapshot is `offered` while the retained source Version is `accepted`. GAS computes the checksum from a deterministic, key-sorted representation and verifies it after persistence. Public domain models deliberately omit the internal `legacy` property, preventing response schemas, page models and events from exposing the envelope.
 
 ## Rerun behaviour
 

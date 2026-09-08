@@ -131,7 +131,6 @@ describe("dryRunWoodlandMigration", () => {
             agreementVersion,
             evidence: {
               source: "legacy-agreements",
-              derivation: "direct",
               checksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
               envelope: {
                 agreement: sourceEvidence.agreement,
@@ -183,11 +182,10 @@ describe("dryRunWoodlandMigration", () => {
       2,
       expect.objectContaining({ version: 2, targetState: "accepted" }),
     );
-    expect(
-      result.preparedAgreements[0].versions.map(
-        ({ evidence }) => evidence.derivation,
-      ),
-    ).toEqual(["pre-acceptance", "direct"]);
+    expect(result.preparedAgreements[0].versions).toHaveLength(2);
+    expect(result.preparedAgreements[0].versions[0].evidence).toEqual(
+      result.preparedAgreements[0].versions[1].evidence,
+    );
   });
 
   it("rejects an accepted source version before the end of its history", async () => {

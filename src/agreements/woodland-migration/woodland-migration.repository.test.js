@@ -36,7 +36,6 @@ const preparedAgreement = {
       },
       evidence: {
         source: "legacy-agreements",
-        derivation: "direct",
         checksum: evidenceChecksum,
         envelope,
       },
@@ -64,7 +63,6 @@ const storedVersion = (overrides = {}) => ({
     ...agreement,
     legacy: {
       source: "legacy-agreements",
-      derivation: "direct",
       checksum: evidenceChecksum,
       envelope: { version: { source: true } },
     },

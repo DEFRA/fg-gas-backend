@@ -23,11 +23,10 @@ export const checksum = (value) =>
     .update(JSON.stringify(canonicalise(value)), "utf8")
     .digest("hex")}`;
 
-export const createLegacyEvidence = (envelope, derivation = "direct") => {
+export const createLegacyEvidence = (envelope) => {
   const untouchedEnvelope = structuredClone(envelope);
   return {
     source: woodlandMigrationSource,
-    derivation,
     checksum: checksum(untouchedEnvelope),
     envelope: untouchedEnvelope,
   };
