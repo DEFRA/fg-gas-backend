@@ -1,9 +1,7 @@
 import Boom from "@hapi/boom";
-import { randomUUID } from "node:crypto";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { internalCommandTypes } from "../../common/internal-command-types.js";
-import { handleCreateAgreementCommandUseCase } from "../../agreements/use-cases/handle-create-agreement-command.use-case.js";
+import { createAgreementUseCase } from "../../agreements/use-cases/create-agreement.use-case.js";
 
 const INTERNAL_SERVER_ERROR = 500;
 
@@ -34,17 +32,15 @@ const toClientError = (error) => {
   return error;
 };
 
+// The endpoint only deals with HTTP concerns: it validates that GAS manages the
+// grant code and maps definition mismatches onto 400s. The Agreement itself is
+// created by the shared use case, so the test path exercises exactly the same
+// behaviour as normal processing.
 export const createTestAgreementUseCase = async (payload) => {
   assertManagedCode(payload.code);
 
-  const command = {
-    id: randomUUID(),
-    type: internalCommandTypes.AGREEMENT_CREATE,
-    data: payload,
-  };
-
   try {
-    return await handleCreateAgreementCommandUseCase(command);
+    return await createAgreementUseCase(payload);
   } catch (error) {
     throw toClientError(error);
   }
