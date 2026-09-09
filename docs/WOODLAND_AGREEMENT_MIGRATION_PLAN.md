@@ -75,11 +75,12 @@ Both routes are registered only while the migration-token hash is configured.
 ```http
 POST /admin/migrations/woodland/dry-run
 POST /admin/migrations/woodland/apply
+POST /admin/migrations/woodland/catch-up
 ```
 
-Both endpoints use normal GAS service authentication. Apply additionally requires the dedicated `woodland-migration-operator` service identity. They are registered only while the GAS-to-Agreements migration token is configured.
+All three endpoints use normal GAS service authentication. Apply and catch-up additionally require the dedicated `woodland-migration-operator` service identity. They are registered only while the GAS-to-Agreements migration token is configured.
 
-The endpoints have no agreement filter, run identifier, paging parameters or persisted migration-run state. Dry-run returns a source checksum. Apply requires that checksum, the reviewed agreement and version counts, and the literal confirmation `APPLY_WOODLAND_MIGRATION`; it repeats preparation and refuses to write if any approved value changed.
+The endpoints have no agreement filter, run identifier, paging parameters or persisted migration-run state. Dry-run returns a source checksum. Apply requires that checksum, the reviewed agreement and version counts, and the literal confirmation `APPLY_WOODLAND_MIGRATION`; it repeats preparation and refuses to write if any approved value changed. Catch-up accepts no request body, re-validates the complete source, and refuses with `409` before writing when that validation fails.
 
 ### Grants Platform Admin
 

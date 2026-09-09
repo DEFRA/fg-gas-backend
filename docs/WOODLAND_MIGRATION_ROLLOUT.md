@@ -4,7 +4,7 @@
 **Source API:** [farming-grants-agreements-api PR 470](https://github.com/DEFRA/farming-grants-agreements-api/pull/470)
 **Dry-run and apply:** [fg-gas-backend PR 626](https://github.com/DEFRA/fg-gas-backend/pull/626) and [history reconstruction PR 644](https://github.com/DEFRA/fg-gas-backend/pull/644)
 
-This checklist deploys the read-only dry-run and rerunnable apply paths together. Apply remains operationally gated by the dedicated caller identity, approved dry-run checksum, expected counts and explicit confirmation. Neither endpoint activates Woodland routing.
+This checklist deploys the read-only dry-run, rerunnable apply and post-cutover catch-up paths together. Apply remains operationally gated by the dedicated caller identity, approved dry-run checksum, expected counts and explicit confirmation. Catch-up uses the same dedicated identity and re-validates the whole source on every call. None of these endpoints activates Woodland routing.
 
 ## Values to prepare
 
@@ -277,6 +277,7 @@ An unchanged rerun is safe and should return `inserted: 0`, `replaced: 0`, and `
 | GAS returns `401`                     | `GAS_SERVICE_TOKEN` is the raw caller token and its hash was successfully seeded in GAS             |
 | Apply returns `403`                   | The caller credential is not the dedicated `woodland-migration-operator` identity                   |
 | Apply returns `409`                   | Validation failed, source checksum/counts changed, or existing GAS data conflicts                   |
+| Catch-up returns `409`                | Whole-source validation failed; run dry-run, resolve every per-version reason, then retry catch-up  |
 | GAS returns `502`                     | Source URL, raw migration token, Agreements API hash, source availability and source response shape |
 | GAS returns `500`                     | The exact Woodland configuration version exists and is usable; inspect the aborted completion log   |
 | GAS returns `200` with `valid: false` | Inspect each per-version diagnostic and resolve every reason before proceeding                      |
@@ -313,7 +314,57 @@ node --input-type=module -e '
 - [ ] Redeploy GAS again if the bootstrap setting changed.
 - [ ] Delete local copies of the original raw operator token.
 
-## 12. Sign-off
+## 12. Catch-up after cutover
+
+Use catch-up after the maintenance window and Woodland cutover to reconcile GAS with legacy progress made after apply, typically an `offered` agreement becoming `accepted`, or to create an agreement missed by the apply run.
+
+Use the dedicated `woodland-migration-operator` token. The strict bodyless call has no approval payload or prior dry-run requirement: a supplied body is rejected with `400`. Catch-up re-validates the complete source before it processes any agreement; it returns `409` and writes nothing when whole-source validation fails.
+
+```bash
+curl --fail-with-body \
+  --request POST \
+  --header "Authorization: Bearer ${GAS_SERVICE_TOKEN}" \
+  "https://fg-gas-backend.prod.cdp-int.defra.cloud/admin/migrations/woodland/catch-up"
+```
+
+Example response:
+
+```json
+{
+  "valid": true,
+  "agreements": 70,
+  "offeredAgreements": 19,
+  "acceptedAgreements": 51,
+  "versions": 121,
+  "inserted": 0,
+  "updated": 1,
+  "preserved": 69,
+  "failed": 0,
+  "failures": [],
+  "sourceChecksum": "sha256:..."
+}
+```
+
+- `inserted`: a missing agreement and its history were created.
+- `updated`: a migration-owned agreement's source checksum changed, so that agreement and its history were rewritten.
+- `preserved`: no write was needed because the checksum was unchanged, or a normal GAS action removed the migration marker and took ownership.
+- `failed`: a per-agreement conflict or write error occurred; details are listed in `failures[]`, and later agreements were still processed.
+
+Failure reasons and actions:
+
+| Reason              | Operator action                                                                                     |
+| ------------------- | --------------------------------------------------------------------------------------------------- |
+| `identity.mismatch` | Another agreement holds the source identity; investigate manually                                   |
+| `history.orphaned`  | Version documents exist without a current agreement; perform an approved data fix                   |
+| `marker.conflict`   | A GAS action won the race; inspect the completion log before deciding whether to run catch-up again |
+| `write.conflict`    | Inspect the completion log and treat the agreement as a transient conflict                          |
+| `write.error`       | Inspect service health and logs before deciding whether to run catch-up again                       |
+
+After whole-source validation succeeds, catch-up processes prepared agreements sequentially, each in its own transaction. Marker-scoped conditional writes cannot overwrite a concurrent normal GAS action; a failed agreement does not block later agreements. Catch-up creates no payment, Payable, PDF, lifecycle event, audit event or outbox message. It has no general rerun guarantee: when the source and ownership are unchanged after a successful run, each agreement is preserved without a write.
+
+If the HTTP response is lost, inspect the `woodland-migration-catch-up-completed` log before deciding whether another invocation is needed.
+
+## 13. Sign-off
 
 - [ ] Attach the response summary and completion-log evidence to the operational record.
 - [ ] Record the actual agreement/version baseline for the later maintenance window.

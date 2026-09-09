@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
+import { withTransaction } from "../../common/with-transaction.js";
 import { agreementsCollection } from "../repositories/agreement.repository.js";
 import { checksum } from "./woodland-migration-checksum.js";
 import {
+  catchUpWoodlandAgreement,
   inspectWoodlandMigrationTargets,
   reconcileWoodlandMigration,
   writeWoodlandMigration,
 } from "./woodland-migration.repository.js";
 
 vi.mock("../../common/mongo-client.js");
+vi.mock("../../common/with-transaction.js");
 
 const envelope = { version: { source: true } };
 const evidenceChecksum = checksum(envelope);
@@ -69,6 +72,7 @@ const storedVersion = (overrides = {}) => ({
   ...overrides,
 });
 
+// eslint-disable-next-line complexity
 const setupCollections = ({ current = [], versions = [] } = {}) => {
   const currentFind = vi.fn().mockReturnValue({
     toArray: vi.fn().mockResolvedValue(current),
@@ -79,6 +83,10 @@ const setupCollections = ({ current = [], versions = [] } = {}) => {
   });
   const agreements = {
     find: currentFind,
+    findOne: vi
+      .fn()
+      .mockResolvedValueOnce(current[0] ?? null)
+      .mockResolvedValueOnce(current[1] ?? null),
     insertOne: vi.fn(),
     replaceOne: vi.fn().mockResolvedValue({ matchedCount: 1 }),
   };
@@ -93,7 +101,153 @@ const setupCollections = ({ current = [], versions = [] } = {}) => {
   return { agreements, agreementVersions };
 };
 
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  withTransaction.mockImplementation((callback) =>
+    callback({ id: "catch-up-session" }),
+  );
+});
+
+describe("catchUpWoodlandAgreement", () => {
+  it("inserts a missing agreement and its legacy evidence", async () => {
+    const { agreements, agreementVersions } = setupCollections();
+    const session = { id: "catch-up-session" };
+
+    await expect(catchUpWoodlandAgreement(preparedAgreement)).resolves.toEqual({
+      outcome: "inserted",
+    });
+
+    expect(agreements.insertOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        _id: "WMP0001",
+        migration: {
+          name: "woodland",
+          source: "legacy-agreements",
+          sourceChecksum,
+        },
+      }),
+      { session },
+    );
+    expect(agreementVersions.insertMany).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          snapshot: expect.objectContaining({
+            legacy: preparedAgreement.versions[0].evidence,
+          }),
+        }),
+      ],
+      { session },
+    );
+  });
+
+  it("replaces changed migration-owned data and its history", async () => {
+    const { agreements, agreementVersions } = setupCollections({
+      current: [
+        ownedCurrent({
+          migration: { ...ownedCurrent().migration, sourceChecksum: "changed" },
+        }),
+      ],
+      versions: [storedVersion()],
+    });
+
+    await expect(catchUpWoodlandAgreement(preparedAgreement)).resolves.toEqual({
+      outcome: "updated",
+    });
+    expect(agreements.replaceOne).toHaveBeenCalledWith(
+      {
+        _id: "WMP0001",
+        "migration.name": "woodland",
+        "migration.source": "legacy-agreements",
+      },
+      expect.any(Object),
+      { session: { id: "catch-up-session" } },
+    );
+    expect(agreementVersions.deleteMany).toHaveBeenCalledWith(
+      { agreementNumber: "WMP0001" },
+      { session: { id: "catch-up-session" } },
+    );
+    expect(agreementVersions.insertMany).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["an unchanged checksum", ownedCurrent()],
+    [
+      "a current agreement without a migration marker",
+      ownedCurrent({ migration: undefined }),
+    ],
+  ])("preserves %s without writes", async (_scenario, current) => {
+    const { agreements, agreementVersions } = setupCollections({
+      current: [current],
+      versions: [storedVersion()],
+    });
+
+    await expect(catchUpWoodlandAgreement(preparedAgreement)).resolves.toEqual({
+      outcome: "preserved",
+    });
+    expect(agreements.insertOne).not.toHaveBeenCalled();
+    expect(agreements.replaceOne).not.toHaveBeenCalled();
+    expect(agreementVersions.deleteMany).not.toHaveBeenCalled();
+    expect(agreementVersions.insertMany).not.toHaveBeenCalled();
+  });
+
+  it("reports a marker conflict before rewriting history", async () => {
+    const { agreements, agreementVersions } = setupCollections({
+      current: [
+        ownedCurrent({
+          migration: { ...ownedCurrent().migration, sourceChecksum: "changed" },
+        }),
+      ],
+      versions: [storedVersion()],
+    });
+    agreements.replaceOne.mockResolvedValue({ matchedCount: 0 });
+
+    await expect(catchUpWoodlandAgreement(preparedAgreement)).resolves.toEqual({
+      outcome: "failed",
+      reason: "marker.conflict",
+    });
+    expect(agreementVersions.deleteMany).not.toHaveBeenCalled();
+    expect(agreementVersions.insertMany).not.toHaveBeenCalled();
+  });
+
+  it("reports when another agreement owns the prepared identity", async () => {
+    setupCollections({
+      current: [undefined, ownedCurrent({ _id: "WMP9999" })],
+    });
+
+    await expect(catchUpWoodlandAgreement(preparedAgreement)).resolves.toEqual({
+      outcome: "failed",
+      reason: "identity.mismatch",
+    });
+  });
+
+  it("reports identity drift on a migration-owned current agreement", async () => {
+    setupCollections({ current: [ownedCurrent({ clientRef: "different" })] });
+
+    await expect(catchUpWoodlandAgreement(preparedAgreement)).resolves.toEqual({
+      outcome: "failed",
+      reason: "identity.mismatch",
+    });
+  });
+
+  it("reports orphaned history for an agreement without a current document", async () => {
+    setupCollections({ versions: [storedVersion()] });
+
+    await expect(catchUpWoodlandAgreement(preparedAgreement)).resolves.toEqual({
+      outcome: "failed",
+      reason: "history.orphaned",
+    });
+  });
+
+  it("resolves write failures to a safe reason", async () => {
+    const { agreementVersions } = setupCollections();
+    agreementVersions.insertMany.mockRejectedValue(new Error("private data"));
+
+    await expect(catchUpWoodlandAgreement(preparedAgreement)).resolves.toEqual({
+      outcome: "failed",
+      reason: "write.error",
+    });
+  });
+});
 
 describe("Woodland migration repository", () => {
   it("inserts a source agreement when no target data exists", async () => {
