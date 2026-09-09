@@ -186,5 +186,11 @@ describe("PMF Agreement creation", () => {
       "event.data.supplementaryData.data.agreementRef":
         agreement.agreementNumber,
     });
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__REPORTING_EVENTS_TOPIC_ARN,
+      status: "COMPLETED",
+      "event.eventData.eventType": "AGREEMENT_CREATED",
+      "event.eventData.agreementId": agreement.agreementNumber,
+    });
   });
 });
