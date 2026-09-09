@@ -70,7 +70,19 @@ describe("applyWoodlandMigrationRoute", () => {
     expect(applyWoodlandMigration).toHaveBeenCalledWith(approval);
   });
 
-  it("rejects other authenticated services", async () => {
+  it("allows any authenticated service", async () => {
+    applyWoodlandMigration.mockResolvedValue({
+      valid: true,
+      agreements: 70,
+      offeredAgreements: 20,
+      acceptedAgreements: 50,
+      versions: 120,
+      inserted: 70,
+      replaced: 0,
+      skipped: 0,
+      sourceChecksum: checksum,
+    });
+
     const response = await server.inject({
       method: "POST",
       url: "/admin/migrations/woodland/apply",
@@ -78,8 +90,8 @@ describe("applyWoodlandMigrationRoute", () => {
       payload: approval,
     });
 
-    expect(response.statusCode).toBe(403);
-    expect(applyWoodlandMigration).not.toHaveBeenCalled();
+    expect(response.statusCode).toBe(200);
+    expect(applyWoodlandMigration).toHaveBeenCalledWith(approval);
   });
 
   it.each([
