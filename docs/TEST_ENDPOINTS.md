@@ -61,6 +61,18 @@ Agreement, version history) and outbox side effects are all representative.
 | `400` | Payload failed validation, the grant code is not GAS-managed, or the supplied data could not satisfy the grant's agreement definition. |
 | `404` | Requested when the flag is disabled. |
 
+### Response body (`agreementData`)
+
+Both endpoints return the same `agreementData` shape. It is an explicit response
+DTO produced by `src/test-endpoints/services/to-test-agreement-response.js`, not
+the raw domain Agreement, so internal bookkeeping (for example
+`identitySequence` and `acceptedAt`) is never exposed and the HTTP contract does
+not drift when the Agreement model changes. It contains the stable fields QA
+relies on — including `agreementNumber`, `code`, `clientRef`, `state`,
+`version`, `identifiers`, `startDate`, `endDate`, `actions`, `items`,
+`totalAmountPence`, `paymentSchedule`, `createdAt` and `updatedAt` — with fields
+the Agreement does not define omitted.
+
 ## `POST /api/test/agreements/{agreementNumber}/status`
 
 Applies a status transition through `handleUpdateAgreementStatusCommandUseCase`,

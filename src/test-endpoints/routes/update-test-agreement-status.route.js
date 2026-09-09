@@ -3,6 +3,7 @@ import {
   updateTestAgreementStatusPayloadSchema,
 } from "../schemas/requests/update-test-agreement-status-request.schema.js";
 import { testAgreementResponseSchema } from "../schemas/responses/test-agreement-response.schema.js";
+import { toTestAgreementResponse } from "../services/to-test-agreement-response.js";
 import { updateTestAgreementStatusUseCase } from "../use-cases/update-test-agreement-status.use-case.js";
 
 const OK = 200;
@@ -34,7 +35,7 @@ export const updateTestAgreementStatusRoute = {
 
     return {
       message: "Test agreement status updated",
-      agreementData: agreement,
+      agreementData: toTestAgreementResponse(agreement),
     };
   },
 };

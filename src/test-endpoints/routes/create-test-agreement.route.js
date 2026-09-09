@@ -1,5 +1,6 @@
-import { createTestAgreementPayloadSchema } from "../schemas/requests/create-test-agreement-request.schema.js";
 import { testAgreementResponseSchema } from "../schemas/responses/test-agreement-response.schema.js";
+import { toTestAgreementResponse } from "../services/to-test-agreement-response.js";
+import { createTestAgreementPayloadSchema } from "../schemas/requests/create-test-agreement-request.schema.js";
 import { createTestAgreementUseCase } from "../use-cases/create-test-agreement.use-case.js";
 
 const CREATED = 201;
@@ -28,7 +29,7 @@ export const createTestAgreementRoute = {
     return h
       .response({
         message: "Test agreement created",
-        agreementData: agreement,
+        agreementData: toTestAgreementResponse(agreement),
       })
       .code(CREATED);
   },
