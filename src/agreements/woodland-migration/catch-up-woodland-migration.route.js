@@ -2,7 +2,6 @@ import Boom from "@hapi/boom";
 import Joi from "joi";
 import { catchUpWoodlandMigration } from "./catch-up-woodland-migration.js";
 
-const operatorService = "woodland-migration-operator";
 const checksumSchema = Joi.string()
   .pattern(/^sha256:[0-9a-f]{64}$/)
   .required();
@@ -45,9 +44,6 @@ export const catchUpWoodlandMigrationRoute = {
     },
   },
   handler(request) {
-    if (request.auth.credentials.service !== operatorService) {
-      throw Boom.forbidden("Woodland migration catch-up is restricted");
-    }
     if (requestHasBody(request)) {
       throw Boom.badRequest("Woodland migration catch-up requires no body");
     }

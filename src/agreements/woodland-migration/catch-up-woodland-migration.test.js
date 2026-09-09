@@ -157,7 +157,7 @@ describe("catchUpWoodlandMigrationRoute", () => {
     ["without a content-length header", {}],
     ["with content-length zero", { "content-length": "0" }],
   ])(
-    "accepts a bodyless request %s from the dedicated operator",
+    "accepts a bodyless request %s from an authenticated service",
     async (_description, bodyHeaders) => {
       catchUpWoodlandAgreement.mockResolvedValue({ outcome: "preserved" });
 
@@ -166,7 +166,7 @@ describe("catchUpWoodlandMigrationRoute", () => {
         url: "/admin/migrations/woodland/catch-up",
         headers: {
           ...bodyHeaders,
-          "x-test-service": "woodland-migration-operator",
+          "x-test-service": "fg-grants-platform-admin",
         },
       });
 
@@ -212,17 +212,6 @@ describe("catchUpWoodlandMigrationRoute", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(prepareWoodlandMigration).not.toHaveBeenCalled();
-  });
-
-  it("short-circuits other authenticated services", async () => {
-    const response = await server.inject({
-      method: "POST",
-      url: "/admin/migrations/woodland/catch-up",
-      headers: { "x-test-service": "another-service" },
-    });
-
-    expect(response.statusCode).toBe(403);
     expect(prepareWoodlandMigration).not.toHaveBeenCalled();
   });
 
