@@ -150,6 +150,22 @@ describe("executeAgreementActionUseCase", () => {
             }),
           }),
         }),
+        expect.objectContaining({
+          segregationRef: options.agreementNumber,
+          event: expect.objectContaining({
+            correlationId: agreement.correlationId,
+            datetime: "2026-08-20T10:00:00.000Z",
+            eventData: {
+              eventType: "AGREEMENT_STATUS_CHANGED",
+              agreementId: options.agreementNumber,
+              agreementStatus: "accepted",
+              statusDate: "2026-08-20T10:00:00.000Z",
+              agreementStartDate: "2026-08-01",
+              agreementEndDate: "2027-07-31",
+              agreementValue: 50,
+            },
+          }),
+        }),
       ]),
       session,
     );

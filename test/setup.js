@@ -94,6 +94,8 @@ export const setup = async ({ globalConfig }) => {
           env.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
         GAS__SNS__CREATE_PAYMENT_TOPIC_ARN:
           env.GAS__SNS__CREATE_PAYMENT_TOPIC_ARN,
+        GAS__SNS__REPORTING_EVENTS_TOPIC_ARN:
+          env.GAS__SNS__REPORTING_EVENTS_TOPIC_ARN,
       })
       .withWaitStrategy("gas", Wait.forHttp("/health"))
       .up();

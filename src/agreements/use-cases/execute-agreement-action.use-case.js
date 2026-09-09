@@ -5,6 +5,7 @@ import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { createAgreementPaymentUseCase } from "../../payments/use-cases/create-agreement-payment.use-case.js";
 import { resolvePaymentDefinition } from "../../payments/use-cases/resolve-payment-definition.js";
+import { createAgreementStatusChangedReportingPublication } from "../events/agreement-reporting.event.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import {
   findAgreementByNumber,
@@ -117,7 +118,10 @@ const createAgreementPayment = async (
 const createLifecyclePublications = (current, next, payment) =>
   current.state === next.state
     ? []
-    : createOutboxMessages(["lifecycle"], next, payment);
+    : [
+        ...createOutboxMessages(["lifecycle"], next, payment),
+        createAgreementStatusChangedReportingPublication(next),
+      ];
 
 const createActionPublications = (current, next, paymentResult) => {
   const lifecyclePublications = createLifecyclePublications(

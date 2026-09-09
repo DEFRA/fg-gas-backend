@@ -109,6 +109,10 @@ cp .env.example .env
 lifecycle events. Do not include a trailing slash; the Agreement Number is
 appended when the event is created.
 
+`GAS__SNS__REPORTING_EVENTS_TOPIC_ARN` is the Grants Reporting SNS topic. GAS
+writes Agreement-created and Agreement-status-changed events to its transactional
+outbox so they are committed atomically with the corresponding Agreement version.
+
 `AGREEMENTS_JWT_SECRET` (FGP-1307) is the shared HS256 secret GAS uses to verify
 the caller token (the `x-encrypted-auth` header) forwarded by Agreements UI on
 the agreement routes. It must match the secret the producer services sign with
