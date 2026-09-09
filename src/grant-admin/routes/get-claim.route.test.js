@@ -9,7 +9,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { listClaimableEntitlements } from "../../grants/services/claims.service.js";
+import { listEntitlementsWithClaimCapacity } from "../../grants/services/claims.service.js";
 import {
   getEntitlementCreationDetails,
   getEntitlementOverview,
@@ -97,7 +97,7 @@ describe("getClaimRoute", () => {
       creationOptions: [template],
     });
     getEntitlementCreationDetails.mockResolvedValue(template);
-    listClaimableEntitlements.mockResolvedValue([]);
+    listEntitlementsWithClaimCapacity.mockResolvedValue([]);
 
     const result = await server.inject({
       method: "GET",
@@ -114,7 +114,10 @@ describe("getClaimRoute", () => {
       clientRef,
       claimCode,
     });
-    expect(listClaimableEntitlements).toHaveBeenCalledWith({ code, clientRef });
+    expect(listEntitlementsWithClaimCapacity).toHaveBeenCalledWith({
+      code,
+      clientRef,
+    });
     expect(result.result).toEqual({
       banner,
       availableEntitlements: [template],
@@ -133,7 +136,7 @@ describe("getClaimRoute", () => {
     getEntitlementCreationDetails.mockRejectedValue(
       Boom.conflict("already exists"),
     );
-    listClaimableEntitlements.mockResolvedValue([]);
+    listEntitlementsWithClaimCapacity.mockResolvedValue([]);
 
     const result = await server.inject({
       method: "GET",
@@ -152,7 +155,7 @@ describe("getClaimRoute", () => {
     getEntitlementCreationDetails.mockRejectedValue(
       Boom.notFound("not available"),
     );
-    listClaimableEntitlements.mockResolvedValue([]);
+    listEntitlementsWithClaimCapacity.mockResolvedValue([]);
 
     const result = await server.inject({
       method: "GET",

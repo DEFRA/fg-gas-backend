@@ -1,6 +1,6 @@
 import hapi from "@hapi/hapi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { listClaimableEntitlements } from "../../grants/services/claims.service.js";
+import { listEntitlementsWithClaimCapacity } from "../../grants/services/claims.service.js";
 import { getEntitlementOverview } from "../../grants/services/entitlement.service.js";
 import { getClaimsRoute } from "./get-claims.route.js";
 
@@ -49,7 +49,7 @@ const banner = {
 
 const claimableEntitlement = {
   source: "persisted",
-  code: "ENT_CS_CAPITAL_PA3",
+  claimCode: "ENT_CS_CAPITAL_PA3",
   name: "PA3 Woodland Management Plan entitlement",
   description: "The maximum eligible woodland area that can be claimed.",
   data: {},
@@ -87,7 +87,7 @@ describe("getClaimsRoute", () => {
       applicationContext: {},
       creationOptions: [template],
     });
-    listClaimableEntitlements.mockResolvedValue([claimableEntitlement]);
+    listEntitlementsWithClaimCapacity.mockResolvedValue([claimableEntitlement]);
 
     const result = await server.inject({
       method: "GET",
@@ -99,7 +99,10 @@ describe("getClaimsRoute", () => {
       code,
       clientRef,
     });
-    expect(listClaimableEntitlements).toHaveBeenCalledWith({ code, clientRef });
+    expect(listEntitlementsWithClaimCapacity).toHaveBeenCalledWith({
+      code,
+      clientRef,
+    });
     expect(result.result).toEqual({
       banner,
       availableEntitlements: [template],
@@ -114,7 +117,7 @@ describe("getClaimsRoute", () => {
       applicationContext: {},
       creationOptions: [],
     });
-    listClaimableEntitlements.mockResolvedValue([]);
+    listEntitlementsWithClaimCapacity.mockResolvedValue([]);
 
     const result = await server.inject({
       method: "GET",
