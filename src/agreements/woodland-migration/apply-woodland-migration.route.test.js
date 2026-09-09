@@ -18,7 +18,7 @@ const checksum =
 const approval = {
   confirmation: "APPLY_WOODLAND_MIGRATION",
   expectedAgreements: 70,
-  expectedVersions: 70,
+  expectedVersions: 120,
   sourceChecksum: checksum,
 };
 
@@ -48,7 +48,9 @@ describe("applyWoodlandMigrationRoute", () => {
     const result = {
       valid: true,
       agreements: 70,
-      versions: 70,
+      offeredAgreements: 20,
+      acceptedAgreements: 50,
+      versions: 120,
       inserted: 70,
       replaced: 0,
       skipped: 0,
