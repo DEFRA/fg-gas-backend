@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { db } from "../../common/mongo-client.js";
+import { withTransaction } from "../../common/with-transaction.js";
 import { Agreement } from "../models/agreement.js";
 import {
   agreementsCollection,
@@ -49,6 +50,115 @@ const preparedIdentity = (preparedAgreement) => {
   const agreement =
     preparedAgreement.versions.at(-1)?.agreementVersion.snapshot;
   return agreement && `${agreement.code}:${agreement.clientRef}`;
+};
+
+const catchUpConflict = (reason) => {
+  const error = new Error(reason);
+  error.catchUpReason = reason;
+  return error;
+};
+
+const isWriteConflict = (error) =>
+  error.code === 11000 ||
+  error.code === 112 ||
+  error.hasErrorLabel?.("TransientTransactionError");
+
+const catchUpFailureReason = (error) =>
+  error.catchUpReason ??
+  (isWriteConflict(error) ? "write.conflict" : "write.error");
+
+// eslint-disable-next-line complexity
+const classifyCatchUpTarget = async (preparedAgreement, session) => {
+  const agreements = db.collection(agreementsCollection);
+  const existing = await agreements.findOne(
+    { _id: preparedAgreement.agreementNumber },
+    { session, readPreference: "primary" },
+  );
+  const clientRef =
+    preparedAgreement.versions.at(-1).agreementVersion.snapshot.clientRef;
+  const identityOwner = await agreements.findOne(
+    {
+      code: "woodland",
+      clientRef,
+      _id: { $ne: preparedAgreement.agreementNumber },
+    },
+    { session, readPreference: "primary" },
+  );
+  const existingVersions = await db
+    .collection(versionsCollection)
+    .find(
+      { agreementNumber: preparedAgreement.agreementNumber },
+      { session, readPreference: "primary" },
+    )
+    .sort({ version: 1 })
+    .toArray();
+
+  if (identityOwner) throw catchUpConflict("identity.mismatch");
+  if (!existing && existingVersions.length > 0) {
+    throw catchUpConflict("history.orphaned");
+  }
+  if (!existing) return "insert";
+  if (!isMigrationOwned(existing)) return "preserve";
+  if (
+    `${existing.code}:${existing.clientRef}` !==
+    preparedIdentity(preparedAgreement)
+  ) {
+    throw catchUpConflict("identity.mismatch");
+  }
+  if (existing.migration.sourceChecksum === preparedAgreement.sourceChecksum) {
+    return "preserve";
+  }
+  return "replace";
+};
+
+const insertCatchUpAgreement = async (preparedAgreement, session) => {
+  await db
+    .collection(agreementsCollection)
+    .insertOne(currentDocument(preparedAgreement), { session });
+  await db
+    .collection(versionsCollection)
+    .insertMany(preparedAgreement.versions.map(versionDocument), { session });
+};
+
+const replaceCatchUpAgreement = async (preparedAgreement, session) => {
+  const result = await db.collection(agreementsCollection).replaceOne(
+    {
+      _id: preparedAgreement.agreementNumber,
+      "migration.name": migrationName,
+      "migration.source": woodlandMigrationSource,
+    },
+    currentDocument(preparedAgreement),
+    { session },
+  );
+  if (result.matchedCount !== 1) {
+    throw catchUpConflict("marker.conflict");
+  }
+  await db
+    .collection(versionsCollection)
+    .deleteMany(
+      { agreementNumber: preparedAgreement.agreementNumber },
+      { session },
+    );
+  await db
+    .collection(versionsCollection)
+    .insertMany(preparedAgreement.versions.map(versionDocument), { session });
+};
+
+export const catchUpWoodlandAgreement = async (preparedAgreement) => {
+  try {
+    return await withTransaction(async (session) => {
+      const decision = await classifyCatchUpTarget(preparedAgreement, session);
+      if (decision === "preserve") return { outcome: "preserved" };
+      if (decision === "insert") {
+        await insertCatchUpAgreement(preparedAgreement, session);
+        return { outcome: "inserted" };
+      }
+      await replaceCatchUpAgreement(preparedAgreement, session);
+      return { outcome: "updated" };
+    });
+  } catch (error) {
+    return { outcome: "failed", reason: catchUpFailureReason(error) };
+  }
 };
 
 const requireUniquePreparedIdentities = (preparedAgreements) => {
