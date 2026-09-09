@@ -49,11 +49,12 @@ export const availableEntitlement = entitlementTemplate
 const availableEntitlements = Joi.array()
   .items(availableEntitlement)
   .unique("claimCode")
+  .required()
   .label("AvailableEntitlements");
 
 const claimableEntitlement = Joi.object({
   source: Joi.string().valid("persisted").required(),
-  code: Joi.string().required(),
+  claimCode: Joi.string().required(),
   name: Joi.string().required(),
   description: Joi.string().allow(null).required(),
   data: Joi.object().unknown().required(),
@@ -66,5 +67,5 @@ export const getClaimsResponseSchema = Joi.object({
   banner: banner.required(),
   availableEntitlements,
   claimableEntitlements: Joi.array().items(claimableEntitlement).required(),
-  claims: Joi.array(),
+  claims: Joi.array().required(),
 });
