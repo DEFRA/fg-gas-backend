@@ -8,13 +8,13 @@ import { listClaimableEntitlements } from "../services/claims.service.js";
 // entitlementId crosses the boundary so a caller can name its target when it
 // submits; instanceNumber and source stay internal.
 const toAvailableClaim = ({
-  code,
+  claimCode,
   entitlementId,
   name,
   description,
   data,
 }) => ({
-  code,
+  code: claimCode,
   entitlementId,
   name,
   description,
