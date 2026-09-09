@@ -99,24 +99,25 @@ const sourceVersion = {
   },
 };
 
-const map = (version = sourceVersion) =>
+const map = (version = sourceVersion, options = {}) =>
   mapLegacyWoodlandVersion({
     agreement,
     grant,
     sourceVersion: version,
     version: 2,
     configVersion: "1.0.0",
+    ...options,
   });
 
 describe("mapLegacyWoodlandVersion", () => {
-  it("maps a legacy accepted version and its historical timestamp", () => {
+  it("maps a legacy accepted version at its acceptance timestamp", () => {
     const mappedVersion = map();
     const mapped = mappedVersion.snapshot;
 
     expect(mappedVersion).toMatchObject({
       agreementNumber: "WMP665383470",
       version: 2,
-      versionedAt: "2026-05-01T09:00:00.000Z",
+      versionedAt: "2026-05-10T12:00:00.000Z",
     });
     expect(mapped).toMatchObject({
       agreementNumber: "WMP665383470",
@@ -172,6 +173,27 @@ describe("mapLegacyWoodlandVersion", () => {
     expect(validateMappedWoodlandVersion(mappedVersion, sourceVersion)).toEqual(
       [],
     );
+  });
+
+  it("reconstructs the offered snapshot before legacy acceptance", () => {
+    const accepted = map(sourceVersion);
+    const offered = map(sourceVersion, { targetState: "offered" });
+
+    expect(offered).toMatchObject({
+      agreementNumber: "WMP665383470",
+      version: 2,
+      versionedAt: "2026-05-01T09:00:00.000Z",
+      snapshot: {
+        state: "offered",
+        updatedAt: "2026-05-01T09:00:00.000Z",
+      },
+    });
+    expect(offered.snapshot.acceptedAt).toBeUndefined();
+    expect(offered.snapshot.startDate).toBeUndefined();
+    expect(offered.snapshot.endDate).toBeUndefined();
+    expect(offered.snapshot.items).toEqual(accepted.snapshot.items);
+    expect(offered.snapshot.parcels).toEqual(accepted.snapshot.parcels);
+    expect(validateMappedWoodlandVersion(offered, sourceVersion)).toEqual([]);
   });
 
   it("maps diagnosed legacy scheme and agreement-name aliases", () => {
@@ -321,6 +343,33 @@ describe("mapLegacyWoodlandVersion", () => {
     );
   });
 
+  it("rejects an accepted version without a signature timestamp", () => {
+    const version = { ...sourceVersion, signatureDate: undefined };
+    const mapped = map(version);
+
+    expect(mapped.snapshot.acceptedAt).toBeUndefined();
+    expect(mapped.versionedAt).toBeUndefined();
+    expect(validateMappedWoodlandVersion(mapped, version)).toEqual(
+      expect.arrayContaining([
+        { path: "acceptedAt", reason: "any.required" },
+        { path: "versionedAt", reason: "any.required" },
+      ]),
+    );
+  });
+
+  it("rejects acceptance before the reconstructed offer", () => {
+    const version = {
+      ...sourceVersion,
+      signatureDate: new Date("2026-04-30T12:00:00.000Z"),
+    };
+    const mapped = map(version);
+
+    expect(validateMappedWoodlandVersion(mapped, version)).toContainEqual({
+      path: "acceptedAt",
+      reason: "woodland.acceptance-timestamp.before-offer",
+    });
+  });
+
   it("rejects a missing version update timestamp without inventing one", () => {
     const version = { ...sourceVersion, updatedAt: undefined };
     const mapped = map(version);
@@ -338,7 +387,12 @@ describe("mapLegacyWoodlandVersion", () => {
   ])(
     "rejects a %s version creation timestamp without inventing one",
     (_scenario, createdAt, reason) => {
-      const version = { ...sourceVersion, createdAt };
+      const version = {
+        ...sourceVersion,
+        status: "offered",
+        signatureDate: undefined,
+        createdAt,
+      };
       const mapped = map(version);
 
       expect(mapped.versionedAt).toBe(createdAt);

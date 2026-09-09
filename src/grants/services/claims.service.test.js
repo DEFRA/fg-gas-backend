@@ -71,11 +71,9 @@ const payload = {
     code,
     grantCode: code,
     clientRef,
-    claimCode,
-    entitlementId,
     clientClaimRef: "claim-1",
   },
-  claim: { claimAmountPence: 100 },
+  claim: { entitlementId, claimAmountPence: 100 },
 };
 
 const grant = (materialised = true) =>
@@ -150,24 +148,12 @@ describe("claims.service", () => {
   it("refuses an entitlement id that does not belong to the application", async () => {
     const other = {
       ...payload,
-      metadata: { ...payload.metadata, entitlementId: "entitlement-missing" },
+      claim: { ...payload.claim, entitlementId: "entitlement-missing" },
     };
 
     await expect(
       submitClaim({ code, clientRef, payload: other }),
     ).rejects.toMatchObject({ output: { statusCode: 404 } });
-    expect(insert).not.toHaveBeenCalled();
-  });
-
-  it("refuses a claim code that does not match the entitlement named", async () => {
-    const other = {
-      ...payload,
-      metadata: { ...payload.metadata, claimCode: "ENT_OTHER" },
-    };
-
-    await expect(
-      submitClaim({ code, clientRef, payload: other }),
-    ).rejects.toMatchObject({ output: { statusCode: 422 } });
     expect(insert).not.toHaveBeenCalled();
   });
 
@@ -465,7 +451,7 @@ describe("claims.service", () => {
         clientRef,
         payload: {
           ...payload,
-          metadata: { ...payload.metadata, entitlementId: "entitlement-2" },
+          claim: { ...payload.claim, entitlementId: "entitlement-2" },
         },
       }),
     ).resolves.toMatchObject({ created: true });

@@ -77,8 +77,6 @@ const claimPayload = (code, clientRef, clientClaimRef, entitlementId) => ({
   metadata: {
     grantCode: code,
     clientRef,
-    claimCode: "ENT_CS_CAPITAL_PA3",
-    entitlementId,
     clientClaimRef,
     sbi: "113593357",
     crn: "1100943757",
@@ -87,6 +85,7 @@ const claimPayload = (code, clientRef, clientClaimRef, entitlementId) => ({
     submittedAt: "2026-08-07T11:16:05.745Z",
   },
   claim: {
+    entitlementId,
     claimAmountPence: 150000,
   },
 });
@@ -157,7 +156,9 @@ describe("POST /grants/{grantCode}/applications/{clientRef}/claims", () => {
       clientClaimRef: "WMP-C0001",
     });
     expect(stored.claimCode).toBe("ENT_CS_CAPITAL_PA3");
-    expect(stored.claim).toEqual({ claimAmountPence: 150000 });
+    expect(stored.claim).toEqual(
+      expect.objectContaining({ claimAmountPence: 150000 }),
+    );
     expect(stored._id.toString()).toBe(response.payload.claimId);
   });
 
@@ -190,7 +191,7 @@ describe("POST /grants/{grantCode}/applications/{clientRef}/claims", () => {
     const code = `claim-grant-${randomUUID().slice(0, 8)}`;
     const { clientRef, entitlementId } = await seedGrantAndApplication(code);
     const payload = claimPayload(code, clientRef, "WMP-C0001", entitlementId);
-    delete payload.metadata.entitlementId;
+    delete payload.claim.entitlementId;
 
     await expect(
       wreck.post(`/grants/${code}/applications/${clientRef}/claims`, {

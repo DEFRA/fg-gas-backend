@@ -25,6 +25,8 @@ export const applyWoodlandMigrationRoute = {
       schema: Joi.object({
         valid: Joi.boolean().valid(true).required(),
         agreements: Joi.number().integer().min(1).required(),
+        offeredAgreements: Joi.number().integer().min(0).required(),
+        acceptedAgreements: Joi.number().integer().min(0).required(),
         versions: Joi.number().integer().min(1).required(),
         inserted: Joi.number().integer().min(0).required(),
         replaced: Joi.number().integer().min(0).required(),
