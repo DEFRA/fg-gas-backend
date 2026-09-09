@@ -407,6 +407,17 @@ To run the requests:
 2. Make sure `http-client.private.env.json` has a `serviceToken` for the environment you want to call. You can generate/populate this token using the scripts above.
 3. Open `api.http`, select the desired environment from the drop‑down (e.g. `local`) and send requests.
 
+## Test endpoints (non-production only)
+
+GAS exposes two QA-only endpoints for the agreement journey, accessibility and performance suites:
+
+- `POST /api/test/agreements` — create a GAS-managed Agreement, returns `201` with `agreementData.agreementNumber`.
+- `POST /api/test/agreements/{agreementNumber}/status` — apply a `withdrawn`, `cancelled` or `terminated` transition, returns `200` with the updated Agreement.
+
+Both are registered only when `ENABLE_TEST_ENDPOINTS=true` (default `false`), enabled in `dev`, `test`, `ext-test` and `perf-test` and never in production. They call the same agreement command handlers as normal processing and add no queues.
+
+Full request and response schemas, status codes and the QA repositories that must migrate off the legacy Agreements API `queue-message` endpoint are documented in [docs/TEST_ENDPOINTS.md](docs/TEST_ENDPOINTS.md).
+
 ## Docker
 
 Launch GAS and dependencies via Docker Compose:

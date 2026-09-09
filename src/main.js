@@ -5,6 +5,7 @@ import { grantAdmin } from "./grant-admin/index.js";
 import { grants } from "./grants/index.js";
 import { health } from "./health/index.js";
 import { createServer } from "./server.js";
+import { testEndpoints } from "./test-endpoints/index.js";
 
 process.on("unhandledRejection", (error) => {
   logger.error(error, "Unhandled rejection");
@@ -12,7 +13,7 @@ process.on("unhandledRejection", (error) => {
 });
 
 const server = await createServer();
-await server.register([health, grants, agreements, grantAdmin]);
+await server.register([health, grants, agreements, grantAdmin, testEndpoints]);
 // After register, which runs the migrations, and before any request is served.
 await seedAccessToken();
 await server.start();
