@@ -1,11 +1,33 @@
-# GAS access to Grants Reporting in CDP
+# GAS Grants Reporting setup in CDP
 
-GAS publishes Agreement reporting events to the standard SNS topic
-`gfr__sns___reporting_events`. GAS needs the topic ARN in its application
-configuration and `sns:Publish` permission for its CDP task role. GAS does not
-need a reporting queue URL or permission to consume from a queue.
+GAS owns and publishes Agreement reporting events to the standard SNS topic
+`gfr__sns___reporting_events`. The topic must be subscribed to the Grants
+Reporting queue before GAS is deployed with reporting enabled.
 
-## Required configuration
+## Create the resources
+
+In the CDP Portal, select **Create → Resources request** and add these resources.
+
+### SNS topic
+
+- Owning service: `fg-gas-backend`
+- Topic name: `gfr__sns___reporting_events`
+- FIFO topic: `No`
+
+Owning the topic gives the GAS task role permission to publish to it.
+
+### SQS SNS subscription
+
+- Queue service: `grants-reporting-collector`
+- Queue name: `gfr__sqs__grants_reporting_events`
+- Topic service: `fg-gas-backend`
+- Topic name: `gfr__sns___reporting_events`
+
+Request the resources for `dev`, `test`, `perf-test`, `ext-test`, and `prod`. If
+the new topic is not available in the subscription form immediately, submit the
+topic request first and request the subscription after the topic is provisioned.
+
+## Configure GAS
 
 Set `GAS__SNS__REPORTING_EVENTS_TOPIC_ARN` for GAS in each environment:
 
@@ -17,44 +39,23 @@ Set `GAS__SNS__REPORTING_EVENTS_TOPIC_ARN` for GAS in each environment:
 | `ext-test` | `arn:aws:sns:eu-west-2:711387132227:gfr__sns___reporting_events` |
 | `prod` | `arn:aws:sns:eu-west-2:409408189387:gfr__sns___reporting_events` |
 
-This configuration is proposed in
+The application configuration is proposed in
 [`DEFRA/cdp-app-config#4449`](https://github.com/DEFRA/cdp-app-config/pull/4449).
-Do not configure `infra-dev` or `management` unless GAS will run the reporting
-flow there and CDP provides an ARN for that environment.
+Do not configure `infra-dev` or `management` unless GAS will run there and the
+messaging resources have been created for that environment.
 
-## Requesting access
+## Deploy and verify
 
-For each environment where this feature will be deployed:
-
-1. Confirm with the Grants Reporting team that the topic exists and that the ARN
-   above is correct.
-2. Obtain their approval for GAS to publish to their topic.
-3. Ask CDP Support in `#cdp-support` to add
-   `gfr__sns___reporting_events` to the allowed SNS topics for
-   `fg-gas-backend`. Include:
-   - the target environment;
-   - the topic name and ARN;
-   - the `fg-gas-backend` service name;
-   - the required `sns:Publish` permission; and
-   - the Grants Reporting team's approval.
-4. Merge the app-config change.
-5. Redeploy GAS after CDP confirms that the topic and publish permission are
-   ready.
-
-Do not deploy the reporting code before both the environment variable and publish
-permission are available. GAS will start when the ARN is configured even if it
-cannot access the topic, but reporting publications will exhaust their outbox
-retries and become `DEAD_LETTER`; granting access later does not replay them
+Wait for both the resource request and application configuration to be merged
+before deploying the reporting code. Deploying with only the ARN configured lets
+GAS start, but failed publications will exhaust their outbox retries and become
+`DEAD_LETTER`; making the topic available later does not replay them
 automatically.
 
-## Verification
-
 After deployment, create or transition a managed Agreement and confirm that its
-reporting outbox record reaches `COMPLETED`. An `AccessDenied` or `NotFound` SNS
-error means the CDP access or topic setup is not ready.
+reporting outbox record reaches `COMPLETED`.
 
 ## Sources
 
 - [CDP SQS/SNS guidance](https://github.com/DEFRA/cdp-documentation/blob/main/how-to/sqs-sns.md)
 - [CDP application configuration guidance](https://github.com/DEFRA/cdp-documentation/blob/main/how-to/config.md)
-- [`grants-reporting-publisher` usage examples](https://github.com/DEFRA/grants-reporting-publisher/blob/main/EXAMPLES.md)
