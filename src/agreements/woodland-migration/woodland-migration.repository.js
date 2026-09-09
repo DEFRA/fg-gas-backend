@@ -58,9 +58,13 @@ const catchUpConflict = (reason) => {
   return error;
 };
 
+// MongoServerError codes: 11000 is DuplicateKey, 112 is WriteConflict.
+const MONGO_DUPLICATE_KEY_ERROR_CODE = 11000;
+const MONGO_WRITE_CONFLICT_ERROR_CODE = 112;
+
 const isWriteConflict = (error) =>
-  error.code === 11000 ||
-  error.code === 112 ||
+  error.code === MONGO_DUPLICATE_KEY_ERROR_CODE ||
+  error.code === MONGO_WRITE_CONFLICT_ERROR_CODE ||
   error.hasErrorLabel?.("TransientTransactionError");
 
 const catchUpFailureReason = (error) =>
@@ -93,12 +97,18 @@ const classifyCatchUpTarget = async (preparedAgreement, session) => {
     .sort({ version: 1 })
     .toArray();
 
-  if (identityOwner) throw catchUpConflict("identity.mismatch");
+  if (identityOwner) {
+    throw catchUpConflict("identity.mismatch");
+  }
   if (!existing && existingVersions.length > 0) {
     throw catchUpConflict("history.orphaned");
   }
-  if (!existing) return "insert";
-  if (!isMigrationOwned(existing)) return "preserve";
+  if (!existing) {
+    return "insert";
+  }
+  if (!isMigrationOwned(existing)) {
+    return "preserve";
+  }
   if (
     `${existing.code}:${existing.clientRef}` !==
     preparedIdentity(preparedAgreement)
@@ -148,7 +158,9 @@ export const catchUpWoodlandAgreement = async (preparedAgreement) => {
   try {
     return await withTransaction(async (session) => {
       const decision = await classifyCatchUpTarget(preparedAgreement, session);
-      if (decision === "preserve") return { outcome: "preserved" };
+      if (decision === "preserve") {
+        return { outcome: "preserved" };
+      }
       if (decision === "insert") {
         await insertCatchUpAgreement(preparedAgreement, session);
         return { outcome: "inserted" };
