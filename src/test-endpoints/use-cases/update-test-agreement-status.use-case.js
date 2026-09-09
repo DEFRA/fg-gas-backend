@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import { randomUUID } from "node:crypto";
 import { config } from "../../common/config.js";
+import { logger } from "../../common/logger.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
 import { handleUpdateAgreementStatusCommandUseCase } from "../../agreements/use-cases/handle-update-agreement-status-command.use-case.js";
 import { loadCurrentAgreementByNumber } from "../../agreements/use-cases/load-current-agreement.js";
@@ -40,6 +41,10 @@ export const updateTestAgreementStatusUseCase = async ({
   agreementNumber,
   status,
 }) => {
+  logger.info(
+    `Updating test agreement ${agreementNumber} to status ${status}`,
+  );
+
   // Throws Boom.notFound when the Agreement does not exist, which gives the
   // 404 before anything is dispatched.
   const agreement = await loadCurrentAgreementByNumber({ agreementNumber });
@@ -64,5 +69,13 @@ export const updateTestAgreementStatusUseCase = async ({
   // The command handler returns a redirect location on success and a version
   // snapshot when the command was already applied, so neither is the updated
   // Agreement. Re-read it to report the state that was actually persisted.
-  return loadCurrentAgreementByNumber({ agreementNumber });
+  const updatedAgreement = await loadCurrentAgreementByNumber({
+    agreementNumber,
+  });
+
+  logger.info(
+    `Finished: Updating test agreement ${agreementNumber} to status ${status}`,
+  );
+
+  return updatedAgreement;
 };

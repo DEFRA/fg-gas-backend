@@ -39,8 +39,18 @@ const toClientError = (error) => {
 export const createTestAgreementUseCase = async (payload) => {
   assertManagedCode(payload.code);
 
+  logger.info(
+    `Creating test agreement for code ${payload.code} with clientRef ${payload.clientRef}`,
+  );
+
   try {
-    return await createAgreementUseCase(payload);
+    const agreement = await createAgreementUseCase(payload);
+
+    logger.info(
+      `Finished: Creating test agreement for code ${payload.code} with clientRef ${payload.clientRef}`,
+    );
+
+    return agreement;
   } catch (error) {
     throw toClientError(error);
   }
