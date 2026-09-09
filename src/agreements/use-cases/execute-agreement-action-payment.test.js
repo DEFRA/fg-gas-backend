@@ -315,12 +315,18 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     expect(saveOutboxEvents).toHaveBeenCalledTimes(1);
     const [publications] = saveOutboxEvents.mock.calls[0];
 
-    expect(publications).toHaveLength(3);
+    expect(publications).toHaveLength(4);
     expect(
       publications.filter(({ event }) =>
-        event.type.endsWith("agreement.status.updated"),
+        event.type?.endsWith("agreement.status.updated"),
       ),
     ).toHaveLength(2);
+    expect(
+      publications.find(
+        ({ event }) =>
+          event.eventData?.eventType === "AGREEMENT_STATUS_CHANGED",
+      ),
+    ).toBeDefined();
     expect(findPaymentPublication(publications)).toBeDefined();
   });
 
@@ -540,12 +546,18 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
 
     const [publications] = saveOutboxEvents.mock.calls[0];
 
-    expect(publications).toHaveLength(2);
+    expect(publications).toHaveLength(3);
     expect(
-      publications.every(({ event }) =>
-        event.type.endsWith("agreement.status.updated"),
+      publications.filter(({ event }) =>
+        event.type?.endsWith("agreement.status.updated"),
       ),
-    ).toBe(true);
+    ).toHaveLength(2);
+    expect(
+      publications.find(
+        ({ event }) =>
+          event.eventData?.eventType === "AGREEMENT_STATUS_CHANGED",
+      ),
+    ).toBeDefined();
   });
 
   it("rejects an unsupported commit operation", async () => {
