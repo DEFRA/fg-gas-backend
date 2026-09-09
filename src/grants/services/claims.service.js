@@ -179,7 +179,7 @@ const isClaimableNow = async (claimable, application) =>
   ).allowed;
 
 const hasRemainingClaimCapacity = async (claimable) =>
-  (await countClaimsFor(claimable)) < claimable.maximumClaims;
+  claimable.hasRemainingCapacity(await countClaimsFor(claimable));
 
 const candidatesForApplication = async ({ code, clientRef }) => {
   const application = await findApplicationByClientRefAndCodeUseCase(
