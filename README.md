@@ -439,17 +439,35 @@ Logging is configured in `src/common/logger.js`.
 
 ### Basic Logging
 
-We use entry and exit level logging patterns for better log correlation.
+We use paired entry and exit logging patterns for better log correlation.
 
 **Entry logs** indicate the start of an operation:
 
+```javascript
+logger.info(
+  `Adding agreement ${agreementNumber} for application ${clientRef} with code ${code} on ${date}`,
+);
+```
+
 **Exit logs** indicate the completion of an operation:
+
+```javascript
+logger.info(
+  `Finished: Adding agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
+);
+```
 
 > **Note**: We use consistent entry text to make it easier to correlate logs within OpenSearch.
 
 ### Conditional Logging
 
 For operations that have conditional logic between entry and exit logs, use `logger.debug()` or `logger.info()` based on relevance:
+
+```javascript
+logger.debug(
+  `Application updated with agreement for ${clientRef} with code ${code}`,
+);
+```
 
 **Example implementation**: See `src/grants/use-cases/add-agreement.use-case.js`
 
@@ -463,8 +481,9 @@ For operations that have conditional logic between entry and exit logs, use `log
 
 ### Best Practices
 
-- Use structured logging with context objects for better searchability
-- Include relevant identifiers (IDs, codes, references) in log messages
+- Include relevant identifiers (IDs, codes, references) in log messages when they must be searchable in OpenSearch
+- CDP only indexes the supported ECS field subset, so unknown context-object properties are not available in OpenSearch
+- Use context objects only for supported ECS fields such as `event.*` and `error.*`, or for diagnostics that do not need downstream search
 - Keep entry and exit log messages consistent for easier correlation
 - Use appropriate log levels based on the importance of the information
 
