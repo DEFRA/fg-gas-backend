@@ -1,3 +1,5 @@
+import { logger } from "../src/common/logger.js";
+
 export const up = async (db) => {
   const applications = db.collection("applications");
   const configVersions = db.collection("config_versions");
@@ -27,7 +29,7 @@ export const up = async (db) => {
       { $set: { currentConfigVersion: highest.version } },
     );
 
-    console.log(
+    logger.info(
       `Updated ${modifiedCount} applications for ${grantCode} to ${highest.version}`,
     );
   }
@@ -36,5 +38,5 @@ export const up = async (db) => {
     currentConfigVersion: "0.0.0",
   });
 
-  console.log(`${remainingCount} applications remain on the legacy version`);
+  logger.info(`${remainingCount} applications remain on the legacy version`);
 };
