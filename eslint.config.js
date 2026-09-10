@@ -125,6 +125,23 @@ export default [
                 "Services should only import repositories, use-cases, events, publishers and common",
             },
             {
+              // The shared events domain: what an event IS, in one place, for
+              // the pollers and the admin surface alike. It may reach DOWN to
+              // infrastructure and no further - a domain module that imported
+              // a context would tie every context to that one, which is the
+              // coupling moving it out of `common` was meant to end.
+              //
+              // Note `**/events/**` in the layer exceptions above now matches
+              // both this module and each context's own `events/` folder.
+              // Both are event vocabulary a use case may legitimately read.
+              target: "src/events/**/!(*.test).js",
+              from: ["src/**/**"],
+              except: ["**/common/**", "**/events/**"],
+              message:
+                "The events domain may only import common infrastructure. " +
+                "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
               target: "**/agreements/**/!(*.test).js",
               from: ["**/grants/**"],
               message:
@@ -156,6 +173,10 @@ export default [
               except: [
                 "**/grants/services/entitlement.service.js",
                 "**/grants/services/claims.service.js",
+                // Event admin (FGP-1392) administers the GAS inbox/outbox
+                // itself, so its reviewed seam is the two event stores.
+                "**/grants/repositories/inbox.repository.js",
+                "**/grants/repositories/outbox.repository.js",
               ],
               message:
                 "Grant Admin may only enter Grants through its reviewed application services. " +

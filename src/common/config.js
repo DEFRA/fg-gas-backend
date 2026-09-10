@@ -6,6 +6,17 @@ import { env } from "node:process";
 // the same in every environment, so it is a code constant rather than
 // configuration — it cannot be misconfigured to an empty list and needs no
 // cdp-app-config entry.
+// Deliberately below the shared HTTP client's ceiling - see the schema note.
+const CW_TIMEOUT_MS = 3000;
+
+// A ceiling on the admin surface's own reads. The counts and the breakdown are
+// documented collection scans, and the list can be one too; a box big enough
+// for that is a box where one page turn could otherwise camp on a connection
+// for as long as Mongo is willing to work. Past this, the read fails and the
+// page degrades to a named section error, which is the answer this surface is
+// built to give.
+const ADMIN_READ_MS = 5000;
+
 const CALLER_TOKEN_ALLOWED_ISSUERS = Object.freeze([
   "grants-ui",
   "fg-cw-frontend",
@@ -92,6 +103,21 @@ const schema = Joi.object({
   // not call fg-cw-backend can boot without them.
   CW_BACKEND_URL: Joi.string().uri().optional(),
   CW_BACKEND_TOKEN: Joi.string().optional(),
+  // Deliberately shorter than the shared client's ceiling. The admin page is
+  // the surface an operator opens when the estate is misbehaving, so the cost
+  // of waiting for a struggling Caseworking is paid on exactly the request
+  // that must not hang: the page degrades to "this source is unavailable" and
+  // renders, which beats ten seconds of nothing.
+  ADMIN_READ_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1)
+    .default(ADMIN_READ_MS)
+    .optional(),
+  CW_BACKEND_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1)
+    .default(CW_TIMEOUT_MS)
+    .optional(),
   // FGP-1307: logical key id the default AGREEMENTS_JWT_SECRET is stored under,
   // and the kid assumed when an incoming caller token carries no kid header
   // (e.g. grants-ui, intentionally left as-is for now).
@@ -211,9 +237,11 @@ export const config = {
     allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
   },
   serviceAccessTokenHash: vars.SERVICE_ACCESS_TOKEN_HASH,
+  adminReadTimeoutMs: vars.ADMIN_READ_TIMEOUT_MS,
   cwBackend: {
     url: vars.CW_BACKEND_URL,
     token: vars.CW_BACKEND_TOKEN,
+    timeoutMs: vars.CW_BACKEND_TIMEOUT_MS,
   },
   woodlandMigration: {
     sourceUrl: vars.WOODLAND_MIGRATION_SOURCE_URL,

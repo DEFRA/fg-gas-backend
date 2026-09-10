@@ -131,9 +131,9 @@ export class OutboxSubscriber {
       logger.info(`Cleaned up ${results?.modifiedCount} stale fifo locks`);
   }
 
-  async markEventUnsent(event) {
+  async markEventUnsent(event, error) {
     const claimedBy = this.asyncLocalStorage.getStore();
-    event.markAsFailed();
+    event.markAsFailed(error);
     await update(event, claimedBy);
     logger.trace(`Marked outbox event unsent ${event._id}`);
   }
@@ -173,7 +173,7 @@ export class OutboxSubscriber {
       await this.markEventComplete(outboxEvent);
     } catch (ex) {
       logger.error(ex, "Error sending outbox event");
-      await this.markEventUnsent(outboxEvent);
+      await this.markEventUnsent(outboxEvent, ex);
     }
   }
 
