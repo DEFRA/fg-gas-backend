@@ -62,6 +62,12 @@ export class Agreement {
     this.acceptedAt = acceptedAt;
   }
 
+  // Used to draw a fresh Agreement Number after an _id collision on insert,
+  // without re-running the creation Processes that produced everything else.
+  withAgreementNumber(agreementNumber) {
+    return new Agreement({ ...this, agreementNumber });
+  }
+
   transition({ target, transitionedAt, values, configVersion }) {
     const transitionChanges = resolveTransitionChanges({
       agreement: this,
