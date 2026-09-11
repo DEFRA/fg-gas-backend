@@ -1,12 +1,12 @@
 # Lightweight Decision Record - Configuration Definition Variants
 
-|                  |                                 |
-| ---------------- | ------------------------------- |
-| status           | proposed                        |
-| date             | 10 Sep 2026                     |
-| decision makers  | Core Grants Team                |
-| people consulted | GAS and Caseworking maintainers |
-| people informed  | Grant configuration maintainers |
+|                  |                                                      |
+| ---------------- | ---------------------------------------------------- |
+| status           | proposed                                             |
+| date             | 10 Sep 2026                                          |
+| decision makers  | Core Grants Team                                     |
+| people consulted | Core Grants Team, Grants UI Team, Config Broker Team |
+| people informed  | Core Grants Team, Grants UI Team, Config Broker Team |
 
 ## Context and Problem Statement
 
