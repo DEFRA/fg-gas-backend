@@ -24,7 +24,8 @@ export const generateAgreementNumber = ({ prefix, suffixLength = 9 }) => {
   validatePrefix(prefix);
   validateSuffixLength(suffixLength);
   const min = 10 ** (suffixLength - 1); // 10^8
-  const max = 10 ** suffixLength; // 10^9
+  // -1 aligns the top of the range with the legacy Agreements API's generator
+  const max = 10 ** suffixLength - 1; // 10^9 - 1
   const suffix = randomInt(min, max);
 
   return `${prefix}${suffix}`;

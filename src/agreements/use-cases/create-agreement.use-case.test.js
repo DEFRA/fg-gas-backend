@@ -515,6 +515,75 @@ describe("createAgreementUseCase", () => {
     });
   });
 
+  it("retries persistence with a freshly generated agreement number after a collision, without re-running creation", async () => {
+    const conflict = new MongoServerError("duplicate agreement number");
+    conflict.code = 11000;
+    conflict.keyPattern = { _id: 1 };
+    const callEndpoint = vi.fn().mockResolvedValue(calculatorResult);
+    const agreementNumbers = ["PMF111111111", "PMF222222222"];
+    const generateAgreementNumber = vi
+      .fn()
+      .mockImplementation(() => agreementNumbers.shift());
+    loadAgreementDefinition.mockResolvedValue(
+      new AgreementDefinition(pmfDefinitionData, {
+        callEndpoint,
+        generateAgreementNumber,
+      }),
+    );
+    withTransaction
+      .mockRejectedValueOnce(conflict)
+      .mockImplementation(async (callback) => callback(session));
+
+    const agreement = await createAgreementUseCase(command.data);
+
+    expect(agreement).toMatchObject({ agreementNumber: "PMF222222222" });
+    expect(insertCurrentAgreement).toHaveBeenLastCalledWith(
+      expect.objectContaining({ agreementNumber: "PMF222222222" }),
+      session,
+    );
+    expect(generateAgreementNumber).toHaveBeenCalledTimes(2);
+    expect(withTransaction).toHaveBeenCalledTimes(2);
+    expect(loadAgreementDefinition).toHaveBeenCalledOnce();
+    expect(callEndpoint).toHaveBeenCalledOnce();
+  });
+
+  it("fails with a clear error after exhausting agreement-number retry attempts, without re-running creation", async () => {
+    const conflict = new MongoServerError("duplicate agreement number");
+    conflict.code = 11000;
+    conflict.keyPattern = { _id: 1 };
+    const callEndpoint = vi.fn().mockResolvedValue(calculatorResult);
+    loadAgreementDefinition.mockResolvedValue(createDefinition(callEndpoint));
+    withTransaction.mockRejectedValue(conflict);
+
+    await expect(createAgreementUseCase(command.data)).rejects.toThrow(
+      "Could not generate a unique agreement number after 5 attempts",
+    );
+    expect(withTransaction).toHaveBeenCalledTimes(5);
+    expect(loadAgreementDefinition).toHaveBeenCalledOnce();
+    expect(callEndpoint).toHaveBeenCalledOnce();
+  });
+
+  it("reports the most recent agreement-number conflict once retries are exhausted", async () => {
+    const conflicts = Array.from({ length: 5 }, (_, index) => {
+      const conflict = new MongoServerError(`duplicate agreement number ${index}`);
+      conflict.code = 11000;
+      conflict.keyPattern = { _id: 1 };
+      return conflict;
+    });
+    conflicts.forEach((conflict) =>
+      withTransaction.mockRejectedValueOnce(conflict),
+    );
+
+    const error = await createAgreementUseCase(command.data).catch(
+      (caught) => caught,
+    );
+
+    expect(error).toBe(conflicts.at(-1));
+    expect(error.message).toContain(
+      "Could not generate a unique agreement number after 5 attempts",
+    );
+  });
+
   it("loads the creation definition from currentConfigVersion", async () => {
     await createAgreementUseCase(command.data);
 
