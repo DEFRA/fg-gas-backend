@@ -6,9 +6,11 @@ import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import {
+  agreementsCollection,
   findAgreementBySourceIdentity,
   insertAgreementVersion,
   insertCurrentAgreement,
+  versionsCollection,
 } from "../repositories/agreement.repository.js";
 import { createAgreementUseCase } from "./create-agreement.use-case.js";
 import { loadAgreementDefinition } from "./load-agreement-definition.js";
@@ -140,6 +142,15 @@ const createDefinition = (
     callEndpoint,
     generateAgreementNumber: () => agreementNumber,
   });
+
+const createAgreementNumberConflict = (
+  message = `E11000 duplicate key error collection: fg-gas-backend.${agreementsCollection} index: _id_ dup key: { _id: "PMF111111111" }`,
+) => {
+  const conflict = new MongoServerError(message);
+  conflict.code = 11000;
+  conflict.keyPattern = { _id: 1 };
+  return conflict;
+};
 
 const expectNoPersistence = () => {
   expect(withTransaction).not.toHaveBeenCalled();
@@ -516,9 +527,7 @@ describe("createAgreementUseCase", () => {
   });
 
   it("retries persistence with a freshly generated agreement number after a collision, without re-running creation", async () => {
-    const conflict = new MongoServerError("duplicate agreement number");
-    conflict.code = 11000;
-    conflict.keyPattern = { _id: 1 };
+    const conflict = createAgreementNumberConflict();
     const callEndpoint = vi.fn().mockResolvedValue(calculatorResult);
     const agreementNumbers = ["PMF111111111", "PMF222222222"];
     const generateAgreementNumber = vi
@@ -548,9 +557,7 @@ describe("createAgreementUseCase", () => {
   });
 
   it("fails with a clear error after exhausting agreement-number retry attempts, without re-running creation", async () => {
-    const conflict = new MongoServerError("duplicate agreement number");
-    conflict.code = 11000;
-    conflict.keyPattern = { _id: 1 };
+    const conflict = createAgreementNumberConflict();
     const callEndpoint = vi.fn().mockResolvedValue(calculatorResult);
     loadAgreementDefinition.mockResolvedValue(createDefinition(callEndpoint));
     withTransaction.mockRejectedValue(conflict);
@@ -564,12 +571,11 @@ describe("createAgreementUseCase", () => {
   });
 
   it("reports the most recent agreement-number conflict once retries are exhausted", async () => {
-    const conflicts = Array.from({ length: 5 }, (_, index) => {
-      const conflict = new MongoServerError(`duplicate agreement number ${index}`);
-      conflict.code = 11000;
-      conflict.keyPattern = { _id: 1 };
-      return conflict;
-    });
+    const conflicts = Array.from({ length: 5 }, (_, index) =>
+      createAgreementNumberConflict(
+        `E11000 duplicate key error collection: fg-gas-backend.${agreementsCollection} index: _id_ dup key: { _id: "PMF11111111${index}" }`,
+      ),
+    );
     conflicts.forEach((conflict) =>
       withTransaction.mockRejectedValueOnce(conflict),
     );
@@ -582,6 +588,18 @@ describe("createAgreementUseCase", () => {
     expect(error.message).toContain(
       "Could not generate a unique agreement number after 5 attempts",
     );
+  });
+
+  it("does not retry unrelated _id duplicate-key errors from other collections", async () => {
+    const conflict = createAgreementNumberConflict(
+      `E11000 duplicate key error collection: fg-gas-backend.${versionsCollection} index: _id_ dup key: { _id: "unexpected" }`,
+    );
+
+    withTransaction.mockRejectedValue(conflict);
+
+    await expect(createAgreementUseCase(command.data)).rejects.toBe(conflict);
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(loadAgreementDefinition).toHaveBeenCalledOnce();
   });
 
   it("loads the creation definition from currentConfigVersion", async () => {

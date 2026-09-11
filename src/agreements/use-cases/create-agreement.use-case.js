@@ -6,6 +6,7 @@ import { withTransaction } from "../../common/with-transaction.js";
 import { createAgreementCreatedReportingPublication } from "../events/agreement-reporting.event.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import {
+  agreementsCollection,
   findAgreementBySourceIdentity,
   insertAgreementVersion,
   insertCurrentAgreement,
@@ -46,11 +47,21 @@ const hasSourceIdentityKey = (error) =>
 
 const hasAgreementNumberKey = (error) => Boolean(error.keyPattern?._id);
 
+const mongoErrorDetail = (error) =>
+  [error.errmsg, error.errorResponse, error.message].find(
+    (value) => value && value !== "n/a",
+  ) ?? "";
+
+const hasAgreementNumberCollection = (error) =>
+  mongoErrorDetail(error).includes(`${agreementsCollection} index: _id_`);
+
 const isSourceIdentityConflict = (error) =>
   isMongoDuplicateKeyError(error) && hasSourceIdentityKey(error);
 
 const isAgreementNumberConflict = (error) =>
-  isMongoDuplicateKeyError(error) && hasAgreementNumberKey(error);
+  isMongoDuplicateKeyError(error) &&
+  hasAgreementNumberKey(error) &&
+  hasAgreementNumberCollection(error);
 
 const persistAgreement = async (agreement) => {
   const agreementVersion = AgreementVersion.create({
