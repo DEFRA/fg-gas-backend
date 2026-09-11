@@ -1,10 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { randomInt } from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
 import { generateAgreementNumber } from "./agreement-number.js";
+
+vi.mock("node:crypto", async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, randomInt: vi.fn(actual.randomInt) };
+});
 
 describe("generateAgreementNumber", () => {
   it("generates a number with the configured prefix and default 9-digit suffix", () => {
     const result = generateAgreementNumber({ prefix: "PMF" });
     expect(result).toMatch(/^PMF\d{9}$/);
+  });
+
+  it("draws the default 9-digit suffix from the legacy-aligned range (100000000-999999999 inclusive)", () => {
+    generateAgreementNumber({ prefix: "PMF" });
+
+    expect(randomInt).toHaveBeenCalledWith(100000000, 1000000000);
   });
 
   it("uses the configured suffix length", () => {

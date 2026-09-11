@@ -1,8 +1,6 @@
-import Boom from "@hapi/boom";
 import Joi from "joi";
 import { applyWoodlandMigration } from "./apply-woodland-migration.js";
 
-const operatorService = "woodland-migration-operator";
 const checksumSchema = Joi.string()
   .pattern(/^sha256:[0-9a-f]{64}$/)
   .required();
@@ -35,10 +33,5 @@ export const applyWoodlandMigrationRoute = {
       }),
     },
   },
-  handler(request) {
-    if (request.auth.credentials.service !== operatorService) {
-      throw Boom.forbidden("Woodland migration apply is restricted");
-    }
-    return applyWoodlandMigration(request.payload);
-  },
+  handler: (request) => applyWoodlandMigration(request.payload),
 };

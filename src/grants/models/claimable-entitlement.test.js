@@ -140,4 +140,15 @@ describe("ClaimableEntitlement", () => {
       reason: "MAXIMUM_CLAIMS_REACHED",
     });
   });
+
+  it("reports whether a claim limit has remaining capacity", () => {
+    const claimable = ClaimableEntitlement.fromMaterialised({
+      template,
+      code: "woodland",
+      clientRef: "wmp-123",
+    });
+
+    expect(claimable.hasRemainingCapacity(1)).toBe(true);
+    expect(claimable.hasRemainingCapacity(2)).toBe(false);
+  });
 });

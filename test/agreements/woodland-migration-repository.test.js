@@ -10,6 +10,7 @@ import {
   createLegacyEvidence,
 } from "../../src/agreements/woodland-migration/woodland-migration-checksum.js";
 import {
+  catchUpWoodlandAgreement,
   inspectWoodlandMigrationTargets,
   reconcileWoodlandMigration,
   writeWoodlandMigration,
@@ -20,7 +21,11 @@ import { withTransaction } from "../../src/common/with-transaction.js";
 const agreementNumber = "WMP-MIGRATION-INTEGRATION";
 const clientRef = "woodland-migration-integration";
 
-const prepareAgreement = ({ amount = 100, sourceRevision = 1 } = {}) => {
+const prepareAgreement = ({
+  amount = 100,
+  sourceRevision = 1,
+  state = "offered",
+} = {}) => {
   const agreement = new Agreement({
     agreementNumber,
     version: 1,
@@ -40,9 +45,13 @@ const prepareAgreement = ({ amount = 100, sourceRevision = 1 } = {}) => {
     actions: [],
     items: [],
     totalAmountPence: amount,
-    state: "offered",
+    state,
+    ...(state === "accepted" ? { acceptedAt: "2026-01-03T00:00:00.000Z" } : {}),
     createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-02T00:00:00.000Z",
+    updatedAt:
+      state === "accepted"
+        ? "2026-01-03T00:00:00.000Z"
+        : "2026-01-02T00:00:00.000Z",
   });
   const agreementVersion = new AgreementVersion({
     agreementNumber,
@@ -79,6 +88,118 @@ const clearData = () =>
     }),
     db.collection(versionsCollection).deleteMany({ agreementNumber }),
   ]);
+
+describe("Woodland catch-up agreement integration", () => {
+  beforeAll(() => mongoClient.connect());
+  beforeEach(clearData);
+  afterAll(async () => {
+    await clearData();
+    await mongoClient.close();
+  });
+
+  it("persists an unseen agreement with its migration evidence", async () => {
+    const prepared = prepareAgreement();
+
+    await expect(catchUpWoodlandAgreement(prepared)).resolves.toEqual({
+      outcome: "inserted",
+    });
+
+    await expect(
+      db.collection(agreementsCollection).findOne({ _id: agreementNumber }),
+    ).resolves.toMatchObject({
+      migration: { sourceChecksum: prepared.sourceChecksum },
+    });
+    const versions = await db
+      .collection(versionsCollection)
+      .find({ agreementNumber })
+      .toArray();
+    expect(versions).toHaveLength(1);
+    expect(versions[0].snapshot.legacy).toEqual(prepared.versions[0].evidence);
+  });
+
+  it("updates changed migration-owned data and replaces its history", async () => {
+    await catchUpWoodlandAgreement(prepareAgreement());
+    const beforeVersions = await db
+      .collection(versionsCollection)
+      .find({ agreementNumber })
+      .toArray();
+    const accepted = prepareAgreement({
+      amount: 200,
+      sourceRevision: 2,
+      state: "accepted",
+    });
+
+    await expect(catchUpWoodlandAgreement(accepted)).resolves.toEqual({
+      outcome: "updated",
+    });
+
+    await expect(
+      db.collection(agreementsCollection).findOne({ _id: agreementNumber }),
+    ).resolves.toMatchObject({
+      state: "accepted",
+      migration: { sourceChecksum: accepted.sourceChecksum },
+    });
+    const afterVersions = await db
+      .collection(versionsCollection)
+      .find({ agreementNumber })
+      .toArray();
+    expect(afterVersions).toHaveLength(1);
+    expect(afterVersions[0]._id).not.toEqual(beforeVersions[0]._id);
+    expect(afterVersions[0].snapshot).toMatchObject({
+      state: "accepted",
+      legacy: accepted.versions[0].evidence,
+    });
+  });
+
+  it("preserves unchanged data without rewriting current or version documents", async () => {
+    const prepared = prepareAgreement();
+    await catchUpWoodlandAgreement(prepared);
+    const currentBefore = await db
+      .collection(agreementsCollection)
+      .findOne({ _id: agreementNumber });
+    const versionsBefore = await db
+      .collection(versionsCollection)
+      .find({ agreementNumber })
+      .toArray();
+
+    await expect(catchUpWoodlandAgreement(prepared)).resolves.toEqual({
+      outcome: "preserved",
+    });
+
+    const currentAfter = await db
+      .collection(agreementsCollection)
+      .findOne({ _id: agreementNumber });
+    const versionsAfter = await db
+      .collection(versionsCollection)
+      .find({ agreementNumber })
+      .toArray();
+    expect(currentAfter.updatedAt).toBe(currentBefore.updatedAt);
+    expect(versionsAfter.map(({ _id }) => _id)).toEqual(
+      versionsBefore.map(({ _id }) => _id),
+    );
+  });
+
+  it("preserves a current agreement after normal GAS ownership takes over", async () => {
+    const prepared = prepareAgreement();
+    await catchUpWoodlandAgreement(prepared);
+    await db
+      .collection(agreementsCollection)
+      .updateOne({ _id: agreementNumber }, { $unset: { migration: "" } });
+    const before = await db
+      .collection(agreementsCollection)
+      .findOne({ _id: agreementNumber });
+
+    await expect(
+      catchUpWoodlandAgreement(
+        prepareAgreement({ amount: 200, sourceRevision: 2 }),
+      ),
+    ).resolves.toEqual({ outcome: "preserved" });
+
+    await expect(
+      db.collection(agreementsCollection).findOne({ _id: agreementNumber }),
+    ).resolves.toEqual(before);
+  });
+});
 
 describe("Woodland migration repository integration", () => {
   beforeAll(() => mongoClient.connect());

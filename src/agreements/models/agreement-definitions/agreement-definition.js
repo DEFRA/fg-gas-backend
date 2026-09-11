@@ -8,6 +8,7 @@ import { compileAgreementProcesses } from "./processes/agreement-process-runtime
 import { validateAgreementDefinition } from "./validate.js";
 
 export class AgreementDefinition {
+  #agreementNumberGenerator;
   #createAgreement;
   #definition;
   #executeAction;
@@ -20,6 +21,7 @@ export class AgreementDefinition {
         agreementNumberGenerator = generateAgreementNumber,
       ...processDependencies
     } = dependencies;
+    this.#agreementNumberGenerator = agreementNumberGenerator;
     this.#runProcesses = compileAgreementProcesses(
       this.#definition,
       processDependencies,
@@ -30,6 +32,15 @@ export class AgreementDefinition {
     });
     this.#executeAction = compileAgreementActionExecution(this.#definition, {
       runProcesses: this.#runProcesses,
+    });
+  }
+
+  // Lets a caller draw a fresh Agreement Number without re-running the
+  // creation Processes and calculator calls that produced the rest of the
+  // Agreement - see create-agreement.use-case.js.
+  generateAgreementNumber() {
+    return this.#agreementNumberGenerator({
+      prefix: this.#definition.agreementNumberPrefix,
     });
   }
 

@@ -89,11 +89,16 @@ export const setup = async ({ globalConfig }) => {
         // 401 by caller-token enforcement (which is covered by the auth unit
         // tests). Sourced from test/vitest.config.js.
         CALLER_TOKEN_ENFORCE: env.CALLER_TOKEN_ENFORCE,
+        // FGP-1411: register the /api/test routes in the containerised GAS so
+        // the test-endpoint integration scenarios can exercise them.
+        ENABLE_TEST_ENDPOINTS: env.ENABLE_TEST_ENDPOINTS,
         GAS__SNS__AUDIT_TOPIC_ARN: env.GAS__SNS__AUDIT_TOPIC_ARN,
         GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
           env.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
         GAS__SNS__CREATE_PAYMENT_TOPIC_ARN:
           env.GAS__SNS__CREATE_PAYMENT_TOPIC_ARN,
+        GAS__SNS__REPORTING_EVENTS_TOPIC_ARN:
+          env.GAS__SNS__REPORTING_EVENTS_TOPIC_ARN,
       })
       .withWaitStrategy("gas", Wait.forHttp("/health"))
       .up();

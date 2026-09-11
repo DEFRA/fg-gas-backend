@@ -109,6 +109,10 @@ cp .env.example .env
 lifecycle events. Do not include a trailing slash; the Agreement Number is
 appended when the event is created.
 
+`GAS__SNS__REPORTING_EVENTS_TOPIC_ARN` is the Grants Reporting SNS topic. GAS
+writes Agreement-created and Agreement-status-changed events to its transactional
+outbox so they are committed atomically with the corresponding Agreement version.
+
 `AGREEMENTS_JWT_SECRET` (FGP-1307) is the shared HS256 secret GAS uses to verify
 the caller token (the `x-encrypted-auth` header) forwarded by Agreements UI on
 the agreement routes. It must match the secret the producer services sign with
@@ -403,6 +407,17 @@ To run the requests:
 2. Make sure `http-client.private.env.json` has a `serviceToken` for the environment you want to call. You can generate/populate this token using the scripts above.
 3. Open `api.http`, select the desired environment from the drop‑down (e.g. `local`) and send requests.
 
+## Test endpoints (non-production only)
+
+GAS exposes two QA-only endpoints for the agreement journey, accessibility and performance suites:
+
+- `POST /api/test/agreements` — create a GAS-managed Agreement, returns `201` with `agreementData.agreementNumber`.
+- `POST /api/test/agreements/{agreementNumber}/status` — apply a `withdrawn`, `cancelled` or `terminated` transition, returns `200` with the updated Agreement.
+
+Both are registered only when `ENABLE_TEST_ENDPOINTS=true` (default `false`), enabled in `dev`, `test`, `ext-test` and `perf-test` and never in production. They call the same agreement command handlers as normal processing and add no queues.
+
+Full request and response schemas, status codes and the QA repositories that must migrate off the legacy Agreements API `queue-message` endpoint are documented in [docs/TEST_ENDPOINTS.md](docs/TEST_ENDPOINTS.md).
+
 ## Docker
 
 Launch GAS and dependencies via Docker Compose:
@@ -435,17 +450,35 @@ Logging is configured in `src/common/logger.js`.
 
 ### Basic Logging
 
-We use entry and exit level logging patterns for better log correlation.
+We use paired entry and exit logging patterns for better log correlation.
 
 **Entry logs** indicate the start of an operation:
 
+```javascript
+logger.info(
+  `Adding agreement ${agreementNumber} for application ${clientRef} with code ${code} on ${date}`,
+);
+```
+
 **Exit logs** indicate the completion of an operation:
+
+```javascript
+logger.info(
+  `Finished: Adding agreement ${agreementNumber} for application ${clientRef} with code ${code}`,
+);
+```
 
 > **Note**: We use consistent entry text to make it easier to correlate logs within OpenSearch.
 
 ### Conditional Logging
 
 For operations that have conditional logic between entry and exit logs, use `logger.debug()` or `logger.info()` based on relevance:
+
+```javascript
+logger.debug(
+  `Application updated with agreement for ${clientRef} with code ${code}`,
+);
+```
 
 **Example implementation**: See `src/grants/use-cases/add-agreement.use-case.js`
 
@@ -459,8 +492,9 @@ For operations that have conditional logic between entry and exit logs, use `log
 
 ### Best Practices
 
-- Use structured logging with context objects for better searchability
-- Include relevant identifiers (IDs, codes, references) in log messages
+- Include relevant identifiers (IDs, codes, references) in log messages when they must be searchable in OpenSearch
+- CDP only indexes the supported ECS field subset, so unknown context-object properties are not available in OpenSearch
+- Use context objects only for supported ECS fields such as `event.*` and `error.*`, or for diagnostics that do not need downstream search
 - Keep entry and exit log messages consistent for easier correlation
 - Use appropriate log levels based on the importance of the information
 

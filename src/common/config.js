@@ -81,6 +81,7 @@ const schema = Joi.object({
   GAS__SQS__CONFIG_VERSION_QUEUE_URL: Joi.string().uri().optional(),
   GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN: Joi.string(),
+  GAS__SNS__REPORTING_EVENTS_TOPIC_ARN: Joi.string(),
   GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: Joi.string().optional(),
   VIEW_AGREEMENT_URI: Joi.string().uri().required(),
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
@@ -105,6 +106,11 @@ const schema = Joi.object({
   // false it stays warn-only (backwards-compatible) and is the default. Feature-flag driven so
   // enforcement can be rolled forward or back per environment.
   CALLER_TOKEN_ENFORCE: Joi.boolean().optional(),
+  // FGP-1411: enables the QA-only endpoints under /api/test that create
+  // Agreements and apply status transitions through the normal Agreement
+  // domain behaviour. Disabled by default and enabled per environment in
+  // cdp-app-config; it must never be enabled in production.
+  ENABLE_TEST_ENDPOINTS: Joi.boolean().optional(),
   WOODLAND_MIGRATION_SOURCE_URL: Joi.string().uri().optional(),
   WOODLAND_MIGRATION_TOKEN: Joi.string().allow("").optional(),
   WOODLAND_MIGRATION_CONFIG_VERSION: Joi.string().trim().allow("").optional(),
@@ -175,6 +181,7 @@ export const config = {
       vars.GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN,
     agreementStatusUpdatedTopicArn:
       vars.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN,
+    reportingEventsTopicArn: vars.GAS__SNS__REPORTING_EVENTS_TOPIC_ARN,
     createAgreementTopicArn: vars.GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN,
     grantApplicationCreatedTopicArn:
       vars.GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN,
@@ -218,4 +225,5 @@ export const config = {
     token: vars.WOODLAND_MIGRATION_TOKEN,
     configVersion: vars.WOODLAND_MIGRATION_CONFIG_VERSION,
   },
+  enableTestEndpoints: vars.ENABLE_TEST_ENDPOINTS ?? false,
 };

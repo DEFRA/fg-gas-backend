@@ -22,6 +22,9 @@ describe("main", () => {
     vi.doMock("./grant-admin/index.js", () => ({
       grantAdmin: { name: "grant-admin" },
     }));
+    vi.doMock("./test-endpoints/index.js", () => ({
+      testEndpoints: { name: "test-endpoints" },
+    }));
     vi.doMock("./common/logger.js");
     vi.doMock("./auth/seed-access-token.js", () => ({
       seedAccessToken: vi.fn().mockResolvedValue(undefined),
@@ -41,6 +44,7 @@ describe("main", () => {
     const { grants } = await import("./grants/index.js");
     const { agreements } = await import("./agreements/index.js");
     const { grantAdmin } = await import("./grant-admin/index.js");
+    const { testEndpoints } = await import("./test-endpoints/index.js");
 
     expect(createServer).toHaveBeenCalled();
     expect(mockServer.register).toHaveBeenCalledWith([
@@ -48,6 +52,7 @@ describe("main", () => {
       grants,
       agreements,
       grantAdmin,
+      testEndpoints,
     ]);
     expect(mockServer.start).toHaveBeenCalled();
   });
