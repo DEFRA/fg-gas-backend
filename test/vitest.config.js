@@ -48,6 +48,8 @@ export default defineConfig({
       // enforcement is exercised by the auth unit tests; keep the integration
       // suite in warn-only mode so it continues to validate route behaviour.
       CALLER_TOKEN_ENFORCE: "false",
+      // FGP-1411: exercise the QA-only test endpoints in the integration suite.
+      ENABLE_TEST_ENDPOINTS: "true",
       VIEW_AGREEMENT_URI: "http://localhost:3000",
       GAS_MANAGED_AGREEMENT_GRANT_CODES: "pigs-might-fly,test-code-1",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:

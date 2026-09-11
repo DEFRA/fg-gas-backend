@@ -8,6 +8,7 @@
 | `agreements`  | `src/agreements/`  | Agreements domain (separate bounded context)                      |
 | `payments`    | `src/payments/`    | Payments domain (Payments, claim IDs, invoice numbering)          |
 | `grant-admin` | `src/grant-admin/` | Inbound admin adapter for Entitlement and Claim operations        |
+| `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes  |
 | `auth`        | `src/auth/`        | Authentication and authorisation                                  |
 | `common`      | `src/common/`      | Shared infrastructure (logger, database, messaging clients)       |
 
@@ -18,6 +19,8 @@
 `grant-admin` is an inbound adapter, not a peer domain module. It validates and maps HTTP/UI concerns but does not access Grants models, repositories, schemas, use cases, or general services. Its only Grants entry points for entitlement and claim work are `grants/services/entitlement.service.js` and `grants/services/claims.service.js`. `grants` never imports from `grant-admin`, and `grant-admin` does not import from `agreements`.
 
 `payments` knows nothing about the modules that source a Payment: it never imports `agreements` or `grants`, and it takes the identifiers it needs as plain values.
+
+`test-endpoints` is an inbound adapter, not a peer domain module, and is registered only when `ENABLE_TEST_ENDPOINTS` is true. It deliberately reuses the Agreements command handlers so test-created data is identical to normally processed data — see [Test endpoint entry points](#test-endpoint-entry-points). `agreements` never imports from `test-endpoints`.
 
 This is enforced by the `import-x/no-restricted-paths` rule in `eslint.config.js` and runs on every local commit (via lint-staged) and in CI (`npm run lint`).
 
@@ -61,6 +64,18 @@ A Payment definition supplies `originalInvoiceNumber` as a top-level lookup or l
 Nothing else in `payments` is importable from Agreements. The ESLint zone lists both exceptions explicitly so adding another one is a deliberate, reviewed change.
 
 `payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from the creation entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.
+
+### Test endpoint entry points
+
+The FGP-1411 QA endpoints reuse the Agreements command handlers rather than reimplementing agreement setup, so that data created by the test suites is indistinguishable from normally processed data:
+
+| Caller           | Entry point                                                             | Why                                                                                                                        |
+| ---------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `test-endpoints` | `agreements/use-cases/handle-create-agreement-command.use-case.js`      | Creates an Agreement through the same handler the SQS consumer uses, so validation, persistence and side effects match      |
+| `test-endpoints` | `agreements/use-cases/handle-update-agreement-status-command.use-case.js` | Applies a status transition through the same handler, so lifecycle rules are enforced by the grant's agreement definition   |
+| `test-endpoints` | `agreements/use-cases/load-current-agreement.js`                        | Resolves the Agreement by number, which supplies the 404 for an unknown Agreement before any command is dispatched          |
+
+The adapter adds only HTTP concerns: the feature flag, request and response schemas, the GAS-managed grant code check, and translating a rejected transition into a 409. It holds no agreement logic of its own and never touches an Agreements repository or domain model directly. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
 
 ## Adding a New Seam
 

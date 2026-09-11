@@ -106,6 +106,11 @@ const schema = Joi.object({
   // false it stays warn-only (backwards-compatible) and is the default. Feature-flag driven so
   // enforcement can be rolled forward or back per environment.
   CALLER_TOKEN_ENFORCE: Joi.boolean().optional(),
+  // FGP-1411: enables the QA-only endpoints under /api/test that create
+  // Agreements and apply status transitions through the normal Agreement
+  // domain behaviour. Disabled by default and enabled per environment in
+  // cdp-app-config; it must never be enabled in production.
+  ENABLE_TEST_ENDPOINTS: Joi.boolean().optional(),
   WOODLAND_MIGRATION_SOURCE_URL: Joi.string().uri().optional(),
   WOODLAND_MIGRATION_TOKEN: Joi.string().allow("").optional(),
   WOODLAND_MIGRATION_CONFIG_VERSION: Joi.string().trim().allow("").optional(),
@@ -220,4 +225,5 @@ export const config = {
     token: vars.WOODLAND_MIGRATION_TOKEN,
     configVersion: vars.WOODLAND_MIGRATION_CONFIG_VERSION,
   },
+  enableTestEndpoints: vars.ENABLE_TEST_ENDPOINTS ?? false,
 };
