@@ -37,7 +37,7 @@ export class AgreementDefinition {
 
   // Lets a caller draw a fresh Agreement Number without re-running the
   // creation Processes and calculator calls that produced the rest of the
-  // Agreement - see handle-create-agreement-command.use-case.js.
+  // Agreement - see create-agreement.use-case.js.
   generateAgreementNumber() {
     return this.#agreementNumberGenerator({
       prefix: this.#definition.agreementNumberPrefix,
