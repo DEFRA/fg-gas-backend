@@ -52,8 +52,10 @@ GAS start, but failed publications will exhaust their outbox retries and become
 `DEAD_LETTER`; making the topic available later does not replay them
 automatically.
 
-After deployment, create or transition a managed Agreement and confirm that its
-reporting outbox record reaches `COMPLETED`.
+After deployment, create a managed Agreement and confirm that both its
+`AGREEMENT_CREATED` and initial `AGREEMENT_STATUS_CHANGED` (`offered`) reporting
+outbox records reach `COMPLETED`. For later transitions, confirm the resulting
+`AGREEMENT_STATUS_CHANGED` record reaches `COMPLETED`.
 
 ## Sources
 
