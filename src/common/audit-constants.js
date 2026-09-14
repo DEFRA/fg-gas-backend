@@ -4,6 +4,10 @@ export const auditEntities = {
   AGREEMENT: "AGREEMENT",
   ENTITLEMENT: "ENTITLEMENT",
   CLAIM: "CLAIM",
+  // one inbox/outbox row, either service. Admin-only: the event list and
+  // detail views are audited because the detail view returns event payloads
+  // and redrive changes state.
+  EVENT: "EVENT",
 };
 
 export const auditActions = {
@@ -22,6 +26,8 @@ export const auditActions = {
   APPLY_AGREEMENT_TERMINATION: "APPLY_AGREEMENT_TERMINATION",
   CREATE: "CREATE",
   SUBMIT: "SUBMIT",
+  VIEW_EVENT: "VIEW_EVENT",
+  REDRIVE_EVENT: "REDRIVE_EVENT",
 };
 
 export const auditStatus = {

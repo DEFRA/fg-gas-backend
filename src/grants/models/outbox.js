@@ -1,6 +1,12 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
 import { getMessageGroupId } from "../../common/get-message-group-id.js";
+import {
+  appendAttempt,
+  normaliseAttemptHistory,
+  toAttemptEntry,
+  toLastError,
+} from "../../events/last-error.js";
 
 export const OutboxStatus = {
   PUBLISHED: "PUBLISHED",
@@ -32,13 +38,31 @@ export class Outbox {
     }
 
     this._id = props._id;
-    this.publicationDate = props.publicationDate || new Date();
+    // Always a BSON Date: a document read back with a legacy *string*
+    // publicationDate must not be written out as a string again, or it would
+    // re-introduce the mixed-type keyset fault that
+    // migrations/20260901130000-normalise-event-sort-keys.js exists to fix.
+    this.publicationDate = props.publicationDate
+      ? new Date(props.publicationDate)
+      : new Date();
     this.target = props.target;
     this.event = props.event;
     this.lastResubmissionDate = props.lastResubmissionDate;
-    this.completionAttempts = props.completionAttempts || 1;
+    // Nullable and defaulted: every row written before FGP-1392 has no
+    // `lastError` at all and must stay null end to end.
+    this.lastError = props.lastError || null;
+    // Defaulted to []: every row written before this change has no
+    // `attemptHistory` at all and must read back as an empty history, never
+    // as null - the detail view always renders the array.
+    this.attemptHistory = normaliseAttemptHistory(props.attemptHistory);
+    // Counts attempts MADE, incremented by `markAsFailed` in the same call
+    // that pushes the history entry - see ATTEMPT ARITHMETIC in models/inbox.js.
+    this.completionAttempts = props.completionAttempts ?? 0;
     this.status = props.status || OutboxStatus.PUBLISHED;
     this.completionDate = props.completionDate;
+    // `{ at, by }` for the most recent redrive of this row, so the detail view
+    // can say who put it back in front of the poller. Null until redriven.
+    this.lastRedrive = props.lastRedrive ?? null;
     this.claimedBy = null;
     this.claimedAt = null;
     this.claimExpiresAt = null;
@@ -53,9 +77,22 @@ export class Outbox {
     this.claimExpiresAt = null;
   }
 
-  markAsFailed() {
+  // `error` is the exception the publisher caught. Absent (a resubmission
+  // sweep, an old caller) leaves the previous `lastError` in place.
+  markAsFailed(error) {
     this.status = OutboxStatus.FAILED;
     this.lastResubmissionDate = new Date().toISOString();
+    this.lastError = toLastError(error) ?? this.lastError;
+    // Appended, never replaced: the history is the record of every attempt,
+    // and `markAsComplete` deliberately leaves it in place so a row that
+    // eventually succeeded still shows what it took.
+    this.attemptHistory = appendAttempt(
+      this.attemptHistory,
+      toAttemptEntry(error),
+    );
+    // Counted here, in the same call that records the failure, so the counter
+    // and the history can never disagree - see ATTEMPT ARITHMETIC above.
+    this.completionAttempts += 1;
     this.claimedBy = null;
     this.claimedAt = null;
     this.claimExpiresAt = null;
@@ -68,9 +105,12 @@ export class Outbox {
       target: this.target,
       event: this.event,
       lastResubmissionDate: this.lastResubmissionDate,
+      lastError: this.lastError,
+      attemptHistory: this.attemptHistory,
       completionAttempts: this.completionAttempts,
       status: this.status,
       completionDate: this.completionDate,
+      lastRedrive: this.lastRedrive,
       claimedAt: this.claimedAt,
       claimedBy: this.claimedBy,
       claimExpiresAt: this.claimExpiresAt,
@@ -90,9 +130,12 @@ export class Outbox {
       target: doc.target,
       event: doc.event,
       lastResubmissionDate: doc.lastResubmissionDate,
+      lastError: doc.lastError,
+      attemptHistory: doc.attemptHistory,
       completionAttempts: doc.completionAttempts,
       status: doc.status,
       completionDate: doc.completionDate,
+      lastRedrive: doc.lastRedrive,
       claimedAt: doc.claimedAt,
       claimedBy: doc.claimedBy,
       claimExpiresAt: doc.claimExpiresAt,

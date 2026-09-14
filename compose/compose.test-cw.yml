@@ -1,0 +1,17 @@
+# Test-only override, applied by test/setup.js on top of compose.yml.
+#
+# CW_BACKEND_URL/CW_BACKEND_TOKEN are deliberately absent from compose.gas.yml:
+# they are `Joi.string().uri().optional()` in src/common/config.js, so an empty
+# interpolated value would fail validation and stop the service booting for
+# anyone running `docker compose up` without them. Here the integration harness
+# always supplies both, pointing GAS at the in-process CW actuator stub
+# (test/helpers/cw-stub.js) on the host.
+#
+# HTTP_CLIENT_TIMEOUT_MS is shortened from the 10 s default so the "CW times
+# out" case costs a few seconds rather than the whole test timeout.
+services:
+  gas:
+    environment:
+      CW_BACKEND_URL: "${CW_BACKEND_URL}"
+      CW_BACKEND_TOKEN: "${CW_BACKEND_TOKEN}"
+      HTTP_CLIENT_TIMEOUT_MS: "${HTTP_CLIENT_TIMEOUT_MS}"

@@ -99,6 +99,19 @@ export const writeAuditEvent = async (
 
   if (valid === false) {
     logger.warn(errors, "Audit event failed validation - skipping write.");
+
+    // The same hole a failed insert was, one layer up: inside a caller's
+    // transaction, skipping the write would let the action commit with no
+    // audit event. An invalid payload is a FAILURE to produce the audit the
+    // caller asked for - unlike a `dataBuilder` answering null, which is a
+    // deliberate "nothing to audit here". So it aborts the transaction.
+    //
+    // The reason is already in the warning above; it is deliberately not in
+    // the error, which travels back to the caller - a validation message can
+    // quote the payload it rejected.
+    if (session) {
+      throw new Error("Audit event failed validation");
+    }
   } else {
     // The audit topic is not FIFO, so segregationRef carries no ordering
     // meaning here - it only partitions outbox work. Callers group related
