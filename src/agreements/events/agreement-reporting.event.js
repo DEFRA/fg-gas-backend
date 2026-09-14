@@ -29,29 +29,27 @@ const commonAgreementData = (agreement) => ({
   ...optional("agreementValue", optionalPounds(agreement.totalAmountPence)),
 });
 
-const hasReportingOptionValues = ({
-  optionStartDate,
-  optionEndDate,
-  optionQuantity,
-  optionValue,
-}) =>
-  optionStartDate !== undefined &&
-  optionEndDate !== undefined &&
-  optionQuantity !== undefined &&
-  optionValue !== undefined;
+const hasRequiredReportingOptionValues = ({ optionQuantity, optionValue }) =>
+  optionQuantity !== undefined && optionValue !== undefined;
 
 const toReportingOption = (entry, agreement, parcelsById) => {
   const option = {
     parcelReference: parcelReference(entry),
     ...optional("parcelSizeUnderAgreement", parcelArea(entry, parcelsById)),
     optionCode: entry.code,
-    optionStartDate: valueOrFallback(entry.startDate, agreement.startDate),
-    optionEndDate: valueOrFallback(entry.endDate, agreement.endDate),
+    ...optional(
+      "optionStartDate",
+      valueOrFallback(entry.startDate, agreement.startDate),
+    ),
+    ...optional(
+      "optionEndDate",
+      valueOrFallback(entry.endDate, agreement.endDate),
+    ),
     optionQuantity: entry.quantity,
     optionValue: optionalPounds(entry.totalAmountPence),
   };
 
-  return hasReportingOptionValues(option) ? option : null;
+  return hasRequiredReportingOptionValues(option) ? option : null;
 };
 
 const reportingOptions = (agreement) => {

@@ -99,6 +99,34 @@ describe("Agreement reporting events", () => {
     expect(validateReportingEvent(result.event).valid).toBe(true);
   });
 
+  it("includes funded entries before the Agreement dates are known", () => {
+    const result = createAgreementCreatedReportingPublication({
+      ...agreement,
+      startDate: undefined,
+      endDate: undefined,
+      actions: [],
+      items: [
+        {
+          id: "item:1",
+          code: "PA3",
+          quantity: 15.75,
+          unit: "ha",
+          totalAmountPence: 157500,
+        },
+      ],
+    });
+
+    expect(result.event.eventData.options).toEqual([
+      {
+        parcelReference: "",
+        optionCode: "PA3",
+        optionQuantity: 15.75,
+        optionValue: 1575,
+      },
+    ]);
+    expect(validateReportingEvent(result.event).valid).toBe(true);
+  });
+
   it("omits incomplete funded entries rather than inventing required reporting values", () => {
     const result = createAgreementCreatedReportingPublication({
       ...agreement,
