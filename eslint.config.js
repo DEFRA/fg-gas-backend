@@ -152,10 +152,13 @@ export default [
             {
               target: "**/grants/**/!(*.test).js",
               from: ["**/payments/**"],
+              except: [
+                "**/payments/use-cases/create-claim-payment.use-case.js",
+                "**/payments/use-cases/resolve-payment-definition.js",
+              ],
               message:
-                "Grants must not import Agreements or Payments domain internals directly. " +
-                "Use HTTP APIs, events, commands, or inbox/outbox records as integration seams. " +
-                "See docs/MODULE_BOUNDARIES.md.",
+                "Grants may only enter Payments through its reviewed Payment creation " +
+                "and definition resolution use cases. See docs/MODULE_BOUNDARIES.md.",
             },
             {
               target: "**/grants/**/!(*.test).js",
