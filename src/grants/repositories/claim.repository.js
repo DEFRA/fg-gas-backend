@@ -35,32 +35,25 @@ export const countByClaimCode = async (
     .collection(collection)
     .countDocuments({ code, clientRef, claimCode }, { session });
 
-export const insert = async (
-  {
-    code,
-    clientRef,
-    claimCode,
-    clientClaimRef,
-    entitlementId,
-    metadata,
-    claim,
-  },
-  session,
-) => {
-  const now = new Date().toISOString();
-  const result = await db.collection(collection).insertOne(
-    {
-      code,
-      clientRef,
-      claimCode,
-      clientClaimRef,
-      entitlementId,
-      metadata,
-      claim,
-      createdAt: now,
-      updatedAt: now,
-    },
-    { session },
-  );
+// Mongo assigns _id, which is the id the Claim is audited and reported under.
+// The Claim model owns every other field, so this is the only place that knows
+// the document shape.
+const toDocument = (claim) => ({
+  code: claim.code,
+  clientRef: claim.clientRef,
+  claimCode: claim.claimCode,
+  clientClaimRef: claim.clientClaimRef,
+  entitlementId: claim.entitlementId,
+  metadata: structuredClone(claim.metadata),
+  claim: structuredClone(claim.claim),
+  createdAt: claim.createdAt,
+  updatedAt: claim.updatedAt,
+});
+
+export const insert = async (claim, session) => {
+  const result = await db
+    .collection(collection)
+    .insertOne(toDocument(claim), { session });
+
   return result.insertedId;
 };

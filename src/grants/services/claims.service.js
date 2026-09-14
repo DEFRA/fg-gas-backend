@@ -3,6 +3,7 @@ import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { Claim } from "../models/claim.js";
 import { ClaimableEntitlement } from "../models/claimable-entitlement.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
 import {
@@ -228,18 +229,17 @@ const auditDataBuilder = (args, result) => {
 };
 
 const insertClaim = async ({ command, claimCode }, session) => {
-  const insertedId = await insert(
-    {
-      code: command.code,
-      clientRef: command.clientRef,
-      claimCode,
-      clientClaimRef: command.payload.metadata.clientClaimRef,
-      entitlementId: command.payload.claim.entitlementId,
-      metadata: command.payload.metadata,
-      claim: command.payload.claim,
-    },
-    session,
-  );
+  const claim = Claim.create({
+    code: command.code,
+    clientRef: command.clientRef,
+    claimCode,
+    clientClaimRef: command.payload.metadata.clientClaimRef,
+    entitlementId: command.payload.claim.entitlementId,
+    metadata: command.payload.metadata,
+    claim: command.payload.claim,
+  });
+  const insertedId = await insert(claim, session);
+
   return { created: true, claimId: insertedId.toString() };
 };
 
