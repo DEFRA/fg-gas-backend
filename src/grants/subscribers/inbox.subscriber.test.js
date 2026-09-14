@@ -492,3 +492,49 @@ describe("inbox.subscriber", () => {
     });
   });
 });
+
+describe("InboxSubscriber failure reasons", () => {
+  it("passes the caught exception to markAsFailed", async () => {
+    const failure = new TypeError("cannot read currentStatus");
+    applyExternalStateChange.mockRejectedValueOnce(failure);
+    withTraceParent.mockImplementation((_, fn) => fn());
+
+    const message = {
+      messageId: "message-1234",
+      type: "u.nknown.event.id",
+      source: "CW",
+      traceparent: "1234-abcd",
+      event: { data: { currentStatus: "APPROVE" } },
+      markAsFailed: vi.fn(),
+    };
+
+    await new InboxSubscriber().handleEvent(message);
+
+    expect(message.markAsFailed).toHaveBeenCalledWith(failure);
+  });
+
+  it("passes the unhandleable-message error to markAsFailed", async () => {
+    const message = {
+      messageId: "message-1234",
+      type: "u.nknown.event.id",
+      event: { data: {} },
+      markAsFailed: vi.fn(),
+    };
+
+    await new InboxSubscriber().handleEvent(message);
+
+    expect(message.markAsFailed).toHaveBeenCalledWith(expect.any(Error));
+    expect(message.markAsFailed.mock.calls[0][0].message).toContain(
+      "Unable to handle inbox message",
+    );
+  });
+
+  it("forwards the error through markEventFailed to the model", async () => {
+    const failure = new Error("boom");
+    const message = { messageId: "m-1", markAsFailed: vi.fn() };
+
+    await new InboxSubscriber().markEventFailed(message, failure);
+
+    expect(message.markAsFailed).toHaveBeenCalledWith(failure);
+  });
+});

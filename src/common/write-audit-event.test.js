@@ -409,10 +409,37 @@ describe("writeAuditEvent", () => {
     expect(result.account).not.toHaveProperty("sbi");
   });
 
+  const invalid = () => ({ ...eventData, entities: "not-an-array" });
+
   it("skips insertMany when payload fails validation", async () => {
-    await writeAuditEvent({ ...eventData, entities: "not-an-array" }, {});
+    await writeAuditEvent(invalid(), undefined);
 
     expect(insertMany).not.toHaveBeenCalled();
+  });
+
+  // Best-effort without a transaction: the action has already happened and
+  // refusing to report it would not undo it.
+  it("does not throw on an invalid payload when there is no session", async () => {
+    await expect(writeAuditEvent(invalid(), undefined)).resolves.toBeUndefined();
+  });
+
+  // Inside a transaction the same skip would let the action commit with no
+  // audit event, so it aborts instead.
+  it("throws on an invalid payload when a session is active", async () => {
+    await expect(writeAuditEvent(invalid(), { id: "s" })).rejects.toThrow(
+      "Audit event failed validation",
+    );
+
+    expect(insertMany).not.toHaveBeenCalled();
+  });
+
+  // The validation detail can quote the payload it rejected, so it stays in
+  // the log and out of the error that travels back to the caller.
+  it("keeps the validation detail out of the thrown error", async () => {
+    const error = await writeAuditEvent(invalid(), { id: "s" }).catch((e) => e);
+
+    expect(error.message).toBe("Audit event failed validation");
+    expect(JSON.stringify(error.message)).not.toContain("not-an-array");
   });
 
   it("reads request context via getRequestContext", async () => {

@@ -73,6 +73,20 @@ describe("inbox repository claim events", () => {
   });
 });
 
+// Polls a condition to a ceiling, returning as soon as it holds. A fixed sleep
+// is either too short on a slow machine or wasted time on a fast one.
+const waitFor = async (condition, { timeoutMs = 5000, stepMs = 20 } = {}) => {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if (condition()) {
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+  }
+};
+
 describe("getNextAvailable", () => {
   beforeEach(async () => {
     await fifo.deleteMany({});
@@ -108,9 +122,16 @@ describe("getNextAvailable", () => {
       .mockResolvedValue(true);
     const subscriber = new InboxSubscriber(1000);
     subscriber.start();
-    for (let i = 0; i < 10 && processEventsSpy.mock.calls.length === 0; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+    // Waits for the first poll to land, with a ceiling generous enough for a
+    // loaded machine rather than one tuned to a fast one. The subscriber does
+    // real work on the way here - a `findNextMessage` query, a fifo lock and a
+    // claim - and the old budget was ten 20ms ticks, which a busy CI runner
+    // regularly missed: the assertion then read "called 0 times" and the
+    // failure looked like the subscriber, not the clock. It still exits the
+    // moment the call arrives, so nothing is slower when nothing is wrong,
+    // and it still stops after ONE poll, which is what keeps the
+    // `getNextAvailable` count below meaningful.
+    await waitFor(() => processEventsSpy.mock.calls.length > 0);
     subscriber.stop();
     expect(processEventsSpy).toHaveBeenCalledTimes(1);
     expect(getNextAvailableSpy).toHaveBeenCalledTimes(2);

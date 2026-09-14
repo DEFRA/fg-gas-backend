@@ -108,8 +108,8 @@ export class InboxSubscriber {
       logger.info(`Cleaned up ${results?.modifiedCount} stale fifo locks`);
   }
 
-  async markEventFailed(inboxEvent) {
-    inboxEvent.markAsFailed();
+  async markEventFailed(inboxEvent, error) {
+    inboxEvent.markAsFailed(error);
     await update(inboxEvent);
     logger.info(`Marked inbox event unsent ${inboxEvent.messageId}`);
   }
@@ -152,7 +152,7 @@ export class InboxSubscriber {
         ex,
         `Error handling event for inbox message ${type}:${messageId}`,
       );
-      await this.markEventFailed(msg);
+      await this.markEventFailed(msg, ex);
     }
   }
 
