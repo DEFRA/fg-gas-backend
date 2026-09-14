@@ -38,9 +38,11 @@ const walkForward = async (findPage, pageSize) => {
   return rows;
 };
 
+// The pollers rewrite PUBLISHED, FAILED and RESUBMITTED rows while a test runs,
+// so only terminal statuses are seeded here. The migration ignores status.
 const outboxSeed = (overrides) => ({
   target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_new_case_fifo",
-  status: "PUBLISHED",
+  status: "COMPLETED",
   completionAttempts: 1,
   segregationRef: "ref",
   event: { id: "evt", type: "cloud.defra.local.fg-gas-backend.case.create" },
@@ -51,7 +53,7 @@ const inboxSeed = (overrides) => ({
   messageId: "msg",
   type: "cloud.defra.local.fg-cw-backend.case.status.updated",
   source: "CW",
-  status: "PUBLISHED",
+  status: "COMPLETED",
   completionAttempts: 1,
   segregationRef: "ref",
   ...overrides,
