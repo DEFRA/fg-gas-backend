@@ -1,8 +1,13 @@
 import Boom from "@hapi/boom";
+import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
+import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
+import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { createClaimPaymentUseCase } from "../../payments/use-cases/create-claim-payment.use-case.js";
+import { resolvePaymentDefinition } from "../../payments/use-cases/resolve-payment-definition.js";
 import { Claim } from "../models/claim.js";
 import { ClaimableEntitlement } from "../models/claimable-entitlement.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
@@ -295,8 +300,111 @@ const claimableWithCapacity = async (
   return claimable;
 };
 
+// Read outside the transaction only to decide whether a definition is worth
+// resolving; the authoritative read and every claim check happen inside it.
+const claimTemplateFor = async ({ command, grant }) => {
+  const existing = await findExistingEntitlements(
+    command.clientRef,
+    command.code,
+  );
+  const entitlement = existing.find(
+    (candidate) => candidate.id === command.payload.claim.entitlementId,
+  );
+
+  return entitlement
+    ? grant.findEntitlementTemplate(entitlement.claimCode)
+    : null;
+};
+
+const templatePaysOnSubmission = (template) =>
+  Boolean(template?.claim) && !template.claim.requiresApproval;
+
+// No definition configured means the grant does not pay claims and must keep
+// accepting them. One that is configured and fails to load is an error.
+const hasPaymentDefinition = async ({ code, configVersion }) =>
+  Boolean(
+    await findConfigDefinition({
+      grantCode: code,
+      version: configVersion,
+      definitionType: "payment",
+    }),
+  );
+
+const raisesPayment = async ({ command, grant, configVersion }) => {
+  if (!configVersion) {
+    return false;
+  }
+
+  const template = await claimTemplateFor({ command, grant });
+
+  return (
+    templatePaysOnSubmission(template) &&
+    (await hasPaymentDefinition({ code: command.code, configVersion }))
+  );
+};
+
+// Before the transaction, so a definition that cannot be resolved writes nothing.
+const resolveClaimPayment = async ({ command, grant, configVersion }) => {
+  if (!(await raisesPayment({ command, grant, configVersion }))) {
+    return null;
+  }
+
+  return resolvePaymentDefinition({
+    code: command.code,
+    configVersion,
+    context: {
+      claim: {
+        metadata: command.payload.metadata,
+        claim: command.payload.claim,
+      },
+      execution: { executedAt: new Date().toISOString() },
+    },
+  });
+};
+
+const agreementFor = async ({ code, clientRef }, session) => {
+  const { agreement } = await loadEntitlementReferenceContext(
+    { code, clientRef },
+    session,
+  );
+
+  if (!agreement) {
+    throw Boom.badImplementation(
+      `Claim for "${clientRef}" has no Agreement to report its Payment against`,
+    );
+  }
+
+  return agreement;
+};
+
+const createClaimPayment = async (
+  { command, claimable, resolvedPayment },
+  session,
+) => {
+  if (resolvedPayment === null || claimable.claim?.requiresApproval) {
+    return;
+  }
+
+  const agreement = await agreementFor(command, session);
+  const { publication } = await createClaimPaymentUseCase(
+    {
+      code: command.code,
+      clientRef: command.clientRef,
+      clientClaimRef: command.payload.metadata.clientClaimRef,
+      entitlementId: command.payload.claim.entitlementId,
+      agreementNumber: agreement.agreementNumber,
+      agreementVersion: agreement.version,
+      correlationId: agreement.correlationId,
+      resolved: resolvedPayment,
+    },
+    session,
+  );
+
+  await saveOutboxEvents([publication], session);
+};
+
 const submitInTransaction = async (
-  { command, grant, pinnedVersion },
+  { command, grant, pinnedVersion, resolvedPayment },
   session,
 ) => {
   const application = await lockedApplicationFor(
@@ -318,10 +426,14 @@ const submitInTransaction = async (
     session,
   );
 
-  return insertClaimWithAudit(
+  const result = await insertClaimWithAudit(
     { command, claimCode: claimable.claimCode },
     session,
   );
+
+  await createClaimPayment({ command, claimable, resolvedPayment }, session);
+
+  return result;
 };
 
 const replayAfterDuplicate = async (error, command) => {
@@ -363,10 +475,21 @@ const submitAttempt = async (command, attempt) => {
     command.code,
   );
   const pinnedVersion = pinnedVersionOf(application);
-  const grant = await resolveGrant({ code: command.code, pinnedVersion });
+  const grant = await resolveGrant({
+    code: command.code,
+    pinnedVersion,
+  });
+  const resolvedPayment = await resolveClaimPayment({
+    command,
+    grant,
+    configVersion: pinnedVersion,
+  });
   try {
     return await withTransaction((session) =>
-      submitInTransaction({ command, grant, pinnedVersion }, session),
+      submitInTransaction(
+        { command, grant, pinnedVersion, resolvedPayment },
+        session,
+      ),
     );
   } catch (error) {
     return retryOrThrow(error, command, attempt);

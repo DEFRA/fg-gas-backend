@@ -20,8 +20,8 @@ import { buildPayment } from "./build-payment.js";
  * in-process call exists because a shared transaction cannot cross an event or
  * HTTP seam.
  *
- * The Agreement Number and Correlation ID are the Agreement the Claim was made
- * under, resolved by the caller and taken here as plain values: `payments` knows
+ * The Agreement Number, version and Correlation ID are the Agreement the Claim
+ * was made under, resolved by the caller and taken here as plain values: `payments` knows
  * nothing about Claims, Agreements or how the two are related.
  *
  * Returns the Payment with the outbox publication that sends it to the Payment
@@ -35,6 +35,7 @@ export const createClaimPaymentUseCase = async (
     clientClaimRef,
     entitlementId,
     agreementNumber,
+    agreementVersion,
     correlationId,
     resolved,
   },
@@ -49,8 +50,9 @@ export const createClaimPaymentUseCase = async (
       clientRef,
       clientClaimRef,
       entitlementId,
+      agreementNumber,
+      agreementVersion,
     },
-    agreementNumber,
     correlationId,
     resolved,
     paymentHubClaimId: formatClaimId(sequence),

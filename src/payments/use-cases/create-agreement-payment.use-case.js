@@ -33,7 +33,6 @@ export const createAgreementPaymentUseCase = async (
       agreementNumber,
       version,
     },
-    agreementNumber,
     correlationId: agreementCorrelationId,
     resolved,
     paymentHubClaimId: formatClaimId(sequence),

@@ -38,6 +38,35 @@ const validResolvedPayment = Object.fromEntries(
   Object.entries(validDefinition).filter(([key]) => key !== "code"),
 );
 
+// The Claim body GAS stores is whatever grants-ui submits: the request schema
+// declares `entitlementId` and passes the rest through. The woodland journey
+// names its money field `totalClaimAmountPence` (grants-config-woodland's
+// woodland.yaml renders it on the /claim page), so the shipped definition has to
+// map that exact name. This fixture is the payload the journey sends; if it and
+// the definition ever disagree, resolution fails at submission time and marks
+// the definition permanently broken, so the pair is pinned here.
+const woodlandClaim = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../test/fixtures/woodland-claim-submission.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+
+const woodlandDefinition = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../compose/seed/woodland/1.28.2/gas/payment.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+
+const woodlandExecution = { executedAt: "2026-09-14T13:11:01.000Z" };
+
 const pmfDefinition = JSON.parse(
   readFileSync(
     new URL(
@@ -504,5 +533,69 @@ describe("PMF payment definition (real config)", () => {
     expect(
       payment.payments[0].invoiceLines.map(({ description }) => description),
     ).toEqual(["Large White Pig", "Berkshire"]);
+  });
+});
+
+describe("the woodland Claim definition", () => {
+  it("constructs the compose seed", () => {
+    const definition = new PaymentDefinition(woodlandDefinition);
+
+    expect(definition.code).toBe("woodland");
+  });
+
+  it("resolves the Claim payload the woodland journey submits", async () => {
+    const definition = new PaymentDefinition(woodlandDefinition);
+
+    const payment = await definition.resolve({
+      claim: woodlandClaim,
+      execution: woodlandExecution,
+    });
+
+    expect(payment).toEqual({
+      sbi: "113593357",
+      frn: "1100943757",
+      originalInvoiceNumber: "",
+      scheme: "WMP",
+      sourceSystem: "WMP",
+      deliveryBody: "RP10",
+      fesCode: "FALS_WMP",
+      ledger: "AP",
+      totalAmountPence: 150000,
+      currency: "GBP",
+      marketingYear: "2026",
+      payments: [
+        {
+          dueDate: "2026-09-14",
+          totalAmountPence: 150000,
+          invoiceLines: [
+            {
+              schemeCode: "WMP",
+              description: "Woodland Management Plan Payment",
+              amountPence: 150000,
+              accountCode: "SOS710",
+              fundCode: "DRD10",
+              deliveryBody: "RP10",
+              marketingYear: "2026",
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  // The failure this guards against: a Claim body that does not carry the field
+  // the definition maps resolves to nothing, and `resolvePaymentDefinition`
+  // then marks the definition permanently broken for every later Claim.
+  it("rejects a Claim whose money field is named differently", async () => {
+    const definition = new PaymentDefinition(woodlandDefinition);
+    const claim = structuredClone(woodlandClaim);
+    claim.claim.claimAmountPence = claim.claim.totalClaimAmountPence;
+    delete claim.claim.totalClaimAmountPence;
+
+    await expectResolutionError(
+      definition,
+      { claim, execution: woodlandExecution },
+      "Unresolved process mapping",
+    );
   });
 });

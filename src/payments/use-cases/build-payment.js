@@ -21,7 +21,6 @@ const toDuePayment = (duePayment) => ({
 
 export const buildPayment = ({
   source,
-  agreementNumber,
   correlationId,
   resolved,
   paymentHubClaimId,
@@ -29,7 +28,6 @@ export const buildPayment = ({
 }) => {
   return Payment.create({
     source,
-    agreementNumber,
     correlationId: requireCorrelationId(correlationId),
     sbi: resolved.sbi,
     frn: resolved.frn,

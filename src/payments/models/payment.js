@@ -48,10 +48,10 @@ export const PaymentSourceType = {
   CLAIM: "claim",
 };
 
-// Each source identifies the record the Payment was raised from, by that
-// record's own key: an Agreement by number and version, a Claim by the three
-// fields its unique index is built on plus the Entitlement it was claimed
-// against.
+// Each source identifies the record the Payment was raised from by that
+// record's own key. The Agreement version a Claim carries is point-in-time: the
+// current Agreement's moves on as amendments land, so nothing read later can
+// recover which one was in force when this was paid.
 const agreementSourceSchema = Joi.object({
   type: Joi.string().valid(PaymentSourceType.AGREEMENT).required(),
   agreementNumber: Joi.string().required(),
@@ -64,6 +64,10 @@ const claimSourceSchema = Joi.object({
   clientRef: Joi.string().required(),
   clientClaimRef: Joi.string().required(),
   entitlementId: Joi.string().required(),
+  // Not the Claim's identity: the Agreement it is reported against, kept here
+  // because the message is built from the Payment alone.
+  agreementNumber: Joi.string().required(),
+  agreementVersion: Joi.number().integer().min(1).required(),
 });
 
 const sourceSchema = Joi.alternatives()
@@ -102,11 +106,6 @@ export class Payment {
   static validationSchema = Joi.object({
     id: Joi.string().required(),
     source: sourceSchema,
-    // The Agreement this Payment is reported against in the legacy Payment
-    // Service message. For an Agreement source it repeats the source's own
-    // number; for a Claim source it is the Agreement the Claim was made under,
-    // which the Claim's identity does not carry.
-    agreementNumber: Joi.string().required(),
     sbi: Joi.string().required(),
     frn: Joi.string().required(),
     paymentHubClaimId: Joi.string().required(),
@@ -155,7 +154,6 @@ export class Payment {
 
     this.id = value.id;
     this.source = structuredClone(value.source);
-    this.agreementNumber = value.agreementNumber;
     this.sbi = value.sbi;
     this.frn = value.frn;
     this.paymentHubClaimId = value.paymentHubClaimId;

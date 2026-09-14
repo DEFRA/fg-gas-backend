@@ -15,6 +15,7 @@ const request = {
   clientClaimRef: "WMP-TU3-LBJ-C01",
   entitlementId: "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
   agreementNumber: "WMP-WMPTU3LBJ",
+  agreementVersion: 3,
   correlationId: "123e4567-e89b-12d3-a456-426614174000",
   resolved: {
     sbi: "113593357",
@@ -68,8 +69,9 @@ describe("createClaimPaymentUseCase", () => {
         clientRef: "wmp-tu3-lbj",
         clientClaimRef: "WMP-TU3-LBJ-C01",
         entitlementId: "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
+        agreementNumber: "WMP-WMPTU3LBJ",
+        agreementVersion: 3,
       },
-      agreementNumber: "WMP-WMPTU3LBJ",
       sbi: "113593357",
       frn: "1100943757",
       paymentHubClaimId: "R00000007",

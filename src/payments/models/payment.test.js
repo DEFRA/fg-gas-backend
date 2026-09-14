@@ -7,7 +7,6 @@ const props = {
     agreementNumber: "PMF123456789",
     version: 2,
   },
-  agreementNumber: "PMF123456789",
   sbi: "106284736",
   frn: "1101234567",
   paymentHubClaimId: "R00000001",
@@ -137,6 +136,8 @@ describe("Payment", () => {
       clientRef: "wmp-tu3-lbj",
       clientClaimRef: "WMP-TU3-LBJ-C01",
       entitlementId: "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
+      agreementNumber: "WMP-WMPTU3LBJ",
+      agreementVersion: 3,
     };
 
     it("accepts a Claim source", () => {
@@ -170,9 +171,9 @@ describe("Payment", () => {
       expect(() =>
         Payment.create({
           ...props,
-          source: { ...claimSource, type: "agreement" },
+          source: { ...claimSource, type: PaymentSourceType.AGREEMENT },
         }),
-      ).toThrow('"source.agreementNumber" is required');
+      ).toThrow('"source.version" is required');
     });
 
     it("rejects a source type it does not know", () => {

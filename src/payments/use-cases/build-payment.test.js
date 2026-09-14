@@ -55,7 +55,6 @@ const build = (overrides = {}) =>
       agreementNumber: "PMF123456789",
       version: 2,
     },
-    agreementNumber: "PMF123456789",
     correlationId: "123e4567-e89b-12d3-a456-426614174000",
     resolved,
     paymentHubClaimId: "R00000001",

@@ -15,8 +15,11 @@ const eventTime = "2026-08-01T11:00:00.000Z";
 
 const payment = new Payment({
   id: "d5b4a5f7-6ac0-4a55-9ee7-3f5b6c1f8a41",
-  source: { type: "agreement", agreementNumber: "FPTT123456", version: 2 },
-  agreementNumber: "FPTT123456",
+  source: {
+    type: "agreement",
+    agreementNumber: "FPTT123456",
+    version: 2,
+  },
   sbi: "SBI123",
   frn: "FRN456",
   paymentHubClaimId: "R00000001",
@@ -132,7 +135,6 @@ describe("createPaymentPublication", () => {
         agreementNumber: "FPTT123456",
         version: 2,
       },
-      agreementNumber: "FPTT123456",
       correlationId: "123e4567-e89b-12d3-a456-426614174000",
       resolved: resolvedPayment,
       paymentHubClaimId: "R00000001",
@@ -159,7 +161,6 @@ describe("createPaymentPublication", () => {
         agreementNumber: "FPTT123456",
         version: 2,
       },
-      agreementNumber: "FPTT123456",
       correlationId: "123e4567-e89b-12d3-a456-426614174000",
       resolved,
       paymentHubClaimId: "R00000001",
@@ -206,8 +207,9 @@ describe("createPaymentPublication", () => {
         clientRef: "wmp-tu3-lbj",
         clientClaimRef: "WMP-TU3-LBJ-C01",
         entitlementId: "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
+        agreementNumber: "WMP-WMPTU3LBJ",
+        agreementVersion: 3,
       },
-      agreementNumber: "WMP-WMPTU3LBJ",
     };
 
     // Every Claim under one Application shares a lock, so its Payments are

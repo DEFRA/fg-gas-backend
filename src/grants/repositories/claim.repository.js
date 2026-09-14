@@ -36,8 +36,7 @@ export const countByClaimCode = async (
     .countDocuments({ code, clientRef, claimCode }, { session });
 
 // Mongo assigns _id, which is the id the Claim is audited and reported under.
-// The Claim model owns every other field, so this is the only place that knows
-// the document shape.
+// The model owns every other field.
 const toDocument = (claim) => ({
   code: claim.code,
   clientRef: claim.clientRef,

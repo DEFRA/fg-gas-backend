@@ -56,7 +56,7 @@ const toGrant = (payment) => ({
   invoiceNumber: payment.invoiceNumber,
   ledger: payment.ledger,
   originalInvoiceNumber: payment.originalInvoiceNumber,
-  agreementNumber: payment.agreementNumber,
+  agreementNumber: payment.source.agreementNumber,
   totalAmountPence: toPence(payment.totalAmountPence),
   currency: payment.currency,
   marketingYear: payment.marketingYear,
@@ -79,11 +79,9 @@ const createPaymentEvent = (payment) => ({
   },
 });
 
-// The segregation reference is the outbox FIFO lock, and becomes the SNS FIFO
-// message group ID when the subscriber publishes. It is the source's own
-// grouping key: an Agreement's payments stay ordered behind its number, and a
-// Claim's behind its Client Reference, so every Claim made under one
-// Application is ordered against the others rather than racing them.
+// The outbox FIFO lock, and the SNS message group ID once published: an
+// Agreement's payments stay ordered behind its number, a Claim's behind the
+// Client Reference it shares with every other Claim on that Application.
 const segregationRefOf = (payment) =>
   payment.source.type === PaymentSourceType.CLAIM
     ? payment.source.clientRef

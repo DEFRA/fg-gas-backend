@@ -28,7 +28,7 @@ const payload = {
   },
   claim: {
     entitlementId: "8cef007b-af1e-4cdc-bf4c-948b6bf85d05",
-    claimAmountPence: 150000,
+    totalClaimAmountPence: 150000,
   },
 };
 
@@ -128,6 +128,49 @@ describe("submitClaimRoute", () => {
 
     expect(statusCode).toBe(400);
     expect(submitClaim).not.toHaveBeenCalled();
+  });
+
+  // Payment definitions map this amount, so the wrong type here would otherwise
+  // surface as a resolution failure that disables the definition for every
+  // later Claim rather than a 400 on this one.
+  it.each([
+    ["a non-integer amount", 1500.5],
+    ["a negative amount", -1],
+  ])("returns 400 for %s", async (_label, totalClaimAmountPence) => {
+    const { statusCode } = await server.inject({
+      method: "POST",
+      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
+      payload: {
+        ...payload,
+        claim: { ...payload.claim, totalClaimAmountPence },
+      },
+    });
+
+    expect(statusCode).toBe(400);
+    expect(submitClaim).not.toHaveBeenCalled();
+  });
+
+  // Joi converts before the handler runs, so a numerically valid string reaches
+  // the Claim as an integer and is stored that way.
+  it("normalises an amount sent as a string", async () => {
+    submitClaim.mockResolvedValue({ created: true, claimId: "claim-1" });
+
+    await server.inject({
+      method: "POST",
+      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
+      payload: {
+        ...payload,
+        claim: { ...payload.claim, totalClaimAmountPence: "150000" },
+      },
+    });
+
+    expect(submitClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          claim: expect.objectContaining({ totalClaimAmountPence: 150000 }),
+        }),
+      }),
+    );
   });
 
   it("returns 409 when the use case rejects the application state", async () => {
