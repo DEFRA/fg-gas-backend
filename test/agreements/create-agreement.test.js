@@ -192,5 +192,11 @@ describe("PMF Agreement creation", () => {
       "event.eventData.eventType": "AGREEMENT_CREATED",
       "event.eventData.agreementId": agreement.agreementNumber,
     });
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__REPORTING_EVENTS_TOPIC_ARN,
+      "event.eventData.eventType": "AGREEMENT_STATUS_CHANGED",
+      "event.eventData.agreementId": agreement.agreementNumber,
+      "event.eventData.agreementStatus": "offered",
+    });
   });
 });

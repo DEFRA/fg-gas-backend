@@ -302,6 +302,17 @@ describe("createAgreementUseCase", () => {
             }),
           }),
         }),
+        expect.objectContaining({
+          segregationRef: agreement.agreementNumber,
+          event: expect.objectContaining({
+            datetime: agreement.createdAt,
+            eventData: expect.objectContaining({
+              eventType: "AGREEMENT_STATUS_CHANGED",
+              agreementStatus: "offered",
+              statusDate: agreement.createdAt,
+            }),
+          }),
+        }),
       ]),
       session,
     );
