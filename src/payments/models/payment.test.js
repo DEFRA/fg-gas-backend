@@ -7,6 +7,7 @@ const props = {
     agreementNumber: "PMF123456789",
     version: 2,
   },
+  agreementNumber: "PMF123456789",
   sbi: "106284736",
   frn: "1101234567",
   paymentHubClaimId: "R00000001",
@@ -82,6 +83,23 @@ describe("Payment", () => {
     expect(() =>
       Payment.create({ ...props, paymentHubClaimId: undefined }),
     ).toThrow("Invalid Payment");
+  });
+
+  // The Payment is what the Payment Service is paid from, so a total that does
+  // not add up must not be constructible at all.
+  it("rejects a Payment whose total does not match its due payments", () => {
+    expect(() => Payment.create({ ...props, totalAmountPence: 3900 })).toThrow(
+      "totalAmountPence does not balance with its payments",
+    );
+  });
+
+  it("rejects a due payment that does not match its invoice lines", () => {
+    const payments = structuredClone(props.payments);
+    payments[0].totalAmountPence = 3700;
+
+    expect(() =>
+      Payment.create({ ...props, payments, totalAmountPence: 3700 }),
+    ).toThrow("does not balance with its invoice lines");
   });
 
   it("rejects a Payment with no due payments", () => {

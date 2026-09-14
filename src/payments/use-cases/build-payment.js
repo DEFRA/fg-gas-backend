@@ -1,22 +1,16 @@
 import Boom from "@hapi/boom";
 import { randomUUID } from "node:crypto";
-import {
-  DuePaymentStatus,
-  Payment,
-  PaymentSourceType,
-} from "../models/payment.js";
+import { DuePaymentStatus, Payment } from "../models/payment.js";
 import { formatInvoiceNumber } from "../services/claim-id.js";
 
 const PAYMENT_REQUEST_NUMBER = 1;
 
-const requireAgreementCorrelationId = (agreementCorrelationId) => {
-  if (!agreementCorrelationId) {
-    throw Boom.badImplementation(
-      "createPayment requires the Agreement Correlation ID",
-    );
+const requireCorrelationId = (correlationId) => {
+  if (!correlationId) {
+    throw Boom.badImplementation("createPayment requires the Correlation ID");
   }
 
-  return agreementCorrelationId;
+  return correlationId;
 };
 
 const toDuePayment = (duePayment) => ({
@@ -26,25 +20,20 @@ const toDuePayment = (duePayment) => ({
 });
 
 export const buildPayment = ({
+  source,
   agreementNumber,
-  version,
-  agreementCorrelationId,
+  correlationId,
   resolved,
   paymentHubClaimId,
   createdAt,
 }) => {
-  const correlationId = requireAgreementCorrelationId(agreementCorrelationId);
-
   return Payment.create({
-    source: {
-      type: PaymentSourceType.AGREEMENT,
-      agreementNumber,
-      version,
-    },
+    source,
+    agreementNumber,
+    correlationId: requireCorrelationId(correlationId),
     sbi: resolved.sbi,
     frn: resolved.frn,
     paymentHubClaimId,
-    correlationId,
     scheme: resolved.scheme,
     sourceSystem: resolved.sourceSystem,
     deliveryBody: resolved.deliveryBody,

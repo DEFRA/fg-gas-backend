@@ -102,6 +102,11 @@ export class Payment {
   static validationSchema = Joi.object({
     id: Joi.string().required(),
     source: sourceSchema,
+    // The Agreement this Payment is reported against in the legacy Payment
+    // Service message. For an Agreement source it repeats the source's own
+    // number; for a Claim source it is the Agreement the Claim was made under,
+    // which the Claim's identity does not carry.
+    agreementNumber: Joi.string().required(),
     sbi: Joi.string().required(),
     frn: Joi.string().required(),
     paymentHubClaimId: Joi.string().required(),
@@ -150,6 +155,7 @@ export class Payment {
 
     this.id = value.id;
     this.source = structuredClone(value.source);
+    this.agreementNumber = value.agreementNumber;
     this.sbi = value.sbi;
     this.frn = value.frn;
     this.paymentHubClaimId = value.paymentHubClaimId;

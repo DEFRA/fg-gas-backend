@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { config } from "../../common/config.js";
+import { PaymentSourceType } from "../models/payment.js";
 
 // The Payment Service consumes the envelope the legacy Agreements API published,
 // so the type and source are its literal values rather than the
@@ -55,7 +56,7 @@ const toGrant = (payment) => ({
   invoiceNumber: payment.invoiceNumber,
   ledger: payment.ledger,
   originalInvoiceNumber: payment.originalInvoiceNumber,
-  agreementNumber: payment.source.agreementNumber,
+  agreementNumber: payment.agreementNumber,
   totalAmountPence: toPence(payment.totalAmountPence),
   currency: payment.currency,
   marketingYear: payment.marketingYear,
@@ -78,18 +79,25 @@ const createPaymentEvent = (payment) => ({
   },
 });
 
+// The segregation reference is the outbox FIFO lock, and becomes the SNS FIFO
+// message group ID when the subscriber publishes. It is the source's own
+// grouping key: an Agreement's payments stay ordered behind its number, and a
+// Claim's behind its Client Reference, so every Claim made under one
+// Application is ordered against the others rather than racing them.
+const segregationRefOf = (payment) =>
+  payment.source.type === PaymentSourceType.CLAIM
+    ? payment.source.clientRef
+    : payment.source.agreementNumber;
+
 /**
  * Turns a persisted Payment into the outbox record that publishes it to the
  * Payment Service.
  *
  * Everything the message needs is already on the Payment, so building it never
- * loads the Agreement or its definition. The Agreement Number is the outbox
- * segregation reference, which keeps a single Agreement's payment events in
- * order behind one FIFO lock and becomes the SNS FIFO message group ID when the
- * outbox subscriber publishes it.
+ * loads the Agreement, the Claim or the definition.
  */
 export const createPaymentPublication = (payment) => ({
   event: createPaymentEvent(payment),
   target: config.sns.createPaymentTopicArn,
-  segregationRef: payment.source.agreementNumber,
+  segregationRef: segregationRefOf(payment),
 });

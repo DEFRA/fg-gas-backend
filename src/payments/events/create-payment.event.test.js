@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // createGrantPaymentFromAgreement test, wrapped in the CloudEvent fields GAS
 // must preserve.
 import legacyCreatePaymentEvent from "../../../test/fixtures/legacy-create-payment-event.json";
-import { Payment } from "../models/payment.js";
+import { Payment, PaymentSourceType } from "../models/payment.js";
 import { buildPayment } from "../use-cases/build-payment.js";
 import { createPaymentPublication } from "./create-payment.event.js";
 
@@ -16,6 +16,7 @@ const eventTime = "2026-08-01T11:00:00.000Z";
 const payment = new Payment({
   id: "d5b4a5f7-6ac0-4a55-9ee7-3f5b6c1f8a41",
   source: { type: "agreement", agreementNumber: "FPTT123456", version: 2 },
+  agreementNumber: "FPTT123456",
   sbi: "SBI123",
   frn: "FRN456",
   paymentHubClaimId: "R00000001",
@@ -126,9 +127,13 @@ describe("createPaymentPublication", () => {
 
   it("builds configured Agreement lines into the captured legacy event", () => {
     const builtPayment = buildPayment({
+      source: {
+        type: PaymentSourceType.AGREEMENT,
+        agreementNumber: "FPTT123456",
+        version: 2,
+      },
       agreementNumber: "FPTT123456",
-      version: 2,
-      agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",
+      correlationId: "123e4567-e89b-12d3-a456-426614174000",
       resolved: resolvedPayment,
       paymentHubClaimId: "R00000001",
       createdAt: "2026-08-01T10:00:00.000Z",
@@ -149,9 +154,13 @@ describe("createPaymentPublication", () => {
     resolved.payments[0].invoiceLines[0].deliveryBody = "RPA1";
     resolved.payments[0].invoiceLines[0].marketingYear = "2027";
     const builtPayment = buildPayment({
+      source: {
+        type: PaymentSourceType.AGREEMENT,
+        agreementNumber: "FPTT123456",
+        version: 2,
+      },
       agreementNumber: "FPTT123456",
-      version: 2,
-      agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",
+      correlationId: "123e4567-e89b-12d3-a456-426614174000",
       resolved,
       paymentHubClaimId: "R00000001",
       createdAt: "2026-08-01T10:00:00.000Z",
@@ -186,6 +195,37 @@ describe("createPaymentPublication", () => {
 
     expect(segregationRef).toBe("FPTT123456");
     expect(event).not.toHaveProperty("messageGroupId");
+  });
+
+  describe("from a Claim", () => {
+    const claimPayment = {
+      ...payment,
+      source: {
+        type: PaymentSourceType.CLAIM,
+        code: "woodland",
+        clientRef: "wmp-tu3-lbj",
+        clientClaimRef: "WMP-TU3-LBJ-C01",
+        entitlementId: "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
+      },
+      agreementNumber: "WMP-WMPTU3LBJ",
+    };
+
+    // Every Claim under one Application shares a lock, so its Payments are
+    // ordered against each other rather than racing.
+    it("groups by Client Reference", () => {
+      const { segregationRef } = createPaymentPublication(claimPayment);
+
+      expect(segregationRef).toBe("wmp-tu3-lbj");
+    });
+
+    // The legacy message is unchanged by the source: the Payment Service still
+    // receives the Agreement the Payment is reported against.
+    it("reports the Agreement the Claim was made under", () => {
+      const { event } = createPaymentPublication(claimPayment);
+
+      expect(event.data.grants[0].agreementNumber).toBe("WMP-WMPTU3LBJ");
+      expect(event.data.grants[0]).not.toHaveProperty("clientClaimRef");
+    });
   });
 
   it("stringifies pence at the boundary", () => {
