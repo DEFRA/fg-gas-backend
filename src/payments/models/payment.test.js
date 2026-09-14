@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Payment } from "./payment.js";
+import { Payment, PaymentSourceType } from "./payment.js";
 
 const props = {
   source: {
@@ -94,5 +94,79 @@ describe("Payment", () => {
     const payment = Payment.create({ ...props, notAField: "dropped" });
 
     expect(payment.notAField).toBeUndefined();
+  });
+
+  // The schema stripping an undeclared field is one guard; the constructor
+  // assigning only declared fields is the other. This asserts the second on its
+  // own, so a schema loosened later cannot quietly put data on a Payment.
+  it("copies nothing the schema does not declare, even if it stops stripping it", () => {
+    const strict = Payment.validationSchema;
+    Payment.validationSchema = strict.unknown(true);
+
+    try {
+      const payment = Payment.create({ ...props, notAField: "dropped" });
+
+      expect(payment.notAField).toBeUndefined();
+    } finally {
+      Payment.validationSchema = strict;
+    }
+  });
+
+  describe("source", () => {
+    const claimSource = {
+      type: PaymentSourceType.CLAIM,
+      code: "woodland",
+      clientRef: "wmp-tu3-lbj",
+      clientClaimRef: "WMP-TU3-LBJ-C01",
+      entitlementId: "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
+    };
+
+    it("accepts a Claim source", () => {
+      const payment = Payment.create({ ...props, source: claimSource });
+
+      expect(payment.source).toEqual(claimSource);
+    });
+
+    it("accepts an Agreement source", () => {
+      const payment = Payment.create(props);
+
+      expect(payment.source).toEqual({
+        type: PaymentSourceType.AGREEMENT,
+        agreementNumber: "PMF123456789",
+        version: 2,
+      });
+    });
+
+    // Each source is validated against its own type, so one variant's
+    // identifiers cannot stand in for the other's.
+    it("rejects a Claim source identified like an Agreement", () => {
+      expect(() =>
+        Payment.create({
+          ...props,
+          source: { type: PaymentSourceType.CLAIM, agreementNumber: "WMP-1" },
+        }),
+      ).toThrow('"source.clientClaimRef" is required');
+    });
+
+    it("rejects an Agreement source identified like a Claim", () => {
+      expect(() =>
+        Payment.create({
+          ...props,
+          source: { ...claimSource, type: "agreement" },
+        }),
+      ).toThrow('"source.agreementNumber" is required');
+    });
+
+    it("rejects a source type it does not know", () => {
+      expect(() =>
+        Payment.create({ ...props, source: { type: "invoice" } }),
+      ).toThrow('"source.type" must be one of [agreement, claim]');
+    });
+
+    it("rejects a source with no type", () => {
+      expect(() =>
+        Payment.create({ ...props, source: { code: "woodland" } }),
+      ).toThrow('"source.type" is required');
+    });
   });
 });
