@@ -5,14 +5,6 @@ import { ConfigVersion } from "../models/config-version.js";
 
 const collection = "config_versions";
 
-const initializeLegacyS3Key = (s3Key) => ({
-  $cond: [
-    { $eq: [{ $type: "$s3Key" }, "missing"] },
-    { $literal: s3Key },
-    "$s3Key",
-  ],
-});
-
 const definitionLocationUpdate = (definitionType, s3Key) => ({
   [`definitions.${definitionType}`]: {
     $mergeObjects: [
@@ -54,9 +46,6 @@ export const upsert = async (
           minor: doc.minor,
           patch: doc.patch,
           status: doc.status,
-          // Release A requires a top-level key to read records first seen by
-          // Release B. Initialise it once, but keep all fetch state nested.
-          s3Key: initializeLegacyS3Key(grant.s3Key),
           s3Bucket: { $literal: doc.s3Bucket },
           receivedAt: { $ifNull: ["$receivedAt", doc.receivedAt] },
           "definitions.grant": {
@@ -87,18 +76,7 @@ export const findLatestForMajor = async (grantCode, major) => {
       grantCode,
       major,
       status: "active",
-      $or: [
-        {
-          "definitions.grant.fetchStatus": {
-            $exists: true,
-            $ne: FetchStatus.PermanentError,
-          },
-        },
-        {
-          "definitions.grant.fetchStatus": { $exists: false },
-          fetchStatus: { $ne: FetchStatus.PermanentError },
-        },
-      ],
+      "definitions.grant.fetchStatus": { $ne: FetchStatus.PermanentError },
     },
     { sort: { minor: -1, patch: -1 } },
   );
