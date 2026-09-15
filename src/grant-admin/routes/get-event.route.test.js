@@ -9,11 +9,11 @@ import {
   it,
   vi,
 } from "vitest";
-import { eventDetailPageUseCase } from "../use-cases/event-detail-page.use-case.js";
+import { getEventUseCase } from "../use-cases/get-event.use-case.js";
 import { getEventRoute } from "./get-event.route.js";
 
 vi.mock("../../common/logger.js");
-vi.mock("../use-cases/event-detail-page.use-case.js");
+vi.mock("../use-cases/get-event.use-case.js");
 
 const ID = "665f1c2e9a1b2c3d4e5f6a7b";
 
@@ -36,9 +36,9 @@ describe("getEventRoute", () => {
     expect(getEventRoute.options.auth).toBeUndefined();
   });
 
-  it("declares the composed detail page response schema", () => {
+  it("declares the detail response schema - the event is the whole answer", () => {
     expect(getEventRoute.options.response.schema.describe().flags.label).toBe(
-      "EventDetailPage",
+      "EventDetail",
     );
   });
 
@@ -69,26 +69,25 @@ describe("getEventRoute", () => {
   });
 
   it("passes the params and the authenticated caller to the use case", async () => {
-    const detail = { id: ID, journey: [], sectionErrors: [] };
-    eventDetailPageUseCase.mockResolvedValue(detail);
+    getEventUseCase.mockResolvedValue({ id: ID });
 
     const result = await getEventRoute.handler(aRequest());
 
-    expect(eventDetailPageUseCase).toHaveBeenCalledWith({
+    expect(getEventUseCase).toHaveBeenCalledWith({
       service: "gas",
       box: "inbox",
       id: ID,
       caller: "grants-ui",
     });
-    expect(result).toBe(detail);
+    expect(result).toEqual({ id: ID });
   });
 
   it("sends a null caller when there are no credentials", async () => {
-    eventDetailPageUseCase.mockResolvedValue({ id: ID });
+    getEventUseCase.mockResolvedValue({ id: ID });
 
     await getEventRoute.handler(aRequest({ auth: undefined }));
 
-    expect(eventDetailPageUseCase).toHaveBeenCalledWith(
+    expect(getEventUseCase).toHaveBeenCalledWith(
       expect.objectContaining({ caller: null }),
     );
   });
@@ -97,51 +96,27 @@ describe("getEventRoute", () => {
 describe("getEventRoute over HTTP", () => {
   let server;
 
-  // An OUTBOX detail, which is why it carries no reference, traceparent or
-  // trace id.
   const detail = {
     service: "gas",
     box: "outbox",
     id: ID,
     eventId: "evt-detail-1",
     type: "case.create",
-    hop: "GAS Outbox",
-    queue: "to Caseworking",
-    queueValue: "gas__sns__create_new_case_fifo.fifo",
+    targetTopic: "gas__sns__create_new_case_fifo.fifo",
     status: "DEAD_LETTER",
     statusLabel: "Dead letter",
     statusRole: "error",
     statusRetrying: false,
     attempts: "5/5",
-    showAttempts: true,
     createdAt: "2026-06-16T10:00:00.000Z",
-    lastFailureAt: null,
     lastError: null,
     payload: { id: "evt-detail-1", data: { clientRef: "REF-1" } },
-    typeTitle: "cloud.defra.local.fg-gas-backend.case.create",
-    occurredAt: "2026-06-16T10:00:00.000Z",
-    messageGroupId: null,
-    publicationDate: "2026-06-16T10:00:00.000Z",
+    traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+    segregationRef: "GLD-9B2",
     completionDate: null,
     lastResubmissionDate: null,
-    claimedAt: null,
-    claimExpiresAt: null,
     attemptHistory: [],
     lastRedrive: null,
-  };
-
-  // The hops the journey table draws - not list rows.
-  const hop = {
-    service: "gas",
-    box: "inbox",
-    id: "665f1c2e9a1b2c3d4e5f6a7c",
-    hop: "GAS Inbox",
-    status: "COMPLETED",
-    statusLabel: "Completed",
-    statusRole: "success",
-    statusRetrying: false,
-    startedAt: "2026-06-16T10:00:01.000Z",
-    took: "1.2s",
   };
 
   const url = `/grant-admin/events/gas/outbox/${ID}`;
@@ -158,42 +133,18 @@ describe("getEventRoute over HTTP", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    eventDetailPageUseCase.mockResolvedValue({
-      ...detail,
-      journey: [hop],
-      journeyTruncated: false,
-      sectionErrors: [],
-    });
+    getEventUseCase.mockResolvedValue(detail);
   });
 
-  it("answers with the detail and its journey", async () => {
+  it("answers with the event", async () => {
     const result = await server.inject({ method: "GET", url });
 
     expect(result.statusCode).toEqual(200);
-    expect(result.result.journey).toEqual([hop]);
-    expect(result.result.sectionErrors).toEqual([]);
     expect(result.result.payload).toEqual(detail.payload);
   });
 
-  it("answers 200 with a null journey and its sectionError", async () => {
-    eventDetailPageUseCase.mockResolvedValue({
-      ...detail,
-      journey: null,
-      journeyTruncated: false,
-      sectionErrors: [{ section: "journey", message: "read failed" }],
-    });
-
-    const result = await server.inject({ method: "GET", url });
-
-    expect(result.statusCode).toEqual(200);
-    expect(result.result.journey).toBeNull();
-    expect(result.result.sectionErrors).toEqual([
-      { section: "journey", message: "read failed" },
-    ]);
-  });
-
   it("answers 404 when the event is not found", async () => {
-    eventDetailPageUseCase.mockRejectedValue(
+    getEventUseCase.mockRejectedValue(
       Boom.notFound(`gas outbox event "${ID}" not found`),
     );
 
@@ -204,26 +155,13 @@ describe("getEventRoute over HTTP", () => {
   });
 
   it("answers 502 when the event could not be read", async () => {
-    eventDetailPageUseCase.mockRejectedValue(
+    getEventUseCase.mockRejectedValue(
       Boom.badGateway("Caseworking outbox unavailable"),
     );
 
     const result = await server.inject({ method: "GET", url });
 
     expect(result.statusCode).toEqual(502);
-  });
-
-  it("answers 500 when a journey hop carries a detail-only field", async () => {
-    eventDetailPageUseCase.mockResolvedValue({
-      ...detail,
-      journey: [{ ...hop, payload: { leaked: true } }],
-      journeyTruncated: false,
-      sectionErrors: [],
-    });
-
-    const result = await server.inject({ method: "GET", url });
-
-    expect(result.statusCode).toEqual(500);
   });
 
   it("answers 400 for an id that is not a 24-hex ObjectId", async () => {
@@ -233,6 +171,6 @@ describe("getEventRoute over HTTP", () => {
     });
 
     expect(result.statusCode).toEqual(400);
-    expect(eventDetailPageUseCase).not.toHaveBeenCalled();
+    expect(getEventUseCase).not.toHaveBeenCalled();
   });
 });

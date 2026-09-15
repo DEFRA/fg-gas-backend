@@ -1,6 +1,13 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { findCwPage } from "../repositories/cw-actuators.repository.js";
+import {
+  findCwPage,
+  isCwConfigured,
+} from "../repositories/cw-actuators.repository.js";
+import {
+  encodeCompositeCursor,
+  encodeSourceCursor,
+} from "../services/event-cursor.js";
 import {
   serviceVocabulary,
   statusVocabulary,
@@ -19,6 +26,7 @@ vi.mock(
   async (importOriginal) => ({
     ...(await importOriginal()),
     findCwPage: vi.fn(),
+    isCwConfigured: vi.fn(),
   }),
 );
 
@@ -41,14 +49,7 @@ const GROUP = {
 
 const listPage = (overrides = {}) => ({
   events: [{ id: "665f1c2e9a1b2c3d4e5f6a7b" }],
-  // The same page in the journey's shape, which this response has no use for.
-  hops: [{ id: "665f1c2e9a1b2c3d4e5f6a7b" }],
-  pagination: {
-    startCursor: "start",
-    endCursor: "end",
-    hasNextPage: true,
-    hasPreviousPage: false,
-  },
+  pagination: { endCursor: "end", hasNextPage: true },
   sourceErrors: [],
   ...overrides,
 });
@@ -56,15 +57,12 @@ const listPage = (overrides = {}) => ({
 const STATUSES = statusVocabulary();
 const SERVICES = serviceVocabulary();
 
-// One box of the composite Caseworking answers the whole page with.
 const cwBox = () => ({
   list: {
     data: [],
     pagination: {
-      startCursor: null,
       endCursor: null,
       hasNextPage: false,
-      hasPreviousPage: false,
     },
   },
   facets: { counts: COUNTS },
@@ -73,7 +71,6 @@ const cwBox = () => ({
 
 const cwPage = () => ({ inbox: cwBox(), outbox: cwBox() });
 
-// The one Caseworking read the page started, as each section received it.
 const sharedReads = () =>
   [findEventsUseCase, countEventsUseCase, breakdownEventsUseCase].map(
     (useCase) => useCase.mock.calls[0][0].caseworking,
@@ -81,7 +78,6 @@ const sharedReads = () =>
 
 const query = (overrides = {}) => ({
   cursor: undefined,
-  direction: "forward",
   status: undefined,
   service: undefined,
   q: undefined,
@@ -93,6 +89,7 @@ const query = (overrides = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  isCwConfigured.mockReturnValue(true);
   findCwPage.mockResolvedValue(cwPage());
   findEventsUseCase.mockResolvedValue(listPage());
   countEventsUseCase.mockResolvedValue({
@@ -105,22 +102,21 @@ beforeEach(() => {
   });
 });
 
+const cwInboxLost = { key: "cwInbox", service: "caseworking", box: "inbox" };
+
+const gasInboxLost = { key: "gasInbox", service: "gas", box: "inbox" };
+
 describe("eventsPageUseCase", () => {
   it("answers with the list, the counts and the breakdown in one body", async () => {
     const page = await eventsPageUseCase(query());
 
     expect(page).toEqual({
       events: [{ id: "665f1c2e9a1b2c3d4e5f6a7b" }],
-      pagination: {
-        startCursor: "start",
-        endCursor: "end",
-        hasNextPage: true,
-        hasPreviousPage: false,
-      },
+      pagination: { endCursor: "end", hasNextPage: true },
       statuses: STATUSES,
       services: SERVICES,
       counts: COUNTS,
-      breakdown: { groups: [GROUP], sourceErrors: [] },
+      breakdown: { groups: [GROUP] },
       sourceErrors: [],
       sectionErrors: [],
     });
@@ -139,10 +135,6 @@ describe("eventsPageUseCase", () => {
     ]);
   });
 
-  it("leaves the journey's shape of the page behind", async () => {
-    expect(await eventsPageUseCase(query())).not.toHaveProperty("hops");
-  });
-
   it("carries the toolbar's vocabulary even when both aggregations fail", async () => {
     countEventsUseCase.mockRejectedValue(Boom.badGateway("nope"));
     breakdownEventsUseCase.mockRejectedValue(Boom.badGateway("nope"));
@@ -156,14 +148,7 @@ describe("eventsPageUseCase", () => {
   it("carries only the six numbers as `counts`, not the counts envelope", async () => {
     countEventsUseCase.mockResolvedValue({
       counts: COUNTS,
-      sourceErrors: [
-        {
-          service: "caseworking",
-          box: "inbox",
-          hop: "CW Inbox",
-          message: "timeout",
-        },
-      ],
+      sourceErrors: [{ key: "cwInbox", service: "caseworking", box: "inbox" }],
     });
 
     const page = await eventsPageUseCase(query());
@@ -172,16 +157,9 @@ describe("eventsPageUseCase", () => {
     expect(page.counts).not.toHaveProperty("sourceErrors");
   });
 
-  // The counts read the same four sources the list does, but as a separate
-  // query: one can lose a source the other kept. Discarding that left a page
-  // showing a silently low number with nothing to say why.
+  // The counts are a separate query and can lose a source the list kept.
   it("names a source the counts lost, even where the list kept its rows", async () => {
-    const lost = {
-      service: "caseworking",
-      box: "inbox",
-      hop: "CW Inbox",
-      message: "timeout",
-    };
+    const lost = { key: "cwInbox", service: "caseworking", box: "inbox" };
     findEventsUseCase.mockResolvedValue(listPage({ sourceErrors: [] }));
     countEventsUseCase.mockResolvedValue({
       counts: COUNTS,
@@ -190,45 +168,27 @@ describe("eventsPageUseCase", () => {
 
     const page = await eventsPageUseCase(query());
 
-    expect(page.sourceErrors).toEqual([lost]);
-    // Still a page, with its rows and its numbers - degraded, not lost.
+    expect(page.sourceErrors).toEqual([{ hop: "CW-BE Inbox" }]);
     expect(page.events).toEqual(listPage().events);
     expect(page.counts).toEqual(COUNTS);
   });
 
   it("names a source once when both reads lost it", async () => {
-    const fromList = {
-      service: "caseworking",
-      box: "inbox",
-      hop: "CW Inbox",
-      message: "timeout",
-    };
-    findEventsUseCase.mockResolvedValue(
-      listPage({ sourceErrors: [fromList] }),
-    );
+    const fromList = { key: "cwInbox", service: "caseworking", box: "inbox" };
+    findEventsUseCase.mockResolvedValue(listPage({ sourceErrors: [fromList] }));
     countEventsUseCase.mockResolvedValue({
       counts: COUNTS,
-      sourceErrors: [{ ...fromList, message: "read failed" }],
+      sourceErrors: [fromList],
     });
 
     const page = await eventsPageUseCase(query());
 
-    expect(page.sourceErrors).toEqual([fromList]);
+    expect(page.sourceErrors).toEqual([{ hop: "CW-BE Inbox" }]);
   });
 
   it("keeps the fixed source order across both reads", async () => {
-    const cwOutbox = {
-      service: "caseworking",
-      box: "outbox",
-      hop: "CW Outbox",
-      message: "timeout",
-    };
-    const gasInbox = {
-      service: "gas",
-      box: "inbox",
-      hop: "GAS Inbox",
-      message: "read failed",
-    };
+    const cwOutbox = { key: "cwOutbox", service: "caseworking", box: "outbox" };
+    const gasInbox = { key: "gasInbox", service: "gas", box: "inbox" };
     findEventsUseCase.mockResolvedValue(listPage({ sourceErrors: [cwOutbox] }));
     countEventsUseCase.mockResolvedValue({
       counts: COUNTS,
@@ -239,12 +199,10 @@ describe("eventsPageUseCase", () => {
 
     expect(page.sourceErrors.map((e) => e.hop)).toEqual([
       "GAS Inbox",
-      "CW Outbox",
+      "CW-BE Outbox",
     ]);
   });
 
-  // A counts section that failed outright is a sectionError; it has no source
-  // errors of its own to merge, and the merge must not trip over that.
   it("survives a counts section that failed outright", async () => {
     countEventsUseCase.mockRejectedValue(new Error("counts down"));
 
@@ -257,33 +215,74 @@ describe("eventsPageUseCase", () => {
     expect(page.sourceErrors).toEqual(listPage().sourceErrors);
   });
 
-  it("carries the breakdown's own sourceErrors inside the breakdown", async () => {
+  it("carries the failure groups alone as the breakdown", async () => {
     breakdownEventsUseCase.mockResolvedValue({
       groups: [],
-      sourceErrors: [
-        { service: "caseworking", box: "outbox", message: "HTTP 500" },
-      ],
+      sourceErrors: [gasInboxLost],
     });
 
     const page = await eventsPageUseCase(query());
 
-    expect(page.breakdown.sourceErrors).toEqual([
-      { service: "caseworking", box: "outbox", message: "HTTP 500" },
-    ]);
+    expect(page.breakdown).toEqual({ groups: [] });
     expect(page.sectionErrors).toEqual([]);
+  });
+
+  // Otherwise the dead-letter panel renders short with no alert.
+  it("names a Caseworking source only the breakdown lost", async () => {
+    breakdownEventsUseCase.mockResolvedValue({
+      groups: [GROUP],
+      sourceErrors: [cwInboxLost],
+    });
+
+    const page = await eventsPageUseCase(query());
+
+    expect(page.sourceErrors).toEqual([{ hop: "CW-BE Inbox" }]);
+    expect(page.breakdown).toEqual({ groups: [GROUP] });
+  });
+
+  it("names a GAS source only the breakdown lost", async () => {
+    breakdownEventsUseCase.mockResolvedValue({
+      groups: [GROUP],
+      sourceErrors: [gasInboxLost],
+    });
+
+    const page = await eventsPageUseCase(query());
+
+    expect(page.sourceErrors).toEqual([{ hop: "GAS Inbox" }]);
+  });
+
+  it("names a source once when the list, the counts and the breakdown all lost it", async () => {
+    findEventsUseCase.mockResolvedValue(
+      listPage({ sourceErrors: [cwInboxLost] }),
+    );
+    countEventsUseCase.mockResolvedValue({
+      counts: COUNTS,
+      sourceErrors: [cwInboxLost],
+    });
+    breakdownEventsUseCase.mockResolvedValue({
+      groups: [GROUP],
+      sourceErrors: [cwInboxLost, gasInboxLost],
+    });
+
+    const page = await eventsPageUseCase(query());
+
+    expect(page.sourceErrors).toEqual([
+      { hop: "GAS Inbox" },
+      { hop: "CW-BE Inbox" },
+    ]);
   });
 
   it("passes the list's own sourceErrors straight through", async () => {
     findEventsUseCase.mockResolvedValue(
       listPage({
         sourceErrors: [
-          { service: "caseworking", box: "inbox", message: "not configured" },
+          { key: "cwInbox", service: "caseworking", box: "inbox" },
         ],
       }),
     );
 
     expect((await eventsPageUseCase(query())).sourceErrors).toEqual([
-      { service: "caseworking", box: "inbox", message: "not configured" },
+      { hop: "CW-BE Inbox" },
     ]);
   });
 });
@@ -291,7 +290,6 @@ describe("eventsPageUseCase", () => {
 describe("eventsPageUseCase fan-out", () => {
   const filter = {
     cursor: "abc",
-    direction: "backward",
     status: "DEAD_LETTER",
     service: "gas",
     q: "GLD-9B2",
@@ -307,7 +305,7 @@ describe("eventsPageUseCase fan-out", () => {
   });
 
   it("gives the counts everything but the cursor and the status it groups by", async () => {
-    await eventsPageUseCase(filter);
+    await eventsPageUseCase({ ...filter, cursor: undefined });
 
     expect(countEventsUseCase).toHaveBeenCalledWith({
       service: "gas",
@@ -336,7 +334,7 @@ describe("eventsPageUseCase fan-out", () => {
   );
 
   it("gives the breakdown neither the status nor the error filter", async () => {
-    await eventsPageUseCase(filter);
+    await eventsPageUseCase({ ...filter, cursor: undefined });
 
     expect(breakdownEventsUseCase).toHaveBeenCalledWith({
       service: "gas",
@@ -400,13 +398,13 @@ describe("eventsPageUseCase caseworking read", () => {
         cwOutbox: null,
       },
       pageSize: 20,
-      direction: "forward",
       status: "DEAD_LETTER",
       q: "GLD-9B2",
       error: undefined,
       from: undefined,
       to: undefined,
       audit: undefined,
+      sections: ["list", "counts", "breakdown"],
     });
   });
 
@@ -423,9 +421,74 @@ describe("eventsPageUseCase caseworking read", () => {
     expect(findCwPage).toHaveBeenCalledTimes(1);
   });
 
-  // Every section awaits the read inside its own `Promise.allSettled`, so an
-  // outage is drawn as sourceErrors; a section that throws before getting that
-  // far must not leave the rejection unhandled.
+  it("forwards every filter and each Caseworking box's cursor slice", async () => {
+    const cwIn = encodeSourceCursor({
+      cursorValue: "2026-06-16T10:00:00.000Z",
+      id: "665f1c2e9a1b2c3d4e5f0001",
+    });
+    const cwOut = encodeSourceCursor({
+      cursorValue: "2026-06-16T09:00:00.000Z",
+      id: "665f1c2e9a1b2c3d4e5f0002",
+    });
+    const cursor = encodeCompositeCursor({
+      gasInbox: null,
+      gasOutbox: null,
+      cwInbox: cwIn,
+      cwOutbox: cwOut,
+    });
+
+    await eventsPageUseCase(
+      query({
+        cursor,
+        status: "FAILED",
+        q: "GLD-9B2",
+        error: "boom",
+        from: "2026-06-16T00:00:00.000Z",
+        to: "2026-06-16T23:59:59.999Z",
+        audit: "include",
+      }),
+    );
+
+    expect(findCwPage).toHaveBeenCalledTimes(1);
+    expect(findCwPage).toHaveBeenCalledWith({
+      slices: {
+        gasInbox: null,
+        gasOutbox: null,
+        cwInbox: cwIn,
+        cwOutbox: cwOut,
+      },
+      pageSize: 20,
+      status: "FAILED",
+      q: "GLD-9B2",
+      error: "boom",
+      from: "2026-06-16T00:00:00.000Z",
+      to: "2026-06-16T23:59:59.999Z",
+      audit: "include",
+      sections: ["list"],
+    });
+  });
+
+  it("makes no Caseworking read when Caseworking is not configured", async () => {
+    isCwConfigured.mockReturnValue(false);
+    findEventsUseCase.mockResolvedValue(
+      listPage({
+        sourceErrors: [
+          cwInboxLost,
+          { key: "cwOutbox", service: "caseworking", box: "outbox" },
+        ],
+      }),
+    );
+
+    const page = await eventsPageUseCase(query());
+
+    expect(findCwPage).not.toHaveBeenCalled();
+    expect(sharedReads()).toEqual([undefined, undefined, undefined]);
+    expect(page.sourceErrors).toEqual([
+      { hop: "CW-BE Inbox" },
+      { hop: "CW-BE Outbox" },
+    ]);
+  });
+
   it("survives a Caseworking outage without an unhandled rejection", async () => {
     findCwPage.mockRejectedValue(Boom.badGateway("down"));
 
@@ -448,7 +511,7 @@ describe("eventsPageUseCase degradation", () => {
       { section: "counts", message: "Events could not be loaded from GAS" },
     ]);
     expect(page.events).toHaveLength(1);
-    expect(page.breakdown).toEqual({ groups: [GROUP], sourceErrors: [] });
+    expect(page.breakdown).toEqual({ groups: [GROUP] });
   });
 
   it("nulls the breakdown and names the section when the breakdown fails", async () => {
@@ -522,5 +585,69 @@ describe("eventsPageUseCase degradation", () => {
     expect(page.sectionErrors).toEqual([
       { section: "breakdown", message: "An internal server error occurred" },
     ]);
+  });
+});
+
+describe("eventsPageUseCase skips the sections a page does not draw", () => {
+  const cwSections = () => findCwPage.mock.calls[0][0].sections;
+  const nextPage = encodeCompositeCursor({
+    gasInbox: null,
+    gasOutbox: null,
+    cwInbox: null,
+    cwOutbox: null,
+  });
+
+  it("reads every section on a first page", async () => {
+    const page = await eventsPageUseCase(query());
+
+    expect(countEventsUseCase).toHaveBeenCalledTimes(1);
+    expect(breakdownEventsUseCase).toHaveBeenCalledTimes(1);
+    expect(cwSections()).toEqual(["list", "counts", "breakdown"]);
+    expect(page.counts).toEqual(COUNTS);
+    expect(page.breakdown).toEqual({ groups: [GROUP] });
+  });
+
+  it("reads only the list on a load-more page, with nothing reported missing", async () => {
+    const page = await eventsPageUseCase(query({ cursor: nextPage }));
+
+    expect(countEventsUseCase).not.toHaveBeenCalled();
+    expect(breakdownEventsUseCase).not.toHaveBeenCalled();
+    expect(cwSections()).toEqual(["list"]);
+    expect(page.counts).toBeNull();
+    expect(page.breakdown).toBeNull();
+    expect(page.sourceErrors).toEqual([]);
+    expect(page.sectionErrors).toEqual([]);
+  });
+
+  it.each(["FAILED", "COMPLETED", "PUBLISHED"])(
+    "skips the breakdown on a first page filtered to %s",
+    async (status) => {
+      const page = await eventsPageUseCase(query({ status }));
+
+      expect(countEventsUseCase).toHaveBeenCalledTimes(1);
+      expect(breakdownEventsUseCase).not.toHaveBeenCalled();
+      expect(cwSections()).toEqual(["list", "counts"]);
+      expect(page.counts).toEqual(COUNTS);
+      expect(page.breakdown).toBeNull();
+      expect(page.sectionErrors).toEqual([]);
+    },
+  );
+
+  it("reads every section on a first page filtered to dead letters", async () => {
+    await eventsPageUseCase(query({ status: "DEAD_LETTER" }));
+
+    expect(breakdownEventsUseCase).toHaveBeenCalledTimes(1);
+    expect(cwSections()).toEqual(["list", "counts", "breakdown"]);
+  });
+
+  it("still reports a counts read that genuinely failed", async () => {
+    countEventsUseCase.mockResolvedValue({
+      counts: COUNTS,
+      sourceErrors: [{ key: "cwInbox", service: "caseworking", box: "inbox" }],
+    });
+
+    const page = await eventsPageUseCase(query({ status: "FAILED" }));
+
+    expect(page.sourceErrors).toEqual([{ hop: "CW-BE Inbox" }]);
   });
 });

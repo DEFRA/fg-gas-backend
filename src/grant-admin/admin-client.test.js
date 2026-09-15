@@ -3,8 +3,6 @@ import hapi from "@hapi/hapi";
 import { describe, expect, it } from "vitest";
 import { ADMIN_CLIENT, requireAdminClient } from "./admin-client.js";
 
-// A server shaped like the real one: a default auth strategy that accepts any
-// persisted client, and the guard registered against one plugin's routes.
 const serverFor = async (client) => {
   const server = hapi.server();
 
@@ -57,8 +55,6 @@ describe("requireAdminClient", () => {
     expect(result).toEqual({ ok: true });
   });
 
-  // The point of the guard: this caller's credential is perfectly valid, and
-  // GAS issues credentials to several services.
   it("refuses another service with 403, not 401", async () => {
     const { statusCode, result } = await get("some-other-service");
 
@@ -69,7 +65,9 @@ describe("requireAdminClient", () => {
   it("names the surface rather than the client it expects", async () => {
     const { result } = await get("some-other-service");
 
-    expect(result.message).toBe("The grant-admin API is not open to this client");
+    expect(result.message).toBe(
+      "The grant-admin API is not open to this client",
+    );
     expect(JSON.stringify(result)).not.toContain(ADMIN_CLIENT);
   });
 
@@ -87,8 +85,6 @@ describe("requireAdminClient", () => {
     },
   );
 
-  // The rest of GAS's service API keeps answering the clients it was issued
-  // to - the guard is sandboxed to the grant-admin plugin's own routes.
   it("leaves routes outside the plugin alone", async () => {
     const { statusCode } = await get("some-other-service", "/grants/woodland");
 

@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   CASEWORKING,
   GAS,
-  cwPageFor,
   sectionOfCwPage,
+  serviceScope,
+  toPublicSourceErrors,
 } from "./event-sources.js";
 
 vi.mock("../../common/logger.js");
@@ -11,12 +12,7 @@ vi.mock("../../common/logger.js");
 const cwBox = (overrides = {}) => ({
   list: {
     data: [{ _id: "665f1c2e9a1b2c3d4e5f6a7b" }],
-    pagination: {
-      startCursor: "a",
-      endCursor: "b",
-      hasNextPage: false,
-      hasPreviousPage: false,
-    },
+    pagination: { endCursor: "b", hasNextPage: false },
   },
   facets: {
     counts: {
@@ -37,9 +33,6 @@ const cwPage = (overrides = {}) => ({
   outbox: cwBox(),
   ...overrides,
 });
-
-const gasSource = { key: "gasInbox", service: GAS, box: "inbox" };
-const cwSource = { key: "cwInbox", service: CASEWORKING, box: "inbox" };
 
 describe("sectionOfCwPage", () => {
   it("answers with the box's own slice of the shared page", async () => {
@@ -62,8 +55,6 @@ describe("sectionOfCwPage", () => {
     );
   });
 
-  // A partial answer is a gap, not an empty one: turning the null back into a
-  // rejection is what makes it the same `sourceError` a failed request was.
   it("throws a 502 naming the box and the section Caseworking could not read", async () => {
     const page = cwPage({ inbox: cwBox({ facets: null }) });
 
@@ -81,8 +72,6 @@ describe("sectionOfCwPage", () => {
     ).rejects.toMatchObject({ output: { statusCode: 502 } });
   });
 
-  // The read itself failing is reported by the fan-out around it, once per
-  // box, so the rejection travels on unchanged.
   it("lets the read's own rejection through untouched", async () => {
     const error = new Error("socket hang up");
 
@@ -98,34 +87,34 @@ describe("sectionOfCwPage", () => {
   });
 });
 
-describe("cwPageFor", () => {
-  it("hands back the read the caller already started", () => {
-    const shared = Promise.resolve(cwPage());
-    const read = vi.fn();
+describe("toPublicSourceErrors", () => {
+  const lost = (key, service, box) => ({ key, service, box });
 
-    expect(cwPageFor([gasSource, cwSource], shared, read)).toBe(shared);
-    expect(read).not.toHaveBeenCalled();
+  it("names each lost source once, by its words alone, in the fixed order", () => {
+    expect(
+      toPublicSourceErrors(
+        [lost("cwOutbox", CASEWORKING, "outbox")],
+        [
+          lost("gasInbox", GAS, "inbox"),
+          lost("cwOutbox", CASEWORKING, "outbox"),
+        ],
+        [lost("cwInbox", CASEWORKING, "inbox")],
+      ),
+    ).toEqual([
+      { hop: "GAS Inbox" },
+      { hop: "CW-BE Inbox" },
+      { hop: "CW-BE Outbox" },
+    ]);
   });
 
-  it("starts a read of its own when nobody shared one", () => {
-    const own = Promise.resolve(cwPage());
-    const read = vi.fn(() => own);
-
-    expect(cwPageFor([gasSource, cwSource], undefined, read)).toBe(own);
-    expect(read).toHaveBeenCalledTimes(1);
+  it("is empty when no section lost anything", () => {
+    expect(toPublicSourceErrors([], [])).toEqual([]);
   });
+});
 
-  it("reads nothing at all when no Caseworking source is selected", () => {
-    const read = vi.fn();
-
-    expect(cwPageFor([gasSource], undefined, read)).toBeUndefined();
-    expect(read).not.toHaveBeenCalled();
-  });
-
-  it("reads nothing even when a page was shared, if no Caseworking source is selected", () => {
-    const read = vi.fn();
-
-    expect(cwPageFor([], Promise.resolve(cwPage()), read)).toBeUndefined();
-    expect(read).not.toHaveBeenCalled();
+describe("serviceScope", () => {
+  it("names the chosen service, or every service when none was chosen", () => {
+    expect(serviceScope("gas")).toBe("gas");
+    expect(serviceScope(undefined)).toBe("every service");
   });
 });

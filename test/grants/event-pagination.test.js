@@ -35,9 +35,9 @@ const inboxDoc = (n, overrides = {}) => ({
   source: "CW",
   status: "PUBLISHED",
   completionAttempts: 1,
-  eventTime: at(n).toISOString(),
-  // Deliberately present so the projection has something to exclude.
-  publicationDate: new Date().toISOString(),
+  publicationDate: at(n).toISOString(),
+  // Runs the other way, so a list that read it would come back reversed.
+  eventTime: at(60 - n).toISOString(),
   traceparent: "00-trace-parent-01",
   lastResubmissionDate: null,
   completionDate: null,
@@ -98,7 +98,6 @@ const auditOutboxDoc = (n) =>
     },
   });
 
-// Walks every forward page, returning the rows and the per-page sizes.
 const walkForward = async (findPage, opts = {}) => {
   const rows = [];
   const pageSizes = [];
@@ -128,8 +127,22 @@ describe("inbox keyset pagination", () => {
 
     expect(rows).toHaveLength(25);
     expect(new Set(ids(rows)).size).toBe(25);
-    const times = rows.map((r) => r.eventTime);
+    const times = rows.map((r) => r.publicationDate);
     expect(times).toEqual([...times].sort().reverse());
+  });
+
+  it("orders by publicationDate, never by the sender's eventTime", async () => {
+    await inbox.insertMany(Array.from({ length: 5 }, (_, n) => inboxDoc(n)));
+
+    const { rows } = await walkForward(findInboxPage, { pageSize: 2 });
+
+    expect(rows.map((r) => r.messageId)).toEqual([
+      "msg-4",
+      "msg-3",
+      "msg-2",
+      "msg-1",
+      "msg-0",
+    ]);
   });
 
   it("never returns more than pageSize rows in a page", async () => {
@@ -141,11 +154,10 @@ describe("inbox keyset pagination", () => {
     expect(Math.max(...pageSizes)).toBeLessThanOrEqual(10);
   });
 
-  it("reports no previous page on the first page and no next page on the last", async () => {
+  it("reports a next page until the last one, which reports none", async () => {
     await inbox.insertMany(Array.from({ length: 15 }, (_, n) => inboxDoc(n)));
 
     const first = await findInboxPage({ pageSize: 10 });
-    expect(first.pagination.hasPreviousPage).toBe(false);
     expect(first.pagination.hasNextPage).toBe(true);
 
     const last = await findInboxPage({
@@ -153,46 +165,10 @@ describe("inbox keyset pagination", () => {
       cursor: first.pagination.endCursor,
     });
     expect(last.pagination.hasNextPage).toBe(false);
-    expect(last.pagination.hasPreviousPage).toBe(true);
-  });
-
-  it("pages backward to the identical previous page", async () => {
-    await inbox.insertMany(Array.from({ length: 25 }, (_, n) => inboxDoc(n)));
-
-    const page1 = await findInboxPage({ pageSize: 10 });
-    const page2 = await findInboxPage({
-      pageSize: 10,
-      cursor: page1.pagination.endCursor,
-    });
-    const page3 = await findInboxPage({
-      pageSize: 10,
-      cursor: page2.pagination.endCursor,
-    });
-
-    const back = await findInboxPage({
-      pageSize: 10,
-      cursor: page3.pagination.startCursor,
-      direction: "backward",
-    });
-
-    expect(ids(back.data)).toEqual(ids(page2.data));
-  });
-
-  it("returns to the first page when paging backward twice", async () => {
-    await inbox.insertMany(Array.from({ length: 25 }, (_, n) => inboxDoc(n)));
-
-    const page1 = await findInboxPage({ pageSize: 10 });
-    const page2 = await findInboxPage({
-      pageSize: 10,
-      cursor: page1.pagination.endCursor,
-    });
-    const back = await findInboxPage({
-      pageSize: 10,
-      cursor: page2.pagination.startCursor,
-      direction: "backward",
-    });
-
-    expect(ids(back.data)).toEqual(ids(page1.data));
+    expect(Object.keys(last.pagination).sort()).toEqual([
+      "endCursor",
+      "hasNextPage",
+    ]);
   });
 
   it("does not duplicate or skip a row when a newer document is inserted mid-walk", async () => {
@@ -203,9 +179,8 @@ describe("inbox keyset pagination", () => {
       (await inbox.find({}).toArray()).map((d) => d._id.toString()),
     );
 
-    // A brand new event lands at the head of the stream, before page 1.
     await inbox.insertOne(
-      inboxDoc(99, { eventTime: "2027-01-01T00:00:00.000Z" }),
+      inboxDoc(99, { publicationDate: "2027-01-01T00:00:00.000Z" }),
     );
 
     const rest = [];
@@ -221,8 +196,6 @@ describe("inbox keyset pagination", () => {
     const walked = ids([...page1.data, ...rest]);
     expect(new Set(walked).size).toBe(walked.length);
     expect(walked).toHaveLength(25);
-    // Every pre-existing row was seen exactly once; the late arrival is simply
-    // not back-filled into a page already served.
     expect(new Set(walked)).toEqual(originalIds);
   });
 
@@ -231,9 +204,8 @@ describe("inbox keyset pagination", () => {
 
     const page1 = await findInboxPage({ pageSize: 10 });
 
-    // Older than everything seeded, so it belongs on the final page.
     await inbox.insertOne(
-      inboxDoc(98, { eventTime: "2020-01-01T00:00:00.000Z" }),
+      inboxDoc(98, { publicationDate: "2020-01-01T00:00:00.000Z" }),
     );
 
     const rest = [];
@@ -254,11 +226,11 @@ describe("inbox keyset pagination", () => {
     );
   });
 
-  it("tie-breaks on _id when every eventTime is identical", async () => {
+  it("tie-breaks on _id when every publicationDate is identical", async () => {
     const sameTime = "2026-06-16T10:00:00.000Z";
     await inbox.insertMany(
       Array.from({ length: 25 }, (_, n) =>
-        inboxDoc(n, { eventTime: sameTime }),
+        inboxDoc(n, { publicationDate: sameTime }),
       ),
     );
 
@@ -266,7 +238,6 @@ describe("inbox keyset pagination", () => {
 
     expect(rows).toHaveLength(25);
     expect(new Set(ids(rows)).size).toBe(25);
-    // Deterministic order: _id descending, as the tie-breaker demands.
     const rowIds = ids(rows);
     expect(rowIds).toEqual([...rowIds].sort().reverse());
   });
@@ -282,12 +253,8 @@ describe("inbox keyset pagination", () => {
     expect(page.data[0].status).toBe("DEAD_LETTER");
   });
 
-  // Asserted by identity, not by status: the service under test is running its
-  // pollers, and the FAILED -> RESUBMITTED -> PUBLISHED sweeps are `updateMany`
-  // calls keyed on status alone, so a row's status can move between the insert
-  // and the read. What this test is actually about is the absence of a filter -
-  // every row seeded comes back, whatever state the sweeps have since moved it
-  // to.
+  // Asserted by identity: the running pollers can move a row's status between
+  // the insert and the read.
   it("returns every row when no filter is given", async () => {
     const docs = statuses.map((status, n) => inboxDoc(n, { status }));
     await inbox.insertMany(docs);
@@ -313,7 +280,6 @@ describe("inbox keyset pagination", () => {
       status: "DEAD_LETTER",
     });
 
-    // A cursor is only a keyset position, so it stays usable under any filter.
     expect(filtered.data.every((r) => r.status === "DEAD_LETTER")).toBe(true);
   });
 
@@ -327,7 +293,7 @@ describe("inbox keyset pagination", () => {
   it("rejects a well-formed cursor carrying a non-hex _id with a Boom 400", async () => {
     const cursor = Buffer.from(
       JSON.stringify({
-        eventTime: at(1).toISOString(),
+        publicationDate: at(1).toISOString(),
         _id: "not-an-objectid",
       }),
     ).toString("base64url");
@@ -338,24 +304,22 @@ describe("inbox keyset pagination", () => {
     });
   });
 
+  // `lastError` is seeded to prove the projection leaves it out.
   it("returns only the generic list fields, never the payload or claim fields", async () => {
-    await inbox.insertOne(inboxDoc(1));
+    await inbox.insertOne(
+      inboxDoc(1, {
+        lastError: { name: "Error", message: "boom", at: null },
+      }),
+    );
 
     const page = await findInboxPage();
 
     expect(Object.keys(page.data[0]).sort()).toEqual(
       [
         "_id",
-        "completionAttempts",
         "completionDate",
-        "eventTime",
-        "lastResubmissionDate",
         "messageId",
-        // When this service received the message: what a journey hop is timed
-        // from, and the one instant on the row that is neither the producer's
-        // clock nor a completion.
         "publicationDate",
-        "source",
         "status",
         "type",
       ].sort(),
@@ -376,23 +340,6 @@ describe("outbox keyset pagination", () => {
     expect(times).toEqual([...times].sort((a, b) => b - a));
   });
 
-  it("pages backward to the identical previous page", async () => {
-    await outbox.insertMany(Array.from({ length: 25 }, (_, n) => outboxDoc(n)));
-
-    const page1 = await findOutboxPage({ pageSize: 10 });
-    const page2 = await findOutboxPage({
-      pageSize: 10,
-      cursor: page1.pagination.endCursor,
-    });
-    const back = await findOutboxPage({
-      pageSize: 10,
-      cursor: page2.pagination.startCursor,
-      direction: "backward",
-    });
-
-    expect(ids(back.data)).toEqual(ids(page1.data));
-  });
-
   it("tie-breaks on _id when every publicationDate is identical", async () => {
     await outbox.insertMany(
       Array.from({ length: 25 }, (_, n) =>
@@ -407,11 +354,7 @@ describe("outbox keyset pagination", () => {
     expect(rowIds).toEqual([...rowIds].sort().reverse());
   });
 
-  // DEAD_LETTER for the filter, and identity for the unfiltered read: the
-  // service under test is running its pollers, and the FAILED -> RESUBMITTED
-  // -> PUBLISHED sweeps are `updateMany` calls keyed on status alone. A row
-  // seeded FAILED may not still be FAILED by the time this reads it, whereas
-  // nothing moves a DEAD_LETTER row but a redrive.
+  // Only DEAD_LETTER is stable here: the running pollers' sweeps move other statuses.
   it("honours the status filter and returns every row when unfiltered", async () => {
     const docs = statuses.map((status, n) => outboxDoc(n, { status }));
     await outbox.insertMany(docs);
@@ -433,18 +376,21 @@ describe("outbox keyset pagination", () => {
     });
   });
 
+  // `lastError` is seeded to prove the projection leaves it out.
   it("returns only the generic list fields plus event.id and event.type", async () => {
-    await outbox.insertOne(outboxDoc(1));
+    await outbox.insertOne(
+      outboxDoc(1, {
+        lastError: { name: "Error", message: "boom", at: null },
+      }),
+    );
 
     const page = await findOutboxPage();
 
     expect(Object.keys(page.data[0]).sort()).toEqual(
       [
         "_id",
-        "completionAttempts",
         "completionDate",
         "event",
-        "lastResubmissionDate",
         "publicationDate",
         "status",
         "target",
@@ -462,9 +408,6 @@ describe("outbox keyset pagination", () => {
 
     const page = await findOutboxPage();
 
-    // An audit row's event stores neither an id nor a type, and nothing else
-    // of it is projected: the row is recognised by its TARGET, never by its
-    // payload - see events/event-audit.js.
     expect(page.data[0].event).toEqual({});
     const serialised = JSON.stringify(page.data);
     expect(serialised).not.toContain("SECRET-AGREEMENT-NUMBER");
@@ -486,11 +429,7 @@ describe("outbox keyset pagination", () => {
   });
 });
 
-// These tests pin down the mixed-type fault on *un-normalised* data. They seed
-// bad rows directly and never invoke the migration, so they prove the fault is
-// real and that it is the migration - not something else - that fixes it. The
-// mirror-image "once normalised, every row is returned" cases live in
-// test/grants/event-type-normalisation.test.js. Keep the two in step.
+// Seeds an un-normalised outbox row, proving the mixed-type fault the migration fixes.
 describe("sort-key type hazards before the normalising migration", () => {
   it("skips outbox rows whose publicationDate is a string, not a Date", async () => {
     await outbox.insertMany([
@@ -500,8 +439,7 @@ describe("sort-key type hazards before the normalising migration", () => {
       outboxDoc(3, { publicationDate: at(3).toISOString() }),
     ]);
 
-    // Mongo's canonical type order puts every Date after every String, so a
-    // descending sort yields the Dates first and the strings last.
+    // Mongo orders every Date after every String.
     const raw = await outbox
       .find({})
       .sort({ publicationDate: -1, _id: -1 })
@@ -515,45 +453,66 @@ describe("sort-key type hazards before the normalising migration", () => {
 
     const { rows } = await walkForward(findOutboxPage, { pageSize: 2 });
 
-    // $lt against a Date is type-bracketed and never matches a string, so the
-    // walk stops at the end of the Date block: the string rows are unreachable.
+    // $lt against a Date never matches a string, so the string rows are unreachable.
     expect(rows.map((r) => r.event.id)).toEqual(["evt-2", "evt-1"]);
     expect(rows).toHaveLength(2);
   });
+});
 
-  it("skips inbox rows whose eventTime is null or missing", async () => {
-    await inbox.insertMany([
-      inboxDoc(2),
-      inboxDoc(1),
-      inboxDoc(0, { eventTime: null, segregationRef: "ref-null" }),
-      { status: "PUBLISHED", segregationRef: "ref-missing", messageId: "m" },
-    ]);
-
-    const { rows } = await walkForward(findInboxPage, { pageSize: 2 });
-
-    // Null and missing sort last under {eventTime: -1}, but $lt against a
-    // string never matches them, so a keyset walk finishes at the string block.
-    expect(rows.map((r) => r.messageId)).toEqual(["msg-2", "msg-1"]);
+// The leading-key bound beside the keyset `$or` must not change what a walk returns.
+describe("deep status-filtered paging", () => {
+  const seeded = (n) => ({
+    status: n % 3 === 0 ? "DEAD_LETTER" : "COMPLETED",
   });
 
-  it("pages through null eventTime rows when no string-valued row precedes them", async () => {
-    await inbox.insertMany([
-      inboxDoc(0, { eventTime: null, segregationRef: "ref-null-a" }),
-      inboxDoc(1, { eventTime: null, segregationRef: "ref-null-b" }),
-      inboxDoc(2, { eventTime: null, segregationRef: "ref-null-c" }),
-    ]);
+  it("walks every dead-lettered inbox row once, in the unbounded query's order", async () => {
+    await inbox.insertMany(
+      Array.from({ length: 60 }, (_, n) => inboxDoc(n, seeded(n))),
+    );
+    // Ties on the sort key, so the `_id` branch of the keyset is exercised too.
+    await inbox.insertMany(
+      Array.from({ length: 6 }, (_, n) =>
+        inboxDoc(100 + n, {
+          status: "DEAD_LETTER",
+          publicationDate: at(30).toISOString(),
+        }),
+      ),
+    );
 
-    const { rows } = await walkForward(findInboxPage, { pageSize: 2 });
+    const { rows, pageSizes } = await walkForward(findInboxPage, {
+      status: "DEAD_LETTER",
+      pageSize: 4,
+    });
+    const expected = await inbox
+      .find({ status: "DEAD_LETTER" })
+      .sort({ publicationDate: -1, _id: -1 })
+      .toArray();
 
-    // Inside a single null block the _id tie-breaker carries the walk, so all
-    // three rows are returned exactly once.
-    expect(rows).toHaveLength(3);
-    expect(new Set(ids(rows)).size).toBe(3);
+    expect(pageSizes.length).toBeGreaterThan(5);
+    expect(ids(rows)).toEqual(ids(expected));
+  });
+
+  it("walks every dead-lettered outbox row once, in the unbounded query's order", async () => {
+    await outbox.insertMany(
+      Array.from({ length: 60 }, (_, n) => outboxDoc(n, seeded(n))),
+    );
+
+    const { rows, pageSizes } = await walkForward(findOutboxPage, {
+      status: "DEAD_LETTER",
+      pageSize: 4,
+    });
+    const expected = await outbox
+      .find({ status: "DEAD_LETTER" })
+      .sort({ publicationDate: -1, _id: -1 })
+      .toArray();
+
+    expect(pageSizes.length).toBeGreaterThan(4);
+    expect(ids(rows)).toEqual(ids(expected));
   });
 });
 
 describe("cursor encoding against real documents", () => {
-  it("encodes the inbox cursor as eventTime plus a hex _id", async () => {
+  it("encodes the inbox cursor as publicationDate plus a hex _id", async () => {
     await inbox.insertOne(inboxDoc(1));
 
     const page = await findInboxPage();
@@ -562,7 +521,7 @@ describe("cursor encoding against real documents", () => {
     );
 
     expect(decoded).toEqual({
-      eventTime: at(1).toISOString(),
+      publicationDate: at(1).toISOString(),
       _id: page.data[0]._id.toString(),
     });
     expect(ObjectId.isValid(decoded._id)).toBe(true);

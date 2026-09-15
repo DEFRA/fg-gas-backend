@@ -12,7 +12,6 @@ const aGroup = (overrides = {}) => ({
 
 const payload = (overrides = {}) => ({
   groups: [aGroup()],
-  sourceErrors: [],
   ...overrides,
 });
 
@@ -33,8 +32,6 @@ describe("breakdownEventsResponseSchema", () => {
     ).toBeUndefined();
   });
 
-  // A group of rows that store no type is labelled by the merge, so a null
-  // reaching the wire is a derivation gap and fails here.
   it("rejects a null type - every group states what it is", () => {
     expect(
       validate(payload({ groups: [aGroup({ type: null })] })).error,
@@ -72,28 +69,5 @@ describe("breakdownEventsResponseSchema", () => {
     expect(
       validate(payload({ groups: [aGroup({ count: 0 })] })).error,
     ).toBeDefined();
-  });
-
-  it("carries source errors in the same shape the list uses", () => {
-    expect(
-      validate(
-        payload({
-          sourceErrors: [
-            {
-              service: "caseworking",
-              box: "inbox",
-              hop: "CW Inbox",
-              message: "timeout",
-            },
-          ],
-        }),
-      ).error,
-    ).toBeUndefined();
-  });
-
-  it("requires sourceErrors, so a partial answer always announces itself", () => {
-    const { sourceErrors, ...body } = payload();
-
-    expect(validate(body).error).toBeDefined();
   });
 });
