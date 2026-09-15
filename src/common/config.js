@@ -96,6 +96,7 @@ const schema = Joi.object({
   GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: Joi.string().optional(),
   VIEW_AGREEMENT_URI: Joi.string().uri().required(),
   CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
+  CONFIGURATION_VARIANT: Joi.string().trim().allow("").optional().default(""),
   AGREEMENTS_JWT_SECRET: Joi.string().optional(),
   // Caseworking backend (fg-cw-backend). GAS authenticates to it with a
   // service access token supplied per environment from the platform secret
@@ -166,6 +167,16 @@ if (error) {
   process.exit(1);
 }
 
+const rawVariant = vars.CONFIGURATION_VARIANT;
+const isProd = vars.ENVIRONMENT === "prod";
+if (rawVariant && !isProd && !/^[a-z0-9-]+$/.test(rawVariant)) {
+  // eslint-disable-next-line no-console
+  console.error(
+    `CONFIGURATION_VARIANT "${rawVariant}" is invalid — must be lowercase letters, numbers or hyphens`,
+  );
+  process.exit(1);
+}
+
 export const config = {
   env: vars.NODE_ENV,
   serviceName: vars.SERVICE_NAME,
@@ -226,6 +237,8 @@ export const config = {
   },
   configBroker: {
     s3Bucket: vars.CONFIG_BROKER_S3_BUCKET,
+    variant: isProd ? "" : rawVariant,
+    rawVariant,
   },
   // FGP-1307: shared secret used to verify the caller token forwarded by
   // Agreements UI. Audience is "gas" for now (the interim token also carries
