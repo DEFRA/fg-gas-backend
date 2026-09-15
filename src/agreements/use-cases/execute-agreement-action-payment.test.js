@@ -500,7 +500,10 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       new MongoServerError({
         message: "Duplicate key",
         code: 11000,
-        keyPattern: { "source.agreementNumber": 1, "source.version": 1 },
+        keyPattern: {
+          "source.agreementNumber": 1,
+          "source.version": 1,
+        },
       }),
     );
 

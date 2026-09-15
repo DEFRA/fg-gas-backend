@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
+import { Claim } from "../models/claim.js";
 import {
   collection,
   countByClaimCode,
@@ -8,6 +9,16 @@ import {
   existsByClientClaimRef,
   insert,
 } from "./claim.repository.js";
+
+const claimProps = {
+  code: "woodland",
+  clientRef: "wmp-6hb-j8e",
+  claimCode: "ENT_CS_CAPITAL_PA3",
+  clientClaimRef: "WMP-6HB-J8E-C0001",
+  entitlementId: "entitlement-1",
+  metadata: { grantCode: "woodland" },
+  claim: { totalClaimAmountPence: 150000 },
+};
 
 vi.mock("../../common/mongo-client.js");
 
@@ -105,31 +116,39 @@ describe("claim.repository", () => {
     expect(result).toBe(1);
   });
 
-  it("inserts a claim with timestamps and returns the inserted id", async () => {
+  it("writes the Claim's own fields and returns the inserted id", async () => {
     const session = {};
     const insertedId = new ObjectId();
     const insertOne = vi.fn().mockResolvedValue({ insertedId });
     db.collection.mockReturnValue({ insertOne });
 
-    const claimInput = {
-      code: "woodland",
-      clientRef: "wmp-6hb-j8e",
-      claimCode: "ENT_CS_CAPITAL_PA3",
-      clientClaimRef: "WMP-6HB-J8E-C0001",
-      metadata: { grantCode: "woodland" },
-      claim: { claimAmountPence: 150000 },
-    };
-    const result = await insert(claimInput, session);
+    const claim = Claim.create(claimProps);
+    const result = await insert(claim, session);
 
     expect(insertOne).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ...claimInput,
-        createdAt: expect.any(String),
-        updatedAt: expect.any(String),
-      }),
+      {
+        ...claimProps,
+        createdAt: claim.createdAt,
+        updatedAt: claim.updatedAt,
+      },
       { session },
     );
     expect(result).toBe(insertedId);
+  });
+
+  // The Claim is frozen, so the document must carry its own copies of the
+  // submitted bodies rather than references into the model.
+  it("writes copies of the submitted bodies", async () => {
+    const insertOne = vi.fn().mockResolvedValue({ insertedId: new ObjectId() });
+    db.collection.mockReturnValue({ insertOne });
+
+    const claim = Claim.create(claimProps);
+    await insert(claim, {});
+
+    const [document] = insertOne.mock.calls[0];
+    expect(document.metadata).not.toBe(claim.metadata);
+    expect(document.claim).not.toBe(claim.claim);
+    expect(Object.isFrozen(document.metadata)).toBe(false);
   });
 
   it("propagates a duplicate key error so the transaction can abort", async () => {

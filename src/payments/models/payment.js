@@ -45,15 +45,53 @@ const deepFreeze = (value) => {
 
 export const PaymentSourceType = {
   AGREEMENT: "agreement",
+  CLAIM: "claim",
 };
+
+// Each source identifies the record the Payment was raised from by that
+// record's own key. The Agreement version a Claim carries is point-in-time: the
+// current Agreement's moves on as amendments land, so nothing read later can
+// recover which one was in force when this was paid.
+const agreementSourceSchema = Joi.object({
+  type: Joi.string().valid(PaymentSourceType.AGREEMENT).required(),
+  agreementNumber: Joi.string().required(),
+  version: Joi.number().integer().min(1).required(),
+});
+
+const claimSourceSchema = Joi.object({
+  type: Joi.string().valid(PaymentSourceType.CLAIM).required(),
+  code: Joi.string().required(),
+  clientRef: Joi.string().required(),
+  clientClaimRef: Joi.string().required(),
+  entitlementId: Joi.string().required(),
+  // Not the Claim's identity: the Agreement it is reported against, kept here
+  // because the message is built from the Payment alone.
+  agreementNumber: Joi.string().required(),
+  agreementVersion: Joi.number().integer().min(1).required(),
+});
+
+const sourceSchema = Joi.alternatives()
+  .conditional(".type", {
+    switch: [
+      { is: PaymentSourceType.AGREEMENT, then: agreementSourceSchema },
+      { is: PaymentSourceType.CLAIM, then: claimSourceSchema },
+    ],
+    otherwise: Joi.object({
+      type: Joi.string()
+        .valid(...Object.values(PaymentSourceType))
+        .required(),
+    }).unknown(true),
+  })
+  .required();
 
 export const DuePaymentStatus = {
   PENDING: "pending",
 };
 
 /**
- * An immutable record of an amount owed against an accepted Agreement Version,
- * split into the payments that fall due over the Agreement's term.
+ * An immutable record of an amount owed against the record that raised it — an
+ * accepted Agreement Version, or a submitted Claim — split into the payments
+ * that fall due.
  *
  * The nested `payments` field keeps the Payment Service/domain boundary used by
  * the legacy Agreements API. Agreement Payment Schedule Instalments are mapped
@@ -67,13 +105,7 @@ export const DuePaymentStatus = {
 export class Payment {
   static validationSchema = Joi.object({
     id: Joi.string().required(),
-    source: Joi.object({
-      type: Joi.string()
-        .valid(...Object.values(PaymentSourceType))
-        .required(),
-      agreementNumber: Joi.string().required(),
-      version: Joi.number().integer().min(1).required(),
-    }).required(),
+    source: sourceSchema,
     sbi: Joi.string().required(),
     frn: Joi.string().required(),
     paymentHubClaimId: Joi.string().required(),
@@ -120,7 +152,26 @@ export class Payment {
       );
     }
 
-    Object.assign(this, structuredClone(value));
+    this.id = value.id;
+    this.source = structuredClone(value.source);
+    this.sbi = value.sbi;
+    this.frn = value.frn;
+    this.paymentHubClaimId = value.paymentHubClaimId;
+    this.scheme = value.scheme;
+    this.sourceSystem = value.sourceSystem;
+    this.deliveryBody = value.deliveryBody;
+    this.fesCode = value.fesCode;
+    this.paymentRequestNumber = value.paymentRequestNumber;
+    this.correlationId = value.correlationId;
+    this.invoiceNumber = value.invoiceNumber;
+    this.originalInvoiceNumber = value.originalInvoiceNumber;
+    this.ledger = value.ledger;
+    this.totalAmountPence = value.totalAmountPence;
+    this.currency = value.currency;
+    this.marketingYear = value.marketingYear;
+    this.payments = structuredClone(value.payments);
+    this.createdAt = value.createdAt;
+
     deepFreeze(this);
   }
 

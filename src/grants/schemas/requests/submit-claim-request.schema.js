@@ -30,6 +30,7 @@ export const submitClaimRequestSchema = Joi.object({
   }).unknown(true),
   claim: Joi.object({
     entitlementId: Joi.string().required(),
+    totalClaimAmountPence: Joi.number().integer().min(0).required(),
   }).unknown(),
 })
   .options({
