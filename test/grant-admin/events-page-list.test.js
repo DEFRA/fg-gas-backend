@@ -9,7 +9,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { findEventsResponseSchema } from "../../src/grant-admin/schemas/find-events-response.schema.js";
+import { eventsPageResponseSchema } from "../../src/grant-admin/schemas/events-page-response.schema.js";
 import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -27,16 +27,11 @@ afterAll(async () => {
   await client?.close();
 });
 
-// The stub answers with an empty page for both boxes unless a test says
-// otherwise, so GAS-only cases see exactly what they seed.
 beforeEach(async () => {
   await resetCwStub();
 });
 
-// The containerised GAS runs its inbox/outbox pollers every 250 ms and they
-// rewrite PUBLISHED, FAILED and RESUBMITTED rows (claim, resubmit, dead-letter)
-// while a test is running. Only terminal or untouched statuses are seeded here;
-// status passthrough for the other three is covered by the unit tests.
+// The container's pollers rewrite PUBLISHED, FAILED and RESUBMITTED rows mid-test.
 const STABLE_STATUSES = ["COMPLETED", "DEAD_LETTER", "PROCESSING"];
 
 const at = (minute) =>
@@ -48,8 +43,9 @@ const inboxDoc = (n, overrides = {}) => ({
   source: "CW",
   status: "COMPLETED",
   completionAttempts: 1,
-  eventTime: at(n),
-  publicationDate: new Date().toISOString(),
+  publicationDate: at(n),
+  // Runs the other way from publicationDate, so a list that read it comes back reversed.
+  eventTime: at(100 - n),
   lastResubmissionDate: null,
   completionDate: at(n),
   segregationRef: `GLD-9B2-BWS-${n}`,
@@ -103,12 +99,15 @@ const auditOutboxDoc = (n) =>
   });
 
 const findEvents = async (query = "", options = {}) => {
-  const { payload } = await wreck.get(`/grant-admin/events${query}`, options);
+  const { payload } = await wreck.get(
+    `/grant-admin/events/page${query}`,
+    options,
+  );
 
   return payload;
 };
 
-describe("GET /grant-admin/events", () => {
+describe("GET /grant-admin/events/page list", () => {
   it("returns every seeded row newest first with no filter", async () => {
     await inbox.insertMany([inboxDoc(1), inboxDoc(3)]);
     await outbox.insertMany([outboxDoc(2), outboxDoc(4)]);
@@ -152,32 +151,7 @@ describe("GET /grant-admin/events", () => {
 
     expect(body.events).toHaveLength(20);
     expect(body.pagination.hasNextPage).toBe(true);
-    expect(body.pagination.hasPreviousPage).toBe(false);
     expect(body.pagination.endCursor).toEqual(expect.any(String));
-  });
-
-  it("Next then Previous returns the first page's rows in the same order", async () => {
-    await inbox.insertMany(
-      Array.from({ length: 25 }, (_, n) => inboxDoc(n + 1)),
-    );
-    await outbox.insertMany(
-      Array.from({ length: 25 }, (_, n) => outboxDoc(n + 1)),
-    );
-
-    const first = await findEvents();
-    const second = await findEvents(
-      `?cursor=${encodeURIComponent(first.pagination.endCursor)}&direction=forward`,
-    );
-
-    expect(second.pagination.hasPreviousPage).toBe(true);
-
-    const back = await findEvents(
-      `?cursor=${encodeURIComponent(second.pagination.startCursor)}&direction=backward`,
-    );
-
-    expect(back.events.map((event) => event.id)).toEqual(
-      first.events.map((event) => event.id),
-    );
   });
 
   it("a row inserted between two requests is neither duplicated nor skipped", async () => {
@@ -188,16 +162,14 @@ describe("GET /grant-admin/events", () => {
     const first = await findEvents();
 
     await inbox.insertOne(
-      inboxDoc(99, { eventTime: "2027-01-01T00:00:00.000Z" }),
+      inboxDoc(99, { publicationDate: "2027-01-01T00:00:00.000Z" }),
     );
 
     const seen = [...first.events.map((event) => event.id)];
     let { endCursor, hasNextPage } = first.pagination;
 
     while (hasNextPage) {
-      const page = await findEvents(
-        `?cursor=${encodeURIComponent(endCursor)}&direction=forward`,
-      );
+      const page = await findEvents(`?cursor=${encodeURIComponent(endCursor)}`);
       seen.push(...page.events.map((event) => event.id));
       endCursor = page.pagination.endCursor;
       hasNextPage = page.pagination.hasNextPage;
@@ -271,8 +243,6 @@ describe("GET /grant-admin/events", () => {
     });
   });
 
-  // An audit record is not a CloudEvent: it stores no `event.type` at all, so
-  // both type fields are null. Nothing is synthesised from its entities.
   it("labels the audit outbox row and falls back to its _id for eventId", async () => {
     const { insertedIds } = await outbox.insertMany([auditOutboxDoc(1)]);
 
@@ -281,12 +251,9 @@ describe("GET /grant-admin/events", () => {
 
     expect(row.type).toEqual("audit");
     expect(row.eventId).toEqual(insertedIds[0].toString());
-    expect(row.queueValue).toEqual("gas__sns__audit_topic_arn");
-    expect(row.queue).toEqual("to Audit");
-    expect(row).not.toHaveProperty("fullType");
   });
 
-  it("reduces internal:message-bus to internal and keeps a legacy io.onsite type whole", async () => {
+  it("keeps a legacy io.onsite type whole", async () => {
     await outbox.insertMany([
       outboxDoc(1, {
         target: "internal:message-bus",
@@ -296,17 +263,25 @@ describe("GET /grant-admin/events", () => {
 
     const [row] = (await findEvents()).events;
 
-    expect(row.queueValue).toEqual("internal");
-    // The internal bus is this service talking to itself, so the hop it names
-    // is GAS rather than a subscriber on the far end of a topic.
-    expect(row.queue).toEqual("to GAS");
     expect(row.type).toEqual("io.onsite.agreement.status.updated");
-    expect(row).not.toHaveProperty("fullType");
   });
 
-  it("falls back to the _id timestamp for an inbox row with no eventTime", async () => {
+  it("dates an inbox row by its publicationDate, not the sender's eventTime", async () => {
+    await inbox.insertOne(
+      inboxDoc(1, {
+        publicationDate: "2026-06-16T10:01:00.123Z",
+        eventTime: "2026-06-16T09:00:00.000Z",
+      }),
+    );
+
+    const [row] = (await findEvents()).events;
+
+    expect(row.createdAt).toEqual("2026-06-16T10:01:00.123Z");
+  });
+
+  it("falls back to the _id timestamp for an inbox row with no publicationDate", async () => {
     const id = new ObjectId();
-    await inbox.insertOne(inboxDoc(1, { _id: id, eventTime: null }));
+    await inbox.insertOne(inboxDoc(1, { _id: id, publicationDate: null }));
 
     const [row] = (await findEvents()).events;
 
@@ -328,51 +303,22 @@ describe("GET /grant-admin/events", () => {
     );
   });
 
-  // The attempts figure over the service's own cap is drawn by the detail and
-  // asserted there (get-event.test.js). The list stopped drawing it, so what
-  // the list endpoint owes is to send none of it - nor the raw count behind it.
-  it("sends no attempt facts on a list row", async () => {
-    await inbox.insertOne(inboxDoc(1, { completionAttempts: 3 }));
-    await outbox.insertOne(outboxDoc(2, { completionAttempts: 2 }));
-
-    const body = await findEvents();
-
-    expect(body.events).toHaveLength(2);
-    for (const event of body.events) {
-      for (const key of [
-        "attempts",
-        "showAttempts",
-        "lastFailureAt",
-        "maxAttempts",
-      ]) {
-        expect(event).not.toHaveProperty(key);
-      }
-    }
-  });
-
   it("carries no trace on a list row, from either box", async () => {
     await inbox.insertOne(inboxDoc(1));
     await outbox.insertOne(outboxDoc(2));
 
     const body = await findEvents();
 
-    for (const row of body.events) {
-      expect(row).not.toHaveProperty("traceId");
-      expect(row).not.toHaveProperty("traceparent");
-    }
     expect(JSON.stringify(body)).not.toContain(
       "4bf92f3577b34da6a3ce929d0e0e4736",
     );
   });
 
-  // An audit payload's `correlationid` is a different identifier from a trace
-  // and is deliberately never read, here or anywhere.
   it("never returns an audit row's correlationid", async () => {
     await outbox.insertOne(auditOutboxDoc(1));
 
     const body = await findEvents("?audit=include");
 
-    expect(body.events[0]).not.toHaveProperty("traceId");
     expect(JSON.stringify(body)).not.toContain("corr-1");
   });
 
@@ -409,42 +355,46 @@ describe("GET /grant-admin/events", () => {
     expect(serialised).not.toContain("SECRET-REF");
   });
 
-  it("carries none of the raw fields the display strings replaced", async () => {
+  it("carries exactly the keys the table draws, from either box", async () => {
     await inbox.insertOne(inboxDoc(1));
     await outbox.insertOne(outboxDoc(2));
 
     const body = await findEvents();
 
+    expect(body.events).toHaveLength(2);
     for (const row of body.events) {
-      for (const trimmed of [
-        "fullType",
-        "source",
-        "target",
-        "segregationRef",
-        "maxAttempts",
-        "publicationDate",
-        "completedAt",
-      ]) {
-        expect(row).not.toHaveProperty(trimmed);
-      }
+      expect(Object.keys(row).sort()).toEqual(
+        [
+          "service",
+          "box",
+          "id",
+          "eventId",
+          "type",
+          "status",
+          "statusLabel",
+          "statusRole",
+          "statusRetrying",
+          "createdAt",
+          "latency",
+          "latencyTitle",
+        ].sort(),
+      );
     }
   });
 
-  it("an empty database returns an empty page with null cursors", async () => {
+  it("an empty database returns an empty page with a null cursor", async () => {
     const body = await findEvents();
 
     expect(body.events).toEqual([]);
     expect(body.pagination).toEqual({
-      startCursor: null,
       endCursor: null,
       hasNextPage: false,
-      hasPreviousPage: false,
     });
   });
 
   it("responds 401 without a service bearer token", async () => {
     await expect(
-      wreck.get("/grant-admin/events", {
+      wreck.get("/grant-admin/events/page", {
         headers: {
           authorization: "Bearer 11111111-1111-1111-1111-111111111111",
         },
@@ -453,44 +403,23 @@ describe("GET /grant-admin/events", () => {
   });
 });
 
-describe("GET /grant-admin/events with Caseworking", () => {
-  // Exactly what a Caseworking LIST row carries; its detail document still
-  // carries everything.
+describe("GET /grant-admin/events/page list with Caseworking", () => {
   const cwRow = (n, overrides = {}) => ({
     _id: `665f1c2e9a1b2c3d4e5f${String(n).padStart(4, "0")}`,
     eventId: `cw-evt-${n}`,
     type: "cloud.defra.local.fg-cw-backend.case.status.updated",
     status: "COMPLETED",
-    completionAttempts: 1,
-    maxAttempts: 7,
-    createdAt: at(n),
-    lastFailureAt: null,
+    publicationDate: at(n),
     completedAt: at(n),
     ...overrides,
   });
 
-  const cwInboxRow = (n, overrides) =>
-    cwRow(n, { source: "GAS", ...overrides });
+  const cwInboxRow = cwRow;
+  const cwOutboxRow = cwRow;
 
-  // Caseworking publishes its own case status updates, and floci subscribes a
-  // GAS queue to them - so this row's queue line names GAS on the far end.
-  const cwOutboxRow = (n, overrides) =>
-    cwRow(n, {
-      target:
-        "arn:aws:sns:eu-west-2:000000000000:cw__sns__case_status_updated_fifo.fifo",
-      ...overrides,
-    });
-
-  // A Caseworking box with more where that came from, so the page it answers
-  // leaves a keyset position behind for that box.
   const paged = (rows) => ({
     data: rows,
-    pagination: {
-      startCursor: null,
-      endCursor: null,
-      hasNextPage: true,
-      hasPreviousPage: false,
-    },
+    pagination: { endCursor: null, hasNextPage: true },
   });
 
   it("merges Caseworking rows with GAS rows newest first", async () => {
@@ -507,47 +436,31 @@ describe("GET /grant-admin/events with Caseworking", () => {
     expect(body.events.map((event) => `${event.service}/${event.box}`)).toEqual(
       ["caseworking/outbox", "gas/outbox", "caseworking/inbox", "gas/inbox"],
     );
-    expect(body.events[0].queueValue).toEqual(
-      "cw__sns__case_status_updated_fifo.fifo",
+  });
+
+  it("carries exactly the keys the table draws on a Caseworking row", async () => {
+    await setCwStub({ inbox: { data: [cwInboxRow(1)] } });
+
+    const [row] = (await findEvents()).events;
+
+    expect(Object.keys(row).sort()).toEqual(
+      [
+        "service",
+        "box",
+        "id",
+        "eventId",
+        "type",
+        "status",
+        "statusLabel",
+        "statusRole",
+        "statusRetrying",
+        "createdAt",
+        "latency",
+        "latencyTitle",
+      ].sort(),
     );
-    expect(body.events[0].queue).toEqual("to GAS");
-    expect(body.events.map((event) => event.hop)).toEqual([
-      "CW Outbox",
-      "GAS Outbox",
-      "CW Inbox",
-      "GAS Inbox",
-    ]);
   });
 
-  it("names the producer a Caseworking inbox row received from", async () => {
-    await setCwStub({ inbox: { data: [cwInboxRow(1)] } });
-
-    const [row] = (await findEvents()).events;
-
-    expect(row.hop).toEqual("CW Inbox");
-    expect(row.queue).toEqual("from GAS");
-    expect(row.queueValue).toBeNull();
-  });
-
-  it("carries none of the four fields a Caseworking list row stopped sending", async () => {
-    await setCwStub({ inbox: { data: [cwInboxRow(1)] } });
-
-    const [row] = (await findEvents()).events;
-
-    for (const trimmed of [
-      "fullType",
-      "traceparent",
-      "traceId",
-      "segregationRef",
-      "lastRedrive",
-    ]) {
-      expect(row).not.toHaveProperty(trimmed);
-    }
-  });
-
-  // A Caseworking row never carries THIS service's audit topic, so a type-less
-  // one is an anomaly, not an audit record - and it is never filtered away:
-  // `audit` reaches Caseworking, which applies it to its own rows.
   it("labels a Caseworking row that carries no type unknown", async () => {
     await setCwStub({
       outbox: { data: [cwOutboxRow(1, { eventId: null, type: null })] },
@@ -557,10 +470,9 @@ describe("GET /grant-admin/events with Caseworking", () => {
 
     expect(row.type).toEqual("unknown");
     expect(row.eventId).toEqual("665f1c2e9a1b2c3d4e5f0001");
-    expect(row).not.toHaveProperty("fullType");
   });
 
-  it("calls the actuator once with the bearer token, pageSize 20, direction and the filters", async () => {
+  it("calls the actuator once with the bearer token, pageSize 20 and the filters", async () => {
     await findEvents("?status=DEAD_LETTER");
 
     const calls = await cwStubRequests();
@@ -569,12 +481,9 @@ describe("GET /grant-admin/events with Caseworking", () => {
     expect(calls[0].authorization).toEqual("Bearer cw-stub-token");
     expect(calls[0].query).toMatchObject({
       pageSize: "20",
-      direction: "forward",
       status: "DEAD_LETTER",
       audit: "exclude",
     });
-    // Each box has its own keyset position on that one request, and a first
-    // page starts from neither.
     expect(calls[0].query).not.toHaveProperty("inboxCursor");
     expect(calls[0].query).not.toHaveProperty("outboxCursor");
   });
@@ -596,7 +505,7 @@ describe("GET /grant-admin/events with Caseworking", () => {
       JSON.parse(Buffer.from(value, "base64url").toString());
 
     expect(sliceOf(call.query.inboxCursor)).toEqual({
-      eventTime: at(1),
+      publicationDate: at(1),
       _id: "665f1c2e9a1b2c3d4e5f0001",
     });
     expect(sliceOf(call.query.outboxCursor)).toEqual({
@@ -628,8 +537,6 @@ describe("GET /grant-admin/events with Caseworking", () => {
     ]);
   });
 
-  // A failure of the ONE connection takes both boxes with it: there is only
-  // one request left to fail.
   it("a Caseworking 401 returns GAS rows with a sourceError for both boxes and no response body anywhere", async () => {
     await inbox.insertOne(inboxDoc(1));
     await setCwStub({ inbox: { mode: "unauthorized" } });
@@ -638,18 +545,8 @@ describe("GET /grant-admin/events with Caseworking", () => {
 
     expect(body.events).toHaveLength(1);
     expect(body.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 401",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 401",
-      },
+      { hop: "CW-BE Inbox" },
+      { hop: "CW-BE Outbox" },
     ]);
     expect(JSON.stringify(body)).not.toContain("SECRET-CW-401-BODY");
   });
@@ -661,23 +558,12 @@ describe("GET /grant-admin/events with Caseworking", () => {
     const body = await findEvents();
 
     expect(body.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 500",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 500",
-      },
+      { hop: "CW-BE Inbox" },
+      { hop: "CW-BE Outbox" },
     ]);
     expect(JSON.stringify(body)).not.toContain("SECRET-CW-500-BODY");
   });
 
-  // A per-box failure is Caseworking answering 200 with one box's section null.
   it("names only the box Caseworking could not read, and keeps the other's rows", async () => {
     await inbox.insertOne(inboxDoc(1));
     await setCwStub({
@@ -690,14 +576,7 @@ describe("GET /grant-admin/events with Caseworking", () => {
     expect(body.events.map((event) => `${event.service}/${event.box}`)).toEqual(
       ["caseworking/inbox", "gas/inbox"],
     );
-    expect(body.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 502",
-      },
-    ]);
+    expect(body.sourceErrors).toEqual([{ hop: "CW-BE Outbox" }]);
   });
 
   it("a Caseworking connection failure returns GAS rows with a sourceError for both boxes", async () => {
@@ -707,13 +586,10 @@ describe("GET /grant-admin/events with Caseworking", () => {
     const body = await findEvents();
 
     expect(body.events).toHaveLength(1);
-    expect(body.sourceErrors.map((error) => error.box).sort()).toEqual([
-      "inbox",
-      "outbox",
+    expect(body.sourceErrors.map((error) => error.hop)).toEqual([
+      "CW-BE Inbox",
+      "CW-BE Outbox",
     ]);
-    expect(
-      body.sourceErrors.every((error) => error.service === "caseworking"),
-    ).toBe(true);
   });
 
   it(
@@ -723,29 +599,18 @@ describe("GET /grant-admin/events with Caseworking", () => {
       await inbox.insertOne(inboxDoc(1));
       await setCwStub({ inbox: { mode: "timeout" } });
 
-      // GAS waits out its own 3 s client timeout, so this request needs a
-      // longer one than the shared test client's default.
+      // GAS waits out its own 4 s client timeout first.
       const body = await findEvents("", { timeout: 15000 });
 
       expect(body.events).toHaveLength(1);
       expect(body.sourceErrors).toEqual([
-        {
-          service: "caseworking",
-          box: "inbox",
-          hop: "CW Inbox",
-          message: "timeout",
-        },
-        {
-          service: "caseworking",
-          box: "outbox",
-          hop: "CW Outbox",
-          message: "timeout",
-        },
+        { hop: "CW-BE Inbox" },
+        { hop: "CW-BE Outbox" },
       ]);
     },
   );
 
-  it("still pages GAS rows while Caseworking is unavailable", async () => {
+  it("still pages GAS rows while CW-BE is unavailable", async () => {
     await inbox.insertMany(
       Array.from({ length: 25 }, (_, n) => inboxDoc(n + 1)),
     );
@@ -765,7 +630,7 @@ describe("GET /grant-admin/events with Caseworking", () => {
   });
 
   it("validates the merged payload against the published response schema", async () => {
-    await inbox.insertOne(inboxDoc(1, { eventTime: null }));
+    await inbox.insertOne(inboxDoc(1, { publicationDate: null }));
     await outbox.insertMany([outboxDoc(2), auditOutboxDoc(3)]);
     await setCwStub({
       inbox: { data: [cwInboxRow(4)] },
@@ -777,30 +642,11 @@ describe("GET /grant-admin/events with Caseworking", () => {
     const body = await findEvents("?audit=include");
 
     expect(body.events).toHaveLength(5);
-    expect(findEventsResponseSchema.validate(body).error).toBeUndefined();
+    expect(eventsPageResponseSchema.validate(body).error).toBeUndefined();
   });
 });
 
-describe("swagger", () => {
-  it("documents GET /grant-admin/events with its response schema", async () => {
-    const { payload } = await wreck.get("/swagger.json");
-
-    expect(Object.keys(payload.paths)).toContain("/grant-admin/events");
-    expect(
-      JSON.stringify(payload.paths["/grant-admin/events"].get.responses),
-    ).toContain("FindEventsResponse");
-    expect(Object.keys(payload.definitions)).toEqual(
-      expect.arrayContaining([
-        "FindEventsResponse",
-        "Event",
-        "EventPagination",
-        "EventSourceError",
-      ]),
-    );
-  });
-});
-
-describe("GET /grant-admin/events?q=", () => {
+describe("GET /grant-admin/events/page list with q", () => {
   it("matches an inbox row on its messageId exactly", async () => {
     await inbox.insertMany([inboxDoc(1), inboxDoc(2)]);
 
@@ -862,7 +708,7 @@ describe("GET /grant-admin/events?q=", () => {
 
     expect(body.events).toEqual([]);
     expect(body.sourceErrors).toEqual([]);
-    expect(body.pagination.startCursor).toBeNull();
+    expect(body.pagination.endCursor).toBeNull();
   });
 
   it("treats regex metacharacters in q as literal text", async () => {
@@ -907,12 +753,7 @@ describe("GET /grant-admin/events?q=", () => {
   });
 });
 
-// `kind` is not a known query parameter, so it 400s rather than being quietly
-// ignored: an operator on a stale bookmarked URL is told, not silently shown
-// everything.
-describe("GET /grant-admin/events and audit rows", () => {
-  // Both audit shapes the outbox actually stores: a payload carrying an
-  // `audit` object, and a row addressed to the service's own audit topic.
+describe("GET /grant-admin/events/page list and audit rows", () => {
   const auditPayloadOnlyDoc = (n) =>
     outboxDoc(n, {
       target:
@@ -956,8 +797,6 @@ describe("GET /grant-admin/events and audit rows", () => {
     );
   });
 
-  // A row is an audit record because of where it was SENT, never because of
-  // what its payload happens to contain.
   it("labels a type-less row that merely carries an audit payload unknown", async () => {
     await outbox.insertMany([outboxDoc(1), auditPayloadOnlyDoc(2)]);
 
@@ -967,7 +806,6 @@ describe("GET /grant-admin/events and audit rows", () => {
       "unknown",
       "case.create",
     ]);
-    expect(body.events[0]).not.toHaveProperty("fullType");
   });
 
   it("keeps that unknown row on a default page", async () => {
@@ -981,15 +819,12 @@ describe("GET /grant-admin/events and audit rows", () => {
     ]);
   });
 
-  // The audit topic decides whether a row is an audit RECORD, not what its
-  // type is: the "audit" label is only a fallback for a row that stored none.
   it("keeps the stored type on a row addressed at the audit topic", async () => {
     await outbox.insertOne(auditTargetOnlyDoc(1));
 
     const body = await findEvents("?audit=include");
 
     expect(body.events[0].type).toEqual("case.create");
-    expect(body.events[0].queueValue).toEqual("gas__sns__audit_topic_arn");
   });
 
   it("keeps the _id fallback for eventId on an audit row", async () => {
@@ -1009,42 +844,16 @@ describe("GET /grant-admin/events and audit rows", () => {
     const body = await findEvents("?q=GLD-9B2-BWS-2&audit=include");
 
     expect(body.events).toHaveLength(1);
-    // An audit record stores no event id, so its own `_id` names it.
     expect(body.events[0].eventId).toEqual(insertedIds[1].toString());
   });
 });
 
-describe("GET /grant-admin/events lastError", () => {
+describe("GET /grant-admin/events/page list lastError", () => {
   const lastError = {
     name: "ClaimExpired",
     message: "claim expired before completion",
     at: "2026-06-16T10:16:05.000Z",
   };
-
-  it("returns null lastError for rows written before the field existed", async () => {
-    await inbox.insertOne(inboxDoc(1));
-    await outbox.insertOne(outboxDoc(2));
-
-    const body = await findEvents();
-
-    expect(body.events.map((event) => event.lastError)).toEqual([null, null]);
-  });
-
-  it("surfaces a stored lastError on a GAS inbox row", async () => {
-    await inbox.insertOne(inboxDoc(1, { status: "DEAD_LETTER", lastError }));
-
-    const [row] = (await findEvents()).events;
-
-    expect(row.lastError).toEqual(lastError);
-  });
-
-  it("surfaces a stored lastError on a GAS outbox row", async () => {
-    await outbox.insertOne(outboxDoc(1, { status: "DEAD_LETTER", lastError }));
-
-    const [row] = (await findEvents()).events;
-
-    expect(row.lastError).toEqual(lastError);
-  });
 
   it("never returns the stack of a stored lastError", async () => {
     await outbox.insertOne(
@@ -1070,12 +879,18 @@ describe("GET /grant-admin/events lastError", () => {
       async () => {
         const [row] = (await findEvents("?q=evt-1")).events;
 
-        expect(row?.lastError).not.toBeNull();
-        expect(row.lastError.name).toEqual(expect.any(String));
-        expect(row.lastError.message.length).toBeGreaterThan(0);
-        expect(row.lastError.message.length).toBeLessThanOrEqual(1024);
-        expect(row.lastError.at).toEqual(
-          new Date(row.lastError.at).toISOString(),
+        expect(row).toBeDefined();
+
+        const { payload: detail } = await wreck.get(
+          `/grant-admin/events/gas/outbox/${row.id}`,
+        );
+
+        expect(detail.lastError).not.toBeNull();
+        expect(detail.lastError.name).toEqual(expect.any(String));
+        expect(detail.lastError.message.length).toBeGreaterThan(0);
+        expect(detail.lastError.message.length).toBeLessThanOrEqual(1024);
+        expect(detail.lastError.at).toEqual(
+          new Date(detail.lastError.at).toISOString(),
         );
       },
       { timeout: 8000, interval: 250 },
@@ -1083,7 +898,7 @@ describe("GET /grant-admin/events lastError", () => {
   });
 });
 
-describe("GET /grant-admin/events forwards q to Caseworking", () => {
+describe("GET /grant-admin/events/page list forwards q to Caseworking", () => {
   it("forwards q on the one actuator call", async () => {
     await findEvents("?q=GLD-9B2-BWS");
 
@@ -1093,7 +908,6 @@ describe("GET /grant-admin/events forwards q to Caseworking", () => {
     expect(calls[0].query).toMatchObject({
       q: "GLD-9B2-BWS",
       pageSize: "20",
-      direction: "forward",
     });
   });
 
@@ -1105,14 +919,6 @@ describe("GET /grant-admin/events forwards q to Caseworking", () => {
     expect(call.query).not.toHaveProperty("q");
   });
 
-  it("never sends a kind to Caseworking", async () => {
-    await findEvents("?q=GLD-9B2-BWS");
-
-    const [call] = await cwStubRequests();
-
-    expect(call.query).not.toHaveProperty("kind");
-  });
-
   it("sends the trimmed q, not the raw one", async () => {
     await findEvents("?q=%20%20evt-1%20%20");
 
@@ -1120,73 +926,10 @@ describe("GET /grant-admin/events forwards q to Caseworking", () => {
 
     expect(call.query.q).toEqual("evt-1");
   });
-
-  it("surfaces a lastError carried by a Caseworking row", async () => {
-    const lastError = {
-      name: "TimeoutError",
-      message: "publish timed out",
-      at: "2026-06-16T10:16:05.000Z",
-    };
-
-    await setCwStub({
-      inbox: {
-        data: [
-          {
-            _id: "665f1c2e9a1b2c3d4e5f0001",
-            eventId: "cw-evt-1",
-            type: "cloud.defra.local.fg-cw-backend.case.status.updated",
-            source: "GAS",
-            segregationRef: "CW-REF-1",
-            status: "DEAD_LETTER",
-            completionAttempts: 3,
-            maxAttempts: 7,
-            traceparent: null,
-            createdAt: at(1),
-            lastFailureAt: at(1),
-            lastError,
-            completedAt: null,
-          },
-        ],
-      },
-    });
-
-    const [row] = (await findEvents()).events;
-
-    expect(row.lastError).toEqual(lastError);
-  });
-
-  it("returns a null lastError for a Caseworking row that carries none", async () => {
-    await setCwStub({
-      inbox: {
-        data: [
-          {
-            _id: "665f1c2e9a1b2c3d4e5f0002",
-            eventId: "cw-evt-2",
-            type: "cloud.defra.local.fg-cw-backend.case.status.updated",
-            source: "GAS",
-            segregationRef: "CW-REF-2",
-            status: "COMPLETED",
-            completionAttempts: 1,
-            maxAttempts: 7,
-            traceparent: null,
-            createdAt: at(2),
-            lastFailureAt: null,
-            completedAt: at(2),
-          },
-        ],
-      },
-    });
-
-    const [row] = (await findEvents()).events;
-
-    expect(row.lastError).toBeNull();
-  });
 });
 
-describe("GET /grant-admin/events from and to", () => {
-  // at(n) is 2026-06-16T10:{n}:00.000Z; the inbox keys off eventTime (a
-  // string) and the outbox off publicationDate (a Date), so this exercises
-  // both column types end to end.
+describe("GET /grant-admin/events/page list from and to", () => {
+  // Inbox publicationDate is a string and outbox a Date, so both column types are exercised.
   const idsOf = (body) => body.events.map((row) => row.eventId).sort();
 
   beforeEach(async () => {
@@ -1208,7 +951,7 @@ describe("GET /grant-admin/events from and to", () => {
     const body = await findEvents(`?from=${at(15)}&to=${at(25)}`);
 
     expect(idsOf(body)).toEqual(["evt-15", "evt-25", "msg-20"]);
-    expect(findEventsResponseSchema.validate(body).error).toBeUndefined();
+    expect(eventsPageResponseSchema.validate(body).error).toBeUndefined();
   });
 
   it("is inclusive at both ends", async () => {
@@ -1240,7 +983,7 @@ describe("GET /grant-admin/events from and to", () => {
     );
 
     expect(body.events).toEqual([]);
-    expect(body.pagination.startCursor).toBeNull();
+    expect(body.pagination.endCursor).toBeNull();
   });
 
   it("combines the range with q", async () => {
@@ -1272,7 +1015,7 @@ describe("GET /grant-admin/events from and to", () => {
   });
 });
 
-describe("GET /grant-admin/events wider q", () => {
+describe("GET /grant-admin/events/page list wider q", () => {
   it("finds a row by its exact traceparent", async () => {
     await inbox.insertOne(inboxDoc(41));
 
@@ -1322,13 +1065,8 @@ describe("GET /grant-admin/events wider q", () => {
   });
 });
 
-// Regression: a source contributing NO rows to a page must not be handed its
-// incoming slice for BOTH outgoing cursors - keyset reads are strictly
-// exclusive, so the cursor pointing back would skip exactly the boundary row
-// the operator was turning round to see. The seed puts each GAS box on its own
-// side of the fold (outbox fills page one, inbox is page two), so each box is
-// the silent source on one leg, exercising both halves of the fix.
-describe("GET /grant-admin/events paging round trip", () => {
+// Outbox fills page one and inbox page two, so turning the page crosses sources.
+describe("GET /grant-admin/events/page list paging across both boxes", () => {
   const PAGE = 20;
   const OUTBOX_MINUTES = Array.from({ length: PAGE }, (_, i) => i + 21);
   const INBOX_MINUTES = [1, 2, 3, 4, 5, 6];
@@ -1343,65 +1081,31 @@ describe("GET /grant-admin/events paging round trip", () => {
 
   const older = (body) =>
     findEvents(
-      `?service=gas&cursor=${encodeURIComponent(body.pagination.endCursor)}&direction=forward`,
+      `?service=gas&cursor=${encodeURIComponent(body.pagination.endCursor)}`,
     );
-
-  const newer = (body) =>
-    findEvents(
-      `?service=gas&cursor=${encodeURIComponent(body.pagination.startCursor)}&direction=backward`,
-    );
-
-  it("comes back to the same rows after Older then Newer then Older", async () => {
-    await seed();
-
-    const page1 = await findEvents("?service=gas");
-    const page2 = await older(page1);
-    const backAgain = await newer(page2);
-    const forwardAgain = await older(backAgain);
-
-    expect(idsOf(page1)).toHaveLength(PAGE);
-    expect(page1.events.every((event) => event.box === "outbox")).toBe(true);
-    expect(page2.events.every((event) => event.box === "inbox")).toBe(true);
-
-    expect(idsOf(backAgain)).toEqual(idsOf(page1));
-    expect(idsOf(forwardAgain)).toEqual(idsOf(page2));
-  });
 
   it("loses no row and repeats none across the two pages", async () => {
     await seed();
 
     const page1 = await findEvents("?service=gas");
     const page2 = await older(page1);
+
+    expect(idsOf(page1)).toHaveLength(PAGE);
+    expect(page1.events.every((event) => event.box === "outbox")).toBe(true);
+    expect(page2.events.every((event) => event.box === "inbox")).toBe(true);
+
     const seen = [...idsOf(page1), ...idsOf(page2)];
 
     expect(new Set(seen).size).toBe(seen.length);
     expect(seen).toHaveLength(PAGE + INBOX_MINUTES.length);
   });
 
-  // The silent source going forward is the inbox: it offered candidates and
-  // every one of them was outranked, so the cursor pointing back has to be
-  // built from the nearest of those rather than from what came in.
-  it("keeps the newest inbox row on page two after a round trip", async () => {
+  // The inbox offered nothing on page one, so its slice must keep its incoming position.
+  it("keeps the newest inbox row at the top of page two", async () => {
     await seed();
 
-    const page1 = await findEvents("?service=gas");
-    const page2 = await older(page1);
-    const forwardAgain = await older(await newer(page2));
+    const page2 = await older(await findEvents("?service=gas"));
 
     expect(page2.events[0].createdAt).toEqual(at(6));
-    expect(forwardAgain.events[0].createdAt).toEqual(at(6));
-  });
-
-  // The silent source coming back is the outbox: it offered nothing older, so
-  // its stream ends at the incoming slice and the far end is the honest
-  // position - reading from it lands back on that boundary row.
-  it("keeps the oldest outbox row on page one after a round trip", async () => {
-    await seed();
-
-    const page1 = await findEvents("?service=gas");
-    const backAgain = await newer(await older(page1));
-
-    expect(page1.events.at(-1).createdAt).toEqual(at(21));
-    expect(backAgain.events.at(-1).createdAt).toEqual(at(21));
   });
 });

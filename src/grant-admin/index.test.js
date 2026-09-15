@@ -19,10 +19,6 @@ describe("grant-admin", () => {
     expect(routes).toEqual([
       {
         method: "get",
-        path: "/grant-admin/events",
-      },
-      {
-        method: "get",
         path: "/grant-admin/events/page",
       },
       {
@@ -56,30 +52,15 @@ describe("grant-admin", () => {
       .table()
       .map(({ method, path }) => `${method} ${path}`);
 
-    expect(routes).toContain("get /grant-admin/events");
     expect(routes).toContain("get /grant-admin/events/page");
     expect(routes).toContain("get /grant-admin/events/{service}/{box}/{id}");
     expect(routes).toContain(
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
     );
   });
-
-  it.each(["/grant-admin/events/counts", "/grant-admin/events/breakdown"])(
-    "no longer registers %s",
-    async (path) => {
-      const server = hapi.server();
-      await server.register(grantAdmin);
-
-      const routes = server.table().map(({ path: registered }) => registered);
-
-      expect(routes).not.toContain(path);
-    },
-  );
 });
 
 describe("grant-admin route conflicts", () => {
-  // The segment counts differ, so the paths cannot collide - proven here by
-  // the router rather than a comment.
   it("routes /events/page to the page route, not the detail route", async () => {
     const server = hapi.server();
     await server.register(grantAdmin);

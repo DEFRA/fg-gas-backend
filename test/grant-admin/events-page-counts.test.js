@@ -78,9 +78,6 @@ const outboxDoc = (n, overrides = {}) => ({
   ...overrides,
 });
 
-// The counts are a section of the events page, so these read the page and
-// look at `counts` on it. A source the counts could not read is named in the
-// page's own `sourceErrors` rather than a second time inside the section.
 const countEvents = async (query = "", options = {}) => {
   const { payload } = await wreck.get(
     `/grant-admin/events/page${query}`,
@@ -91,18 +88,15 @@ const countEvents = async (query = "", options = {}) => {
 };
 
 const findEvents = async (query = "") => {
-  const { payload } = await wreck.get(`/grant-admin/events${query}`);
+  const { payload } = await wreck.get(`/grant-admin/events/page${query}`);
 
   return payload;
 };
 
-// Matches the ARN the integration environment configures.
 const AUDIT_ARN =
   "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn";
 
-// The three shapes a row that looks audit-ish can take. Only the DESTINATION
-// makes one an audit record (see events/event-audit.js): `auditByPayload`
-// merely carries an `audit` key and is an ordinary row.
+// Only the destination makes a row an audit record, not an `audit` key.
 const auditByPayload = (n) =>
   outboxDoc(n, { event: { ...outboxDoc(n).event, audit: { action: "VIEW" } } });
 
@@ -114,8 +108,6 @@ const auditByBoth = (n) =>
     event: { ...outboxDoc(n).event, audit: { action: "VIEW" } },
   });
 
-// Two GAS domain rows (one inbox, one outbox) and three GAS audit rows, one of
-// each shape. Caseworking's numbers come from the stub.
 const seedMixedGas = async () => {
   await inbox.insertMany([inboxDoc(1), inboxDoc(2, { status: "DEAD_LETTER" })]);
   await outbox.insertMany([
@@ -234,27 +226,14 @@ describe("GET /grant-admin/events/page - the counts section", () => {
   it("contributes zeros and a sourceError for both boxes when Caseworking is down", async () => {
     await inbox.insertOne(inboxDoc(1));
     await setCwStub({ inbox: { mode: "down" } });
-    // a destroyed socket surfaces as wreck's own 502
 
     const body = await countEvents();
 
     expect(body.counts).toEqual(counts({ COMPLETED: 1 }));
     expect(body.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 502",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 502",
-      },
+      { hop: "CW-BE Inbox" },
+      { hop: "CW-BE Outbox" },
     ]);
-    // A source that could not be read is not a section that could not be read:
-    // the counts still answer, with the numbers they could get.
     expect(body.sectionErrors).toEqual([]);
     expect(eventsPageResponseSchema.validate(body).error).toBeUndefined();
   });
@@ -265,11 +244,9 @@ describe("GET /grant-admin/events/page - the counts section", () => {
     const body = await countEvents();
 
     expect(JSON.stringify(body)).not.toContain("SECRET-CW-401-BODY");
-    expect(body.sourceErrors[0].message).toBe("HTTP 401");
+    expect(body.sourceErrors[0]).toEqual({ hop: "CW-BE Inbox" });
   });
 
-  // `status` filters the list beside the counts and never reaches them:
-  // counting per status is what they are for.
   it("counts every status whatever status the list is filtered to", async () => {
     await inbox.insertMany([
       inboxDoc(1),
@@ -299,11 +276,7 @@ describe("GET /grant-admin/events/page - the counts section", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// The three facets. Each block is computed with its OWN filter excluded and
-// every other filter applied, so a selected segment in the frontend's filter
-// bar still shows its siblings' true numbers.
-// ---------------------------------------------------------------------------
+// Each facet is computed with its own filter excluded, every other applied.
 
 describe("GET /grant-admin/events/page - the counts facet", () => {
   it("counts every source it read when nothing is filtered", async () => {
@@ -319,8 +292,6 @@ describe("GET /grant-admin/events/page - the counts facet", () => {
     expect(eventsPageResponseSchema.validate(body).error).toBeUndefined();
   });
 
-  // A `total` sent beside the six numbers could only ever agree with them or
-  // be a bug; the caller adds them up.
   it("carries the six numbers and nothing else", async () => {
     await seedMixedGas();
 
@@ -404,18 +375,8 @@ describe("GET /grant-admin/events/page - the counts facet", () => {
 
     expect(totalOf(body)).toBe(6);
     expect(body.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 500",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 500",
-      },
+      { hop: "CW-BE Inbox" },
+      { hop: "CW-BE Outbox" },
     ]);
     expect(eventsPageResponseSchema.validate(body).error).toBeUndefined();
   });
@@ -430,20 +391,11 @@ describe("GET /grant-admin/events/page - the counts facet", () => {
     const body = await countEvents();
 
     expect(body.counts).toEqual(counts({ COMPLETED: 1, DEAD_LETTER: 3 }));
-    expect(body.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 502",
-      },
-    ]);
+    expect(body.sourceErrors).toEqual([{ hop: "CW-BE Outbox" }]);
     expect(body.sectionErrors).toEqual([]);
     expect(eventsPageResponseSchema.validate(body).error).toBeUndefined();
   });
 
-  // Under `?service=gas` Caseworking is not part of the answer, so a broken
-  // Caseworking is not a gap in it.
   it("reports no Caseworking failure under service=gas, which does not read it", async () => {
     await seedMixedGas();
     await setCwStub({ inbox: { mode: "down" }, outbox: { mode: "down" } });
@@ -454,8 +406,6 @@ describe("GET /grant-admin/events/page - the counts facet", () => {
     expect(body.sourceErrors).toEqual([]);
   });
 
-  // A box Caseworking read and found nothing in is six zeros, which is an
-  // answer. A box it could NOT read is the `unreadable` case above.
   it("reads an empty Caseworking box as zeros, not as a failure", async () => {
     await setCwStub({ inbox: { counts: counts({ DEAD_LETTER: 4 }) } });
 

@@ -4,10 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
 import { findPage as findGasInboxPage } from "../../grants/repositories/inbox.repository.js";
 import { findPage as findGasOutboxPage } from "../../grants/repositories/outbox.repository.js";
-import {
-  findCwPage,
-  isCwConfigured,
-} from "../repositories/cw-actuators.repository.js";
+import { isCwConfigured } from "../repositories/cw-actuators.repository.js";
 import {
   encodeCompositeCursor,
   encodeSourceCursor,
@@ -38,7 +35,6 @@ vi.mock(
   "../repositories/cw-actuators.repository.js",
   async (importOriginal) => ({
     ...(await importOriginal()),
-    findCwPage: vi.fn(),
     isCwConfigured: vi.fn(),
   }),
 );
@@ -57,7 +53,7 @@ const gasInboxDoc = (n, overrides = {}) => ({
   source: "CW",
   status: "PUBLISHED",
   completionAttempts: 1,
-  eventTime: at(n),
+  publicationDate: at(n),
   lastResubmissionDate: null,
   completionDate: null,
   segregationRef: `ref-${n}`,
@@ -84,23 +80,15 @@ const cwRow = (n, overrides = {}) => ({
   _id: hexId(n),
   eventId: `cw-evt-${n}`,
   type: "cloud.defra.local.fg-cw-backend.case.status.updated",
-  source: "GAS",
-  segregationRef: `ref-${n}`,
   status: "PUBLISHED",
-  completionAttempts: 1,
-  maxAttempts: 9,
-  traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-  createdAt: at(n),
-  lastFailureAt: null,
+  publicationDate: at(n),
   completedAt: null,
   ...overrides,
 });
 
 const emptyPagination = {
-  startCursor: null,
   endCursor: null,
   hasNextPage: false,
-  hasPreviousPage: false,
 };
 
 const pageOf = (data) => ({ data, pagination: { ...emptyPagination } });
@@ -116,7 +104,6 @@ const ZERO_COUNTS = {
   DEAD_LETTER: 0,
 };
 
-// This use case reads the `list` section of each box.
 const cwBox = (list) => ({
   list,
   facets: { counts: { ...ZERO_COUNTS } },
@@ -130,51 +117,37 @@ const cwPage = ({ inbox = emptyPage(), outbox = emptyPage() } = {}) => ({
 
 const cwInboxRows = (rows) => cwPage({ inbox: pageOf(rows) });
 
-const cwCall = () => findCwPage.mock.calls[0][0];
+// The events page reads Caseworking once and hands every section the same promise.
+const find = (options = {}, caseworking = Promise.resolve(cwPage())) =>
+  findEventsUseCase({ caseworking, ...options });
+
+const cwDown = (error) => {
+  const rejected = Promise.reject(error);
+
+  rejected.catch(() => {});
+
+  return rejected;
+};
 
 beforeEach(() => {
   isCwConfigured.mockReturnValue(true);
   findGasInboxPage.mockResolvedValue(emptyPage());
   findGasOutboxPage.mockResolvedValue(emptyPage());
-  findCwPage.mockResolvedValue(cwPage());
 });
 
 describe("findEventsUseCase", () => {
   it("with no filters reads both GAS boxes with a null cursor at pageSize 20", async () => {
-    await findEventsUseCase({ direction: "forward" });
+    await find();
 
     for (const fetchPage of [findGasInboxPage, findGasOutboxPage]) {
       expect(fetchPage).toHaveBeenCalledWith(
         expect.objectContaining({
           cursor: null,
-          direction: "forward",
           status: undefined,
           pageSize: 20,
         }),
       );
     }
-  });
-
-  it("with no filters reads Caseworking once, for both of its boxes, at pageSize 20", async () => {
-    await findEventsUseCase({ direction: "forward" });
-
-    expect(findCwPage).toHaveBeenCalledTimes(1);
-    expect(cwCall()).toEqual({
-      slices: {
-        gasInbox: null,
-        gasOutbox: null,
-        cwInbox: null,
-        cwOutbox: null,
-      },
-      direction: "forward",
-      status: undefined,
-      q: undefined,
-      error: undefined,
-      from: undefined,
-      to: undefined,
-      audit: undefined,
-      pageSize: 20,
-    });
   });
 
   it("merges rows from four sources newest first and returns 20", async () => {
@@ -184,14 +157,15 @@ describe("findEventsUseCase", () => {
     findGasOutboxPage.mockResolvedValue(
       pageOf(Array.from({ length: 8 }, (_, i) => gasOutboxDoc(i + 11))),
     );
-    findCwPage.mockResolvedValue(
-      cwPage({
-        inbox: pageOf(Array.from({ length: 8 }, (_, i) => cwRow(i + 21))),
-        outbox: pageOf(Array.from({ length: 8 }, (_, i) => cwRow(i + 31))),
-      }),
+    const result = await find(
+      {},
+      Promise.resolve(
+        cwPage({
+          inbox: pageOf(Array.from({ length: 8 }, (_, i) => cwRow(i + 21))),
+          outbox: pageOf(Array.from({ length: 8 }, (_, i) => cwRow(i + 31))),
+        }),
+      ),
     );
-
-    const result = await findEventsUseCase({ direction: "forward" });
 
     expect(result.events).toHaveLength(20);
     const times = result.events.map((event) => event.createdAt);
@@ -199,166 +173,128 @@ describe("findEventsUseCase", () => {
     expect(result.pagination.hasNextPage).toBe(true);
   });
 
-  it("passes the per-source slice from a composite cursor to each source", async () => {
+  it("passes each GAS source its own slice of a composite cursor", async () => {
     const slices = {
-      gasInbox: encodeSourceCursor("gasInbox", {
+      gasInbox: encodeSourceCursor({
         cursorValue: at(5),
         id: hexId(5),
       }),
-      gasOutbox: encodeSourceCursor("gasOutbox", {
+      gasOutbox: encodeSourceCursor({
         cursorValue: at(6),
         id: hexId(6),
       }),
-      cwInbox: encodeSourceCursor("cwInbox", {
+      cwInbox: encodeSourceCursor({
         cursorValue: at(7),
         id: hexId(7),
       }),
       cwOutbox: null,
     };
 
-    await findEventsUseCase({
-      cursor: encodeCompositeCursor(slices),
-      direction: "forward",
-    });
+    await find({ cursor: encodeCompositeCursor(slices) });
 
     expect(findGasInboxPage.mock.calls[0][0].cursor).toEqual(slices.gasInbox);
     expect(findGasOutboxPage.mock.calls[0][0].cursor).toEqual(slices.gasOutbox);
-    expect(cwCall().slices).toEqual(slices);
   });
 
-  it("passes status to all four sources", async () => {
-    await findEventsUseCase({ direction: "forward", status: "DEAD_LETTER" });
+  it("passes status to both GAS sources", async () => {
+    await find({ status: "DEAD_LETTER" });
 
     for (const fetchPage of [findGasInboxPage, findGasOutboxPage]) {
       expect(fetchPage.mock.calls[0][0].status).toEqual("DEAD_LETTER");
     }
-    expect(cwCall().status).toEqual("DEAD_LETTER");
   });
 
   it("with service=gas queries only the two GAS sources and reports no sourceErrors", async () => {
-    const result = await findEventsUseCase({
-      direction: "forward",
-      service: "gas",
-    });
+    const result = await find(
+      { service: "gas" },
+      Promise.resolve(cwInboxRows([cwRow(1)])),
+    );
 
     expect(findGasInboxPage).toHaveBeenCalled();
     expect(findGasOutboxPage).toHaveBeenCalled();
-    expect(findCwPage).not.toHaveBeenCalled();
+    expect(result.events).toHaveLength(0);
     expect(result.sourceErrors).toEqual([]);
   });
 
-  it("with service=caseworking queries only the two CW sources", async () => {
-    await findEventsUseCase({ direction: "forward", service: "caseworking" });
+  it("with service=caseworking lists only the two CW sources", async () => {
+    const result = await find(
+      { service: "caseworking" },
+      Promise.resolve(cwInboxRows([cwRow(1)])),
+    );
 
     expect(findGasInboxPage).not.toHaveBeenCalled();
     expect(findGasOutboxPage).not.toHaveBeenCalled();
-    expect(findCwPage).toHaveBeenCalledTimes(1);
+    expect(result.events.map((event) => event.service)).toEqual([
+      "caseworking",
+    ]);
   });
 
-  it("reads the Caseworking page the caller shared rather than starting its own", async () => {
-    const shared = Promise.resolve(cwInboxRows([cwRow(1)]));
+  it("lists the rows of the Caseworking page the caller shared", async () => {
+    const result = await find({}, Promise.resolve(cwInboxRows([cwRow(1)])));
 
-    const result = await findEventsUseCase({
-      direction: "forward",
-      caseworking: shared,
-    });
-
-    expect(findCwPage).not.toHaveBeenCalled();
     expect(result.events).toHaveLength(1);
   });
 
   it("reports both caseworking boxes and still returns GAS rows when the CW read rejects", async () => {
     findGasInboxPage.mockResolvedValue(pageOf([gasInboxDoc(1)]));
-    findCwPage.mockRejectedValue(Boom.gatewayTimeout("timeout"));
 
-    const result = await findEventsUseCase({ direction: "forward" });
+    const result = await find({}, cwDown(Boom.gatewayTimeout("timeout")));
 
     expect(result.events).toHaveLength(1);
     expect(result.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "timeout",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "timeout",
-      },
+      { key: "cwInbox", service: "caseworking", box: "inbox" },
+      { key: "cwOutbox", service: "caseworking", box: "outbox" },
     ]);
   });
 
   it("reports only the box whose rows Caseworking could not read", async () => {
-    findCwPage.mockResolvedValue({
-      inbox: { list: null, facets: null, groups: null },
-      outbox: cwBox(pageOf([cwRow(2)])),
-    });
-
-    const result = await findEventsUseCase({ direction: "forward" });
+    const result = await find(
+      {},
+      Promise.resolve({
+        inbox: { list: null, facets: null, groups: null },
+        outbox: cwBox(pageOf([cwRow(2)])),
+      }),
+    );
 
     expect(result.events).toHaveLength(1);
     expect(result.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 502",
-      },
+      { key: "cwInbox", service: "caseworking", box: "inbox" },
     ]);
   });
 
-  it("reports two not configured sourceErrors and makes no HTTP call when the CW backend is unconfigured", async () => {
+  it("reports both Caseworking boxes when the CW backend is unconfigured", async () => {
     isCwConfigured.mockReturnValue(false);
 
-    const result = await findEventsUseCase({ direction: "forward" });
+    const result = await findEventsUseCase({});
 
-    expect(findCwPage).not.toHaveBeenCalled();
     expect(result.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "not configured",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "not configured",
-      },
+      { key: "cwInbox", service: "caseworking", box: "inbox" },
+      { key: "cwOutbox", service: "caseworking", box: "outbox" },
     ]);
   });
 
   it("reports no CW sourceError when service=gas and the CW backend is unconfigured", async () => {
     isCwConfigured.mockReturnValue(false);
 
-    const result = await findEventsUseCase({
-      direction: "forward",
-      service: "gas",
-    });
+    const result = await findEventsUseCase({ service: "gas" });
 
     expect(result.sourceErrors).toEqual([]);
   });
 
   it("returns 200 with a gas outbox sourceError when only the GAS outbox read rejects, and still returns the other three sources' rows", async () => {
     findGasInboxPage.mockResolvedValue(pageOf([gasInboxDoc(1)]));
-    findCwPage.mockResolvedValue(
-      cwPage({ inbox: pageOf([cwRow(2)]), outbox: pageOf([cwRow(3)]) }),
-    );
     findGasOutboxPage.mockRejectedValue(new Error("mongo down"));
 
-    const result = await findEventsUseCase({ direction: "forward" });
+    const result = await find(
+      {},
+      Promise.resolve(
+        cwPage({ inbox: pageOf([cwRow(2)]), outbox: pageOf([cwRow(3)]) }),
+      ),
+    );
 
     expect(result.events).toHaveLength(3);
     expect(result.sourceErrors).toEqual([
-      {
-        service: "gas",
-        box: "outbox",
-        hop: "GAS Outbox",
-        message: "read failed",
-      },
+      { key: "gasOutbox", service: "gas", box: "outbox" },
     ]);
     expect(logger.error).toHaveBeenCalled();
   });
@@ -367,184 +303,106 @@ describe("findEventsUseCase", () => {
     findGasInboxPage.mockRejectedValue(new Error("mongo down"));
     findGasOutboxPage.mockRejectedValue(new Error("mongo down"));
 
-    await expect(
-      findEventsUseCase({ direction: "forward" }),
-    ).rejects.toMatchObject({
+    await expect(find()).rejects.toMatchObject({
       output: { statusCode: 502 },
       message: "Events could not be loaded from GAS",
     });
   });
 
   it("throws Boom 400 for a tampered cursor before any source is queried", async () => {
-    await expect(
-      findEventsUseCase({ cursor: "tampered", direction: "forward" }),
-    ).rejects.toMatchObject({
+    await expect(find({ cursor: "tampered" })).rejects.toMatchObject({
       output: { statusCode: 400 },
       message: "Cannot decode cursor",
     });
 
     expect(findGasInboxPage).not.toHaveBeenCalled();
     expect(findGasOutboxPage).not.toHaveBeenCalled();
-    expect(findCwPage).not.toHaveBeenCalled();
-  });
-
-  // The attempts ceiling still comes from config for GAS rows and from the row
-  // itself for CW ones - get-event.use-case.test.js holds that, because the
-  // detail is now the only surface that draws an attempt count. What the list
-  // owes is the other half: sending none of it.
-  it("sends no attempt facts on a list row, whatever the source", async () => {
-    findGasInboxPage.mockResolvedValue(pageOf([gasInboxDoc(1)]));
-    findGasOutboxPage.mockResolvedValue(pageOf([gasOutboxDoc(2)]));
-    findCwPage.mockResolvedValue(cwInboxRows([cwRow(3)]));
-
-    const result = await findEventsUseCase({ direction: "forward" });
-
-    expect(result.events).toHaveLength(3);
-    for (const event of result.events) {
-      expect(event).not.toHaveProperty("attempts");
-      expect(event).not.toHaveProperty("showAttempts");
-      expect(event).not.toHaveProperty("lastFailureAt");
-    }
   });
 
   it("orders sourceErrors gasInbox, gasOutbox, cwInbox, cwOutbox", async () => {
-    findCwPage.mockRejectedValue(Boom.unauthorized("nope"));
     findGasOutboxPage.mockRejectedValue(new Error("mongo down"));
 
-    const result = await findEventsUseCase({ direction: "forward" });
+    const result = await find({}, cwDown(Boom.unauthorized("nope")));
 
     expect(result.sourceErrors).toEqual([
-      {
-        service: "gas",
-        box: "outbox",
-        hop: "GAS Outbox",
-        message: "read failed",
-      },
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 401",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 401",
-      },
+      { key: "gasOutbox", service: "gas", box: "outbox" },
+      { key: "cwInbox", service: "caseworking", box: "inbox" },
+      { key: "cwOutbox", service: "caseworking", box: "outbox" },
     ]);
   });
 
   it("never logs the CW error object", async () => {
     const error = Boom.unauthorized("Unauthorized");
     error.data = { payload: { message: "SECRET-CW-BODY" } };
-    findCwPage.mockRejectedValue(error);
 
-    await findEventsUseCase({ direction: "forward" });
+    await find({}, cwDown(error));
 
     expect(logger.warn).toHaveBeenCalledWith(
-      { service: "caseworking", box: "inbox" },
       "caseworking inbox unavailable: HTTP 401",
     );
 
     for (const call of logger.warn.mock.calls) {
       expect(JSON.stringify(call)).not.toContain("SECRET-CW-BODY");
-      expect(call[0]).not.toHaveProperty("data");
-      expect(call[0]).not.toHaveProperty("payload");
+      expect(call).toHaveLength(1);
     }
   });
 
   it("returns an empty page with null cursors when every source is empty", async () => {
-    const result = await findEventsUseCase({ direction: "forward" });
+    const result = await find();
 
     expect(result).toEqual({
       events: [],
-      hops: [],
-      pagination: {
-        startCursor: null,
-        endCursor: null,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      },
+      pagination: { endCursor: null, hasNextPage: false },
       sourceErrors: [],
     });
   });
 });
 
 describe("findEventsUseCase q", () => {
-  beforeEach(() => {
-    isCwConfigured.mockReturnValue(true);
-    findGasInboxPage.mockResolvedValue(emptyPage());
-    findGasOutboxPage.mockResolvedValue(emptyPage());
-    findCwPage.mockResolvedValue(cwPage());
-  });
-
-  it("applies q to every selected source", async () => {
-    await findEventsUseCase({ direction: "forward", q: "GLD-9B2" });
+  it("applies q to both GAS sources", async () => {
+    await find({ q: "GLD-9B2" });
 
     for (const fetch of [findGasInboxPage, findGasOutboxPage]) {
       expect(fetch).toHaveBeenCalledWith(
         expect.objectContaining({ q: "GLD-9B2" }),
       );
     }
-    expect(cwCall().q).toEqual("GLD-9B2");
-  });
-
-  it("forwards q to Caseworking alongside status and the cursor slices", async () => {
-    await findEventsUseCase({
-      direction: "forward",
-      status: "FAILED",
-      q: "evt-1",
-    });
-
-    expect(findCwPage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "FAILED",
-        q: "evt-1",
-        direction: "forward",
-        slices: expect.objectContaining({ cwInbox: null, cwOutbox: null }),
-      }),
-    );
   });
 
   it("passes q through as undefined when it is not given", async () => {
-    await findEventsUseCase({ direction: "forward" });
+    await find();
 
     expect(findGasInboxPage).toHaveBeenCalledWith(
       expect.objectContaining({ q: undefined }),
     );
   });
 
-  it("never sends a kind to any source", async () => {
-    await findEventsUseCase({ direction: "forward", q: "GLD-9B2" });
+  it("never sends a kind to a GAS source", async () => {
+    await find({ q: "GLD-9B2" });
 
     for (const fetch of [findGasInboxPage, findGasOutboxPage]) {
       expect(fetch.mock.calls[0][0]).not.toHaveProperty("kind");
     }
-    expect(cwCall()).not.toHaveProperty("kind");
   });
 
   it("merges hits from more than one source for the same q", async () => {
     findGasOutboxPage.mockResolvedValue(pageOf([gasOutboxDoc(2)]));
-    findCwPage.mockResolvedValue(cwInboxRows([cwRow(1)]));
 
-    const { events } = await findEventsUseCase({
-      direction: "forward",
-      q: "evt-2",
-    });
+    const { events } = await find(
+      { q: "evt-2" },
+      Promise.resolve(cwInboxRows([cwRow(1)])),
+    );
 
     expect(events).toHaveLength(2);
   });
 
   it("merges hits from both Caseworking boxes of the one composite", async () => {
-    findCwPage.mockResolvedValue(
-      cwPage({ inbox: pageOf([cwRow(1)]), outbox: pageOf([cwRow(2)]) }),
+    const { events } = await find(
+      { q: "evt-2" },
+      Promise.resolve(
+        cwPage({ inbox: pageOf([cwRow(1)]), outbox: pageOf([cwRow(2)]) }),
+      ),
     );
-
-    const { events } = await findEventsUseCase({
-      direction: "forward",
-      q: "evt-2",
-    });
 
     expect(events).toHaveLength(2);
   });
@@ -554,34 +412,26 @@ describe("findEventsUseCase from and to", () => {
   const FROM = "2026-06-16T00:00:00.000Z";
   const TO = "2026-06-16T23:59:59.999Z";
 
-  beforeEach(() => {
-    isCwConfigured.mockReturnValue(true);
-    findGasInboxPage.mockResolvedValue(emptyPage());
-    findGasOutboxPage.mockResolvedValue(emptyPage());
-    findCwPage.mockResolvedValue(cwPage());
-  });
-
-  it("forwards both bounds to every source, GAS and Caseworking alike", async () => {
-    await findEventsUseCase({ direction: "forward", from: FROM, to: TO });
+  it("forwards both bounds to both GAS sources", async () => {
+    await find({ from: FROM, to: TO });
 
     for (const fetch of [findGasInboxPage, findGasOutboxPage]) {
       expect(fetch).toHaveBeenCalledWith(
         expect.objectContaining({ from: FROM, to: TO }),
       );
     }
-    expect(cwCall()).toEqual(expect.objectContaining({ from: FROM, to: TO }));
   });
 
   it("forwards a single bound", async () => {
-    await findEventsUseCase({ direction: "forward", from: FROM });
+    await find({ from: FROM });
 
-    expect(findCwPage).toHaveBeenCalledWith(
+    expect(findGasOutboxPage).toHaveBeenCalledWith(
       expect.objectContaining({ from: FROM, to: undefined }),
     );
   });
 
   it("passes no bounds through when none were given", async () => {
-    await findEventsUseCase({ direction: "forward" });
+    await find();
 
     expect(findGasInboxPage).toHaveBeenCalledWith(
       expect.objectContaining({ from: undefined, to: undefined }),

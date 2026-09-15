@@ -1,16 +1,27 @@
 import Joi from "joi";
+import { decodeActor } from "../services/actor-header.js";
 
-// Long enough for a name that arrived percent-encoded: a directory name of
-// 40 non-Latin-1 characters is 240 characters once encoded, and refusing it
-// would refuse exactly the operators the encoding exists to serve.
-const ACTOR_MAX = 512;
+// Caseworking's cap on the same name, so a redrive it would refuse is a 400 here.
+const ACTOR_MAX = 128;
+// Room for that name percent-encoded: up to four UTF-8 bytes of `%XX` a character.
+const ENCODED_CHARS_PER_CHARACTER = 12;
+const ENCODED_MAX = "UTF-8''".length + ACTOR_MAX * ENCODED_CHARS_PER_CHARACTER;
 
-// Who a mutation is made on behalf of, read from the `x-actor` request header.
-// Optional: an unattributed redrive is still a redrive. Validated here so a
-// 200-character header is a 400 rather than something written to an audit
-// event and to a document.
+const assertDecodedLength = (value, helpers) =>
+  decodeActor(value).length > ACTOR_MAX
+    ? helpers.error("actor.tooLong")
+    : value;
+
 export const actorHeaderSchema = Joi.object({
-  "x-actor": Joi.string().trim().max(ACTOR_MAX).empty("").optional(),
+  "x-actor": Joi.string()
+    .trim()
+    .max(ENCODED_MAX)
+    .custom(assertDecodedLength)
+    .messages({
+      "actor.tooLong": `"x-actor" must be at most ${ACTOR_MAX} characters`,
+    })
+    .empty("")
+    .optional(),
 })
   .unknown(true)
   .label("ActorHeaders");

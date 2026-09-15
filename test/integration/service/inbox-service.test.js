@@ -11,15 +11,28 @@ import {
   it,
   vi,
 } from "vitest";
-import { Inbox } from "../../../src/grants/models/inbox.js";
-import { claimEvents } from "../../../src/grants/repositories/inbox.repository.js";
-import { InboxSubscriber } from "../../../src/grants/subscribers/inbox.subscriber.js";
+// Its own database, so the running service's poller cannot claim the fixtures.
+// The setup files have already loaded config, hence the module reset.
+const DATABASE = "fg-gas-backend-inbox-service-test";
+vi.stubEnv("MONGO_DATABASE", DATABASE);
+vi.resetModules();
+
+const { Inbox } = await import("../../../src/grants/models/inbox.js");
+const { claimEvents } =
+  await import("../../../src/grants/repositories/inbox.repository.js");
+const { InboxSubscriber } =
+  await import("../../../src/grants/subscribers/inbox.subscriber.js");
+const { db: serviceDb, mongoClient } =
+  await import("../../../src/common/mongo-client.js");
+
 let client;
+let db;
 let inbox, fifo;
 
 beforeAll(async () => {
+  expect(serviceDb.databaseName).toBe(DATABASE);
   client = await MongoClient.connect(env.MONGO_URI);
-  const db = client.db(env.MONGO_DATABASE);
+  db = client.db(DATABASE);
   inbox = db.collection("inbox");
   fifo = db.collection("fifo_locks");
   await fifo.deleteMany({});
@@ -31,7 +44,10 @@ afterEach(() => {
 });
 
 afterAll(async () => {
+  await db?.dropDatabase();
   await client?.close();
+  await mongoClient.close();
+  vi.unstubAllEnvs();
 });
 
 const createMockInbox = (id, time, segregationRef) => {
@@ -73,20 +89,6 @@ describe("inbox repository claim events", () => {
   });
 });
 
-// Polls a condition to a ceiling, returning as soon as it holds. A fixed sleep
-// is either too short on a slow machine or wasted time on a fast one.
-const waitFor = async (condition, { timeoutMs = 5000, stepMs = 20 } = {}) => {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    if (condition()) {
-      return;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, stepMs));
-  }
-};
-
 describe("getNextAvailable", () => {
   beforeEach(async () => {
     await fifo.deleteMany({});
@@ -122,17 +124,14 @@ describe("getNextAvailable", () => {
       .mockResolvedValue(true);
     const subscriber = new InboxSubscriber(1000);
     subscriber.start();
-    // Waits for the first poll to land, with a ceiling generous enough for a
-    // loaded machine rather than one tuned to a fast one. The subscriber does
-    // real work on the way here - a `findNextMessage` query, a fifo lock and a
-    // claim - and the old budget was ten 20ms ticks, which a busy CI runner
-    // regularly missed: the assertion then read "called 0 times" and the
-    // failure looked like the subscriber, not the clock. It still exits the
-    // moment the call arrives, so nothing is slower when nothing is wrong,
-    // and it still stops after ONE poll, which is what keeps the
-    // `getNextAvailable` count below meaningful.
-    await waitFor(() => processEventsSpy.mock.calls.length > 0);
-    subscriber.stop();
+    try {
+      await vi.waitFor(() => expect(processEventsSpy).toHaveBeenCalled(), {
+        timeout: 5000,
+        interval: 20,
+      });
+    } finally {
+      subscriber.stop();
+    }
     expect(processEventsSpy).toHaveBeenCalledTimes(1);
     expect(getNextAvailableSpy).toHaveBeenCalledTimes(2);
     const [events] = processEventsSpy.mock.calls[0];
@@ -184,10 +183,14 @@ describe("inbox fifo", () => {
 
     const subscriber = new InboxSubscriber(1000);
     subscriber.start();
-    for (let i = 0; i < 10 && processEventsSpy.mock.calls.length === 0; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
+    try {
+      await vi.waitFor(() => expect(processEventsSpy).toHaveBeenCalled(), {
+        timeout: 5000,
+        interval: 20,
+      });
+    } finally {
+      subscriber.stop();
     }
-    subscriber.stop();
     expect(processEventsSpy).toHaveBeenCalledTimes(1);
     const [events] = processEventsSpy.mock.calls[0];
     expect(events).toHaveLength(1);

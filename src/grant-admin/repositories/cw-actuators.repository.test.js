@@ -6,7 +6,6 @@ import {
   findCwEvent,
   findCwPage,
   isCwConfigured,
-  notConfiguredMessage,
   redriveCwEvent,
 } from "./cw-actuators.repository.js";
 
@@ -41,15 +40,9 @@ const someGroups = () => [
   },
 ];
 
-// One box of the composite as Caseworking answers it.
 const box = (overrides = {}) => ({
   events: [{ _id: "665f1c2e9a1b2c3d4e5f6a7b" }],
-  pagination: {
-    startCursor: "a",
-    endCursor: "b",
-    hasNextPage: false,
-    hasPreviousPage: false,
-  },
+  pagination: { endCursor: "b", hasNextPage: false },
   counts: someCounts(),
   breakdown: { groups: someGroups() },
   ...overrides,
@@ -61,7 +54,6 @@ const composite = (overrides = {}) => ({
 
 const aPage = (overrides = {}) => ({
   pageSize: 20,
-  direction: "forward",
   ...overrides,
 });
 
@@ -76,7 +68,7 @@ beforeEach(() => {
 });
 
 describe("findCwPage", () => {
-  it("calls /actuators/events with pageSize 20, direction and the bearer token", async () => {
+  it("calls /actuators/events with pageSize 20 and the bearer token", async () => {
     wreck.get.mockResolvedValue(composite());
 
     await findCwPage(aPage());
@@ -85,20 +77,11 @@ describe("findCwPage", () => {
 
     expect(url.pathname).toEqual("/actuators/events");
     expect(url.searchParams.get("pageSize")).toEqual("20");
-    expect(url.searchParams.get("direction")).toEqual("forward");
     expect(wreck.get.mock.calls[0][1]).toEqual({
       json: true,
       timeout: TIMEOUT_MS,
       headers: { authorization: `Bearer ${TOKEN}` },
     });
-  });
-
-  it("asks for the direction the page was turned in", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage({ direction: "backward" }));
-
-    expect(calledUrl().searchParams.get("direction")).toEqual("backward");
   });
 
   it("carries a cursor per box, taken from the composite cursor's own slices", async () => {
@@ -190,7 +173,6 @@ describe("findCwPage", () => {
 
     await findCwPage(
       aPage({
-        direction: "backward",
         slices: { cwInbox: "abc", cwOutbox: "def" },
         status: "FAILED",
         q: "evt-1",
@@ -199,7 +181,6 @@ describe("findCwPage", () => {
 
     expect(Object.fromEntries(calledUrl().searchParams)).toEqual({
       pageSize: "20",
-      direction: "backward",
       inboxCursor: "abc",
       outboxCursor: "def",
       status: "FAILED",
@@ -249,6 +230,24 @@ describe("findCwPage from and to", () => {
   });
 });
 
+describe("findCwPage sections", () => {
+  it("asks for exactly the sections the page draws, as a comma list", async () => {
+    wreck.get.mockResolvedValue(composite());
+
+    await findCwPage(aPage({ sections: ["list", "counts"] }));
+
+    expect(calledUrl().searchParams.get("sections")).toBe("list,counts");
+  });
+
+  it("omits it when no sections are named, leaving Caseworking's default of all three", async () => {
+    wreck.get.mockResolvedValue(composite());
+
+    await findCwPage(aPage());
+
+    expect(calledUrl().searchParams.has("sections")).toBe(false);
+  });
+});
+
 describe("the error filter reaches Caseworking", () => {
   it("forwards `error` on the page query", async () => {
     wreck.get.mockResolvedValue(composite());
@@ -295,12 +294,7 @@ describe("findCwPage response", () => {
       inbox: {
         list: {
           data: [{ _id: "665f1c2e9a1b2c3d4e5f6a7b" }],
-          pagination: {
-            startCursor: "a",
-            endCursor: "b",
-            hasNextPage: false,
-            hasPreviousPage: false,
-          },
+          pagination: { endCursor: "b", hasNextPage: false },
         },
         facets: { counts: someCounts() },
         groups: someGroups(),
@@ -316,10 +310,6 @@ describe("findCwPage response", () => {
     });
   });
 
-  // Degradation fires on failure, not on slowness: a Caseworking that answers
-  // just inside the shared client's ten-second ceiling degrades nothing and
-  // stalls every render, on the surface an operator opens when things are
-  // already wrong.
   it("gives the page read its own timeout, not the shared client's", async () => {
     wreck.get.mockResolvedValue(composite());
 
@@ -330,14 +320,6 @@ describe("findCwPage response", () => {
       expect.objectContaining({ timeout: cwBackend.timeoutMs }),
     );
     expect(cwBackend.timeoutMs).toBeLessThan(10000);
-  });
-
-  it("tolerates an envelope with no totalCount", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    expect(
-      (await findCwPage(aPage())).inbox.list.pagination,
-    ).not.toHaveProperty("totalCount");
   });
 
   it("tolerates a box that sent rows but no pagination", async () => {
@@ -351,11 +333,6 @@ describe("findCwPage response", () => {
     });
   });
 
-  // The rows are mapped INSIDE the fan-out's fulfilled branch, so a body this
-  // service cannot map does not reject a source - it throws past the whole
-  // `Promise.allSettled` and 500s the request, taking the composite page with
-  // it. A wrongly shaped body is exactly what the degradation contract is
-  // for, so it is turned into that contract's own vocabulary here.
   it.each([
     ["events that are not a list at all", { events: "nope" }],
     ["events that are a truthy non-array", { events: {} }],
@@ -373,11 +350,9 @@ describe("findCwPage response", () => {
     const page = await findCwPage(aPage());
 
     expect(page.inbox.list).toBeNull();
-    // The other box is untouched: one malformed section is not a failed read.
     expect(page.outbox.list.data).toHaveLength(1);
   });
 
-  // A section Caseworking could not read is a gap, not an empty answer.
   it("leaves a section Caseworking could not read null rather than empty", async () => {
     wreck.get.mockResolvedValue(composite({ inbox: {} }));
 
@@ -435,16 +410,6 @@ describe("findCwPage response", () => {
     expect((await findCwPage(aPage())).inbox.groups).toEqual([]);
   });
 
-  it("ignores a byKind block Caseworking still sends", async () => {
-    wreck.get.mockResolvedValue(
-      composite({ inbox: box({ byKind: { domain: 5, audit: 1 } }) }),
-    );
-
-    expect((await findCwPage(aPage())).inbox.facets).toEqual({
-      counts: someCounts(),
-    });
-  });
-
   it("does not catch, so the use case can turn it into a sourceError", async () => {
     wreck.get.mockRejectedValue(Boom.badGateway("down"));
 
@@ -467,12 +432,6 @@ describe("isCwConfigured", () => {
     cwBackend.token = undefined;
 
     expect(isCwConfigured()).toBe(false);
-  });
-});
-
-describe("notConfiguredMessage", () => {
-  it("is the fixed one-liner the use case reports for an unset CW backend", () => {
-    expect(notConfiguredMessage()).toEqual("not configured");
   });
 });
 
@@ -519,10 +478,6 @@ describe("describeError", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Single-event reads and redrives. Unlike the list these have no partial mode,
-// so a Caseworking failure is translated into an HTTP status here.
-// ---------------------------------------------------------------------------
 const ID = "665f1c2e9a1b2c3d4e5f6a7b";
 
 const httpError = (statusCode, body) =>
@@ -682,6 +637,18 @@ describe("redriveCwEvent", () => {
 
     expect(error.output.statusCode).toBe(502);
     expect(error.message).not.toContain("SECRET-BODY");
+  });
+
+  // The redrive may have committed after the client gave up, so it is not a refusal.
+  it("turns a caseworking timeout into a 504 rather than a failure", async () => {
+    wreck.post.mockRejectedValue(Boom.gatewayTimeout("Client request timeout"));
+
+    const error = await redriveCwEvent("inbox", ID).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(504);
+    expect(error.message).toBe(
+      'CW-BE did not answer in time for inbox event "' + ID + '"',
+    );
   });
 
   it("502s without calling caseworking when it is not configured", async () => {

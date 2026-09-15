@@ -1,15 +1,26 @@
+import Joi from "joi";
 import { ObjectId } from "mongodb";
 import { describe, expect, it } from "vitest";
-import { findEventsResponseSchema } from "../schemas/find-events-response.schema.js";
 import {
-  normaliseCwInbox,
-  normaliseCwOutbox,
+  eventPaginationSchema,
+  eventRowSchema,
+  eventSourceErrorSchema,
+} from "../schemas/events-shared.schema.js";
+import {
+  normaliseCwListRow,
   normaliseGasInbox,
   normaliseGasOutbox,
   toAttemptHistory,
   toEventRow,
   toEventTuple,
 } from "./map-event-row.js";
+
+// The list slice of the events page answer.
+const listResponseSchema = Joi.object({
+  events: Joi.array().items(eventRowSchema).required(),
+  pagination: eventPaginationSchema.required(),
+  sourceErrors: Joi.array().items(eventSourceErrorSchema).required(),
+});
 
 const HEX_ID = "665f1c2e9a1b2c3d4e5f6a7b";
 const OBJECT_ID = ObjectId.createFromHexString(HEX_ID);
@@ -28,15 +39,14 @@ const gasInboxDoc = (overrides = {}) => ({
   status: "PUBLISHED",
   completionAttempts: 1,
   traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-  eventTime: "2026-06-16T10:00:00.000Z",
+  eventTime: "2026-06-16T09:59:58.000Z",
+  publicationDate: "2026-06-16T10:00:00.000Z",
   lastResubmissionDate: null,
   completionDate: null,
   segregationRef: "GLD-9B2-BWS-grasslands",
   ...overrides,
 });
 
-// A topic this service actually publishes, and one Caseworking subscribes a
-// queue to, so the row's queue line names a real destination.
 const gasOutboxDoc = (overrides = {}) => ({
   _id: OBJECT_ID,
   target:
@@ -59,14 +69,8 @@ const cwInboxRow = (overrides = {}) => ({
   _id: HEX_ID,
   eventId: "msg-9",
   type: "cloud.defra.prd.fg-gas-backend.case.create",
-  source: "GAS",
-  segregationRef: "ref-9",
   status: "PROCESSING",
-  traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-  completionAttempts: 3,
-  maxAttempts: 7,
-  createdAt: "2026-06-16T10:00:00.000Z",
-  lastFailureAt: null,
+  publicationDate: "2026-06-16T10:00:00.000Z",
   completedAt: null,
   ...overrides,
 });
@@ -75,16 +79,8 @@ const cwOutboxRow = (overrides = {}) => ({
   _id: HEX_ID,
   eventId: "evt-9",
   type: "cloud.defra.prd.fg-cw-backend.case.status.updated",
-  auditEntities: null,
-  // Caseworking's own audit topic, spelled the way that estate spells it.
-  target: "arn:aws:sns:eu-west-2:000000000000:cw__sns__audit_fifo",
-  segregationRef: "ref-9",
   status: "COMPLETED",
-  traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-  completionAttempts: 1,
-  maxAttempts: 7,
-  createdAt: "2026-06-16T10:00:00.000Z",
-  lastFailureAt: null,
+  publicationDate: "2026-06-16T10:00:00.000Z",
   completedAt: "2026-06-16T10:01:00.000Z",
   ...overrides,
 });
@@ -98,12 +94,8 @@ const gasInboxParts = (overrides) => ({
 
 const gasInboxTuple = (overrides) => toEventTuple(gasInboxParts(overrides));
 
-// The single-row shape behind the detail and redrive answers. It is the only
-// shape carrying the attempt facts, so that is where they are asserted.
 const gasInboxSingle = (overrides) => toEventRow(gasInboxParts(overrides));
 
-// The topic write-audit-event.js addresses, matching the unit-test env's
-// GAS__SNS__AUDIT_TOPIC_ARN.
 const AUDIT_ARN =
   "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn";
 
@@ -122,26 +114,22 @@ const cwInboxParts = (overrides) => ({
   key: "cwInbox",
   service: "caseworking",
   box: "inbox",
-  intermediate: normaliseCwInbox(cwInboxRow(overrides)),
+  intermediate: normaliseCwListRow(cwInboxRow(overrides)),
 });
 
 const cwInboxTuple = (overrides) => toEventTuple(cwInboxParts(overrides));
-
-const cwInboxSingle = (overrides) => toEventRow(cwInboxParts(overrides));
 
 const cwOutboxParts = (overrides) => ({
   key: "cwOutbox",
   service: "caseworking",
   box: "outbox",
-  intermediate: normaliseCwOutbox(cwOutboxRow(overrides)),
+  intermediate: normaliseCwListRow(cwOutboxRow(overrides)),
 });
 
 const cwOutboxTuple = (overrides) => toEventTuple(cwOutboxParts(overrides));
 
-const cwOutboxSingle = (overrides) => toEventRow(cwOutboxParts(overrides));
-
 describe("map-event-row", () => {
-  it("maps a GAS outbox CloudEvent row: eventId from event.id, namespace stripped from type, the hop and queue it names", () => {
+  it("maps a GAS outbox CloudEvent row: eventId from event.id, namespace stripped from type, and its own duration", () => {
     const { row } = gasOutboxTuple();
 
     expect(row).toEqual({
@@ -150,33 +138,27 @@ describe("map-event-row", () => {
       id: HEX_ID,
       eventId: "evt-1",
       type: "case.status.updated",
-      hop: "GAS Outbox",
-      queue: "to Caseworking",
-      queueValue: "gas__sns__update_case_status_fifo.fifo",
       status: "PUBLISHED",
-      statusLabel: "Published",
+      statusLabel: "Queued",
       statusRole: "neutral",
       statusRetrying: false,
       createdAt: "2026-06-16T10:00:00.000Z",
-      lastError: null,
       latency: null,
       latencyTitle: "Queued to delivered to SNS",
     });
   });
 
-  it("maps a GAS inbox row: eventId from messageId, a queue line naming the producer", () => {
+  it("maps a GAS inbox row: eventId from messageId, and no topic of its own", () => {
     const { row } = gasInboxTuple();
 
     expect(row.eventId).toEqual("msg-1");
     expect(row.type).toEqual("case.status.updated");
-    expect(row.hop).toEqual("GAS Inbox");
-    expect(row.queue).toEqual("from Agreements");
-    expect(row.queueValue).toBeNull();
     expect(row.box).toEqual("inbox");
+    expect(gasInboxSingle().targetTopic).toBeNull();
   });
 
-  it("maps a CW inbox wire row: hex _id passed through, createdAt used verbatim as the cursor value", () => {
-    const tuple = cwInboxTuple({ createdAt: "2026-06-16T10:00:00Z" });
+  it("maps a CW inbox wire row: hex _id passed through, publicationDate used verbatim as the cursor value", () => {
+    const tuple = cwInboxTuple({ publicationDate: "2026-06-16T10:00:00Z" });
 
     expect(tuple.id).toEqual(HEX_ID);
     expect(tuple.cursorValue).toEqual("2026-06-16T10:00:00Z");
@@ -185,13 +167,8 @@ describe("map-event-row", () => {
     expect(tuple.row.service).toEqual("caseworking");
   });
 
-  it("maps a CW outbox wire row: reduces the raw ARN to a topic name", () => {
-    const { row } = cwOutboxTuple();
-
-    expect(row.hop).toEqual("CW Outbox");
-    expect(row.queueValue).toEqual("cw__sns__audit_fifo");
-    expect(row.queue).toEqual("to Audit");
-    expect(row.latency).toEqual("1m 0s");
+  it("times a CW outbox list row from receipt to completion", () => {
+    expect(cwOutboxTuple().row.latency).toEqual("1m 0s");
   });
 
   it("keeps a legacy io.onsite.agreement.status.updated type whole", () => {
@@ -282,8 +259,6 @@ describe("map-event-row", () => {
     expect(row.type).toBe("unknown");
   });
 
-  // A blank type would look like "no type recorded" to the label rule - see
-  // shortType in map-event-row.js.
   it("never labels a row audit just because its type shortens to nothing", () => {
     const { row } = gasOutboxTuple({
       event: { id: "evt-1", type: "cloud.defra.prd.fg-gas-backend." },
@@ -314,25 +289,28 @@ describe("map-event-row", () => {
   });
 
   it("reduces internal:message-bus to internal, not message-bus", () => {
-    const { row } = gasOutboxTuple({ target: "internal:message-bus" });
-
-    expect(row.queueValue).toEqual("internal");
-    expect(row.queue).toEqual("to GAS");
+    expect(
+      gasOutboxSingle({ target: "internal:message-bus" }).targetTopic,
+    ).toEqual("internal");
   });
 
   it("reduces a .fifo SNS ARN to its topic name and never emits a full ARN", () => {
-    const { row } = gasOutboxTuple({
-      target:
-        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
-    });
+    const target =
+      "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo";
 
-    expect(row.queueValue).toEqual("gas__sns__create_payment_fifo.fifo");
-    expect(row.queue).toEqual("to Payments");
-    expect(JSON.stringify(row)).not.toContain("arn:aws");
+    expect(gasOutboxSingle({ target }).targetTopic).toEqual(
+      "gas__sns__create_payment_fifo.fifo",
+    );
+    expect(JSON.stringify(gasOutboxSingle({ target }))).not.toContain(
+      "arn:aws",
+    );
+    expect(JSON.stringify(gasOutboxTuple({ target }).row)).not.toContain(
+      "arn:aws",
+    );
   });
 
-  it("falls back to the _id timestamp when eventTime is null", () => {
-    const tuple = gasInboxTuple({ eventTime: null });
+  it("falls back to the _id timestamp when an inbox publicationDate is null", () => {
+    const tuple = gasInboxTuple({ publicationDate: null });
 
     expect(tuple.cursorValue).toBeNull();
     expect(tuple.row.createdAt).toEqual(ID_TIMESTAMP);
@@ -345,17 +323,37 @@ describe("map-event-row", () => {
   });
 
   it("keeps order null while createdAt shows the _id fallback", () => {
-    const tuple = gasInboxTuple({ eventTime: null });
+    const tuple = gasInboxTuple({ publicationDate: null });
 
     expect(tuple.order).toBeNull();
     expect(tuple.row.createdAt).toEqual(ID_TIMESTAMP);
   });
 
-  it("uses the raw stored eventTime string as the cursor value without canonicalising it", () => {
-    const tuple = gasInboxTuple({ eventTime: "2026-06-16T10:00:00Z" });
+  it("uses the raw stored inbox publicationDate string as the cursor value without canonicalising it", () => {
+    const tuple = gasInboxTuple({ publicationDate: "2026-06-16T10:00:00Z" });
 
     expect(tuple.cursorValue).toEqual("2026-06-16T10:00:00Z");
     expect(tuple.row.createdAt).toEqual("2026-06-16T10:00:00.000Z");
+  });
+
+  it("dates an inbox row by its publicationDate, never its eventTime", () => {
+    const tuple = gasInboxTuple({
+      eventTime: "2026-06-16T09:00:00.000Z",
+      publicationDate: "2026-06-16T10:00:00.123Z",
+    });
+
+    expect(tuple.cursorValue).toEqual("2026-06-16T10:00:00.123Z");
+    expect(tuple.order).toEqual(Date.parse("2026-06-16T10:00:00.123Z"));
+    expect(tuple.row.createdAt).toEqual("2026-06-16T10:00:00.123Z");
+  });
+
+  it("carries an inbox publicationDate stored as a Date as an ISO cursor value", () => {
+    const tuple = gasInboxTuple({
+      publicationDate: new Date("2026-06-16T10:00:00.123Z"),
+    });
+
+    expect(tuple.cursorValue).toEqual("2026-06-16T10:00:00.123Z");
+    expect(tuple.row.createdAt).toEqual("2026-06-16T10:00:00.123Z");
   });
 
   it("uses an ISO string for the outbox cursor value when publicationDate is a Date", () => {
@@ -364,30 +362,9 @@ describe("map-event-row", () => {
     expect(tuple.cursorValue).toEqual("2026-06-16T10:00:00.000Z");
   });
 
-  it("takes the attempts ceiling from GAS config for GAS rows and from the row itself for CW rows", () => {
+  it("takes the attempts ceiling from GAS config", () => {
     expect(gasInboxSingle().attempts).toEqual(`1/${GAS_INBOX_MAX}`);
     expect(gasOutboxSingle().attempts).toEqual(`2/${GAS_OUTBOX_MAX}`);
-    expect(cwInboxSingle().attempts).toEqual("3/7");
-    expect(cwOutboxSingle({ maxAttempts: 9 }).attempts).toEqual("1/9");
-  });
-
-  it("draws the attempts figure only where it is news", () => {
-    expect(gasInboxSingle().showAttempts).toBe(false);
-    expect(gasOutboxSingle().showAttempts).toBe(true);
-    expect(
-      gasInboxSingle({
-        status: "DEAD_LETTER",
-        lastResubmissionDate: "2026-06-16T10:16:05Z",
-      }).showAttempts,
-    ).toBe(true);
-  });
-
-  it("keeps the attempt facts off the list row, which draws none of them", () => {
-    const { row } = gasOutboxTuple();
-
-    expect(row).not.toHaveProperty("attempts");
-    expect(row).not.toHaveProperty("showAttempts");
-    expect(row).not.toHaveProperty("lastFailureAt");
   });
 
   it("spells the status the way the toolbar's chips do", () => {
@@ -414,25 +391,12 @@ describe("map-event-row", () => {
     expect(gasOutboxTuple().row.latency).toBeNull();
   });
 
-  it("returns null lastFailureAt for a FAILED row with no lastResubmissionDate", () => {
-    const row = gasInboxSingle({
-      status: "FAILED",
-      lastResubmissionDate: null,
-    });
-
-    expect(row.status).toEqual("FAILED");
-    expect(row.lastFailureAt).toBeNull();
-  });
-
   it("normalises GAS timestamp strings to ISO", () => {
     const overrides = {
       lastResubmissionDate: "2026-06-16T10:16:05Z",
       completionDate: "2026-06-16T10:20:00Z",
     };
 
-    expect(gasInboxSingle(overrides).lastFailureAt).toEqual(
-      "2026-06-16T10:16:05.000Z",
-    );
     expect(gasInboxTuple(overrides).row.latency).toEqual("20m 0s");
   });
 
@@ -443,16 +407,14 @@ describe("map-event-row", () => {
       cwInboxTuple().row,
       cwOutboxTuple().row,
       gasOutboxTuple({ event: { audit: { entities: [] } } }).row,
-      gasInboxTuple({ eventTime: null }).row,
+      gasInboxTuple({ publicationDate: null }).row,
     ];
 
-    const { error } = findEventsResponseSchema.validate({
+    const { error } = listResponseSchema.validate({
       events,
       pagination: {
-        startCursor: null,
         endCursor: null,
         hasNextPage: false,
-        hasPreviousPage: false,
       },
       sourceErrors: [],
     });
@@ -467,8 +429,6 @@ describe("map-event-row", () => {
     expect(cwOutboxTuple().row).not.toHaveProperty("traceId");
   });
 
-  // An audit payload's `correlationid` is a different identifier from a trace
-  // and is deliberately never read, here or anywhere.
   it("never reads an audit row's correlationid", () => {
     const { row } = gasOutboxTuple({
       event: {
@@ -529,30 +489,23 @@ describe("map-event-row lastError", () => {
     at: "2026-06-16T10:16:05.000Z",
   };
 
-  it("is null on every source when the document has no lastError", () => {
-    expect(gasInboxTuple().row.lastError).toBeNull();
-    expect(gasOutboxTuple().row.lastError).toBeNull();
-    expect(cwInboxTuple().row.lastError).toBeNull();
-    expect(cwOutboxTuple().row.lastError).toBeNull();
+  it("is null on both boxes when the document has no lastError", () => {
+    expect(gasInboxSingle().lastError).toBeNull();
+    expect(gasOutboxSingle().lastError).toBeNull();
   });
 
   it("passes a GAS inbox lastError through unchanged", () => {
-    expect(gasInboxTuple({ lastError }).row.lastError).toEqual(lastError);
+    expect(gasInboxSingle({ lastError }).lastError).toEqual(lastError);
   });
 
   it("passes a GAS outbox lastError through unchanged", () => {
-    expect(gasOutboxTuple({ lastError }).row.lastError).toEqual(lastError);
-  });
-
-  it("passes a Caseworking lastError through unchanged", () => {
-    expect(cwInboxTuple({ lastError }).row.lastError).toEqual(lastError);
-    expect(cwOutboxTuple({ lastError }).row.lastError).toEqual(lastError);
+    expect(gasOutboxSingle({ lastError }).lastError).toEqual(lastError);
   });
 
   it("rebuilds a lastError missing its name and message rather than failing the page", () => {
-    const row = gasOutboxTuple({
+    const row = gasOutboxSingle({
       lastError: { at: "2026-06-16T10:16:05.000Z" },
-    }).row;
+    });
 
     expect(row.lastError).toEqual({
       name: "Error",
@@ -562,30 +515,26 @@ describe("map-event-row lastError", () => {
   });
 
   it("returns a null at for an unparseable stored timestamp", () => {
-    const row = gasOutboxTuple({
+    const row = gasOutboxSingle({
       lastError: { name: "Error", message: "boom", at: "not-a-date" },
-    }).row;
+    });
 
     expect(row.lastError.at).toBeNull();
   });
 
   it("drops any extra key a stored lastError carries", () => {
-    const row = gasOutboxTuple({
+    const row = gasOutboxSingle({
       lastError: { ...lastError, stack: "SECRET-STACK" },
-    }).row;
+    });
 
     expect(Object.keys(row.lastError)).toEqual(["name", "message", "at"]);
   });
 
-  it("validates a row carrying a lastError against the response schema", () => {
-    const { error } = findEventsResponseSchema.validate({
-      events: [gasOutboxTuple({ lastError }).row],
-      pagination: {
-        startCursor: null,
-        endCursor: null,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      },
+  it("maps a failed document to a list row the schema accepts", () => {
+    const { row } = gasOutboxTuple({ lastError });
+    const { error } = listResponseSchema.validate({
+      events: [row],
+      pagination: { endCursor: null, hasNextPage: false },
       sourceErrors: [],
     });
 
@@ -652,17 +601,14 @@ describe("a Caseworking row's own label", () => {
   it("takes an audit label Caseworking derived", () => {
     const { row } = cwInboxTuple({
       type: "audit",
-      fullType: "Audit record — not a CloudEvent",
     });
 
     expect(row.type).toEqual("audit");
-    expect(row).not.toHaveProperty("fullType");
   });
 
   it("takes an unknown label Caseworking derived", () => {
     const { row } = cwInboxTuple({
       type: "unknown",
-      fullType: "No event type recorded — not a CloudEvent",
     });
 
     expect(row.type).toEqual("unknown");
@@ -671,51 +617,34 @@ describe("a Caseworking row's own label", () => {
   it("still strips the namespace off a real Caseworking type", () => {
     const { row } = cwInboxTuple({
       type: "cloud.defra.prd.fg-cw-backend.case.status.updated",
-      fullType: "cloud.defra.prd.fg-cw-backend.case.status.updated",
     });
 
     expect(row.type).toEqual("case.status.updated");
   });
 
-  // A Caseworking that has not grown the labels yet sends no type at all.
   it("falls back to unknown for a Caseworking that sends no type", () => {
     expect(cwInboxTuple({ type: null }).row.type).toEqual("unknown");
   });
 });
 
-describe("the journey hop beside each row", () => {
-  it("carries the hop's own columns and nothing the table has no room for", () => {
-    const { hop } = gasOutboxTuple();
-
-    expect(hop).toEqual({
-      service: "gas",
-      box: "outbox",
-      id: HEX_ID,
-      hop: "GAS Outbox",
-      status: "PUBLISHED",
-      statusLabel: "Published",
-      statusRole: "neutral",
-      statusRetrying: false,
-      startedAt: "2026-06-16T10:00:00.000Z",
-      took: null,
-    });
+describe("the tuple beside each row", () => {
+  it("carries its keyset position beside the row", () => {
+    expect(Object.keys(gasOutboxTuple()).sort()).toEqual([
+      "cursorValue",
+      "id",
+      "key",
+      "order",
+      "row",
+    ]);
   });
 
-  it("times an inbox hop from the receipt, where the row times itself from the event", () => {
+  it("times an inbox row from its receipt, whatever the sender's event time", () => {
     const tuple = gasInboxTuple({
+      eventTime: "2026-06-16T10:00:00.000Z",
       publicationDate: "2026-06-16T10:00:02.000Z",
       completionDate: "2026-06-16T10:00:03.500Z",
     });
 
-    expect(tuple.hop.startedAt).toEqual("2026-06-16T10:00:02.000Z");
-    expect(tuple.hop.took).toEqual("1.5s");
-    expect(tuple.row.latency).toEqual("3.5s");
-  });
-
-  it("falls back to createdAt for an inbox hop with no receipt instant", () => {
-    const { hop } = cwInboxTuple();
-
-    expect(hop.hop).toEqual("CW Inbox");
-    expect(hop.startedAt).toEqual("2026-06-16T10:00:00.000Z");
+    expect(tuple.row.latency).toEqual("1.5s");
   });
 });

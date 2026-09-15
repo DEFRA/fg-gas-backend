@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { Inbox, InboxStatus } from "./inbox.js";
@@ -138,9 +139,6 @@ describe("inbox model", () => {
     expect(model._id).toBe(doc._id);
   });
 
-  // Every claim-process cycle reads a row into a model and writes it back,
-  // so a `publicationDate` stamped in the constructor would be overwritten
-  // with the moment of that write - see the model.
   it("keeps the publication date a document was written with", () => {
     const model = Inbox.fromDocument({
       _id: "665f1c2e9a1b2c3d4e5f6a7b",
@@ -157,8 +155,53 @@ describe("inbox model", () => {
     expect(model.toDocument().publicationDate).toBe("2025-10-27T13:46:53.876Z");
   });
 
-  // A message this service has just taken off the queue has no receipt yet,
-  // and this is where it gets one.
+  it.each([
+    ["an ObjectId", new ObjectId("665f1c2e9a1b2c3d4e5f6a7b")],
+    ["its hex string", "665f1c2e9a1b2c3d4e5f6a7b"],
+  ])(
+    "falls back to the insert time for an unreadable receipt on a row whose _id is %s",
+    (_name, _id) => {
+      const expected = new Date(0x665f1c2e * 1000).toISOString();
+
+      for (const publicationDate of [undefined, null, "not-an-instant"]) {
+        const model = Inbox.fromDocument({
+          _id,
+          publicationDate,
+          messageId: "msg-1",
+          type: "io.onsite.agreement.status.foo",
+          source: "CW",
+          segregationRef: "ref-1",
+          event: { data: {} },
+          status: "PUBLISHED",
+        });
+
+        expect(model.publicationDate).toBe(expected);
+        expect(Inbox.fromDocument(model.toDocument()).publicationDate).toBe(
+          expected,
+        );
+      }
+    },
+  );
+
+  it("never moves a stored receipt across repeated saves", () => {
+    let doc = {
+      _id: new ObjectId(),
+      publicationDate: "2025-10-27T13:46:53.876Z",
+      messageId: "msg-1",
+      type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
+      event: { data: {} },
+      status: "PUBLISHED",
+    };
+
+    for (let i = 0; i < 3; i++) {
+      doc = Inbox.fromDocument(doc).toDocument();
+    }
+
+    expect(doc.publicationDate).toBe("2025-10-27T13:46:53.876Z");
+  });
+
   it("stamps a receipt on a message that arrives without one", () => {
     const before = Date.now();
 
@@ -172,14 +215,33 @@ describe("inbox model", () => {
 
     expect(Date.parse(model.publicationDate)).toBeGreaterThanOrEqual(before);
   });
+
+  // A BSON Date would sit in another type bracket from the string rows.
+  const withReceipt = (publicationDate) =>
+    Inbox.fromDocument({
+      _id: "665f1c2e9a1b2c3d4e5f6a7b",
+      publicationDate,
+      messageId: "msg-1",
+      type: "io.onsite.agreement.status.foo",
+      source: "CW",
+      segregationRef: "ref-1",
+      event: { data: {} },
+      status: "PUBLISHED",
+    });
+
+  it("writes a receipt read back as a Date as the same instant's ISO string", () => {
+    const model = withReceipt(new Date("2025-10-27T13:46:53.876Z"));
+
+    expect(model.toDocument().publicationDate).toBe("2025-10-27T13:46:53.876Z");
+  });
+
+  it("canonicalises an offset-bearing receipt to the Z form", () => {
+    expect(withReceipt("2025-10-27T14:46:53.876+01:00").publicationDate).toBe(
+      "2025-10-27T13:46:53.876Z",
+    );
+  });
 });
 
-// Everything downstream reads `eventTime` as a Z-normalised, ms-precision ISO
-// string: the keyset compares it as text, the range bounds are string bounds,
-// and the four-source merge orders by `Date.parse` of it. A CloudEvent `time`
-// is none of those by contract, and stored verbatim each spelling breaks a
-// different reader - which is how a row gets skipped across a page boundary
-// rather than merely misplaced.
 describe("inbox model eventTime", () => {
   const withTime = (time) =>
     new Inbox({
@@ -207,8 +269,6 @@ describe("inbox model eventTime", () => {
     expect(Date.parse(stored)).toBe(Date.parse(time));
   });
 
-  // A sort key that is absent sorts nowhere: it re-creates the mixed-type
-  // bracket the migration exists to remove.
   it.each([
     ["a message with no time", undefined],
     ["a time nothing can parse", "not-a-time"],
@@ -222,7 +282,6 @@ describe("inbox model eventTime", () => {
     expect(Date.parse(stored)).toBeGreaterThanOrEqual(before);
   });
 
-  // The property the whole merge rests on: text order is time order.
   it("orders lexically the way it orders chronologically", () => {
     const times = [
       "2026-06-16T11:00:00+01:00",
@@ -260,7 +319,6 @@ describe("inbox model lastError", () => {
       name: "TypeError",
       message: "cannot read status",
       at: expect.any(String),
-      // Stored for diagnosis; the outbound mappers never serve it.
       stack: expect.stringContaining("TypeError: cannot read status"),
     });
   });
@@ -340,7 +398,6 @@ describe("Inbox attemptHistory", () => {
         at: expect.any(String),
         name: "Error",
         message: "boom",
-        // The frames the attempts section expands to reveal.
         stack: expect.stringContaining("Error: boom"),
       },
     ]);
