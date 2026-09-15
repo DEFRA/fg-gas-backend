@@ -41,16 +41,22 @@ export const processConfigVersionUseCase = async (eventData) => {
 
   logger.info(`Processing config version: ${grantCode}@${version} (${status})`);
 
-  const s3Bucket = config.configBroker.s3Bucket;
-  const s3Key = findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" });
+  const { s3Bucket, variant } = config.configBroker;
+  const s3Key = findS3KeyInManifest(manifest, {
+    dir: "gas",
+    file: "gas.json",
+    variant,
+  });
   const agreementS3Key = findS3KeyInManifest(manifest, {
     dir: "gas",
     file: "agreement.json",
+    variant,
     required: false,
   });
   const paymentS3Key = findS3KeyInManifest(manifest, {
     dir: "gas",
     file: "payment.json",
+    variant,
     required: false,
   });
 

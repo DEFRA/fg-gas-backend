@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { processConfigVersionUseCase } from "./process-config-version.use-case.js";
 
-vi.mock("../../common/config.js", () => ({
-  config: {
+const { mockConfig } = vi.hoisted(() => {
+  const mockConfig = {
     configBroker: {
       s3Bucket: "config-broker-test",
+      variant: "",
     },
-  },
+  };
+  return { mockConfig };
+});
+vi.mock("../../common/config.js", () => ({
+  config: mockConfig,
 }));
 
 vi.mock("../../common/logger.js");
@@ -20,6 +25,7 @@ describe("processConfigVersionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpsert.mockResolvedValue({ upsertedCount: 1 });
+    mockConfig.configBroker.variant = "";
   });
 
   it("should upsert a config version with correct fields", async () => {
@@ -189,5 +195,43 @@ describe("processConfigVersionUseCase", () => {
 
     const arg = mockUpsert.mock.calls[0][0];
     expect(arg.status).toBe("draft");
+  });
+
+  describe("variant behaviour", () => {
+    it('passes variant "next" to findS3KeyInManifest for gas.json, agreement.json, and payment.json', async () => {
+      mockConfig.configBroker.variant = "next";
+
+      await processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.0.0",
+        status: "active",
+        manifest: [
+          "woodland/1.0.0/gas/gas.next.json",
+          "woodland/1.0.0/gas/agreement.next.json",
+          "woodland/1.0.0/gas/payment.next.json",
+        ],
+      });
+
+      const cv = mockUpsert.mock.calls[0][0];
+      expect(cv.s3Key).toBe("woodland/1.0.0/gas/gas.next.json");
+      expect(mockUpsert.mock.calls[0][1]).toEqual({
+        agreementS3Key: "woodland/1.0.0/gas/agreement.next.json",
+        paymentS3Key: "woodland/1.0.0/gas/payment.next.json",
+      });
+    });
+
+    it("passes empty variant to findS3KeyInManifest when variant is empty", async () => {
+      mockConfig.configBroker.variant = "";
+
+      await processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.0.0",
+        status: "active",
+        manifest: ["woodland/1.0.0/gas/gas.json"],
+      });
+
+      const cv = mockUpsert.mock.calls[0][0];
+      expect(cv.s3Key).toBe("woodland/1.0.0/gas/gas.json");
+    });
   });
 });

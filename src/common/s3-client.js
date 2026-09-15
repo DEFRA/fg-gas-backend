@@ -1,5 +1,6 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { config } from "./config.js";
+import { variantFileName } from "./configuration-variant.js";
 import { logger } from "./logger.js";
 
 const s3Client = new S3Client({
@@ -34,11 +35,24 @@ export class S3FetchError extends Error {
   }
 }
 
+/* eslint-disable complexity */
 // Aliased releases keep the publisher's paths in the manifest.
+// When a variant is configured, tries the variant filename first
+// (e.g. gas.next.json) then falls back to the unsuffixed file (gas.json).
 export const findS3KeyInManifest = (
   manifest,
-  { dir, file, required = true },
+  { dir, file, variant = "", required = true },
 ) => {
+  if (variant) {
+    const variantTarget = variantFileName(file, variant);
+    const variantMatch = manifest.find((path) =>
+      path.endsWith(`/${dir}/${variantTarget}`),
+    );
+    if (variantMatch) {
+      return variantMatch;
+    }
+  }
+
   const match = manifest.find((path) => path.endsWith(`/${dir}/${file}`));
 
   if (match) {
@@ -53,6 +67,7 @@ export const findS3KeyInManifest = (
 
   return null;
 };
+/* eslint-enable complexity */
 
 // eslint-disable-next-line complexity
 const classifyS3Error = (err, key, bucket) => {
