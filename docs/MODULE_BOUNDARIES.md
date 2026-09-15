@@ -2,16 +2,16 @@
 
 ## Bounded Contexts
 
-| Module        | Path               | Description                                                       |
-| ------------- | ------------------ | ----------------------------------------------------------------- |
-| `grants`      | `src/grants/`      | Grants and Application sub-domain (grant lifecycle, applications) |
-| `agreements`  | `src/agreements/`  | Agreements domain (separate bounded context)                      |
-| `payments`    | `src/payments/`    | Payments domain (Payments, claim IDs, invoice numbering)          |
-| `grant-admin` | `src/grant-admin/` | Inbound admin adapter for Entitlement and Claim operations        |
-| `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes  |
-| `auth`        | `src/auth/`        | Authentication and authorisation                                  |
-| `common`      | `src/common/`      | Shared infrastructure (logger, database, messaging clients)       |
-| `events`      | `src/events/`      | Shared event domain: what an inbox/outbox event IS and means      |
+| Module           | Path                  | Description                                                       |
+| ---------------- | --------------------- | ----------------------------------------------------------------- |
+| `grants`         | `src/grants/`         | Grants and Application sub-domain (grant lifecycle, applications) |
+| `agreements`     | `src/agreements/`     | Agreements domain (separate bounded context)                      |
+| `payments`       | `src/payments/`       | Payments domain (Payments, claim IDs, invoice numbering)          |
+| `grant-admin`    | `src/grant-admin/`    | Inbound admin adapter for Entitlement and Claim operations        |
+| `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes     |
+| `auth`           | `src/auth/`           | Authentication and authorisation                                  |
+| `common`         | `src/common/`         | Shared infrastructure (logger, database, messaging clients)       |
+| `events`         | `src/events/`         | Shared event domain: what an inbox/outbox event IS and means      |
 
 ## Forbidden Imports
 
@@ -79,18 +79,22 @@ These services return plain DTOs at the adapter boundary. Grant Admin may compos
 
 ### Payment entry points
 
-Agreement acceptance uses two named Payment use cases:
+Agreement acceptance and Claim submission use named Payment use cases:
 
-| Caller       | Entry point                                               | Why                                                                                                                                                       |
-| ------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agreements` | `payments/use-cases/resolve-payment-definition.js`        | Resolves and validates the persisted Agreement's exact Payment definition before the transaction starts, so configuration or fetch failures write nothing |
-| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | Creates the Payment in the Agreement action's Mongo session so the Payment, Agreement, Version and lifecycle event commit together                        |
+| Caller       | Entry point                                               | Why                                                                                                                                                                                                                                                        |
+| ------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agreements` | `payments/use-cases/resolve-payment-definition.js`        | Resolves and validates the persisted Agreement's exact Payment definition before the transaction starts, so configuration or fetch failures write nothing                                                                                                  |
+| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | Creates the Payment in the Agreement action's Mongo session so the Payment, Agreement, Version and lifecycle event commit together                                                                                                                         |
+| `grants`     | `payments/use-cases/resolve-claim-payment.js`             | Resolves the Payment a submitted Claim would raise, before the submission transaction starts. Payments owns the catalogue lookup, the definition type, the mapping context and what an unconfigured definition means; Grants passes the Claim as submitted |
+| `grants`     | `payments/use-cases/create-claim-payment.use-case.js`     | Creates the Payment in the Claim submission's Mongo session so the Payment and the Claim commit together, and roll back together on any replay or retry                                                                                                    |
 
 The resolver is a read-only, pre-transaction seam. Config Broker loading and mapping validation stay outside the write transaction. The creation use case is the transactional seam, and the caller passes its session in.
 
 A Payment definition supplies `originalInvoiceNumber` as a top-level lookup or literal mapping. It also supplies `deliveryBody` and `marketingYear` at both Payment and invoice-line levels. Invoice-line values may differ from the Payment-level values, and `payments` preserves them when it builds the Payment. `payments` generates `invoiceNumber`.
 
-Nothing else in `payments` is importable from Agreements. The ESLint zone lists both exceptions explicitly so adding another one is a deliberate, reviewed change.
+Nothing else in `payments` is importable from Agreements or Grants. Each ESLint zone lists its exceptions explicitly so adding another one is a deliberate, reviewed change.
+
+Claim submission is transactional for the same reason Agreement acceptance is. `grants/services/claims.service.js` replays a duplicate `clientClaimRef`, retries when the Application's pinned version moves under it, and runs inside `session.withTransaction`, which may re-run the callback on a transient error. A Payment created outside that session would survive every one of those paths, so the claim ID allocation and the Payment insert take the submission's session and roll back with the Claim.
 
 `payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from the creation entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.
 
@@ -98,11 +102,11 @@ Nothing else in `payments` is importable from Agreements. The ESLint zone lists 
 
 The FGP-1411 QA endpoints reuse the Agreements command handlers rather than reimplementing agreement setup, so that data created by the test suites is indistinguishable from normally processed data:
 
-| Caller           | Entry point                                                             | Why                                                                                                                        |
-| ---------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `test-endpoints` | `agreements/use-cases/handle-create-agreement-command.use-case.js`      | Creates an Agreement through the same handler the SQS consumer uses, so validation, persistence and side effects match      |
-| `test-endpoints` | `agreements/use-cases/handle-update-agreement-status-command.use-case.js` | Applies a status transition through the same handler, so lifecycle rules are enforced by the grant's agreement definition   |
-| `test-endpoints` | `agreements/use-cases/load-current-agreement.js`                        | Resolves the Agreement by number, which supplies the 404 for an unknown Agreement before any command is dispatched          |
+| Caller           | Entry point                                                               | Why                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `test-endpoints` | `agreements/use-cases/handle-create-agreement-command.use-case.js`        | Creates an Agreement through the same handler the SQS consumer uses, so validation, persistence and side effects match    |
+| `test-endpoints` | `agreements/use-cases/handle-update-agreement-status-command.use-case.js` | Applies a status transition through the same handler, so lifecycle rules are enforced by the grant's agreement definition |
+| `test-endpoints` | `agreements/use-cases/load-current-agreement.js`                          | Resolves the Agreement by number, which supplies the 404 for an unknown Agreement before any command is dispatched        |
 
 The adapter adds only HTTP concerns: the feature flag, request and response schemas, the GAS-managed grant code check, and translating a rejected transition into a 409. It holds no agreement logic of its own and never touches an Agreements repository or domain model directly. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
 

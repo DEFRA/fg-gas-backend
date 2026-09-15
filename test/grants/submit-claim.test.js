@@ -86,7 +86,7 @@ const claimPayload = (code, clientRef, clientClaimRef, entitlementId) => ({
   },
   claim: {
     entitlementId,
-    claimAmountPence: 150000,
+    totalClaimAmountPence: 150000,
   },
 });
 
@@ -157,7 +157,7 @@ describe("POST /grants/{grantCode}/applications/{clientRef}/claims", () => {
     });
     expect(stored.claimCode).toBe("ENT_CS_CAPITAL_PA3");
     expect(stored.claim).toEqual(
-      expect.objectContaining({ claimAmountPence: 150000 }),
+      expect.objectContaining({ totalClaimAmountPence: 150000 }),
     );
     expect(stored._id.toString()).toBe(response.payload.claimId);
   });

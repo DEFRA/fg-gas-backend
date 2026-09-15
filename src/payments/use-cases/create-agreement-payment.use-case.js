@@ -1,4 +1,5 @@
 import { createPaymentPublication } from "../events/create-payment.event.js";
+import { PaymentSourceType } from "../models/payment.js";
 import {
   allocateNextSequence,
   ClaimIdCounter,
@@ -27,9 +28,12 @@ export const createAgreementPaymentUseCase = async (
   const sequence = await allocateNextSequence(ClaimIdCounter, session);
 
   const payment = buildPayment({
-    agreementNumber,
-    version,
-    agreementCorrelationId,
+    source: {
+      type: PaymentSourceType.AGREEMENT,
+      agreementNumber,
+      version,
+    },
+    correlationId: agreementCorrelationId,
     resolved,
     paymentHubClaimId: formatClaimId(sequence),
   });

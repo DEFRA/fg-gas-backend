@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "clientRef": "wmp-tu3-lbj",
+    "sbi": "113593357",
+    "crn": "1100943757",
+    "frn": "1100943757",
+    "grantCode": "woodland",
+    "clientClaimRef": "WMP-TU3-LBJ-C01",
+    "configVersion": "1.28.2",
+    "submittedAt": "2026-09-14T13:11:01.000Z"
+  },
+  "claim": {
+    "entitlementId": "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
+    "totalEligibleArea": 23,
+    "unit": "ha",
+    "totalClaimAmountPence": 150000,
+    "claimNumber": "WMP-TU3-LBJ-C01"
+  }
+}

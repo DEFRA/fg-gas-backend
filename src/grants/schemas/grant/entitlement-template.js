@@ -125,6 +125,8 @@ const claim = Joi.object({
   })
     .default()
     .optional(),
+  // A claim that needs approving does not raise its Payment on submission; the
+  // approval path will raise it later.
   requiresApproval: Joi.boolean().default(false).optional(),
   requiresEvidence: Joi.boolean().default(false).optional(),
 }).label("EntitlementTemplateClaim");
