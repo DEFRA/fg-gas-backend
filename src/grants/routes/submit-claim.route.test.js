@@ -134,6 +134,7 @@ describe("submitClaimRoute", () => {
   // surface as a resolution failure that disables the definition for every
   // later Claim rather than a 400 on this one.
   it.each([
+    ["a missing amount", undefined],
     ["a non-integer amount", 1500.5],
     ["a negative amount", -1],
   ])("returns 400 for %s", async (_label, totalClaimAmountPence) => {

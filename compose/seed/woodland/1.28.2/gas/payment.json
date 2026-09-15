@@ -1,25 +1,25 @@
 {
   "code": "woodland",
-  "sbi": "$.claim.metadata.sbi",
-  "frn": "$.claim.metadata.frn",
+  "sbi": "$.claim.sbi",
+  "frn": "$.claim.frn",
   "scheme": "WMP",
   "sourceSystem": "WMP",
   "deliveryBody": "RP10",
   "fesCode": "FALS_WMP",
   "originalInvoiceNumber": "",
   "ledger": "AP",
-  "totalAmountPence": "$.claim.claim.totalClaimAmountPence",
+  "totalAmountPence": "$.claim.totalAmountPence",
   "currency": "GBP",
   "marketingYear": "jsonata:$substring($.execution.executedAt, 0, 4)",
   "payments": [
     {
       "dueDate": "jsonata:$substring($.execution.executedAt, 0, 10)",
-      "totalAmountPence": "$.claim.claim.totalClaimAmountPence",
+      "totalAmountPence": "$.claim.totalAmountPence",
       "invoiceLines": [
         {
           "schemeCode": "WMP",
           "description": "Woodland Management Plan Payment",
-          "amountPence": "$.claim.claim.totalClaimAmountPence",
+          "amountPence": "$.claim.totalAmountPence",
           "accountCode": "SOS710",
           "fundCode": "DRD10",
           "deliveryBody": "RP10",

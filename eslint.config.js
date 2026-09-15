@@ -154,11 +154,11 @@ export default [
               from: ["**/payments/**"],
               except: [
                 "**/payments/use-cases/create-claim-payment.use-case.js",
-                "**/payments/use-cases/resolve-payment-definition.js",
+                "**/payments/use-cases/resolve-claim-payment.js",
               ],
               message:
-                "Grants may only enter Payments through its reviewed Payment creation " +
-                "and definition resolution use cases. See docs/MODULE_BOUNDARIES.md.",
+                "Grants may only enter Payments through its reviewed Claim Payment " +
+                "resolution and creation use cases. See docs/MODULE_BOUNDARIES.md.",
             },
             {
               target: "**/grants/**/!(*.test).js",

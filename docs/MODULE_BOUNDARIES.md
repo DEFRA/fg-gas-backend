@@ -81,12 +81,12 @@ These services return plain DTOs at the adapter boundary. Grant Admin may compos
 
 Agreement acceptance and Claim submission use named Payment use cases:
 
-| Caller       | Entry point                                               | Why                                                                                                                                                       |
-| ------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agreements` | `payments/use-cases/resolve-payment-definition.js`        | Resolves and validates the persisted Agreement's exact Payment definition before the transaction starts, so configuration or fetch failures write nothing |
-| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | Creates the Payment in the Agreement action's Mongo session so the Payment, Agreement, Version and lifecycle event commit together                        |
-| `grants`     | `payments/use-cases/resolve-payment-definition.js`        | Same read-only seam for a Claim: the Claim's Payment definition resolves before the submission transaction starts                                         |
-| `grants`     | `payments/use-cases/create-claim-payment.use-case.js`     | Creates the Payment in the Claim submission's Mongo session so the Payment and the Claim commit together, and roll back together on any replay or retry   |
+| Caller       | Entry point                                               | Why                                                                                                                                                                                                                                                        |
+| ------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agreements` | `payments/use-cases/resolve-payment-definition.js`        | Resolves and validates the persisted Agreement's exact Payment definition before the transaction starts, so configuration or fetch failures write nothing                                                                                                  |
+| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | Creates the Payment in the Agreement action's Mongo session so the Payment, Agreement, Version and lifecycle event commit together                                                                                                                         |
+| `grants`     | `payments/use-cases/resolve-claim-payment.js`             | Resolves the Payment a submitted Claim would raise, before the submission transaction starts. Payments owns the catalogue lookup, the definition type, the mapping context and what an unconfigured definition means; Grants passes the Claim as submitted |
+| `grants`     | `payments/use-cases/create-claim-payment.use-case.js`     | Creates the Payment in the Claim submission's Mongo session so the Payment and the Claim commit together, and roll back together on any replay or retry                                                                                                    |
 
 The resolver is a read-only, pre-transaction seam. Config Broker loading and mapping validation stay outside the write transaction. The creation use case is the transactional seam, and the caller passes its session in.
 

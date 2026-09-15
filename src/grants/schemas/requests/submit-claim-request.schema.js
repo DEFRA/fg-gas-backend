@@ -30,10 +30,7 @@ export const submitClaimRequestSchema = Joi.object({
   }).unknown(true),
   claim: Joi.object({
     entitlementId: Joi.string().required(),
-    // The rest of the body is passed through as sent. This field is declared
-    // because Payment definitions map it, so a wrong type fails here rather
-    // than during resolution, which disables the definition for later Claims.
-    totalClaimAmountPence: Joi.number().integer().min(0).optional(),
+    totalClaimAmountPence: Joi.number().integer().min(0).required(),
   }).unknown(),
 })
   .options({

@@ -1,13 +1,12 @@
 import Boom from "@hapi/boom";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
-import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
 import { auditActions, auditEntities } from "../../common/audit-constants.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { createClaimPaymentUseCase } from "../../payments/use-cases/create-claim-payment.use-case.js";
-import { resolvePaymentDefinition } from "../../payments/use-cases/resolve-payment-definition.js";
+import { resolveClaimPayment } from "../../payments/use-cases/resolve-claim-payment.js";
 import { Claim } from "../models/claim.js";
 import { ClaimableEntitlement } from "../models/claimable-entitlement.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
@@ -307,59 +306,40 @@ const claimTemplateFor = async ({ command, grant }) => {
     command.clientRef,
     command.code,
   );
+  const { entitlementId } = command.payload.claim;
   const entitlement = existing.find(
-    (candidate) => candidate.id === command.payload.claim.entitlementId,
+    (candidate) => candidate.id === entitlementId,
   );
 
-  return entitlement
-    ? grant.findEntitlementTemplate(entitlement.claimCode)
-    : null;
+  if (!entitlement) {
+    throw Boom.notFound(
+      `Entitlement "${entitlementId}" not found for application "${command.clientRef}"`,
+    );
+  }
+
+  return grant.findEntitlementTemplate(entitlement.claimCode);
 };
 
 const templatePaysOnSubmission = (template) =>
   Boolean(template?.claim) && !template.claim.requiresApproval;
 
-// No definition configured means the grant does not pay claims and must keep
-// accepting them. One that is configured and fails to load is an error.
-const hasPaymentDefinition = async ({ code, configVersion }) =>
-  Boolean(
-    await findConfigDefinition({
-      grantCode: code,
-      version: configVersion,
-      definitionType: "payment",
-    }),
-  );
-
-const raisesPayment = async ({ command, grant, configVersion }) => {
-  if (!configVersion) {
-    return false;
-  }
-
-  const template = await claimTemplateFor({ command, grant });
-
-  return (
-    templatePaysOnSubmission(template) &&
-    (await hasPaymentDefinition({ code: command.code, configVersion }))
-  );
-};
+const claimFacts = ({ metadata, claim }) => ({
+  sbi: metadata.sbi,
+  frn: metadata.frn,
+  totalAmountPence: claim.totalClaimAmountPence,
+});
 
 // Before the transaction, so a definition that cannot be resolved writes nothing.
-const resolveClaimPayment = async ({ command, grant, configVersion }) => {
-  if (!(await raisesPayment({ command, grant, configVersion }))) {
-    return null;
-  }
+const claimPaymentFor = async ({ command, grant, configVersion }) => {
+  const template = await claimTemplateFor({ command, grant });
 
-  return resolvePaymentDefinition({
-    code: command.code,
-    configVersion,
-    context: {
-      claim: {
-        metadata: command.payload.metadata,
-        claim: command.payload.claim,
-      },
-      execution: { executedAt: new Date().toISOString() },
-    },
-  });
+  return templatePaysOnSubmission(template)
+    ? resolveClaimPayment({
+        code: command.code,
+        configVersion,
+        claim: claimFacts(command.payload),
+      })
+    : null;
 };
 
 const agreementFor = async ({ code, clientRef }, session) => {
@@ -479,7 +459,7 @@ const submitAttempt = async (command, attempt) => {
     code: command.code,
     pinnedVersion,
   });
-  const resolvedPayment = await resolveClaimPayment({
+  const resolvedPayment = await claimPaymentFor({
     command,
     grant,
     configVersion: pinnedVersion,

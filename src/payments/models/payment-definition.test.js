@@ -38,22 +38,11 @@ const validResolvedPayment = Object.fromEntries(
   Object.entries(validDefinition).filter(([key]) => key !== "code"),
 );
 
-// The Claim body GAS stores is whatever grants-ui submits: the request schema
-// declares `entitlementId` and passes the rest through. The woodland journey
-// names its money field `totalClaimAmountPence` (grants-config-woodland's
-// woodland.yaml renders it on the /claim page), so the shipped definition has to
-// map that exact name. This fixture is the payload the journey sends; if it and
-// the definition ever disagree, resolution fails at submission time and marks
-// the definition permanently broken, so the pair is pinned here.
-const woodlandClaim = JSON.parse(
-  readFileSync(
-    new URL(
-      "../../../test/fixtures/woodland-claim-submission.json",
-      import.meta.url,
-    ),
-    "utf8",
-  ),
-);
+const woodlandClaim = {
+  sbi: "113593357",
+  frn: "1100943757",
+  totalAmountPence: 150000,
+};
 
 const woodlandDefinition = JSON.parse(
   readFileSync(
@@ -543,7 +532,7 @@ describe("the woodland Claim definition", () => {
     expect(definition.code).toBe("woodland");
   });
 
-  it("resolves the Claim payload the woodland journey submits", async () => {
+  it("resolves the Claim facts a woodland submission reduces to", async () => {
     const definition = new PaymentDefinition(woodlandDefinition);
 
     const payment = await definition.resolve({
@@ -583,14 +572,9 @@ describe("the woodland Claim definition", () => {
     });
   });
 
-  // The failure this guards against: a Claim body that does not carry the field
-  // the definition maps resolves to nothing, and `resolvePaymentDefinition`
-  // then marks the definition permanently broken for every later Claim.
-  it("rejects a Claim whose money field is named differently", async () => {
+  it("rejects Claim facts missing the amount it maps", async () => {
     const definition = new PaymentDefinition(woodlandDefinition);
-    const claim = structuredClone(woodlandClaim);
-    claim.claim.claimAmountPence = claim.claim.totalClaimAmountPence;
-    delete claim.claim.totalClaimAmountPence;
+    const { totalAmountPence, ...claim } = woodlandClaim;
 
     await expectResolutionError(
       definition,

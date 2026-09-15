@@ -2,8 +2,8 @@ import { ObjectId } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
+import woodlandSubmission from "../../../test/fixtures/woodland-claim-submission.json";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
-import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
 import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { buildAuditEvent } from "../../common/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
@@ -16,7 +16,7 @@ import {
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import { createClaimPaymentUseCase } from "../../payments/use-cases/create-claim-payment.use-case.js";
-import { resolvePaymentDefinition } from "../../payments/use-cases/resolve-payment-definition.js";
+import { resolveClaimPayment } from "../../payments/use-cases/resolve-claim-payment.js";
 import { resolveCurrentGrantUseCase } from "../use-cases/resolve-current-grant.use-case.js";
 import {
   listClaimableEntitlements,
@@ -43,10 +43,9 @@ vi.mock("../../common/mongo-errors.js", () => ({
   isMongoDuplicateKeyError: vi.fn((error) => error?.duplicate),
 }));
 vi.mock("../../agreements/use-cases/load-entitlement-reference-context.js");
-vi.mock("../../common/config-broker/config-catalog.repository.js");
 vi.mock("../../common/save-outbox-events.js");
 vi.mock("../../payments/use-cases/create-claim-payment.use-case.js");
-vi.mock("../../payments/use-cases/resolve-payment-definition.js");
+vi.mock("../../payments/use-cases/resolve-claim-payment.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/claim.repository.js");
 vi.mock("../repositories/entitlement.repository.js");
@@ -142,10 +141,7 @@ describe("claims.service", () => {
       grant: grant(false),
       resolvedVersion: "1.0.0",
     });
-    findConfigDefinition.mockResolvedValue({
-      s3Key: "woodland/1.0.0/gas/payment.json",
-    });
-    resolvePaymentDefinition.mockResolvedValue(resolvedPayment);
+    resolveClaimPayment.mockResolvedValue(resolvedPayment);
     loadEntitlementReferenceContext.mockResolvedValue({ agreement });
     createClaimPaymentUseCase.mockResolvedValue({
       payment: { id: "payment-1" },
@@ -302,10 +298,7 @@ describe("claims.service", () => {
       grant: grant(false),
       resolvedVersion: "1.0.0",
     });
-    findConfigDefinition.mockResolvedValue({
-      s3Key: "woodland/1.0.0/gas/payment.json",
-    });
-    resolvePaymentDefinition.mockResolvedValue(resolvedPayment);
+    resolveClaimPayment.mockResolvedValue(resolvedPayment);
     loadEntitlementReferenceContext.mockResolvedValue({ agreement });
     createClaimPaymentUseCase.mockResolvedValue({
       payment: { id: "payment-1" },
@@ -385,10 +378,7 @@ describe("claims.service", () => {
       grant: grant(false),
       resolvedVersion: "1.0.0",
     });
-    findConfigDefinition.mockResolvedValue({
-      s3Key: "woodland/1.0.0/gas/payment.json",
-    });
-    resolvePaymentDefinition.mockResolvedValue(resolvedPayment);
+    resolveClaimPayment.mockResolvedValue(resolvedPayment);
     loadEntitlementReferenceContext.mockResolvedValue({ agreement });
     createClaimPaymentUseCase.mockResolvedValue({
       payment: { id: "payment-1" },
@@ -421,10 +411,7 @@ describe("claims.service", () => {
       grant: grant(false),
       resolvedVersion: "1.0.0",
     });
-    findConfigDefinition.mockResolvedValue({
-      s3Key: "woodland/1.0.0/gas/payment.json",
-    });
-    resolvePaymentDefinition.mockResolvedValue(resolvedPayment);
+    resolveClaimPayment.mockResolvedValue(resolvedPayment);
     loadEntitlementReferenceContext.mockResolvedValue({ agreement });
     createClaimPaymentUseCase.mockResolvedValue({
       payment: { id: "payment-1" },
@@ -569,7 +556,7 @@ describe("claims.service", () => {
     // Config Broker loading and mapping validation stay outside the write
     // transaction, so a broken definition writes nothing at all.
     it("resolves the definition before the transaction opens", async () => {
-      resolvePaymentDefinition.mockRejectedValue(new Error("bad definition"));
+      resolveClaimPayment.mockRejectedValue(new Error("bad definition"));
 
       await expect(submitClaim({ code, clientRef, payload })).rejects.toThrow(
         "bad definition",
@@ -586,13 +573,36 @@ describe("claims.service", () => {
 
       await submitClaim({ code, clientRef, payload });
 
-      expect(findConfigDefinition).toHaveBeenCalledWith({
-        grantCode: code,
-        version: "1.0.0",
-        definitionType: "payment",
+      expect(resolveClaimPayment).toHaveBeenCalledWith({
+        code,
+        configVersion: "1.0.0",
+        claim: expect.any(Object),
       });
-      expect(resolvePaymentDefinition).toHaveBeenCalledWith(
-        expect.objectContaining({ code, configVersion: "1.0.0" }),
+    });
+
+    it("reduces the submitted payload to Claim facts", async () => {
+      await submitClaim({
+        code,
+        clientRef,
+        payload: {
+          ...woodlandSubmission,
+          metadata: {
+            ...woodlandSubmission.metadata,
+            grantCode: code,
+            clientRef,
+          },
+          claim: { ...woodlandSubmission.claim, entitlementId },
+        },
+      });
+
+      expect(resolveClaimPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          claim: {
+            sbi: woodlandSubmission.metadata.sbi,
+            frn: woodlandSubmission.metadata.frn,
+            totalAmountPence: woodlandSubmission.claim.totalClaimAmountPence,
+          },
+        }),
       );
     });
 
@@ -637,19 +647,28 @@ describe("claims.service", () => {
       await expect(
         submitClaim({ code, clientRef, payload }),
       ).resolves.toMatchObject({ created: true });
-      expect(resolvePaymentDefinition).not.toHaveBeenCalled();
+      expect(resolveClaimPayment).not.toHaveBeenCalled();
       expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
     });
 
-    // A grant that configures no Payment definition does not pay claims, and
-    // must keep accepting them.
-    it("raises no Payment when the grant configures no definition", async () => {
-      findConfigDefinition.mockResolvedValue(null);
+    it("raises no Payment when Payments resolves none", async () => {
+      resolveClaimPayment.mockResolvedValue(null);
 
       await expect(
         submitClaim({ code, clientRef, payload }),
       ).resolves.toMatchObject({ created: true });
-      expect(resolvePaymentDefinition).not.toHaveBeenCalled();
+      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+      expect(saveOutboxEvents).not.toHaveBeenCalled();
+    });
+
+    it("refuses a Claim whose Entitlement is missing rather than skipping its Payment", async () => {
+      findExistingEntitlements.mockResolvedValue([]);
+
+      await expect(
+        submitClaim({ code, clientRef, payload }),
+      ).rejects.toMatchObject({ output: { statusCode: 404 } });
+      expect(withTransaction).not.toHaveBeenCalled();
+      expect(insert).not.toHaveBeenCalled();
       expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
     });
 
@@ -677,7 +696,7 @@ describe("claims.service", () => {
         submitClaim({ code, clientRef, payload }),
       ).resolves.toMatchObject({ created: true });
 
-      expect(resolvePaymentDefinition).not.toHaveBeenCalled();
+      expect(resolveClaimPayment).not.toHaveBeenCalled();
       expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
       expect(saveOutboxEvents).not.toHaveBeenCalled();
     });
