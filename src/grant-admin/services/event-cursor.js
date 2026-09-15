@@ -1,16 +1,11 @@
 import Boom from "@hapi/boom";
+import { isObjectIdHex } from "../../common/object-id-hex.js";
 
 export const CURSOR_VERSION = 1;
 export const SOURCE_KEYS = ["gasInbox", "gasOutbox", "cwInbox", "cwOutbox"];
 
-const INBOX_SORT_KEY = "eventTime";
-const OUTBOX_SORT_KEY = "publicationDate";
-const HEX_OBJECT_ID = /^[0-9a-f]{24}$/;
-
-// The sort field name a source's own `paginate` expects inside its cursor:
-// inbox sources key on `eventTime`, outbox sources on `publicationDate`.
-export const sortKeyFor = (sourceKey) =>
-  sourceKey.endsWith("Outbox") ? OUTBOX_SORT_KEY : INBOX_SORT_KEY;
+// Every source, Caseworking included, keys its cursor slice by this field.
+export const CURSOR_SORT_FIELD = "publicationDate";
 
 const cannotDecode = () => Boom.badRequest("Cannot decode cursor");
 
@@ -31,19 +26,18 @@ const isPlainObject = (value) =>
 
 const isSortValue = (value) => typeof value === "string" || value === null;
 
-const isValidSlice = (sourceKey, parsed) =>
+const isValidSlice = (parsed) =>
   isPlainObject(parsed) &&
-  isSortValue(parsed[sortKeyFor(sourceKey)]) &&
-  typeof parsed._id === "string" &&
-  HEX_OBJECT_ID.test(parsed._id);
+  isSortValue(parsed[CURSOR_SORT_FIELD]) &&
+  isObjectIdHex(parsed._id);
 
-const assertSlice = (sourceKey, slice) => {
-  if (!isValidSlice(sourceKey, parseJsonCursor(slice))) {
+const assertSlice = (slice) => {
+  if (!isValidSlice(parseJsonCursor(slice))) {
     throw cannotDecode();
   }
 };
 
-const readSlice = (sourceKey, value) => {
+const readSlice = (value) => {
   if (value === null || value === undefined) {
     return null;
   }
@@ -52,7 +46,7 @@ const readSlice = (sourceKey, value) => {
     throw cannotDecode();
   }
 
-  assertSlice(sourceKey, value);
+  assertSlice(value);
 
   return value;
 };
@@ -60,10 +54,9 @@ const readSlice = (sourceKey, value) => {
 const emptySlices = () =>
   Object.fromEntries(SOURCE_KEYS.map((key) => [key, null]));
 
-// `cursorValue` is the *verbatim* stored sort-key value, never a re-canonicalised
-// one - canonicalising it would move the keyset boundary and silently skip rows.
-export const encodeSourceCursor = (sourceKey, { cursorValue, id }) =>
-  toBase64Url({ [sortKeyFor(sourceKey)]: cursorValue ?? null, _id: id });
+// Verbatim: re-canonicalising the value would move the keyset boundary and skip rows.
+export const encodeSourceCursor = ({ cursorValue, id }) =>
+  toBase64Url({ [CURSOR_SORT_FIELD]: cursorValue ?? null, _id: id });
 
 export const encodeCompositeCursor = (slices) =>
   toBase64Url({
@@ -71,8 +64,7 @@ export const encodeCompositeCursor = (slices) =>
     ...Object.fromEntries(SOURCE_KEYS.map((key) => [key, slices[key] ?? null])),
   });
 
-// Validates eagerly and completely, before any source is queried: a tampered
-// slice must be a 400 here rather than a swallowed rejection inside a fan-out.
+// Eager, so a tampered slice is a 400 rather than a rejection inside the fan-out.
 export const decodeCompositeCursor = (cursor) => {
   if (!cursor) {
     return emptySlices();
@@ -85,6 +77,6 @@ export const decodeCompositeCursor = (cursor) => {
   }
 
   return Object.fromEntries(
-    SOURCE_KEYS.map((key) => [key, readSlice(key, parsed[key])]),
+    SOURCE_KEYS.map((key) => [key, readSlice(parsed[key])]),
   );
 };

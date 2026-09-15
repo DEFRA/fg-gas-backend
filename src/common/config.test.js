@@ -192,3 +192,51 @@ describe("config CONFIGURATION_VARIANT", () => {
     exitSpy.mockRestore();
   });
 });
+
+describe("config admin timeout ladder", () => {
+  const KEYS = ["CW_BACKEND_TIMEOUT_MS", "ADMIN_READ_TIMEOUT_MS"];
+  const saved = {};
+
+  beforeEach(() => {
+    for (const key of KEYS) {
+      saved[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const key of KEYS) {
+      if (saved[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = saved[key];
+      }
+    }
+  });
+
+  const loadConfig = async () => {
+    vi.resetModules();
+    return (await import("./config.js")).config;
+  };
+
+  it("defaults the Caseworking timeout below the Mongo read ceiling", async () => {
+    const config = await loadConfig();
+
+    expect(config.cwBackend.timeoutMs).toBe(4000);
+    expect(config.adminReadTimeoutMs).toBe(5000);
+  });
+
+  it("exits with code 1 when the Caseworking timeout is not below the Mongo read ceiling", async () => {
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit called");
+    });
+
+    process.env.CW_BACKEND_TIMEOUT_MS = "5000";
+    process.env.ADMIN_READ_TIMEOUT_MS = "5000";
+
+    await expect(loadConfig()).rejects.toThrow("process.exit called");
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+  });
+});

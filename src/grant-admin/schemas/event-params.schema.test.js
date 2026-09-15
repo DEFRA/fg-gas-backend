@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { EVENT_BOXES, eventParamsSchema } from "./event-params.schema.js";
+import { eventParamsSchema } from "./event-params.schema.js";
+import { EVENT_BOXES } from "./events-shared.schema.js";
 
 const ID = "665f1c2e9a1b2c3d4e5f6a7b";
 

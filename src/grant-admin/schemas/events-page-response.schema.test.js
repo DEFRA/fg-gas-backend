@@ -7,15 +7,11 @@ const anEvent = () => ({
   id: "665f1c2e9a1b2c3d4e5f6a7b",
   eventId: "evt-1",
   type: "case.status.updated",
-  hop: "GAS Outbox",
-  queue: "to Caseworking",
-  queueValue: "gas__sns__update_case_status_fifo.fifo",
   status: "DEAD_LETTER",
   statusLabel: "Dead letter",
   statusRole: "error",
   statusRetrying: false,
   createdAt: "2026-06-16T10:00:00.000Z",
-  lastError: { name: "Error", message: "No handler found", at: null },
   latency: null,
   latencyTitle: "Queued to delivered to SNS",
 });
@@ -23,7 +19,7 @@ const anEvent = () => ({
 const statuses = () => [
   {
     value: "PUBLISHED",
-    label: "Published",
+    label: "Queued",
     explainer: "Queued, not yet claimed",
   },
   { value: "DEAD_LETTER", label: "Dead letter", explainer: "Needs a redrive" },
@@ -31,7 +27,7 @@ const statuses = () => [
 
 const services = () => [
   { value: "gas", label: "GAS" },
-  { value: "caseworking", label: "Caseworking" },
+  { value: "caseworking", label: "CW-BE" },
 ];
 
 const counts = () => ({
@@ -45,12 +41,7 @@ const counts = () => ({
 
 const aPage = (overrides = {}) => ({
   events: [anEvent()],
-  pagination: {
-    startCursor: null,
-    endCursor: null,
-    hasNextPage: false,
-    hasPreviousPage: false,
-  },
+  pagination: { endCursor: null, hasNextPage: false },
   statuses: statuses(),
   services: services(),
   counts: counts(),
@@ -64,7 +55,6 @@ const aPage = (overrides = {}) => ({
         lastAt: "2026-06-16T10:00:00.000Z",
       },
     ],
-    sourceErrors: [],
   },
   sourceErrors: [],
   sectionErrors: [],
@@ -164,7 +154,6 @@ describe("eventsPageResponseSchema nullable sections", () => {
     ).toBeUndefined();
   });
 
-  // The list is the page: it has no null to offer.
   it.each(["events", "pagination", "sourceErrors", "sectionErrors"])(
     "rejects a null %s",
     (key) => {
@@ -176,7 +165,9 @@ describe("eventsPageResponseSchema nullable sections", () => {
     expect(
       validate(aPage({ counts: { ...counts(), DEAD_LETTER: -1 } })).error,
     ).toBeDefined();
-    expect(validate(aPage({ breakdown: { groups: [] } })).error).toBeDefined();
+    expect(
+      validate(aPage({ breakdown: { groups: [{ count: 0 }] } })).error,
+    ).toBeDefined();
   });
 });
 

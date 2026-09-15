@@ -34,7 +34,6 @@ describe("paginate", () => {
     sort: { name: 1 },
     codecs,
     cursor: undefined,
-    direction: "forward",
     pageSize: 2,
     project: { name: 1 },
   };
@@ -51,10 +50,6 @@ describe("paginate", () => {
 
       expect(result.data).toEqual(docs);
       expect(result.pagination.hasNextPage).toBe(false);
-      expect(result.pagination.hasPreviousPage).toBe(false);
-      expect(result.pagination.startCursor).toBe(
-        makeCursor({ name: "Alice", _id: "1" }),
-      );
       expect(result.pagination.endCursor).toBe(
         makeCursor({ name: "Bob", _id: "2" }),
       );
@@ -117,15 +112,13 @@ describe("paginate", () => {
       const result = await paginate(col, {
         ...baseOpts,
         cursor,
-        direction: "forward",
       });
 
       expect(result.data).toHaveLength(2);
       expect(result.pagination.hasNextPage).toBe(true);
-      expect(result.pagination.hasPreviousPage).toBe(true);
     });
 
-    it("sets hasPreviousPage to true when cursor is present", async () => {
+    it("reports no next page when the look-ahead found nothing", async () => {
       const docs = [{ name: "Charlie", _id: "3" }];
       const col = makeCollection(docs);
       const cursor = makeCursor({ name: "Bob", _id: "2" });
@@ -133,10 +126,8 @@ describe("paginate", () => {
       const result = await paginate(col, {
         ...baseOpts,
         cursor,
-        direction: "forward",
       });
 
-      expect(result.pagination.hasPreviousPage).toBe(true);
       expect(result.pagination.hasNextPage).toBe(false);
     });
 
@@ -144,12 +135,13 @@ describe("paginate", () => {
       const col = makeCollection([]);
       const cursor = makeCursor({ name: "Bob", _id: "2" });
 
-      await paginate(col, { ...baseOpts, cursor, direction: "forward" });
+      await paginate(col, { ...baseOpts, cursor });
 
       expect(col.find).toHaveBeenCalledWith(
         {
           $and: [
             { active: true },
+            { name: { $gte: "Bob" } },
             {
               $or: [
                 { name: { $gt: "Bob" } },
@@ -170,107 +162,17 @@ describe("paginate", () => {
         ...baseOpts,
         sort: { name: -1 },
         cursor,
-        direction: "forward",
       });
 
       expect(col.find).toHaveBeenCalledWith(
         {
           $and: [
             { active: true },
+            { name: { $lte: "Bob" } },
             {
               $or: [
                 { name: { $lt: "Bob" } },
                 { name: "Bob", _id: { $lt: "2" } },
-              ],
-            },
-          ],
-        },
-        {},
-      );
-    });
-  });
-
-  describe("backward pagination", () => {
-    it("reverses sort direction for query", async () => {
-      const col = makeCollection([]);
-
-      await paginate(col, { ...baseOpts, direction: "backward" });
-
-      expect(col.chain.sort).toHaveBeenCalledWith({ name: -1, _id: -1 });
-    });
-
-    it("reverses docs back to original order", async () => {
-      const docs = [
-        { name: "Bob", _id: "2" },
-        { name: "Alice", _id: "1" },
-      ];
-      const col = makeCollection(docs);
-
-      const result = await paginate(col, {
-        ...baseOpts,
-        direction: "backward",
-      });
-
-      expect(result.data).toEqual([
-        { name: "Alice", _id: "1" },
-        { name: "Bob", _id: "2" },
-      ]);
-    });
-
-    it("sets hasNextPage to true and hasPreviousPage based on hasMore", async () => {
-      const docs = [
-        { name: "Charlie", _id: "3" },
-        { name: "Bob", _id: "2" },
-        { name: "Alice", _id: "1" },
-      ];
-      const col = makeCollection(docs);
-      const cursor = makeCursor({ name: "Dave", _id: "4" });
-
-      const result = await paginate(col, {
-        ...baseOpts,
-        cursor,
-        direction: "backward",
-      });
-
-      expect(result.pagination.hasNextPage).toBe(true);
-      expect(result.pagination.hasPreviousPage).toBe(true);
-    });
-
-    it("sets hasPreviousPage to false when no more backward results", async () => {
-      const docs = [
-        { name: "Bob", _id: "2" },
-        { name: "Alice", _id: "1" },
-      ];
-      const col = makeCollection(docs);
-      const cursor = makeCursor({ name: "Charlie", _id: "3" });
-
-      const result = await paginate(col, {
-        ...baseOpts,
-        cursor,
-        direction: "backward",
-      });
-
-      expect(result.pagination.hasPreviousPage).toBe(false);
-    });
-
-    it("builds paging filter with reversed operators", async () => {
-      const col = makeCollection([]);
-      const cursor = makeCursor({ name: "Charlie", _id: "3" });
-
-      await paginate(col, {
-        ...baseOpts,
-        cursor,
-        direction: "backward",
-      });
-
-      expect(col.find).toHaveBeenCalledWith(
-        {
-          $and: [
-            { active: true },
-            {
-              $or: [
-                { name: { $lt: "Charlie" } },
-                { name: "Charlie", _id: { $lt: "3" } },
               ],
             },
           ],
@@ -287,10 +189,8 @@ describe("paginate", () => {
       const result = await paginate(col, baseOpts);
 
       expect(result.data).toEqual([]);
-      expect(result.pagination.startCursor).toBeNull();
       expect(result.pagination.endCursor).toBeNull();
       expect(result.pagination.hasNextPage).toBe(false);
-      expect(result.pagination.hasPreviousPage).toBe(false);
     });
   });
 
@@ -344,7 +244,7 @@ describe("paginate", () => {
         codecs: dateCodecs,
       });
 
-      expect(result.pagination.startCursor).toBe(
+      expect(result.pagination.endCursor).toBe(
         makeCursor({ createdAt: "2025-01-15T10:00:00.000Z", _id: "1" }),
       );
     });
@@ -368,21 +268,19 @@ describe("paginate", () => {
         sort: { createdAt: -1 },
         codecs: dateCodecs,
         cursor,
-        direction: "forward",
       });
 
-      const [, keyset] = col.find.mock.calls[0][0].$and;
+      const [, bound, keyset] = col.find.mock.calls[0][0].$and;
+      expect(bound.createdAt.$lte).toEqual(
+        new Date("2025-01-15T10:00:00.000Z"),
+      );
       expect(keyset.$or[0].createdAt.$lt).toEqual(
         new Date("2025-01-15T10:00:00.000Z"),
       );
     });
   });
 
-  // The keyset clause is an `$or` over the sort keys, and so is a search
-  // filter: `?q=` matches an id OR a reference OR a traceparent. Merging the
-  // two by spread dropped whichever came first, so page 1 of a search was
-  // filtered and every page after it was not - the pager returned the whole
-  // collection to somebody paging a needle.
+  // Both the keyset clause and a search filter are `$or`s; a spread merge dropped one.
   describe("composing a base filter that is itself an $or", () => {
     const searchFilter = {
       $or: [{ eventId: "evt-1" }, { segregationRef: "evt-1" }],
@@ -396,13 +294,13 @@ describe("paginate", () => {
         ...baseOpts,
         filter: searchFilter,
         cursor,
-        direction: "forward",
       });
 
       expect(col.find).toHaveBeenCalledWith(
         {
           $and: [
             searchFilter,
+            { name: { $gte: "Bob" } },
             {
               $or: [
                 { name: { $gt: "Bob" } },
@@ -423,8 +321,6 @@ describe("paginate", () => {
       expect(col.find).toHaveBeenCalledWith(searchFilter, {});
     });
 
-    // A read that can be a collection scan gets a ceiling where its caller
-    // sets one, so one page turn cannot hold a connection indefinitely.
     it("passes a caller's time ceiling to the driver", async () => {
       const col = makeCollection([]);
 
@@ -443,7 +339,6 @@ describe("paginate", () => {
         ...baseOpts,
         filter: {},
         cursor,
-        direction: "forward",
       });
 
       const [base] = col.find.mock.calls[0][0].$and;

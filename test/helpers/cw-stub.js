@@ -1,18 +1,15 @@
 import { createServer } from "node:http";
 import { env } from "node:process";
 
-// An in-process stand-in for fg-cw-backend's actuator endpoints (FGP-1227).
-// It runs on the host in the vitest *global setup* process; GAS reaches it
-// through `host.docker.internal` and the tests drive it over the control
-// endpoints below from the *test* process. Everything about GAS's side of the
-// contract - the bearer token, the query string, the response envelope, the
-// failure modes - is therefore exercised over real HTTP.
+// A stand-in for fg-cw-backend's actuator endpoints, reached by GAS over real
+// HTTP (`host.docker.internal`) and driven by the tests over its control paths.
 
 const CONTROL_PATH = "/__control";
 const REQUESTS_PATH = "/__requests";
 const RESET_PATH = "/__reset";
 
 const OK = 200;
+const NO_CONTENT = 204;
 const CONFLICT = 409;
 const UNAUTHORIZED = 401;
 const SERVER_ERROR = 500;
@@ -23,21 +20,11 @@ export const CW_STUB_TOKEN = "cw-stub-token";
 const emptyBox = () => ({
   mode: "ok",
   data: [],
-  pagination: {
-    startCursor: null,
-    endCursor: null,
-    hasNextPage: false,
-    hasPreviousPage: false,
-  },
-  // `detail` answers GET /actuators/events/{box}/{id}, `redrive` answers the
-  // redrive POST; null means 404. `redriveConflictStatus` makes the redrive
-  // answer 409 with that status, as the real actuator does for a row that is
-  // no longer DEAD_LETTER.
+  pagination: { endCursor: null, hasNextPage: false },
+  // A null `detail` or a false `redrive` is a 404; a conflict status is a 409.
   detail: null,
-  redrive: null,
+  redrive: false,
   redriveConflictStatus: null,
-  // The six-key zero-fill is the real actuator's job, so the stub answers
-  // with exactly what a test set.
   counts: {
     PUBLISHED: 0,
     PROCESSING: 0,
@@ -46,9 +33,6 @@ const emptyBox = () => ({
     COMPLETED: 0,
     DEAD_LETTER: 0,
   },
-  // The merge, the display shortening and the 20-group cap are all GAS's
-  // job, so the stub answers with exactly what a test set - raw types
-  // included.
   groups: [],
 });
 
@@ -113,8 +97,6 @@ const respondForMode = (box, response) => {
   return send(response, OK, { data: box.data, pagination: box.pagination });
 };
 
-// The request body is recorded as well as the query string, so a test can
-// assert that a redrive sends its actor and nothing else.
 const record = async (name, request) => {
   const url = new URL(request.url, "http://stub.local");
 
@@ -131,22 +113,22 @@ const record = async (name, request) => {
 const isAuthorised = (request) =>
   request.headers.authorization === `Bearer ${token}`;
 
-// GET /actuators/events - both boxes in one answer, assembled from the same
-// per-box control the other endpoints use, so the stub holds one idea of what
-// a box contains. A failure mode on either box fails the whole request (there
-// is only one request to fail); the `unreadable` mode is the per-box
-// exception - a 200 with that box's sections null, Caseworking's own
-// per-section degradation.
+// Any failure mode fails the one page request; `unreadable` nulls one box's sections.
 const UNREADABLE = "unreadable";
 
-const toPageSection = (box) =>
+const ALL_SECTIONS = "list,counts,breakdown";
+
+// As the real actuator: a section that was not asked for answers null.
+const toPageSection = (box, sections) =>
   box.mode === UNREADABLE
     ? { events: null, pagination: null, counts: null, breakdown: null }
     : {
         events: box.data,
         pagination: box.pagination,
-        counts: box.counts,
-        breakdown: { groups: box.groups },
+        counts: sections.includes("counts") ? box.counts : null,
+        breakdown: sections.includes("breakdown")
+          ? { groups: box.groups }
+          : null,
       };
 
 const isWholeRequestFailure = (box) =>
@@ -165,10 +147,14 @@ const handlePage = async (request, response) => {
     return respondForMode(failing, response);
   }
 
+  const sections = (
+    new URL(request.url, "http://stub.local").searchParams.get("sections") ??
+    ALL_SECTIONS
+  ).split(",");
+
   return send(response, OK, {
-    inbox: toPageSection(state.inbox),
-    outbox: toPageSection(state.outbox),
-    sectionErrors: [],
+    inbox: toPageSection(state.inbox, sections),
+    outbox: toPageSection(state.outbox, sections),
   });
 };
 
@@ -193,7 +179,7 @@ const handleDetail = async (name, id, request, response) => {
   return send(response, OK, { ...box.detail, _id: id });
 };
 
-// POST /actuators/events/{box}/{id}/redrive - one updated list row, or 409/404.
+// POST /actuators/events/{box}/{id}/redrive: 204 with no body, or 409/404.
 const handleRedrive = async (name, id, request, response) => {
   await record(name, request);
 
@@ -220,7 +206,8 @@ const handleRedrive = async (name, id, request, response) => {
     return send(response, NOT_FOUND, { message: "Not found" });
   }
 
-  return send(response, OK, { ...box.redrive, _id: id });
+  response.writeHead(NO_CONTENT);
+  return response.end();
 };
 
 const EVENT_PATH =

@@ -71,11 +71,7 @@ const outboxDetail = (overrides) =>
     maxAttempts: 5,
   });
 
-// The M3 guard on the detail path. The list's copy of it lives in
-// map-event-row.test.js; both matter, because the invariant was once applied
-// in one transform and missed in the parallel one - and `lastError` now
-// carries a stored stack for every failure, so this is the transform standing
-// between that stack and the wire.
+// `lastError` stores a stack; this transform stands between it and the wire.
 describe("toEventDetail lastError", () => {
   it("drops a stored stack, serving the three contract keys", () => {
     const detail = inboxDetail({
@@ -91,9 +87,6 @@ describe("toEventDetail lastError", () => {
     expect(JSON.stringify(detail)).not.toContain("SECRET-STACK");
   });
 
-  // Attempt stacks ARE served - the attempts section expands to reveal one -
-  // while the Last error fact's stack still is not: the fact draws a name, a
-  // message and an instant, so that is all it is sent.
   it("serves the attempt's stack while the lastError fact keeps none", () => {
     const detail = inboxDetail({
       lastError: {
@@ -118,9 +111,6 @@ describe("toEventDetail lastError", () => {
   });
 });
 
-// A redrive nobody is named for is the platform's own. The document keeps its
-// null - `redriveRecord` writes one and goes on writing one - and only the
-// answer names it, so the two cannot drift apart.
 describe("toEventDetail lastRedrive", () => {
   it("names an unattributed redrive as the platform's own", () => {
     const doc = anInboxDoc({
@@ -131,7 +121,6 @@ describe("toEventDetail lastRedrive", () => {
       toEventDetail({ service: "gas", box: "inbox", doc, maxAttempts: 5 })
         .lastRedrive,
     ).toEqual({ at: "2026-06-16T11:05:00.000Z", by: "System" });
-    // The mapper reads the document; it never rewrites it.
     expect(doc.lastRedrive.by).toBeNull();
   });
 
@@ -159,7 +148,7 @@ describe("toEventDetail lastRedrive", () => {
 });
 
 describe("toEventDetail inbox", () => {
-  it("carries every list row field", () => {
+  it("carries every field a single-row answer has", () => {
     const detail = inboxDetail();
 
     expect(detail).toMatchObject({
@@ -168,20 +157,20 @@ describe("toEventDetail inbox", () => {
       id: "665f1c2e9a1b2c3d4e5f6a7b",
       eventId: "msg-1",
       type: "case.status.updated",
-      hop: "GAS Inbox",
-      queue: "from Caseworking",
-      queueValue: null,
+      targetTopic: null,
       segregationRef: "GLD-9B2",
       status: "DEAD_LETTER",
       statusLabel: "Dead letter",
       statusRole: "error",
       statusRetrying: false,
       attempts: "5/5",
-      showAttempts: true,
       traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
-      createdAt: "2026-06-16T10:00:00.000Z",
-      lastFailureAt: "2026-06-16T10:05:00.000Z",
+      createdAt: "2026-06-16T10:00:01.000Z",
     });
+  });
+
+  it("dates the row by its publicationDate, as the list does", () => {
+    expect(inboxDetail().createdAt).toBe(anInboxDoc().publicationDate);
   });
 
   it("carries no latency", () => {
@@ -197,35 +186,13 @@ describe("toEventDetail inbox", () => {
     });
   });
 
-  it("adds the raw traceparent alongside the derived traceId", () => {
-    const detail = inboxDetail();
-
-    expect(detail.traceparent).toBe(TRACEPARENT);
-    expect(detail.traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
-  });
-
-  it("lifts the producer's own instant out of the payload", () => {
-    expect(inboxDetail().occurredAt).toBe("2026-06-16T10:00:00.000Z");
-  });
-
-  it("lifts the FIFO group the event was published under out of the payload", () => {
-    expect(
-      inboxDetail({ event: { id: "evt-1", messageGroupId: "GLD-9B2" } })
-        .messageGroupId,
-    ).toBe("GLD-9B2");
-  });
-
-  it("has a null occurredAt and messageGroupId where the payload records neither", () => {
-    const detail = inboxDetail({ event: { id: "evt-1" } });
-
-    expect(detail.occurredAt).toBeNull();
-    expect(detail.messageGroupId).toBeNull();
+  it("sends the trace-id half of the traceparent", () => {
+    expect(inboxDetail().traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
   });
 
   it("adds the lifecycle dates", () => {
     const detail = inboxDetail();
 
-    expect(detail.publicationDate).toBe("2026-06-16T10:00:01.000Z");
     expect(detail.lastResubmissionDate).toBe("2026-06-16T10:05:00.000Z");
     expect(detail.completionDate).toBeNull();
   });
@@ -246,13 +213,10 @@ describe("toEventDetail inbox", () => {
 });
 
 describe("toEventDetail outbox", () => {
-  // The topic name is what the page draws; the ARN it was cut from went with
-  // the copy button that was the only thing carrying it.
-  it("keeps the topic name on `queueValue` and sends no raw ARN", () => {
+  it("keeps the topic name on `targetTopic` and sends no raw ARN", () => {
     const detail = outboxDetail();
 
-    expect(detail.queue).toBe("to Caseworking");
-    expect(detail.queueValue).toBe("gas__sns__create_new_case_fifo.fifo");
+    expect(detail.targetTopic).toBe("gas__sns__create_new_case_fifo.fifo");
     expect(detail).not.toHaveProperty("targetRaw");
   });
 
@@ -260,25 +224,29 @@ describe("toEventDetail outbox", () => {
     expect(outboxDetail().payload.data).toEqual({ clientRef: "REF-2" });
   });
 
-  it("carries none of the three inbox-only fields, even though the document stores them", () => {
-    const detail = outboxDetail();
-
-    expect(detail).not.toHaveProperty("segregationRef");
-    expect(detail).not.toHaveProperty("traceparent");
-    expect(detail).not.toHaveProperty("traceId");
-    expect(anOutboxDoc().segregationRef).toBe("GLD-9B2");
-    expect(anOutboxDoc().event.traceparent).toBe(TRACEPARENT);
+  it("carries the segregationRef the document stores", () => {
+    expect(outboxDetail().segregationRef).toBe("GLD-9B2");
   });
 
-  it("renders Date claim fields as ISO strings", () => {
-    const detail = outboxDetail();
-
-    expect(detail.claimedAt).toBe("2026-06-16T10:04:00.000Z");
-    expect(detail.claimExpiresAt).toBe("2026-06-16T10:09:00.000Z");
+  it("carries a null segregationRef for an older row that stored none", () => {
+    expect(
+      outboxDetail({ segregationRef: undefined }).segregationRef,
+    ).toBeNull();
   });
 
-  it("renders a Date publicationDate as an ISO string", () => {
-    expect(outboxDetail().publicationDate).toBe("2026-06-16T10:00:00.000Z");
+  it("carries a Caseworking outbox document's segregationRef", () => {
+    const detail = toEventDetail({
+      service: "caseworking",
+      box: "outbox",
+      doc: { ...anOutboxDoc(), _id: "665f1c2e9a1b2c3d4e5f6a7b" },
+      maxAttempts: 7,
+    });
+
+    expect(detail.segregationRef).toBe("GLD-9B2");
+  });
+
+  it("dates the row by a Date publicationDate, as an ISO string", () => {
+    expect(outboxDetail().createdAt).toBe("2026-06-16T10:00:00.000Z");
   });
 
   it("renders a completion date as an ISO string", () => {
@@ -303,16 +271,11 @@ describe("toEventDetail outbox", () => {
     });
 
     expect(detail.type).toBe("audit");
-    expect(detail.typeTitle).toBe("Audit record — not a CloudEvent");
-    expect(detail.queue).toBe("to Audit");
-    // the detail view is the one place the audit payload is returned in full
     expect(detail.payload.audit.entities[0].entityid).toBe("APP-1");
   });
 });
 
 describe("toEventDetail caseworking", () => {
-  // CW's detail endpoint answers with the whole stored document, which has the
-  // same shape as a GAS one, so the same document normalisers map it.
   it("maps a caseworking inbox document with CW's own maxAttempts", () => {
     const detail = toEventDetail({
       service: "caseworking",
@@ -323,15 +286,11 @@ describe("toEventDetail caseworking", () => {
 
     expect(detail.service).toBe("caseworking");
     expect(detail.id).toBe("665f1c2e9a1b2c3d4e5f6a7b");
-    expect(detail.hop).toBe("CW Inbox");
     expect(detail.attempts).toBe("5/7");
     expect(detail.payload).toEqual(anInboxDoc().event);
   });
 
-  // Each service is authoritative for its own rows. These labels come from
-  // Caseworking's own predicate, applied to its own audit topic, which this
-  // service cannot recognise: derived here, a type-less Caseworking audit row
-  // listed as "audit" from CW's label and detailed as "unknown".
+  // CW labels its own audit topic, which this service cannot recognise.
   it("takes Caseworking's own type label rather than deriving one", () => {
     const detail = toEventDetail({
       service: "caseworking",
@@ -341,18 +300,14 @@ describe("toEventDetail caseworking", () => {
         _id: "665f1c2e9a1b2c3d4e5f6a7b",
         event: { id: "evt-1" },
         type: "audit",
-        fullType: "Audit record — not a CloudEvent",
         target: "arn:aws:sns:eu-west-2:000000000000:cw__sns__audit_topic_arn",
       },
       maxAttempts: 7,
     });
 
     expect(detail.type).toBe("audit");
-    expect(detail.typeTitle).toBe("Audit record — not a CloudEvent");
   });
 
-  // And a GAS row keeps deriving its own, because for GAS rows this service
-  // IS the authority.
   it("still derives a label for this service's own rows", () => {
     const detail = toEventDetail({
       service: "gas",
@@ -405,8 +360,6 @@ describe("toEventDetail attemptHistory", () => {
     expect(detail.attemptHistory).toEqual(attemptHistory);
   });
 
-  // The stack is served here now, but still as a declared key built one by
-  // one - a stored key nobody declared is still dropped.
   it("rebuilds each entry from the four contract keys only", () => {
     const attemptHistory = [
       {
@@ -423,8 +376,6 @@ describe("toEventDetail attemptHistory", () => {
     expect(JSON.stringify(entry)).not.toContain("SECRET-CLAIM-TOKEN");
   });
 
-  // Rows written before stacks were recorded, and claim-expiry sweeps: the
-  // page draws no expander for these.
   it("serves a null stack where the entry has none", () => {
     const attemptHistory = [{ at: null, name: "ClaimExpired", message: "x" }];
 
@@ -467,45 +418,43 @@ describe("toEventDetail attemptHistory", () => {
   });
 });
 
-describe("toEventDetail typeTitle", () => {
-  it("is the whole namespaced type behind a shortened one", () => {
-    expect(inboxDetail().typeTitle).toBe(
-      "cloud.defra.local.fg-cw-backend.case.status.updated",
-    );
+describe("toEventDetail outbox traceId", () => {
+  it("extracts the trace-id half of a W3C event.traceparent", () => {
+    expect(outboxDetail().traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
   });
 
-  it("is null where a legacy type is kept whole", () => {
-    const detail = outboxDetail({
-      event: { id: "evt-2", type: "io.onsite.agreement.status.updated" },
-    });
-
-    expect(detail.type).toBe("io.onsite.agreement.status.updated");
-    expect(detail.typeTitle).toBeNull();
+  it("passes a non-W3C event.traceparent through", () => {
+    expect(
+      outboxDetail({
+        event: { id: "evt-2", traceparent: "1a2b3c4d5e6f" },
+      }).traceId,
+    ).toBe("1a2b3c4d5e6f");
   });
 
-  // A type that is nothing but a namespace shortens to nothing, so the mapper
-  // falls back to the stored value - and the two then agree.
-  it("is null where the type shortens to nothing", () => {
-    const detail = outboxDetail({
-      event: { id: "evt-2", type: "cloud.defra.local.fg-gas-backend." },
-    });
-
-    expect(detail.type).toBe("cloud.defra.local.fg-gas-backend.");
-    expect(detail.typeTitle).toBeNull();
+  it("is null when the event carries no traceparent", () => {
+    expect(outboxDetail({ event: { id: "evt-2" } }).traceId).toBeNull();
   });
 
-  it("explains the unknown label on an outbox row addressed at no audit topic", () => {
-    const detail = outboxDetail({ event: { id: "evt-2" } });
-
-    expect(detail.type).toBe("unknown");
-    expect(detail.typeTitle).toBe("No event type recorded — not a CloudEvent");
+  it("is null when there is no event at all", () => {
+    expect(outboxDetail({ event: undefined }).traceId).toBeNull();
   });
 
-  it("explains the unknown label on an inbox row, which can never be audit", () => {
-    const detail = inboxDetail({ type: null });
+  it("ignores a top-level traceparent on an outbox document", () => {
+    expect(
+      outboxDetail({
+        traceparent: TRACEPARENT,
+        event: { id: "evt-2" },
+      }).traceId,
+    ).toBeNull();
+  });
 
-    expect(detail.type).toBe("unknown");
-    expect(detail.typeTitle).toBe("No event type recorded — not a CloudEvent");
+  it("is null on an audit row", () => {
+    expect(
+      outboxDetail({
+        target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn",
+        event: { correlationid: "corr-1", audit: { entities: [] } },
+      }).traceId,
+    ).toBeNull();
   });
 });
 
@@ -522,8 +471,6 @@ describe("toEventDetail traceId", () => {
     ).toBe("4BF92F3577B34DA6A3CE929D0E0E4736");
   });
 
-  // Anything that is not a traceparent is already the value OpenSearch
-  // indexes, so it is passed through untouched.
   it("passes a bare CDP request id through", () => {
     expect(inboxDetail({ traceparent: "1a2b3c4d5e6f" }).traceId).toBe(
       "1a2b3c4d5e6f",

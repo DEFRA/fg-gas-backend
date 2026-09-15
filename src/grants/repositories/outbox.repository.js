@@ -33,32 +33,22 @@ const MAX_RETRIES = config.outbox.outboxMaxRetries;
 const EXPIRES_IN_MS = config.outbox.outboxExpiresMs;
 const NUMBER_OF_RECORDS = config.outbox.outboxClaimMaxRecords;
 
-// Exactly the fields a merged list row (and a journey hop) is derived from -
-// see grant-admin/services/map-event-row.js - plus the two event subfields the
-// row's id and type come out of. Never the full `event`, `event.data`, or
-// `claimedBy`; the detail-only fields (`segregationRef`, `lastRedrive`,
-// `attemptHistory`) ride `findById`'s whole document instead.
+// `target` decides whether a type-less row is an audit record.
 const listProjection = {
   _id: 1,
   target: 1,
   "event.id": 1,
   "event.type": 1,
   status: 1,
-  completionAttempts: 1,
   publicationDate: 1,
-  lastResubmissionDate: 1,
   completionDate: 1,
-  lastError: 1,
 };
 
-// publicationDate is a native Date on every outbox document
-// (models/outbox.js:37), so the cursor carries it as an ISO string.
+// A BSON Date on every outbox row; the cursor carries it as ISO.
 const listCodecs = {
   publicationDate: {
     encode: (value) => (value instanceof Date ? value.toISOString() : value),
-    // A shape-valid cursor carrying `null` here used to decode to `new
-    // Date(null)` - the epoch - and quietly pin the page to 1970 rather than
-    // being refused. A position this service did not write is a 400.
+    // `new Date(null)` is the epoch, so a null position is refused.
     decode: (value) => {
       const date = new Date(value);
 
@@ -75,9 +65,7 @@ const listCodecs = {
   },
 };
 
-// `publicationDate` is the box's sort key AND its time-range field, and it is
-// a BSON Date on every outbox document (models/outbox.js), so an ISO bound is
-// coerced to a Date - a string bound would silently match nothing.
+// A BSON Date field: a string bound would silently match nothing.
 const listFilter = ({ status, q, error, from, to, audit }) =>
   buildEventListFilter({
     status,
@@ -191,19 +179,14 @@ export const updateExpiredEvents = async () => {
     {
       $set: {
         status: OutboxStatus.FAILED,
-        // Nothing threw here - the claim simply outlived its holder - so the
-        // sweep records itself as the reason.
         lastError: claimExpiredError(),
         claimedAt: null,
         claimExpiresAt: null,
         claimedBy: null,
       },
-      // A sweep, not a model save: this rewrites many rows at once and never
-      // loads an Inbox/Outbox, so the cap is applied by Mongo. `$slice: -10`
-      // on the `$push` keeps the ten most recent entries per row.
+      // Applied by Mongo: `$slice` keeps the ten most recent entries per row.
       $push: pushAttemptUpdate(claimExpiredAttempt()),
-      // An expired claim IS a failed attempt, so it is counted in the same
-      // operation that records it - see ATTEMPT ARITHMETIC in models/inbox.js.
+      // An expired claim is a failed attempt, counted where it is recorded.
       $inc: { completionAttempts: 1 },
     },
   );
@@ -239,8 +222,7 @@ export const updateResubmittedEvents = async () => {
         claimExpiresAt: null,
         claimedBy: null,
       },
-      // No `$inc`: a state transition, not an attempt - see ATTEMPT
-      // ARITHMETIC in models/inbox.js.
+      // No `$inc`: a state transition, not an attempt.
     },
   );
   return results;
@@ -266,7 +248,6 @@ export const updateDeadEvents = async () => {
 
 export const findPage = async ({
   cursor,
-  direction = "forward",
   pageSize = 20,
   status,
   q,
@@ -279,18 +260,12 @@ export const findPage = async ({
     filter: listFilter({ status, q, error, from, to, audit }),
     sort: listSort,
     codecs: listCodecs,
-    // The admin surface's own ceiling: this read can be a collection scan.
     maxTimeMS: config.adminReadTimeoutMs,
     cursor,
-    direction,
     pageSize,
     project: listProjection,
   });
 
-// This source's contribution to the faceted counts: the status split for
-// everything the operator asked for. `status` is deliberately not a parameter
-// - grouping BY status is the point. See events/event-facets.js, and
-// events/status-counts.js for the accepted cost of the scan.
 export const countFacets = async (filter = {}) =>
   toSourceFacets(
     await db
@@ -303,18 +278,15 @@ export const countFacets = async (filter = {}) =>
 
 const toId = (id) => ObjectId.createFromHexString(id);
 
-// The whole stored document minus the claim token - the detail view is the one
-// place allowed to read the `event` payload, and only one row at a time.
 // `claimedBy` is a live claim token and is never exposed.
 export const findById = (id) =>
   db
     .collection(collection)
-    .findOne({ _id: toId(id) }, { projection: { claimedBy: 0 } });
+    .findOne(
+      { _id: toId(id) },
+      { projection: { claimedBy: 0 }, maxTimeMS: config.adminReadTimeoutMs },
+    );
 
-// Only used to tell a 404 from a 409 after a redrive matched nothing.
-// `session` joins the caller's transaction where there is one, so the status
-// this reads is the one that transaction can see - the redrive's own failed
-// match and this follow-up read must not disagree about the row.
 export const findStatusById = async (id, session) => {
   const doc = await db
     .collection(collection)
@@ -323,25 +295,20 @@ export const findStatusById = async (id, session) => {
   return doc ? doc.status : null;
 };
 
-// A single conditional update: the DEAD_LETTER filter is the precondition, so
-// a row that changed status between the read and the write simply matches
-// nothing and the caller reports a 409 rather than clobbering it. Answers with
-// the updated document in the list projection.
-// `session` joins the caller's transaction where there is one, so the row's
-// update and the audit event's outbox insert commit together or not at all.
-// Undefined outside a transaction, which the driver treats as no session.
-export const redriveById = (id, { by, session } = {}) =>
-  db
+// True when a DEAD_LETTER row was redriven.
+export const redriveById = async (id, { by, session } = {}) => {
+  const { matchedCount } = await db
     .collection(collection)
-    .findOneAndUpdate(
+    .updateOne(
       { _id: toId(id), status: REDRIVE_FROM_STATUS },
       redriveUpdate(OutboxStatus.RESUBMITTED, { by }),
-      { returnDocument: "after", projection: listProjection, session },
+      { session },
     );
 
-// How the dead letters in this box group by (failure message, event type).
-// Scoped to DEAD_LETTER here rather than by the caller so the breakdown can
-// never accidentally count a still-retrying row.
+  return matchedCount > 0;
+};
+
+// Scoped to DEAD_LETTER here so it can never count a still-retrying row.
 export const breakdown = async (filter = {}) =>
   toBreakdownGroups(
     await db

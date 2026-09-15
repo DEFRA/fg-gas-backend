@@ -40,16 +40,6 @@ describe("eventStatusCountsSchema", () => {
     ).toBeDefined();
   });
 
-  // Nothing outside the six statuses belongs in this object.
-  it.each(["total", "byService", "byKind"])(
-    "rejects a leftover %s block",
-    (key) => {
-      expect(
-        eventStatusCountsSchema.validate({ ...allSix(), [key]: 21 }).error,
-      ).toBeDefined();
-    },
-  );
-
   it("rejects a negative or fractional count", () => {
     expect(
       eventStatusCountsSchema.validate({ ...allSix(), FAILED: -1 }).error,

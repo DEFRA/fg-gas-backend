@@ -420,7 +420,9 @@ describe("writeAuditEvent", () => {
   // Best-effort without a transaction: the action has already happened and
   // refusing to report it would not undo it.
   it("does not throw on an invalid payload when there is no session", async () => {
-    await expect(writeAuditEvent(invalid(), undefined)).resolves.toBeUndefined();
+    await expect(
+      writeAuditEvent(invalid(), undefined),
+    ).resolves.toBeUndefined();
   });
 
   // Inside a transaction the same skip would let the action commit with no

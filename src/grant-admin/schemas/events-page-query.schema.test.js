@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { eventsPageQuerySchema } from "./events-page-query.schema.js";
-import { findEventsQuerySchema } from "./find-events-query.schema.js";
+
+const FROM = "2026-06-16T00:00:00.000Z";
+const TO = "2026-06-16T23:59:59.999Z";
 
 const validate = (query) => eventsPageQuerySchema.validate(query);
 
@@ -11,82 +13,85 @@ describe("eventsPageQuerySchema", () => {
     );
   });
 
-  it("accepts exactly the parameters the list accepts", () => {
-    expect(Object.keys(eventsPageQuerySchema.describe().keys).sort()).toEqual(
-      Object.keys(findEventsQuerySchema.describe().keys).sort(),
-    );
-  });
-
-  it("accepts an empty query and defaults direction to forward", () => {
+  it("accepts an empty query, with no status or service and audit excluded", () => {
     const { error, value } = validate({});
 
     expect(error).toBeUndefined();
-    expect(value.direction).toBe("forward");
+    expect(value).toEqual({ audit: "exclude" });
   });
 
-  it("accepts every filter at once", () => {
-    expect(
-      validate({
-        cursor: "eyJ2IjoxfQ",
-        direction: "backward",
-        status: "DEAD_LETTER",
-        service: "gas",
-        q: "GLD-9B2",
-        error: "No handler found",
-        from: "2026-06-16T00:00:00.000Z",
-        to: "2026-06-16T23:59:59.999Z",
-      }).error,
-    ).toBeUndefined();
-  });
+  it("accepts every filter at once and keeps each as given", () => {
+    const query = {
+      cursor: "eyJ2IjoxfQ",
+      status: "DEAD_LETTER",
+      service: "caseworking",
+      q: "GLD-9B2",
+      error: "No handler found",
+      from: FROM,
+      to: TO,
+      audit: "include",
+    };
 
-  // `status` and `error` filter the list; the use case keeps them away from
-  // the sections that do not accept them.
-  it.each(["status", "error"])("accepts a %s the sections refused", (key) => {
-    expect(
-      validate({ [key]: key === "status" ? "FAILED" : "boom" }).error,
-    ).toBeUndefined();
+    const { error, value } = validate(query);
+
+    expect(error).toBeUndefined();
+    expect(value).toEqual(query);
   });
 
   it.each([
     ["a status outside the six", { status: "BOGUS" }],
     ["a service outside the two", { service: "other" }],
-    ["a direction outside the two", { direction: "sideways" }],
-    ["a page size the list never had", { pageSize: 20 }],
-    ["a limit the list never had", { limit: 20 }],
-    ["the kind filter that no longer exists", { kind: "audit" }],
     ["a q over 200 characters", { q: "a".repeat(201) }],
-    ["an audit mode outside the two", { audit: "maybe" }],
+    ["an error over 1024 characters", { error: "x".repeat(1025) }],
+    ["an audit mode outside the two", { audit: "all" }],
+    ["a non-string audit mode", { audit: true }],
     ["an empty audit mode", { audit: "" }],
-    [
-      "a reversed range",
-      { from: "2026-06-17T00:00:00.000Z", to: "2026-06-16T00:00:00.000Z" },
-    ],
+    ["a bound that is not an ISO date", { from: "yesterday" }],
+    ["an unknown parameter", { pageSize: "50" }],
   ])("rejects %s", (_name, query) => {
     expect(validate(query).error).toBeDefined();
   });
 
-  it("trims q and treats a whitespace-only q as absent", () => {
-    expect(validate({ q: "  evt-1  " }).value.q).toBe("evt-1");
-    expect(validate({ q: "   " }).value.q).toBeUndefined();
+  it.each([
+    ["q", 200],
+    ["error", 1024],
+  ])("accepts a %s of the maximum length", (key, length) => {
+    expect(validate({ [key]: "x".repeat(length) }).error).toBeUndefined();
   });
+
+  it.each(["q", "error"])(
+    "trims %s and treats an empty or whitespace-only value as absent",
+    (key) => {
+      expect(validate({ [key]: "  evt-1  " }).value[key]).toBe("evt-1");
+      expect(validate({ [key]: "" }).value[key]).toBeUndefined();
+      expect(validate({ [key]: "   " }).value[key]).toBeUndefined();
+    },
+  );
 });
 
-describe("eventsPageQuerySchema audit", () => {
-  it("defaults to excluding audit records", () => {
-    expect(validate({}).value.audit).toBe("exclude");
+describe("eventsPageQuerySchema from and to", () => {
+  it("keeps the bounds as strings", () => {
+    const { value } = validate({ from: FROM, to: TO });
+
+    expect(value.from).toBe(FROM);
+    expect(value.to).toBe(TO);
   });
 
-  it.each(["include", "exclude"])("accepts audit=%s", (audit) => {
-    const { error, value } = validate({ audit });
-
-    expect(error).toBeUndefined();
-    expect(value.audit).toBe(audit);
+  it("accepts either bound on its own, and equal bounds", () => {
+    expect(validate({ from: FROM }).error).toBeUndefined();
+    expect(validate({ to: TO }).error).toBeUndefined();
+    expect(validate({ from: FROM, to: FROM }).error).toBeUndefined();
   });
 
-  // Validated exactly as `status` and `service` are, so a typo is a 400 rather
-  // than a silently different population.
-  it("rejects anything else, as any other bad enum is rejected", () => {
-    expect(validate({ audit: "all" }).error).toBeDefined();
-    expect(validate({ audit: true }).error).toBeDefined();
+  it("rejects from after to", () => {
+    expect(validate({ from: TO, to: FROM }).error.message).toBe(
+      '"from" must be earlier than or equal to "to"',
+    );
+  });
+
+  it("compares the bounds as instants, not as strings", () => {
+    expect(
+      validate({ from: FROM, to: "2026-06-16T01:00:00.000+02:00" }).error,
+    ).toBeDefined();
   });
 });

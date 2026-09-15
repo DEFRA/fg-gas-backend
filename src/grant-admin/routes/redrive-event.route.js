@@ -1,22 +1,13 @@
+import { constants } from "node:http2";
 import { actorHeaderSchema } from "../schemas/actor-header.schema.js";
-import { redriveEventResponseSchema } from "../schemas/event-detail-response.schema.js";
 import { eventParamsSchema } from "../schemas/event-params.schema.js";
 import { decodeActor } from "../services/actor-header.js";
 import { callerOf } from "../services/request-caller.js";
 import { redriveEventUseCase } from "../use-cases/redrive-event.use-case.js";
 
-// The operator this mutation is made on behalf of, as a header rather than a
-// body key so every mutation route takes it the same way and a body-less POST
-// still carries it. Validated by `actorHeaderSchema`, so an over-long value is
-// a 400 rather than something written into an audit event and onto a document.
-//
-// Decoded before it is used: a header cannot carry a name with a character
-// above U+00FF, so a caller encodes one that does - and this record is read
-// by people, who should see the name rather than its encoding.
+// Encoded by the caller when the name has characters a header cannot carry.
 const actorOf = (request) => decodeActor(request.headers["x-actor"]) ?? null;
 
-// No `auth` option: the default `service` strategy applies, so a request with
-// no or an invalid bearer token is a 401 before the handler runs.
 export const redriveEventRoute = {
   method: "POST",
   path: "/grant-admin/events/{service}/{box}/{id}/redrive",
@@ -25,17 +16,34 @@ export const redriveEventRoute = {
       "Admin: put one DEAD_LETTER event back in front of its poller. 409 when the row is in any other status.",
     tags: ["api"],
     validate: { params: eventParamsSchema, headers: actorHeaderSchema },
-    response: { schema: redriveEventResponseSchema },
+    plugins: {
+      "hapi-swagger": {
+        responses: {
+          [constants.HTTP_STATUS_NO_CONTENT]: { description: "Redriven" },
+          [constants.HTTP_STATUS_NOT_FOUND]: { description: "No such event" },
+          [constants.HTTP_STATUS_CONFLICT]: {
+            description: "Not DEAD_LETTER; the body names its status",
+          },
+          [constants.HTTP_STATUS_GATEWAY_TIMEOUT]: {
+            description:
+              "CW-BE did not answer in time; the redrive may have happened",
+          },
+        },
+      },
+    },
   },
-  handler(request) {
+  // No body: the admin redirects after a redrive and reads the row again.
+  async handler(request, h) {
     const { service, box, id } = request.params;
 
-    return redriveEventUseCase({
+    await redriveEventUseCase({
       service,
       box,
       id,
       caller: callerOf(request),
       actor: actorOf(request),
     });
+
+    return h.response().code(constants.HTTP_STATUS_NO_CONTENT);
   },
 };

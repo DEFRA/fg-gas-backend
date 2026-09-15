@@ -2,7 +2,6 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { up as normaliseSortKeys } from "../../migrations/20260901130000-normalise-event-sort-keys.js";
-import { findPage as findInboxPage } from "../../src/grants/repositories/inbox.repository.js";
 import { findPage as findOutboxPage } from "../../src/grants/repositories/outbox.repository.js";
 
 let client;
@@ -38,8 +37,7 @@ const walkForward = async (findPage, pageSize) => {
   return rows;
 };
 
-// The pollers rewrite PUBLISHED, FAILED and RESUBMITTED rows while a test runs,
-// so only terminal statuses are seeded here. The migration ignores status.
+// The pollers rewrite non-terminal rows mid-test, so only terminal statuses are seeded.
 const outboxSeed = (overrides) => ({
   target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_new_case_fifo",
   status: "COMPLETED",
@@ -59,8 +57,6 @@ const inboxSeed = (overrides) => ({
   ...overrides,
 });
 
-// A mixed outbox: a proper Date, a parsable ISO string, and a string no date
-// parser can make sense of.
 const seedMixedOutbox = async () => {
   await outbox.insertMany([
     outboxSeed({
@@ -78,9 +74,6 @@ const seedMixedOutbox = async () => {
   ]);
 };
 
-// A mixed inbox: a proper ISO string, an explicit null with a usable
-// event.time, a missing field with a usable event.time, and a missing field
-// with nothing to fall back on but the _id.
 const seedMixedInbox = async () => {
   await inbox.insertMany([
     inboxSeed({
@@ -161,9 +154,6 @@ describe("normalising the event sort keys", () => {
 
       const rows = await walkForward(findOutboxPage, 2);
 
-      // Before the migration this walk stopped inside the Date block and
-      // returned only 1 of the 3 rows - see the "before the normalising
-      // migration" block in event-pagination.test.js.
       expect(rows).toHaveLength(3);
       const seeded = await outbox.find({}).project({ _id: 1 }).toArray();
       expect(rows.map((r) => r._id.toString()).sort()).toEqual(
@@ -197,7 +187,6 @@ describe("normalising the event sort keys", () => {
       expect(rows["missing-with-event-time"].eventTime).toBe(
         "2026-06-16T10:01:00.000Z",
       );
-      // An already-good row is left exactly as it was.
       expect(rows["string-row"].eventTime).toBe("2026-06-16T10:03:00.000Z");
     });
 
@@ -214,21 +203,22 @@ describe("normalising the event sort keys", () => {
       ]) {
         const row = rows[ref];
         expect(typeof row.eventTime).toBe("string");
-        // ObjectId timestamps have second precision; the ISO string must round
-        // trip back to exactly that instant.
         expect(new Date(row.eventTime)).toEqual(row._id.getTimestamp());
       }
     });
 
-    it("returns every row from a full forward walk once normalised", async () => {
+    it("puts every row into one chronological eventTime order once normalised", async () => {
       await seedMixedInbox();
       await normaliseSortKeys(db);
 
-      const rows = await walkForward(findInboxPage, 2);
+      const rows = await inbox.find({}).sort({ eventTime: 1 }).toArray();
 
-      // Before the migration the null and missing rows were unreachable.
       expect(rows).toHaveLength(5);
-      expect(new Set(rows.map((r) => r._id.toString())).size).toBe(5);
+      const times = rows.map((r) => r.eventTime);
+      expect(times.every((t) => typeof t === "string")).toBe(true);
+      expect(times).toEqual(
+        [...times].sort((x, y) => Date.parse(x) - Date.parse(y)),
+      );
     });
   });
 

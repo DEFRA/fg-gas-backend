@@ -1,11 +1,7 @@
 import Joi from "joi";
-import { EVENT_STATUSES } from "./find-events-query.schema.js";
+import { EVENT_STATUSES } from "../../events/status-counts.js";
 
-// All six statuses, always: a status with no rows is a zero, never a missing
-// key, or the frontend renders a blank rather than "none". Deliberately no
-// `total` - a figure that can only ever agree with the six beside it or be a
-// bug; the caller adds them up. A source the counts could not read is already
-// named in the page's `sourceErrors`, not a second time here.
+// All six statuses always, so a status with no rows is a zero, not a blank.
 export const eventStatusCountsSchema = Joi.object(
   Object.fromEntries(
     EVENT_STATUSES.map((status) => [
