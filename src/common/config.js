@@ -1,5 +1,6 @@
 import Joi from "joi";
 import { env } from "node:process";
+import { VARIANT_PATTERN } from "./configuration-variant.js";
 
 // FGP-1307: the producer services permitted to mint caller tokens
 // (applicant/grants-ui, caseworker/fg-cw-frontend, PDF/agreements-pdf). This is
@@ -169,7 +170,7 @@ if (error) {
 
 const rawVariant = vars.CONFIGURATION_VARIANT;
 const isProd = vars.ENVIRONMENT === "prod";
-if (rawVariant && !isProd && !/^[a-z0-9-]+$/.test(rawVariant)) {
+if (rawVariant && !isProd && !VARIANT_PATTERN.test(rawVariant)) {
   // eslint-disable-next-line no-console
   console.error(
     `CONFIGURATION_VARIANT "${rawVariant}" is invalid — must be lowercase letters, numbers or hyphens`,
