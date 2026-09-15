@@ -7,6 +7,7 @@ import hapiPulse from "hapi-pulse";
 import HapiSwagger from "hapi-swagger";
 import { auth } from "./auth/auth.js";
 import { config } from "./common/config.js";
+import { logConfigurationVariant } from "./common/configuration-variant.js";
 import { withRequestContext } from "./common/get-request-context.js";
 import { logger } from "./common/logger.js";
 import { mongoClient } from "./common/mongo-client.js";
@@ -122,6 +123,8 @@ export const createServer = async () => {
   });
 
   server.ext("onPreResponse", handlePreResponse);
+
+  logConfigurationVariant(config.configBroker, config.cdpEnvironment, logger);
 
   return server;
 };

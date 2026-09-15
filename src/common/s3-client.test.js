@@ -99,6 +99,71 @@ describe("s3-client", () => {
         findS3KeyInManifest(manifest, { dir: "gas", file: "gas.json" }),
       ).toThrow("Manifest does not contain required config file");
     });
+
+    describe("variant parameter", () => {
+      const manifest = [
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/gas.next.json",
+        "woodland/1.2.3/gas/agreement.json",
+        "woodland/1.2.3/metadata.json",
+      ];
+
+      it('matches the unsuffixed file when variant is ""', () => {
+        expect(
+          findS3KeyInManifest(manifest, {
+            dir: "gas",
+            file: "gas.json",
+            variant: "",
+          }),
+        ).toBe("woodland/1.2.3/gas/gas.json");
+      });
+
+      it('matches gas.next.json when variant is "next"', () => {
+        expect(
+          findS3KeyInManifest(manifest, {
+            dir: "gas",
+            file: "gas.json",
+            variant: "next",
+          }),
+        ).toBe("woodland/1.2.3/gas/gas.next.json");
+      });
+
+      it("falls back to unsuffixed when variant file is missing", () => {
+        expect(
+          findS3KeyInManifest(manifest, {
+            dir: "gas",
+            file: "agreement.json",
+            variant: "next",
+            required: true,
+          }),
+        ).toBe("woodland/1.2.3/gas/agreement.json");
+      });
+
+      it("returns null for optional files when neither variant nor unsuffixed exist", () => {
+        expect(
+          findS3KeyInManifest(manifest, {
+            dir: "gas",
+            file: "payment.json",
+            variant: "next",
+            required: false,
+          }),
+        ).toBeNull();
+      });
+
+      it("prefers the variant file over the unsuffixed file when both exist", () => {
+        const extendedManifest = [
+          ...manifest,
+          "woodland/1.2.3/gas/agreement.next.json",
+        ];
+        expect(
+          findS3KeyInManifest(extendedManifest, {
+            dir: "gas",
+            file: "agreement.json",
+            variant: "next",
+          }),
+        ).toBe("woodland/1.2.3/gas/agreement.next.json");
+      });
+    });
   });
 
   describe("fetchConfigFile", () => {
