@@ -46,11 +46,3 @@ export const up = async (db) => {
     },
   );
 };
-
-export const down = async () => {
-  throw new Error(
-    "Not supported: the legacy top-level Grant fetch fields cannot be " +
-      "restored from definitions.grant. Roll forward only - see the header " +
-      "comment in this migration.",
-  );
-};
