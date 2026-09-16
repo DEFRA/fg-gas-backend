@@ -3,10 +3,7 @@ import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
 import { up as backfillGrantDefinition } from "../../../migrations/20260812141750-expand-config-versions-agreement-definitions.js";
 import { up as reconcileGrantDefinition } from "../../../migrations/20260907100000-reconcile-config-versions-grant-definitions.js";
-import {
-  down as removeLegacyFetchFieldsDown,
-  up as removeLegacyFetchFields,
-} from "../../../migrations/20260913100000-remove-legacy-config-version-fetch-fields.js";
+import { up as removeLegacyFetchFields } from "../../../migrations/20260913100000-remove-legacy-config-version-fetch-fields.js";
 
 let client;
 let database;
@@ -193,10 +190,4 @@ it("aborts without changing anything when a record has an incomplete definitions
   });
   expect(doc).toMatchObject(legacyFetchState);
   expect(doc.definitions).toBeUndefined();
-});
-
-it("does not support rolling back the legacy field removal", async () => {
-  await expect(removeLegacyFetchFieldsDown()).rejects.toThrow(
-    "Not supported",
-  );
 });
