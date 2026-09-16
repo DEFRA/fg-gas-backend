@@ -1,6 +1,7 @@
 import { config } from "../common/config.js";
 import { registerInternalCommandHandler } from "../common/internal-command-bus.js";
 import { internalCommandTypes } from "../common/internal-command-types.js";
+import { isGasManagedAgreementGrant } from "./services/agreement-ownership.js";
 import { getAgreementByNumberRoute } from "./routes/get-agreement-by-number.route.js";
 import { getCurrentAgreementRoute } from "./routes/get-current-agreement.route.js";
 import { invokeAgreementActionRoute } from "./routes/invoke-agreement-action.route.js";
@@ -12,7 +13,7 @@ import { catchUpWoodlandMigrationRoute } from "./woodland-migration/catch-up-woo
 import { dryRunWoodlandMigrationRoute } from "./woodland-migration/dry-run-woodland-migration.route.js";
 
 const canHandleAgreementCommand = ({ data }) =>
-  config.managedAgreementGrantCodes.includes(data.code);
+  isGasManagedAgreementGrant(data.code);
 
 const woodlandMigrationIsConfigured = () =>
   Boolean(

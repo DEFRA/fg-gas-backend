@@ -27,7 +27,7 @@ Use separate credentials for the two authentication boundaries. Generate a new p
 - [ ] Confirm the production diagnostic baseline is recorded: 70 agreements, 70 good, 0 bad.
 - [ ] Confirm the exact approved Woodland GAS configuration version.
 - [ ] Confirm that definition version exists in the target environment's GAS config catalog.
-- [ ] Confirm `woodland` is **not** present in `GAS_MANAGED_AGREEMENT_GRANT_CODES`.
+- [ ] During mixed-version deployment, confirm `woodland` is absent from the old `GAS_MANAGED_AGREEMENT_GRANT_CODES` allowlist and present in the new `LEGACY_AGREEMENT_GRANT_CODES` denylist. At cutover, add it to the old list and remove it from the new list so both GAS versions route Woodland correctly.
 - [ ] Confirm the Agreements API and GAS migration settings are currently absent, so the temporary routes remain disabled.
 - [ ] Confirm migration definition validation uses the read-only loader and does not update definition-cache/config fetch status.
 - [ ] Record the operator, approver, expected start time and rollback owner.
@@ -95,7 +95,7 @@ WOODLAND_MIGRATION_CONFIG_VERSION=<approved exact version>
 
 - [ ] Store `WOODLAND_MIGRATION_TOKEN` as a CDP secret.
 - [ ] Add the source URL and config version to the environment configuration.
-- [ ] Reconfirm `woodland` has not been added to `GAS_MANAGED_AGREEMENT_GRANT_CODES`.
+- [ ] Reconfirm `woodland` is absent from `GAS_MANAGED_AGREEMENT_GRANT_CODES` and present in `LEGACY_AGREEMENT_GRANT_CODES` until the coordinated cutover.
 - [ ] Stage all three settings for the coordinated production deployment.
 
 The GAS routes are enabled only when all three settings are non-empty. Apply still accepts only the `woodland-migration-operator` service identity and an approved request payload.

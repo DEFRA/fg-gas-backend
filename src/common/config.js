@@ -30,6 +30,12 @@ const parseKeyring = (raw) => {
   }
 };
 
+const parseGrantCodes = (raw) =>
+  raw
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean);
+
 const schema = Joi.object({
   NODE_ENV: Joi.string().allow("development", "production", "test"),
   SERVICE_NAME: Joi.string(),
@@ -68,10 +74,7 @@ const schema = Joi.object({
   FIFO_LOCK_TTL_MS: Joi.number(),
   GAS__SNS__AUDIT_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
-  GAS_MANAGED_AGREEMENT_GRANT_CODES: Joi.string()
-    .allow("")
-    .optional()
-    .default(""),
+  LEGACY_AGREEMENT_GRANT_CODES: Joi.string().allow("").optional().default(""),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: Joi.string().optional(),
@@ -167,9 +170,7 @@ export const config = {
     timeoutMs: vars.HTTP_CLIENT_TIMEOUT_MS,
   },
   viewAgreementUri: vars.VIEW_AGREEMENT_URI,
-  managedAgreementGrantCodes: vars.GAS_MANAGED_AGREEMENT_GRANT_CODES.split(",")
-    .map((code) => code.trim())
-    .filter(Boolean),
+  legacyAgreementGrantCodes: parseGrantCodes(vars.LEGACY_AGREEMENT_GRANT_CODES),
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
   cdpEnvironment: vars.ENVIRONMENT,
