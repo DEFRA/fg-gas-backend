@@ -182,6 +182,25 @@ describe("Agreement reporting events", () => {
           agreementStartDate: "2026-09-01",
           agreementEndDate: "2029-08-31",
           agreementValue: 1575,
+          options: [
+            {
+              parcelReference: "SD8545-9935",
+              parcelSizeUnderAgreement: 15.75,
+              optionCode: "WMP1",
+              optionStartDate: "2026-10-01",
+              optionEndDate: "2027-09-30",
+              optionQuantity: 10.5,
+              optionValue: 1050,
+            },
+            {
+              parcelReference: "",
+              optionCode: "TE4",
+              optionStartDate: "2026-09-01",
+              optionEndDate: "2029-08-31",
+              optionQuantity: 2,
+              optionValue: 525,
+            },
+          ],
         },
       },
     });
