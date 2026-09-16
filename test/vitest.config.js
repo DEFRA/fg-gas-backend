@@ -58,7 +58,7 @@ export default defineConfig({
       // FGP-1411: exercise the QA-only test endpoints in the integration suite.
       ENABLE_TEST_ENDPOINTS: "true",
       VIEW_AGREEMENT_URI: "http://localhost:3000",
-      LEGACY_AGREEMENT_GRANT_CODES: "woodland",
+      LEGACY_AGREEMENT_GRANT_CODES: "woodland,legacy-test-code",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created_fifo.fifo",
       GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: `${SQS_URL}/gas__sqs__update_agreement_status_fifo.fifo`,
