@@ -107,8 +107,9 @@ The FGP-1411 QA endpoints reuse the Agreements command handlers rather than reim
 | `test-endpoints` | `agreements/use-cases/handle-create-agreement-command.use-case.js`        | Creates an Agreement through the same handler the SQS consumer uses, so validation, persistence and side effects match    |
 | `test-endpoints` | `agreements/use-cases/handle-update-agreement-status-command.use-case.js` | Applies a status transition through the same handler, so lifecycle rules are enforced by the grant's agreement definition |
 | `test-endpoints` | `agreements/use-cases/load-current-agreement.js`                          | Resolves the Agreement by number, which supplies the 404 for an unknown Agreement before any command is dispatched        |
+| `test-endpoints` | `agreements/services/agreement-ownership.js`                              | Applies the same legacy denylist as the command bus before exposing test mutations                                        |
 
-The adapter adds only HTTP concerns: the feature flag, request and response schemas, the GAS-managed grant code check, and translating a rejected transition into a 409. It holds no agreement logic of its own and never touches an Agreements repository or domain model directly. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
+The adapter adds only HTTP concerns: the feature flag, request and response schemas, the shared Agreement ownership check, and translating a rejected transition into a 409. It holds no agreement logic of its own and never touches an Agreements repository or domain model directly. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
 
 ## Adding a New Seam
 
