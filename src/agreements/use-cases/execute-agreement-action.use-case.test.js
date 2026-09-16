@@ -163,6 +163,16 @@ describe("executeAgreementActionUseCase", () => {
               agreementStartDate: "2026-08-01",
               agreementEndDate: "2027-07-31",
               agreementValue: 50,
+              options: [
+                {
+                  parcelReference: "",
+                  optionCode: "largeWhite",
+                  optionStartDate: "2026-08-01",
+                  optionEndDate: "2027-07-31",
+                  optionQuantity: 5,
+                  optionValue: 50,
+                },
+              ],
             },
           }),
         }),
