@@ -107,5 +107,6 @@ export const createAgreementStatusChangedReportingPublication = (agreement) =>
       eventType: AGREEMENT_STATUS_CHANGED,
       ...commonAgreementData(agreement),
       statusDate: agreement.updatedAt,
+      options: reportingOptions(agreement),
     }),
   );
