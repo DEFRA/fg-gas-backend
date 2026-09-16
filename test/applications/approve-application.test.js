@@ -95,7 +95,7 @@ describe("On CaseStatusUpdated", () => {
     });
   });
 
-  it("sends the Agreement command to the external service for a grant outside the allowlist", async () => {
+  it("sends the Agreement command externally for an explicitly legacy grant", async () => {
     const code = "legacy-test-code";
     await createGrant(code);
 

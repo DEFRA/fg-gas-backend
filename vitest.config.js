@@ -46,7 +46,7 @@ export default defineConfig({
       GAS__SNS__REPORTING_EVENTS_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gfr__sns___reporting_events",
       GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: "some:arn",
-      GAS_MANAGED_AGREEMENT_GRANT_CODES: "pigs-might-fly,another-gas-grant",
+      LEGACY_AGREEMENT_GRANT_CODES: "woodland",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: "some:arn",
       GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: "some:arn",
       GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: "some:arn",

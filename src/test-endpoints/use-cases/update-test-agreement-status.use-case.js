@@ -1,6 +1,6 @@
 import Boom from "@hapi/boom";
 import { randomUUID } from "node:crypto";
-import { config } from "../../common/config.js";
+import { isGasManagedAgreementGrant } from "../../agreements/services/agreement-ownership.js";
 import { logger } from "../../common/logger.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
 import { handleUpdateAgreementStatusCommandUseCase } from "../../agreements/use-cases/handle-update-agreement-status-command.use-case.js";
@@ -9,9 +9,9 @@ import { loadCurrentAgreementByNumber } from "../../agreements/use-cases/load-cu
 const CONFLICT = 409;
 
 const assertManagedCode = (agreement) => {
-  if (!config.managedAgreementGrantCodes.includes(agreement.code)) {
+  if (!isGasManagedAgreementGrant(agreement.code)) {
     throw Boom.badRequest(
-      `Agreement "${agreement.agreementNumber}" has grant code "${agreement.code}", which is not managed by GAS`,
+      `Agreement "${agreement.agreementNumber}" has grant code "${agreement.code}", which is configured for legacy Agreements`,
     );
   }
 };
@@ -41,9 +41,7 @@ export const updateTestAgreementStatusUseCase = async ({
   agreementNumber,
   status,
 }) => {
-  logger.info(
-    `Updating test agreement ${agreementNumber} to status ${status}`,
-  );
+  logger.info(`Updating test agreement ${agreementNumber} to status ${status}`);
 
   // Throws Boom.notFound when the Agreement does not exist, which gives the
   // 404 before anything is dispatched.

@@ -46,7 +46,6 @@ it("returns canonical Agreement presentation with an ETag", async () => {
     url: "/agreements/PMF123/document",
     headers: {
       "x-agreement-source": "defra",
-      "x-agreement-code": "pigs-might-fly",
       "x-agreement-sbi": "900000012",
     },
   });
@@ -58,7 +57,6 @@ it("returns canonical Agreement presentation with an ETag", async () => {
     agreementNumber: "PMF123",
     access: {
       source: "defra",
-      code: "pigs-might-fly",
       sbi: "900000012",
     },
   });

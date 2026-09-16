@@ -16,22 +16,14 @@ const payload = {
 };
 
 describe("createTestAgreementUseCase", () => {
-  const originalCodes = [...config.managedAgreementGrantCodes];
+  const originalLegacyCodes = config.legacyAgreementGrantCodes;
 
   beforeEach(() => {
-    config.managedAgreementGrantCodes.splice(
-      0,
-      config.managedAgreementGrantCodes.length,
-      "pigs-might-fly",
-    );
+    config.legacyAgreementGrantCodes = ["woodland"];
   });
 
   afterEach(() => {
-    config.managedAgreementGrantCodes.splice(
-      0,
-      config.managedAgreementGrantCodes.length,
-      ...originalCodes,
-    );
+    config.legacyAgreementGrantCodes = originalLegacyCodes;
     vi.resetAllMocks();
   });
 
@@ -44,10 +36,20 @@ describe("createTestAgreementUseCase", () => {
     expect(result).toBe(agreement);
     expect(createAgreementUseCase).toHaveBeenCalledWith(payload);
   });
+  it("creates an Agreement for a new grant by default", async () => {
+    const futurePayload = { ...payload, code: "future-grant" };
+    const agreement = { agreementNumber: "NEW823153889", state: "offered" };
+    createAgreementUseCase.mockResolvedValue(agreement);
 
-  it("rejects a grant code that GAS does not manage", async () => {
+    await expect(createTestAgreementUseCase(futurePayload)).resolves.toBe(
+      agreement,
+    );
+    expect(createAgreementUseCase).toHaveBeenCalledWith(futurePayload);
+  });
+
+  it("rejects an explicitly legacy grant code", async () => {
     await expect(
-      createTestAgreementUseCase({ ...payload, code: "not-managed" }),
+      createTestAgreementUseCase({ ...payload, code: "woodland" }),
     ).rejects.toMatchObject({
       output: { statusCode: 400 },
     });

@@ -33,7 +33,6 @@ export const loadCurrentAgreementByNumber = async ({
 
 const isMatchingDocumentAccess = (agreement, access) =>
   ["defra", "entra"].includes(access.source) &&
-  agreement.code === access.code &&
   agreement.identifiers.sbi === access.sbi;
 
 const assertDocumentAccess = (agreement, access) =>

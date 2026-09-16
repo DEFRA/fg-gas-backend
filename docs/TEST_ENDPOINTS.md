@@ -46,7 +46,7 @@ Agreement, version history) and outbox side effects are all representative.
 
 | Field | Required | Notes |
 | --- | --- | --- |
-| `code` | yes | Must be listed in `GAS_MANAGED_AGREEMENT_GRANT_CODES`, otherwise 400. |
+| `code` | yes | Must not be listed in `LEGACY_AGREEMENT_GRANT_CODES`, otherwise 400. |
 | `clientRef` | yes | Creation is idempotent on `(code, clientRef)`: repeating a request returns the existing Agreement rather than creating a second one. Use a fresh value per scenario. |
 | `currentConfigVersion` | yes | Semver of the grant config to create from. |
 | `identifiers` | yes | Must contain `sbi`. Additional identifiers such as `frn` are allowed. |
@@ -141,8 +141,8 @@ Migration notes for those repositories:
   `agreementData.agreementNumber` carry over.
 - Status changes use the target state (`withdrawn`), which matches the `status`
   field in the legacy queue message payload.
-- These endpoints only manage GAS-owned grant codes
-  (`GAS_MANAGED_AGREEMENT_GRANT_CODES`).
+- These endpoints only manage GAS-owned grant codes. GAS owns every code not
+  listed in `LEGACY_AGREEMENT_GRANT_CODES`.
 
 ## Design notes
 
