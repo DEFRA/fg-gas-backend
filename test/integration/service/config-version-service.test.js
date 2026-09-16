@@ -47,7 +47,7 @@ describe("config-version repository integration", () => {
       expect(doc.definitions.grant.fetchAttempts).toBe(0);
       expect(doc.major).toBe(1);
       expect(doc.fetchStatus).toBeUndefined();
-      expect(doc.s3Key).toBe("woodland/1.0.0/gas/gas.json");
+      expect(doc.s3Key).toBeUndefined();
     });
 
     it("should update existing record on duplicate grantCode+version without throwing", async () => {
@@ -85,7 +85,7 @@ describe("config-version repository integration", () => {
         "woodland/1.0.0/gas/replacement.json",
       );
       expect(doc.fetchStatus).toBeUndefined();
-      expect(doc.s3Key).toBe("woodland/1.0.0/gas/original.json");
+      expect(doc.s3Key).toBeUndefined();
     });
   });
 

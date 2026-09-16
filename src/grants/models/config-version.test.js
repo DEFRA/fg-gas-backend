@@ -175,57 +175,43 @@ describe("ConfigVersion", () => {
         minor: 0,
         patch: 0,
         status: "active",
-        s3Key: "woodland/1.0.0/gas/gas.json",
         s3Bucket: "config-broker-local",
         receivedAt: "2026-05-13T10:00:00Z",
-        fetchedAt: null,
-        fetchStatus: FetchStatus.Pending,
-        fetchError: null,
-        fetchAttempts: 0,
-        lastFetchAttemptAt: null,
+        definitions: {
+          grant: {
+            s3Key: "woodland/1.0.0/gas/gas.json",
+            fetchedAt: null,
+            fetchStatus: FetchStatus.Pending,
+            fetchError: null,
+            fetchAttempts: 0,
+            lastFetchAttemptAt: null,
+          },
+        },
       };
 
       const cv = ConfigVersion.fromDocument(doc);
       expect(cv.grantCode).toBe("woodland");
       expect(cv._id).toBe("abc123");
-    });
-
-    it("uses nested Grant state before stale top-level state", () => {
-      const cv = ConfigVersion.fromDocument({
-        grantCode: "woodland",
-        version: "1.0.0",
-        s3Bucket: "config-broker-local",
-        s3Key: "legacy/key.json",
-        fetchStatus: FetchStatus.Pending,
-        definitions: {
-          grant: {
-            s3Key: "nested/key.json",
-            fetchStatus: FetchStatus.Fetched,
-          },
-        },
-      });
-
-      expect(cv.s3Key).toBe("nested/key.json");
-      expect(cv.fetchStatus).toBe(FetchStatus.Fetched);
-    });
-
-    it("falls back field-by-field to top-level Release A state", () => {
-      const cv = ConfigVersion.fromDocument({
-        grantCode: "woodland",
-        version: "1.0.0",
-        s3Bucket: "config-broker-local",
-        s3Key: "legacy/key.json",
-        fetchStatus: FetchStatus.Fetched,
-        definitions: { grant: { fetchAttempts: 2 } },
-      });
-
-      expect(cv.s3Key).toBe("legacy/key.json");
-      expect(cv.fetchStatus).toBe(FetchStatus.Fetched);
-      expect(cv.fetchAttempts).toBe(2);
+      expect(cv.s3Key).toBe("woodland/1.0.0/gas/gas.json");
+      expect(cv.fetchStatus).toBe(FetchStatus.Pending);
     });
 
     it("should return null for null input", () => {
       expect(ConfigVersion.fromDocument(null)).toBeNull();
+    });
+
+    // Nested Grant state is the only supported format: the legacy top-level
+    // fields were removed by
+    // 20260913100000-remove-legacy-config-version-fetch-fields.js, and there
+    // is no fallback to read them from left in the codebase.
+    it("throws when definitions.grant is missing rather than falling back to top-level state", () => {
+      expect(() =>
+        ConfigVersion.fromDocument({
+          grantCode: "woodland",
+          version: "1.0.0",
+          s3Bucket: "config-broker-local",
+        }),
+      ).toThrow();
     });
 
     it("should hydrate a seeded legacy 0.0.0 row (null s3 fields, fetched)", () => {
@@ -236,13 +222,17 @@ describe("ConfigVersion", () => {
         minor: 0,
         patch: 0,
         status: "active",
-        s3Key: null,
         s3Bucket: null,
-        fetchStatus: "fetched",
-        fetchedAt: "2026-07-02T10:00:00Z",
-        fetchAttempts: 0,
-        fetchError: null,
-        lastFetchAttemptAt: null,
+        definitions: {
+          grant: {
+            s3Key: null,
+            fetchStatus: "fetched",
+            fetchedAt: "2026-07-02T10:00:00Z",
+            fetchAttempts: 0,
+            fetchError: null,
+            lastFetchAttemptAt: null,
+          },
+        },
       };
 
       const cv = ConfigVersion.fromDocument(doc);

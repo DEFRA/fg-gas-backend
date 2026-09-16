@@ -62,15 +62,15 @@ describe("config-version.repository", () => {
       const [, [{ $set }]] = mockCollection.updateOne.mock.calls[0];
       expect($set["definitions.agreement"]).toBeUndefined();
       expect($set["definitions.payment"]).toBeUndefined();
-      expect($set.s3Key).toEqual({
-        $cond: [
-          { $eq: [{ $type: "$s3Key" }, "missing"] },
-          { $literal: "woodland/1.2.3/grant-definition.json" },
-          "$s3Key",
-        ],
-      });
+      // The legacy top-level fields were removed by
+      // 20260913100000-remove-legacy-config-version-fetch-fields.js - never
+      // write them again, or the migration's cleanup gets silently undone.
+      expect($set.s3Key).toBeUndefined();
       expect($set.fetchStatus).toBeUndefined();
       expect($set.fetchAttempts).toBeUndefined();
+      expect($set.fetchError).toBeUndefined();
+      expect($set.fetchedAt).toBeUndefined();
+      expect($set.lastFetchAttemptAt).toBeUndefined();
     });
 
     it("should include an Agreement location without resetting its fetch state", async () => {
@@ -163,14 +163,8 @@ describe("config-version.repository", () => {
         minor: 4,
         patch: 2,
         status: "active",
-        s3Key: "woodland/1.4.2/grant-definition.json",
         s3Bucket: "bucket",
-        fetchStatus: FetchStatus.PermanentError,
-        fetchAttempts: 4,
         receivedAt: "2026-01-01T00:00:00Z",
-        fetchedAt: null,
-        fetchError: "stale legacy state",
-        lastFetchAttemptAt: null,
         definitions: {
           grant: {
             s3Key: "woodland/1.4.2/grant-definition.json",
@@ -191,18 +185,9 @@ describe("config-version.repository", () => {
           grantCode: "woodland",
           major: 1,
           status: "active",
-          $or: [
-            {
-              "definitions.grant.fetchStatus": {
-                $exists: true,
-                $ne: FetchStatus.PermanentError,
-              },
-            },
-            {
-              "definitions.grant.fetchStatus": { $exists: false },
-              fetchStatus: { $ne: FetchStatus.PermanentError },
-            },
-          ],
+          "definitions.grant.fetchStatus": {
+            $ne: FetchStatus.PermanentError,
+          },
         },
         { sort: { minor: -1, patch: -1 } },
       );
@@ -283,14 +268,8 @@ describe("config-version.repository", () => {
         minor: 0,
         patch: 0,
         status: "active",
-        fetchStatus: FetchStatus.Pending,
-        fetchAttempts: 1,
-        s3Key: "legacy/key.json",
         s3Bucket: "bucket",
         receivedAt: "2026-01-01T00:00:00Z",
-        fetchedAt: null,
-        fetchError: "stale legacy state",
-        lastFetchAttemptAt: null,
         definitions: {
           grant: {
             s3Key: "woodland/1.0.0/grant-definition.json",
@@ -308,21 +287,6 @@ describe("config-version.repository", () => {
       expect(result).toBeInstanceOf(ConfigVersion);
       expect(result.fetchStatus).toBe(FetchStatus.Fetched);
       expect(result.s3Key).toBe("woodland/1.0.0/grant-definition.json");
-    });
-
-    it("falls back to the top-level Grant state for Release A documents", async () => {
-      mockCollection.findOne.mockResolvedValue({
-        grantCode: "woodland",
-        version: "1.0.0",
-        s3Key: "legacy/key.json",
-        s3Bucket: "bucket",
-        fetchStatus: FetchStatus.Fetched,
-      });
-
-      const result = await findByGrantCodeAndVersion("woodland", "1.0.0");
-
-      expect(result.s3Key).toBe("legacy/key.json");
-      expect(result.fetchStatus).toBe(FetchStatus.Fetched);
     });
 
     it("should return null when not found", async () => {

@@ -68,9 +68,28 @@ export class ConfigVersion {
       return null;
     }
 
-    // The nested Grant state is canonical. Spreading it over the legacy
-    // top-level fields keeps Release A documents readable during rollback.
-    return new ConfigVersion({ ...doc, ...(doc.definitions?.grant ?? {}) });
+    // Nested Grant state is the only supported format - the legacy top-level
+    // fields were removed by
+    // 20260913100000-remove-legacy-config-version-fetch-fields.js migration.
+    const { grant } = doc.definitions;
+
+    return new ConfigVersion({
+      _id: doc._id,
+      grantCode: doc.grantCode,
+      version: doc.version,
+      major: doc.major,
+      minor: doc.minor,
+      patch: doc.patch,
+      status: doc.status,
+      s3Bucket: doc.s3Bucket,
+      receivedAt: doc.receivedAt,
+      s3Key: grant.s3Key,
+      fetchedAt: grant.fetchedAt,
+      fetchStatus: grant.fetchStatus,
+      fetchError: grant.fetchError,
+      fetchAttempts: grant.fetchAttempts,
+      lastFetchAttemptAt: grant.lastFetchAttemptAt,
+    });
   }
 
   toDocument() {
