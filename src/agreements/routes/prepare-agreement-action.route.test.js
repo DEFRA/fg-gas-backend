@@ -49,7 +49,6 @@ describe("prepareAgreementActionRoute", () => {
       url: "/agreements/PMF123/actions/accept",
       headers: {
         "x-agreement-source": "defra",
-        "x-agreement-code": "pigs-might-fly",
         "x-agreement-sbi": "300000000",
       },
     });
@@ -61,7 +60,6 @@ describe("prepareAgreementActionRoute", () => {
       agreementNumber: "PMF123",
       access: {
         source: "defra",
-        code: "pigs-might-fly",
         sbi: "300000000",
       },
     });
