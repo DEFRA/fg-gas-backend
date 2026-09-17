@@ -46,7 +46,7 @@ const failureStatus = (error) => {
     : FetchStatus.TransientError;
 };
 
-const compileDefinition = (rawDefinition, code) => {
+export const compilePaymentDefinition = (rawDefinition, code) => {
   const definition = new PaymentDefinition(rawDefinition);
 
   if (definition.code !== code) {
@@ -76,7 +76,7 @@ const compileAndStore = async (target, code, cacheKey) => {
   const stored = await findPaymentDefinition(target.grantCode, target.version);
   const rawDefinition =
     stored ?? (await fetchConfigFile(target.s3Bucket, target.s3Key));
-  const definition = compileDefinition(rawDefinition, code);
+  const definition = compilePaymentDefinition(rawDefinition, code);
 
   if (stored === null) {
     await store(target, rawDefinition);

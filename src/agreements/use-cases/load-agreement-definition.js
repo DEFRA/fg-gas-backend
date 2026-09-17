@@ -113,7 +113,7 @@ const guardFetchStatus = (target) => {
   }
 };
 
-const compileDefinition = (rawDefinition, code, version) => {
+export const compileAgreementDefinition = (rawDefinition, code, version) => {
   if (rawDefinition.code !== code) {
     throw Boom.badImplementation(
       `Agreement definition code "${rawDefinition.code}" does not match "${code}"`,
@@ -179,7 +179,7 @@ const classifyFailure = (error) => {
 const compileAndCache = async (target, stored, cacheKey) => {
   const rawDefinition =
     stored ?? (await fetchConfigFile(target.s3Bucket, target.s3Key));
-  const compiled = compileDefinition(
+  const compiled = compileAgreementDefinition(
     rawDefinition,
     target.grantCode,
     target.version,
@@ -295,7 +295,11 @@ export const loadAgreementDefinitionReadOnly = async (options) => {
   const stored = await loadStored(target);
   const rawDefinition =
     stored ?? (await fetchConfigFile(target.s3Bucket, target.s3Key));
-  return compileDefinition(rawDefinition, target.grantCode, target.version);
+  return compileAgreementDefinition(
+    rawDefinition,
+    target.grantCode,
+    target.version,
+  );
 };
 
 // Reset module caches between tests.
