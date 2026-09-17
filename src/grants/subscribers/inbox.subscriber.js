@@ -29,6 +29,7 @@ const handleConfigVersionEvent = ({ data }) =>
     version: data.version,
     status: data.status,
     manifest: data.manifest,
+    path: data.path,
   });
 
 const eventHandlers = {
