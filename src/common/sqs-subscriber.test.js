@@ -3,6 +3,7 @@ import {
   ReceiveMessageCommand,
   SQSClient,
 } from "@aws-sdk/client-sqs";
+import { setTimeout } from "node:timers/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "./logger.js";
 import { getOrCreateTraceParent, SqsSubscriber } from "./sqs-subscriber.js";
@@ -11,6 +12,11 @@ import { getTraceParent } from "./trace-parent.js";
 vi.mock("./logger.js");
 
 vi.mock("@aws-sdk/client-sqs");
+
+// The backoff is thirty seconds of real time otherwise.
+vi.mock("node:timers/promises", () => ({
+  setTimeout: vi.fn().mockResolvedValue(undefined),
+}));
 
 let consumer;
 let onMessage;
@@ -204,5 +210,76 @@ describe("processMessage", () => {
 
     expect(DeleteMessageCommand).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalled();
+  });
+});
+
+describe("poll", () => {
+  // Each case stops the loop from inside getMessages, which is the only thing that would
+  // end it in production too.
+  beforeEach(() => {
+    consumer.processMessage = vi.fn().mockResolvedValue();
+    consumer.isRunning = true;
+  });
+
+  it("processes every message it receives", async () => {
+    consumer.getMessages = vi.fn().mockImplementation(async () => {
+      consumer.isRunning = false;
+      return [{ MessageId: "msg-1" }, { MessageId: "msg-2" }];
+    });
+
+    await consumer.poll();
+
+    expect(consumer.processMessage).toHaveBeenCalledTimes(2);
+    expect(consumer.processMessage).toHaveBeenCalledWith({
+      MessageId: "msg-1",
+    });
+  });
+
+  it("says when it starts and when it stops", async () => {
+    consumer.getMessages = vi.fn().mockImplementation(async () => {
+      consumer.isRunning = false;
+      return [];
+    });
+
+    await consumer.poll();
+
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining("Started polling SQS queue"),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining("Stopped polling SQS queue"),
+    );
+  });
+
+  // A queue we cannot reach must not become a hot loop, and must not end the poller.
+  it("backs off and carries on when receiving fails", async () => {
+    let calls = 0;
+    consumer.getMessages = vi.fn().mockImplementation(async () => {
+      calls += 1;
+
+      if (calls === 1) {
+        throw new Error("sqs unavailable");
+      }
+
+      consumer.isRunning = false;
+      return [];
+    });
+
+    await consumer.poll();
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("sqs unavailable"),
+    );
+    expect(setTimeout).toHaveBeenCalledWith(30000);
+    expect(consumer.getMessages).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not poll at all when it was never started", async () => {
+    consumer.isRunning = false;
+    consumer.getMessages = vi.fn();
+
+    await consumer.poll();
+
+    expect(consumer.getMessages).not.toHaveBeenCalled();
   });
 });
