@@ -237,7 +237,6 @@ describe("inbox.repository", () => {
     expect(updateMany).toHaveBeenCalledWith(
       {
         status: InboxStatus.FAILED,
-        retryable: { $ne: false },
       },
       {
         $set: {

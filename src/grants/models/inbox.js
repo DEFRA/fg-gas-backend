@@ -91,9 +91,12 @@ export class Inbox {
     this.claimExpiresAt = null;
   }
 
+  // A failure retrying cannot fix goes straight to the dead letter queue, which is this
+  // system's word for "given up on": it keeps its reason, shows in the dead-letter
+  // breakdown, and an operator can redrive it. Sitting in FAILED it could do none of those.
   markAsFailed(error) {
-    this.status = InboxStatus.FAILED;
     this.retryable = isRetryableFailure(error);
+    this.status = this.retryable ? InboxStatus.FAILED : InboxStatus.DEAD_LETTER;
     this.lastResubmissionDate = new Date().toISOString();
     this.lastError = toLastError(error) ?? this.lastError;
     this.attemptHistory = appendAttempt(

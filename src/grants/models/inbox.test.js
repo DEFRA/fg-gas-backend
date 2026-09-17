@@ -491,6 +491,32 @@ describe("retryable", () => {
     expect(inbox.retryable).toBe(false);
   });
 
+  it("stays FAILED when the failure could be fixed by retrying", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(new Error("mongo is down"));
+
+    expect(inbox.status).toBe(InboxStatus.FAILED);
+  });
+
+  // FAILED cannot be redriven and is not in the dead-letter breakdown, so a failure we
+  // have given up on has to land somewhere an operator can actually see and act on it.
+  it("goes straight to the dead letter queue when retrying cannot fix it", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    expect(inbox.status).toBe(InboxStatus.DEAD_LETTER);
+  });
+
+  it("keeps the reason it was given up on", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    expect(inbox.lastError.message).toBe("bad definition");
+  });
+
   it("round-trips through a document", () => {
     const inbox = Inbox.createMock();
     inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
