@@ -5,6 +5,7 @@ import { findS3KeyInManifest } from "../../common/s3-client.js";
 import { parseSemver } from "../../common/semver.js";
 import { ConfigVersion } from "../models/config-version.js";
 import { upsert } from "../repositories/config-version.repository.js";
+import { validateConfigDefinitions } from "./validate-config-definitions.js";
 
 const VALID_STATUSES = ["active", "draft"];
 
@@ -67,6 +68,19 @@ export const processConfigVersionUseCase = async (eventData) => {
     file: "payment.json",
     variant,
     required: false,
+  });
+
+  // Checked before the version is recorded, so a definition nothing can use never becomes
+  // something a grant, agreement or payment later resolves to.
+  await validateConfigDefinitions({
+    grantCode,
+    version,
+    s3Bucket,
+    s3Keys: {
+      grant: s3Key,
+      agreement: agreementS3Key,
+      payment: paymentS3Key,
+    },
   });
 
   const configVersion = ConfigVersion.new({

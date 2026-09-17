@@ -7,11 +7,11 @@ import { FetchStatus } from "../../common/fetch-status.js";
 import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
-import { PaymentDefinition } from "../models/payment-definition.js";
 import {
   findPaymentDefinition,
   insertPaymentDefinition,
 } from "../repositories/payment-definition.repository.js";
+import { compilePaymentDefinition } from "./compile-payment-definition.js";
 
 const definitionType = "payment";
 const compiledDefinitions = new Map();
@@ -44,18 +44,6 @@ const failureStatus = (error) => {
   return Boom.isBoom(error)
     ? FetchStatus.PermanentError
     : FetchStatus.TransientError;
-};
-
-export const compilePaymentDefinition = (rawDefinition, code) => {
-  const definition = new PaymentDefinition(rawDefinition);
-
-  if (definition.code !== code) {
-    throw Boom.badImplementation(
-      `Payment definition code "${definition.code}" does not match "${code}"`,
-    );
-  }
-
-  return definition;
 };
 
 const store = async (target, definition) => {

@@ -1,8 +1,5 @@
 import Boom from "@hapi/boom";
-import {
-  EndpointServiceUrlError,
-  validateEndpointServiceUrls,
-} from "../../common/agreements/resolve-endpoint-service-url.js";
+import { EndpointServiceUrlError } from "../../common/agreements/resolve-endpoint-service-url.js";
 import {
   findConfigDefinition,
   findLatestUsableDefinition,
@@ -13,12 +10,11 @@ import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
 import { parseSemver } from "../../common/semver.js";
-import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
-import { validateAgreementDefinition } from "../models/agreement-definitions/validate.js";
 import {
   findAgreementDefinition as findStoredDefinition,
   insertAgreementDefinition,
 } from "../repositories/agreement-definition.repository.js";
+import { compileAgreementDefinition } from "./compile-agreement-definition.js";
 
 const definitionType = "agreement";
 const compiledDefinitions = new Map();
@@ -111,25 +107,6 @@ const guardFetchStatus = (target) => {
   if (target.fetchStatus === FetchStatus.PermanentError) {
     throw unavailable(target.grantCode, target.version);
   }
-};
-
-export const compileAgreementDefinition = (rawDefinition, code, version) => {
-  if (rawDefinition.code !== code) {
-    throw Boom.badImplementation(
-      `Agreement definition code "${rawDefinition.code}" does not match "${code}"`,
-    );
-  }
-
-  // Producers cannot set the platform-owned configVersion.
-  if (rawDefinition.configVersion !== undefined) {
-    throw Boom.badImplementation(
-      `Agreement definition "${code}" must not declare configVersion; it is applied from the config catalog`,
-    );
-  }
-
-  const definition = { ...rawDefinition, configVersion: version };
-  validateEndpointServiceUrls([validateAgreementDefinition(definition)]);
-  return new AgreementDefinition(definition);
 };
 
 const loadStored = (target) =>
