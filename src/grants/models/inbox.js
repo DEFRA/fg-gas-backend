@@ -8,6 +8,7 @@ import {
   toAttemptEntry,
   toLastError,
 } from "../../events/last-error.js";
+import { isRetryableFailure } from "../../events/retryable.js";
 
 const toEpochMs = (time) => {
   if (time === undefined || time === null) {
@@ -71,6 +72,8 @@ export class Inbox {
     // Attempts made, counted with the history entry so a sweep cannot kill a row early.
     this.completionAttempts = props.completionAttempts ?? 0;
     this.status = props.status || InboxStatus.PUBLISHED;
+    // Missing means retryable, so rows written before this existed are unaffected.
+    this.retryable = props.retryable ?? true;
     this.completionDate = props.completionDate || null;
     this.lastRedrive = props.lastRedrive ?? null;
     this.claimedBy = null;
@@ -90,6 +93,7 @@ export class Inbox {
 
   markAsFailed(error) {
     this.status = InboxStatus.FAILED;
+    this.retryable = isRetryableFailure(error);
     this.lastResubmissionDate = new Date().toISOString();
     this.lastError = toLastError(error) ?? this.lastError;
     this.attemptHistory = appendAttempt(
@@ -116,6 +120,7 @@ export class Inbox {
       attemptHistory: this.attemptHistory,
       completionAttempts: this.completionAttempts,
       status: this.status,
+      retryable: this.retryable,
       completionDate: this.completionDate,
       lastRedrive: this.lastRedrive,
       claimedAt: this.claimedAt,
@@ -140,6 +145,7 @@ export class Inbox {
       attemptHistory: doc.attemptHistory,
       completionAttempts: doc.completionAttempts,
       status: doc.status,
+      retryable: doc.retryable,
       completionDate: doc.completionDate,
       lastRedrive: doc.lastRedrive,
       claimedAt: doc.claimedAt,

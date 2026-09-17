@@ -1,4 +1,6 @@
+import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { S3FetchError } from "../../common/s3-client.js";
 import { processConfigVersionUseCase } from "./process-config-version.use-case.js";
 
 const { mockConfig } = vi.hoisted(() => {
@@ -334,6 +336,73 @@ describe("processConfigVersionUseCase", () => {
       );
 
       expect(mockUpsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("failures that retrying cannot fix", () => {
+    const process = () =>
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        path: "configs-bucket",
+        manifest: ["woodland/1.2.3/gas/gas.json"],
+      });
+
+    const rejectionFrom = async (error) => {
+      mockValidateConfigDefinitions.mockRejectedValueOnce(error);
+
+      return process().catch((thrown) => thrown);
+    };
+
+    it("gives up on a definition that will not build", async () => {
+      const thrown = await rejectionFrom(
+        Boom.badImplementation("definition is invalid"),
+      );
+
+      expect(thrown.retryable).toBe(false);
+    });
+
+    it("gives up on a message it cannot read", async () => {
+      const thrown = await processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        manifest: ["woodland/1.2.3/gas/gas.json"],
+      }).catch((error) => error);
+
+      expect(thrown.retryable).toBe(false);
+    });
+
+    it("gives up on a definition that is missing from S3", async () => {
+      const thrown = await rejectionFrom(
+        new S3FetchError("not found", { statusCode: 404, code: "NoSuchKey" }),
+      );
+
+      expect(thrown.retryable).toBe(false);
+    });
+
+    it("keeps retrying when S3 is unavailable", async () => {
+      const thrown = await rejectionFrom(
+        new S3FetchError("service unavailable", { statusCode: 503 }),
+      );
+
+      expect(thrown.retryable).toBeUndefined();
+    });
+
+    it("keeps retrying when the database fails", async () => {
+      mockUpsert.mockRejectedValueOnce(new Error("mongo is down"));
+
+      const thrown = await process().catch((error) => error);
+
+      expect(thrown.retryable).toBeUndefined();
+    });
+
+    // Nothing here throws one today; this is what keeps an outage retryable if one does.
+    it("keeps retrying a Boom that means try later", async () => {
+      const thrown = await rejectionFrom(Boom.serverUnavailable("try later"));
+
+      expect(thrown.retryable).toBeUndefined();
     });
   });
 });

@@ -1,7 +1,8 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { findS3KeyInManifest } from "../../common/s3-client.js";
+import { findS3KeyInManifest, S3FetchError } from "../../common/s3-client.js";
+import { markPermanentFailure } from "../../events/retryable.js";
 import { parseSemver } from "../../common/semver.js";
 import { ConfigVersion } from "../models/config-version.js";
 import { upsert } from "../repositories/config-version.repository.js";
@@ -41,7 +42,25 @@ const validateEventData = ({ grantCode, version, status, manifest, path }) => {
   }
 };
 
-export const processConfigVersionUseCase = async (eventData) => {
+// Boom covers the bad message and the definition that will not build, both of which will
+// be exactly as bad next time. The 5xx codes that mean "try later" are the exception;
+// nothing in this path throws one today, and this is here so that stays true if one does.
+const TRY_LATER_CODES = new Set([502, 503, 504]);
+
+const cannotBeFixedByRetrying = (error) => {
+  if (Boom.isBoom(error)) {
+    return !TRY_LATER_CODES.has(error.output.statusCode);
+  }
+
+  if (error instanceof S3FetchError) {
+    return error.isPermanent || error.isParseError;
+  }
+
+  // A definition malformed rather than merely invalid dies on a plain TypeError.
+  return error instanceof TypeError;
+};
+
+const applyConfigVersion = async (eventData) => {
   const { grantCode, version, status, manifest, path } = eventData;
 
   validateEventData(eventData);
@@ -99,4 +118,12 @@ export const processConfigVersionUseCase = async (eventData) => {
   logger.info(
     `Upserted config version: ${grantCode}@${version} (s3Key: ${s3Key})`,
   );
+};
+
+export const processConfigVersionUseCase = async (eventData) => {
+  try {
+    await applyConfigVersion(eventData);
+  } catch (error) {
+    throw cannotBeFixedByRetrying(error) ? markPermanentFailure(error) : error;
+  }
 };

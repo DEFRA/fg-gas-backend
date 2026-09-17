@@ -237,6 +237,7 @@ describe("inbox.repository", () => {
     expect(updateMany).toHaveBeenCalledWith(
       {
         status: InboxStatus.FAILED,
+        retryable: { $ne: false },
       },
       {
         $set: {
@@ -570,6 +571,7 @@ describe("inbox.repository detail and redrive", () => {
       {
         $set: {
           status: InboxStatus.RESUBMITTED,
+          retryable: true,
           completionAttempts: 0,
           attemptHistory: [],
           lastRedrive: { at: expect.any(String), by: null },

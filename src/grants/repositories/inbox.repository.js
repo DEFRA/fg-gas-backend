@@ -176,6 +176,8 @@ export const updateFailedEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {
       status: InboxStatus.FAILED,
+      // $ne matches rows with no such field, so anything that did not say is still retryable.
+      retryable: { $ne: false },
     },
     {
       $set: {
