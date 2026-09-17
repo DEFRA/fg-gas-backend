@@ -42,10 +42,18 @@ const validateEventData = ({ grantCode, version, status, manifest, path }) => {
   }
 };
 
+const HTTP_BAD_GATEWAY = 502;
+const HTTP_SERVICE_UNAVAILABLE = 503;
+const HTTP_GATEWAY_TIMEOUT = 504;
+
 // Boom covers the bad message and the definition that will not build, both of which will
-// be exactly as bad next time. The 5xx codes that mean "try later" are the exception;
-// nothing in this path throws one today, and this is here so that stays true if one does.
-const TRY_LATER_CODES = new Set([502, 503, 504]);
+// be exactly as bad next time. The codes that mean "try later" are the exception; nothing
+// in this path throws one today, and this is here so that stays true if one does.
+const TRY_LATER_CODES = new Set([
+  HTTP_BAD_GATEWAY,
+  HTTP_SERVICE_UNAVAILABLE,
+  HTTP_GATEWAY_TIMEOUT,
+]);
 
 const cannotBeFixedByRetrying = (error) => {
   if (Boom.isBoom(error)) {
