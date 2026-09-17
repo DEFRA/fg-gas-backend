@@ -580,6 +580,7 @@ describe("config version events", () => {
       version: "1.2.0",
       status: "active",
       manifest: ["woodland/1.2.0/gas/gas.json"],
+      path: "config-broker-bucket",
     });
   });
 

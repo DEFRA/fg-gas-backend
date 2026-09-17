@@ -4,7 +4,6 @@ import { processConfigVersionUseCase } from "./process-config-version.use-case.j
 const { mockConfig } = vi.hoisted(() => {
   const mockConfig = {
     configBroker: {
-      s3Bucket: "config-broker-test",
       variant: "",
     },
   };
@@ -21,10 +20,17 @@ vi.mock("../repositories/config-version.repository.js", () => ({
   upsert: (...args) => mockUpsert(...args),
 }));
 
+const mockValidateConfigDefinitions = vi.fn();
+vi.mock("./validate-config-definitions.js", () => ({
+  validateConfigDefinitions: (...args) =>
+    mockValidateConfigDefinitions(...args),
+}));
+
 describe("processConfigVersionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpsert.mockResolvedValue({ upsertedCount: 1 });
+    mockValidateConfigDefinitions.mockResolvedValue(undefined);
     mockConfig.configBroker.variant = "";
   });
 
@@ -33,6 +39,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      path: "configs-bucket",
       manifest: ["woodland/1.2.3/gas/gas.json", "woodland/1.2.3/metadata.json"],
     });
 
@@ -45,7 +52,7 @@ describe("processConfigVersionUseCase", () => {
     expect(arg.patch).toBe(3);
     expect(arg.status).toBe("active");
     expect(arg.s3Key).toBe("woodland/1.2.3/gas/gas.json");
-    expect(arg.s3Bucket).toBe("config-broker-test");
+    expect(arg.s3Bucket).toBe("configs-bucket");
     expect(arg.fetchStatus).toBe("pending");
     expect(mockUpsert).toHaveBeenCalledWith(arg, {});
   });
@@ -55,6 +62,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      path: "configs-bucket",
       manifest: [
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/gas/agreement.json",
@@ -71,6 +79,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      path: "configs-bucket",
       manifest: [
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/gas/payment.json",
@@ -87,6 +96,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      path: "configs-bucket",
       manifest: [
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/gas/agreement.json",
@@ -106,6 +116,7 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         grantCode: "woodland",
         version: "1.0.0",
+        path: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("invalid status");
@@ -117,6 +128,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "published",
+        path: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("invalid status");
@@ -127,6 +139,7 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         version: "1.0.0",
         status: "active",
+        path: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("missing required fields");
@@ -137,6 +150,7 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         grantCode: "woodland",
         status: "active",
+        path: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("missing required fields");
@@ -148,6 +162,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
+        path: "configs-bucket",
       }),
     ).rejects.toThrow("manifest");
   });
@@ -158,6 +173,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
+        path: "configs-bucket",
         manifest: [],
       }),
     ).rejects.toThrow("manifest");
@@ -169,6 +185,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "not-a-version",
         status: "active",
+        path: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
@@ -180,6 +197,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0-rc1",
         status: "active",
+        path: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
@@ -190,6 +208,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "2.0.0",
       status: "draft",
+      path: "configs-bucket",
       manifest: ["woodland/2.0.0/gas/gas.json"],
     });
 
@@ -205,6 +224,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
+        path: "configs-bucket",
         manifest: [
           "woodland/1.0.0/gas/gas.next.json",
           "woodland/1.0.0/gas/agreement.next.json",
@@ -227,11 +247,93 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
+        path: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       });
 
       const cv = mockUpsert.mock.calls[0][0];
       expect(cv.s3Key).toBe("woodland/1.0.0/gas/gas.json");
+    });
+  });
+
+  describe("s3 bucket", () => {
+    const withPath = (path) =>
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        manifest: ["woodland/1.2.3/gas/gas.json"],
+        path,
+      });
+
+    it("uses the bucket the Config Broker uploaded to", async () => {
+      await withPath("configs-bucket");
+
+      expect(mockUpsert.mock.calls[0][0].s3Bucket).toBe("configs-bucket");
+    });
+
+    // There is no configured bucket to fall back to: without a path we would be guessing
+    // where the definition lives, so the version is refused instead.
+    it.each([
+      ["missing", undefined],
+      ["empty", ""],
+    ])("refuses a version whose path is %s", async (_, path) => {
+      await expect(withPath(path)).rejects.toThrow("the bucket is unknown");
+
+      expect(mockUpsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("checking the definitions", () => {
+    const process = (manifest) =>
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        path: "configs-bucket",
+        manifest,
+      });
+
+    it("checks every definition the manifest carries", async () => {
+      await process([
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/agreement.json",
+        "woodland/1.2.3/gas/payment.json",
+      ]);
+
+      expect(mockValidateConfigDefinitions).toHaveBeenCalledWith({
+        grantCode: "woodland",
+        version: "1.2.3",
+        s3Bucket: "configs-bucket",
+        s3Keys: {
+          grant: "woodland/1.2.3/gas/gas.json",
+          agreement: "woodland/1.2.3/gas/agreement.json",
+          payment: "woodland/1.2.3/gas/payment.json",
+        },
+      });
+    });
+
+    it("passes no key for a definition the manifest does not carry", async () => {
+      await process(["woodland/1.2.3/gas/gas.json"]);
+
+      expect(mockValidateConfigDefinitions.mock.calls[0][0].s3Keys).toEqual({
+        grant: "woodland/1.2.3/gas/gas.json",
+        agreement: null,
+        payment: null,
+      });
+    });
+
+    // The whole point of the check: a version we cannot use is never recorded.
+    it("does not record the version when a definition cannot be used", async () => {
+      mockValidateConfigDefinitions.mockRejectedValueOnce(
+        new Error("bad agreement definition"),
+      );
+
+      await expect(process(["woodland/1.2.3/gas/gas.json"])).rejects.toThrow(
+        "bad agreement definition",
+      );
+
+      expect(mockUpsert).not.toHaveBeenCalled();
     });
   });
 });
