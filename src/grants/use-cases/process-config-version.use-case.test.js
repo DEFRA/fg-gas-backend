@@ -363,6 +363,22 @@ describe("processConfigVersionUseCase", () => {
       expect(thrown.retryable).toBe(false);
     });
 
+    // The published version is immutable, so a manifest missing the file it must have will
+    // be missing it every time.
+    it("gives up on a manifest with no gas.json", async () => {
+      const thrown = await processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        path: "configs-bucket",
+        manifest: ["woodland/1.2.3/metadata.json"],
+      }).catch((error) => error);
+
+      expect(thrown.message).toContain("does not contain required config file");
+      expect(thrown.retryable).toBe(false);
+      expect(mockUpsert).not.toHaveBeenCalled();
+    });
+
     it("gives up on a message it cannot read", async () => {
       const thrown = await processConfigVersionUseCase({
         grantCode: "woodland",
