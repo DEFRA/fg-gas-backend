@@ -3,6 +3,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -24,12 +25,15 @@ import {
   findNextMessage,
 } from "../repositories/inbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
+import { processConfigVersionUseCase } from "../use-cases/process-config-version.use-case.js";
+import { CONFIG_VERSION_EVENT_TYPE } from "../use-cases/save-config-version-inbox-message.use-case.js";
 import { InboxSubscriber } from "./inbox.subscriber.js";
 
 vi.mock("../../common/trace-parent.js");
 vi.mock("../repositories/inbox.repository.js");
 vi.mock("../repositories/fifo-lock.repository.js");
 vi.mock("../services/apply-event-status-change.service.js");
+vi.mock("../use-cases/process-config-version.use-case.js");
 
 const createInbox = (doc) =>
   new Inbox({
@@ -536,5 +540,85 @@ describe("InboxSubscriber failure reasons", () => {
     await new InboxSubscriber().markEventFailed(message, failure);
 
     expect(message.markAsFailed).toHaveBeenCalledWith(failure);
+  });
+});
+
+describe("config version events", () => {
+  const configMessage = (overrides = {}) => ({
+    messageId: "msg-1",
+    type: CONFIG_VERSION_EVENT_TYPE,
+    source: "CB",
+    traceparent: "00-abc-def-01",
+    event: {
+      data: {
+        grantCode: "woodland",
+        version: "1.2.0",
+        status: "active",
+        isLatest: "true",
+        path: "config-broker-bucket",
+        manifest: ["woodland/1.2.0/gas/gas.json"],
+      },
+    },
+    markAsComplete: vi.fn(),
+    markAsFailed: vi.fn(),
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    withTraceParent.mockImplementation((_, fn) => fn());
+  });
+
+  it("applies the config version through its own use case", async () => {
+    processConfigVersionUseCase.mockResolvedValue(true);
+    const message = configMessage();
+
+    await new InboxSubscriber().handleEvent(message);
+
+    expect(processConfigVersionUseCase).toHaveBeenCalledWith({
+      grantCode: "woodland",
+      version: "1.2.0",
+      status: "active",
+      manifest: ["woodland/1.2.0/gas/gas.json"],
+    });
+  });
+
+  // The event carries status "active", which the state-change route would read as an
+  // application status and look up against a null clientRef.
+  it("never routes a config version event through applyExternalStateChange", async () => {
+    processConfigVersionUseCase.mockResolvedValue(true);
+
+    await new InboxSubscriber().handleEvent(configMessage());
+
+    expect(applyExternalStateChange).not.toHaveBeenCalled();
+  });
+
+  it("runs under the traceparent stored on the inbox row", async () => {
+    processConfigVersionUseCase.mockResolvedValue(true);
+
+    await new InboxSubscriber().handleEvent(configMessage());
+
+    expect(withTraceParent.mock.calls[0][0]).toBe("00-abc-def-01");
+  });
+
+  it("marks the event complete once the config version is applied", async () => {
+    processConfigVersionUseCase.mockResolvedValue(true);
+    const message = configMessage();
+
+    await new InboxSubscriber().handleEvent(message);
+
+    expect(message.markAsComplete).toHaveBeenCalled();
+    expect(message.markAsFailed).not.toHaveBeenCalled();
+  });
+
+  it("marks the event failed when the config version cannot be applied", async () => {
+    const failure = new Error("invalid manifest");
+    processConfigVersionUseCase.mockRejectedValueOnce(failure);
+    const message = configMessage();
+
+    await new InboxSubscriber().handleEvent(message);
+
+    expect(message.markAsFailed).toHaveBeenCalledWith(failure);
+    expect(message.markAsComplete).not.toHaveBeenCalled();
   });
 });

@@ -20,6 +20,41 @@ import {
   updateResubmittedEvents,
 } from "../repositories/inbox.repository.js";
 import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
+import { CONFIG_VERSION_EVENT_TYPE } from "../use-cases/save-config-version-inbox-message.use-case.js";
+import { processConfigVersionUseCase } from "../use-cases/process-config-version.use-case.js";
+
+const handleConfigVersionEvent = ({ data }) =>
+  processConfigVersionUseCase({
+    grantCode: data.grantCode,
+    version: data.version,
+    status: data.status,
+    manifest: data.manifest,
+  });
+
+const eventHandlers = {
+  [CONFIG_VERSION_EVENT_TYPE]: handleConfigVersionEvent,
+};
+
+const firstTruthy = (...values) => values.find(Boolean) ?? null;
+
+const toStateChangeCommand = ({ event, source, messageId }) => {
+  const { data } = event;
+  const status = firstTruthy(data.currentStatus, data.status);
+  const clientRef = firstTruthy(data.clientRef, data.caseRef);
+  const code = firstTruthy(data.workflowCode, data.code);
+
+  if (!status || !source) {
+    throw new Error(`Unable to handle inbox message ${messageId}`);
+  }
+
+  return {
+    sourceSystem: source,
+    clientRef,
+    code,
+    externalRequestedState: status,
+    eventData: data,
+  };
+};
 
 export class InboxSubscriber {
   static ACTOR = "INBOX";
@@ -120,30 +155,23 @@ export class InboxSubscriber {
     logger.info(`Marked inbox event as complete ${inboxEvent.messageId}`);
   }
 
-  // eslint-disable-next-line complexity
   async handleEvent(msg) {
-    const { type, event, traceparent, source, messageId } = msg;
+    const { type, traceparent, source, messageId } = msg;
     logger.info(
       `Handle event for inbox message ${type}:${source}:${messageId}`,
     );
     try {
-      const { data } = event;
-      const status = data.currentStatus || data.status || null;
-      const clientRef = data.clientRef || data.caseRef || null;
-      const code = data.workflowCode || data.code || null;
+      const handler = eventHandlers[type];
 
-      if (status && source) {
-        await withTraceParent(traceparent, async () =>
-          applyExternalStateChange({
-            sourceSystem: source,
-            clientRef,
-            code,
-            externalRequestedState: status,
-            eventData: data,
-          }),
-        );
+      // attempt to process known event handlers first (e.g. Config Broker)
+      if (handler) {
+        await withTraceParent(traceparent, () => handler(msg.event));
       } else {
-        throw new Error(`Unable to handle inbox message ${msg.messageId}`);
+        // Built before entering the trace scope so an unhandleable message throws here.
+        const command = toStateChangeCommand(msg);
+        await withTraceParent(traceparent, () =>
+          applyExternalStateChange(command),
+        );
       }
 
       await this.markEventComplete(msg);
