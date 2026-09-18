@@ -83,7 +83,6 @@ export default defineConfig({
       GAS__SNS__REPORTING_EVENTS_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gfr__sns___reporting_events",
       GAS__SQS__CONFIG_VERSION_QUEUE_URL: `${SQS_URL}/gas__sqs__config_version_updated`,
-      CONFIG_BROKER_S3_BUCKET: "config-broker-local",
       GAS__SNS__AUDIT_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn",
       OUTBOX_MAX_RETRIES: 2,

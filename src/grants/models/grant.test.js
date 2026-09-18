@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
+import { Grant } from "./grant.js";
 
 describe("Grant", () => {
   it("can create a Grant model", () => {
@@ -104,6 +105,98 @@ describe("Grant", () => {
           },
         },
       ],
+    });
+  });
+
+  describe("fromDefinition", () => {
+    const definition = {
+      code: "test-grant",
+      metadata: {
+        description: "Test Grant",
+        startDate: "2023-01-01T00:00:00Z",
+      },
+      actions: [],
+      amendablePositions: [],
+      phases: [
+        {
+          code: "PRE_AWARD",
+          stages: [
+            {
+              code: "ASSESSMENT",
+              statuses: [{ code: "APPLICATION_RECEIVED", validFrom: [] }],
+            },
+          ],
+        },
+      ],
+    };
+
+    it("builds a Grant from a published definition", () => {
+      const grant = Grant.fromDefinition(definition, "1.2.0");
+
+      expect(grant).toBeInstanceOf(Grant);
+      expect(grant.code).toBe("test-grant");
+      expect(grant.metadata.description).toBe("Test Grant");
+    });
+
+    it("stamps the version it is given", () => {
+      expect(Grant.fromDefinition(definition, "1.2.0").version).toBe("1.2.0");
+    });
+
+    // The config catalog owns the version, so a definition cannot set its own.
+    it("ignores a version carried on the definition", () => {
+      const grant = Grant.fromDefinition(
+        { ...definition, version: "9.9.9" },
+        "1.2.0",
+      );
+
+      expect(grant.version).toBe("1.2.0");
+    });
+
+    it("defaults entitlementTemplates to an empty collection", () => {
+      expect(
+        Grant.fromDefinition(definition, "1.2.0").entitlementTemplates,
+      ).toEqual([]);
+    });
+
+    // Preflight relies on this: building a Grant has to reject a bad definition.
+    it("rejects a definition the Grant model considers invalid", () => {
+      const template = {
+        claimCode: "ENT_DUPLICATE",
+        name: "Duplicate",
+        description: "Duplicated claim code",
+        materialised: false,
+        fields: {
+          totalHectares: {
+            input: true,
+            label: "Total area",
+            unitType: "decimal",
+            decimalPlaces: 4,
+            unit: "HA",
+            minValue: 0.5,
+            maxValue: null,
+          },
+        },
+        maxEntitlements: 1,
+        availableAt: [
+          {
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "APPLICATION_RECEIVED",
+          },
+        ],
+        claim: {
+          limits: { maximumClaims: 1, allowsPartialClaims: false },
+          requiresApproval: false,
+          requiresEvidence: false,
+        },
+      };
+
+      expect(() =>
+        Grant.fromDefinition(
+          { ...definition, entitlementTemplates: [template, template] },
+          "1.2.0",
+        ),
+      ).toThrow(/Duplicate entitlement template claim code/);
     });
   });
 
