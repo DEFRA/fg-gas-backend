@@ -87,7 +87,6 @@ const schema = Joi.object({
   GAS__SNS__REPORTING_EVENTS_TOPIC_ARN: Joi.string(),
   GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: Joi.string().optional(),
   VIEW_AGREEMENT_URI: Joi.string().uri().required(),
-  CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
   CONFIGURATION_VARIANT: Joi.string().trim().allow("").optional().default(""),
   AGREEMENTS_JWT_SECRET: Joi.string().optional(),
   // Optional, so environments that never call fg-cw-backend still boot.
@@ -212,7 +211,6 @@ export const config = {
     configVersionQueueUrl: vars.GAS__SQS__CONFIG_VERSION_QUEUE_URL,
   },
   configBroker: {
-    s3Bucket: vars.CONFIG_BROKER_S3_BUCKET,
     variant: isProd ? "" : rawVariant,
     rawVariant,
   },

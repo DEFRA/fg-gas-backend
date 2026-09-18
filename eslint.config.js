@@ -155,20 +155,23 @@ export default [
               except: [
                 "**/payments/use-cases/create-claim-payment.use-case.js",
                 "**/payments/use-cases/resolve-claim-payment.js",
+                "**/payments/use-cases/compile-payment-definition.js",
               ],
               message:
                 "Grants may only enter Payments through its reviewed Claim Payment " +
-                "resolution and creation use cases. See docs/MODULE_BOUNDARIES.md.",
+                "resolution and creation use cases, and its definition check. " +
+                "See docs/MODULE_BOUNDARIES.md.",
             },
             {
               target: "**/grants/**/!(*.test).js",
               from: ["**/agreements/**"],
               except: [
                 "**/agreements/use-cases/load-entitlement-reference-context.js",
+                "**/agreements/use-cases/compile-agreement-definition.js",
               ],
               message:
-                "Grants may only enter Agreements through its reviewed entitlement reference-context query. " +
-                "See docs/MODULE_BOUNDARIES.md.",
+                "Grants may only enter Agreements through its reviewed entitlement reference-context query " +
+                "and its definition check. See docs/MODULE_BOUNDARIES.md.",
             },
             {
               target: "**/grant-admin/**/!(*.test).js",

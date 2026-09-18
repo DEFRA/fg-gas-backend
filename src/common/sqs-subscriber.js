@@ -7,6 +7,16 @@ import { setTimeout } from "node:timers/promises";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { withTraceParent } from "./trace-parent.js";
+import { randomBytes } from "node:crypto";
+
+// W3C traceparent: version 00, 32-hex trace id, 16-hex span id, sampled.
+const newTraceParent = () =>
+  `00-${randomBytes(16).toString("hex")}-${randomBytes(8).toString("hex")}-01`;
+
+// Events from ConfigBroker do not carry a traceparent so we create one here. Allowing correlation
+// downstream and preventing undefined values. Downside is that these values can not be traced back to CB.
+export const getOrCreateTraceParent = (body) =>
+  body?.traceparent || newTraceParent();
 
 export class SqsSubscriber {
   constructor(options) {
@@ -52,8 +62,13 @@ export class SqsSubscriber {
 
     try {
       const body = JSON.parse(message.Body);
-      await withTraceParent(body.traceparent, () =>
-        this.onMessage(body, message.MessageAttributes),
+
+      const messageMetaData = {
+        messageId: message.MessageId,
+        sentTimeStamp: message.Attributes?.SentTimestamp,
+      };
+      await withTraceParent(getOrCreateTraceParent(body), () =>
+        this.onMessage(body, message.MessageAttributes, messageMetaData),
       );
       await this.deleteMessage(message);
     } catch (err) {

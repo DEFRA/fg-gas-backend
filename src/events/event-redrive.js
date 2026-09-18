@@ -14,6 +14,7 @@ const redriveRecord = (by, at) => ({
 export const redriveUpdate = (resubmittedStatus, { by, at } = {}) => ({
   $set: {
     status: resubmittedStatus,
+    retryable: true,
     completionAttempts: RESET_ATTEMPTS,
     attemptHistory: [],
     lastRedrive: redriveRecord(by, at),

@@ -627,6 +627,7 @@ describe("outbox.repository detail and redrive", () => {
       {
         $set: {
           status: OutboxStatus.RESUBMITTED,
+          retryable: true,
           completionAttempts: 0,
           attemptHistory: [],
           lastRedrive: { at: expect.any(String), by: null },

@@ -67,7 +67,7 @@ export const findByCode = async (code, version = "0.0.0") => {
 };
 
 export const saveFromDefinition = async (grantDefinition, version) => {
-  const grant = new Grant({ ...grantDefinition, version });
+  const grant = Grant.fromDefinition(grantDefinition, version);
   await save(grant);
   return grant;
 };
