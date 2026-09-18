@@ -274,8 +274,8 @@ describe("processConfigVersionUseCase", () => {
       expect(mockUpsert.mock.calls[0][0].s3Bucket).toBe("configs-bucket");
     });
 
-    // There is no configured bucket to fall back to: without a path we would be guessing
-    // where the definition lives, so the version is refused instead.
+    // There is no configured bucket to fall back to: without one, guessing where the
+    // definition lives is the only option, so the version is refused instead.
     it.each([
       ["missing", undefined],
       ["empty", ""],
