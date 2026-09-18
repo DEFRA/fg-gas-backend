@@ -158,7 +158,11 @@ export const updateDeadEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {
       completionAttempts: { $gte: MAX_RETRIES },
-      status: { $ne: InboxStatus.DEAD_LETTER },
+      // COMPLETED is excluded for the same reason as in `processExpiredEvents`:
+      // a success is terminal. The counter counts failures, so a row that
+      // succeeded normally sits below the cap and never matches - but lowering
+      // `INBOX_MAX_RETRIES` puts already-succeeded rows at or above it.
+      status: { $nin: [InboxStatus.DEAD_LETTER, InboxStatus.COMPLETED] },
     },
     {
       $set: {
