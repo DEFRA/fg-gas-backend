@@ -27,9 +27,13 @@ const checkDefinition = async ({
   try {
     checks[definitionType]({ definition, grantCode, version });
   } catch (error) {
+    // The error is interpolated, not passed as a field. A Boom error serialises to
+    // error.output, error.isBoom and friends, which do not match the CDP log schema, and a
+    // log that does not match is rejected whole rather than trimmed. event.action is in the
+    // schema, so it stays.
     logger.error(
-      { error, event: { action: "config-definition-check-failed" } },
-      `The ${definitionType} definition for ${grantCode}@${version} cannot be used: ${error.message}`,
+      { event: { action: "config-definition-check-failed" } },
+      `The ${definitionType} definition for ${grantCode}@${version} cannot be used: ${error.name}: ${error.message}`,
     );
     throw error;
   }
