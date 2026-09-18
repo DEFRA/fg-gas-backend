@@ -41,7 +41,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
-      path: "configs-bucket",
+      s3Bucket: "configs-bucket",
       manifest: ["woodland/1.2.3/gas/gas.json", "woodland/1.2.3/metadata.json"],
     });
 
@@ -64,7 +64,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
-      path: "configs-bucket",
+      s3Bucket: "configs-bucket",
       manifest: [
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/gas/agreement.json",
@@ -81,7 +81,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
-      path: "configs-bucket",
+      s3Bucket: "configs-bucket",
       manifest: [
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/gas/payment.json",
@@ -98,7 +98,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
-      path: "configs-bucket",
+      s3Bucket: "configs-bucket",
       manifest: [
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/gas/agreement.json",
@@ -118,7 +118,7 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         grantCode: "woodland",
         version: "1.0.0",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("invalid status");
@@ -130,7 +130,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "published",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("invalid status");
@@ -141,7 +141,7 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         version: "1.0.0",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("missing required fields");
@@ -152,7 +152,7 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         grantCode: "woodland",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("missing required fields");
@@ -164,7 +164,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
       }),
     ).rejects.toThrow("manifest");
   });
@@ -175,7 +175,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: [],
       }),
     ).rejects.toThrow("manifest");
@@ -187,7 +187,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "not-a-version",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
@@ -199,7 +199,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0-rc1",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
@@ -210,7 +210,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "2.0.0",
       status: "draft",
-      path: "configs-bucket",
+      s3Bucket: "configs-bucket",
       manifest: ["woodland/2.0.0/gas/gas.json"],
     });
 
@@ -226,7 +226,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: [
           "woodland/1.0.0/gas/gas.next.json",
           "woodland/1.0.0/gas/agreement.next.json",
@@ -249,7 +249,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       });
 
@@ -259,17 +259,17 @@ describe("processConfigVersionUseCase", () => {
   });
 
   describe("s3 bucket", () => {
-    const withPath = (path) =>
+    const withBucket = (s3Bucket) =>
       processConfigVersionUseCase({
         grantCode: "woodland",
         version: "1.2.3",
         status: "active",
         manifest: ["woodland/1.2.3/gas/gas.json"],
-        path,
+        s3Bucket,
       });
 
     it("uses the bucket the Config Broker uploaded to", async () => {
-      await withPath("configs-bucket");
+      await withBucket("configs-bucket");
 
       expect(mockUpsert.mock.calls[0][0].s3Bucket).toBe("configs-bucket");
     });
@@ -279,8 +279,8 @@ describe("processConfigVersionUseCase", () => {
     it.each([
       ["missing", undefined],
       ["empty", ""],
-    ])("refuses a version whose path is %s", async (_, path) => {
-      await expect(withPath(path)).rejects.toThrow("the bucket is unknown");
+    ])("refuses a version whose bucket is %s", async (_, s3Bucket) => {
+      await expect(withBucket(s3Bucket)).rejects.toThrow("has no bucket");
 
       expect(mockUpsert).not.toHaveBeenCalled();
     });
@@ -292,7 +292,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.2.3",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest,
       });
 
@@ -345,7 +345,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.2.3",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.2.3/gas/gas.json"],
       });
 
@@ -370,7 +370,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.2.3",
         status: "active",
-        path: "configs-bucket",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.2.3/metadata.json"],
       }).catch((error) => error);
 
@@ -410,13 +410,6 @@ describe("processConfigVersionUseCase", () => {
       mockUpsert.mockRejectedValueOnce(new Error("mongo is down"));
 
       const thrown = await process().catch((error) => error);
-
-      expect(thrown.retryable).toBeUndefined();
-    });
-
-    // Nothing here throws one today; this is what keeps an outage retryable if one does.
-    it("keeps retrying a Boom that means try later", async () => {
-      const thrown = await rejectionFrom(Boom.serverUnavailable("try later"));
 
       expect(thrown.retryable).toBeUndefined();
     });

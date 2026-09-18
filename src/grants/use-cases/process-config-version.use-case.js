@@ -10,17 +10,21 @@ import { validateConfigDefinitions } from "./validate-config-definitions.js";
 
 const VALID_STATUSES = ["active", "draft"];
 
+// Destructured in the body, not the signature: prettier wraps a long parameter list over
+// several lines, which moves the arrow away from the disable comment above.
 // eslint-disable-next-line complexity
-const validateEventData = ({ grantCode, version, status, manifest, path }) => {
+const validateEventData = (eventData) => {
+  const { grantCode, version, status, manifest, s3Bucket } = eventData;
+
   if (!grantCode || !version) {
     throw Boom.badRequest(
       `Config version event missing required fields: grantCode=${grantCode}, version=${version}`,
     );
   }
 
-  if (!path) {
+  if (!s3Bucket) {
     throw Boom.badRequest(
-      `Config version event for ${grantCode}@${version} has no path, so the bucket is unknown`,
+      `Config version event for ${grantCode}@${version} has no bucket`,
     );
   }
 
@@ -42,22 +46,11 @@ const validateEventData = ({ grantCode, version, status, manifest, path }) => {
   }
 };
 
-const HTTP_BAD_GATEWAY = 502;
-const HTTP_SERVICE_UNAVAILABLE = 503;
-const HTTP_GATEWAY_TIMEOUT = 504;
-
-// Boom covers the bad message and the definition that will not build, both of which will
-// be exactly as bad next time. The codes that mean "try later" are the exception; nothing
-// in this path throws one today, and this is here so that stays true if one does.
-const TRY_LATER_CODES = new Set([
-  HTTP_BAD_GATEWAY,
-  HTTP_SERVICE_UNAVAILABLE,
-  HTTP_GATEWAY_TIMEOUT,
-]);
-
+// Every Boom raised on this path is a bad message or a definition that will not build,
+// both of which will be exactly as bad next time.
 const cannotBeFixedByRetrying = (error) => {
   if (Boom.isBoom(error)) {
-    return !TRY_LATER_CODES.has(error.output.statusCode);
+    return true;
   }
 
   if (error instanceof S3FetchError) {
@@ -69,16 +62,13 @@ const cannotBeFixedByRetrying = (error) => {
 };
 
 const applyConfigVersion = async (eventData) => {
-  const { grantCode, version, status, manifest, path } = eventData;
+  const { grantCode, version, status, manifest, s3Bucket } = eventData;
 
   validateEventData(eventData);
 
   logger.info(`Processing config version: ${grantCode}@${version} (${status})`);
 
-  // "path" is the bucket the Config Broker uploaded to. It is the only source: we read
-  // from where the files really are, never from a bucket of our own choosing.
   const { variant } = config.configBroker;
-  const s3Bucket = path;
   const s3Key = findS3KeyInManifest(manifest, {
     dir: "gas",
     file: "gas.json",

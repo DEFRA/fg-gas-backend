@@ -554,8 +554,7 @@ describe("config version events", () => {
         grantCode: "woodland",
         version: "1.2.0",
         status: "active",
-        isLatest: "true",
-        path: "config-broker-bucket",
+        s3Bucket: "config-broker-bucket",
         manifest: ["woodland/1.2.0/gas/gas.json"],
       },
     },
@@ -580,7 +579,7 @@ describe("config version events", () => {
       version: "1.2.0",
       status: "active",
       manifest: ["woodland/1.2.0/gas/gas.json"],
-      path: "config-broker-bucket",
+      s3Bucket: "config-broker-bucket",
     });
   });
 

@@ -92,7 +92,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
-      path: BUCKET,
+      s3Bucket: BUCKET,
       manifest: ["woodland/1.2.3/gas/gas.json", "woodland/1.2.3/metadata.json"],
     });
 
@@ -119,7 +119,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "1.2.4",
       status: "active",
-      path: BUCKET,
+      s3Bucket: BUCKET,
       manifest: [
         "woodland/1.2.4/gas/gas.json",
         "woodland/1.2.4/gas/agreement.json",
@@ -142,7 +142,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "1.2.7",
       status: "active",
-      path: BUCKET,
+      s3Bucket: BUCKET,
       manifest: [
         "woodland/1.2.7/gas/gas.json",
         "woodland/1.2.7/gas/payment.json",
@@ -166,7 +166,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "1.2.5",
       status: "active",
-      path: BUCKET,
+      s3Bucket: BUCKET,
       manifest: [
         "woodland/1.2.5/gas/gas.json",
         "woodland/1.2.5/gas/agreement.json",
@@ -214,7 +214,7 @@ describe("config broker message flow", () => {
       grantCode: "frps-private-beta",
       version: "1.2.6",
       status: "active",
-      path: BUCKET,
+      s3Bucket: BUCKET,
       manifest: [
         "farm-payments/1.2.6/gas/gas.json",
         "farm-payments/1.2.6/gas/agreement.json",
@@ -242,7 +242,7 @@ describe("config broker message flow", () => {
         grantCode: "woodland",
         version: "not-a-version",
         status: "active",
-        path: BUCKET,
+        s3Bucket: BUCKET,
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
@@ -258,7 +258,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "2.0.0",
       status: "active",
-      path: BUCKET,
+      s3Bucket: BUCKET,
       manifest: ["woodland/2.0.0/gas/gas.json", "woodland/2.0.0/metadata.json"],
     };
 

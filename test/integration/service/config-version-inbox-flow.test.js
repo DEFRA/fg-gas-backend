@@ -37,7 +37,6 @@ const attributes = (overrides = {}) => ({
   version: { StringValue: VERSION, DataType: "String" },
   status: { StringValue: "active", DataType: "String" },
   path: { StringValue: BUCKET, DataType: "String" },
-  isLatest: { StringValue: "true", DataType: "String" },
   ...overrides,
 });
 
@@ -106,8 +105,7 @@ describe("config broker inbox flow", () => {
       grantCode: GRANT,
       version: VERSION,
       status: "active",
-      path: BUCKET,
-      isLatest: "true",
+      s3Bucket: BUCKET,
       manifest,
     });
 
@@ -157,7 +155,7 @@ describe("config broker inbox flow", () => {
     const doc = await handleOne();
 
     expect(doc.status).toBe(InboxStatus.DEAD_LETTER);
-    expect(doc.lastError.message).toContain("the bucket is unknown");
+    expect(doc.lastError.message).toContain("has no bucket");
     await expect(configVersions.countDocuments({})).resolves.toBe(0);
   });
 });

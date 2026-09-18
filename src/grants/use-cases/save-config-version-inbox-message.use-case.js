@@ -12,9 +12,9 @@ export const UNGROUPED_SEGREGATION_REF = "unknown-grant";
 
 const attribute = (attributes, key) => attributes?.[key]?.StringValue;
 
-// SentTimestamp is epoch milliseconds in a string. The Inbox sorts on an ISO instant and
-// silently falls back to insert time for anything Date.parse rejects, which would lose the
-// per-grant ordering FIFO lock exists to provide.
+// SentTimestamp is milliseconds since 1970, in a string. The Inbox sorts on a date string
+// and quietly falls back to the time the row was saved for anything it cannot read, which
+// would claim a grant's versions out of the order the broker sent them.
 const toEventTime = (sentTimeStamp) => {
   const epochMs = sentTimeStamp ? Number(sentTimeStamp) : Number.NaN;
 
@@ -45,9 +45,8 @@ export const saveConfigVersionInboxMessageUseCase = async (
       grantCode,
       version,
       status,
-      // NB: Left as published: SNS delivers these as strings, and Boolean("false") is true.
-      isLatest: attribute(messageAttributes, "isLatest"),
-      path: attribute(messageAttributes, "path"),
+      // The broker calls this "path", but it is the bucket it uploaded to.
+      s3Bucket: attribute(messageAttributes, "path"),
       manifest,
     },
   };

@@ -23,7 +23,6 @@ const messageAttributes = {
   version: { StringValue: "1.2.0" },
   status: { StringValue: "active" },
   path: { StringValue: "config-broker-bucket" },
-  isLatest: { StringValue: "false" },
 };
 
 const metadata = { messageId: "msg-1", sentTimeStamp: "1758106800000" };
@@ -79,18 +78,10 @@ describe("save config version inbox message", () => {
         grantCode: "woodland",
         version: "1.2.0",
         status: "active",
-        isLatest: "false",
-        path: "config-broker-bucket",
+        s3Bucket: "config-broker-bucket",
         manifest,
       },
     });
-  });
-
-  // Boolean("false") is true, so a converted isLatest would report every event as latest.
-  it("keeps isLatest as the string it was published as", async () => {
-    await save();
-
-    expect(savedInbox().event.data.isLatest).toBe("false");
   });
 
   it("groups by grant code so one grant's versions stay ordered", async () => {
