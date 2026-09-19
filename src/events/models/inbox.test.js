@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { markPermanentFailure } from "../../events/retryable.js";
+import { markPermanentFailure } from "../retryable.js";
 import { Inbox, InboxStatus } from "./inbox.js";
 
 describe("inbox model", () => {

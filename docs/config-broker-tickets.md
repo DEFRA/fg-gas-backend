@@ -264,8 +264,8 @@ This ticket follows that same pattern rather than having the SQS subscriber writ
 - `.env.example`
 - New: `src/grants/subscribers/config-version-updated.subscriber.js`
 - New: `src/grants/subscribers/config-version-updated.subscriber.test.js`
-- `src/grants/subscribers/inbox.subscriber.js` (add handler dispatch for Config Broker source)
-- `src/grants/use-cases/save-inbox-message.use-case.js` (if source mapping needs updating)
+- `src/events/subscribers/inbox.subscriber.js` (add handler dispatch for Config Broker source)
+- `src/events/use-cases/save-inbox-message.js` (if source mapping needs updating)
 - `src/grants/index.js` (register SQS subscriber)
 - `compose/start-localstack.sh` (create SQS queue)
 

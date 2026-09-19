@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { config } from "../../common/config.js";
 import { Agreement } from "../models/agreement.js";
-import { Outbox } from "../models/outbox.js";
+import { Outbox } from "../../events/models/outbox.js";
 import {
   createApplicationStatusUpdatedEventData,
   createApplicationStatusUpdatedOutbox,

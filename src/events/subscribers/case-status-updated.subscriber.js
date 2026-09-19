@@ -3,7 +3,7 @@ import { SqsSubscriber } from "../../common/sqs-subscriber.js";
 import {
   messageSource,
   saveInboxMessageUseCase,
-} from "../use-cases/save-inbox-message.use-case.js";
+} from "../use-cases/save-inbox-message.js";
 
 export const caseStatusUpdatedSubscriber = new SqsSubscriber({
   queueUrl: config.sqs.updateStatusQueueUrl,

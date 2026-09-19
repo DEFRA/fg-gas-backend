@@ -1,17 +1,17 @@
 import Boom from "@hapi/boom";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { logger } from "../../common/logger.js";
-import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { redriveConflict } from "../../events/event-redrive.js";
 import {
   findStatusById as gasInboxStatus,
   redriveById as redriveGasInbox,
-} from "../../grants/repositories/inbox.repository.js";
+} from "../../events/repositories/inbox.repository.js";
 import {
   findStatusById as gasOutboxStatus,
   redriveById as redriveGasOutbox,
-} from "../../grants/repositories/outbox.repository.js";
+} from "../../events/repositories/outbox.repository.js";
 import { redriveCwEvent } from "../repositories/cw-actuators.repository.js";
 import { statusDisplay } from "../services/event-display.js";
 import { GAS } from "../services/event-sources.js";

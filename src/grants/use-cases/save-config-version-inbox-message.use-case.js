@@ -3,7 +3,7 @@ import { getTraceParent } from "../../common/trace-parent.js";
 import {
   messageSource,
   saveInboxMessageUseCase,
-} from "./save-inbox-message.use-case.js";
+} from "../../events/use-cases/save-inbox-message.js";
 
 export const CONFIG_VERSION_EVENT_TYPE = "config-version.updated";
 

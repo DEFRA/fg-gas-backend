@@ -1,6 +1,6 @@
 import { logger } from "../../common/logger.js";
-import { breakdown as breakdownGasInbox } from "../../grants/repositories/inbox.repository.js";
-import { breakdown as breakdownGasOutbox } from "../../grants/repositories/outbox.repository.js";
+import { breakdown as breakdownGasInbox } from "../../events/repositories/inbox.repository.js";
+import { breakdown as breakdownGasOutbox } from "../../events/repositories/outbox.repository.js";
 import {
   CASEWORKING,
   GAS,

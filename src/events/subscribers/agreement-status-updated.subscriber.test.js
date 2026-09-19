@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { AgreementServiceStatus } from "../models/agreement.js";
-import { saveInboxMessageUseCase } from "../use-cases/save-inbox-message.use-case.js";
+import { saveInboxMessageUseCase } from "../use-cases/save-inbox-message.js";
 import { agreementStatusUpdatedSubscriber } from "./agreement-status-updated.subscriber.js";
 
-vi.mock("../use-cases/save-inbox-message.use-case.js");
+vi.mock("../use-cases/save-inbox-message.js");
 
 describe("agreementStatusUpdatedSubscriber", () => {
   it("saves message to inbox", async () => {
@@ -13,7 +12,7 @@ describe("agreementStatusUpdatedSubscriber", () => {
         code: "test-code",
         agreementNumber: "AG123",
         date: "2024-01-01T00:00:00Z",
-        status: AgreementServiceStatus.Offered,
+        status: "offered",
       },
     };
 

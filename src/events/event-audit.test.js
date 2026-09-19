@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { shortEventType } from "../grant-admin/services/map-event-row.js";
 import {
   AUDIT_EXCLUDE,
   AUDIT_INCLUDE,
@@ -12,6 +11,7 @@ import {
   auditGroupExpression,
   isAuditTarget,
   labelForMissingType,
+  shortEventType,
 } from "./event-audit.js";
 
 // Inlined rather than referencing the constant below: `vi.mock` is hoisted

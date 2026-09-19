@@ -2,7 +2,7 @@ import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { up as moveInboxListOntoReceipt } from "../../migrations/20260914120000-inbox-publication-date-list-indexes.js";
-import { findPage as findInboxPage } from "../../src/grants/repositories/inbox.repository.js";
+import { findPage as findInboxPage } from "../../src/events/repositories/inbox.repository.js";
 
 const LIST_INDEX = "publicationDate_-1__id_-1";
 const STATUS_INDEX = "status_1_publicationDate_-1__id_-1";

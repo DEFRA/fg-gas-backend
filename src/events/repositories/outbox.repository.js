@@ -8,23 +8,17 @@ import {
   AUDIT_TARGET_FIELDS,
   EVENT_TYPE_FIELDS,
   auditGroupExpression,
-} from "../../events/event-audit.js";
-import {
-  breakdownStages,
-  toBreakdownGroups,
-} from "../../events/event-breakdown.js";
-import { toSourceFacets } from "../../events/event-facets.js";
-import { buildEventListFilter } from "../../events/event-list-filter.js";
-import {
-  REDRIVE_FROM_STATUS,
-  redriveUpdate,
-} from "../../events/event-redrive.js";
+} from "../event-audit.js";
+import { breakdownStages, toBreakdownGroups } from "../event-breakdown.js";
+import { toSourceFacets } from "../event-facets.js";
+import { buildEventListFilter } from "../event-list-filter.js";
+import { REDRIVE_FROM_STATUS, redriveUpdate } from "../event-redrive.js";
 import {
   claimExpiredAttempt,
   claimExpiredError,
   pushAttemptUpdate,
-} from "../../events/last-error.js";
-import { statusGroupStage } from "../../events/status-counts.js";
+} from "../last-error.js";
+import { statusGroupStage } from "../status-counts.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 
 const collection = "outbox";

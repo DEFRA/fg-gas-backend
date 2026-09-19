@@ -6,7 +6,7 @@ import {
   normaliseAttemptHistory,
   toAttemptEntry,
   toLastError,
-} from "../../events/last-error.js";
+} from "../last-error.js";
 
 export const OutboxStatus = {
   PUBLISHED: "PUBLISHED",

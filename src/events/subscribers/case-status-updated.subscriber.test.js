@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { saveInboxMessageUseCase } from "../use-cases/save-inbox-message.use-case.js";
+import { saveInboxMessageUseCase } from "../use-cases/save-inbox-message.js";
 import { caseStatusUpdatedSubscriber } from "./case-status-updated.subscriber.js";
-vi.mock("../use-cases/save-inbox-message.use-case.js");
+vi.mock("../use-cases/save-inbox-message.js");
 
 describe("case status updated subscriber", () => {
   it("should save message to inbox", async () => {

@@ -1,22 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../common/config.js";
 import { db } from "../common/mongo-client.js";
-import { Inbox } from "../grants/models/inbox.js";
-import { Outbox } from "../grants/models/outbox.js";
+import { Inbox } from "./models/inbox.js";
+import { Outbox } from "./models/outbox.js";
 import {
   claimEvents as claimInbox,
   updateDeadEvents as deadInbox,
   updateFailedEvents as failedInbox,
   redriveById as redriveInbox,
   updateResubmittedEvents as resubmittedInbox,
-} from "../grants/repositories/inbox.repository.js";
+} from "./repositories/inbox.repository.js";
 import {
   claimEvents as claimOutbox,
   updateDeadEvents as deadOutbox,
   updateFailedEvents as failedOutbox,
   redriveById as redriveOutbox,
   updateResubmittedEvents as resubmittedOutbox,
-} from "../grants/repositories/outbox.repository.js";
+} from "./repositories/outbox.repository.js";
 import { REDRIVE_FROM_STATUS, redriveConflict } from "./event-redrive.js";
 
 vi.mock("../common/mongo-client.js");

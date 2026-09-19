@@ -7,8 +7,8 @@ import {
   normaliseAttemptHistory,
   toAttemptEntry,
   toLastError,
-} from "../../events/last-error.js";
-import { isRetryableFailure } from "../../events/retryable.js";
+} from "../last-error.js";
+import { isRetryableFailure } from "../retryable.js";
 
 const toEpochMs = (time) => {
   if (time === undefined || time === null) {

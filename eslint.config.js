@@ -142,6 +142,20 @@ export default [
                 "See docs/MODULE_BOUNDARIES.md.",
             },
             {
+              target: "src/common/**/!(*.test).js",
+              from: [
+                "src/agreements/**",
+                "src/events/**",
+                "src/grant-admin/**",
+                "src/grants/**",
+                "src/payments/**",
+                "src/test-endpoints/**",
+              ],
+              message:
+                "Common infrastructure must not import a domain or adapter module. " +
+                "Move shared domain concepts to their owning module.",
+            },
+            {
               target: "**/agreements/**/!(*.test).js",
               from: ["**/grants/**"],
               message:
@@ -179,10 +193,6 @@ export default [
               except: [
                 "**/grants/services/entitlement.service.js",
                 "**/grants/services/claims.service.js",
-                // Event admin (FGP-1392) administers the GAS inbox/outbox
-                // itself, so its reviewed seam is the two event stores.
-                "**/grants/repositories/inbox.repository.js",
-                "**/grants/repositories/outbox.repository.js",
               ],
               message:
                 "Grant Admin may only enter Grants through its reviewed application services. " +

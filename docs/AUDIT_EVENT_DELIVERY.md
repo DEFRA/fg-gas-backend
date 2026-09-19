@@ -49,9 +49,9 @@ The audit `Outbox` entry is written into the same MongoDB transaction as the bus
 
 | File                              | Role                                                                                                         |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `src/common/with-audit.js`        | Proxy wrapper — intercepts `apply`, runs target, calls `writeAuditEvent` in `finally`                        |
-| `src/common/write-audit-event.js` | Builds FCP Audit payload, validates with `@defra/fcp-audit-publisher`, inserts to outbox                     |
-| `src/common/audit-constants.js`   | `buildAuditEvent` helper, `auditEntities` and `auditActions` enums                                           |
+| `src/events/with-audit.js`        | Proxy wrapper — intercepts `apply`, runs target, calls `writeAuditEvent` in `finally`                        |
+| `src/events/write-audit-event.js` | Builds FCP Audit payload, validates with `@defra/fcp-audit-publisher`, inserts to outbox                     |
+| `src/events/audit-constants.js`   | `buildAuditEvent` helper, `auditEntities` and `auditActions` enums                                           |
 | `src/common/request-context.js`   | AsyncLocalStorage store for `user`, `subject`, `sessionId`, `ip` — populated per HTTP request in `server.js` |
 | `src/server.js`                   | `onRequest` extension that wraps `_lifecycle` / `_postCycle` with `withRequestContext`                       |
 
@@ -175,7 +175,7 @@ export const replaceApplicationUseCase = withAudit({
 
 ## References
 
-- **Production Code:** `src/common/with-audit.js`, `src/common/write-audit-event.js`, `src/common/audit-constants.js`
+- **Production Code:** `src/events/with-audit.js`, `src/events/write-audit-event.js`, `src/events/audit-constants.js`
 - **Request Context:** `src/common/request-context.js`, `src/server.js`
 - **Use-case examples:** `src/grants/use-cases/create-status-transition-update.use-case.js`, `src/grants/use-cases/replace-application.use-case.js`, `src/grants/use-cases/withdraw-application.use-case.js`
 - **FCP Audit publisher:** `@defra/fcp-audit-publisher`

@@ -2,8 +2,8 @@ import Boom from "@hapi/boom";
 import { ObjectId } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
-import { findPage as findGasInboxPage } from "../../grants/repositories/inbox.repository.js";
-import { findPage as findGasOutboxPage } from "../../grants/repositories/outbox.repository.js";
+import { findPage as findGasInboxPage } from "../../events/repositories/inbox.repository.js";
+import { findPage as findGasOutboxPage } from "../../events/repositories/outbox.repository.js";
 import { isCwConfigured } from "../repositories/cw-actuators.repository.js";
 import {
   encodeCompositeCursor,
@@ -16,10 +16,10 @@ const { INBOX_MAX_RETRIES, OUTBOX_MAX_RETRIES } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../common/logger.js");
-vi.mock("../../grants/repositories/inbox.repository.js", () => ({
+vi.mock("../../events/repositories/inbox.repository.js", () => ({
   findPage: vi.fn(),
 }));
-vi.mock("../../grants/repositories/outbox.repository.js", () => ({
+vi.mock("../../events/repositories/outbox.repository.js", () => ({
   findPage: vi.fn(),
 }));
 vi.mock("../../common/config.js", () => ({
