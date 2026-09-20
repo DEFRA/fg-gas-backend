@@ -25,15 +25,11 @@ const event = {
   id: "665f1c2e9a1b2c3d4e5f6a7b",
   eventId: "3f2c1a0e-0000-4000-8000-000000000000",
   type: "case.status.updated",
-  hop: "GAS Outbox",
-  queue: "to Caseworking",
-  queueValue: "gas__sns__update_case_status_fifo.fifo",
   status: "DEAD_LETTER",
   statusLabel: "Dead letter",
   statusRole: "error",
   statusRetrying: false,
   createdAt: "2026-06-16T10:00:00.000Z",
-  lastError: null,
   latency: null,
   latencyTitle: "Queued to delivered to SNS",
 };
@@ -47,22 +43,16 @@ const COUNTS = {
   DEAD_LETTER: 1,
 };
 
-// The words the toolbar's chips are drawn in, which ride every page.
 const STATUSES = statusVocabulary();
 const SERVICES = serviceVocabulary();
 
 const emptyPage = {
   events: [],
-  pagination: {
-    startCursor: null,
-    endCursor: null,
-    hasNextPage: false,
-    hasPreviousPage: false,
-  },
+  pagination: { endCursor: null, hasNextPage: false },
   statuses: STATUSES,
   services: SERVICES,
   counts: COUNTS,
-  breakdown: { groups: [], sourceErrors: [] },
+  breakdown: { groups: [] },
   sourceErrors: [],
   sectionErrors: [],
 };
@@ -121,16 +111,8 @@ describe("eventsPageRoute", () => {
               lastAt: "2026-06-16T10:00:00.000Z",
             },
           ],
-          sourceErrors: [],
         },
-        sourceErrors: [
-          {
-            service: "caseworking",
-            box: "inbox",
-            hop: "CW Inbox",
-            message: "timeout",
-          },
-        ],
+        sourceErrors: [{ hop: "CW-BE Inbox" }],
       }),
     );
 
@@ -153,17 +135,10 @@ describe("eventsPageRoute", () => {
     expect(result.result.events).toEqual([event]);
     expect(result.result.counts).toEqual(COUNTS);
     expect(result.result.breakdown.groups).toHaveLength(1);
-    expect(result.result.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "timeout",
-      },
-    ]);
+    expect(result.result.sourceErrors).toEqual([{ hop: "CW-BE Inbox" }]);
   });
 
-  it("defaults direction to forward and forwards every filter", async () => {
+  it("passes an empty query through with the audit mode defaulted", async () => {
     await server.inject({
       method: "GET",
       url: "/grant-admin/events/page",
@@ -171,7 +146,6 @@ describe("eventsPageRoute", () => {
 
     expect(eventsPageUseCase).toHaveBeenCalledWith({
       cursor: undefined,
-      direction: "forward",
       status: undefined,
       service: undefined,
       q: undefined,
@@ -182,15 +156,14 @@ describe("eventsPageRoute", () => {
     });
   });
 
-  it("forwards cursor, direction, status, service, q, error, from and to", async () => {
+  it("forwards cursor, status, service, q, error, from and to", async () => {
     await server.inject({
       method: "GET",
-      url: "/grant-admin/events/page?cursor=abc&direction=backward&status=FAILED&service=caseworking&q=GLD-9B2&error=boom&from=2026-06-16T00:00:00.000Z&to=2026-06-16T23:59:59.999Z",
+      url: "/grant-admin/events/page?cursor=abc&status=FAILED&service=caseworking&q=GLD-9B2&error=boom&from=2026-06-16T00:00:00.000Z&to=2026-06-16T23:59:59.999Z",
     });
 
     expect(eventsPageUseCase).toHaveBeenCalledWith({
       cursor: "abc",
-      direction: "backward",
       status: "FAILED",
       service: "caseworking",
       q: "GLD-9B2",
@@ -204,13 +177,11 @@ describe("eventsPageRoute", () => {
   it.each([
     ["status=BOGUS", "/grant-admin/events/page?status=BOGUS"],
     ["service=other", "/grant-admin/events/page?service=other"],
-    ["direction=sideways", "/grant-admin/events/page?direction=sideways"],
     [
       "a reversed range",
       "/grant-admin/events/page?from=2026-06-17&to=2026-06-16",
     ],
     ["an unknown query parameter", "/grant-admin/events/page?pageSize=50"],
-    ["kind=audit", "/grant-admin/events/page?kind=audit"],
     [
       "a q over 200 characters",
       `/grant-admin/events/page?q=${"a".repeat(201)}`,
@@ -321,7 +292,6 @@ describe("eventsPageRoute", () => {
     expect(result.result.message).toEqual("Cannot decode cursor");
   });
 
-  // The list failing is the page failing - the frontend's "unavailable" state.
   it("responds 502 when the use case throws Boom.badGateway", async () => {
     eventsPageUseCase.mockRejectedValue(
       Boom.badGateway("Events could not be loaded from GAS"),

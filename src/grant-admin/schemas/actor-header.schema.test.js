@@ -12,15 +12,26 @@ describe("actorHeaderSchema", () => {
     expect(actorHeaderSchema.validate({}).error).toBeUndefined();
   });
 
-  // Long enough for a name that arrived percent-encoded: 40 non-Latin-1
-  // characters become 240, and refusing those would refuse exactly the
-  // operators the encoding exists to serve.
-  it("caps the actor at 512 characters, so an audit event can never carry an essay", () => {
+  it("caps the name at 128 characters, as Caseworking does", () => {
     expect(
-      actorHeaderSchema.validate({ "x-actor": "x".repeat(512) }).error,
+      actorHeaderSchema.validate({ "x-actor": "x".repeat(128) }).error,
     ).toBeUndefined();
     expect(
-      actorHeaderSchema.validate({ "x-actor": "x".repeat(513) }).error,
+      actorHeaderSchema.validate({ "x-actor": "x".repeat(129) }).error.message,
+    ).toBe('"x-actor" must be at most 128 characters');
+  });
+
+  it("measures an encoded name once decoded", () => {
+    const encoded = `UTF-8''${encodeURIComponent("Ł".repeat(128))}`;
+
+    expect(encoded.length).toBeGreaterThan(128);
+    expect(
+      actorHeaderSchema.validate({ "x-actor": encoded }).error,
+    ).toBeUndefined();
+    expect(
+      actorHeaderSchema.validate({
+        "x-actor": `UTF-8''${encodeURIComponent("Ł".repeat(129))}`,
+      }).error,
     ).toBeDefined();
   });
 

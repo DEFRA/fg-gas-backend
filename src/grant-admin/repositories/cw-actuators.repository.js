@@ -8,21 +8,16 @@ const GATEWAY_TIMEOUT = 504;
 const CLIENT_TIMEOUT = 408;
 const TIMEOUT_STATUSES = new Set([GATEWAY_TIMEOUT, CLIENT_TIMEOUT]);
 
-const NOT_CONFIGURED = "not configured";
 const READ_FAILED = "read failed";
 const TIMED_OUT = "timeout";
 
-// `CW_BACKEND_URL` / `CW_BACKEND_TOKEN` are optional config, unset in every
-// environment today. `new URL(path, undefined)` throws, so the use case checks
-// this before building a URL and reports "not configured" instead.
+// `new URL(path, undefined)` throws, so callers check this first.
 export const isCwConfigured = () =>
   Boolean(config.cwBackend.url && config.cwBackend.token);
 
 const statusOf = (error) => error?.output?.statusCode ?? null;
 
-// A fixed, payload-free vocabulary. `wreck` attaches the CW response body to
-// its error at `err.data.payload`, so nothing here may be derived from the
-// error's data - only its status code.
+// `wreck` attaches the CW response body to the error; read only the status.
 export const describeError = (error) => {
   const statusCode = statusOf(error);
 
@@ -37,12 +32,7 @@ export const describeError = (error) => {
   return `HTTP ${statusCode}`;
 };
 
-export const notConfiguredMessage = () => NOT_CONFIGURED;
-
-// Only the filters that are actually set are sent. `audit` travels with the
-// rest: each service is authoritative for its own rows, and only Caseworking
-// recognises its own audit topic - withholding the parameter would leave the
-// exclusion GAS-side only and let CW's audit records escape the filter.
+// `audit` is forwarded: only Caseworking recognises its own audit topic.
 const PAGE_PARAMS = ["status", "q", "error", "from", "to", "audit"];
 
 const setOptional = (url, options, names) => {
@@ -53,19 +43,23 @@ const setOptional = (url, options, names) => {
   }
 };
 
-// One cursor per box: the merged list's own cursor holds a keyset position
-// per source, so both of Caseworking's positions travel here.
 const setCursor = (url, name, value) => {
   if (value) {
     url.searchParams.set(name, value);
   }
 };
 
-const buildPageUrl = ({ pageSize, direction, slices = {}, ...filters }) => {
+const setSections = (url, sections) => {
+  if (sections?.length) {
+    url.searchParams.set("sections", sections.join(","));
+  }
+};
+
+const buildPageUrl = ({ pageSize, slices = {}, sections, ...filters }) => {
   const url = new URL("/actuators/events", config.cwBackend.url);
 
   url.searchParams.set("pageSize", String(pageSize));
-  url.searchParams.set("direction", direction);
+  setSections(url, sections);
   setCursor(url, "inboxCursor", slices.cwInbox);
   setCursor(url, "outboxCursor", slices.cwOutbox);
   setOptional(url, filters, PAGE_PARAMS);
@@ -73,26 +67,10 @@ const buildPageUrl = ({ pageSize, direction, slices = {}, ...filters }) => {
   return url.toString();
 };
 
-// Each box's section, in the shape this service's mergers already read. A
-// section Caseworking could not read arrives null and is turned back into a
-// rejection downstream, so one box's bad counts is a `sourceError` and
-// nothing more.
-// A row this service can actually map: the mappers reach for `_id` on every
-// one of them, and `idTimestamp` throws on anything that is not a string.
+// `idTimestamp` throws on a non-string `_id`.
 const isRow = (row) => typeof row?._id === "string";
 
-/**
- * The rows, if the answer really contains rows.
- *
- * Validated here rather than trusted, because of where the mapping happens: a
- * page's rows are normalised INSIDE `Promise.allSettled`'s fulfilled branch,
- * so a `TypeError` thrown while mapping is not a rejected source - it escapes
- * the fan-out entirely and 500s the request, and on the composite page the
- * list's failure takes the whole page with it. A body shaped wrongly by
- * another service is exactly the case the degradation contract exists for, so
- * it is turned into that contract's own vocabulary here: a null section, which
- * downstream reports as this source's `sourceError`.
- */
+// A malformed body becomes a null section, not a TypeError that 500s the page.
 const toList = (section) => {
   if (!Array.isArray(section.events) || !section.events.every(isRow)) {
     return null;
@@ -112,16 +90,7 @@ const toBoxSection = (section = {}) => ({
   groups: toGroups(section),
 });
 
-// Deliberately does not catch: the use case's `Promise.allSettled` turns a
-// rejection into a `sourceError`, keeping the failure policy in one place and
-// this module free of logging.
-//
-// The timeout is this endpoint's own, not the shared client's ten seconds.
-// Degradation only fires on FAILURE, so a Caseworking answering in nine
-// seconds does not degrade anything - it just makes every list render take
-// nine seconds, on the one surface an operator opens when the estate is
-// already misbehaving. A shorter ceiling turns that into the partial page the
-// contract was designed to give.
+// A shorter timeout, so a slow Caseworking degrades the page rather than stalls it.
 export const findCwPage = async (options) => {
   const { payload } = await wreck.get(buildPageUrl(options), {
     json: true,
@@ -137,11 +106,7 @@ export const findCwPage = async (options) => {
   };
 };
 
-// ---------------------------------------------------------------------------
-// Single-event reads and redrives. Unlike the list, the detail view has no
-// partial mode: a Caseworking failure is a 502 with a fixed one-liner, so
-// these DO catch, and translate rather than swallow.
-// ---------------------------------------------------------------------------
+// Detail and redrive have no partial mode, so these catch and translate.
 
 const NOT_FOUND = 404;
 const CONFLICT = 409;
@@ -165,9 +130,7 @@ const bodyOf = (error) => {
   return isRaw(payload) ? parseJson(payload.toString()) : payload;
 };
 
-// The ONE thing ever read out of a Caseworking response body, and only when it
-// is one of the six statuses we already publish. Everything else about a CW
-// failure stays the fixed vocabulary in `describeError`.
+// The only value ever read from a CW response body: a known status.
 const conflictStatusOf = (error) => {
   const status = bodyOf(error)?.status;
 
@@ -178,8 +141,8 @@ const toConflict = (error, label, expected) => {
   const status = conflictStatusOf(error);
   const conflict = Boom.conflict(
     status
-      ? `Caseworking ${label} is ${status}, not ${expected}`
-      : `Caseworking ${label} is not ${expected}`,
+      ? `CW-BE ${label} is ${status}, not ${expected}`
+      : `CW-BE ${label} is not ${expected}`,
   );
 
   if (status) {
@@ -193,18 +156,21 @@ const toFailure = (error, label, expected) => {
   const statusCode = statusOf(error);
 
   if (statusCode === NOT_FOUND) {
-    return Boom.notFound(`Caseworking ${label} not found`);
+    return Boom.notFound(`CW-BE ${label} not found`);
   }
 
   if (statusCode === CONFLICT) {
     return toConflict(error, label, expected);
   }
 
-  return Boom.badGateway(`Caseworking is unavailable: ${describeError(error)}`);
+  // No answer is not a refusal: a redrive may still have committed.
+  if (TIMEOUT_STATUSES.has(statusCode)) {
+    return Boom.gatewayTimeout(`CW-BE did not answer in time for ${label}`);
+  }
+
+  return Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
 };
 
-// The same ceiling the page read uses: a detail view or a redrive that hangs
-// for the shared client's ten seconds is a page an operator abandons.
 const requestOptions = () => ({
   json: true,
   timeout: config.cwBackend.timeoutMs,
@@ -213,7 +179,7 @@ const requestOptions = () => ({
 
 const cwRequest = async (method, path, label) => {
   if (!isCwConfigured()) {
-    throw Boom.badGateway(`Caseworking is ${notConfiguredMessage()}`);
+    throw Boom.badGateway("CW-BE is not configured");
   }
 
   try {
@@ -228,22 +194,17 @@ const cwRequest = async (method, path, label) => {
   }
 };
 
-const eventPath = (box, id) => `/actuators/events/${box}/${encodeURIComponent(id)}`;
+const eventPath = (box, id) =>
+  `/actuators/events/${box}/${encodeURIComponent(id)}`;
 
 const labelFor = (box, id) => `${box} event "${id}"`;
 
-// The whole Caseworking document for one row, payload included.
 export const findCwEvent = (box, id) =>
   cwRequest("get", eventPath(box, id), labelFor(box, id));
 
-// `by` - the operator GAS read from the `x-actor` header - travels as a query
-// parameter on the redrive. Omitted entirely when nobody named themselves, so
-// an unattributed call is byte-identical to what GAS sent before actors
-// existed.
 const withActor = (path, by) =>
   by ? `${path}?by=${encodeURIComponent(by)}` : path;
 
-// Answers with one Caseworking list row, already updated.
 export const redriveCwEvent = (box, id, { by } = {}) =>
   cwRequest(
     "post",

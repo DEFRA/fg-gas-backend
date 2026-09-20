@@ -44,6 +44,12 @@ export class Grant {
     this.#assertEntitlementTemplatePositionsExist();
   }
 
+  // Builds a Grant from a published grant definition, so a definition can be checked
+  // without saving it.
+  static fromDefinition(grantDefinition, version) {
+    return new Grant({ ...grantDefinition, version });
+  }
+
   findEntitlementTemplate(claimCode) {
     return this.entitlementTemplates.find(
       (template) => template.claimCode === claimCode,

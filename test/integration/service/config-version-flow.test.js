@@ -1,6 +1,9 @@
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { MongoClient } from "mongodb";
+import { readFileSync } from "node:fs";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { config } from "../../../src/common/config.js";
 import {
   updateDefinitionFetchStatus,
   updateDefinitionLocation,
@@ -11,25 +14,85 @@ import { processConfigVersionUseCase } from "../../../src/grants/use-cases/proce
 let client;
 let configVersionsCol;
 
+const BUCKET = "config-broker-local";
+
+// Real S3 against the floci emulator, as the rest of the config broker integration
+// tests do. The bucket is seeded by compose/floci/start.d/10-setup-resources.sh.
+const s3Client = new S3Client({
+  region: config.region,
+  endpoint: config.awsEndpointUrl,
+  forcePathStyle: true,
+});
+
+const seedFixture = (path) =>
+  JSON.parse(
+    readFileSync(new URL(`../../../compose/seed/${path}`, import.meta.url)),
+  );
+
+const grantDefinition = seedFixture("woodland/1.28.2/gas/gas.json");
+const paymentDefinition = seedFixture("woodland/1.28.2/gas/payment.json");
+const agreementDefinition = seedFixture(
+  "pigs-might-fly/1.0.0/gas/agreement.json",
+);
+
+const put = (key, definition) =>
+  s3Client.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: JSON.stringify(definition),
+      ContentType: "application/json",
+    }),
+  );
+
+// Every definition a manifest names is now fetched and built before the version is
+// recorded, so the versions these tests invent need real files behind them. The
+// agreement fixture carries its own code, which has to match the grant being released.
+const uploadDefinitions = () =>
+  Promise.all([
+    ...[
+      "woodland/1.2.3/gas/gas.json",
+      "woodland/1.2.4/gas/gas.json",
+      "woodland/1.2.5/gas/gas.json",
+      "woodland/1.2.7/gas/gas.json",
+      "woodland/2.0.0/gas/gas.json",
+      "farm-payments/1.2.6/gas/gas.json",
+    ].map((key) => put(key, grantDefinition)),
+    put("woodland/1.2.4/gas/agreement.json", {
+      ...agreementDefinition,
+      code: "woodland",
+    }),
+    put("woodland/1.2.5/gas/agreement.json", {
+      ...agreementDefinition,
+      code: "woodland",
+    }),
+    put("farm-payments/1.2.6/gas/agreement.json", {
+      ...agreementDefinition,
+      code: "frps-private-beta",
+    }),
+    put("woodland/1.2.7/gas/payment.json", paymentDefinition),
+  ]);
+
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   const db = client.db(env.MONGO_DATABASE);
   configVersionsCol = db.collection("config_versions");
+  await uploadDefinitions();
 });
 
 afterAll(async () => {
   await client?.close();
 });
 
-// Config broker messages are delivered by the SQS subscriber, which calls
-// processConfigVersionUseCase directly (the broker topic is a standard,
-// non-FIFO SNS topic, so the inbox pattern adds nothing here).
+// Config broker messages reach this use case from the Inbox worker, not from the SQS
+// subscriber: the subscriber only saves the event (FGP-1423).
 describe("config broker message flow", () => {
   it("should process a config broker message and create a config_versions record", async () => {
     await processConfigVersionUseCase({
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      s3Bucket: BUCKET,
       manifest: ["woodland/1.2.3/gas/gas.json", "woodland/1.2.3/metadata.json"],
     });
 
@@ -47,7 +110,7 @@ describe("config broker message flow", () => {
       fetchAttempts: 0,
     });
     expect(cvDoc.fetchStatus).toBeUndefined();
-    expect(cvDoc.s3Key).toBe("woodland/1.2.3/gas/gas.json");
+    expect(cvDoc.s3Key).toBeUndefined();
     expect(cvDoc.definitions.agreement).toBeUndefined();
   });
 
@@ -56,6 +119,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "1.2.4",
       status: "active",
+      s3Bucket: BUCKET,
       manifest: [
         "woodland/1.2.4/gas/gas.json",
         "woodland/1.2.4/gas/agreement.json",
@@ -78,6 +142,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "1.2.7",
       status: "active",
+      s3Bucket: BUCKET,
       manifest: [
         "woodland/1.2.7/gas/gas.json",
         "woodland/1.2.7/gas/payment.json",
@@ -101,6 +166,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "1.2.5",
       status: "active",
+      s3Bucket: BUCKET,
       manifest: [
         "woodland/1.2.5/gas/gas.json",
         "woodland/1.2.5/gas/agreement.json",
@@ -148,6 +214,7 @@ describe("config broker message flow", () => {
       grantCode: "frps-private-beta",
       version: "1.2.6",
       status: "active",
+      s3Bucket: BUCKET,
       manifest: [
         "farm-payments/1.2.6/gas/gas.json",
         "farm-payments/1.2.6/gas/agreement.json",
@@ -162,7 +229,7 @@ describe("config broker message flow", () => {
     expect(doc.definitions.grant.s3Key).toBe(
       "farm-payments/1.2.6/gas/gas.json",
     );
-    expect(doc.s3Key).toBe("farm-payments/1.2.6/gas/gas.json");
+    expect(doc.s3Key).toBeUndefined();
     expect(doc.definitions.agreement).toMatchObject({
       s3Key: "farm-payments/1.2.6/gas/agreement.json",
       fetchStatus: FetchStatus.Pending,
@@ -175,6 +242,7 @@ describe("config broker message flow", () => {
         grantCode: "woodland",
         version: "not-a-version",
         status: "active",
+        s3Bucket: BUCKET,
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
@@ -190,6 +258,7 @@ describe("config broker message flow", () => {
       grantCode: "woodland",
       version: "2.0.0",
       status: "active",
+      s3Bucket: BUCKET,
       manifest: ["woodland/2.0.0/gas/gas.json", "woodland/2.0.0/metadata.json"],
     };
 

@@ -24,7 +24,7 @@ const aGasInboxDoc = (overrides = {}) => ({
   status: "DEAD_LETTER",
   completionAttempts: 5,
   traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-  eventTime: "2026-06-16T10:00:00.000Z",
+  publicationDate: "2026-06-16T10:00:00.000Z",
   lastResubmissionDate: null,
   completionDate: null,
   lastError: null,
@@ -68,7 +68,7 @@ describe("getEventUseCase gas", () => {
       event: { id: "evt-2", type: "a.b.c" },
     });
 
-    const { event } = await call({ box: "outbox" });
+    const event = await call({ box: "outbox" });
 
     expect(findGasOutboxById).toHaveBeenCalledWith(ID);
     expect(event.box).toBe("outbox");
@@ -77,7 +77,7 @@ describe("getEventUseCase gas", () => {
   it("returns a normalised detail with the payload attached", async () => {
     findGasInboxById.mockResolvedValue(aGasInboxDoc());
 
-    const { event } = await call();
+    const event = await call();
 
     expect(event.service).toBe("gas");
     expect(event.id).toBe(ID);
@@ -90,15 +90,7 @@ describe("getEventUseCase gas", () => {
   it("stamps GAS's own retry cap", async () => {
     findGasInboxById.mockResolvedValue(aGasInboxDoc());
 
-    expect((await call()).event.attempts).toBe("5/5");
-  });
-
-  // A GAS event's journey is two Mongo reads and a Caseworking read the page
-  // has still to make, so this answer carries no Caseworking hops.
-  it("brings no caseworking hops back with a GAS event", async () => {
-    findGasInboxById.mockResolvedValue(aGasInboxDoc());
-
-    expect((await call()).cwHops).toBeNull();
+    expect((await call()).attempts).toBe("5/5");
   });
 
   it("404s when there is no such row", async () => {
@@ -123,35 +115,19 @@ describe("getEventUseCase caseworking", () => {
   it("uses the maxAttempts caseworking reported, not GAS's", async () => {
     findCwEvent.mockResolvedValue(aCwInboxDoc());
 
-    expect((await call({ service: "caseworking" })).event.attempts).toBe("5/7");
+    expect((await call({ service: "caseworking" })).attempts).toBe("5/7");
   });
 
   it("returns the caseworking payload", async () => {
     findCwEvent.mockResolvedValue(aCwInboxDoc());
 
-    const { event } = await call({ service: "caseworking" });
+    const event = await call({ service: "caseworking" });
 
     expect(event.service).toBe("caseworking");
     expect(event.payload).toEqual({
       id: "evt-1",
       data: { clientRef: "REF-1" },
     });
-  });
-
-  // Nothing knows which id to search for until the detail has answered, and
-  // Caseworking answers both of its boxes in one request, so its half of the
-  // journey rides back with the event rather than costing a second read.
-  it("brings caseworking's own hops back with the event", async () => {
-    const hops = { inbox: [aCwInboxDoc()], outbox: [] };
-    findCwEvent.mockResolvedValue(aCwInboxDoc({ hops }));
-
-    expect((await call({ service: "caseworking" })).cwHops).toBe(hops);
-  });
-
-  it("answers with no hops when caseworking sent none", async () => {
-    findCwEvent.mockResolvedValue(aCwInboxDoc());
-
-    expect((await call({ service: "caseworking" })).cwHops).toBeNull();
   });
 
   it("passes a caseworking failure through untouched", async () => {

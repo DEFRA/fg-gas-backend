@@ -6,6 +6,8 @@ vi.mock("../use-cases/redrive-event.use-case.js");
 
 const ID = "665f1c2e9a1b2c3d4e5f6a7b";
 
+const noContent = { response: () => ({ code: () => null }) };
+
 const validateParams = (params) =>
   redriveEventRoute.options.validate.params.validate(params);
 
@@ -21,12 +23,6 @@ describe("redriveEventRoute", () => {
     expect(redriveEventRoute.options.auth).toBeUndefined();
   });
 
-  it("answers with one list-shaped row under `event`", () => {
-    expect(
-      redriveEventRoute.options.response.schema.describe().flags.label,
-    ).toBe("RedriveEventResponse");
-  });
-
   it("rejects an id that is not a 24-hex ObjectId", () => {
     expect(
       validateParams({ service: "gas", box: "inbox", id: "../../etc" }).error,
@@ -40,14 +36,18 @@ describe("redriveEventRoute", () => {
   });
 
   it("passes the params and the authenticated caller to the use case", async () => {
-    const response = { event: { id: ID } };
-    redriveEventUseCase.mockResolvedValue(response);
+    redriveEventUseCase.mockResolvedValue(undefined);
+    const code = vi.fn().mockReturnValue("no content");
+    const h = { response: vi.fn().mockReturnValue({ code }) };
 
-    const result = await redriveEventRoute.handler({
-      params: { service: "caseworking", box: "outbox", id: ID },
-      auth: { credentials: { service: "admin-ui" } },
-      headers: {},
-    });
+    const result = await redriveEventRoute.handler(
+      {
+        params: { service: "caseworking", box: "outbox", id: ID },
+        auth: { credentials: { service: "admin-ui" } },
+        headers: {},
+      },
+      h,
+    );
 
     expect(redriveEventUseCase).toHaveBeenCalledWith({
       service: "caseworking",
@@ -56,36 +56,41 @@ describe("redriveEventRoute", () => {
       caller: "admin-ui",
       actor: null,
     });
-    expect(result).toBe(response);
+    expect(h.response).toHaveBeenCalledWith();
+    expect(code).toHaveBeenCalledWith(204);
+    expect(result).toBe("no content");
   });
 });
 
 describe("redriveEventRoute actor", () => {
   it("reads the operator from the x-actor header", async () => {
-    redriveEventUseCase.mockResolvedValue({ event: {} });
+    redriveEventUseCase.mockResolvedValue(undefined);
 
-    await redriveEventRoute.handler({
-      params: { service: "gas", box: "inbox", id: ID },
-      auth: { credentials: { service: "admin-ui" } },
-      headers: { "x-actor": "donatas" },
-    });
+    await redriveEventRoute.handler(
+      {
+        params: { service: "gas", box: "inbox", id: ID },
+        auth: { credentials: { service: "admin-ui" } },
+        headers: { "x-actor": "donatas" },
+      },
+      noContent,
+    );
 
     expect(redriveEventUseCase).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "donatas" }),
     );
   });
 
-  // A header cannot carry a name with a character above U+00FF, so the caller
-  // encodes one that does. The audit record is read by people, who should see
-  // the name rather than its encoding.
   it("reads an encoded operator back into their own name", async () => {
-    redriveEventUseCase.mockResolvedValue({ event: {} });
+    redriveEventUseCase.mockResolvedValue(undefined);
 
-    await redriveEventRoute.handler({
-      params: { service: "gas", box: "inbox", id: ID },
-      auth: { credentials: { service: "admin-ui" } },
-      headers: { "x-actor": "UTF-8''%C5%81ukasz" },
-    });
+    await redriveEventRoute.handler(
+      {
+        params: { service: "gas", box: "inbox", id: ID },
+        auth: { credentials: { service: "admin-ui" } },
+        headers: { "x-actor": "UTF-8''%C5%81ukasz" },
+      },
+      noContent,
+    );
 
     expect(redriveEventUseCase).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "Łukasz" }),

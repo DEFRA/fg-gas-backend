@@ -20,23 +20,15 @@ const agreement = {
 };
 
 describe("updateTestAgreementStatusUseCase", () => {
-  const originalCodes = [...config.managedAgreementGrantCodes];
+  const originalLegacyCodes = config.legacyAgreementGrantCodes;
 
   beforeEach(() => {
-    config.managedAgreementGrantCodes.splice(
-      0,
-      config.managedAgreementGrantCodes.length,
-      "pigs-might-fly",
-    );
+    config.legacyAgreementGrantCodes = ["woodland"];
     loadCurrentAgreementByNumber.mockResolvedValue(agreement);
   });
 
   afterEach(() => {
-    config.managedAgreementGrantCodes.splice(
-      0,
-      config.managedAgreementGrantCodes.length,
-      ...originalCodes,
-    );
+    config.legacyAgreementGrantCodes = originalLegacyCodes;
     vi.resetAllMocks();
   });
 
@@ -83,10 +75,10 @@ describe("updateTestAgreementStatusUseCase", () => {
     expect(handleUpdateAgreementStatusCommandUseCase).not.toHaveBeenCalled();
   });
 
-  it("rejects an Agreement whose grant code GAS does not manage", async () => {
+  it("rejects an Agreement whose grant code is explicitly legacy", async () => {
     loadCurrentAgreementByNumber.mockResolvedValue({
       ...agreement,
-      code: "not-managed",
+      code: "woodland",
     });
 
     await expect(

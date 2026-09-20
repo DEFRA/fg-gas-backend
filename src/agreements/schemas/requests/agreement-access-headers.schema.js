@@ -5,7 +5,6 @@ import { sbi } from "../agreement/sbi.js";
 
 export const agreementAccessHeadersSchema = Joi.object({
   "x-agreement-source": Joi.string().valid("defra", "entra").required(),
-  "x-agreement-code": code.required(),
   "x-agreement-sbi": sbi.required(),
 })
   .unknown(true)

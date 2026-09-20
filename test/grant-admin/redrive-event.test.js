@@ -2,7 +2,6 @@ import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { redriveEventResponseSchema } from "../../src/grant-admin/schemas/event-detail-response.schema.js";
 import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -12,8 +11,7 @@ let outbox;
 
 const UNKNOWN_ID = "665f1c2e9a1b2c3d4e5f6aaa";
 
-// .env sets INBOX_MAX_RETRIES / OUTBOX_MAX_RETRIES to 5 and the container
-// reads .env, not test/vitest.config.js.
+// The container reads .env (retries = 5), not test/vitest.config.js.
 const GAS_MAX_ATTEMPTS = 5;
 const POLL_MS = 50;
 const WAIT_MS = 8000;
@@ -32,8 +30,14 @@ beforeEach(async () => {
   await resetCwStub();
 });
 
-// exactly what the dead-letter sweep leaves behind: attempts at the cap, no
-// claim, and a lastError saying why it died
+const pastAttempts = () =>
+  Array.from({ length: GAS_MAX_ATTEMPTS }, (_, n) => ({
+    at: `2026-06-16T10:0${n}:00.000Z`,
+    name: "Error",
+    message: "PRE-REDRIVE-FAILURE",
+    stack: null,
+  }));
+
 const aDeadInboxDoc = (overrides = {}) => ({
   _id: new ObjectId(),
   messageId: `msg-redrive-${new ObjectId().toHexString()}`,
@@ -51,12 +55,17 @@ const aDeadInboxDoc = (overrides = {}) => ({
     message: "boom",
     at: "2026-06-16T10:05:00.000Z",
   },
+  attemptHistory: pastAttempts(),
   claimedBy: null,
   claimedAt: null,
   claimExpiresAt: null,
   event: { id: "evt-redrive-1", time: "2026-06-16T10:00:00.000Z", data: {} },
   ...overrides,
 });
+
+// Below the cap, or the dead-letter sweep can re-kill it mid-test.
+const aCompletedInboxDoc = () =>
+  aDeadInboxDoc({ status: "COMPLETED", completionAttempts: 1 });
 
 const aDeadOutboxDoc = (overrides = {}) => ({
   _id: new ObjectId(),
@@ -69,6 +78,7 @@ const aDeadOutboxDoc = (overrides = {}) => ({
   lastResubmissionDate: "2026-06-16T10:05:00.000Z",
   completionDate: null,
   lastError: null,
+  attemptHistory: pastAttempts(),
   claimedBy: null,
   claimedAt: null,
   claimExpiresAt: null,
@@ -81,20 +91,6 @@ const aDeadOutboxDoc = (overrides = {}) => ({
   ...overrides,
 });
 
-// A redrive answers with a Caseworking LIST row.
-const aCwRow = () => ({
-  eventId: "cw-msg-1",
-  type: "cloud.defra.local.fg-gas-backend.case.create.new",
-  source: "GAS",
-  status: "RESUBMITTED",
-  completionAttempts: 0,
-  maxAttempts: 7,
-  createdAt: "2026-06-16T09:00:00.000Z",
-  lastFailureAt: "2026-06-16T09:05:00.000Z",
-  lastError: null,
-  completedAt: null,
-});
-
 const redrive = (service, box, id) =>
   wreck.post(`/grant-admin/events/${service}/${box}/${id}/redrive`);
 
@@ -104,8 +100,6 @@ const bodyOf = (error) => {
   return Buffer.isBuffer(payload) ? JSON.parse(payload.toString()) : payload;
 };
 
-// Polls the collection until `done` is happy, so the assertion is about what
-// the running poller did rather than about a fixed sleep.
 const waitFor = async (collection, id, done) => {
   const seen = [];
   const deadline = Date.now() + WAIT_MS;
@@ -147,51 +141,59 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       );
     });
 
-    it("answers with the updated list-shaped row under `event`", async () => {
+    it("answers 204 with no body", async () => {
       const doc = aDeadInboxDoc();
       await inbox.insertOne(doc);
 
-      const { payload } = await redrive("gas", "inbox", doc._id.toHexString());
+      const { res, payload } = await redrive(
+        "gas",
+        "inbox",
+        doc._id.toHexString(),
+      );
 
-      expect(payload.event).toMatchObject({
-        service: "gas",
-        box: "inbox",
-        id: doc._id.toHexString(),
-        hop: "GAS Inbox",
-        status: "RESUBMITTED",
-        statusLabel: "Resubmitted",
-        statusRole: "warning",
-        statusRetrying: true,
-        attempts: `0/${GAS_MAX_ATTEMPTS}`,
-      });
-      // the row is list-shaped: no payload, no claim token
-      expect(payload.event).not.toHaveProperty("payload");
-      expect(payload.event).not.toHaveProperty("claimedBy");
-      // ...and minus the one column only the list draws
-      expect(payload.event).not.toHaveProperty("latency");
+      expect(res.statusCode).toBe(204);
+      expect(payload.length ?? 0).toBe(0);
     });
 
     it("keeps lastError - the record of why it died", async () => {
       const doc = aDeadInboxDoc();
       await inbox.insertOne(doc);
 
-      const { payload } = await redrive("gas", "inbox", doc._id.toHexString());
+      await redrive("gas", "inbox", doc._id.toHexString());
 
-      expect(payload.event.lastError.name).toBe("TypeError");
-      expect(payload.event.lastFailureAt).toBe("2026-06-16T10:05:00.000Z");
+      const stored = await inbox.findOne({ _id: doc._id });
+
+      expect(stored.lastRedrive).toEqual({ at: expect.any(String), by: null });
+      // The poller may already have retried the row, which replaces the error.
+      expect(stored.lastError).not.toBeNull();
     });
 
-    // THE test for the attempts-reset decision: proving the row is actually
-    // retried rather than dead-lettered again on the very next poll tick.
-    // A GAS outbox row publishes to a real topic, so a successful redrive
-    // ends at COMPLETED - which is only reachable if the poller claimed it.
+    it.each([
+      ["inbox", () => inbox, aDeadInboxDoc],
+      ["outbox", () => outbox, aDeadOutboxDoc],
+    ])(
+      "clears the %s row's attempt history as it resets the count",
+      async (box, collectionOf, aDoc) => {
+        const doc = aDoc({ status: "DEAD_LETTER" });
+        await collectionOf().insertOne(doc);
+
+        await redrive("gas", box, doc._id.toHexString());
+
+        // The poller may already have run the row again.
+        const stored = await collectionOf().findOne({ _id: doc._id });
+
+        expect(JSON.stringify(stored.attemptHistory)).not.toContain(
+          "PRE-REDRIVE-FAILURE",
+        );
+        expect(stored.attemptHistory.length).toBe(stored.completionAttempts);
+      },
+    );
+
     it("is picked up by the outbox poller and leaves RESUBMITTED", async () => {
       const doc = aDeadOutboxDoc();
       await outbox.insertOne(doc);
 
-      const { payload } = await redrive("gas", "outbox", doc._id.toHexString());
-
-      expect(payload.event.status).toBe("RESUBMITTED");
+      await redrive("gas", "outbox", doc._id.toHexString());
 
       const { doc: settled, seen } = await waitFor(
         outbox,
@@ -200,8 +202,6 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       );
 
       expect(settled.status).toBe("COMPLETED");
-      // Zero attempts MADE: the row succeeded first time after the redrive -
-      // see ATTEMPT ARITHMETIC in the models.
       expect(settled.completionAttempts).toBe(0);
       expect(settled.attemptHistory ?? []).toHaveLength(0);
       expect(seen).not.toContain("DEAD_LETTER");
@@ -213,9 +213,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
 
       await redrive("gas", "inbox", doc._id.toHexString());
 
-      // this payload has no status for the handler to apply, so it fails and
-      // cycles - what matters is that it was CLAIMED at all, which a row still
-      // sitting at MAX_RETRIES attempts never would be
+      // This payload fails in the handler; what matters is that it was claimed at all.
       const { doc: settled } = await waitFor(
         inbox,
         doc._id,
@@ -228,7 +226,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
     }, 20000);
 
     it("409s with the current status when the row is not DEAD_LETTER", async () => {
-      const doc = aDeadInboxDoc({ status: "COMPLETED" });
+      const doc = aCompletedInboxDoc();
       await inbox.insertOne(doc);
 
       const error = await redrive("gas", "inbox", doc._id.toHexString()).catch(
@@ -237,13 +235,11 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
 
       expect(error.output.statusCode).toBe(409);
       expect(bodyOf(error).status).toBe("COMPLETED");
-      // ...and the words to render it in, so the caller says "this row is
-      // Completed now" without holding its own table of status spellings
       expect(bodyOf(error).statusLabel).toBe("Completed");
     });
 
     it("leaves a non-DEAD_LETTER row untouched", async () => {
-      const doc = aDeadInboxDoc({ status: "COMPLETED" });
+      const doc = aCompletedInboxDoc();
       await inbox.insertOne(doc);
 
       await redrive("gas", "inbox", doc._id.toHexString()).catch(() => {});
@@ -251,7 +247,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       const stored = await inbox.findOne({ _id: doc._id });
 
       expect(stored.status).toBe("COMPLETED");
-      expect(stored.completionAttempts).toBe(GAS_MAX_ATTEMPTS);
+      expect(stored.completionAttempts).toBe(1);
     });
 
     it("writes an audit outbox event recording who redrove what", async () => {
@@ -260,8 +256,10 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
 
       await redrive("gas", "inbox", doc._id.toHexString());
 
+      // Scoped to this row: nothing clears the outbox between tests.
       const audit = await outbox.findOne({
         "event.audit.entities.action": "REDRIVE_EVENT",
+        "event.audit.entities.entityid": doc._id.toHexString(),
       });
 
       expect(audit).not.toBeNull();
@@ -276,22 +274,24 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       });
       expect(audit.event.audit.status).toBe("SUCCESS");
 
-      // Both halves of one transaction, against real Mongo: the row moved AND
-      // the audit event landed. A commit that dropped either would fail here.
       const stored = await inbox.findOne({ _id: doc._id });
 
-      expect(stored.status).toBe("RESUBMITTED");
+      // Not RESUBMITTED: the running poller sweeps that to PUBLISHED every 250ms, and the
+      // outbox assertions above give it time to. The redrive itself is what matters here,
+      // and the exact status is covered in inbox.repository.test.js.
+      expect(stored.status).not.toBe("DEAD_LETTER");
       expect(stored.lastRedrive).not.toBeNull();
     });
 
     it("audits a refused redrive as a FAILURE", async () => {
-      const doc = aDeadInboxDoc({ status: "COMPLETED" });
+      const doc = aCompletedInboxDoc();
       await inbox.insertOne(doc);
 
       await redrive("gas", "inbox", doc._id.toHexString()).catch(() => {});
 
       const audit = await outbox.findOne({
         "event.audit.entities.action": "REDRIVE_EVENT",
+        "event.audit.entities.entityid": doc._id.toHexString(),
       });
 
       expect(audit.event.audit.status).toBe("FAILURE");
@@ -300,37 +300,25 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
 
   describe("caseworking", () => {
     it("calls the caseworking actuator redrive endpoint", async () => {
-      await setCwStub({ outbox: { redrive: aCwRow() } });
+      await setCwStub({ outbox: { redrive: true } });
 
       await redrive("caseworking", "outbox", UNKNOWN_ID);
 
       const [request] = await cwStubRequests();
 
-      expect(request.path).toBe(`/actuators/events/outbox/${UNKNOWN_ID}/redrive`);
+      expect(request.path).toBe(
+        `/actuators/events/outbox/${UNKNOWN_ID}/redrive`,
+      );
       expect(request.method).toBe("POST");
       expect(request.authorization).toBe("Bearer cw-stub-token");
     });
 
-    it("normalises the caseworking row into the same list shape", async () => {
-      await setCwStub({ inbox: { redrive: aCwRow() } });
+    it("answers 204 once Caseworking has redriven the row", async () => {
+      await setCwStub({ inbox: { redrive: true } });
 
-      const { payload } = await redrive("caseworking", "inbox", UNKNOWN_ID);
+      const { res } = await redrive("caseworking", "inbox", UNKNOWN_ID);
 
-      expect(payload.event).toMatchObject({
-        service: "caseworking",
-        box: "inbox",
-        id: UNKNOWN_ID,
-        eventId: "cw-msg-1",
-        hop: "CW Inbox",
-        queue: "from GAS",
-        status: "RESUBMITTED",
-        statusLabel: "Resubmitted",
-        // caseworking's own cap, not GAS's
-        attempts: "0/7",
-      });
-      expect(
-        redriveEventResponseSchema.validate(payload).error,
-      ).toBeUndefined();
+      expect(res.statusCode).toBe(204);
     });
 
     it("passes a caseworking 404 through as a 404", async () => {
@@ -348,10 +336,23 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
 
       expect(error.output.statusCode).toBe(409);
       expect(bodyOf(error).status).toBe("PUBLISHED");
-      // Caseworking states what its row is; how this platform says it is this
-      // service's to answer, and it answers the same way for both services.
-      expect(bodyOf(error).statusLabel).toBe("Published");
+      expect(bodyOf(error).statusLabel).toBe("Queued");
     });
+
+    // Caseworking may still commit after GAS gives up, so this is not a refusal.
+    it(
+      "504s when caseworking does not answer in time",
+      { timeout: 15000 },
+      async () => {
+        await setCwStub({ inbox: { mode: "timeout" } });
+
+        const error = await redrive("caseworking", "inbox", UNKNOWN_ID).catch(
+          (e) => e,
+        );
+
+        expect(error.output.statusCode).toBe(504);
+      },
+    );
 
     it("502s when caseworking is unavailable", async () => {
       await setCwStub({ inbox: { mode: "down" } });
@@ -364,17 +365,15 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
 });
 
 describe("attempt history after a real redrive", () => {
-  it("grows a fresh entry when the redriven row fails again", async () => {
+  it("holds only post-redrive attempts when the redriven row fails again", async () => {
     const doc = aDeadInboxDoc();
     await inbox.insertOne(doc);
 
     const before = await inbox.findOne({ _id: doc._id });
-    expect(before.attemptHistory ?? []).toEqual([]);
+    expect(before.attemptHistory).toHaveLength(GAS_MAX_ATTEMPTS);
 
     await redrive("gas", "inbox", doc._id.toHexString());
 
-    // the poller picks the row up again; this payload has no status for the
-    // handler to apply, so it fails for real and markAsFailed records it
     const { doc: settled } = await waitFor(
       inbox,
       doc._id,
@@ -386,12 +385,14 @@ describe("attempt history after a real redrive", () => {
       at: expect.any(String),
       name: expect.any(String),
       message: expect.any(String),
-      // A real failure, so it carries the frames the page reveals.
       stack: expect.any(String),
     });
-    expect(settled.attemptHistory.length).toBeLessThanOrEqual(10);
+    expect(settled.attemptHistory.length).toBeLessThanOrEqual(GAS_MAX_ATTEMPTS);
+    expect(JSON.stringify(settled.attemptHistory)).not.toContain(
+      "PRE-REDRIVE-FAILURE",
+    );
+    expect(settled.attemptHistory).toHaveLength(settled.completionAttempts);
 
-    // and the detail endpoint hands the same history to the frontend
     const { payload } = await wreck.get(
       `/grant-admin/events/gas/inbox/${doc._id.toHexString()}`,
     );

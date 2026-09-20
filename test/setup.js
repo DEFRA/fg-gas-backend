@@ -87,8 +87,7 @@ export const setup = async ({ globalConfig }) => {
         INBOX_POLL_MS: env.INBOX_POLL_MS,
         GRANT_FUNDING_CALCULATOR_URL: fundingCalculatorUrl,
         VIEW_AGREEMENT_URI: env.VIEW_AGREEMENT_URI,
-        GAS_MANAGED_AGREEMENT_GRANT_CODES:
-          env.GAS_MANAGED_AGREEMENT_GRANT_CODES,
+        LEGACY_AGREEMENT_GRANT_CODES: env.LEGACY_AGREEMENT_GRANT_CODES,
         // FGP-1307: keep the containerised GAS in warn-only mode so the
         // header-driven authz scenarios in these tests are not rejected with a
         // 401 by caller-token enforcement (which is covered by the auth unit

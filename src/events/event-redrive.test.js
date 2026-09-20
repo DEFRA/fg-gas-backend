@@ -24,12 +24,7 @@ vi.mock("../common/mongo-client.js");
 const ID = "665f1c2e9a1b2c3d4e5f6a7b";
 const SEGREGATION_REF = "GLD-9B2";
 
-// ---------------------------------------------------------------------------
-// A minimum viable Mongo, so the poller's REAL filters and updates - captured
-// from the repositories below rather than restated here - can be run against a
-// redriven document. If anyone changes the claim filter or the dead-letter
-// sweep, this test fails rather than the redrive silently going nowhere.
-// ---------------------------------------------------------------------------
+// A minimal Mongo, so the repositories' real poller updates run against the row.
 const OPERATORS = {
   $eq: (value, operand) => value === operand,
   $ne: (value, operand) => value !== operand,
@@ -52,8 +47,7 @@ const matchesCondition = (value, condition) =>
       )
     : value === condition;
 
-// `_id` is dropped: it is an ObjectId instance and identity-compares, and the
-// document is already the one the filter selected by id.
+// `_id` is an ObjectId and identity-compares; the filter already selected by id.
 const matchesFilter = (doc, filter) => {
   const { _id, ...rest } = filter;
 
@@ -75,8 +69,8 @@ const applyInc = (doc, increments) => {
 const applyUpdate = (doc, update) =>
   applyInc({ ...doc, ...(update.$set ?? {}) }, update.$inc);
 
-const capture = async (method, run) => {
-  const spy = vi.fn().mockResolvedValue(null);
+const capture = async (method, run, answer = null) => {
+  const spy = vi.fn().mockResolvedValue(answer);
   db.collection.mockReturnValue({ [method]: spy });
 
   await run();
@@ -84,8 +78,6 @@ const capture = async (method, run) => {
   return spy.mock.calls.at(-1);
 };
 
-// The minimum a model needs to be constructible; everything the arithmetic
-// cares about comes off the document under test.
 const INBOX_PROPS = {
   source: "GAS",
   event: { time: "2026-06-16T10:00:00.000Z" },
@@ -98,9 +90,6 @@ const OUTBOX_PROPS = {
   segregationRef: SEGREGATION_REF,
 };
 
-// One real processing failure: the handler threw, and the MODEL records it.
-// This is the operation that both pushes the attempt-history entry and raises
-// the counter, which is the whole point - they cannot drift.
 const failWithModel = (Model, doc, props) => {
   const model = Model.fromDocument({
     ...props,
@@ -123,6 +112,14 @@ const failWithModel = (Model, doc, props) => {
   };
 };
 
+const pastAttempts = (count, message = "before the redrive") =>
+  Array.from({ length: count }, (_, n) => ({
+    at: `2026-06-16T10:0${n}:00.000Z`,
+    name: "Error",
+    message,
+    stack: null,
+  }));
+
 const BOXES = [
   {
     name: "inbox",
@@ -132,8 +129,6 @@ const BOXES = [
     resubmitted: resubmittedInbox,
     failed: failedInbox,
     dead: deadInbox,
-    // The REAL model, so the attempt counter is incremented by the code that
-    // actually increments it rather than by a restatement of it here.
     fail: (doc) => failWithModel(Inbox, doc, INBOX_PROPS),
   },
   {
@@ -149,7 +144,6 @@ const BOXES = [
 ];
 
 describe.each(BOXES)("redrive invariants ($name)", (box) => {
-  // exactly what the dead-letter sweep leaves behind: attempts at the cap
   const aDeadLetter = () => ({
     status: "DEAD_LETTER",
     completionAttempts: box.maxRetries,
@@ -169,10 +163,9 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
   let failedUpdate;
 
   beforeEach(async () => {
-    [redriveFilter, redriveDoc] = await capture(
-      "findOneAndUpdate",
-      box.redrive,
-    );
+    [redriveFilter, redriveDoc] = await capture("updateOne", box.redrive, {
+      matchedCount: 0,
+    });
     [claimFilter] = await capture("findOneAndUpdate", box.claim);
     [resubmittedFilter, resubmittedUpdate] = await capture(
       "updateMany",
@@ -197,10 +190,17 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     expect(redriven.completionAttempts).toBe(0);
   });
 
-  // The display layer names an unattributed redrive `System`; storage must
-  // not. The absence of an operator is the fact the row records, and a
-  // document saying `by: "System"` would be indistinguishable from one
-  // redriven by a person of that name.
+  it("clears the attempt history along with the count", () => {
+    const redriven = applyUpdate(
+      { ...aDeadLetter(), attemptHistory: pastAttempts(box.maxRetries) },
+      redriveDoc,
+    );
+
+    expect(redriven.completionAttempts).toBe(0);
+    expect(redriven.attemptHistory).toEqual([]);
+  });
+
+  // Storage keeps a null actor; only the display layer names it `System`.
   it("records no actor where none was given, and never a display name", () => {
     expect(redriveDoc.$set.lastRedrive.by).toBeNull();
     expect(JSON.stringify(redriveDoc)).not.toContain("System");
@@ -229,8 +229,7 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     expect(redriven.lastResubmissionDate).toBe("2026-06-16T10:00:00.000Z");
   });
 
-  // THE test: a full poll tick over the redriven row, in the order the
-  // subscriber actually runs the sweeps (resubmitted, then failed, then dead).
+  // Sweeps run in the subscriber's order: resubmitted, failed, dead.
   it("survives the next poll tick and is claimable", () => {
     const redriven = applyUpdate(aDeadLetter(), redriveDoc);
 
@@ -239,15 +238,12 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     const published = applyUpdate(redriven, resubmittedUpdate);
 
     expect(published.status).toBe("PUBLISHED");
-    // exactly the value the models give a freshly inserted event: no attempts
-    // MADE yet
     expect(published.completionAttempts).toBe(0);
     expect(matchesFilter(published, deadFilter)).toBe(false);
     expect(matchesFilter(published, claimFilter)).toBe(true);
   });
 
   it("would be unclaimable if the redrive left completionAttempts alone", () => {
-    // the same tick, but with the attempts reset removed from the update
     const withoutReset = {
       $set: { ...redriveDoc.$set, completionAttempts: box.maxRetries },
     };
@@ -257,43 +253,59 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     );
 
     expect(published.completionAttempts).toBe(box.maxRetries);
-    // re-dead-lettered in the same tick, and over the claim cap either way
     expect(matchesFilter(published, deadFilter)).toBe(true);
     expect(matchesFilter(published, claimFilter)).toBe(false);
   });
 
-  it("gives a redriven row the same number of fresh attempts as a new one, and the counter and the history agree", () => {
-    // A redriven row, walked through whole poll ticks in the order the
-    // subscriber runs them: claim and process, then the resubmitted, failed
-    // and dead-letter sweeps. Every transition is the repository's REAL update
-    // and every failure is the model's REAL markAsFailed.
+  // Redrives a dead letter with this history, then fails it on every poll tick until it dies.
+  const redriveAndRunUntilDead = (attemptHistory) => {
     let doc = applyUpdate(
-      applyUpdate(aDeadLetter(), redriveDoc),
+      applyUpdate({ ...aDeadLetter(), attemptHistory }, redriveDoc),
       resubmittedUpdate,
     );
     let attempts = 0;
 
     while (matchesFilter(doc, claimFilter) && attempts < 100) {
       attempts += 1;
-
       doc = box.fail(doc);
-
       expect(matchesFilter(doc, failedFilter)).toBe(true);
-      doc = applyUpdate(doc, failedUpdate);
-      doc = applyUpdate(doc, resubmittedUpdate);
+      doc = applyUpdate(applyUpdate(doc, failedUpdate), resubmittedUpdate);
 
       if (matchesFilter(doc, deadFilter)) {
         doc = { ...doc, status: "DEAD_LETTER" };
       }
     }
 
+    return { doc, attempts };
+  };
+
+  it("gives a redriven row the same number of fresh attempts as a new one, and the counter and the history agree", () => {
+    const { doc, attempts } = redriveAndRunUntilDead(
+      pastAttempts(box.maxRetries),
+    );
+
     expect(attempts).toBe(box.maxRetries);
-    // THE reconciliation: the row is dead-lettered only after its last attempt
-    // has actually RUN, so the counter and the attempt history agree - the
-    // guard against the "5/5 with four history entries" regression.
+    // Guards the "5/5 with four history entries" regression.
     expect(doc.status).toBe("DEAD_LETTER");
     expect(doc.completionAttempts).toBe(box.maxRetries);
     expect(doc.attemptHistory).toHaveLength(box.maxRetries);
+    expect(doc.attemptHistory.every((entry) => entry.message === "boom")).toBe(
+      true,
+    );
+  });
+
+  // The admin's futile-redrive warning compares the last two history entries.
+  it("leaves a redriven row that died the same way again with two identical post-redrive attempts", () => {
+    const { doc } = redriveAndRunUntilDead(
+      pastAttempts(box.maxRetries, "an earlier cause"),
+    );
+    const [previous, last] = doc.attemptHistory.slice(-2);
+
+    expect(doc.status).toBe("DEAD_LETTER");
+    expect(previous.message).toBe(last.message);
+    expect(JSON.stringify(doc.attemptHistory)).not.toContain(
+      "an earlier cause",
+    );
   });
 });
 
@@ -310,9 +322,6 @@ describe("redriveConflict", () => {
     ).toBe("COMPLETED");
   });
 
-  // The words to render it in are passed in rather than looked up here: the
-  // display vocabulary belongs to the admin surface that draws it, and this
-  // module is shared with the pollers, which draw nothing.
   it("puts the words that status is spelled in beside it", () => {
     expect(
       redriveConflict("gas inbox", ID, "DEAD_LETTER", "Dead letter").output

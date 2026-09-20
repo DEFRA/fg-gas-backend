@@ -2,10 +2,7 @@ import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { breakdown as breakdownGasInbox } from "../../grants/repositories/inbox.repository.js";
 import { breakdown as breakdownGasOutbox } from "../../grants/repositories/outbox.repository.js";
-import {
-  findCwPage,
-  isCwConfigured,
-} from "../repositories/cw-actuators.repository.js";
+import { isCwConfigured } from "../repositories/cw-actuators.repository.js";
 
 vi.mock("../../common/logger.js");
 vi.mock("../../grants/repositories/inbox.repository.js", () => ({
@@ -27,7 +24,6 @@ vi.mock(
   "../repositories/cw-actuators.repository.js",
   async (importOriginal) => ({
     ...(await importOriginal()),
-    findCwPage: vi.fn(),
     isCwConfigured: vi.fn(),
   }),
 );
@@ -44,17 +40,8 @@ const aGroup = (overrides = {}) => ({
   ...overrides,
 });
 
-// This use case reads the `groups` section of each box.
 const cwBox = (groups) => ({
-  list: {
-    data: [],
-    pagination: {
-      startCursor: null,
-      endCursor: null,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    },
-  },
+  list: { data: [], pagination: { endCursor: null, hasNextPage: false } },
   facets: {
     counts: {
       PUBLISHED: 0,
@@ -68,79 +55,56 @@ const cwBox = (groups) => ({
   groups,
 });
 
-const cwPage = ({ inbox = [], outbox = [] } = {}) => ({
-  inbox: cwBox(inbox),
-  outbox: cwBox(outbox),
-});
+const cwPage = ({ inbox = [], outbox = [] } = {}) =>
+  Promise.resolve({ inbox: cwBox(inbox), outbox: cwBox(outbox) });
 
-const cwCall = () => findCwPage.mock.calls[0][0];
+// Handled up front, as the page does, so a rejection the test expects is not unhandled.
+const cwFailure = (error) => {
+  const page = Promise.reject(error);
+  page.catch(() => {});
+  return page;
+};
+
+const breakdown = (params = {}) =>
+  breakdownEventsUseCase({ caseworking: cwPage(), ...params });
 
 beforeEach(() => {
   vi.clearAllMocks();
   isCwConfigured.mockReturnValue(true);
   breakdownGasInbox.mockResolvedValue([]);
   breakdownGasOutbox.mockResolvedValue([]);
-  findCwPage.mockResolvedValue(cwPage());
 });
 
 describe("breakdownEventsUseCase", () => {
-  it("fans out over all four sources with exactly the counts filter", async () => {
+  // DEAD_LETTER is pinned per source, and the breakdown already answers `error`.
+  it("gives each GAS box q, from, to and audit, and never a status or error", async () => {
     const filter = {
       q: "GLD-9B2",
       from: "2026-06-16T00:00:00.000Z",
       to: "2026-06-16T23:59:59.999Z",
+      audit: "include",
     };
 
-    await breakdownEventsUseCase(filter);
+    await breakdown({ ...filter, status: "FAILED", error: "boom" });
 
     for (const source of [breakdownGasInbox, breakdownGasOutbox]) {
-      expect(source).toHaveBeenCalledWith(expect.objectContaining(filter));
+      expect(source).toHaveBeenCalledWith(filter);
     }
-    expect(cwCall()).toEqual(expect.objectContaining(filter));
   });
 
-  it("reads Caseworking once for both of its boxes", async () => {
-    await breakdownEventsUseCase({});
-
-    expect(findCwPage).toHaveBeenCalledTimes(1);
-    expect(cwCall()).toEqual({
-      q: undefined,
-      from: undefined,
-      to: undefined,
-      audit: undefined,
-      pageSize: 1,
-      direction: "forward",
+  it("reads the groups from the shared Caseworking page", async () => {
+    const { groups } = await breakdown({
+      caseworking: cwPage({ outbox: [aGroup({ count: 4 })] }),
     });
-  });
 
-  it("never passes a status - the DEAD_LETTER scope is pinned per source", async () => {
-    await breakdownEventsUseCase({});
-
-    expect(breakdownGasInbox.mock.calls[0][0]).not.toHaveProperty("status");
-    expect(cwCall()).not.toHaveProperty("status");
-  });
-
-  // The breakdown IS the list of failures, so narrowing it to one message
-  // answers its own question with one group.
-  it("never asks Caseworking to narrow the breakdown to one error message", async () => {
-    await breakdownEventsUseCase({ error: "boom" });
-
-    expect(cwCall()).not.toHaveProperty("error");
-  });
-
-  it("reads the Caseworking page the caller shared rather than starting its own", async () => {
-    const shared = Promise.resolve(cwPage({ outbox: [aGroup({ count: 4 })] }));
-
-    const { groups } = await breakdownEventsUseCase({ caseworking: shared });
-
-    expect(findCwPage).not.toHaveBeenCalled();
     expect(groups[0].count).toBe(4);
   });
 
   it("merges the same failure across sources into one group, shortened for display", async () => {
     breakdownGasInbox.mockResolvedValue([aGroup({ count: 3 })]);
-    findCwPage.mockResolvedValue(
-      cwPage({
+
+    const { groups } = await breakdown({
+      caseworking: cwPage({
         outbox: [
           aGroup({
             type: "cloud.defra.local.fg-cw-backend.case.create",
@@ -148,9 +112,7 @@ describe("breakdownEventsUseCase", () => {
           }),
         ],
       }),
-    );
-
-    const { groups } = await breakdownEventsUseCase({});
+    });
 
     expect(groups).toEqual([
       {
@@ -170,7 +132,7 @@ describe("breakdownEventsUseCase", () => {
       ),
     );
 
-    const { groups } = await breakdownEventsUseCase({});
+    const { groups } = await breakdown();
 
     expect(groups).toHaveLength(20);
     expect(groups[0].count).toBe(30);
@@ -179,86 +141,78 @@ describe("breakdownEventsUseCase", () => {
   it("keeps a null-error group - a row can die before any error is recorded", async () => {
     breakdownGasInbox.mockResolvedValue([aGroup({ error: null })]);
 
-    const { groups } = await breakdownEventsUseCase({});
+    const { groups } = await breakdown();
 
     expect(groups[0].error).toBeNull();
   });
 
-  it("reads only GAS with service=gas, and never calls Caseworking", async () => {
-    await breakdownEventsUseCase({ service: "gas" });
+  it("reads only GAS with service=gas", async () => {
+    breakdownGasInbox.mockResolvedValue([aGroup({ count: 2 })]);
 
-    expect(breakdownGasInbox).toHaveBeenCalled();
-    expect(findCwPage).not.toHaveBeenCalled();
+    const answer = await breakdown({
+      service: "gas",
+      caseworking: cwPage({ outbox: [aGroup({ count: 4 })] }),
+    });
+
+    expect(answer.groups[0].count).toBe(2);
+    expect(answer.sourceErrors).toEqual([]);
   });
 
   it("reads only Caseworking with service=caseworking", async () => {
-    await breakdownEventsUseCase({ service: "caseworking" });
+    await breakdown({ service: "caseworking" });
 
     expect(breakdownGasInbox).not.toHaveBeenCalled();
-    expect(findCwPage).toHaveBeenCalled();
+    expect(breakdownGasOutbox).not.toHaveBeenCalled();
   });
 
   it("degrades rather than fails when Caseworking is down", async () => {
     breakdownGasInbox.mockResolvedValue([aGroup({ count: 2 })]);
-    findCwPage.mockRejectedValue(Boom.badGateway("nope"));
 
-    const { groups, sourceErrors } = await breakdownEventsUseCase({});
+    const answer = await breakdown({
+      caseworking: cwFailure(Boom.badGateway("nope")),
+    });
 
-    expect(groups[0].count).toBe(2);
-    expect(sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 502",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 502",
-      },
+    expect(answer.groups[0].count).toBe(2);
+    expect(answer.sourceErrors.map((e) => e.key)).toEqual([
+      "cwInbox",
+      "cwOutbox",
     ]);
   });
 
-  // A missing box is a gap, never an empty group list - that would claim
-  // nothing is stuck there.
   it("reports only the box whose groups Caseworking could not read", async () => {
     breakdownGasInbox.mockResolvedValue([aGroup({ count: 2 })]);
-    findCwPage.mockResolvedValue(cwPage({ inbox: null }));
 
-    const { groups, sourceErrors } = await breakdownEventsUseCase({});
+    const answer = await breakdown({ caseworking: cwPage({ inbox: null }) });
 
-    expect(groups[0].count).toBe(2);
-    expect(sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 502",
-      },
+    expect(answer.groups[0].count).toBe(2);
+    expect(answer.sourceErrors).toEqual([
+      { key: "cwInbox", service: "caseworking", box: "inbox" },
     ]);
   });
 
-  it("reports Caseworking as not configured rather than calling it", async () => {
+  it("reports a GAS box whose dead-letter aggregation failed", async () => {
+    breakdownGasInbox.mockRejectedValue(
+      new Error("operation exceeded time limit"),
+    );
+    breakdownGasOutbox.mockResolvedValue([aGroup({ count: 2 })]);
+
+    const answer = await breakdown({ service: "gas" });
+
+    expect(answer.groups[0].count).toBe(2);
+    expect(answer.sourceErrors).toEqual([
+      { key: "gasInbox", service: "gas", box: "inbox" },
+    ]);
+  });
+
+  it("reports Caseworking as not configured", async () => {
     isCwConfigured.mockReturnValue(false);
 
-    const { sourceErrors } = await breakdownEventsUseCase({});
+    const answer = await breakdown({ caseworking: undefined });
 
-    expect(findCwPage).not.toHaveBeenCalled();
-    expect(sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "not configured",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "not configured",
-      },
+    expect(answer.groups).toEqual([]);
+    expect(answer.sourceErrors.map((e) => e.key)).toEqual([
+      "cwInbox",
+      "cwOutbox",
     ]);
   });
 
@@ -266,15 +220,12 @@ describe("breakdownEventsUseCase", () => {
     breakdownGasInbox.mockRejectedValue(new Error("down"));
     breakdownGasOutbox.mockRejectedValue(new Error("down"));
 
-    await expect(breakdownEventsUseCase({})).rejects.toMatchObject({
+    await expect(breakdown()).rejects.toMatchObject({
       output: { statusCode: 502 },
     });
   });
 
-  it("answers with no groups and no errors for an empty selection", async () => {
-    expect(await breakdownEventsUseCase({})).toEqual({
-      groups: [],
-      sourceErrors: [],
-    });
+  it("answers with no groups and no source errors when every source is empty", async () => {
+    expect(await breakdown()).toEqual({ groups: [], sourceErrors: [] });
   });
 });

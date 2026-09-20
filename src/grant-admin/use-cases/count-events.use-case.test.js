@@ -2,10 +2,7 @@ import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { countFacets as countGasInbox } from "../../grants/repositories/inbox.repository.js";
 import { countFacets as countGasOutbox } from "../../grants/repositories/outbox.repository.js";
-import {
-  findCwPage,
-  isCwConfigured,
-} from "../repositories/cw-actuators.repository.js";
+import { isCwConfigured } from "../repositories/cw-actuators.repository.js";
 
 vi.mock("../../common/logger.js");
 vi.mock("../../grants/repositories/inbox.repository.js", () => ({
@@ -27,7 +24,6 @@ vi.mock(
   "../repositories/cw-actuators.repository.js",
   async (importOriginal) => ({
     ...(await importOriginal()),
-    findCwPage: vi.fn(),
     isCwConfigured: vi.fn(),
   }),
 );
@@ -47,17 +43,8 @@ const counts = (overrides) => ({ ...ZERO, ...overrides });
 
 const facets = (statusCounts) => ({ counts: statusCounts });
 
-// This use case reads the `facets` section of each box.
 const cwBox = (statusCounts) => ({
-  list: {
-    data: [],
-    pagination: {
-      startCursor: null,
-      endCursor: null,
-      hasNextPage: false,
-      hasPreviousPage: false,
-    },
-  },
+  list: { data: [], pagination: { endCursor: null, hasNextPage: false } },
   facets: statusCounts === null ? null : facets(statusCounts),
   groups: [],
 });
@@ -65,28 +52,35 @@ const cwBox = (statusCounts) => ({
 const cwPage = ({
   inbox = counts({ DEAD_LETTER: 3 }),
   outbox = counts({ COMPLETED: 4 }),
-} = {}) => ({ inbox: cwBox(inbox), outbox: cwBox(outbox) });
+} = {}) => Promise.resolve({ inbox: cwBox(inbox), outbox: cwBox(outbox) });
 
-const cwCall = () => findCwPage.mock.calls[0][0];
+// Handled up front, as the page does, so a rejection the test expects is not unhandled.
+const cwFailure = (error) => {
+  const page = Promise.reject(error);
+  page.catch(() => {});
+  return page;
+};
+
+const count = (params = {}) =>
+  countEventsUseCase({ caseworking: cwPage(), ...params });
 
 beforeEach(() => {
   vi.clearAllMocks();
   isCwConfigured.mockReturnValue(true);
   countGasInbox.mockResolvedValue(facets(counts({ PUBLISHED: 1 })));
   countGasOutbox.mockResolvedValue(facets(counts({ FAILED: 2 })));
-  findCwPage.mockResolvedValue(cwPage());
 });
 
 describe("countEventsUseCase", () => {
   it("sums the four sources into one set of counts", async () => {
-    expect(await countEventsUseCase({})).toEqual({
+    expect(await count()).toEqual({
       counts: counts({ PUBLISHED: 1, FAILED: 2, DEAD_LETTER: 3, COMPLETED: 4 }),
       sourceErrors: [],
     });
   });
 
   it("always answers with every status", async () => {
-    const { counts: result } = await countEventsUseCase({});
+    const { counts: result } = await count();
 
     expect(Object.keys(result)).toEqual([
       "PUBLISHED",
@@ -98,7 +92,7 @@ describe("countEventsUseCase", () => {
     ]);
   });
 
-  it("passes q, error, from and to to every source", async () => {
+  it("passes q, error, from and to to each GAS box, and never the service", async () => {
     const filter = {
       q: "GLD-9B2",
       error: "boom",
@@ -106,229 +100,97 @@ describe("countEventsUseCase", () => {
       to: "2026-06-16T23:59:59.999Z",
     };
 
-    await countEventsUseCase(filter);
+    await count({ ...filter, service: "gas" });
 
-    for (const count of [countGasInbox, countGasOutbox]) {
-      expect(count).toHaveBeenCalledWith(expect.objectContaining(filter));
+    for (const source of [countGasInbox, countGasOutbox]) {
+      expect(source).toHaveBeenCalledWith({ ...filter, audit: undefined });
     }
-    expect(cwCall()).toEqual(expect.objectContaining(filter));
-  });
-
-  it("reads Caseworking once for both of its boxes, and never narrows by status", async () => {
-    await countEventsUseCase({});
-
-    expect(findCwPage).toHaveBeenCalledTimes(1);
-    expect(cwCall()).toEqual({
-      q: undefined,
-      error: undefined,
-      from: undefined,
-      to: undefined,
-      audit: undefined,
-      pageSize: 1,
-      direction: "forward",
-    });
-    expect(cwCall()).not.toHaveProperty("status");
-  });
-
-  it("reads the Caseworking page the caller shared rather than starting its own", async () => {
-    const shared = Promise.resolve(cwPage());
-
-    const { counts: result } = await countEventsUseCase({
-      caseworking: shared,
-    });
-
-    expect(findCwPage).not.toHaveBeenCalled();
-    expect(result).toEqual(
-      counts({ PUBLISHED: 1, FAILED: 2, DEAD_LETTER: 3, COMPLETED: 4 }),
-    );
-  });
-
-  it("never passes service down to a source - it is not a per-source filter", async () => {
-    await countEventsUseCase({ service: "gas", q: "x" });
-
-    expect(countGasInbox).toHaveBeenCalledWith({
-      q: "x",
-      error: undefined,
-      from: undefined,
-      to: undefined,
-    });
-  });
-
-  it("never passes service to Caseworking either", async () => {
-    await countEventsUseCase({ service: "caseworking", q: "x" });
-
-    expect(cwCall()).not.toHaveProperty("service");
   });
 
   it("counts only GAS into counts with service=gas", async () => {
-    const { counts: result } = await countEventsUseCase({
-      service: "gas",
-    });
+    const { counts: result } = await count({ service: "gas" });
 
     expect(result).toEqual(counts({ PUBLISHED: 1, FAILED: 2 }));
   });
 
-  it("counts only Caseworking into counts with service=caseworking", async () => {
-    expect(
-      (await countEventsUseCase({ service: "caseworking" })).counts,
-    ).toEqual(counts({ DEAD_LETTER: 3, COMPLETED: 4 }));
-  });
+  it("counts only Caseworking, and reads no GAS box, with service=caseworking", async () => {
+    const { counts: result } = await count({ service: "caseworking" });
 
-  it("answers with counts and sourceErrors and nothing else", async () => {
-    const result = await countEventsUseCase({});
-
-    expect(result).not.toHaveProperty("total");
-    expect(result).not.toHaveProperty("byService");
-    expect(result).not.toHaveProperty("byKind");
-    expect(Object.keys(result).sort()).toEqual(["counts", "sourceErrors"]);
-  });
-
-  it("never reads Caseworking under service=gas", async () => {
-    await countEventsUseCase({ service: "gas" });
-
-    expect(countGasInbox).toHaveBeenCalled();
-    expect(countGasOutbox).toHaveBeenCalled();
-    expect(findCwPage).not.toHaveBeenCalled();
-  });
-
-  it("never reads GAS under service=caseworking", async () => {
-    await countEventsUseCase({ service: "caseworking" });
-
-    expect(findCwPage).toHaveBeenCalled();
+    expect(result).toEqual(counts({ DEAD_LETTER: 3, COMPLETED: 4 }));
     expect(countGasInbox).not.toHaveBeenCalled();
     expect(countGasOutbox).not.toHaveBeenCalled();
   });
 
-  it("contributes zeros for a Caseworking box whose counts arrived missing", async () => {
-    findCwPage.mockResolvedValue(cwPage({ inbox: null }));
+  it("answers with counts and sourceErrors", async () => {
+    expect(Object.keys(await count()).sort()).toEqual([
+      "counts",
+      "sourceErrors",
+    ]);
+  });
 
-    const result = await countEventsUseCase({});
+  it("contributes zeros for a Caseworking box whose counts arrived missing", async () => {
+    const result = await count({ caseworking: cwPage({ inbox: null }) });
 
     expect(result.counts).toEqual(
       counts({ PUBLISHED: 1, FAILED: 2, COMPLETED: 4 }),
     );
     expect(result.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 502",
-      },
+      { key: "cwInbox", service: "caseworking", box: "inbox" },
     ]);
   });
 
-  it("contributes zeros for both Caseworking boxes when the read times out", async () => {
-    findCwPage.mockRejectedValue(Boom.gatewayTimeout("slow"));
+  it.each([
+    ["times out", Boom.gatewayTimeout("slow")],
+    ["is down", Boom.badGateway("down")],
+  ])(
+    "reports both Caseworking boxes when Caseworking %s",
+    async (_name, error) => {
+      const result = await count({ caseworking: cwFailure(error) });
 
-    const result = await countEventsUseCase({});
+      expect(result.counts).toEqual(counts({ PUBLISHED: 1, FAILED: 2 }));
+      expect(result.sourceErrors).toEqual([
+        { key: "cwInbox", service: "caseworking", box: "inbox" },
+        { key: "cwOutbox", service: "caseworking", box: "outbox" },
+      ]);
+    },
+  );
 
-    expect(result.counts).toEqual(counts({ PUBLISHED: 1, FAILED: 2 }));
-    expect(result.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "timeout",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "timeout",
-      },
-    ]);
-  });
-
-  it("reports both Caseworking boxes when Caseworking is down", async () => {
-    findCwPage.mockRejectedValue(Boom.badGateway("down"));
-
-    const result = await countEventsUseCase({});
-
-    expect(result.counts).toEqual(counts({ PUBLISHED: 1, FAILED: 2 }));
-    expect(result.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 502",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 502",
-      },
-    ]);
-  });
-
-  it("reports Caseworking as not configured rather than calling it", async () => {
+  it("reports Caseworking as not configured with no service filter", async () => {
     isCwConfigured.mockReturnValue(false);
 
-    const result = await countEventsUseCase({});
+    const result = await count({ caseworking: undefined });
 
     expect(result.counts).toEqual(counts({ PUBLISHED: 1, FAILED: 2 }));
-    expect(findCwPage).not.toHaveBeenCalled();
     expect(result.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "not configured",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "not configured",
-      },
+      { key: "cwInbox", service: "caseworking", box: "inbox" },
+      { key: "cwOutbox", service: "caseworking", box: "outbox" },
     ]);
   });
 
   it("reports no Caseworking sourceError under service=gas", async () => {
     isCwConfigured.mockReturnValue(false);
 
-    const { counts: result, sourceErrors } = await countEventsUseCase({
+    const { counts: result, sourceErrors } = await count({
       service: "gas",
+      caseworking: undefined,
     });
 
     expect(result).toEqual(counts({ PUBLISHED: 1, FAILED: 2 }));
     expect(sourceErrors).toEqual([]);
   });
 
-  it("reports a Caseworking sourceError with no service filter", async () => {
-    isCwConfigured.mockReturnValue(false);
-
-    const { sourceErrors } = await countEventsUseCase({});
-
-    expect(sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "not configured",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "not configured",
-      },
-    ]);
-  });
-
   it("still answers when one GAS box fails", async () => {
     countGasOutbox.mockRejectedValue(new Error("mongo down"));
 
-    const result = await countEventsUseCase({});
+    const result = await count();
 
     expect(result.counts).toEqual(
       counts({ PUBLISHED: 1, DEAD_LETTER: 3, COMPLETED: 4 }),
     );
     expect(result.sourceErrors).toContainEqual({
+      key: "gasOutbox",
       service: "gas",
       box: "outbox",
-      hop: "GAS Outbox",
-      message: "read failed",
     });
   });
 
@@ -336,7 +198,7 @@ describe("countEventsUseCase", () => {
     countGasInbox.mockRejectedValue(new Error("mongo down"));
     countGasOutbox.mockRejectedValue(new Error("mongo down"));
 
-    await expect(countEventsUseCase({})).rejects.toMatchObject({
+    await expect(count()).rejects.toMatchObject({
       output: { statusCode: 502 },
     });
   });
@@ -345,20 +207,9 @@ describe("countEventsUseCase", () => {
     countGasInbox.mockRejectedValue(new Error("mongo down"));
     countGasOutbox.mockRejectedValue(new Error("mongo down"));
 
-    const result = await countEventsUseCase({ service: "caseworking" });
+    const result = await count({ service: "caseworking" });
 
     expect(result.counts).toEqual(counts({ DEAD_LETTER: 3, COMPLETED: 4 }));
     expect(result.sourceErrors).toEqual([]);
-  });
-
-  it("orders sourceErrors by the fixed source order", async () => {
-    countGasInbox.mockRejectedValue(new Error("mongo down"));
-    findCwPage.mockResolvedValue(cwPage({ outbox: null }));
-
-    const { sourceErrors } = await countEventsUseCase({});
-
-    expect(
-      sourceErrors.map((error) => `${error.service}/${error.box}`),
-    ).toEqual(["gas/inbox", "caseworking/outbox"]);
   });
 });

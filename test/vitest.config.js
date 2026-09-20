@@ -58,7 +58,7 @@ export default defineConfig({
       // FGP-1411: exercise the QA-only test endpoints in the integration suite.
       ENABLE_TEST_ENDPOINTS: "true",
       VIEW_AGREEMENT_URI: "http://localhost:3000",
-      GAS_MANAGED_AGREEMENT_GRANT_CODES: "pigs-might-fly,test-code-1",
+      LEGACY_AGREEMENT_GRANT_CODES: "woodland,legacy-test-code",
       GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__grant_application_created_fifo.fifo",
       GAS__SQS__UPDATE_AGREEMENT_STATUS_QUEUE_URL: `${SQS_URL}/gas__sqs__update_agreement_status_fifo.fifo`,
@@ -83,7 +83,6 @@ export default defineConfig({
       GAS__SNS__REPORTING_EVENTS_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gfr__sns___reporting_events",
       GAS__SQS__CONFIG_VERSION_QUEUE_URL: `${SQS_URL}/gas__sqs__config_version_updated`,
-      CONFIG_BROKER_S3_BUCKET: "config-broker-local",
       GAS__SNS__AUDIT_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn",
       OUTBOX_MAX_RETRIES: 2,

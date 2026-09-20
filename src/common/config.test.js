@@ -10,10 +10,18 @@ const CALLER_TOKEN_ENV_KEYS = [
   "CALLER_TOKEN_ENFORCE",
 ];
 
+const VARIANT_ENV_KEYS = ["CONFIGURATION_VARIANT", "ENVIRONMENT"];
+
 const loadCallerTokenConfig = async () => {
   vi.resetModules();
   const { config } = await import("./config.js");
   return config.callerToken;
+};
+
+const loadConfigBrokerConfig = async () => {
+  vi.resetModules();
+  const { config } = await import("./config.js");
+  return config.configBroker;
 };
 
 describe("config caller-token (FGP-1307)", () => {
@@ -81,7 +89,11 @@ describe("config caller-token (FGP-1307)", () => {
   });
 
   it("fails closed to an empty keyring when the JSON is an array", async () => {
-    process.env.AGREEMENTS_JWT_KEYRING = JSON.stringify(["not", "an", "object"]);
+    process.env.AGREEMENTS_JWT_KEYRING = JSON.stringify([
+      "not",
+      "an",
+      "object",
+    ]);
 
     const callerToken = await loadCallerTokenConfig();
 
@@ -112,5 +124,119 @@ describe("config caller-token (FGP-1307)", () => {
       "fg-cw-frontend",
       "agreements-pdf",
     ]);
+  });
+});
+
+describe("config CONFIGURATION_VARIANT", () => {
+  const saved = {};
+
+  beforeEach(() => {
+    for (const key of VARIANT_ENV_KEYS) {
+      saved[key] = process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const key of VARIANT_ENV_KEYS) {
+      if (saved[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = saved[key];
+      }
+    }
+  });
+
+  it("defaults variant to empty string when CONFIGURATION_VARIANT is unset", async () => {
+    delete process.env.CONFIGURATION_VARIANT;
+    process.env.ENVIRONMENT = "dev";
+
+    const configBroker = await loadConfigBrokerConfig();
+
+    expect(configBroker.variant).toBe("");
+    expect(configBroker.rawVariant).toBe("");
+  });
+
+  it("exposes the variant when set in a non-prod environment", async () => {
+    process.env.CONFIGURATION_VARIANT = "next";
+    process.env.ENVIRONMENT = "dev";
+
+    const configBroker = await loadConfigBrokerConfig();
+
+    expect(configBroker.variant).toBe("next");
+    expect(configBroker.rawVariant).toBe("next");
+  });
+
+  it("suppresses variant to empty string when ENVIRONMENT is prod", async () => {
+    process.env.CONFIGURATION_VARIANT = "next";
+    process.env.ENVIRONMENT = "prod";
+
+    const configBroker = await loadConfigBrokerConfig();
+
+    expect(configBroker.variant).toBe("");
+    expect(configBroker.rawVariant).toBe("next");
+  });
+
+  it("exits with code 1 when variant contains invalid characters", async () => {
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit called");
+    });
+
+    process.env.CONFIGURATION_VARIANT = "BAD_value";
+    process.env.ENVIRONMENT = "dev";
+
+    await expect(loadConfigBrokerConfig()).rejects.toThrow(
+      "process.exit called",
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+  });
+});
+
+describe("config admin timeout ladder", () => {
+  const KEYS = ["CW_BACKEND_TIMEOUT_MS", "ADMIN_READ_TIMEOUT_MS"];
+  const saved = {};
+
+  beforeEach(() => {
+    for (const key of KEYS) {
+      saved[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const key of KEYS) {
+      if (saved[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = saved[key];
+      }
+    }
+  });
+
+  const loadConfig = async () => {
+    vi.resetModules();
+    return (await import("./config.js")).config;
+  };
+
+  it("defaults the Caseworking timeout below the Mongo read ceiling", async () => {
+    const config = await loadConfig();
+
+    expect(config.cwBackend.timeoutMs).toBe(4000);
+    expect(config.adminReadTimeoutMs).toBe(5000);
+  });
+
+  it("exits with code 1 when the Caseworking timeout is not below the Mongo read ceiling", async () => {
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit called");
+    });
+
+    process.env.CW_BACKEND_TIMEOUT_MS = "5000";
+    process.env.ADMIN_READ_TIMEOUT_MS = "5000";
+
+    await expect(loadConfig()).rejects.toThrow("process.exit called");
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
   });
 });

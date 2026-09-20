@@ -8,8 +8,6 @@ let client;
 let inbox;
 let outbox;
 
-// The breakdown is a section of the events page, so these read the page and
-// look at the section.
 const eventsPage = (query) =>
   wreck.get(
     query
@@ -52,10 +50,7 @@ const aDeadInboxDoc = (overrides = {}) => ({
   ...overrides,
 });
 
-// A row that has NOT failed for good. It must carry the attempt count its
-// status really comes with: the running service condemns any row that used up
-// its retries, so a fixture with a dead letter's five attempts would be
-// rewritten underneath the assertion.
+// Live attempt count: the running service dead-letters a row at its retry cap.
 const aLiveInboxDoc = (overrides) =>
   aDeadInboxDoc({
     completionAttempts: 1,
@@ -116,14 +111,13 @@ describe("GET /grant-admin/events/page - the breakdown section", () => {
     expect(payload.groups).toEqual([
       {
         error: "No handler found",
-        // the namespace is stripped here, exactly as it is on a list row
         type: "case.status.updated",
         count: 2,
-        firstAt: "2026-06-16T10:00:00.000Z",
-        lastAt: "2026-06-16T10:00:00.000Z",
+        firstAt: "2026-06-16T10:00:01.000Z",
+        lastAt: "2026-06-16T10:00:01.000Z",
       },
     ]);
-    expect(payload.sourceErrors).toEqual([]);
+    expect(Object.keys(payload)).toEqual(["groups"]);
   });
 
   it("takes firstAt and lastAt from the box's own sort key", async () => {
@@ -131,11 +125,11 @@ describe("GET /grant-admin/events/page - the breakdown section", () => {
     await inbox.insertMany([
       aDeadInboxDoc({
         segregationRef: ref,
-        eventTime: "2026-06-16T09:00:00.000Z",
+        publicationDate: "2026-06-16T09:00:00.000Z",
       }),
       aDeadInboxDoc({
         segregationRef: ref,
-        eventTime: "2026-06-16T12:00:00.000Z",
+        publicationDate: "2026-06-16T12:00:00.000Z",
       }),
     ]);
 
@@ -182,8 +176,7 @@ describe("GET /grant-admin/events/page - the breakdown section", () => {
         status: "COMPLETED",
         completionDate: "2026-06-16T10:01:00.000Z",
       }),
-      // Claimed and still in flight: the one non-terminal status the running
-      // pollers leave alone, because the claim has not expired.
+      // PROCESSING with an unexpired claim: the one live status the pollers leave alone.
       aLiveInboxDoc({
         segregationRef: ref,
         status: "PROCESSING",
@@ -257,27 +250,17 @@ describe("GET /grant-admin/events/page - the breakdown section", () => {
     expect(await cwStubRequests()).toEqual([]);
   });
 
-  it("degrades to a partial answer naming both boxes when Caseworking is down", async () => {
+  it("degrades to a partial answer, and the page names both boxes", async () => {
     const ref = seg();
     await inbox.insertOne(aDeadInboxDoc({ segregationRef: ref }));
     await setCwStub({ inbox: { mode: "error" } });
 
-    const { payload } = await breakdown({ q: ref });
+    const { payload } = await eventsPage({ q: ref });
 
-    expect(payload.groups[0].count).toBe(1);
+    expect(payload.breakdown.groups[0].count).toBe(1);
     expect(payload.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "inbox",
-        hop: "CW Inbox",
-        message: "HTTP 500",
-      },
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 500",
-      },
+      { hop: "CW-BE Inbox" },
+      { hop: "CW-BE Outbox" },
     ]);
   });
 
@@ -299,28 +282,23 @@ describe("GET /grant-admin/events/page - the breakdown section", () => {
       outbox: { mode: "unreadable" },
     });
 
-    const { payload } = await breakdown({ q: ref });
+    const { payload } = await eventsPage({ q: ref });
 
-    expect(groupFor(payload.groups, "No handler found").count).toBe(5);
-    expect(payload.sourceErrors).toEqual([
-      {
-        service: "caseworking",
-        box: "outbox",
-        hop: "CW Outbox",
-        message: "HTTP 502",
-      },
-    ]);
+    expect(groupFor(payload.breakdown.groups, "No handler found").count).toBe(
+      5,
+    );
+    expect(payload.sourceErrors).toEqual([{ hop: "CW-BE Outbox" }]);
   });
 
   it("never leaks a Caseworking response body into a sourceError", async () => {
     await setCwStub({ inbox: { mode: "unauthorized" } });
 
-    const { payload } = await breakdown({});
+    const { payload } = await eventsPage({});
 
     expect(JSON.stringify(payload)).not.toContain("SECRET-CW-401-BODY");
   });
 
-  it("ignores a status filter - the scope is always DEAD_LETTER", async () => {
+  it("counts only dead letters even on a page filtered to them", async () => {
     const ref = seg();
     await inbox.insertMany([
       aDeadInboxDoc({ segregationRef: ref }),
@@ -331,7 +309,7 @@ describe("GET /grant-admin/events/page - the breakdown section", () => {
       }),
     ]);
 
-    const { payload } = await breakdown({ q: ref, status: "COMPLETED" });
+    const { payload } = await breakdown({ q: ref, status: "DEAD_LETTER" });
 
     expect(payload.groups).toEqual([
       expect.objectContaining({ error: "No handler found", count: 1 }),
@@ -388,16 +366,13 @@ describe("the error filter and the breakdown agree", () => {
     const group = groupFor(groups.groups, "No handler found");
 
     const { payload: page } = await wreck.get(
-      `/grant-admin/events?${new URLSearchParams({
+      `/grant-admin/events/page?${new URLSearchParams({
         q: ref,
         error: "No handler found",
       })}`,
     );
 
     expect(page.events).toHaveLength(group.count);
-    expect(
-      page.events.every((row) => row.lastError.message === "No handler found"),
-    ).toBe(true);
   });
 
   it("matches exactly, so a prefix of the message selects nothing", async () => {
@@ -405,7 +380,7 @@ describe("the error filter and the breakdown agree", () => {
     await inbox.insertOne(aDeadInboxDoc({ segregationRef: ref }));
 
     const { payload } = await wreck.get(
-      `/grant-admin/events?${new URLSearchParams({
+      `/grant-admin/events/page?${new URLSearchParams({
         q: ref,
         error: "No handler",
       })}`,
@@ -436,7 +411,7 @@ describe("the error filter and the breakdown agree", () => {
 
   it("forwards the error filter to Caseworking", async () => {
     await wreck.get(
-      `/grant-admin/events?${new URLSearchParams({ error: "boom" })}`,
+      `/grant-admin/events/page?${new URLSearchParams({ error: "boom" })}`,
     );
 
     const [request] = await cwStubRequests();

@@ -1,5 +1,7 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import Boom from "@hapi/boom";
 import { config } from "./config.js";
+import { variantFileName } from "./configuration-variant.js";
 import { logger } from "./logger.js";
 
 const s3Client = new S3Client({
@@ -34,25 +36,42 @@ export class S3FetchError extends Error {
   }
 }
 
+/* eslint-disable complexity */
 // Aliased releases keep the publisher's paths in the manifest.
+// When a variant is configured, tries the variant filename first
+// (e.g. gas.next.json) then falls back to the unsuffixed file (gas.json).
 export const findS3KeyInManifest = (
   manifest,
-  { dir, file, required = true },
+  { dir, file, variant = "", required = true },
 ) => {
+  if (variant) {
+    const variantTarget = variantFileName(file, variant);
+    const variantMatch = manifest.find((path) =>
+      path.endsWith(`/${dir}/${variantTarget}`),
+    );
+    if (variantMatch) {
+      return variantMatch;
+    }
+  }
+
   const match = manifest.find((path) => path.endsWith(`/${dir}/${file}`));
 
   if (match) {
     return match;
   }
 
+  // Boom, not a plain Error: a manifest missing a file it must have is a defect in an
+  // immutable published version, so the caller has to be able to tell it will never be
+  // any different and stop rather than retry.
   if (required) {
-    throw new Error(
+    throw Boom.badRequest(
       `Manifest does not contain required config file ${dir}/${file} (manifest: ${manifest.join(", ")})`,
     );
   }
 
   return null;
 };
+/* eslint-enable complexity */
 
 // eslint-disable-next-line complexity
 const classifyS3Error = (err, key, bucket) => {

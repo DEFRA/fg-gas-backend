@@ -2,6 +2,9 @@ import { ObjectId } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
+import woodlandSubmission from "../../../test/fixtures/woodland-claim-submission.json";
+import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
+import { saveOutboxEvents } from "../../common/save-outbox-events.js";
 import { buildAuditEvent } from "../../common/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
@@ -12,6 +15,8 @@ import {
 } from "../repositories/claim.repository.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
+import { createClaimPaymentUseCase } from "../../payments/use-cases/create-claim-payment.use-case.js";
+import { resolveClaimPayment } from "../../payments/use-cases/resolve-claim-payment.js";
 import { resolveCurrentGrantUseCase } from "../use-cases/resolve-current-grant.use-case.js";
 import {
   listClaimableEntitlements,
@@ -37,6 +42,10 @@ vi.mock("../../common/with-audit.js", () => ({
 vi.mock("../../common/mongo-errors.js", () => ({
   isMongoDuplicateKeyError: vi.fn((error) => error?.duplicate),
 }));
+vi.mock("../../agreements/use-cases/load-entitlement-reference-context.js");
+vi.mock("../../common/save-outbox-events.js");
+vi.mock("../../payments/use-cases/create-claim-payment.use-case.js");
+vi.mock("../../payments/use-cases/resolve-claim-payment.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/claim.repository.js");
 vi.mock("../repositories/entitlement.repository.js");
@@ -73,7 +82,7 @@ const payload = {
     clientRef,
     clientClaimRef: "claim-1",
   },
-  claim: { entitlementId, claimAmountPence: 100 },
+  claim: { entitlementId, totalClaimAmountPence: 100 },
 };
 
 const grant = (materialised = true) =>
@@ -99,6 +108,21 @@ const grant = (materialised = true) =>
     ],
   });
 
+// A template that holds its claims for approval raises no Payment on
+// submission; the approval path will raise it in its own ticket.
+const approvalGrant = () => {
+  const approving = grant(false);
+  approving.entitlementTemplates[0].claim.requiresApproval = true;
+  return approving;
+};
+
+const resolvedPayment = { totalAmountPence: 100 };
+const agreement = {
+  agreementNumber: "WMP-WMPTU3LBJ",
+  version: 3,
+  correlationId: "123e4567-e89b-12d3-a456-426614174000",
+};
+
 const application = (overrides = {}) =>
   createTestApplication({
     code,
@@ -113,7 +137,16 @@ describe("claims.service", () => {
     withTransaction.mockImplementation((callback) => callback(session));
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application());
     lockForUpdate.mockResolvedValue(application());
-    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
+    resolveCurrentGrantUseCase.mockResolvedValue({
+      grant: grant(false),
+      resolvedVersion: "1.0.0",
+    });
+    resolveClaimPayment.mockResolvedValue(resolvedPayment);
+    loadEntitlementReferenceContext.mockResolvedValue({ agreement });
+    createClaimPaymentUseCase.mockResolvedValue({
+      payment: { id: "payment-1" },
+      publication: { event: { id: "event-1" }, segregationRef: clientRef },
+    });
     findExistingEntitlements.mockResolvedValue([persistedEntitlement]);
     existsByClientClaimRef.mockResolvedValue(false);
     countByEntitlement.mockResolvedValue(0);
@@ -261,7 +294,16 @@ describe("claims.service", () => {
   });
 
   it("returns a decimal field in its real units, not as stored", async () => {
-    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
+    resolveCurrentGrantUseCase.mockResolvedValue({
+      grant: grant(false),
+      resolvedVersion: "1.0.0",
+    });
+    resolveClaimPayment.mockResolvedValue(resolvedPayment);
+    loadEntitlementReferenceContext.mockResolvedValue({ agreement });
+    createClaimPaymentUseCase.mockResolvedValue({
+      payment: { id: "payment-1" },
+      publication: { event: { id: "event-1" }, segregationRef: clientRef },
+    });
     findExistingEntitlements.mockResolvedValue([
       { ...persistedEntitlement, data: { area: 100000 } },
     ]);
@@ -332,7 +374,16 @@ describe("claims.service", () => {
       claimCode,
       instanceNumber: 2,
     };
-    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
+    resolveCurrentGrantUseCase.mockResolvedValue({
+      grant: grant(false),
+      resolvedVersion: "1.0.0",
+    });
+    resolveClaimPayment.mockResolvedValue(resolvedPayment);
+    loadEntitlementReferenceContext.mockResolvedValue({ agreement });
+    createClaimPaymentUseCase.mockResolvedValue({
+      payment: { id: "payment-1" },
+      publication: { event: { id: "event-1" }, segregationRef: clientRef },
+    });
     findExistingEntitlements.mockResolvedValue([persisted]);
 
     await expect(
@@ -356,7 +407,16 @@ describe("claims.service", () => {
   });
 
   it("does not offer a persisted template with no entitlement", async () => {
-    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false) });
+    resolveCurrentGrantUseCase.mockResolvedValue({
+      grant: grant(false),
+      resolvedVersion: "1.0.0",
+    });
+    resolveClaimPayment.mockResolvedValue(resolvedPayment);
+    loadEntitlementReferenceContext.mockResolvedValue({ agreement });
+    createClaimPaymentUseCase.mockResolvedValue({
+      payment: { id: "payment-1" },
+      publication: { event: { id: "event-1" }, segregationRef: clientRef },
+    });
     findExistingEntitlements.mockResolvedValue([]);
     await expect(
       listClaimableEntitlements({ code, clientRef }),
@@ -468,6 +528,178 @@ describe("claims.service", () => {
       expect.objectContaining({ entitlementId }),
       session,
     );
+  });
+
+  describe("claim payments", () => {
+    it("creates the Payment on the submitting session and outboxes it", async () => {
+      await submitClaim({ code, clientRef, payload });
+
+      expect(createClaimPaymentUseCase).toHaveBeenCalledWith(
+        {
+          code,
+          clientRef,
+          clientClaimRef: "claim-1",
+          entitlementId,
+          agreementNumber: "WMP-WMPTU3LBJ",
+          agreementVersion: 3,
+          correlationId: "123e4567-e89b-12d3-a456-426614174000",
+          resolved: resolvedPayment,
+        },
+        session,
+      );
+      expect(saveOutboxEvents).toHaveBeenCalledWith(
+        [{ event: { id: "event-1" }, segregationRef: clientRef }],
+        session,
+      );
+    });
+
+    // Config Broker loading and mapping validation stay outside the write
+    // transaction, so a broken definition writes nothing at all.
+    it("resolves the definition before the transaction opens", async () => {
+      resolveClaimPayment.mockRejectedValue(new Error("bad definition"));
+
+      await expect(submitClaim({ code, clientRef, payload })).rejects.toThrow(
+        "bad definition",
+      );
+      expect(withTransaction).not.toHaveBeenCalled();
+      expect(insert).not.toHaveBeenCalled();
+    });
+
+    it("resolves the Payment definition at the Application's pinned version", async () => {
+      resolveCurrentGrantUseCase.mockResolvedValue({
+        grant: grant(false),
+        resolvedVersion: "1.0.1",
+      });
+
+      await submitClaim({ code, clientRef, payload });
+
+      expect(resolveClaimPayment).toHaveBeenCalledWith({
+        code,
+        configVersion: "1.0.0",
+        claim: expect.any(Object),
+      });
+    });
+
+    it("reduces the submitted payload to Claim facts", async () => {
+      await submitClaim({
+        code,
+        clientRef,
+        payload: {
+          ...woodlandSubmission,
+          metadata: {
+            ...woodlandSubmission.metadata,
+            grantCode: code,
+            clientRef,
+          },
+          claim: { ...woodlandSubmission.claim, entitlementId },
+        },
+      });
+
+      expect(resolveClaimPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          claim: {
+            sbi: woodlandSubmission.metadata.sbi,
+            frn: woodlandSubmission.metadata.frn,
+            totalAmountPence: woodlandSubmission.claim.totalClaimAmountPence,
+          },
+        }),
+      );
+    });
+
+    it("reads the Agreement on the submitting session", async () => {
+      await submitClaim({ code, clientRef, payload });
+
+      expect(loadEntitlementReferenceContext).toHaveBeenCalledWith(
+        { code, clientRef },
+        session,
+      );
+    });
+
+    // A Claim is always made under an Agreement, so a missing one is a broken
+    // invariant, not a caller error.
+    it("refuses to pay a Claim whose Agreement is missing", async () => {
+      loadEntitlementReferenceContext.mockResolvedValue({ agreement: null });
+
+      await expect(
+        submitClaim({ code, clientRef, payload }),
+      ).rejects.toMatchObject({ output: { statusCode: 500 } });
+      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+    });
+
+    // Another template auto-paying must not drag this claim into resolving a
+    // definition it never needed.
+    it("reads the flag from the template the Claim is against", async () => {
+      const mixed = approvalGrant();
+      const [approving] = mixed.entitlementTemplates;
+      mixed.entitlementTemplates = [
+        approving,
+        {
+          ...approving,
+          claimCode: "ENT_2",
+          claim: { ...approving.claim, requiresApproval: false },
+        },
+      ];
+      resolveCurrentGrantUseCase.mockResolvedValue({
+        grant: mixed,
+        resolvedVersion: "1.0.0",
+      });
+
+      await expect(
+        submitClaim({ code, clientRef, payload }),
+      ).resolves.toMatchObject({ created: true });
+      expect(resolveClaimPayment).not.toHaveBeenCalled();
+      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+    });
+
+    it("raises no Payment when Payments resolves none", async () => {
+      resolveClaimPayment.mockResolvedValue(null);
+
+      await expect(
+        submitClaim({ code, clientRef, payload }),
+      ).resolves.toMatchObject({ created: true });
+      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+      expect(saveOutboxEvents).not.toHaveBeenCalled();
+    });
+
+    it("refuses a Claim whose Entitlement is missing rather than skipping its Payment", async () => {
+      findExistingEntitlements.mockResolvedValue([]);
+
+      await expect(
+        submitClaim({ code, clientRef, payload }),
+      ).rejects.toMatchObject({ output: { statusCode: 404 } });
+      expect(withTransaction).not.toHaveBeenCalled();
+      expect(insert).not.toHaveBeenCalled();
+      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+    });
+
+    it("does not pay a replayed Claim", async () => {
+      existsByClientClaimRef.mockResolvedValue(true);
+
+      await expect(submitClaim({ code, clientRef, payload })).resolves.toEqual({
+        created: false,
+      });
+      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+      expect(saveOutboxEvents).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("when the Claim requires approval", () => {
+    beforeEach(() => {
+      resolveCurrentGrantUseCase.mockResolvedValue({
+        grant: approvalGrant(),
+        resolvedVersion: "1.0.0",
+      });
+    });
+
+    it("submits the Claim and raises no Payment", async () => {
+      await expect(
+        submitClaim({ code, clientRef, payload }),
+      ).resolves.toMatchObject({ created: true });
+
+      expect(resolveClaimPayment).not.toHaveBeenCalled();
+      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+      expect(saveOutboxEvents).not.toHaveBeenCalled();
+    });
   });
 
   it("retries after a configuration change before the application lock", async () => {

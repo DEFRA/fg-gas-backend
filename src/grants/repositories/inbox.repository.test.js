@@ -26,7 +26,6 @@ import {
 
 vi.mock("../../common/mongo-client.js");
 
-// The admin surface's own ceiling on a read that can be a collection scan.
 const MAX_TIME = { maxTimeMS: config.adminReadTimeoutMs };
 
 const createMockInbox = (id, time) => {
@@ -115,6 +114,19 @@ describe("inbox.repository", () => {
     expect(results[1]._id).toBe("2");
   });
 
+  it("claims in eventTime order, not the admin list's publicationDate", async () => {
+    const findOneAndUpdate = vi.fn().mockResolvedValue(null);
+    db.collection.mockReturnValue({ findOneAndUpdate });
+
+    await claimEvents(randomUUID(), "ref-1", 1);
+
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Object),
+      { sort: { eventTime: 1 }, returnDocument: "after" },
+    );
+  });
+
   it("should insert many", async () => {
     const insertMany = vi.fn().mockResolvedValueOnce({ modifiedCount: 1 });
     db.collection.mockReturnValue({ insertMany });
@@ -163,7 +175,6 @@ describe("inbox.repository", () => {
                 at: expect.any(String),
                 name: "ClaimExpired",
                 message: "claim expired before completion",
-                // Nothing threw, so there is no stack to reveal.
                 stack: null,
               },
             ],
@@ -307,18 +318,13 @@ describe("inbox.repository", () => {
       _id: 1,
       messageId: 1,
       type: 1,
-      source: 1,
-      publicationDate: 1,
       status: 1,
-      completionAttempts: 1,
-      eventTime: 1,
-      lastResubmissionDate: 1,
+      publicationDate: 1,
       completionDate: 1,
-      lastError: 1,
     };
 
     const id = "665f1c2e9a1b2c3d4e5f6a7b";
-    const eventTime = "2026-06-16T10:00:00.000Z";
+    const publicationDate = "2026-06-16T10:00:00.000Z";
 
     it("queries the inbox newest-first with the _id tie-breaker", async () => {
       const { find, chain } = mockFindChain([]);
@@ -326,7 +332,10 @@ describe("inbox.repository", () => {
       await findPage();
 
       expect(find).toHaveBeenCalledWith({}, MAX_TIME);
-      expect(chain.sort).toHaveBeenCalledWith({ eventTime: -1, _id: -1 });
+      expect(chain.sort).toHaveBeenCalledWith({
+        publicationDate: -1,
+        _id: -1,
+      });
       expect(chain.limit).toHaveBeenCalledWith(21);
     });
 
@@ -391,7 +400,7 @@ describe("inbox.repository", () => {
         source: "CW",
         status: InboxStatus.COMPLETED,
         completionAttempts: 1,
-        eventTime,
+        publicationDate,
         lastResubmissionDate: null,
         completionDate: "2026-06-16T10:05:00.000Z",
         segregationRef: "ref-1",
@@ -402,40 +411,36 @@ describe("inbox.repository", () => {
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]).toBe(doc);
-      expect(result.data[0]).not.toHaveProperty("publicationDate");
     });
 
-    it("encodes cursors from eventTime and _id", async () => {
-      mockFindChain([{ _id: ObjectId.createFromHexString(id), eventTime }]);
+    it("encodes the end cursor from publicationDate and _id", async () => {
+      mockFindChain([
+        { _id: ObjectId.createFromHexString(id), publicationDate },
+      ]);
 
       const result = await findPage();
 
-      expect(decodeCursor(result.pagination.startCursor)).toEqual({
-        eventTime,
-        _id: id,
-      });
       expect(decodeCursor(result.pagination.endCursor)).toEqual({
-        eventTime,
+        publicationDate,
         _id: id,
       });
     });
 
     it("resumes from a cursor with a decoded ObjectId", async () => {
       const cursor = Buffer.from(
-        JSON.stringify({ eventTime, _id: id }),
+        JSON.stringify({ publicationDate, _id: id }),
       ).toString("base64url");
       const { find } = mockFindChain([]);
 
       await findPage({ cursor });
 
       const filter = find.mock.calls[0][0];
-      // The keyset clause is composed with the base filter, never merged
-      // into it: both are `$or`s, and a spread dropped one of them.
-      const [, keyset] = filter.$and;
+      const [, bound, keyset] = filter.$and;
 
+      expect(bound).toEqual({ publicationDate: { $lte: publicationDate } });
       expect(keyset.$or).toEqual([
-        { eventTime: { $lt: eventTime } },
-        { eventTime, _id: { $lt: ObjectId.createFromHexString(id) } },
+        { publicationDate: { $lt: publicationDate } },
+        { publicationDate, _id: { $lt: ObjectId.createFromHexString(id) } },
       ]);
       expect(keyset.$or[1]._id.$lt).toBeInstanceOf(ObjectId);
     });
@@ -450,26 +455,12 @@ describe("inbox.repository", () => {
       mockFindChain([]);
 
       const nonHex = Buffer.from(
-        JSON.stringify({ eventTime, _id: "nope" }),
+        JSON.stringify({ publicationDate, _id: "nope" }),
       ).toString("base64url");
 
       await expect(findPage({ cursor: nonHex })).rejects.toThrow(
         "Cannot decode cursor",
       );
-    });
-
-    it("reverses order for a backward page", async () => {
-      const older = {
-        _id: ObjectId.createFromHexString("665f1c2e9a1b2c3d4e5f6a7a"),
-        eventTime: "2026-06-16T09:00:00.000Z",
-      };
-      const newer = { _id: ObjectId.createFromHexString(id), eventTime };
-      const { chain } = mockFindChain([older, newer]);
-
-      const result = await findPage({ direction: "backward" });
-
-      expect(chain.sort).toHaveBeenCalledWith({ eventTime: 1, _id: 1 });
-      expect(result.data).toEqual([newer, older]);
     });
   });
 });
@@ -492,18 +483,6 @@ describe("inbox.repository findPage search", () => {
     await findPage(options);
     return find.mock.calls[0][0];
   };
-
-  it("projects lastError so the admin list can show why a row failed", async () => {
-    const find = mockFind();
-
-    await findPage();
-
-    expect(find).toHaveBeenCalledWith({}, MAX_TIME);
-    expect(
-      db.collection.mock.results[0].value.find.mock.results[0].value.project
-        .mock.calls[0][0],
-    ).toHaveProperty("lastError", 1);
-  });
 
   it("matches q against messageId, segregationRef and its prefix", async () => {
     const filter = await filterFor({ q: "msg-1" });
@@ -529,7 +508,6 @@ describe("inbox.repository findPage search", () => {
     expect(filter.$and[0]).toEqual({ status: "FAILED" });
   });
 
-  // A stray `kind` selects nothing and excludes nothing.
   it("ignores a kind key rather than filtering on it", async () => {
     expect(await filterFor({ kind: "audit" })).toEqual({});
   });
@@ -542,20 +520,6 @@ describe("inbox.repository findPage search", () => {
 describe("inbox.repository detail and redrive", () => {
   const ID = "665f1c2e9a1b2c3d4e5f6a7b";
 
-  const listProjection = {
-    _id: 1,
-    messageId: 1,
-    type: 1,
-    source: 1,
-    publicationDate: 1,
-    status: 1,
-    completionAttempts: 1,
-    eventTime: 1,
-    lastResubmissionDate: 1,
-    completionDate: 1,
-    lastError: 1,
-  };
-
   it("reads the whole document by id, projecting the claim token away", async () => {
     const doc = { _id: new ObjectId(ID), event: { id: "evt-1" } };
     const findOne = vi.fn().mockResolvedValue(doc);
@@ -564,7 +528,7 @@ describe("inbox.repository detail and redrive", () => {
     expect(await findById(ID)).toBe(doc);
     expect(findOne).toHaveBeenCalledWith(
       { _id: new ObjectId(ID) },
-      { projection: { claimedBy: 0 } },
+      { projection: { claimedBy: 0 }, ...MAX_TIME },
     );
   });
 
@@ -596,49 +560,37 @@ describe("inbox.repository detail and redrive", () => {
   });
 
   it("redrives with a single conditional update filtered on DEAD_LETTER", async () => {
-    const findOneAndUpdate = vi.fn().mockResolvedValue(null);
-    db.collection.mockReturnValue({ findOneAndUpdate });
+    const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+    db.collection.mockReturnValue({ updateOne });
 
-    await redriveById(ID);
-
-    expect(findOneAndUpdate).toHaveBeenCalledTimes(1);
-    expect(findOneAndUpdate).toHaveBeenCalledWith(
+    expect(await redriveById(ID)).toBe(true);
+    expect(updateOne).toHaveBeenCalledTimes(1);
+    expect(updateOne).toHaveBeenCalledWith(
       { _id: new ObjectId(ID), status: InboxStatus.DEAD_LETTER },
       {
         $set: {
           status: InboxStatus.RESUBMITTED,
+          retryable: true,
           completionAttempts: 0,
+          attemptHistory: [],
           lastRedrive: { at: expect.any(String), by: null },
           claimedBy: null,
           claimedAt: null,
           claimExpiresAt: null,
         },
       },
-      { returnDocument: "after", projection: listProjection },
+      {},
     );
   });
 
-  it("answers with the updated document in the payload-free list projection", async () => {
-    const updated = { _id: new ObjectId(ID), status: InboxStatus.RESUBMITTED };
+  it("answers false when the conditional update matched nothing", async () => {
     db.collection.mockReturnValue({
-      findOneAndUpdate: vi.fn().mockResolvedValue(updated),
+      updateOne: vi.fn().mockResolvedValue({ matchedCount: 0 }),
     });
 
-    expect(await redriveById(ID)).toBe(updated);
-  });
-
-  it("returns null when the conditional update matched nothing", async () => {
-    db.collection.mockReturnValue({
-      findOneAndUpdate: vi.fn().mockResolvedValue(null),
-    });
-
-    expect(await redriveById(ID)).toBeNull();
+    expect(await redriveById(ID)).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Time range and per-status counts (the events admin surface)
-// ---------------------------------------------------------------------------
 
 const FROM = "2026-06-16T00:00:00.000Z";
 const TO = "2026-06-16T23:59:59.999Z";
@@ -668,14 +620,14 @@ const mockAggregate = (rows) => {
 };
 
 describe("inbox.repository findPage from/to", () => {
-  it("filters on eventTime as a string, inclusive at both ends", async () => {
+  it("filters on publicationDate as a string, inclusive at both ends", async () => {
     const find = mockRangeFind();
 
     await findPage({ from: FROM, to: TO });
 
     expect(find).toHaveBeenCalledWith(
       {
-        eventTime: { $gte: FROM, $lte: TO },
+        publicationDate: { $gte: FROM, $lte: TO },
       },
       MAX_TIME,
     );
@@ -686,7 +638,10 @@ describe("inbox.repository findPage from/to", () => {
 
     await findPage({ from: FROM });
 
-    expect(find).toHaveBeenCalledWith({ eventTime: { $gte: FROM } }, MAX_TIME);
+    expect(find).toHaveBeenCalledWith(
+      { publicationDate: { $gte: FROM } },
+      MAX_TIME,
+    );
   });
 
   it("filters on nothing when no bound is given", async () => {
@@ -704,7 +659,7 @@ describe("inbox.repository findPage from/to", () => {
 
     expect(find).toHaveBeenCalledWith(
       {
-        $and: [{ status: "FAILED" }, { eventTime: { $gte: FROM } }],
+        $and: [{ status: "FAILED" }, { publicationDate: { $gte: FROM } }],
       },
       MAX_TIME,
     );
@@ -719,7 +674,7 @@ describe("inbox.repository countFacets", () => {
 
     expect(aggregate).toHaveBeenCalledWith(
       [
-        { $match: { eventTime: { $gte: FROM, $lte: TO } } },
+        { $match: { publicationDate: { $gte: FROM, $lte: TO } } },
         { $group: { _id: "$status", count: { $sum: 1 } } },
       ],
       MAX_TIME,
@@ -761,9 +716,6 @@ describe("inbox.repository countFacets", () => {
     expect(counts.DEAD_LETTER).toBe(1);
   });
 });
-
-// The audit dimension - the query-level half of the predicate in
-// events/event-audit.js, applied through the shared filter builder.
 
 describe("inbox.repository audit", () => {
   const mockFindChain = () => {
@@ -820,8 +772,6 @@ describe("inbox.repository audit", () => {
     expect(stages[0]).toEqual({ $match: {} });
   });
 
-  // On the inbox the audit flag is a constant, not a comparison against a
-  // field that does not exist.
   it("groups with a constant false audit flag", async () => {
     const stages = await aggregateStages(() => breakdown({ audit: "exclude" }));
 

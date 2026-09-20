@@ -56,7 +56,7 @@ describe("load current Agreement", () => {
     ).resolves.toBe(agreement);
   });
 
-  it("loads a customer document when the grant and SBI match", async () => {
+  it("loads a customer document by Agreement Number and SBI", async () => {
     findAgreementByNumber.mockResolvedValue(agreement);
 
     await expect(
@@ -64,7 +64,6 @@ describe("load current Agreement", () => {
         agreementNumber: agreement.agreementNumber,
         access: {
           source: "defra",
-          code: agreement.code,
           sbi: agreement.identifiers.sbi,
         },
       }),
@@ -131,22 +130,7 @@ describe("load current Agreement", () => {
     ).rejects.toMatchObject({ output: { statusCode: 404 } });
   });
 
-  it("does not disclose a numbered document from another grant", async () => {
-    findAgreementByNumber.mockResolvedValue(agreement);
-
-    await expect(
-      loadAgreementDocument({
-        agreementNumber: agreement.agreementNumber,
-        access: {
-          source: "defra",
-          code: "another-grant",
-          sbi: agreement.identifiers.sbi,
-        },
-      }),
-    ).rejects.toMatchObject({ output: { statusCode: 404 } });
-  });
-
-  it("allows a customer to act on their own Agreement", async () => {
+  it("allows a customer to act on their own Agreement without a grant code", async () => {
     findAgreementByNumber.mockResolvedValue(agreement);
 
     await expect(
@@ -154,7 +138,6 @@ describe("load current Agreement", () => {
         agreementNumber: agreement.agreementNumber,
         access: {
           source: "defra",
-          code: agreement.code,
           sbi: agreement.identifiers.sbi,
         },
       }),

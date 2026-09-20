@@ -1,14 +1,14 @@
 import Boom from "@hapi/boom";
-import { config } from "../../common/config.js";
+import { isGasManagedAgreementGrant } from "../../agreements/services/agreement-ownership.js";
 import { logger } from "../../common/logger.js";
 import { createAgreementUseCase } from "../../agreements/use-cases/create-agreement.use-case.js";
 
 const INTERNAL_SERVER_ERROR = 500;
 
 const assertManagedCode = (code) => {
-  if (!config.managedAgreementGrantCodes.includes(code)) {
+  if (!isGasManagedAgreementGrant(code)) {
     throw Boom.badRequest(
-      `Grant code "${code}" is not managed by GAS. Managed codes: ${config.managedAgreementGrantCodes.join(", ")}`,
+      `Grant code "${code}" is configured for legacy Agreements`,
     );
   }
 };

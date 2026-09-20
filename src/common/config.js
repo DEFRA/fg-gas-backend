@@ -1,31 +1,20 @@
 import Joi from "joi";
 import { env } from "node:process";
+import { VARIANT_PATTERN } from "./configuration-variant.js";
 
-// FGP-1307: the producer services permitted to mint caller tokens
-// (applicant/grants-ui, caseworker/fg-cw-frontend, PDF/agreements-pdf). This is
-// the same in every environment, so it is a code constant rather than
-// configuration — it cannot be misconfigured to an empty list and needs no
-// cdp-app-config entry.
-// Deliberately below the shared HTTP client's ceiling - see the schema note.
-const CW_TIMEOUT_MS = 3000;
-
-// A ceiling on the admin surface's own reads. The counts and the breakdown are
-// documented collection scans, and the list can be one too; a box big enough
-// for that is a box where one page turn could otherwise camp on a connection
-// for as long as Mongo is willing to work. Past this, the read fails and the
-// page degrades to a named section error, which is the answer this surface is
-// built to give.
+// Timeout ladder: admin -> GAS HTTP > GAS Mongo maxTimeMS > GAS -> CW HTTP > CW
+// maxTimeMS, so each layer degrades to a named error before the one above gives up.
 const ADMIN_READ_MS = 5000;
+const CW_TIMEOUT_MS = 4000;
 
+// A code constant, not configuration, so it cannot be misconfigured to empty.
 const CALLER_TOKEN_ALLOWED_ISSUERS = Object.freeze([
   "grants-ui",
   "fg-cw-frontend",
   "agreements-pdf",
 ]);
 
-// FGP-1307: parse the optional caller-token keyring (JSON object of kid -> secret)
-// from its environment string. An unset or malformed value fails closed (empty
-// keyring) so a bad config cannot silently make an attacker-chosen kid verifiable.
+// A malformed keyring fails closed, so a bad config cannot make a chosen kid verifiable.
 const isPlainObject = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -40,6 +29,12 @@ const parseKeyring = (raw) => {
     return {};
   }
 };
+
+const parseGrantCodes = (raw) =>
+  raw
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean);
 
 const schema = Joi.object({
   NODE_ENV: Joi.string().allow("development", "production", "test"),
@@ -79,10 +74,7 @@ const schema = Joi.object({
   FIFO_LOCK_TTL_MS: Joi.number(),
   GAS__SNS__AUDIT_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: Joi.string().optional(),
-  GAS_MANAGED_AGREEMENT_GRANT_CODES: Joi.string()
-    .allow("")
-    .optional()
-    .default(""),
+  LEGACY_AGREEMENT_GRANT_CODES: Joi.string().allow("").optional().default(""),
   GAS__SNS__GRANT_APPLICATION_CREATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__GRANT_APPLICATION_STATUS_UPDATED_TOPIC_ARN: Joi.string().optional(),
   GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN: Joi.string().optional(),
@@ -95,19 +87,11 @@ const schema = Joi.object({
   GAS__SNS__REPORTING_EVENTS_TOPIC_ARN: Joi.string(),
   GAS__SNS__CREATE_PAYMENT_TOPIC_ARN: Joi.string().optional(),
   VIEW_AGREEMENT_URI: Joi.string().uri().required(),
-  CONFIG_BROKER_S3_BUCKET: Joi.string().optional(),
+  CONFIGURATION_VARIANT: Joi.string().trim().allow("").optional().default(""),
   AGREEMENTS_JWT_SECRET: Joi.string().optional(),
-  // Caseworking backend (fg-cw-backend). GAS authenticates to it with a
-  // service access token supplied per environment from the platform secret
-  // store, presented as a bearer token. Both optional so environments that do
-  // not call fg-cw-backend can boot without them.
+  // Optional, so environments that never call fg-cw-backend still boot.
   CW_BACKEND_URL: Joi.string().uri().optional(),
   CW_BACKEND_TOKEN: Joi.string().optional(),
-  // Deliberately shorter than the shared client's ceiling. The admin page is
-  // the surface an operator opens when the estate is misbehaving, so the cost
-  // of waiting for a struggling Caseworking is paid on exactly the request
-  // that must not hang: the page degrades to "this source is unavailable" and
-  // renders, which beats ten seconds of nothing.
   ADMIN_READ_TIMEOUT_MS: Joi.number()
     .integer()
     .min(1)
@@ -118,32 +102,18 @@ const schema = Joi.object({
     .min(1)
     .default(CW_TIMEOUT_MS)
     .optional(),
-  // FGP-1307: logical key id the default AGREEMENTS_JWT_SECRET is stored under,
-  // and the kid assumed when an incoming caller token carries no kid header
-  // (e.g. grants-ui, intentionally left as-is for now).
+  // The kid assumed for a caller token that carries none.
   AGREEMENTS_JWT_DEFAULT_KID: Joi.string().optional(),
-  // FGP-1307: optional JSON object of additional caller-token verification
-  // secrets keyed by kid, e.g. {"agreements-hs256-2":"<secret>"}. Supports key
-  // rotation via kid overlap alongside AGREEMENTS_JWT_SECRET.
+  // Extra verification secrets keyed by kid, for rotation beside AGREEMENTS_JWT_SECRET.
   AGREEMENTS_JWT_KEYRING: Joi.string().allow("").optional(),
-  // FGP-1307: when true, caller-token verification hard-fails (missing/invalid
-  // token or claim mismatch rejects the request) and GAS derives caller identity
-  // from the verified token instead of the unsigned x-agreement-* headers. When
-  // false it stays warn-only (backwards-compatible) and is the default. Feature-flag driven so
-  // enforcement can be rolled forward or back per environment.
+  // True rejects a bad caller token and trusts only its claims; false (default) only warns.
   CALLER_TOKEN_ENFORCE: Joi.boolean().optional(),
-  // FGP-1411: enables the QA-only endpoints under /api/test that create
-  // Agreements and apply status transitions through the normal Agreement
-  // domain behaviour. Disabled by default and enabled per environment in
-  // cdp-app-config; it must never be enabled in production.
+  // QA-only /api/test endpoints; must never be enabled in production.
   ENABLE_TEST_ENDPOINTS: Joi.boolean().optional(),
   WOODLAND_MIGRATION_SOURCE_URL: Joi.string().uri().optional(),
   WOODLAND_MIGRATION_TOKEN: Joi.string().allow("").optional(),
   WOODLAND_MIGRATION_CONFIG_VERSION: Joi.string().trim().allow("").optional(),
-  // A client:sha256hex pair, e.g. some-service:1f0a... Empty or unset seeds
-  // nothing and removes nothing. Deliberately not validated here: the shape is
-  // enforced in src/auth/seed-access-token.js, where a bad value warns and
-  // issues nothing rather than stopping the service from booting.
+  // `client:sha256hex`, validated by seed-access-token.js so a bad value warns, not stops boot.
   SERVICE_ACCESS_TOKEN_HASH: Joi.string()
     .trim()
     .lowercase()
@@ -166,6 +136,24 @@ if (error) {
   process.exit(1);
 }
 
+if (vars.CW_BACKEND_TIMEOUT_MS >= vars.ADMIN_READ_TIMEOUT_MS) {
+  // eslint-disable-next-line no-console
+  console.error(
+    `CW_BACKEND_TIMEOUT_MS (${vars.CW_BACKEND_TIMEOUT_MS}) must be below ADMIN_READ_TIMEOUT_MS (${vars.ADMIN_READ_TIMEOUT_MS})`,
+  );
+  process.exit(1);
+}
+
+const rawVariant = vars.CONFIGURATION_VARIANT;
+const isProd = vars.ENVIRONMENT === "prod";
+if (rawVariant && !isProd && !VARIANT_PATTERN.test(rawVariant)) {
+  // eslint-disable-next-line no-console
+  console.error(
+    `CONFIGURATION_VARIANT "${rawVariant}" is invalid — must be lowercase letters, numbers or hyphens`,
+  );
+  process.exit(1);
+}
+
 export const config = {
   env: vars.NODE_ENV,
   serviceName: vars.SERVICE_NAME,
@@ -181,9 +169,7 @@ export const config = {
     timeoutMs: vars.HTTP_CLIENT_TIMEOUT_MS,
   },
   viewAgreementUri: vars.VIEW_AGREEMENT_URI,
-  managedAgreementGrantCodes: vars.GAS_MANAGED_AGREEMENT_GRANT_CODES.split(",")
-    .map((code) => code.trim())
-    .filter(Boolean),
+  legacyAgreementGrantCodes: parseGrantCodes(vars.LEGACY_AGREEMENT_GRANT_CODES),
   region: vars.AWS_REGION,
   awsEndpointUrl: vars.AWS_ENDPOINT_URL,
   cdpEnvironment: vars.ENVIRONMENT,
@@ -225,14 +211,9 @@ export const config = {
     configVersionQueueUrl: vars.GAS__SQS__CONFIG_VERSION_QUEUE_URL,
   },
   configBroker: {
-    s3Bucket: vars.CONFIG_BROKER_S3_BUCKET,
+    variant: isProd ? "" : rawVariant,
+    rawVariant,
   },
-  // FGP-1307: shared secret used to verify the caller token forwarded by
-  // Agreements UI. Audience is "gas" for now (the interim token also carries
-  // "agreements-ui"); this moves to token exchange / per-issuer keys later.
-  // allowedIssuers is the fixed list of producer services permitted to mint
-  // caller tokens; an unrecognised issuer is reported as a warning during the
-  // warn-only rollout.
   callerToken: {
     secret: vars.AGREEMENTS_JWT_SECRET,
     defaultKid: vars.AGREEMENTS_JWT_DEFAULT_KID ?? "agreements-hs256-1",

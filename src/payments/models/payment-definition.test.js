@@ -38,6 +38,24 @@ const validResolvedPayment = Object.fromEntries(
   Object.entries(validDefinition).filter(([key]) => key !== "code"),
 );
 
+const woodlandClaim = {
+  sbi: "113593357",
+  frn: "1100943757",
+  totalAmountPence: 150000,
+};
+
+const woodlandDefinition = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../compose/seed/woodland/1.28.2/gas/payment.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+
+const woodlandExecution = { executedAt: "2026-09-14T13:11:01.000Z" };
+
 const pmfDefinition = JSON.parse(
   readFileSync(
     new URL(
@@ -504,5 +522,64 @@ describe("PMF payment definition (real config)", () => {
     expect(
       payment.payments[0].invoiceLines.map(({ description }) => description),
     ).toEqual(["Large White Pig", "Berkshire"]);
+  });
+});
+
+describe("the woodland Claim definition", () => {
+  it("constructs the compose seed", () => {
+    const definition = new PaymentDefinition(woodlandDefinition);
+
+    expect(definition.code).toBe("woodland");
+  });
+
+  it("resolves the Claim facts a woodland submission reduces to", async () => {
+    const definition = new PaymentDefinition(woodlandDefinition);
+
+    const payment = await definition.resolve({
+      claim: woodlandClaim,
+      execution: woodlandExecution,
+    });
+
+    expect(payment).toEqual({
+      sbi: "113593357",
+      frn: "1100943757",
+      originalInvoiceNumber: "",
+      scheme: "WMP",
+      sourceSystem: "WMP",
+      deliveryBody: "RP10",
+      fesCode: "FALS_WMP",
+      ledger: "AP",
+      totalAmountPence: 150000,
+      currency: "GBP",
+      marketingYear: "2026",
+      payments: [
+        {
+          dueDate: "2026-09-14",
+          totalAmountPence: 150000,
+          invoiceLines: [
+            {
+              schemeCode: "WMP",
+              description: "Woodland Management Plan Payment",
+              amountPence: 150000,
+              accountCode: "SOS710",
+              fundCode: "DRD10",
+              deliveryBody: "RP10",
+              marketingYear: "2026",
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("rejects Claim facts missing the amount it maps", async () => {
+    const definition = new PaymentDefinition(woodlandDefinition);
+    const { totalAmountPence, ...claim } = woodlandClaim;
+
+    await expectResolutionError(
+      definition,
+      { claim, execution: woodlandExecution },
+      "Unresolved process mapping",
+    );
   });
 });

@@ -6,10 +6,7 @@ import {
   hopLabel,
   latency,
   latencyTitle,
-  queueLine,
   serviceVocabulary,
-  showsAttempts,
-  startedAt,
   statusDisplay,
   statusVocabulary,
 } from "./event-display.js";
@@ -17,7 +14,7 @@ import {
 describe("statusDisplay", () => {
   it("spells PUBLISHED as a quiet, settled state", () => {
     expect(statusDisplay("PUBLISHED")).toEqual({
-      statusLabel: "Published",
+      statusLabel: "Queued",
       statusRole: "neutral",
       statusRetrying: false,
     });
@@ -110,7 +107,7 @@ describe("serviceVocabulary", () => {
   it("names both services in full, not in the codes the topics use", () => {
     expect(serviceVocabulary()).toEqual([
       { value: "gas", label: "GAS" },
-      { value: "caseworking", label: "Caseworking" },
+      { value: "caseworking", label: "CW-BE" },
     ]);
   });
 });
@@ -120,8 +117,6 @@ describe("actorName", () => {
     expect(actorName("Ada Lovelace")).toBe("Ada Lovelace");
   });
 
-  // A redrive on a schedule or a sweep has no operator behind it. The absence
-  // is what the row stores; this is only what it is called when shown.
   it.each([[null], [undefined], [""], ["   "]])(
     "names %p as the platform itself",
     (by) => {
@@ -138,8 +133,8 @@ describe("hopLabel", () => {
   it.each([
     [{ service: "gas", box: "inbox" }, "GAS Inbox"],
     [{ service: "gas", box: "outbox" }, "GAS Outbox"],
-    [{ service: "caseworking", box: "inbox" }, "CW Inbox"],
-    [{ service: "caseworking", box: "outbox" }, "CW Outbox"],
+    [{ service: "caseworking", box: "inbox" }, "CW-BE Inbox"],
+    [{ service: "caseworking", box: "outbox" }, "CW-BE Outbox"],
   ])("names %o as %s", (hop, label) => {
     expect(hopLabel(hop)).toBe(label);
   });
@@ -147,74 +142,6 @@ describe("hopLabel", () => {
   it("falls back to the raw service and box it was given", () => {
     expect(hopLabel({ service: "payments", box: "deadletter" })).toBe(
       "payments deadletter",
-    );
-  });
-});
-
-describe("queueLine on an inbox row", () => {
-  const inbox = (source) => queueLine({ service: "gas", box: "inbox", source });
-
-  it("names the producer a row was received from", () => {
-    expect(inbox("GAS")).toEqual({ queue: "from GAS", queueValue: null });
-  });
-
-  it("expands a short producer code into its full name", () => {
-    expect(inbox("AS").queue).toBe("from Agreements");
-  });
-
-  it("says so when a row names no producer at all", () => {
-    expect(inbox(null).queue).toBe("from unknown");
-  });
-
-  it("carries no topic value", () => {
-    expect(inbox("CW").queueValue).toBeNull();
-  });
-});
-
-describe("queueLine on an outbox row", () => {
-  const outbox = (target, service = "gas") =>
-    queueLine({ service, box: "outbox", target });
-
-  it("names the service that subscribes to the topic, not the one that owns it", () => {
-    expect(outbox("gas__sns__create_new_case_fifo.fifo")).toEqual({
-      queue: "to Caseworking",
-      queueValue: "gas__sns__create_new_case_fifo.fifo",
-    });
-  });
-
-  it.each([
-    "gas__sns__create_new_case_fifo.fifo",
-    "create_new_case_fifo.fifo",
-    "create_new_case",
-  ])("reads %s as the same destination", (target) => {
-    expect(outbox(target).queue).toBe("to Caseworking");
-  });
-
-  it("names the topic itself where nothing is known to subscribe to it", () => {
-    expect(outbox("gas__sns__reindex_grants_fifo.fifo").queue).toBe(
-      "to reindex_grants",
-    );
-  });
-
-  it("names the row's own service for a message that never left it", () => {
-    expect(outbox("internal").queue).toBe("to GAS");
-    expect(outbox("internal", "caseworking").queue).toBe("to Caseworking");
-  });
-
-  it.each(["gas__sns__audit_topic_arn", "cw__sns__audit_fifo"])(
-    "names %s as the audit stream",
-    (target) => {
-      expect(outbox(target).queue).toBe("to Audit");
-    },
-  );
-
-  it("has no line at all where a row names no target", () => {
-    expect(outbox(null)).toEqual({ queue: null, queueValue: null });
-  });
-
-  it("keeps the topic exactly as the row carries it for the title", () => {
-    expect(outbox("gas__sns__create_payment_fifo.fifo").queueValue).toBe(
-      "gas__sns__create_payment_fifo.fifo",
     );
   });
 });
@@ -265,8 +192,6 @@ describe("latency", () => {
     expect(latency("2026-06-16T10:00:00.000Z", "not a date")).toBeNull();
   });
 
-  // Two services' clocks can disagree by a few milliseconds; a negative
-  // duration is a clock skew, not a message that arrived before it was sent.
   it("floors a completion recorded before its start at zero", () => {
     expect(
       latency("2026-06-16T10:00:01.000Z", "2026-06-16T10:00:00.000Z"),
@@ -286,7 +211,6 @@ describe("attemptsLabel", () => {
     expect(attemptsLabel(5, 5)).toBe("5/5");
   });
 
-  // A redriven row sits at 0 until the resubmission sweep increments it.
   it("states a zero count rather than hiding it", () => {
     expect(attemptsLabel(0, 5)).toBe("0/5");
   });
@@ -298,55 +222,5 @@ describe("attemptsLabel", () => {
 
   it("still states the count where nothing recorded a ceiling", () => {
     expect(attemptsLabel(3, null)).toBe("3/?");
-  });
-});
-
-describe("showsAttempts", () => {
-  it("is true for a row that has failed, whatever its count", () => {
-    expect(showsAttempts(1, true)).toBe(true);
-  });
-
-  it("is true for a row that took more than one attempt", () => {
-    expect(showsAttempts(3, false)).toBe(true);
-  });
-
-  it("is false for a healthy single attempt", () => {
-    expect(showsAttempts(1, false)).toBe(false);
-  });
-
-  it("is false where nothing recorded a count", () => {
-    expect(showsAttempts(null, false)).toBe(false);
-    expect(showsAttempts(undefined, false)).toBe(false);
-  });
-});
-
-describe("startedAt", () => {
-  const CREATED_AT = "2026-06-16T10:00:00.000Z";
-  const RECEIVED_AT = "2026-06-16T10:00:02.000Z";
-
-  it("is when an inbox row was received, not when the event happened", () => {
-    expect(
-      startedAt({
-        box: "inbox",
-        createdAt: CREATED_AT,
-        publicationDate: RECEIVED_AT,
-      }),
-    ).toBe(RECEIVED_AT);
-  });
-
-  it("is when an outbox row was queued", () => {
-    expect(
-      startedAt({
-        box: "outbox",
-        createdAt: CREATED_AT,
-        publicationDate: RECEIVED_AT,
-      }),
-    ).toBe(CREATED_AT);
-  });
-
-  it("falls back to createdAt for an inbox row with no receipt instant", () => {
-    expect(
-      startedAt({ box: "inbox", createdAt: CREATED_AT, publicationDate: null }),
-    ).toBe(CREATED_AT);
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PaymentSourceType } from "../models/payment.js";
 import { buildPayment } from "./build-payment.js";
 
 const resolved = {
@@ -49,9 +50,12 @@ const resolved = {
 
 const build = (overrides = {}) =>
   buildPayment({
-    agreementNumber: "PMF123456789",
-    version: 2,
-    agreementCorrelationId: "123e4567-e89b-12d3-a456-426614174000",
+    source: {
+      type: PaymentSourceType.AGREEMENT,
+      agreementNumber: "PMF123456789",
+      version: 2,
+    },
+    correlationId: "123e4567-e89b-12d3-a456-426614174000",
     resolved,
     paymentHubClaimId: "R00000001",
     createdAt: "2026-08-20T10:00:00.000Z",
@@ -152,9 +156,9 @@ describe("buildPayment", () => {
     });
   });
 
-  it("requires the Agreement Correlation ID for grant-level correlation", () => {
-    expect(() => build({ agreementCorrelationId: undefined })).toThrow(
-      "Agreement Correlation ID",
-    );
+  // Payment.create would otherwise mint a random one, detaching the Payment
+  // from the record it is reported under.
+  it("requires the Correlation ID for grant-level correlation", () => {
+    expect(() => build({ correlationId: undefined })).toThrow("Correlation ID");
   });
 });

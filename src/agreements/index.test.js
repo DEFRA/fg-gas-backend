@@ -1,5 +1,5 @@
 import hapi from "@hapi/hapi";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../common/config.js";
 import {
   canHandleInternalCommand,
@@ -13,10 +13,16 @@ import { handleUpdateAgreementStatusCommandUseCase } from "./use-cases/handle-up
 
 describe("agreements", () => {
   const originalMigrationConfig = { ...config.woodlandMigration };
+  const originalLegacyCodes = config.legacyAgreementGrantCodes;
+
+  beforeEach(() => {
+    config.legacyAgreementGrantCodes = ["woodland"];
+  });
 
   afterEach(() => {
     clearInternalCommandHandlers();
     Object.assign(config.woodlandMigration, originalMigrationConfig);
+    config.legacyAgreementGrantCodes = originalLegacyCodes;
     vi.resetAllMocks();
   });
 
@@ -108,13 +114,13 @@ describe("agreements", () => {
   it.each([
     internalCommandTypes.AGREEMENT_CREATE,
     internalCommandTypes.AGREEMENT_STATUS_UPDATE,
-  ])("handles allowlisted %s commands internally", async (type) => {
+  ])("handles non-legacy %s commands internally", async (type) => {
     const server = hapi.server();
     await server.register(agreements);
 
     await expect(
       canHandleInternalCommand(type, {
-        data: { code: "another-gas-grant", currentConfigVersion: "1.0.1" },
+        data: { code: "future-grant", currentConfigVersion: "1.0.1" },
       }),
     ).resolves.toBe(true);
   });
@@ -123,7 +129,7 @@ describe("agreements", () => {
     internalCommandTypes.AGREEMENT_CREATE,
     internalCommandTypes.AGREEMENT_STATUS_UPDATE,
   ])(
-    "leaves grants outside the allowlist to the external service for %s",
+    "leaves explicitly legacy grants to the external service for %s",
     async (type) => {
       const server = hapi.server();
       await server.register(agreements);
@@ -135,4 +141,16 @@ describe("agreements", () => {
       ).resolves.toBe(false);
     },
   );
+
+  it("treats an explicitly empty legacy list as GAS owning every grant", async () => {
+    config.legacyAgreementGrantCodes = [];
+    const server = hapi.server();
+    await server.register(agreements);
+
+    await expect(
+      canHandleInternalCommand(internalCommandTypes.AGREEMENT_CREATE, {
+        data: { code: "future-grant" },
+      }),
+    ).resolves.toBe(true);
+  });
 });

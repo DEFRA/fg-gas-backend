@@ -22,8 +22,8 @@ const decodeCursor = (cursor, sortKeys, codecs) => {
   }
 };
 
-const getPagingFilter = (cursor, sortEntries, isBackward) => {
-  const op = (dir) => ((dir === 1) !== isBackward ? "$gt" : "$lt");
+const getPagingFilter = (cursor, sortEntries) => {
+  const op = (dir) => (dir === 1 ? "$gt" : "$lt");
 
   return {
     $or: sortEntries.map((_, i) => ({
@@ -37,9 +37,6 @@ const getPagingFilter = (cursor, sortEntries, isBackward) => {
   };
 };
 
-const invert = (sortEntries) =>
-  Object.fromEntries(sortEntries.map(([k, v]) => [k, -v]));
-
 const ensureTieBreaker = (sort) => {
   if (sort._id) {
     return sort;
@@ -51,44 +48,30 @@ const ensureTieBreaker = (sort) => {
   };
 };
 
-// `docs.at()` is undefined on an empty page, and an empty page has no cursors.
 const edgeCursor = (doc, sortKeys, codecs) =>
   doc === undefined ? null : encodeCursor(doc, sortKeys, codecs);
 
-const buildPageInfo = ({
-  docs,
-  hasMore,
-  isBackward,
-  cursor,
-  sortKeys,
-  codecs,
-}) => ({
-  startCursor: edgeCursor(docs.at(0), sortKeys, codecs),
-  endCursor: edgeCursor(docs.at(-1), sortKeys, codecs),
-  hasNextPage: isBackward ? true : hasMore,
-  hasPreviousPage: isBackward ? hasMore : Boolean(cursor),
+// Implied by the `$or`, but it gives the planner a bound on the leading index key.
+const leadingBound = (cursor, [key, dir]) => ({
+  [key]: { [dir === 1 ? "$gte" : "$lte"]: cursor[key] },
 });
 
-// The page's position, composed with its filter under `$and` and never merged
-// by spread: the keyset clause is an `$or` over the sort keys and so is a
-// search filter, so spreading one over the other silently drops whichever came
-// first - a paged search loses its filter after page 1. `$and` cannot collide
-// however either side is shaped, and Mongo flattens it for the query plan, so
-// it costs nothing.
-const withKeyset = (filter, cursor, sortEntries, isBackward) => {
+// Under `$and`, never spread: keyset and search are both `$or`s and one would be lost.
+const withKeyset = (filter, cursor, sortEntries) => {
   if (!cursor) {
     return filter;
   }
 
   return {
-    $and: [filter ?? {}, getPagingFilter(cursor, sortEntries, isBackward)],
+    $and: [
+      filter ?? {},
+      leadingBound(cursor, sortEntries[0]),
+      getPagingFilter(cursor, sortEntries),
+    ],
   };
 };
 
-// A ceiling where the caller sets one. The admin list can be a collection scan
-// on a box big enough - a `q` search always is - and one page turn holding a
-// connection for as long as Mongo will work is worse than the page saying that
-// source could not be read.
+// Bounds a read that can be a collection scan, e.g. a `q` search.
 const findOptions = (opts) =>
   opts.maxTimeMS ? { maxTimeMS: opts.maxTimeMS } : {};
 
@@ -96,16 +79,14 @@ export const paginate = async (collection, opts) => {
   const sort = ensureTieBreaker(opts.sort);
   const sortKeys = Object.keys(sort);
   const sortEntries = Object.entries(sort);
-  const isBackward = opts.direction === "backward";
   const cursor = decodeCursor(opts.cursor, sortKeys, opts.codecs);
 
-  const filter = withKeyset(opts.filter, cursor, sortEntries, isBackward);
-  const effectiveSort = isBackward ? invert(sortEntries) : sort;
+  const filter = withKeyset(opts.filter, cursor, sortEntries);
 
   const docs = await collection
     .find(filter, findOptions(opts))
     .project(opts.project)
-    .sort(effectiveSort)
+    .sort(sort)
     .limit(opts.pageSize + 1)
     .toArray();
 
@@ -115,19 +96,11 @@ export const paginate = async (collection, opts) => {
     docs.pop();
   }
 
-  if (isBackward) {
-    docs.reverse();
-  }
-
   return {
     data: docs,
-    pagination: buildPageInfo({
-      docs,
-      hasMore,
-      isBackward,
-      cursor,
-      sortKeys,
-      codecs: opts.codecs,
-    }),
+    pagination: {
+      endCursor: edgeCursor(docs.at(-1), sortKeys, opts.codecs),
+      hasNextPage: hasMore,
+    },
   };
 };
