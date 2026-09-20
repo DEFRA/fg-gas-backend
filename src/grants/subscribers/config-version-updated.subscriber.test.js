@@ -16,6 +16,13 @@ vi.mock("../../common/config.js", () => ({
 
 vi.mock("../../common/logger.js");
 
+const mockSaveConfigVersionInboxMessage = vi.fn();
+vi.mock("../use-cases/save-config-version-inbox-message.use-case.js", () => ({
+  saveConfigVersionInboxMessageUseCase: (...args) =>
+    mockSaveConfigVersionInboxMessage(...args),
+}));
+
+// Kept mocked so the subscriber can be proven not to apply the config itself.
 const mockProcessConfigVersion = vi.fn();
 vi.mock("../use-cases/process-config-version.use-case.js", () => ({
   processConfigVersionUseCase: (...args) => mockProcessConfigVersion(...args),
@@ -50,7 +57,7 @@ describe("configVersionUpdatedSubscriber", () => {
     expect(mockStop).toHaveBeenCalled();
   });
 
-  it("should extract message attributes and manifest then call processConfigVersionUseCase", async () => {
+  it("should pass the manifest, attributes and metadata to the inbox adapter", async () => {
     await import("./config-version-updated.subscriber.js");
 
     const body = [
@@ -62,15 +69,24 @@ describe("configVersionUpdatedSubscriber", () => {
       version: { DataType: "String", StringValue: "1.2.3" },
       status: { DataType: "String", StringValue: "active" },
     };
+    const metadata = { messageId: "msg-1", sentTimeStamp: "1758106800000" };
 
-    await capturedOnMessage(body, messageAttributes);
+    await capturedOnMessage(body, messageAttributes, metadata);
 
-    expect(mockProcessConfigVersion).toHaveBeenCalledWith({
-      grantCode: "woodland",
-      version: "1.2.3",
-      status: "active",
-      manifest: body,
-    });
+    expect(mockSaveConfigVersionInboxMessage).toHaveBeenCalledWith(
+      body,
+      messageAttributes,
+      metadata,
+    );
+  });
+
+  // AC1: the event is written to the Inbox and not applied on receipt.
+  it("should not apply the config version on receipt", async () => {
+    await import("./config-version-updated.subscriber.js");
+
+    await capturedOnMessage([], {}, {});
+
+    expect(mockProcessConfigVersion).not.toHaveBeenCalled();
   });
 });
 
