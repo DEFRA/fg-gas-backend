@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import { markPermanentFailure } from "../../events/retryable.js";
 import { Inbox, InboxStatus } from "./inbox.js";
 
 describe("inbox model", () => {
@@ -465,5 +466,70 @@ describe("Inbox attemptHistory", () => {
     });
 
     expect(event.attemptHistory).toEqual(stored);
+  });
+});
+
+describe("retryable", () => {
+  it("is retryable by default", () => {
+    expect(Inbox.createMock().retryable).toBe(true);
+  });
+
+  it("stays retryable when a failure says nothing", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(new Error("mongo is down"));
+
+    expect(inbox.retryable).toBe(true);
+  });
+
+  // A definition that will not build is just as unusable next time round.
+  it("stops being retryable when the failure cannot be fixed by retrying", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    expect(inbox.retryable).toBe(false);
+  });
+
+  it("stays FAILED when the failure could be fixed by retrying", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(new Error("mongo is down"));
+
+    expect(inbox.status).toBe(InboxStatus.FAILED);
+  });
+
+  // FAILED cannot be redriven and is not in the dead-letter breakdown, so a failure we
+  // have given up on has to land somewhere an operator can actually see and act on it.
+  it("goes straight to the dead letter queue when retrying cannot fix it", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    expect(inbox.status).toBe(InboxStatus.DEAD_LETTER);
+  });
+
+  it("keeps the reason it was given up on", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    expect(inbox.lastError.message).toBe("bad definition");
+  });
+
+  it("round-trips through a document", () => {
+    const inbox = Inbox.createMock();
+    inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    const restored = Inbox.fromDocument(inbox.toDocument());
+
+    expect(restored.retryable).toBe(false);
+  });
+
+  // Rows written before the field existed must keep the behaviour they had.
+  it("reads a document with no retryable field as retryable", () => {
+    const { retryable, ...document } = Inbox.createMock().toDocument();
+
+    expect(Inbox.fromDocument(document).retryable).toBe(true);
   });
 });

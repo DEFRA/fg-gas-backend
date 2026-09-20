@@ -29,14 +29,14 @@ export const invokeAgreementActionRoute = {
     },
   },
   async handler(request, h) {
-    const { source, code, sbi } = resolveAgreementAccess(request);
+    const { source, sbi } = resolveAgreementAccess(request);
     const result = await executeAgreementActionUseCase({
       actionName: request.params.actionName,
       agreementNumber: request.params.agreementNumber,
       values: request.payload.values,
       ifMatch: request.headers["if-match"],
       idempotencyKey: request.headers["idempotency-key"],
-      access: { source, code, sbi },
+      access: { source, sbi },
     });
 
     if (result.errors) {

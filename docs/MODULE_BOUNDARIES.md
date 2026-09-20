@@ -29,15 +29,16 @@ This is enforced by the `import-x/no-restricted-paths` rule in `eslint.config.js
 
 When Agreements needs to collaborate with Grants, use one of these approved seams:
 
-| Seam                                      | How                                                                                                                                                                                                          |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **HTTP / REST API**                       | Call the Grants HTTP endpoints; do not share route handlers or controllers                                                                                                                                   |
-| **Events**                                | Publish to or consume from SNS/SQS topics; event shapes live in `src/*/events/`                                                                                                                              |
-| **Commands**                              | Send commands via the message bus; command shapes live in `src/*/commands/`                                                                                                                                  |
-| **Inbox / Outbox records**                | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox                                                                                                                  |
-| **Shared infrastructure**                 | Import from `src/common/` (logger, DB client, messaging helpers)                                                                                                                                             |
-| **Shared event domain**                   | Import from `src/events/` (audit predicate, list filter, status counts, facets, breakdown, redrive, last error)                                                                                              |
-| **Grants → Agreements reference context** | `grants` may call the reviewed Agreements query interface for a plain reference-resolution context. The query accepts the active Mongo session; it does not expose an Agreements repository or domain model. |
+| Seam                                      | How                                                                                                                                                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **HTTP / REST API**                       | Call the Grants HTTP endpoints; do not share route handlers or controllers                                                                                                                                                      |
+| **Events**                                | Publish to or consume from SNS/SQS topics; event shapes live in `src/*/events/`                                                                                                                                                 |
+| **Commands**                              | Send commands via the message bus; command shapes live in `src/*/commands/`                                                                                                                                                     |
+| **Inbox / Outbox records**                | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox                                                                                                                                     |
+| **Shared infrastructure**                 | Import from `src/common/` (logger, DB client, messaging helpers)                                                                                                                                                                |
+| **Shared event domain**                   | Import from `src/events/` (audit predicate, list filter, status counts, facets, breakdown, redrive, last error)                                                                                                                 |
+| **Grants → Agreements reference context** | `grants` may call the reviewed Agreements query interface for a plain reference-resolution context. The query accepts the active Mongo session; it does not expose an Agreements repository or domain model.                    |
+| **Config definition checks**              | When the Config Broker publishes a version, `grants` asks each owning context whether its own definition file is usable, before the version is recorded. See [Config definition entry points](#config-definition-entry-points). |
 
 ### Grant Admin entry points
 
@@ -87,6 +88,7 @@ Agreement acceptance and Claim submission use named Payment use cases:
 | `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | Creates the Payment in the Agreement action's Mongo session so the Payment, Agreement, Version and lifecycle event commit together                                                                                                                         |
 | `grants`     | `payments/use-cases/resolve-claim-payment.js`             | Resolves the Payment a submitted Claim would raise, before the submission transaction starts. Payments owns the catalogue lookup, the definition type, the mapping context and what an unconfigured definition means; Grants passes the Claim as submitted |
 | `grants`     | `payments/use-cases/create-claim-payment.use-case.js`     | Creates the Payment in the Claim submission's Mongo session so the Payment and the Claim commit together, and roll back together on any replay or retry                                                                                                    |
+| `grants`     | `payments/use-cases/compile-payment-definition.js`        | Checks a published Payment definition before the config version is recorded. Payments owns what makes one unusable; Grants passes the fetched file and is told only whether it is good                                                                     |
 
 The resolver is a read-only, pre-transaction seam. Config Broker loading and mapping validation stay outside the write transaction. The creation use case is the transactional seam, and the caller passes its session in.
 
@@ -98,6 +100,34 @@ Claim submission is transactional for the same reason Agreement acceptance is. `
 
 `payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from the creation entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.
 
+### Config definition entry points
+
+A Config Broker version carries a definition file for each context that has one: `gas.json`
+for Grants, and optionally `agreement.json` and `payment.json`. FGP-1423 checks all of them
+when the event arrives, so a definition nothing can use never becomes something a grant,
+agreement or payment later resolves to.
+
+Grants runs that check because it owns the config catalogue, but it must not decide what
+makes another context's definition valid. Each context exposes a narrow entry point
+instead:
+
+| Caller   | Entry point                                            | Why                                                                                                                                                                               |
+| -------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grants` | `agreements/use-cases/compile-agreement-definition.js` | Checks a published Agreement definition. Also decides what is _not_ the config's fault: a missing endpoint service URL is this deployment's problem and must not fail the version |
+| `grants` | `payments/use-cases/compile-payment-definition.js`     | Checks a published Payment definition. Building the model is the check                                                                                                            |
+
+Both are pure and read-only. They fetch nothing, cache nothing, and write no fetch status —
+they are told a parsed file and answer whether it is usable. That is why they are separate
+files rather than exports from the loaders: whitelisting a loader would also hand Grants
+`loadAgreementDefinition`, its cache and its catalogue lookups.
+
+The two are deliberately not symmetrical. Agreements needs `checkAgreementDefinition` as
+well as `compileAgreementDefinition`, because only Agreements knows that an
+`EndpointServiceUrlError` means our deployment is misconfigured rather than the published
+config being bad. Payments has no such case, so it exposes the compile step alone.
+
+Grants checks its own `gas.json` through `Grant.fromDefinition`, which needs no seam.
+
 ### Test endpoint entry points
 
 The FGP-1411 QA endpoints reuse the Agreements command handlers rather than reimplementing agreement setup, so that data created by the test suites is indistinguishable from normally processed data:
@@ -107,8 +137,9 @@ The FGP-1411 QA endpoints reuse the Agreements command handlers rather than reim
 | `test-endpoints` | `agreements/use-cases/handle-create-agreement-command.use-case.js`        | Creates an Agreement through the same handler the SQS consumer uses, so validation, persistence and side effects match    |
 | `test-endpoints` | `agreements/use-cases/handle-update-agreement-status-command.use-case.js` | Applies a status transition through the same handler, so lifecycle rules are enforced by the grant's agreement definition |
 | `test-endpoints` | `agreements/use-cases/load-current-agreement.js`                          | Resolves the Agreement by number, which supplies the 404 for an unknown Agreement before any command is dispatched        |
+| `test-endpoints` | `agreements/services/agreement-ownership.js`                              | Applies the same legacy denylist as the command bus before exposing test mutations                                        |
 
-The adapter adds only HTTP concerns: the feature flag, request and response schemas, the GAS-managed grant code check, and translating a rejected transition into a 409. It holds no agreement logic of its own and never touches an Agreements repository or domain model directly. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
+The adapter adds only HTTP concerns: the feature flag, request and response schemas, the shared Agreement ownership check, and translating a rejected transition into a 409. It holds no agreement logic of its own and never touches an Agreements repository or domain model directly. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
 
 ## Adding a New Seam
 

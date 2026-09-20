@@ -38,7 +38,7 @@ describe("save inbox message", () => {
     expect(insertOne).toHaveBeenCalledWith(expect.any(Inbox));
   });
 
-  it("should do nothing id message is already saved", async () => {
+  it("should do nothing if message is already saved", async () => {
     findByMessageId.mockResolvedValue({});
     vi.spyOn(logger, "warn");
     const message = {};

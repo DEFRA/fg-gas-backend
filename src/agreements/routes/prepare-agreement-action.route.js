@@ -19,11 +19,11 @@ export const prepareAgreementActionRoute = {
     },
   },
   async handler(request, h) {
-    const { source, code, sbi } = resolveAgreementAccess(request);
+    const { source, sbi } = resolveAgreementAccess(request);
     const { pageModel, etag } = await prepareAgreementActionUseCase({
       actionName: request.params.actionName,
       agreementNumber: request.params.agreementNumber,
-      access: { source, code, sbi },
+      access: { source, sbi },
     });
 
     return h.response(pageModel).header("ETag", etag);

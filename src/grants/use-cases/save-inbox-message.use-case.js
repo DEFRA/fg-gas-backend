@@ -9,6 +9,7 @@ import {
 export const messageSource = {
   AgreementService: "AS",
   CaseWorking: "CW",
+  ConfigBroker: "CB",
 };
 
 export const getSegregationRef = (event) => {
@@ -16,7 +17,11 @@ export const getSegregationRef = (event) => {
   return getMessageGroupId(null, data);
 };
 
-export const saveInboxMessageUseCase = async (message, source) => {
+export const saveInboxMessageUseCase = async (
+  message,
+  source,
+  segregationRef,
+) => {
   logger.info(`Save inbox message use case for message with id: ${message.id}`);
   const existing = await findByMessageId(message.id);
   if (existing !== null) {
@@ -33,7 +38,9 @@ export const saveInboxMessageUseCase = async (message, source) => {
     messageId: message.id,
     type: message.type,
     source,
-    segregationRef: getSegregationRef(message),
+    // Not a default argument: those evaluate before the body, so a redelivered message
+    // with no `data` would throw here rather than returning at the duplicate check.
+    segregationRef: segregationRef ?? getSegregationRef(message),
   });
 
   await insertOne(inbox);

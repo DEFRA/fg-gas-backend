@@ -1,10 +1,11 @@
+import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { S3FetchError } from "../../common/s3-client.js";
 import { processConfigVersionUseCase } from "./process-config-version.use-case.js";
 
 const { mockConfig } = vi.hoisted(() => {
   const mockConfig = {
     configBroker: {
-      s3Bucket: "config-broker-test",
       variant: "",
     },
   };
@@ -21,10 +22,17 @@ vi.mock("../repositories/config-version.repository.js", () => ({
   upsert: (...args) => mockUpsert(...args),
 }));
 
+const mockValidateConfigDefinitions = vi.fn();
+vi.mock("./validate-config-definitions.js", () => ({
+  validateConfigDefinitions: (...args) =>
+    mockValidateConfigDefinitions(...args),
+}));
+
 describe("processConfigVersionUseCase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpsert.mockResolvedValue({ upsertedCount: 1 });
+    mockValidateConfigDefinitions.mockResolvedValue(undefined);
     mockConfig.configBroker.variant = "";
   });
 
@@ -33,6 +41,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      s3Bucket: "configs-bucket",
       manifest: ["woodland/1.2.3/gas/gas.json", "woodland/1.2.3/metadata.json"],
     });
 
@@ -45,7 +54,7 @@ describe("processConfigVersionUseCase", () => {
     expect(arg.patch).toBe(3);
     expect(arg.status).toBe("active");
     expect(arg.s3Key).toBe("woodland/1.2.3/gas/gas.json");
-    expect(arg.s3Bucket).toBe("config-broker-test");
+    expect(arg.s3Bucket).toBe("configs-bucket");
     expect(arg.fetchStatus).toBe("pending");
     expect(mockUpsert).toHaveBeenCalledWith(arg, {});
   });
@@ -55,6 +64,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      s3Bucket: "configs-bucket",
       manifest: [
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/gas/agreement.json",
@@ -71,6 +81,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      s3Bucket: "configs-bucket",
       manifest: [
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/gas/payment.json",
@@ -87,6 +98,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "1.2.3",
       status: "active",
+      s3Bucket: "configs-bucket",
       manifest: [
         "woodland/1.2.3/gas/gas.json",
         "woodland/1.2.3/gas/agreement.json",
@@ -106,6 +118,7 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         grantCode: "woodland",
         version: "1.0.0",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("invalid status");
@@ -117,6 +130,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "published",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("invalid status");
@@ -127,6 +141,7 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         version: "1.0.0",
         status: "active",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("missing required fields");
@@ -137,6 +152,7 @@ describe("processConfigVersionUseCase", () => {
       processConfigVersionUseCase({
         grantCode: "woodland",
         status: "active",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("missing required fields");
@@ -148,6 +164,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
+        s3Bucket: "configs-bucket",
       }),
     ).rejects.toThrow("manifest");
   });
@@ -158,6 +175,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
+        s3Bucket: "configs-bucket",
         manifest: [],
       }),
     ).rejects.toThrow("manifest");
@@ -169,6 +187,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "not-a-version",
         status: "active",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
@@ -180,6 +199,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0-rc1",
         status: "active",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       }),
     ).rejects.toThrow("Invalid semver version");
@@ -190,6 +210,7 @@ describe("processConfigVersionUseCase", () => {
       grantCode: "woodland",
       version: "2.0.0",
       status: "draft",
+      s3Bucket: "configs-bucket",
       manifest: ["woodland/2.0.0/gas/gas.json"],
     });
 
@@ -205,6 +226,7 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
+        s3Bucket: "configs-bucket",
         manifest: [
           "woodland/1.0.0/gas/gas.next.json",
           "woodland/1.0.0/gas/agreement.next.json",
@@ -227,11 +249,169 @@ describe("processConfigVersionUseCase", () => {
         grantCode: "woodland",
         version: "1.0.0",
         status: "active",
+        s3Bucket: "configs-bucket",
         manifest: ["woodland/1.0.0/gas/gas.json"],
       });
 
       const cv = mockUpsert.mock.calls[0][0];
       expect(cv.s3Key).toBe("woodland/1.0.0/gas/gas.json");
+    });
+  });
+
+  describe("s3 bucket", () => {
+    const withBucket = (s3Bucket) =>
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        manifest: ["woodland/1.2.3/gas/gas.json"],
+        s3Bucket,
+      });
+
+    it("uses the bucket the Config Broker uploaded to", async () => {
+      await withBucket("configs-bucket");
+
+      expect(mockUpsert.mock.calls[0][0].s3Bucket).toBe("configs-bucket");
+    });
+
+    // There is no configured bucket to fall back to: without one, guessing where the
+    // definition lives is the only option, so the version is refused instead.
+    it.each([
+      ["missing", undefined],
+      ["empty", ""],
+    ])("refuses a version whose bucket is %s", async (_, s3Bucket) => {
+      await expect(withBucket(s3Bucket)).rejects.toThrow("has no bucket");
+
+      expect(mockUpsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("checking the definitions", () => {
+    const process = (manifest) =>
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        s3Bucket: "configs-bucket",
+        manifest,
+      });
+
+    it("checks every definition the manifest carries", async () => {
+      await process([
+        "woodland/1.2.3/gas/gas.json",
+        "woodland/1.2.3/gas/agreement.json",
+        "woodland/1.2.3/gas/payment.json",
+      ]);
+
+      expect(mockValidateConfigDefinitions).toHaveBeenCalledWith({
+        grantCode: "woodland",
+        version: "1.2.3",
+        s3Bucket: "configs-bucket",
+        s3Keys: {
+          grant: "woodland/1.2.3/gas/gas.json",
+          agreement: "woodland/1.2.3/gas/agreement.json",
+          payment: "woodland/1.2.3/gas/payment.json",
+        },
+      });
+    });
+
+    it("passes no key for a definition the manifest does not carry", async () => {
+      await process(["woodland/1.2.3/gas/gas.json"]);
+
+      expect(mockValidateConfigDefinitions.mock.calls[0][0].s3Keys).toEqual({
+        grant: "woodland/1.2.3/gas/gas.json",
+        agreement: null,
+        payment: null,
+      });
+    });
+
+    // The whole point of the check: a version we cannot use is never recorded.
+    it("does not record the version when a definition cannot be used", async () => {
+      mockValidateConfigDefinitions.mockRejectedValueOnce(
+        new Error("bad agreement definition"),
+      );
+
+      await expect(process(["woodland/1.2.3/gas/gas.json"])).rejects.toThrow(
+        "bad agreement definition",
+      );
+
+      expect(mockUpsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("failures that retrying cannot fix", () => {
+    const process = () =>
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        s3Bucket: "configs-bucket",
+        manifest: ["woodland/1.2.3/gas/gas.json"],
+      });
+
+    const rejectionFrom = async (error) => {
+      mockValidateConfigDefinitions.mockRejectedValueOnce(error);
+
+      return process().catch((thrown) => thrown);
+    };
+
+    it("gives up on a definition that will not build", async () => {
+      const thrown = await rejectionFrom(
+        Boom.badImplementation("definition is invalid"),
+      );
+
+      expect(thrown.retryable).toBe(false);
+    });
+
+    // The published version is immutable, so a manifest missing the file it must have will
+    // be missing it every time.
+    it("gives up on a manifest with no gas.json", async () => {
+      const thrown = await processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        s3Bucket: "configs-bucket",
+        manifest: ["woodland/1.2.3/metadata.json"],
+      }).catch((error) => error);
+
+      expect(thrown.message).toContain("does not contain required config file");
+      expect(thrown.retryable).toBe(false);
+      expect(mockUpsert).not.toHaveBeenCalled();
+    });
+
+    it("gives up on a message it cannot read", async () => {
+      const thrown = await processConfigVersionUseCase({
+        grantCode: "woodland",
+        version: "1.2.3",
+        status: "active",
+        manifest: ["woodland/1.2.3/gas/gas.json"],
+      }).catch((error) => error);
+
+      expect(thrown.retryable).toBe(false);
+    });
+
+    it("gives up on a definition that is missing from S3", async () => {
+      const thrown = await rejectionFrom(
+        new S3FetchError("not found", { statusCode: 404, code: "NoSuchKey" }),
+      );
+
+      expect(thrown.retryable).toBe(false);
+    });
+
+    it("keeps retrying when S3 is unavailable", async () => {
+      const thrown = await rejectionFrom(
+        new S3FetchError("service unavailable", { statusCode: 503 }),
+      );
+
+      expect(thrown.retryable).toBeUndefined();
+    });
+
+    it("keeps retrying when the database fails", async () => {
+      mockUpsert.mockRejectedValueOnce(new Error("mongo is down"));
+
+      const thrown = await process().catch((error) => error);
+
+      expect(thrown.retryable).toBeUndefined();
     });
   });
 });
