@@ -30,7 +30,7 @@
     "*": "prettier --ignore-unknown --list-different --write"
   },
   "overrides": {
-    "joi": "18.2.3"
+    "joi": "18.2.5"
   },
   "prettier": {
     "plugins": [
@@ -60,7 +60,7 @@
     "hapi-pino": "^13.0.0",
     "hapi-pulse": "4.0.0",
     "hapi-swagger": "^17.3.2",
-    "joi": "18.2.3",
+    "joi": "18.2.5",
     "jsonata": "2.2.2",
     "migrate-mongo": "^14.0.7",
     "mongodb": "^7.1.0",
