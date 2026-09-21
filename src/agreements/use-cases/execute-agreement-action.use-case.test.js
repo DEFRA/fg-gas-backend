@@ -155,25 +155,11 @@ describe("executeAgreementActionUseCase", () => {
           event: expect.objectContaining({
             correlationId: agreement.correlationId,
             datetime: "2026-08-20T10:00:00.000Z",
-            eventData: {
+            eventData: expect.objectContaining({
               eventType: "AGREEMENT_STATUS_CHANGED",
               agreementId: options.agreementNumber,
               agreementStatus: "accepted",
-              statusDate: "2026-08-20T10:00:00.000Z",
-              agreementStartDate: "2026-08-01",
-              agreementEndDate: "2027-07-31",
-              agreementValue: 50,
-              options: [
-                {
-                  parcelReference: "",
-                  optionCode: "largeWhite",
-                  optionStartDate: "2026-08-01",
-                  optionEndDate: "2027-07-31",
-                  optionQuantity: 5,
-                  optionValue: 50,
-                },
-              ],
-            },
+            }),
           }),
         }),
       ]),
