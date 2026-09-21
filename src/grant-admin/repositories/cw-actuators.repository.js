@@ -1,7 +1,10 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
 import { wreck } from "../../common/wreck.js";
-import { DEAD_LETTER } from "../../events/event-redrive.js";
+import {
+  DEAD_LETTER,
+  REDRIVABLE_DESCRIPTION,
+} from "../../events/event-redrive.js";
 import { EVENT_STATUSES } from "../../events/status-counts.js";
 
 const GATEWAY_TIMEOUT = 504;
@@ -177,7 +180,15 @@ const requestOptions = () => ({
   headers: { authorization: `Bearer ${config.cwBackend.token}` },
 });
 
-const cwRequest = async (method, path, label) => {
+// `wreck` serialises an object payload as JSON and sets the content type.
+const optionsWith = (body) =>
+  body === undefined
+    ? requestOptions()
+    : { ...requestOptions(), payload: body };
+
+// `expected` is what Caseworking's 409 says the row was not, and it differs
+// per route.
+const cwRequest = async (method, path, label, { body, expected } = {}) => {
   if (!isCwConfigured()) {
     throw Boom.badGateway("CW-BE is not configured");
   }
@@ -185,12 +196,12 @@ const cwRequest = async (method, path, label) => {
   try {
     const { payload } = await wreck[method](
       new URL(path, config.cwBackend.url).toString(),
-      requestOptions(),
+      optionsWith(body),
     );
 
     return payload;
   } catch (error) {
-    throw toFailure(error, label, DEAD_LETTER);
+    throw toFailure(error, label, expected);
   }
 };
 
@@ -199,8 +210,11 @@ const eventPath = (box, id) =>
 
 const labelFor = (box, id) => `${box} event "${id}"`;
 
+// A read never conflicts, so its `expected` is only ever a fallback wording.
 export const findCwEvent = (box, id) =>
-  cwRequest("get", eventPath(box, id), labelFor(box, id));
+  cwRequest("get", eventPath(box, id), labelFor(box, id), {
+    expected: DEAD_LETTER,
+  });
 
 const withActor = (path, by) =>
   by ? `${path}?by=${encodeURIComponent(by)}` : path;
@@ -210,4 +224,21 @@ export const redriveCwEvent = (box, id, { by } = {}) =>
     "post",
     withActor(`${eventPath(box, id)}/redrive`, by),
     labelFor(box, id),
+    { expected: REDRIVABLE_DESCRIPTION },
+  );
+
+// The key is left out rather than sent null: Caseworking's schema stores null
+// for an absent note, exactly as GAS does.
+const purgeBody = (reasonCode, note) =>
+  note === null || note === undefined ? { reasonCode } : { reasonCode, note };
+
+// Caseworking refuses a purge that names nobody, because it audits the purge
+// itself. `x-actor` is required on the route that reaches here, so `by` is
+// always sent rather than left off as a redrive's is.
+export const purgeCwEvent = (box, id, { by, reasonCode, note }) =>
+  cwRequest(
+    "post",
+    `${eventPath(box, id)}/purge?by=${encodeURIComponent(by)}`,
+    labelFor(box, id),
+    { body: purgeBody(reasonCode, note), expected: DEAD_LETTER },
   );

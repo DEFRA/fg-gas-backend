@@ -6,6 +6,7 @@ import {
   findCwEvent,
   findCwPage,
   isCwConfigured,
+  purgeCwEvent,
   redriveCwEvent,
 } from "./cw-actuators.repository.js";
 
@@ -585,6 +586,26 @@ describe("redriveCwEvent", () => {
     expect(error.output.payload.status).toBe("COMPLETED");
   });
 
+  it("names every status a redrive would have taken in its 409", async () => {
+    wreck.post.mockRejectedValue(
+      httpError(409, { statusCode: 409, status: "COMPLETED" }),
+    );
+
+    const error = await redriveCwEvent("inbox", ID).catch((e) => e);
+
+    expect(error.message).toBe(
+      `CW-BE inbox event "${ID}" is COMPLETED, not redrivable (DEAD_LETTER or PURGED)`,
+    );
+  });
+
+  it("sends no body at all, as the caseworking redrive route takes none", async () => {
+    wreck.post.mockResolvedValue({ payload: {} });
+
+    await redriveCwEvent("inbox", ID);
+
+    expect(wreck.post.mock.calls[0][1]).not.toHaveProperty("payload");
+  });
+
   it("ignores a status that is not one of the known ones", async () => {
     wreck.post.mockRejectedValue(httpError(409, { status: "SECRET" }));
 
@@ -692,5 +713,133 @@ describe("redriveCwEvent actor", () => {
     await redriveCwEvent("inbox", ID, { by: "a b&c" });
 
     expect(postedUrl().searchParams.get("by")).toBe("a b&c");
+  });
+});
+
+describe("purgeCwEvent", () => {
+  const aPurge = (overrides = {}) => ({
+    by: "donatas",
+    reasonCode: "BROKEN_PAYLOAD",
+    ...overrides,
+  });
+
+  it("POSTs /actuators/events/{box}/{id}/purge with the bearer token", async () => {
+    wreck.post.mockResolvedValue({ payload: undefined });
+
+    await purgeCwEvent("outbox", ID, aPurge());
+
+    expect(new URL(wreck.post.mock.calls[0][0]).pathname).toBe(
+      `/actuators/events/outbox/${ID}/purge`,
+    );
+    expect(wreck.post.mock.calls[0][1]).toMatchObject({
+      json: true,
+      timeout: TIMEOUT_MS,
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+  });
+
+  it("sends the reason and the note as the request body", async () => {
+    wreck.post.mockResolvedValue({ payload: undefined });
+
+    await purgeCwEvent("inbox", ID, aPurge({ note: "lost its clientRef" }));
+
+    expect(wreck.post.mock.calls[0][1].payload).toEqual({
+      reasonCode: "BROKEN_PAYLOAD",
+      note: "lost its clientRef",
+    });
+  });
+
+  it("leaves the note key out entirely when there is none", async () => {
+    wreck.post.mockResolvedValue({ payload: undefined });
+
+    await purgeCwEvent("inbox", ID, aPurge({ note: null }));
+
+    expect(wreck.post.mock.calls[0][1].payload).toEqual({
+      reasonCode: "BROKEN_PAYLOAD",
+    });
+    expect(wreck.post.mock.calls[0][1].payload).not.toHaveProperty("note");
+  });
+
+  it("sends `by` as a query parameter, as a redrive does", async () => {
+    wreck.post.mockResolvedValue({ payload: undefined });
+
+    await purgeCwEvent("inbox", ID, aPurge({ by: "donatas" }));
+
+    expect(new URL(wreck.post.mock.calls[0][0]).searchParams.get("by")).toBe(
+      "donatas",
+    );
+  });
+
+  // Caseworking refuses an unattributed purge, so `by` is never left off.
+  it("percent-encodes an operator with awkward characters", async () => {
+    wreck.post.mockResolvedValue({ payload: undefined });
+
+    await purgeCwEvent("inbox", ID, aPurge({ by: "a b&c" }));
+
+    expect(new URL(wreck.post.mock.calls[0][0]).searchParams.get("by")).toBe(
+      "a b&c",
+    );
+  });
+
+  it("turns a caseworking 404 into a 404", async () => {
+    wreck.post.mockRejectedValue(httpError(404, { message: "nope" }));
+
+    await expect(purgeCwEvent("inbox", ID, aPurge())).rejects.toMatchObject({
+      output: { statusCode: 404 },
+    });
+  });
+
+  it("turns a caseworking 409 into a 409 carrying the current status", async () => {
+    wreck.post.mockRejectedValue(
+      httpError(409, { statusCode: 409, status: "PURGED" }),
+    );
+
+    const error = await purgeCwEvent("inbox", ID, aPurge()).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(409);
+    expect(error.output.payload.status).toBe("PURGED");
+    expect(error.message).toBe(
+      `CW-BE inbox event "${ID}" is PURGED, not DEAD_LETTER`,
+    );
+  });
+
+  it("ignores a status that is not one it knows", async () => {
+    wreck.post.mockRejectedValue(httpError(409, { status: "SECRET" }));
+
+    const error = await purgeCwEvent("inbox", ID, aPurge()).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(409);
+    expect(error.output.payload.status).toBeUndefined();
+    expect(error.message).not.toContain("SECRET");
+  });
+
+  // Caseworking may still commit after GAS gives up, so this is not a refusal.
+  it("turns a caseworking timeout into a 504 rather than a failure", async () => {
+    wreck.post.mockRejectedValue(Boom.gatewayTimeout("Client request timeout"));
+
+    const error = await purgeCwEvent("inbox", ID, aPurge()).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(504);
+    expect(error.message).toBe(
+      `CW-BE did not answer in time for inbox event "${ID}"`,
+    );
+  });
+
+  it("turns any other caseworking failure into a 502", async () => {
+    wreck.post.mockRejectedValue(httpError(503, { message: "SECRET-BODY" }));
+
+    const error = await purgeCwEvent("inbox", ID, aPurge()).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(502);
+    expect(error.message).not.toContain("SECRET-BODY");
+  });
+
+  it("502s without calling caseworking when it is not configured", async () => {
+    cwBackend.token = undefined;
+
+    await expect(purgeCwEvent("inbox", ID, aPurge())).rejects.toMatchObject({
+      output: { statusCode: 502 },
+    });
+    expect(wreck.post).not.toHaveBeenCalled();
   });
 });

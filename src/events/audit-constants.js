@@ -6,7 +6,7 @@ export const auditEntities = {
   CLAIM: "CLAIM",
   // one inbox/outbox row, either service. Admin-only: the event list and
   // detail views are audited because the detail view returns event payloads
-  // and redrive changes state.
+  // and redrive and purge change state.
   EVENT: "EVENT",
 };
 
@@ -28,6 +28,9 @@ export const auditActions = {
   SUBMIT: "SUBMIT",
   VIEW_EVENT: "VIEW_EVENT",
   REDRIVE_EVENT: "REDRIVE_EVENT",
+  // Setting one dead letter aside for good: it becomes PURGED and is deleted
+  // on its retention date, not now.
+  PURGE_EVENT: "PURGE_EVENT",
 };
 
 export const auditStatus = {
