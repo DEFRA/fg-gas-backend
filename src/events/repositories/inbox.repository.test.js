@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import { Inbox, InboxStatus } from "../models/inbox.js";
@@ -17,6 +17,7 @@ import {
   insertMany,
   insertOne,
   processExpiredEvents,
+  purgeById,
   redriveById,
   update,
   updateDeadEvents,
@@ -569,14 +570,17 @@ describe("inbox.repository detail and redrive", () => {
     expect(await findStatusById(ID)).toBeNull();
   });
 
-  it("redrives with a single conditional update filtered on DEAD_LETTER", async () => {
+  it("redrives with a single conditional update fenced on the redrivable statuses", async () => {
     const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
     db.collection.mockReturnValue({ updateOne });
 
     expect(await redriveById(ID)).toBe(true);
     expect(updateOne).toHaveBeenCalledTimes(1);
     expect(updateOne).toHaveBeenCalledWith(
-      { _id: new ObjectId(ID), status: InboxStatus.DEAD_LETTER },
+      {
+        _id: new ObjectId(ID),
+        status: { $in: [InboxStatus.DEAD_LETTER, InboxStatus.PURGED] },
+      },
       {
         $set: {
           status: InboxStatus.RESUBMITTED,
@@ -600,6 +604,112 @@ describe("inbox.repository detail and redrive", () => {
     });
 
     expect(await redriveById(ID)).toBe(false);
+  });
+
+  describe("purgeById", () => {
+    const PURGED_AT = new Date("2026-09-21T09:00:00.000Z");
+    // now + EVENT_RETENTION_DAYS (90 by default), as a BSON Date.
+    const DELETION_DATE = new Date("2026-12-20T09:00:00.000Z");
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(PURGED_AT);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("purges with a single conditional update fenced on DEAD_LETTER", async () => {
+      const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+      db.collection.mockReturnValue({ updateOne });
+
+      expect(
+        await purgeById(ID, {
+          by: "donatas",
+          reasonCode: "BROKEN_PAYLOAD",
+          note: "the payload lost its clientRef",
+        }),
+      ).toBe(true);
+      expect(updateOne).toHaveBeenCalledTimes(1);
+      expect(updateOne).toHaveBeenCalledWith(
+        { _id: new ObjectId(ID), status: InboxStatus.DEAD_LETTER },
+        {
+          $set: {
+            status: InboxStatus.PURGED,
+            lastPurge: {
+              at: PURGED_AT.toISOString(),
+              by: "donatas",
+              reasonCode: "BROKEN_PAYLOAD",
+              note: "the payload lost its clientRef",
+            },
+            expireAt: DELETION_DATE,
+          },
+        },
+        {},
+      );
+    });
+
+    // The purge and its audit event commit together, so the update joins the
+    // use case's transaction.
+    it("issues the update on the session it is given", async () => {
+      const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+      db.collection.mockReturnValue({ updateOne });
+      const session = {};
+
+      await purgeById(ID, { reasonCode: "SENT_IN_ERROR", session });
+
+      expect(updateOne.mock.calls[0][2]).toEqual({ session });
+    });
+
+    it("stores a BSON Date, which is the only thing the TTL index reads", async () => {
+      const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+      db.collection.mockReturnValue({ updateOne });
+
+      await purgeById(ID, { reasonCode: "SENT_IN_ERROR" });
+
+      expect(updateOne.mock.calls[0][1].$set.expireAt).toBeInstanceOf(Date);
+    });
+
+    it("stores a null note and a null actor where neither was given", async () => {
+      const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+      db.collection.mockReturnValue({ updateOne });
+
+      await purgeById(ID, { reasonCode: "SENT_IN_ERROR" });
+
+      expect(updateOne.mock.calls[0][1].$set.lastPurge).toEqual({
+        at: PURGED_AT.toISOString(),
+        by: null,
+        reasonCode: "SENT_IN_ERROR",
+        note: null,
+      });
+      expect(JSON.stringify(updateOne.mock.calls[0][1])).not.toContain(
+        "System",
+      );
+    });
+
+    it("keeps the payload, the history and the error: a purge is not a redaction", async () => {
+      const updateOne = vi.fn().mockResolvedValue({ matchedCount: 1 });
+      db.collection.mockReturnValue({ updateOne });
+
+      await purgeById(ID, { reasonCode: "OTHER", note: "no longer wanted" });
+
+      expect(Object.keys(updateOne.mock.calls[0][1].$set)).toEqual([
+        "status",
+        "lastPurge",
+        "expireAt",
+      ]);
+    });
+
+    it("answers false when the conditional update matched nothing", async () => {
+      db.collection.mockReturnValue({
+        updateOne: vi.fn().mockResolvedValue({ matchedCount: 0 }),
+      });
+
+      expect(await purgeById(ID, { reasonCode: "OTHER", note: "n" })).toBe(
+        false,
+      );
+    });
   });
 });
 
