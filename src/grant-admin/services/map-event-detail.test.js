@@ -111,6 +111,45 @@ describe("toEventDetail lastError", () => {
   });
 });
 
+// `expireAt` in the store, "Deletion date" in the admin - hence the rename.
+describe("toEventDetail expiresAt", () => {
+  it("is null on a row with no deadline - every dead letter has none", () => {
+    expect(inboxDetail().expiresAt).toBeNull();
+    expect(outboxDetail().expiresAt).toBeNull();
+  });
+
+  it("is null on a row written before the field existed", () => {
+    expect(inboxDetail({ expireAt: undefined }).expiresAt).toBeNull();
+  });
+
+  it("serialises a stored Date as an instant", () => {
+    const expireAt = new Date("2026-12-16T10:00:00.000Z");
+
+    expect(inboxDetail({ expireAt }).expiresAt).toBe(
+      "2026-12-16T10:00:00.000Z",
+    );
+    expect(outboxDetail({ expireAt }).expiresAt).toBe(
+      "2026-12-16T10:00:00.000Z",
+    );
+  });
+
+  // Caseworking serialises its own top-level Dates, so GAS receives a string.
+  it("passes a Caseworking row's deadline through", () => {
+    const detail = toEventDetail({
+      service: "caseworking",
+      box: "inbox",
+      doc: {
+        ...anInboxDoc(),
+        _id: "665f1c2e9a1b2c3d4e5f6a7b",
+        expireAt: "2026-12-16T10:00:00.000Z",
+      },
+      maxAttempts: 7,
+    });
+
+    expect(detail.expiresAt).toBe("2026-12-16T10:00:00.000Z");
+  });
+});
+
 describe("toEventDetail lastRedrive", () => {
   it("names an unattributed redrive as the platform's own", () => {
     const doc = anInboxDoc({

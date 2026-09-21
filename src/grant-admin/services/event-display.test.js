@@ -60,6 +60,14 @@ describe("statusDisplay", () => {
     });
   });
 
+  it("spells PURGED neutrally, and never as an error", () => {
+    expect(statusDisplay("PURGED")).toEqual({
+      statusLabel: "Purged",
+      statusRole: "neutral",
+      statusRetrying: false,
+    });
+  });
+
   it("keeps a status nobody has seen in its own spelling, with a neutral badge", () => {
     expect(statusDisplay("QUARANTINED")).toEqual({
       statusLabel: "QUARANTINED",
@@ -70,7 +78,7 @@ describe("statusDisplay", () => {
 });
 
 describe("statusVocabulary", () => {
-  it("lists the six states in the order a message travels them", () => {
+  it("lists the seven states in the order a message travels them", () => {
     expect(statusVocabulary().map(({ value }) => value)).toEqual([
       "PUBLISHED",
       "PROCESSING",
@@ -78,6 +86,7 @@ describe("statusVocabulary", () => {
       "RESUBMITTED",
       "COMPLETED",
       "DEAD_LETTER",
+      "PURGED",
     ]);
   });
 
