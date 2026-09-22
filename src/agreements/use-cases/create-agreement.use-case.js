@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { randomUUID } from "node:crypto";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
-import { saveOutboxEvents } from "../../common/save-outbox-events.js";
+import { saveOutboxEvents } from "../../events/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import {
   createAgreementCreatedReportingPublication,

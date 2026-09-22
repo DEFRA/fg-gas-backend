@@ -1,9 +1,9 @@
 import Boom from "@hapi/boom";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
-import { saveOutboxEvents } from "../../common/save-outbox-events.js";
-import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
+import { saveOutboxEvents } from "../../events/save-outbox-events.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { createClaimPaymentUseCase } from "../../payments/use-cases/create-claim-payment.use-case.js";
 import { resolveClaimPayment } from "../../payments/use-cases/resolve-claim-payment.js";

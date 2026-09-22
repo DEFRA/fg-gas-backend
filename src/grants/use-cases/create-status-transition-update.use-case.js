@@ -1,10 +1,10 @@
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { Outbox } from "../models/outbox.js";
-import { insertMany } from "../repositories/outbox.repository.js";
+import { Outbox } from "../../events/models/outbox.js";
+import { insertMany } from "../../events/repositories/outbox.repository.js";
 
 const writeStatusTransition = async (
   { clientRef, code, previousStatus, currentStatus, currentConfigVersion },

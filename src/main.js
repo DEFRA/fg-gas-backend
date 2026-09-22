@@ -2,6 +2,7 @@ import { agreements } from "./agreements/index.js";
 import { seedAccessToken } from "./auth/seed-access-token.js";
 import { logger } from "./common/logger.js";
 import { grantAdmin } from "./grant-admin/index.js";
+import { events } from "./events/index.js";
 import { grants } from "./grants/index.js";
 import { health } from "./health/index.js";
 import { createServer } from "./server.js";
@@ -13,7 +14,14 @@ process.on("unhandledRejection", (error) => {
 });
 
 const server = await createServer();
-await server.register([health, grants, agreements, grantAdmin, testEndpoints]);
+await server.register([
+  health,
+  grants,
+  agreements,
+  grantAdmin,
+  testEndpoints,
+  events,
+]);
 // After register, which runs the migrations, and before any request is served.
 await seedAccessToken();
 await server.start();

@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { writeAuditEvent } from "../../common/write-audit-event.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import {
   findStatusById as gasInboxStatus,
   redriveById as redriveGasInbox,
-} from "../../grants/repositories/inbox.repository.js";
+} from "../../events/repositories/inbox.repository.js";
 import {
   findStatusById as gasOutboxStatus,
   redriveById as redriveGasOutbox,
-} from "../../grants/repositories/outbox.repository.js";
+} from "../../events/repositories/outbox.repository.js";
 import { redriveCwEvent } from "../repositories/cw-actuators.repository.js";
 import {
   redriveEventAuditBuilder,
@@ -18,9 +18,9 @@ import {
 
 vi.mock("../../common/mongo-client.js");
 vi.mock("../../common/with-transaction.js");
-vi.mock("../../common/write-audit-event.js");
-vi.mock("../../grants/repositories/inbox.repository.js");
-vi.mock("../../grants/repositories/outbox.repository.js");
+vi.mock("../../events/write-audit-event.js");
+vi.mock("../../events/repositories/inbox.repository.js");
+vi.mock("../../events/repositories/outbox.repository.js");
 vi.mock("../repositories/cw-actuators.repository.js");
 
 const ID = "665f1c2e9a1b2c3d4e5f6a7b";

@@ -73,15 +73,18 @@ The live subscription inventory is a deployment gate, not a blocker to implement
 
 ### 1. Deepen the shared events module
 
-- [ ] Move the durable event models, repositories, FIFO locking and pollers from `src/grants/` into `src/events/`. Move `src/common/save-outbox-events.js` behind the same module interface.
-- [ ] Preserve the existing `inbox`, `outbox` and FIFO-lock collection identities and document shapes; this move must not require data migration or break old rows.
+- [x] Move the durable event models, repositories, FIFO locking and pollers from `src/grants/` into `src/events/`. Move `src/common/save-outbox-events.js` behind the same module interface.
+- [x] Preserve the existing `inbox`, `outbox` and FIFO-lock collection identities and document shapes; this move must not require data migration or break old rows.
 - [ ] Give `src/events/` a small interface for saving durable events, registering typed handlers and dispatching an event. Keep persistence, locking, retry, dead-letter and completion bookkeeping behind that interface.
+- [ ] Until the typed registry replaces it, retain the legacy source-keyed `AS`,
+      `CW` and `CB` dispatch only as a Stage 1 compatibility seam. Do not register
+      new event types through that interim registry.
 - [ ] Keep the command bus for commands. Route internally delivered domain events through the event handler registry, including the existing Agreement-status handler.
-- [ ] Register the shared pollers once at application startup rather than from the Grants plugin. Ensure all context handlers are registered before polling starts.
-- [ ] Update Grant Admin to use the shared event repositories without changing list, detail, facet, failure-history or redrive behaviour.
-- [ ] Migrate `src/common/write-audit-event.js` and every other event-store caller to the shared events interface so `src/common/` no longer imports Grants event models or repositories.
-- [ ] Update `eslint.config.js` so every context may enter the events module while `src/events/` may import only common infrastructure. Once the legacy event imports are gone, forbid `src/common/` from importing any context module.
-- [ ] Add a canonical cross-module event section to `docs/MODULE_BOUNDARIES.md`: event versus command selection, producer contract ownership, exact type registration, transactional event persistence, post-commit handling, immutable snapshots, idempotency, ordering, retries/dead-letter/redrive, fan-out semantics and required verification.
+- [x] Register the shared pollers once at application startup rather than from the Grants plugin. Ensure all context handlers are registered before polling starts.
+- [x] Update Grant Admin to use the shared event repositories without changing list, detail, facet, failure-history or redrive behaviour.
+- [x] Migrate `src/common/write-audit-event.js` and every other event-store caller to the shared events interface so `src/common/` no longer imports Grants event models or repositories.
+- [x] Update `eslint.config.js` so every context may enter the events module while `src/events/` may import only common infrastructure. Once the legacy event imports are gone, forbid `src/common/` from importing any context module.
+- [x] Add a canonical cross-module event section to `docs/MODULE_BOUNDARIES.md`: event versus command selection, producer contract ownership, exact type registration, transactional event persistence, post-commit handling, immutable snapshots, idempotency, ordering, retries/dead-letter/redrive, fan-out semantics and required verification.
 
 Completion criterion: existing inbound and outbound event integration tests, Admin event tests and redrive tests pass against the same collections, and no event-store implementation remains under `src/grants/` or `src/common/`.
 

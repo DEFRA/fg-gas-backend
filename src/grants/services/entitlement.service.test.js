@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
-import { buildAuditEvent } from "../../common/with-audit.js";
+import { buildAuditEvent } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { Entitlement } from "../models/entitlement.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
@@ -27,7 +27,7 @@ vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/entitlement.repository.js");
 vi.mock("../use-cases/find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../use-cases/resolve-current-grant.use-case.js");
-vi.mock("../../common/with-audit.js", () => ({
+vi.mock("../../events/with-audit.js", () => ({
   buildAuditEvent: vi.fn((event) => event),
   // Mirrors the real proxy: the data builder runs in a finally, so a failed
   // write reaches it with an undefined result.

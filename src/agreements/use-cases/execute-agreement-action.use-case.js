@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
-import { saveOutboxEvents } from "../../common/save-outbox-events.js";
+import { saveOutboxEvents } from "../../events/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { createAgreementPaymentUseCase } from "../../payments/use-cases/create-agreement-payment.use-case.js";
 import { resolvePaymentDefinition } from "../../payments/use-cases/resolve-payment-definition.js";

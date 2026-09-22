@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { insertMany } from "../grants/repositories/outbox.repository.js";
+import { insertMany } from "./repositories/outbox.repository.js";
 import { saveOutboxEvents } from "./save-outbox-events.js";
 
-vi.mock("../grants/repositories/outbox.repository.js");
+vi.mock("./repositories/outbox.repository.js");
 
 const session = {};
 

@@ -1,6 +1,6 @@
 import { logger } from "../../common/logger.js";
-import { countFacets as countGasInbox } from "../../grants/repositories/inbox.repository.js";
-import { countFacets as countGasOutbox } from "../../grants/repositories/outbox.repository.js";
+import { countFacets as countGasInbox } from "../../events/repositories/inbox.repository.js";
+import { countFacets as countGasOutbox } from "../../events/repositories/outbox.repository.js";
 import {
   CASEWORKING,
   GAS,

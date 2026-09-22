@@ -2,13 +2,13 @@ import Boom from "@hapi/boom";
 import Joi from "joi";
 import { config } from "../../common/config.js";
 import { getMessageGroupId } from "../../common/get-message-group-id.js";
-import { expiryFrom } from "../../events/event-retention.js";
+import { expiryFrom } from "../event-retention.js";
 import {
   appendAttempt,
   normaliseAttemptHistory,
   toAttemptEntry,
   toLastError,
-} from "../../events/last-error.js";
+} from "../last-error.js";
 
 export const OutboxStatus = {
   PUBLISHED: "PUBLISHED",

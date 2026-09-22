@@ -1,9 +1,7 @@
 import { config } from "../../common/config.js";
 import { SqsSubscriber } from "../../common/sqs-subscriber.js";
-import {
-  messageSource,
-  saveInboxMessageUseCase,
-} from "../use-cases/save-inbox-message.use-case.js";
+import { messageSource } from "../services/message-source.js";
+import { saveInboxMessageUseCase } from "../use-cases/save-inbox-message.use-case.js";
 
 export const caseStatusUpdatedSubscriber = new SqsSubscriber({
   queueUrl: config.sqs.updateStatusQueueUrl,

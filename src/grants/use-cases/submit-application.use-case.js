@@ -1,6 +1,6 @@
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { logger } from "../../common/logger.js";
-import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { ApplicationSeries } from "../models/application-series.js";
 import { save as saveSeries } from "../repositories/application-series.repository.js";

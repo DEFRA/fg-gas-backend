@@ -1,4 +1,4 @@
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { config } from "../../common/config.js";
 import {
   canHandleInternalCommand,
@@ -6,11 +6,11 @@ import {
 } from "../../common/internal-command-bus.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
 import { logger } from "../../common/logger.js";
-import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { CreateAgreementCommand } from "../events/create-agreement.command.js";
-import { Outbox } from "../models/outbox.js";
+import { Outbox } from "../../events/models/outbox.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
-import { insertMany } from "../repositories/outbox.repository.js";
+import { insertMany } from "../../events/repositories/outbox.repository.js";
 
 export const auditDataBuilder = (args) => {
   const { clientRef, code } = args[0];

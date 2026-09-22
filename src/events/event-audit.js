@@ -7,6 +7,14 @@ export const UNKNOWN_TYPE = "unknown";
 
 export const EVENT_TYPE_FIELDS = { inbox: "type", outbox: "event.type" };
 
+const EVENT_NAMESPACE = /^cloud\.defra\.[^.]+\.[^.]+\./;
+
+// Never the empty string, which the missing-type rule reads as "no type recorded".
+export const shortEventType = (storedType, isAudit) =>
+  storedType
+    ? storedType.replace(EVENT_NAMESPACE, "") || storedType
+    : labelForMissingType(isAudit);
+
 // Only the outbox has a destination, so a type-less inbox row is always "unknown".
 export const AUDIT_TARGET_FIELDS = { inbox: null, outbox: "target" };
 

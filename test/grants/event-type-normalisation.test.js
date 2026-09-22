@@ -2,7 +2,7 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { up as normaliseSortKeys } from "../../migrations/20260901130000-normalise-event-sort-keys.js";
-import { findPage as findOutboxPage } from "../../src/grants/repositories/outbox.repository.js";
+import { findPage as findOutboxPage } from "../../src/events/repositories/outbox.repository.js";
 
 let client;
 let db;

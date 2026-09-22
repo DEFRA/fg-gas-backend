@@ -3,7 +3,7 @@ import { setTimeout } from "node:timers/promises";
 
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { withTraceParent } from "../../common/trace-parent.js";
+import { dispatchInboxMessage } from "../services/inbox-message-handlers.js";
 import {
   cleanupStaleLocks,
   freeFifoLock,
@@ -19,43 +19,6 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/inbox.repository.js";
-import { applyExternalStateChange } from "../services/apply-event-status-change.service.js";
-import { CONFIG_VERSION_EVENT_TYPE } from "../use-cases/save-config-version-inbox-message.use-case.js";
-import { processConfigVersionUseCase } from "../use-cases/process-config-version.use-case.js";
-
-const handleConfigVersionEvent = ({ data }) =>
-  processConfigVersionUseCase({
-    grantCode: data.grantCode,
-    version: data.version,
-    status: data.status,
-    manifest: data.manifest,
-    s3Bucket: data.s3Bucket,
-  });
-
-const eventHandlers = {
-  [CONFIG_VERSION_EVENT_TYPE]: handleConfigVersionEvent,
-};
-
-const firstTruthy = (...values) => values.find(Boolean) ?? null;
-
-const toStateChangeCommand = ({ event, source, messageId }) => {
-  const { data } = event;
-  const status = firstTruthy(data.currentStatus, data.status);
-  const clientRef = firstTruthy(data.clientRef, data.caseRef);
-  const code = firstTruthy(data.workflowCode, data.code);
-
-  if (!status || !source) {
-    throw new Error(`Unable to handle inbox message ${messageId}`);
-  }
-
-  return {
-    sourceSystem: source,
-    clientRef,
-    code,
-    externalRequestedState: status,
-    eventData: data,
-  };
-};
 
 export class InboxSubscriber {
   static ACTOR = "INBOX";
@@ -156,32 +119,21 @@ export class InboxSubscriber {
     logger.info(`Marked inbox event as complete ${inboxEvent.messageId}`);
   }
 
-  async handleEvent(msg) {
-    const { type, traceparent, source, messageId } = msg;
+  async handleEvent(message) {
+    const { type, source, messageId } = message;
     logger.info(
       `Handle event for inbox message ${type}:${source}:${messageId}`,
     );
+
     try {
-      const handler = eventHandlers[type];
-
-      // attempt to process known event handlers first (e.g. Config Broker)
-      if (handler) {
-        await withTraceParent(traceparent, () => handler(msg.event));
-      } else {
-        // Built before entering the trace scope so an unhandleable message throws here.
-        const command = toStateChangeCommand(msg);
-        await withTraceParent(traceparent, () =>
-          applyExternalStateChange(command),
-        );
-      }
-
-      await this.markEventComplete(msg);
-    } catch (ex) {
+      await dispatchInboxMessage(message);
+      await this.markEventComplete(message);
+    } catch (error) {
       logger.error(
-        ex,
+        error,
         `Error handling event for inbox message ${type}:${messageId}`,
       );
-      await this.markEventFailed(msg, ex);
+      await this.markEventFailed(message, error);
     }
   }
 

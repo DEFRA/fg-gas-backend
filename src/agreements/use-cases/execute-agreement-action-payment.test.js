@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { saveOutboxEvents } from "../../common/save-outbox-events.js";
+import { saveOutboxEvents } from "../../events/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { allocateNextSequence } from "../../payments/repositories/counter.repository.js";
 import { insertPayment } from "../../payments/repositories/payment.repository.js";
@@ -16,7 +16,7 @@ import {
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 
-vi.mock("../../common/save-outbox-events.js");
+vi.mock("../../events/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock(

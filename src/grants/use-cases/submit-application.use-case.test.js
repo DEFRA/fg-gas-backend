@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { Application, ApplicationPhase } from "../models/application.js";
 import { save } from "../repositories/application.repository.js";
-import { insertMany } from "../repositories/outbox.repository.js";
+import { insertMany } from "../../events/repositories/outbox.repository.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 import {
   auditDataBuilder,
   submitApplicationUseCase,
 } from "./submit-application.use-case.js";
 
-vi.mock("../repositories/outbox.repository.js");
+vi.mock("../../events/repositories/outbox.repository.js");
 vi.mock("../services/resolve-config-version.service.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/application-series.repository.js");

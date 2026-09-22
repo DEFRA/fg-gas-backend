@@ -1,5 +1,5 @@
+import { shortEventType } from "../../events/event-audit.js";
 import { BREAKDOWN_GROUP_LIMIT } from "../../events/event-breakdown.js";
-import { shortEventType } from "./map-event-row.js";
 
 // Merging the per-box failure breakdowns into one answer.
 //

@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { AgreementServiceStatus } from "../models/agreement.js";
 import { saveInboxMessageUseCase } from "../use-cases/save-inbox-message.use-case.js";
 import { agreementStatusUpdatedSubscriber } from "./agreement-status-updated.subscriber.js";
 
@@ -13,7 +12,7 @@ describe("agreementStatusUpdatedSubscriber", () => {
         code: "test-code",
         agreementNumber: "AG123",
         date: "2024-01-01T00:00:00Z",
-        status: AgreementServiceStatus.Offered,
+        status: "offered",
       },
     };
 

@@ -4,8 +4,8 @@ import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import woodlandSubmission from "../../../test/fixtures/woodland-claim-submission.json";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
-import { saveOutboxEvents } from "../../common/save-outbox-events.js";
-import { buildAuditEvent } from "../../common/with-audit.js";
+import { saveOutboxEvents } from "../../events/save-outbox-events.js";
+import { buildAuditEvent } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
 import {
@@ -25,7 +25,7 @@ import {
 } from "./claims.service.js";
 
 vi.mock("../../common/with-transaction.js");
-vi.mock("../../common/with-audit.js", () => ({
+vi.mock("../../events/with-audit.js", () => ({
   buildAuditEvent: vi.fn((event) => event),
   withAudit:
     (fn, dataBuilder) =>
@@ -43,7 +43,7 @@ vi.mock("../../common/mongo-errors.js", () => ({
   isMongoDuplicateKeyError: vi.fn((error) => error?.duplicate),
 }));
 vi.mock("../../agreements/use-cases/load-entitlement-reference-context.js");
-vi.mock("../../common/save-outbox-events.js");
+vi.mock("../../events/save-outbox-events.js");
 vi.mock("../../payments/use-cases/create-claim-payment.use-case.js");
 vi.mock("../../payments/use-cases/resolve-claim-payment.js");
 vi.mock("../repositories/application.repository.js");

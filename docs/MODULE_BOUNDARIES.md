@@ -42,30 +42,33 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 
 ### Grant Admin entry points
 
-Grant Admin enters the Grants application layer through two named services and, for event administration, the two Grants event-store repositories:
+Grant Admin enters the Grants application layer through two named services. Event
+administration enters the shared event module directly:
 
 | Caller        | Entry point                                | Responsibility                                             |
 | ------------- | ------------------------------------------ | ---------------------------------------------------------- |
 | `grant-admin` | `grants/services/entitlement.service.js`   | Entitlement overview and creation operations               |
 | `grant-admin` | `grants/services/claims.service.js`        | Claimable-entitlement lookup and Claim submission          |
-| `grant-admin` | `grants/repositories/inbox.repository.js`  | Event admin: list, inspect and redrive GAS inbound events  |
-| `grant-admin` | `grants/repositories/outbox.repository.js` | Event admin: list, inspect and redrive GAS outbound events |
+| `grant-admin` | `events/repositories/inbox.repository.js`  | Event admin: list, inspect and redrive GAS inbound events  |
+| `grant-admin` | `events/repositories/outbox.repository.js` | Event admin: list, inspect and redrive GAS outbound events |
 
 ### Events domain
 
-`src/events/` holds what an inbox/outbox event IS, for every module that
-handles one: which rows are audit records (`event-audit.js`), how a list of
-them is selected (`event-list-filter.js`), the statuses they move through and
-how they are counted and grouped (`status-counts.js`, `event-facets.js`,
-`event-breakdown.js`), what redriving one means (`event-redrive.js`), how long
-a terminal one is kept (`event-retention.js`), and how a failure is recorded
+`src/events/` owns the durable inbox/outbox mechanism shared by every context:
+the models, repositories, FIFO locks, pollers, retries, dead-letter handling,
+redrive operations and event audit helpers. It also defines what an event-store
+row means: which rows are audit records (`event-audit.js`), how a list of them
+is selected (`event-list-filter.js`), the statuses they move through and how
+they are counted and grouped (`status-counts.js`, `event-facets.js`,
+`event-breakdown.js`), how long a terminal row is kept (`event-retention.js`),
+what redriving one means (`event-redrive.js`), and how a failure is recorded
 (`last-error.js`).
 
-It lived in `src/common/` and did not belong there: `common` is infrastructure
-— things with no opinion about the business — and these files are nothing but
-opinion about one part of it. Both the Grants pollers and the Grant Admin
-surface depend on them, which is what makes them shared rather than either
-module's own.
+The event-store code previously lived partly in `src/common/` and partly in
+`src/grants/`. Neither was a valid owner: `common` is infrastructure with no
+business opinion, while the durable stores are used by Grants, Agreements,
+Payments and Grant Admin. The shared events module preserves the existing
+`inbox`, `outbox` and `fifo_locks` collections and their document shapes.
 
 The rule that keeps it honest, enforced by `import-x/no-restricted-paths`:
 **`src/events/` may import `src/common/` and nothing else.** A domain module
@@ -77,7 +80,46 @@ enter it; it enters no module.
 a different thing that shares a word. Those are one context's outbound
 vocabulary; this is the shared meaning of the stores themselves.
 
-These services return plain DTOs at the adapter boundary. Grant Admin may compose those DTOs into its banner and view models, but it must not receive or return Grants domain objects. The inbox/outbox repositories are the exception that proves the rule: the event admin surface administers those stores themselves (paging, inspection, redrive bookkeeping), so the repositories are its reviewed seam and Grant Admin maps their rows into its own view models.
+The Grants services return plain DTOs at the adapter boundary. Grant Admin may
+compose those DTOs into its banner and view models, but it must not receive or
+return Grants domain objects. Event administration receives shared event rows
+from `src/events/` and maps them into its own view models.
+
+### Cross-module event contract
+
+The current inbox dispatcher is a Stage 1 compatibility seam: it preserves the
+legacy `AS`, `CW` and `CB` source routing while the durable infrastructure moves.
+Stage 2 replaces that source-keyed registry with exact CloudEvent type
+registration. The exact-type rules below are the target contract for new
+cross-module events; new event types must not extend the interim source registry.
+
+- Use a command for an imperative request with one owning handler. Use an event
+  for an immutable fact or durable cross-module request that can be processed
+  after the producer transaction commits.
+- The producer owns the event contract and declares its CloudEvent type once in
+  its own `events/` folder. Consumers register against that exact type; suffix
+  and substring matching are forbidden.
+- Persist an outbound event in the same Mongo transaction as the state change
+  that caused it. Never publish before commit. The shared outbox publishes or
+  dispatches it after commit and records completion independently.
+- Contracts carry the immutable source snapshot and pinned configuration
+  version required by the consumer. A handler must not reconstruct historical
+  intent by reloading mutable source records.
+- Every event has a generated delivery ID and a stable logical request identity.
+  Consumers enforce the logical identity with a database uniqueness boundary so
+  redelivery, concurrent delivery and transaction callback retries converge on
+  one result.
+- `segregationRef` is the ordering key. Events sharing it are processed in
+  order; unrelated keys may progress independently.
+- A failed delivery remains durable, moves through the existing retry,
+  dead-letter and redrive states, and retains its failure history. Redrive
+  reuses the original contract rather than rebuilding current state.
+- In-process registration has one owner per exact event type. Fan-out belongs
+  on SNS/SQS, where each consumer has its own queue and delivery state.
+- A new cross-module event requires contract validation, exact registration,
+  unknown-type and duplicate-owner checks, transaction-commit verification,
+  idempotent redelivery/concurrency verification and retry/dead-letter/redrive
+  coverage.
 
 ### Payment entry points
 
