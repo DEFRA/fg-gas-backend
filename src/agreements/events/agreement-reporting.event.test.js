@@ -73,6 +73,7 @@ describe("Agreement reporting events", () => {
           agreementStartDate: "2026-09-01T00:00:00.000Z",
           agreementEndDate: "2029-08-31T23:59:59.999Z",
           agreementValue: 1575,
+          parcels: ["SD8545-9935"],
           sbi: "200000001",
           options: [
             {
@@ -99,6 +100,15 @@ describe("Agreement reporting events", () => {
       },
     });
     expect(validateReportingEvent(result.event).valid).toBe(true);
+  });
+
+  it("reports an empty parcel list when the Agreement has no parcels", () => {
+    const result = createAgreementCreatedReportingPublication({
+      ...agreement,
+      parcels: undefined,
+    });
+
+    expect(result.event.eventData.parcels).toEqual([]);
   });
 
   it("normalises stored date timestamps without changing event timestamps", () => {
@@ -188,6 +198,7 @@ describe("Agreement reporting events", () => {
       agreementId: "WMP123456789",
       agreementType: "woodland",
       agreementStatus: "offered",
+      parcels: ["SD8545-9935"],
       sbi: "200000001",
       options: [],
     });
@@ -220,6 +231,7 @@ describe("Agreement reporting events", () => {
           agreementStartDate: "2026-09-01T00:00:00.000Z",
           agreementEndDate: "2029-08-31T23:59:59.999Z",
           agreementValue: 1575,
+          parcels: ["SD8545-9935"],
           options: [
             {
               parcelReference: "SD8545-9935",
