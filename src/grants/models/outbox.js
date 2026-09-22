@@ -1,6 +1,8 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
+import { config } from "../../common/config.js";
 import { getMessageGroupId } from "../../common/get-message-group-id.js";
+import { expiryFrom } from "../../events/event-retention.js";
 import {
   appendAttempt,
   normaliseAttemptHistory,
@@ -15,6 +17,7 @@ export const OutboxStatus = {
   COMPLETED: "COMPLETED",
   RESUBMITTED: "RESUBMITTED",
   DEAD_LETTER: "DEAD_LETTER",
+  PURGED: "PURGED",
 };
 
 export class Outbox {
@@ -60,6 +63,9 @@ export class Outbox {
     this.completionAttempts = props.completionAttempts ?? 0;
     this.status = props.status || OutboxStatus.PUBLISHED;
     this.completionDate = props.completionDate;
+    // Set on completion only, and must round-trip: the repository `$set`s the
+    // whole document, so a field missing here is erased on the next save.
+    this.expireAt = props.expireAt ?? null;
     // `{ at, by }` for the most recent redrive of this row, so the detail view
     // can say who put it back in front of the poller. Null until redriven.
     this.lastRedrive = props.lastRedrive ?? null;
@@ -70,8 +76,12 @@ export class Outbox {
   }
 
   markAsComplete() {
+    // One clock reading, so the deadline is exactly the window from completion.
+    const completedAt = new Date();
+
     this.status = OutboxStatus.COMPLETED;
-    this.completionDate = new Date().toISOString();
+    this.completionDate = completedAt.toISOString();
+    this.expireAt = expiryFrom(completedAt, config.events.retentionDays);
     this.claimedBy = null;
     this.claimedAt = null;
     this.claimExpiresAt = null;
@@ -81,6 +91,7 @@ export class Outbox {
   // sweep, an old caller) leaves the previous `lastError` in place.
   markAsFailed(error) {
     this.status = OutboxStatus.FAILED;
+    this.expireAt = null;
     this.lastResubmissionDate = new Date().toISOString();
     this.lastError = toLastError(error) ?? this.lastError;
     // Appended, never replaced: the history is the record of every attempt,
@@ -110,6 +121,7 @@ export class Outbox {
       completionAttempts: this.completionAttempts,
       status: this.status,
       completionDate: this.completionDate,
+      expireAt: this.expireAt,
       lastRedrive: this.lastRedrive,
       claimedAt: this.claimedAt,
       claimedBy: this.claimedBy,
@@ -135,6 +147,7 @@ export class Outbox {
       completionAttempts: doc.completionAttempts,
       status: doc.status,
       completionDate: doc.completionDate,
+      expireAt: doc.expireAt,
       lastRedrive: doc.lastRedrive,
       claimedAt: doc.claimedAt,
       claimedBy: doc.claimedBy,

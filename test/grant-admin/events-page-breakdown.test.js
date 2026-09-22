@@ -189,6 +189,28 @@ describe("GET /grant-admin/events/page - the breakdown section", () => {
     expect(payload.groups[0].count).toBe(1);
   });
 
+  // A purged row keeps the failure that killed it, so it would group like any
+  // other dead letter if the breakdown were not fenced to DEAD_LETTER.
+  it("leaves a purged row out of both Top errors and the dead-letter count", async () => {
+    const ref = seg();
+    await inbox.insertMany([
+      aDeadInboxDoc({ segregationRef: ref }),
+      aDeadInboxDoc({
+        segregationRef: ref,
+        status: "PURGED",
+        expireAt: new Date("2026-12-16T10:00:00.000Z"),
+      }),
+    ]);
+
+    const { payload } = await eventsPage({ q: ref });
+
+    expect(payload.breakdown.groups).toEqual([
+      expect.objectContaining({ error: "No handler found", count: 1 }),
+    ]);
+    expect(payload.counts.DEAD_LETTER).toBe(1);
+    expect(payload.counts.PURGED).toBe(1);
+  });
+
   it("merges GAS and Caseworking groups that shorten to the same type", async () => {
     const ref = seg();
     await inbox.insertOne(aDeadInboxDoc({ segregationRef: ref }));

@@ -1,4 +1,5 @@
 import { logger } from "../../common/logger.js";
+import { DEAD_LETTER } from "../../events/event-redrive.js";
 import {
   findCwPage,
   isCwConfigured,
@@ -18,8 +19,6 @@ import { sectionOf } from "../services/page-sections.js";
 import { breakdownEventsUseCase } from "./breakdown-events.use-case.js";
 import { countEventsUseCase } from "./count-events.use-case.js";
 import { findEventsUseCase } from "./find-events.use-case.js";
-
-const DEAD_LETTER = "DEAD_LETTER";
 
 // A load-more page draws rows only; Top errors show only for no status or dead letters.
 const sectionsFor = ({ cursor, status }) => ({
