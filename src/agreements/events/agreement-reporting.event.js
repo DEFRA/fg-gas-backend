@@ -17,6 +17,7 @@ const optionalPounds = (value) =>
   value === undefined ? undefined : penceToPounds(value);
 const valueOrFallback = (value, fallback) =>
   value === undefined ? fallback : value;
+// Legacy persisted values may include a time; preserve their calendar date.
 const calendarDate = (value) =>
   value === undefined ? undefined : value.slice(0, 10);
 const reportingDateTime = (value, time) => {
@@ -25,7 +26,7 @@ const reportingDateTime = (value, time) => {
 };
 const reportingStartDateTime = (value) =>
   reportingDateTime(value, "00:00:00.000");
-const reportingEndDateTime = (value) =>
+const reportingInclusiveEndDateTime = (value) =>
   reportingDateTime(value, "23:59:59.999");
 const monthDayNumber = (date) => date.getUTCMonth() * 100 + date.getUTCDate();
 const inclusiveWholeYears = (startDate, endDate) => {
@@ -57,7 +58,10 @@ const commonAgreementData = (agreement) => ({
     "agreementStartDate",
     reportingStartDateTime(agreement.startDate),
   ),
-  ...optional("agreementEndDate", reportingEndDateTime(agreement.endDate)),
+  ...optional(
+    "agreementEndDate",
+    reportingInclusiveEndDateTime(agreement.endDate),
+  ),
   ...optional("agreementValue", optionalPounds(agreement.totalAmountPence)),
 });
 
@@ -80,7 +84,10 @@ const toReportingOption = (entry, agreement, parcelsById) => {
       inclusiveWholeYears(optionStartDate, optionEndDate),
     ),
     ...optional("optionStartDate", reportingStartDateTime(optionStartDate)),
-    ...optional("optionEndDate", reportingEndDateTime(optionEndDate)),
+    ...optional(
+      "optionEndDate",
+      reportingInclusiveEndDateTime(optionEndDate),
+    ),
     optionQuantity: entry.quantity,
     optionValue: optionalPounds(entry.totalAmountPence),
   };

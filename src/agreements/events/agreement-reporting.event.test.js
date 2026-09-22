@@ -101,24 +101,39 @@ describe("Agreement reporting events", () => {
     expect(validateReportingEvent(result.event).valid).toBe(true);
   });
 
-  it("normalises previously stored timestamps as UTC business dates", () => {
-    const result = createAgreementCreatedReportingPublication({
+  it("normalises stored date timestamps without changing event timestamps", () => {
+    const result = createAgreementStatusChangedReportingPublication({
       ...agreement,
       startDate: "2026-09-01T12:30:00.000Z",
       endDate: "2029-08-31T12:30:00.000Z",
-      actions: [],
-    });
-
-    expect(result.event.eventData).toMatchObject({
-      agreementStartDate: "2026-09-01T00:00:00.000Z",
-      agreementEndDate: "2029-08-31T23:59:59.999Z",
-      options: [
+      actions: [
         {
-          optionYear: 3,
-          optionStartDate: "2026-09-01T00:00:00.000Z",
-          optionEndDate: "2029-08-31T23:59:59.999Z",
+          ...agreement.actions[0],
+          startDate: "2026-10-01T12:30:00.000Z",
+          endDate: "2027-09-30T12:30:00.000Z",
         },
       ],
+    });
+
+    expect(result.event).toMatchObject({
+      datetime: "2026-08-20T09:00:00.000Z",
+      eventData: {
+        statusDate: "2026-08-20T09:00:00.000Z",
+        agreementStartDate: "2026-09-01T00:00:00.000Z",
+        agreementEndDate: "2029-08-31T23:59:59.999Z",
+        options: [
+          {
+            optionYear: 1,
+            optionStartDate: "2026-10-01T00:00:00.000Z",
+            optionEndDate: "2027-09-30T23:59:59.999Z",
+          },
+          {
+            optionYear: 3,
+            optionStartDate: "2026-09-01T00:00:00.000Z",
+            optionEndDate: "2029-08-31T23:59:59.999Z",
+          },
+        ],
+      },
     });
   });
 
