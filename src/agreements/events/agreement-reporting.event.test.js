@@ -70,8 +70,8 @@ describe("Agreement reporting events", () => {
           agreementId: "WMP123456789",
           agreementType: "woodland",
           agreementStatus: "offered",
-          agreementStartDate: "2026-09-01",
-          agreementEndDate: "2029-08-31",
+          agreementStartDate: "2026-09-01T00:00:00.000Z",
+          agreementEndDate: "2029-08-31T00:00:00.000Z",
           agreementValue: 1575,
           sbi: "200000001",
           options: [
@@ -80,8 +80,8 @@ describe("Agreement reporting events", () => {
               parcelSizeUnderAgreement: 15.75,
               optionCode: "WMP1",
               optionYear: 1,
-              optionStartDate: "2026-10-01",
-              optionEndDate: "2027-09-30",
+              optionStartDate: "2026-10-01T00:00:00.000Z",
+              optionEndDate: "2027-09-30T00:00:00.000Z",
               optionQuantity: 10.5,
               optionValue: 1050,
             },
@@ -89,8 +89,8 @@ describe("Agreement reporting events", () => {
               parcelReference: "",
               optionCode: "TE4",
               optionYear: 3,
-              optionStartDate: "2026-09-01",
-              optionEndDate: "2029-08-31",
+              optionStartDate: "2026-09-01T00:00:00.000Z",
+              optionEndDate: "2029-08-31T00:00:00.000Z",
               optionQuantity: 2,
               optionValue: 525,
             },
@@ -99,6 +99,27 @@ describe("Agreement reporting events", () => {
       },
     });
     expect(validateReportingEvent(result.event).valid).toBe(true);
+  });
+
+  it("normalises previously stored timestamps as UTC business dates", () => {
+    const result = createAgreementCreatedReportingPublication({
+      ...agreement,
+      startDate: "2026-09-01T12:30:00.000Z",
+      endDate: "2029-08-31T12:30:00.000Z",
+      actions: [],
+    });
+
+    expect(result.event.eventData).toMatchObject({
+      agreementStartDate: "2026-09-01T00:00:00.000Z",
+      agreementEndDate: "2029-08-31T00:00:00.000Z",
+      options: [
+        {
+          optionYear: 3,
+          optionStartDate: "2026-09-01T00:00:00.000Z",
+          optionEndDate: "2029-08-31T00:00:00.000Z",
+        },
+      ],
+    });
   });
 
   it("omits dates and option year when Agreement dates are unknown", () => {
@@ -181,8 +202,8 @@ describe("Agreement reporting events", () => {
           agreementId: "WMP123456789",
           agreementStatus: "accepted",
           statusDate: "2026-09-02T10:00:00.000Z",
-          agreementStartDate: "2026-09-01",
-          agreementEndDate: "2029-08-31",
+          agreementStartDate: "2026-09-01T00:00:00.000Z",
+          agreementEndDate: "2029-08-31T00:00:00.000Z",
           agreementValue: 1575,
           options: [
             {
@@ -190,8 +211,8 @@ describe("Agreement reporting events", () => {
               parcelSizeUnderAgreement: 15.75,
               optionCode: "WMP1",
               optionYear: 1,
-              optionStartDate: "2026-10-01",
-              optionEndDate: "2027-09-30",
+              optionStartDate: "2026-10-01T00:00:00.000Z",
+              optionEndDate: "2027-09-30T00:00:00.000Z",
               optionQuantity: 10.5,
               optionValue: 1050,
             },
@@ -199,8 +220,8 @@ describe("Agreement reporting events", () => {
               parcelReference: "",
               optionCode: "TE4",
               optionYear: 3,
-              optionStartDate: "2026-09-01",
-              optionEndDate: "2029-08-31",
+              optionStartDate: "2026-09-01T00:00:00.000Z",
+              optionEndDate: "2029-08-31T00:00:00.000Z",
               optionQuantity: 2,
               optionValue: 525,
             },
