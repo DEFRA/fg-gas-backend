@@ -17,6 +17,17 @@ const optionalPounds = (value) =>
   value === undefined ? undefined : penceToPounds(value);
 const valueOrFallback = (value, fallback) =>
   value === undefined ? fallback : value;
+// Legacy persisted values may include a time; preserve their calendar date.
+const calendarDate = (value) =>
+  value === undefined ? undefined : value.slice(0, 10);
+const reportingDateTime = (value, time) => {
+  const date = calendarDate(value);
+  return date === undefined ? undefined : `${date}T${time}Z`;
+};
+const reportingStartDateTime = (value) =>
+  reportingDateTime(value, "00:00:00.000");
+const reportingInclusiveEndDateTime = (value) =>
+  reportingDateTime(value, "23:59:59.999");
 const monthDayNumber = (date) => date.getUTCMonth() * 100 + date.getUTCDate();
 const inclusiveWholeYears = (startDate, endDate) => {
   if (startDate === undefined || endDate === undefined) {
@@ -43,8 +54,14 @@ const parcelArea = (entry, parcelsById) =>
 const commonAgreementData = (agreement) => ({
   agreementId: agreement.agreementNumber,
   agreementStatus: agreement.state,
-  ...optional("agreementStartDate", agreement.startDate),
-  ...optional("agreementEndDate", agreement.endDate),
+  ...optional(
+    "agreementStartDate",
+    reportingStartDateTime(agreement.startDate),
+  ),
+  ...optional(
+    "agreementEndDate",
+    reportingInclusiveEndDateTime(agreement.endDate),
+  ),
   ...optional("agreementValue", optionalPounds(agreement.totalAmountPence)),
 });
 
@@ -52,8 +69,12 @@ const hasRequiredReportingOptionValues = ({ optionQuantity, optionValue }) =>
   optionQuantity !== undefined && optionValue !== undefined;
 
 const toReportingOption = (entry, agreement, parcelsById) => {
-  const optionStartDate = valueOrFallback(entry.startDate, agreement.startDate);
-  const optionEndDate = valueOrFallback(entry.endDate, agreement.endDate);
+  const optionStartDate = calendarDate(
+    valueOrFallback(entry.startDate, agreement.startDate),
+  );
+  const optionEndDate = calendarDate(
+    valueOrFallback(entry.endDate, agreement.endDate),
+  );
   const option = {
     parcelReference: parcelReference(entry),
     ...optional("parcelSizeUnderAgreement", parcelArea(entry, parcelsById)),
@@ -62,8 +83,11 @@ const toReportingOption = (entry, agreement, parcelsById) => {
       "optionYear",
       inclusiveWholeYears(optionStartDate, optionEndDate),
     ),
-    ...optional("optionStartDate", optionStartDate),
-    ...optional("optionEndDate", optionEndDate),
+    ...optional("optionStartDate", reportingStartDateTime(optionStartDate)),
+    ...optional(
+      "optionEndDate",
+      reportingInclusiveEndDateTime(optionEndDate),
+    ),
     optionQuantity: entry.quantity,
     optionValue: optionalPounds(entry.totalAmountPence),
   };

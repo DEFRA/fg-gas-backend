@@ -70,8 +70,8 @@ describe("Agreement reporting events", () => {
           agreementId: "WMP123456789",
           agreementType: "woodland",
           agreementStatus: "offered",
-          agreementStartDate: "2026-09-01",
-          agreementEndDate: "2029-08-31",
+          agreementStartDate: "2026-09-01T00:00:00.000Z",
+          agreementEndDate: "2029-08-31T23:59:59.999Z",
           agreementValue: 1575,
           sbi: "200000001",
           options: [
@@ -80,8 +80,8 @@ describe("Agreement reporting events", () => {
               parcelSizeUnderAgreement: 15.75,
               optionCode: "WMP1",
               optionYear: 1,
-              optionStartDate: "2026-10-01",
-              optionEndDate: "2027-09-30",
+              optionStartDate: "2026-10-01T00:00:00.000Z",
+              optionEndDate: "2027-09-30T23:59:59.999Z",
               optionQuantity: 10.5,
               optionValue: 1050,
             },
@@ -89,8 +89,8 @@ describe("Agreement reporting events", () => {
               parcelReference: "",
               optionCode: "TE4",
               optionYear: 3,
-              optionStartDate: "2026-09-01",
-              optionEndDate: "2029-08-31",
+              optionStartDate: "2026-09-01T00:00:00.000Z",
+              optionEndDate: "2029-08-31T23:59:59.999Z",
               optionQuantity: 2,
               optionValue: 525,
             },
@@ -99,6 +99,42 @@ describe("Agreement reporting events", () => {
       },
     });
     expect(validateReportingEvent(result.event).valid).toBe(true);
+  });
+
+  it("normalises stored date timestamps without changing event timestamps", () => {
+    const result = createAgreementStatusChangedReportingPublication({
+      ...agreement,
+      startDate: "2026-09-01T12:30:00.000Z",
+      endDate: "2029-08-31T12:30:00.000Z",
+      actions: [
+        {
+          ...agreement.actions[0],
+          startDate: "2026-10-01T12:30:00.000Z",
+          endDate: "2027-09-30T12:30:00.000Z",
+        },
+      ],
+    });
+
+    expect(result.event).toMatchObject({
+      datetime: "2026-08-20T09:00:00.000Z",
+      eventData: {
+        statusDate: "2026-08-20T09:00:00.000Z",
+        agreementStartDate: "2026-09-01T00:00:00.000Z",
+        agreementEndDate: "2029-08-31T23:59:59.999Z",
+        options: [
+          {
+            optionYear: 1,
+            optionStartDate: "2026-10-01T00:00:00.000Z",
+            optionEndDate: "2027-09-30T23:59:59.999Z",
+          },
+          {
+            optionYear: 3,
+            optionStartDate: "2026-09-01T00:00:00.000Z",
+            optionEndDate: "2029-08-31T23:59:59.999Z",
+          },
+        ],
+      },
+    });
   });
 
   it("omits dates and option year when Agreement dates are unknown", () => {
@@ -181,8 +217,8 @@ describe("Agreement reporting events", () => {
           agreementId: "WMP123456789",
           agreementStatus: "accepted",
           statusDate: "2026-09-02T10:00:00.000Z",
-          agreementStartDate: "2026-09-01",
-          agreementEndDate: "2029-08-31",
+          agreementStartDate: "2026-09-01T00:00:00.000Z",
+          agreementEndDate: "2029-08-31T23:59:59.999Z",
           agreementValue: 1575,
           options: [
             {
@@ -190,8 +226,8 @@ describe("Agreement reporting events", () => {
               parcelSizeUnderAgreement: 15.75,
               optionCode: "WMP1",
               optionYear: 1,
-              optionStartDate: "2026-10-01",
-              optionEndDate: "2027-09-30",
+              optionStartDate: "2026-10-01T00:00:00.000Z",
+              optionEndDate: "2027-09-30T23:59:59.999Z",
               optionQuantity: 10.5,
               optionValue: 1050,
             },
@@ -199,8 +235,8 @@ describe("Agreement reporting events", () => {
               parcelReference: "",
               optionCode: "TE4",
               optionYear: 3,
-              optionStartDate: "2026-09-01",
-              optionEndDate: "2029-08-31",
+              optionStartDate: "2026-09-01T00:00:00.000Z",
+              optionEndDate: "2029-08-31T23:59:59.999Z",
               optionQuantity: 2,
               optionValue: 525,
             },
