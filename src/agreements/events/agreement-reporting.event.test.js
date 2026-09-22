@@ -71,7 +71,7 @@ describe("Agreement reporting events", () => {
           agreementType: "woodland",
           agreementStatus: "offered",
           agreementStartDate: "2026-09-01T00:00:00.000Z",
-          agreementEndDate: "2029-08-31T00:00:00.000Z",
+          agreementEndDate: "2029-08-31T23:59:59.999Z",
           agreementValue: 1575,
           sbi: "200000001",
           options: [
@@ -81,7 +81,7 @@ describe("Agreement reporting events", () => {
               optionCode: "WMP1",
               optionYear: 1,
               optionStartDate: "2026-10-01T00:00:00.000Z",
-              optionEndDate: "2027-09-30T00:00:00.000Z",
+              optionEndDate: "2027-09-30T23:59:59.999Z",
               optionQuantity: 10.5,
               optionValue: 1050,
             },
@@ -90,7 +90,7 @@ describe("Agreement reporting events", () => {
               optionCode: "TE4",
               optionYear: 3,
               optionStartDate: "2026-09-01T00:00:00.000Z",
-              optionEndDate: "2029-08-31T00:00:00.000Z",
+              optionEndDate: "2029-08-31T23:59:59.999Z",
               optionQuantity: 2,
               optionValue: 525,
             },
@@ -111,12 +111,12 @@ describe("Agreement reporting events", () => {
 
     expect(result.event.eventData).toMatchObject({
       agreementStartDate: "2026-09-01T00:00:00.000Z",
-      agreementEndDate: "2029-08-31T00:00:00.000Z",
+      agreementEndDate: "2029-08-31T23:59:59.999Z",
       options: [
         {
           optionYear: 3,
           optionStartDate: "2026-09-01T00:00:00.000Z",
-          optionEndDate: "2029-08-31T00:00:00.000Z",
+          optionEndDate: "2029-08-31T23:59:59.999Z",
         },
       ],
     });
@@ -203,7 +203,7 @@ describe("Agreement reporting events", () => {
           agreementStatus: "accepted",
           statusDate: "2026-09-02T10:00:00.000Z",
           agreementStartDate: "2026-09-01T00:00:00.000Z",
-          agreementEndDate: "2029-08-31T00:00:00.000Z",
+          agreementEndDate: "2029-08-31T23:59:59.999Z",
           agreementValue: 1575,
           options: [
             {
@@ -212,7 +212,7 @@ describe("Agreement reporting events", () => {
               optionCode: "WMP1",
               optionYear: 1,
               optionStartDate: "2026-10-01T00:00:00.000Z",
-              optionEndDate: "2027-09-30T00:00:00.000Z",
+              optionEndDate: "2027-09-30T23:59:59.999Z",
               optionQuantity: 10.5,
               optionValue: 1050,
             },
@@ -221,7 +221,7 @@ describe("Agreement reporting events", () => {
               optionCode: "TE4",
               optionYear: 3,
               optionStartDate: "2026-09-01T00:00:00.000Z",
-              optionEndDate: "2029-08-31T00:00:00.000Z",
+              optionEndDate: "2029-08-31T23:59:59.999Z",
               optionQuantity: 2,
               optionValue: 525,
             },
