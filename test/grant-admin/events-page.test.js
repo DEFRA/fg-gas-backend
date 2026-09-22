@@ -144,6 +144,7 @@ describe("GET /grant-admin/events/page", () => {
       "RESUBMITTED",
       "COMPLETED",
       "DEAD_LETTER",
+      "PURGED",
     ]);
     expect(statuses).toContainEqual({
       value: "DEAD_LETTER",
@@ -296,7 +297,7 @@ describe("GET /grant-admin/events/page", () => {
   });
 
   it.each([
-    ["a status outside the six", "?status=BOGUS"],
+    ["a status outside the known set", "?status=BOGUS"],
     ["a service outside the two", "?service=other"],
     ["an unknown parameter", "?pageSize=50"],
     ["a reversed range", `?from=${at(30)}&to=${at(10)}`],

@@ -7,6 +7,11 @@ import { VARIANT_PATTERN } from "./configuration-variant.js";
 const ADMIN_READ_MS = 5000;
 const CW_TIMEOUT_MS = 4000;
 
+// The floor is not configurable down: inbox dedup (`findByMessageId`) only
+// works while the row is there, and SQS holds a redelivery for up to 14 days.
+const RETENTION_DAYS = 90;
+const MIN_RETENTION_DAYS = 30;
+
 // A code constant, not configuration, so it cannot be misconfigured to empty.
 const CALLER_TOKEN_ALLOWED_ISSUERS = Object.freeze([
   "grants-ui",
@@ -102,6 +107,13 @@ const schema = Joi.object({
     .min(1)
     .default(CW_TIMEOUT_MS)
     .optional(),
+  // `.optional()` is needed despite the default: this schema is `presence:
+  // "required"`, so a defaulted key is still demanded of the environment.
+  EVENT_RETENTION_DAYS: Joi.number()
+    .integer()
+    .min(MIN_RETENTION_DAYS)
+    .default(RETENTION_DAYS)
+    .optional(),
   // The kid assumed for a caller token that carries none.
   AGREEMENTS_JWT_DEFAULT_KID: Joi.string().optional(),
   // Extra verification secrets keyed by kid, for rotation beside AGREEMENTS_JWT_SECRET.
@@ -187,6 +199,9 @@ export const config = {
   },
   fifoLock: {
     ttlMs: vars.FIFO_LOCK_TTL_MS,
+  },
+  events: {
+    retentionDays: vars.EVENT_RETENTION_DAYS,
   },
   sns: {
     updateAgreementStatusTopicArn:

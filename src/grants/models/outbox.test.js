@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { config } from "../../common/config.js";
 import { Outbox, OutboxStatus } from "./outbox.js";
 
 describe("Outbox.validationSchema", () => {
@@ -397,5 +398,74 @@ describe("Outbox attemptHistory", () => {
     });
 
     expect(event.attemptHistory).toEqual(stored);
+  });
+});
+
+describe("outbox model expireAt", () => {
+  const NOW = new Date("2026-09-17T16:18:00.000Z");
+  const NINETY_DAYS_ON = new Date("2026-12-16T16:18:00.000Z");
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("is null on a new row - nothing in flight is ever deleted", () => {
+    expect(Outbox.createMock().expireAt).toBeNull();
+  });
+
+  it("is set to the retention period after completion", () => {
+    const event = Outbox.createMock();
+
+    event.markAsComplete();
+
+    expect(config.events.retentionDays).toBe(90);
+    expect(event.expireAt).toEqual(NINETY_DAYS_ON);
+    expect(event.expireAt).toBeInstanceOf(Date);
+  });
+
+  it("is exactly the retention period after the completion it records", () => {
+    const event = Outbox.createMock();
+
+    event.markAsComplete();
+
+    expect(event.expireAt.getTime() - Date.parse(event.completionDate)).toBe(
+      config.events.retentionDays * 86_400_000,
+    );
+  });
+
+  it("is nulled by a failure, which leaves the row FAILED", () => {
+    const event = Outbox.createMock();
+    event.markAsComplete();
+
+    event.markAsFailed(new Error("boom"));
+
+    expect(event.status).toBe(OutboxStatus.FAILED);
+    expect(event.expireAt).toBeNull();
+  });
+
+  it("round-trips through toDocument and fromDocument", () => {
+    const event = Outbox.createMock();
+    event.markAsComplete();
+
+    const document = event.toDocument();
+
+    expect(document.expireAt).toEqual(NINETY_DAYS_ON);
+    expect(Outbox.fromDocument(document).expireAt).toEqual(NINETY_DAYS_ON);
+    expect(Outbox.fromDocument(document).toDocument().expireAt).toEqual(
+      NINETY_DAYS_ON,
+    );
+  });
+
+  it("reads a row written before the field existed as null", () => {
+    const document = Outbox.createMock().toDocument();
+    delete document.expireAt;
+
+    expect(Outbox.fromDocument(document).expireAt).toBeNull();
+    expect(Outbox.fromDocument(document).toDocument().expireAt).toBeNull();
   });
 });

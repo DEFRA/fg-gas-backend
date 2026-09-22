@@ -1,5 +1,5 @@
-// The six statuses an inbox/outbox row can hold, and the arithmetic the counts
-// endpoints do on them.
+// The seven statuses an inbox/outbox row can hold, and the arithmetic the
+// counts endpoints do on them.
 //
 // TRADEOFF - counting is a `$match` + `$group` aggregation over the same
 // filter the list uses. `status` is indexed, but a `$group` still visits every
@@ -15,6 +15,7 @@ export const EVENT_STATUSES = [
   "RESUBMITTED",
   "COMPLETED",
   "DEAD_LETTER",
+  "PURGED",
 ];
 
 // Every key always present: the frontend renders one number per status, and a

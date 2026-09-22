@@ -152,7 +152,11 @@ describe("inbox.repository", () => {
           $lt: expect.any(Date),
         },
         status: {
-          $nin: [InboxStatus.DEAD_LETTER, InboxStatus.COMPLETED],
+          $nin: [
+            InboxStatus.DEAD_LETTER,
+            InboxStatus.COMPLETED,
+            InboxStatus.PURGED,
+          ],
         },
       },
       {
@@ -194,7 +198,13 @@ describe("inbox.repository", () => {
     expect(updateMany).toHaveBeenCalledWith(
       {
         completionAttempts: { $gte: config.inbox.inboxMaxRetries },
-        status: { $nin: [InboxStatus.DEAD_LETTER, InboxStatus.COMPLETED] },
+        status: {
+          $nin: [
+            InboxStatus.DEAD_LETTER,
+            InboxStatus.COMPLETED,
+            InboxStatus.PURGED,
+          ],
+        },
       },
       {
         $set: {
@@ -574,6 +584,7 @@ describe("inbox.repository detail and redrive", () => {
           completionAttempts: 0,
           attemptHistory: [],
           lastRedrive: { at: expect.any(String), by: null },
+          expireAt: null,
           claimedBy: null,
           claimedAt: null,
           claimExpiresAt: null,
@@ -700,6 +711,7 @@ describe("inbox.repository countFacets", () => {
         RESUBMITTED: 0,
         COMPLETED: 0,
         DEAD_LETTER: 0,
+        PURGED: 0,
       },
     });
   });
