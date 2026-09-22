@@ -80,8 +80,7 @@ describe("createAgreementPaymentUseCase", () => {
     );
 
     expect(publication).toMatchObject({
-      target:
-        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
+      target: "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo",
       segregationRef: "PMF123456789",
       event: {
         type: "io.onsite.agreement.create-payment",

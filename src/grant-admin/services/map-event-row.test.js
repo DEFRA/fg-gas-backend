@@ -295,11 +295,10 @@ describe("map-event-row", () => {
   });
 
   it("reduces a .fifo SNS ARN to its topic name and never emits a full ARN", () => {
-    const target =
-      "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo";
+    const target = "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo";
 
     expect(gasOutboxSingle({ target }).targetTopic).toEqual(
-      "gas__sns__create_payment_fifo.fifo",
+      "create_payment.fifo",
     );
     expect(JSON.stringify(gasOutboxSingle({ target }))).not.toContain(
       "arn:aws",
