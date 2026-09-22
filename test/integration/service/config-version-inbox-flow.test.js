@@ -23,7 +23,7 @@ const { InboxSubscriber } =
 const { clearInboxMessageHandlers, registerInboxMessageHandler } =
   await import("../../../src/events/services/inbox-message-handlers.js");
 const { handleConfigVersionMessage } =
-  await import("../../../src/grants/events/handle-config-version-message.js");
+  await import("../../../src/grants/handlers/handle-config-version-message.js");
 const { saveConfigVersionInboxMessageUseCase } =
   await import("../../../src/grants/use-cases/save-config-version-inbox-message.use-case.js");
 const { db: serviceDb } = await import("../../../src/common/mongo-client.js");

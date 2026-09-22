@@ -76,6 +76,9 @@ The live subscription inventory is a deployment gate, not a blocker to implement
 - [x] Move the durable event models, repositories, FIFO locking and pollers from `src/grants/` into `src/events/`. Move `src/common/save-outbox-events.js` behind the same module interface.
 - [x] Preserve the existing `inbox`, `outbox` and FIFO-lock collection identities and document shapes; this move must not require data migration or break old rows.
 - [ ] Give `src/events/` a small interface for saving durable events, registering typed handlers and dispatching an event. Keep persistence, locking, retry, dead-letter and completion bookkeeping behind that interface.
+- [ ] Until the typed registry replaces it, retain the legacy source-keyed `AS`,
+      `CW` and `CB` dispatch only as a Stage 1 compatibility seam. Do not register
+      new event types through that interim registry.
 - [ ] Keep the command bus for commands. Route internally delivered domain events through the event handler registry, including the existing Agreement-status handler.
 - [x] Register the shared pollers once at application startup rather than from the Grants plugin. Ensure all context handlers are registered before polling starts.
 - [x] Update Grant Admin to use the shared event repositories without changing list, detail, facet, failure-history or redrive behaviour.

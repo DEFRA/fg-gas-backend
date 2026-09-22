@@ -4,12 +4,10 @@ import { internalCommandTypes } from "../common/internal-command-types.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
 import { registerInboxMessageHandler } from "../events/services/inbox-message-handlers.js";
-import {
-  messageSource,
-  saveInboxMessageUseCase,
-} from "../events/use-cases/save-inbox-message.js";
-import { handleConfigVersionMessage } from "./events/handle-config-version-message.js";
-import { handleGrantStatusMessage } from "./events/handle-grant-status-message.js";
+import { messageSource } from "../events/services/message-source.js";
+import { saveInboxMessageUseCase } from "../events/use-cases/save-inbox-message.use-case.js";
+import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
+import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import { applicationStatusRoute } from "./routes/application-status.route.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";

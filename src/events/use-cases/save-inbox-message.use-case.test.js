@@ -5,7 +5,7 @@ import {
   findByMessageId,
   insertOne,
 } from "../repositories/inbox.repository.js";
-import { saveInboxMessageUseCase } from "./save-inbox-message.js";
+import { saveInboxMessageUseCase } from "./save-inbox-message.use-case.js";
 
 vi.mock("../repositories/inbox.repository.js");
 describe("save inbox message", () => {

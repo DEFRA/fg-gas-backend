@@ -3,7 +3,7 @@ import {
   clearInboxMessageHandlers,
   dispatchInboxMessage,
   registerInboxMessageHandler,
-} from "./services/inbox-message-handlers.js";
+} from "./inbox-message-handlers.js";
 
 afterEach(() => clearInboxMessageHandlers());
 

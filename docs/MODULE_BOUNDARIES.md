@@ -86,6 +86,12 @@ from `src/events/` and maps them into its own view models.
 
 ### Cross-module event contract
 
+The current inbox dispatcher is a Stage 1 compatibility seam: it preserves the
+legacy `AS`, `CW` and `CB` source routing while the durable infrastructure moves.
+Stage 2 replaces that source-keyed registry with exact CloudEvent type
+registration. The exact-type rules below are the target contract for new
+cross-module events; new event types must not extend the interim source registry.
+
 - Use a command for an imperative request with one owning handler. Use an event
   for an immutable fact or durable cross-module request that can be processed
   after the producer transaction commits.

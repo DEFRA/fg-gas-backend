@@ -7,7 +7,8 @@ import {
   clearInboxMessageHandlers,
   dispatchInboxMessage,
 } from "../events/services/inbox-message-handlers.js";
-import { handleGrantStatusMessage } from "./events/handle-grant-status-message.js";
+import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
+import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import { grants } from "./index.js";
 import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
 
@@ -15,7 +16,8 @@ vi.mock("../common/logger.js");
 
 vi.mock("../common/mongo-client.js");
 vi.mock("migrate-mongo");
-vi.mock("./events/handle-grant-status-message.js");
+vi.mock("./handlers/handle-grant-status-message.js");
+vi.mock("./handlers/handle-config-version-message.js");
 vi.mock("./subscribers/config-version-updated.subscriber.js");
 
 describe("grants", () => {
@@ -67,13 +69,15 @@ describe("grants", () => {
     expect(configVersionUpdatedSubscriber.stop).toHaveBeenCalled();
   });
 
-  it("registers Grants handlers for both external message sources", async () => {
+  it("registers Grants handlers for all external message sources", async () => {
     await server.register(grants);
 
     const agreementMessage = { source: "AS" };
     const caseWorkingMessage = { source: "CW" };
+    const configBrokerMessage = { source: "CB" };
     await dispatchInboxMessage(agreementMessage);
     await dispatchInboxMessage(caseWorkingMessage);
+    await dispatchInboxMessage(configBrokerMessage);
 
     expect(handleGrantStatusMessage).toHaveBeenNthCalledWith(
       1,
@@ -82,6 +86,9 @@ describe("grants", () => {
     expect(handleGrantStatusMessage).toHaveBeenNthCalledWith(
       2,
       caseWorkingMessage,
+    );
+    expect(handleConfigVersionMessage).toHaveBeenCalledWith(
+      configBrokerMessage,
     );
   });
 
