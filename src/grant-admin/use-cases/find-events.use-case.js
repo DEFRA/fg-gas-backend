@@ -1,7 +1,7 @@
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { findPage as findGasInboxPage } from "../../grants/repositories/inbox.repository.js";
-import { findPage as findGasOutboxPage } from "../../grants/repositories/outbox.repository.js";
+import { findPage as findGasInboxPage } from "../../events/repositories/inbox.repository.js";
+import { findPage as findGasOutboxPage } from "../../events/repositories/outbox.repository.js";
 import { decodeCompositeCursor } from "../services/event-cursor.js";
 import {
   CASEWORKING,

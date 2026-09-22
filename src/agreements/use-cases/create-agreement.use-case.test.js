@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pmfAgreementDefinitionFixture } from "../../../test/fixtures/pmf-agreement-definition.js";
-import { saveOutboxEvents } from "../../common/save-outbox-events.js";
+import { saveOutboxEvents } from "../../events/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import {
@@ -15,7 +15,7 @@ import {
 import { createAgreementUseCase } from "./create-agreement.use-case.js";
 import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
-vi.mock("../../common/save-outbox-events.js");
+vi.mock("../../events/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("./load-agreement-definition.js");
 vi.mock("../repositories/agreement.repository.js");
@@ -500,9 +500,7 @@ describe("createAgreementUseCase", () => {
   ])("persists nothing when %s fails", async (_failure, definitionFactory) => {
     loadAgreementDefinition.mockResolvedValue(definitionFactory());
 
-    await expect(
-      createAgreementUseCase(command.data),
-    ).rejects.toThrow();
+    await expect(createAgreementUseCase(command.data)).rejects.toThrow();
 
     expectNoPersistence();
   });
@@ -528,9 +526,7 @@ describe("createAgreementUseCase", () => {
       .mockResolvedValueOnce(winner);
     withTransaction.mockRejectedValue(conflict);
 
-    await expect(createAgreementUseCase(command.data)).resolves.toBe(
-      winner,
-    );
+    await expect(createAgreementUseCase(command.data)).resolves.toBe(winner);
     expect(findAgreementBySourceIdentity).toHaveBeenLastCalledWith({
       clientRef: "xnp-rr3-nfa",
       code: "pigs-might-fly",

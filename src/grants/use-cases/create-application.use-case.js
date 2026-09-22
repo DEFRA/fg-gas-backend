@@ -3,9 +3,9 @@ import { logger } from "../../common/logger.js";
 import { CreateNewCaseCommand } from "../commands/create-new-case.command.js";
 import { ApplicationCreatedEvent } from "../events/application-created.event.js";
 import { Application } from "../models/application.js";
-import { Outbox } from "../models/outbox.js";
+import { Outbox } from "../../events/models/outbox.js";
 import { save } from "../repositories/application.repository.js";
-import { insertMany } from "../repositories/outbox.repository.js";
+import { insertMany } from "../../events/repositories/outbox.repository.js";
 import { validateAnswersAgainstSchema } from "../services/schema-validation.service.js";
 import { resolveGrantForSubmission } from "./resolve-current-grant.use-case.js";
 

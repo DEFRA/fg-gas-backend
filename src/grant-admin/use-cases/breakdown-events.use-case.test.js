@@ -1,14 +1,14 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { breakdown as breakdownGasInbox } from "../../grants/repositories/inbox.repository.js";
-import { breakdown as breakdownGasOutbox } from "../../grants/repositories/outbox.repository.js";
+import { breakdown as breakdownGasInbox } from "../../events/repositories/inbox.repository.js";
+import { breakdown as breakdownGasOutbox } from "../../events/repositories/outbox.repository.js";
 import { isCwConfigured } from "../repositories/cw-actuators.repository.js";
 
 vi.mock("../../common/logger.js");
-vi.mock("../../grants/repositories/inbox.repository.js", () => ({
+vi.mock("../../events/repositories/inbox.repository.js", () => ({
   breakdown: vi.fn(),
 }));
-vi.mock("../../grants/repositories/outbox.repository.js", () => ({
+vi.mock("../../events/repositories/outbox.repository.js", () => ({
   breakdown: vi.fn(),
 }));
 vi.mock("../../common/config.js", () => ({

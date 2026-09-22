@@ -8,7 +8,6 @@ import {
 import { saveInboxMessageUseCase } from "./save-inbox-message.use-case.js";
 
 vi.mock("../repositories/inbox.repository.js");
-
 describe("save inbox message", () => {
   it("saves a message", async () => {
     insertOne.mockResolvedValue(true);

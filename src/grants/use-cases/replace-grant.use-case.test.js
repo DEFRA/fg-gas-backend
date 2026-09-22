@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
-import { writeAuditEvent } from "../../common/write-audit-event.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { Grant } from "../models/grant.js";
 import { findByCode, replace } from "../repositories/grant.repository.js";
 import {
@@ -10,7 +10,7 @@ import {
 } from "./replace-grant.use-case.js";
 
 vi.mock("../repositories/grant.repository.js");
-vi.mock("../../common/write-audit-event.js");
+vi.mock("../../events/write-audit-event.js");
 
 describe("replaceGrantUseCase", () => {
   it("carries entitlementTemplates and amendablePositions through the replacement", async () => {

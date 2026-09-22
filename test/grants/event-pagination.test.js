@@ -1,8 +1,8 @@
 import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { findPage as findInboxPage } from "../../src/grants/repositories/inbox.repository.js";
-import { findPage as findOutboxPage } from "../../src/grants/repositories/outbox.repository.js";
+import { findPage as findInboxPage } from "../../src/events/repositories/inbox.repository.js";
+import { findPage as findOutboxPage } from "../../src/events/repositories/outbox.repository.js";
 
 let client;
 let inbox;

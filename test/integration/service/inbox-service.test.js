@@ -17,11 +17,11 @@ const DATABASE = "fg-gas-backend-inbox-service-test";
 vi.stubEnv("MONGO_DATABASE", DATABASE);
 vi.resetModules();
 
-const { Inbox } = await import("../../../src/grants/models/inbox.js");
+const { Inbox } = await import("../../../src/events/models/inbox.js");
 const { claimEvents } =
-  await import("../../../src/grants/repositories/inbox.repository.js");
+  await import("../../../src/events/repositories/inbox.repository.js");
 const { InboxSubscriber } =
-  await import("../../../src/grants/subscribers/inbox.subscriber.js");
+  await import("../../../src/events/subscribers/inbox.subscriber.js");
 const { db: serviceDb, mongoClient } =
   await import("../../../src/common/mongo-client.js");
 

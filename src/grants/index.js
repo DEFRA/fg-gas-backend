@@ -3,6 +3,11 @@ import { registerInternalCommandHandler } from "../common/internal-command-bus.j
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
+import { registerInboxMessageHandler } from "../events/services/inbox-message-handlers.js";
+import { messageSource } from "../events/services/message-source.js";
+import { saveInboxMessageUseCase } from "../events/use-cases/save-inbox-message.use-case.js";
+import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
+import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import { applicationStatusRoute } from "./routes/application-status.route.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";
@@ -15,15 +20,7 @@ import {
 import { replaceGrantRoute } from "./routes/replace-grant.route.js";
 import { submitApplicationRoute } from "./routes/submit-application.route.js";
 import { submitClaimRoute } from "./routes/submit-claim.route.js";
-import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
-import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
-import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
-import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
-import {
-  messageSource,
-  saveInboxMessageUseCase,
-} from "./use-cases/save-inbox-message.use-case.js";
 
 export const grants = {
   name: "grants",
@@ -32,29 +29,30 @@ export const grants = {
       internalCommandTypes.AGREEMENT_STATUS_UPDATED,
       (event) => saveInboxMessageUseCase(event, messageSource.AgreementService),
     );
+    registerInboxMessageHandler(
+      messageSource.AgreementService,
+      handleGrantStatusMessage,
+    );
+    registerInboxMessageHandler(
+      messageSource.CaseWorking,
+      handleGrantStatusMessage,
+    );
+    registerInboxMessageHandler(
+      messageSource.ConfigBroker,
+      handleConfigVersionMessage,
+    );
 
     logger.info("Running migrations");
     const migrated = await up(db, mongoClient);
     migrated.forEach((fileName) => logger.info(`Migrated: ${fileName}`));
     logger.info("Finished running migrations");
 
-    const outboxSubscriber = new OutboxSubscriber();
-    const inboxSubscriber = new InboxSubscriber();
-
     server.events.on("start", async () => {
-      agreementStatusUpdatedSubscriber.start();
-      caseStatusUpdatedSubscriber.start();
       configVersionUpdatedSubscriber.start();
-      outboxSubscriber.start();
-      inboxSubscriber.start();
     });
 
     server.events.on("stop", async () => {
-      agreementStatusUpdatedSubscriber.stop();
-      caseStatusUpdatedSubscriber.stop();
       configVersionUpdatedSubscriber.stop();
-      outboxSubscriber.stop();
-      inboxSubscriber.stop();
     });
 
     server.route([

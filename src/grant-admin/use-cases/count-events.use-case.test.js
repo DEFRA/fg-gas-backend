@@ -1,14 +1,14 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { countFacets as countGasInbox } from "../../grants/repositories/inbox.repository.js";
-import { countFacets as countGasOutbox } from "../../grants/repositories/outbox.repository.js";
+import { countFacets as countGasInbox } from "../../events/repositories/inbox.repository.js";
+import { countFacets as countGasOutbox } from "../../events/repositories/outbox.repository.js";
 import { isCwConfigured } from "../repositories/cw-actuators.repository.js";
 
 vi.mock("../../common/logger.js");
-vi.mock("../../grants/repositories/inbox.repository.js", () => ({
+vi.mock("../../events/repositories/inbox.repository.js", () => ({
   countFacets: vi.fn(),
 }));
-vi.mock("../../grants/repositories/outbox.repository.js", () => ({
+vi.mock("../../events/repositories/outbox.repository.js", () => ({
   countFacets: vi.fn(),
 }));
 vi.mock("../../common/config.js", () => ({

@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { logger } from "../../common/logger.js";
-import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { Grant } from "../models/grant.js";
 import { findByCode, replace } from "../repositories/grant.repository.js";
 

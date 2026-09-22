@@ -1,6 +1,6 @@
 import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { saveOutboxEvents } from "../../common/save-outbox-events.js";
+import { saveOutboxEvents } from "../../events/save-outbox-events.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { Agreement } from "../models/agreement.js";
 import {
@@ -15,7 +15,7 @@ import { loadCurrentAgreementActionContext } from "./load-current-agreement-acti
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 import { loadAgreementForAction } from "./load-current-agreement.js";
 
-vi.mock("../../common/save-outbox-events.js");
+vi.mock("../../events/save-outbox-events.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("../services/build-agreement-page-model.js");

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { config } from "../../common/config.js";
 import {
   clearInternalCommandHandlers,
@@ -7,18 +7,18 @@ import {
   registerInternalCommandHandler,
 } from "../../common/internal-command-bus.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
-import { writeAuditEvent } from "../../common/write-audit-event.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { Application } from "../models/application.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
-import { insertMany } from "../repositories/outbox.repository.js";
+import { insertMany } from "../../events/repositories/outbox.repository.js";
 import {
   auditDataBuilder,
   createAgreementCommandUseCase,
 } from "./create-agreement-command.use-case.js";
 
-vi.mock("../repositories/outbox.repository.js");
+vi.mock("../../events/repositories/outbox.repository.js");
 vi.mock("../repositories/application.repository.js");
-vi.mock("../../common/write-audit-event.js");
+vi.mock("../../events/write-audit-event.js");
 
 describe("create agreement use case", () => {
   beforeEach(() => {

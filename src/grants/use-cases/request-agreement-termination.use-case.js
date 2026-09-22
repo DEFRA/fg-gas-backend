@@ -1,11 +1,11 @@
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { logger } from "../../common/logger.js";
-import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { UpdateAgreementStatusCommand } from "../events/update-agreement-status.command.js";
 import { AgreementServiceStatus } from "../models/agreement.js";
-import { Outbox } from "../models/outbox.js";
+import { Outbox } from "../../events/models/outbox.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
-import { insertMany } from "../repositories/outbox.repository.js";
+import { insertMany } from "../../events/repositories/outbox.repository.js";
 import { resolveAgreementStatusCommandTarget } from "./agreement-status-command.helpers.js";
 
 export const auditDataBuilder = (args, result) => {

@@ -3,20 +3,22 @@ import { up } from "migrate-mongo";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
+import {
+  clearInboxMessageHandlers,
+  dispatchInboxMessage,
+} from "../events/services/inbox-message-handlers.js";
+import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
+import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import { grants } from "./index.js";
-import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
-import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
-import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
-import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
+import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
 
 vi.mock("../common/logger.js");
 
 vi.mock("../common/mongo-client.js");
 vi.mock("migrate-mongo");
-vi.mock("./subscribers/agreement-status-updated.subscriber.js");
-vi.mock("./subscribers/case-status-updated.subscriber.js");
-vi.mock("./subscribers/outbox.subscriber.js");
-vi.mock("./subscribers/inbox.subscriber.js");
+vi.mock("./handlers/handle-grant-status-message.js");
+vi.mock("./handlers/handle-config-version-message.js");
+vi.mock("./subscribers/config-version-updated.subscriber.js");
 
 describe("grants", () => {
   let server;
@@ -25,6 +27,7 @@ describe("grants", () => {
     server = hapi.server();
     up.mockResolvedValue([]);
     vi.clearAllMocks();
+    clearInboxMessageHandlers();
   });
 
   it("runs migrations on startup", async () => {
@@ -48,38 +51,45 @@ describe("grants", () => {
     expect(logger.info).toHaveBeenCalledWith("Finished running migrations");
   });
 
-  it("starts subscribers on startup", async () => {
-    const outboxStart = vi.fn();
-    const inboxStart = vi.fn();
-    OutboxSubscriber.prototype.start = outboxStart;
-    InboxSubscriber.prototype.start = inboxStart;
-
+  it("starts the Grants-owned subscriber on startup", async () => {
     await server.register(grants);
     await server.initialize();
 
     server.events.emit("start");
 
-    expect(agreementStatusUpdatedSubscriber.start).toHaveBeenCalled();
-    expect(caseStatusUpdatedSubscriber.start).toHaveBeenCalled();
-    expect(inboxStart).toHaveBeenCalled();
-    expect(outboxStart).toHaveBeenCalled();
+    expect(configVersionUpdatedSubscriber.start).toHaveBeenCalled();
   });
 
-  it("stops subscribers on stop", async () => {
-    const inboxStop = vi.fn();
-    const outboxStop = vi.fn();
-    OutboxSubscriber.prototype.stop = outboxStop;
-    InboxSubscriber.prototype.stop = inboxStop;
-
+  it("stops the Grants-owned subscriber on stop", async () => {
     await server.register(grants);
     await server.initialize();
 
     server.events.emit("stop");
 
-    expect(agreementStatusUpdatedSubscriber.stop).toHaveBeenCalled();
-    expect(caseStatusUpdatedSubscriber.stop).toHaveBeenCalled();
-    expect(outboxStop).toHaveBeenCalled();
-    expect(inboxStop).toHaveBeenCalled();
+    expect(configVersionUpdatedSubscriber.stop).toHaveBeenCalled();
+  });
+
+  it("registers Grants handlers for all external message sources", async () => {
+    await server.register(grants);
+
+    const agreementMessage = { source: "AS" };
+    const caseWorkingMessage = { source: "CW" };
+    const configBrokerMessage = { source: "CB" };
+    await dispatchInboxMessage(agreementMessage);
+    await dispatchInboxMessage(caseWorkingMessage);
+    await dispatchInboxMessage(configBrokerMessage);
+
+    expect(handleGrantStatusMessage).toHaveBeenNthCalledWith(
+      1,
+      agreementMessage,
+    );
+    expect(handleGrantStatusMessage).toHaveBeenNthCalledWith(
+      2,
+      caseWorkingMessage,
+    );
+    expect(handleConfigVersionMessage).toHaveBeenCalledWith(
+      configBrokerMessage,
+    );
   });
 
   it("registers routes", async () => {

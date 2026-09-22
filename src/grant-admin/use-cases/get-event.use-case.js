@@ -1,10 +1,10 @@
 import Boom from "@hapi/boom";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
-import { findById as findGasInboxById } from "../../grants/repositories/inbox.repository.js";
-import { findById as findGasOutboxById } from "../../grants/repositories/outbox.repository.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
+import { findById as findGasInboxById } from "../../events/repositories/inbox.repository.js";
+import { findById as findGasOutboxById } from "../../events/repositories/outbox.repository.js";
 import { findCwEvent } from "../repositories/cw-actuators.repository.js";
 import { CASEWORKING, GAS } from "../services/event-sources.js";
 import { toEventDetail } from "../services/map-event-detail.js";

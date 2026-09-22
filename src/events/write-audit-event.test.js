@@ -2,10 +2,10 @@ import { validateAuditEvent } from "@defra/fcp-audit-publisher";
 import { getTraceId } from "@defra/hapi-tracing";
 import { networkInterfaces } from "node:os";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Outbox } from "../grants/models/outbox.js";
-import { insertMany } from "../grants/repositories/outbox.repository.js";
+import { Outbox } from "./models/outbox.js";
+import { insertMany } from "./repositories/outbox.repository.js";
 import { auditStatus } from "./audit-constants.js";
-import { getRequestContext } from "./get-request-context.js";
+import { getRequestContext } from "../common/get-request-context.js";
 import {
   buildPayload,
   createAuditPayload,
@@ -17,7 +17,7 @@ vi.mock("@defra/hapi-tracing", () => ({
   getTraceId: vi.fn(),
 }));
 
-vi.mock("./config.js", () => ({
+vi.mock("../common/config.js", () => ({
   config: {
     serviceVersion: "1.0.0",
     serviceName: "fg-gas-backend",
@@ -26,17 +26,17 @@ vi.mock("./config.js", () => ({
   },
 }));
 
-vi.mock("./logger.js");
+vi.mock("../common/logger.js");
 
-vi.mock("./get-request-context.js", () => ({
+vi.mock("../common/get-request-context.js", () => ({
   getRequestContext: vi.fn(),
 }));
 
-vi.mock("../grants/models/outbox.js", () => ({
+vi.mock("./models/outbox.js", () => ({
   Outbox: vi.fn(),
 }));
 
-vi.mock("../grants/repositories/outbox.repository.js", () => ({
+vi.mock("./repositories/outbox.repository.js", () => ({
   insertMany: vi.fn(),
 }));
 

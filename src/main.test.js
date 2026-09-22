@@ -22,6 +22,7 @@ describe("main", () => {
     vi.doMock("./grant-admin/index.js", () => ({
       grantAdmin: { name: "grant-admin" },
     }));
+    vi.doMock("./events/index.js", () => ({ events: { name: "events" } }));
     vi.doMock("./test-endpoints/index.js", () => ({
       testEndpoints: { name: "test-endpoints" },
     }));
@@ -44,6 +45,7 @@ describe("main", () => {
     const { grants } = await import("./grants/index.js");
     const { agreements } = await import("./agreements/index.js");
     const { grantAdmin } = await import("./grant-admin/index.js");
+    const { events } = await import("./events/index.js");
     const { testEndpoints } = await import("./test-endpoints/index.js");
 
     expect(createServer).toHaveBeenCalled();
@@ -53,6 +55,7 @@ describe("main", () => {
       agreements,
       grantAdmin,
       testEndpoints,
+      events,
     ]);
     expect(mockServer.start).toHaveBeenCalled();
   });

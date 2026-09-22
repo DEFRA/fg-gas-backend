@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { withTraceParent } from "../../common/trace-parent.js";
-import { Inbox } from "../models/inbox.js";
+import { Inbox } from "../../events/models/inbox.js";
 import {
   findByMessageId,
   insertOne,
-} from "../repositories/inbox.repository.js";
+} from "../../events/repositories/inbox.repository.js";
 import {
   CONFIG_VERSION_EVENT_TYPE,
   saveConfigVersionInboxMessageUseCase,
   UNGROUPED_SEGREGATION_REF,
 } from "./save-config-version-inbox-message.use-case.js";
 
-vi.mock("../repositories/inbox.repository.js");
+vi.mock("../../events/repositories/inbox.repository.js");
 
 const manifest = [
   "woodland/1.2.0/gas/gas.json",

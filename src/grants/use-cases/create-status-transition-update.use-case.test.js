@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
-import { writeAuditEvent } from "../../common/write-audit-event.js";
-import { Outbox } from "../models/outbox.js";
-import { insertMany } from "../repositories/outbox.repository.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
+import { Outbox } from "../../events/models/outbox.js";
+import { insertMany } from "../../events/repositories/outbox.repository.js";
 import {
   auditDataBuilder,
   createStatusTransitionUpdateUseCase,
 } from "./create-status-transition-update.use-case.js";
 
-vi.mock("../repositories/outbox.repository.js");
-vi.mock("../../common/write-audit-event.js");
+vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/write-audit-event.js");
 
 describe("create status transition update", () => {
   beforeEach(() => {

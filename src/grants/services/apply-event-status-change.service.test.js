@@ -7,7 +7,7 @@ import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
-import { insertMany } from "../repositories/outbox.repository.js";
+import { insertMany } from "../../events/repositories/outbox.repository.js";
 import { acceptAgreementUseCase } from "../use-cases/accept-agreement.use-case.js";
 import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
 import { cancelAgreementUseCase } from "../use-cases/cancel-agreement.use-case.js";
@@ -31,7 +31,7 @@ vi.mock("../use-cases/request-agreement-cancellation.use-case.js");
 vi.mock("../use-cases/withdraw-application.use-case.js");
 vi.mock("../use-cases/withdraw-agreement.use-case.js");
 vi.mock("../repositories/application.repository.js");
-vi.mock("../repositories/outbox.repository.js");
+vi.mock("../../events/repositories/outbox.repository.js");
 vi.mock(
   "../use-cases/resolve-current-grant.use-case.js",
   async (importOriginal) => {

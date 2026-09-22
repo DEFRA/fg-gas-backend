@@ -1,8 +1,8 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { writeAuditEvent } from "../../common/write-audit-event.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { Application } from "../models/application.js";
 import {
   findByClientRefAndCode,
@@ -17,7 +17,7 @@ import {
 import { resolveGrantForApplication } from "./resolve-current-grant.use-case.js";
 
 vi.mock("../../common/with-transaction.js");
-vi.mock("../../common/write-audit-event.js");
+vi.mock("../../events/write-audit-event.js");
 vi.mock("./create-application.use-case.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../repositories/application-series.repository.js");

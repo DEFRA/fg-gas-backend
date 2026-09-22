@@ -3,7 +3,7 @@
 //
 // ⚠️ CRITICAL FIELDS ⚠️
 //
-// Our code expects (src/grants/subscribers/case-status-updated.subscriber.js):
+// Our code expects (src/events/subscribers/case-status-updated.subscriber.js):
 //   - source: "fg-cw-backend" | "CaseWorking" | "CW" (all mapped to "CW" for routing)
 //   - data.caseRef: Used to find application by clientRef
 //   - data.currentStatus: Must be in format "PHASE:STAGE:STATUS" (e.g., "PRE_AWARD:ASSESSMENT:WITHDRAWAL_REQUESTED")

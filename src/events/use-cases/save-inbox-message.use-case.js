@@ -6,12 +6,6 @@ import {
   insertOne,
 } from "../repositories/inbox.repository.js";
 
-export const messageSource = {
-  AgreementService: "AS",
-  CaseWorking: "CW",
-  ConfigBroker: "CB",
-};
-
 export const getSegregationRef = (event) => {
   const { data } = event;
   return getMessageGroupId(null, data);

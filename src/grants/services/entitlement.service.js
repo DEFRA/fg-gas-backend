@@ -1,12 +1,12 @@
 import Boom from "@hapi/boom";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { logger } from "../../common/logger.js";
 import {
   resolveRefs,
   UnresolvedReferenceError,
 } from "../../common/resolve-refs.js";
-import { buildAuditEvent, withAudit } from "../../common/with-audit.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { EntitlementCreationRejection } from "../models/entitlement-template.js";
 import { Entitlement } from "../models/entitlement.js";

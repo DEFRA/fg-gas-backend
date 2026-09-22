@@ -1,5 +1,5 @@
-import { Outbox } from "../grants/models/outbox.js";
-import { insertMany } from "../grants/repositories/outbox.repository.js";
+import { Outbox } from "./models/outbox.js";
+import { insertMany } from "./repositories/outbox.repository.js";
 
 // Publications may supply an explicit outbox segregation reference when the
 // generic event-data rules cannot derive one. Payment events group by Agreement

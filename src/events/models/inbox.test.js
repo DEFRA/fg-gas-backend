@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
-import { markPermanentFailure } from "../../events/retryable.js";
+import { markPermanentFailure } from "../retryable.js";
 import { Inbox, InboxStatus } from "./inbox.js";
 
 describe("inbox model", () => {

@@ -1,7 +1,7 @@
 import { config } from "../../common/config.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { Outbox } from "../models/outbox.js";
+import { Outbox } from "../../events/models/outbox.js";
 
 export const getAgreementData = (application, agreementNumber) =>
   application

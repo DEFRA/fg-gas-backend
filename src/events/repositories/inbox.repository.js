@@ -1,60 +1,44 @@
-import Boom from "@hapi/boom";
 import { ObjectId } from "mongodb";
 import { config } from "../../common/config.js";
-import { logger } from "../../common/logger.js";
 import { db } from "../../common/mongo-client.js";
 import { paginate } from "../../common/paginate.js";
 import {
   AUDIT_TARGET_FIELDS,
   EVENT_TYPE_FIELDS,
   auditGroupExpression,
-} from "../../events/event-audit.js";
-import {
-  breakdownStages,
-  toBreakdownGroups,
-} from "../../events/event-breakdown.js";
-import { toSourceFacets } from "../../events/event-facets.js";
-import { buildEventListFilter } from "../../events/event-list-filter.js";
-import { DEAD_LETTER, redriveUpdate } from "../../events/event-redrive.js";
+} from "../event-audit.js";
+import { breakdownStages, toBreakdownGroups } from "../event-breakdown.js";
+import { toSourceFacets } from "../event-facets.js";
+import { buildEventListFilter } from "../event-list-filter.js";
+import { DEAD_LETTER, redriveUpdate } from "../event-redrive.js";
 import {
   claimExpiredAttempt,
   claimExpiredError,
   pushAttemptUpdate,
-} from "../../events/last-error.js";
-import { statusGroupStage } from "../../events/status-counts.js";
-import { Outbox, OutboxStatus } from "../models/outbox.js";
+} from "../last-error.js";
+import { statusGroupStage } from "../status-counts.js";
+import { Inbox, InboxStatus } from "../models/inbox.js";
 
-const collection = "outbox";
+const collection = "inbox";
+const MAX_RETRIES = config.inbox.inboxMaxRetries;
+const NUMBER_OF_RECORDS = config.inbox.inboxClaimMaxRecords;
+const EXPIRES_IN_MS = config.inbox.inboxExpiresMs;
 
-const MAX_RETRIES = config.outbox.outboxMaxRetries;
-const EXPIRES_IN_MS = config.outbox.outboxExpiresMs;
-const NUMBER_OF_RECORDS = config.outbox.outboxClaimMaxRecords;
-
-// `target` decides whether a type-less row is an audit record.
+// Never `event` or `claimedBy`.
 const listProjection = {
   _id: 1,
-  target: 1,
-  "event.id": 1,
-  "event.type": 1,
+  messageId: 1,
+  type: 1,
   status: 1,
   publicationDate: 1,
   completionDate: 1,
 };
 
-// A BSON Date on every outbox row; the cursor carries it as ISO.
+// A canonical ISO string on every inbox row, so it round-trips unchanged.
 const listCodecs = {
   publicationDate: {
-    encode: (value) => (value instanceof Date ? value.toISOString() : value),
-    // `new Date(null)` is the epoch, so a null position is refused.
-    decode: (value) => {
-      const date = new Date(value);
-
-      if (typeof value !== "string" || Number.isNaN(date.getTime())) {
-        throw Boom.badRequest("Cursor publicationDate is not an instant");
-      }
-
-      return date;
-    },
+    encode: (value) => value ?? null,
+    decode: (value) => value ?? null,
   },
   _id: {
     encode: (id) => id.toString(),
@@ -62,7 +46,7 @@ const listCodecs = {
   },
 };
 
-// A BSON Date field: a string bound would silently match nothing.
+// The admin lists by receipt; the poller deliberately claims by `eventTime` instead.
 const listFilter = ({ status, q, error, from, to, audit }) =>
   buildEventListFilter({
     status,
@@ -71,11 +55,11 @@ const listFilter = ({ status, q, error, from, to, audit }) =>
     from,
     to,
     audit,
-    targetField: AUDIT_TARGET_FIELDS.outbox,
-    eventIdField: "event.id",
-    traceparentField: "event.traceparent",
+    targetField: AUDIT_TARGET_FIELDS.inbox,
+    eventIdField: "messageId",
+    traceparentField: "traceparent",
     rangeField: "publicationDate",
-    rangeIsDate: true,
+    rangeIsDate: false,
   });
 
 const listSort = { publicationDate: -1, _id: -1 };
@@ -87,7 +71,7 @@ export const deadLetterEvent = async (event) => {
     },
     {
       $set: {
-        status: OutboxStatus.DEAD_LETTER,
+        status: InboxStatus.DEAD_LETTER,
         claimedAt: null,
         claimExpiresAt: null,
         claimedBy: null,
@@ -100,98 +84,101 @@ export const deadLetterEvent = async (event) => {
 export const findNextMessage = async (lockIds) => {
   const doc = await db.collection(collection).findOne(
     {
-      status: OutboxStatus.PUBLISHED,
-      claimedBy: null,
+      status: { $eq: InboxStatus.PUBLISHED },
+      claimedBy: { $eq: null },
       completionAttempts: { $lt: MAX_RETRIES },
       segregationRef: { $nin: lockIds },
     },
-    { sort: { publicationDate: 1 } },
+    { sort: { eventTime: 1 } },
   );
   return doc;
 };
 
-export const claimEvents = async (claimedBy, segregationRef) => {
+export const claimEvents = async (
+  claimedBy,
+  segregationRef,
+  numRecords = NUMBER_OF_RECORDS,
+) => {
   const docs = [];
-
-  logger.info(
-    `Outbox repository claim events with segregationRef: ${segregationRef}`,
-  );
-
-  for (let i = 0; i < NUMBER_OF_RECORDS; i++) {
-    const doc = await db.collection(collection).findOneAndUpdate(
+  for (let i = 0; i < numRecords; i++) {
+    const document = await db.collection(collection).findOneAndUpdate(
       {
-        status: {
-          $eq: OutboxStatus.PUBLISHED,
-        },
-        claimedBy: {
-          $eq: null,
-        },
-        completionAttempts: {
-          $lt: MAX_RETRIES,
-        },
+        status: { $eq: InboxStatus.PUBLISHED },
+        claimedBy: { $eq: null },
+        completionAttempts: { $lt: MAX_RETRIES },
         segregationRef,
       },
       {
         $set: {
-          status: OutboxStatus.PROCESSING,
+          status: InboxStatus.PROCESSING,
           claimedBy,
           claimedAt: new Date(),
           claimExpiresAt: new Date(Date.now() + EXPIRES_IN_MS),
         },
       },
-      { sort: { publicationDate: 1 }, returnDocument: "after" },
+      { sort: { eventTime: 1 }, returnDocument: "after" },
     );
-    docs.push(doc);
+
+    docs.push(document);
   }
+
   const documents = docs.filter((d) => d !== null);
-
-  logger.info(
-    `Outbox repository claim events (segregationRef ${segregationRef}) end with number of docs ${documents.length}`,
-  );
-  return documents.map((doc) => Outbox.fromDocument(doc));
+  return documents.map((doc) => Inbox.fromDocument(doc));
 };
 
-export const update = async (event, claimedBy) => {
-  const document = event.toDocument();
-  const { _id, ...updateDoc } = document;
-
-  return db
-    .collection(collection)
-    .updateOne({ _id, claimedBy }, { $set: updateDoc });
-};
-
-export const insertMany = async (events, session) => {
-  return db.collection(collection).insertMany(
-    events.map((event) => event.toDocument()),
-    { session },
-  );
-};
-
-export const updateExpiredEvents = async () => {
-  const results = await db.collection(collection).updateMany(
+export const processExpiredEvents = async () => {
+  await db.collection(collection).updateMany(
     {
       claimExpiresAt: { $lt: new Date() },
       // Terminal too: a stale claim must not put a purged row back in the cycle.
       status: {
         $nin: [
-          OutboxStatus.DEAD_LETTER,
-          OutboxStatus.COMPLETED,
-          OutboxStatus.PURGED,
+          InboxStatus.DEAD_LETTER,
+          InboxStatus.COMPLETED,
+          InboxStatus.PURGED,
         ],
       },
     },
     {
       $set: {
-        status: OutboxStatus.FAILED,
+        status: InboxStatus.FAILED,
         lastError: claimExpiredError(),
+        claimedBy: null,
         claimedAt: null,
         claimExpiresAt: null,
-        claimedBy: null,
       },
       // Applied by Mongo: `$slice` keeps the ten most recent entries per row.
       $push: pushAttemptUpdate(claimExpiredAttempt()),
       // An expired claim is a failed attempt, counted where it is recorded.
       $inc: { completionAttempts: 1 },
+    },
+  );
+};
+
+export const updateDeadEvents = async () => {
+  const results = await db.collection(collection).updateMany(
+    {
+      completionAttempts: { $gte: MAX_RETRIES },
+      // A success is terminal. The counter counts failures, so a row that
+      // succeeded normally sits below the cap and never matches - but lowering
+      // `INBOX_MAX_RETRIES` puts already-succeeded rows at or above it.
+      // A purged row keeps the attempts that killed it, so it sits at the cap
+      // and this sweep would flip it back to DEAD_LETTER on the next tick.
+      status: {
+        $nin: [
+          InboxStatus.DEAD_LETTER,
+          InboxStatus.COMPLETED,
+          InboxStatus.PURGED,
+        ],
+      },
+    },
+    {
+      $set: {
+        status: InboxStatus.DEAD_LETTER,
+        claimedAt: null,
+        claimExpiresAt: null,
+        claimedBy: null,
+      },
     },
   );
   return results;
@@ -200,11 +187,11 @@ export const updateExpiredEvents = async () => {
 export const updateFailedEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {
-      status: OutboxStatus.FAILED,
+      status: InboxStatus.FAILED,
     },
     {
       $set: {
-        status: OutboxStatus.RESUBMITTED,
+        status: InboxStatus.RESUBMITTED,
         claimedAt: null,
         claimExpiresAt: null,
         claimedBy: null,
@@ -217,11 +204,11 @@ export const updateFailedEvents = async () => {
 export const updateResubmittedEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {
-      status: OutboxStatus.RESUBMITTED,
+      status: InboxStatus.RESUBMITTED,
     },
     {
       $set: {
-        status: OutboxStatus.PUBLISHED,
+        status: InboxStatus.PUBLISHED,
         claimedAt: null,
         claimExpiresAt: null,
         claimedBy: null,
@@ -232,33 +219,27 @@ export const updateResubmittedEvents = async () => {
   return results;
 };
 
-export const updateDeadEvents = async () => {
-  const results = await db.collection(collection).updateMany(
-    {
-      completionAttempts: { $gte: MAX_RETRIES },
-      // A success is terminal. The counter counts failures, so a row that
-      // succeeded normally sits below the cap and never matches - but lowering
-      // `OUTBOX_MAX_RETRIES` puts already-succeeded rows at or above it.
-      // A purged row keeps the attempts that killed it, so it sits at the cap
-      // and this sweep would flip it back to DEAD_LETTER on the next tick.
-      status: {
-        $nin: [
-          OutboxStatus.DEAD_LETTER,
-          OutboxStatus.COMPLETED,
-          OutboxStatus.PURGED,
-        ],
-      },
-    },
-    {
-      $set: {
-        status: OutboxStatus.DEAD_LETTER,
-        claimedAt: null,
-        claimExpiresAt: null,
-        claimedBy: null,
-      },
-    },
+export const insertMany = async (events, session) => {
+  return db.collection(collection).insertMany(
+    events.map((event) => event.toDocument()),
+    { session },
   );
-  return results;
+};
+
+export const findByMessageId = async (messageId) => {
+  const doc = db.collection(collection).findOne({ messageId });
+  return doc;
+};
+
+export const insertOne = async (inbox, session) => {
+  return db.collection(collection).insertOne(inbox.toDocument(), { session });
+};
+
+export const update = async (inbox) => {
+  const document = inbox.toDocument();
+  const { _id, ...updateDoc } = document;
+
+  return db.collection(collection).updateOne({ _id }, { $set: updateDoc });
 };
 
 export const findPage = async ({
@@ -316,7 +297,7 @@ export const redriveById = async (id, { by, session } = {}) => {
     .collection(collection)
     .updateOne(
       { _id: toId(id), status: DEAD_LETTER },
-      redriveUpdate(OutboxStatus.RESUBMITTED, { by }),
+      redriveUpdate(InboxStatus.RESUBMITTED, { by }),
       { session },
     );
 
@@ -330,9 +311,9 @@ export const breakdown = async (filter = {}) =>
       .collection(collection)
       .aggregate(
         breakdownStages({
-          filter: listFilter({ ...filter, status: OutboxStatus.DEAD_LETTER }),
-          typeField: EVENT_TYPE_FIELDS.outbox,
-          auditExpression: auditGroupExpression(AUDIT_TARGET_FIELDS.outbox),
+          filter: listFilter({ ...filter, status: InboxStatus.DEAD_LETTER }),
+          typeField: EVENT_TYPE_FIELDS.inbox,
+          auditExpression: auditGroupExpression(AUDIT_TARGET_FIELDS.inbox),
           sortKey: "publicationDate",
         }),
         { maxTimeMS: config.adminReadTimeoutMs },

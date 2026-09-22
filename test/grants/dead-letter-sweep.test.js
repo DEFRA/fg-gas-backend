@@ -5,11 +5,11 @@ import { config } from "../../src/common/config.js";
 import {
   processExpiredEvents as claimSweepInbox,
   updateDeadEvents as sweepInbox,
-} from "../../src/grants/repositories/inbox.repository.js";
+} from "../../src/events/repositories/inbox.repository.js";
 import {
   updateExpiredEvents as claimSweepOutbox,
   updateDeadEvents as sweepOutbox,
-} from "../../src/grants/repositories/outbox.repository.js";
+} from "../../src/events/repositories/outbox.repository.js";
 
 // The sweep counts FAILURES, not attempts: `markAsComplete` never increments
 // `completionAttempts`, and a row at the cap can never be claimed again. So a

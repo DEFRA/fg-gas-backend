@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, vitest } from "vitest";
-import { auditActions, auditEntities } from "../../common/audit-constants.js";
-import { writeAuditEvent } from "../../common/write-audit-event.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -16,7 +16,7 @@ import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
-import { insertMany } from "../repositories/outbox.repository.js";
+import { insertMany } from "../../events/repositories/outbox.repository.js";
 import {
   auditDataBuilder,
   withdrawAgreementUseCase,
@@ -27,8 +27,8 @@ vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
 vi.mock("../../common/with-transaction.js");
-vi.mock("../repositories/outbox.repository.js");
-vi.mock("../../common/write-audit-event.js");
+vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/write-audit-event.js");
 
 vitest.mock("../repositories/outbox.repository.js");
 

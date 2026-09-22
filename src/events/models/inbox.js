@@ -3,14 +3,14 @@ import Joi from "joi";
 import { ObjectId } from "mongodb";
 import { config } from "../../common/config.js";
 import { isObjectIdHex } from "../../common/object-id-hex.js";
-import { expiryFrom } from "../../events/event-retention.js";
+import { expiryFrom } from "../event-retention.js";
 import {
   appendAttempt,
   normaliseAttemptHistory,
   toAttemptEntry,
   toLastError,
-} from "../../events/last-error.js";
-import { isRetryableFailure } from "../../events/retryable.js";
+} from "../last-error.js";
+import { isRetryableFailure } from "../retryable.js";
 
 const toEpochMs = (time) => {
   if (time === undefined || time === null) {

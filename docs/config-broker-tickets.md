@@ -248,8 +248,8 @@ This ticket follows that same pattern rather than having the SQS subscriber writ
 - Update `src/common/config.js` with the new SQS queue URL
 - Create `src/grants/subscribers/config-version-updated.subscriber.js` (SQS poller) that:
   - Polls the config version SQS queue
-  - Calls `saveInboxMessageUseCase` with a source identifier (e.g., `"CONFIG_BROKER"`) to persist the message to the inbox collection
-- Add a handler in `InboxSubscriber.handleEvent` (or the equivalent dispatch logic) for Config Broker messages that:
+  - Calls `saveInboxMessageUseCase` with the `"CB"` source identifier to persist the message to the inbox collection
+- Register a Config Broker handler with the shared inbox dispatcher that:
   - Parses the notification to extract `grantCode`, `version`, `status`
   - Parses version string into `major`, `minor`, `patch` integers
   - Constructs the S3 key using `buildS3Key`
@@ -264,9 +264,9 @@ This ticket follows that same pattern rather than having the SQS subscriber writ
 - `.env.example`
 - New: `src/grants/subscribers/config-version-updated.subscriber.js`
 - New: `src/grants/subscribers/config-version-updated.subscriber.test.js`
-- `src/grants/subscribers/inbox.subscriber.js` (add handler dispatch for Config Broker source)
-- `src/grants/use-cases/save-inbox-message.use-case.js` (if source mapping needs updating)
-- `src/grants/index.js` (register SQS subscriber)
+- `src/events/services/inbox-message-handlers.js` (dispatch Config Broker messages to the registered Grants handler)
+- `src/events/services/message-source.js` and `src/events/use-cases/save-inbox-message.use-case.js` (source mapping and durable inbox persistence)
+- `src/grants/index.js` (register the Config Broker handler and SQS subscriber)
 - `compose/start-localstack.sh` (create SQS queue)
 
 **Acceptance Criteria:**

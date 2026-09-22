@@ -1,7 +1,4 @@
-import {
-  isAuditTarget,
-  labelForMissingType,
-} from "../../events/event-audit.js";
+import { isAuditTarget, shortEventType } from "../../events/event-audit.js";
 import { normaliseAttemptHistory } from "../../events/last-error.js";
 import {
   actorName,
@@ -11,7 +8,6 @@ import {
   statusDisplay,
 } from "./event-display.js";
 
-const NAMESPACE = /^cloud\.defra\.[^.]+\.[^.]+\./;
 const INTERNAL_BUS = "internal:message-bus";
 const INTERNAL_BUS_NAME = "internal";
 const HEX = 16;
@@ -83,17 +79,10 @@ export const deriveTraceId = (traceparent) => {
   return W3C_TRACEPARENT.exec(traceparent)?.[1] ?? traceparent;
 };
 
-// Never the empty string, which the label rule reads as "no type recorded".
-const shortType = (storedType) =>
-  storedType ? storedType.replace(NAMESPACE, "") || storedType : "";
-
-export const shortEventType = (storedType, isAudit) =>
-  storedType ? shortType(storedType) : labelForMissingType(isAudit);
-
 // Only Caseworking recognises its own audit topic, so its label is verbatim.
 const deriveType = (intermediate) =>
   intermediate.derivedType
-    ? shortType(intermediate.derivedType)
+    ? shortEventType(intermediate.derivedType, false)
     : shortEventType(
         intermediate.fullTypeRaw,
         isAuditTarget(intermediate.target),
