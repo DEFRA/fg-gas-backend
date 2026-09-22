@@ -102,13 +102,19 @@ describe("Agreement reporting events", () => {
     expect(validateReportingEvent(result.event).valid).toBe(true);
   });
 
-  it("reports an empty parcel list when the Agreement has no parcels", () => {
-    const result = createAgreementCreatedReportingPublication({
+  it("reports an empty parcel list on both events when there are no parcels", () => {
+    const agreementWithoutParcels = {
       ...agreement,
       parcels: undefined,
-    });
+    };
+    const created =
+      createAgreementCreatedReportingPublication(agreementWithoutParcels);
+    const statusChanged =
+      createAgreementStatusChangedReportingPublication(agreementWithoutParcels);
 
-    expect(result.event.eventData.parcels).toEqual([]);
+    expect(created.event.eventData.parcels).toEqual([]);
+    expect(statusChanged.event.eventData.parcels).toEqual([]);
+    expect(validateReportingEvent(statusChanged.event).valid).toBe(true);
   });
 
   it("normalises stored date timestamps without changing event timestamps", () => {
