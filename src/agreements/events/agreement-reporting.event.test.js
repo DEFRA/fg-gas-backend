@@ -79,6 +79,7 @@ describe("Agreement reporting events", () => {
               parcelReference: "SD8545-9935",
               parcelSizeUnderAgreement: 15.75,
               optionCode: "WMP1",
+              optionYear: 1,
               optionStartDate: "2026-10-01",
               optionEndDate: "2027-09-30",
               optionQuantity: 10.5,
@@ -87,6 +88,7 @@ describe("Agreement reporting events", () => {
             {
               parcelReference: "",
               optionCode: "TE4",
+              optionYear: 3,
               optionStartDate: "2026-09-01",
               optionEndDate: "2029-08-31",
               optionQuantity: 2,
@@ -99,7 +101,7 @@ describe("Agreement reporting events", () => {
     expect(validateReportingEvent(result.event).valid).toBe(true);
   });
 
-  it("includes funded entries before the Agreement dates are known", () => {
+  it("omits dates and option year when Agreement dates are unknown", () => {
     const result = createAgreementCreatedReportingPublication({
       ...agreement,
       startDate: undefined,
@@ -187,6 +189,7 @@ describe("Agreement reporting events", () => {
               parcelReference: "SD8545-9935",
               parcelSizeUnderAgreement: 15.75,
               optionCode: "WMP1",
+              optionYear: 1,
               optionStartDate: "2026-10-01",
               optionEndDate: "2027-09-30",
               optionQuantity: 10.5,
@@ -195,6 +198,7 @@ describe("Agreement reporting events", () => {
             {
               parcelReference: "",
               optionCode: "TE4",
+              optionYear: 3,
               optionStartDate: "2026-09-01",
               optionEndDate: "2029-08-31",
               optionQuantity: 2,
