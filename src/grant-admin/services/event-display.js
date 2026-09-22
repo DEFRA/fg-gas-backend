@@ -15,6 +15,7 @@ const STATUS_BADGES = {
   RESUBMITTED: { role: "warning", retrying: true },
   COMPLETED: { role: "success", retrying: false },
   DEAD_LETTER: { role: "error", retrying: false },
+  PURGED: { role: "neutral", retrying: false },
 };
 
 const UNKNOWN_BADGE = { role: "neutral", retrying: false };
@@ -27,6 +28,7 @@ const STATUS_LABELS = {
   RESUBMITTED: "Resubmitted",
   COMPLETED: "Completed",
   DEAD_LETTER: "Dead letter",
+  PURGED: "Purged",
 };
 
 const STATUS_EXPLAINERS = {
@@ -36,6 +38,7 @@ const STATUS_EXPLAINERS = {
   RESUBMITTED: "Queued for another retry cycle",
   COMPLETED: "Processed successfully",
   DEAD_LETTER: "Failed all retry attempts; needs a redrive",
+  PURGED: "Set aside by an operator; kept until its deletion date",
 };
 
 const MS_PER_SECOND = 1000;

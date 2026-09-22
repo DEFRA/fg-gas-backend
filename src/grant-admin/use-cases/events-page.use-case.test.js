@@ -145,7 +145,7 @@ describe("eventsPageUseCase", () => {
     expect(page.services).toEqual(SERVICES);
   });
 
-  it("carries only the six numbers as `counts`, not the counts envelope", async () => {
+  it("carries only the per-status numbers as `counts`, not the counts envelope", async () => {
     countEventsUseCase.mockResolvedValue({
       counts: COUNTS,
       sourceErrors: [{ key: "cwInbox", service: "caseworking", box: "inbox" }],

@@ -193,6 +193,64 @@ describe("config CONFIGURATION_VARIANT", () => {
   });
 });
 
+describe("config EVENT_RETENTION_DAYS", () => {
+  let saved;
+
+  beforeEach(() => {
+    saved = process.env.EVENT_RETENTION_DAYS;
+    delete process.env.EVENT_RETENTION_DAYS;
+  });
+
+  afterEach(() => {
+    if (saved === undefined) {
+      delete process.env.EVENT_RETENTION_DAYS;
+    } else {
+      process.env.EVENT_RETENTION_DAYS = saved;
+    }
+  });
+
+  const loadConfig = async () => {
+    vi.resetModules();
+    return (await import("./config.js")).config;
+  };
+
+  const refuses = async (value) => {
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit called");
+    });
+
+    process.env.EVENT_RETENTION_DAYS = value;
+
+    await expect(loadConfig()).rejects.toThrow("process.exit called");
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+  };
+
+  it("keeps events for 90 days when the variable is unset", async () => {
+    expect((await loadConfig()).events.retentionDays).toBe(90);
+  });
+
+  it("takes a longer period from the environment", async () => {
+    process.env.EVENT_RETENTION_DAYS = "180";
+
+    expect((await loadConfig()).events.retentionDays).toBe(180);
+  });
+
+  it("accepts the floor of 30 days", async () => {
+    process.env.EVENT_RETENTION_DAYS = "30";
+
+    expect((await loadConfig()).events.retentionDays).toBe(30);
+  });
+
+  it.each(["29", "0", "-1", "abc", "30.5"])(
+    "refuses to start on %s",
+    async (value) => {
+      await refuses(value);
+    },
+  );
+});
+
 describe("config admin timeout ladder", () => {
   const KEYS = ["CW_BACKEND_TIMEOUT_MS", "ADMIN_READ_TIMEOUT_MS"];
   const saved = {};

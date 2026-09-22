@@ -37,6 +37,7 @@ const ZERO = {
   RESUBMITTED: 0,
   COMPLETED: 0,
   DEAD_LETTER: 0,
+  PURGED: 0,
 };
 
 const counts = (overrides) => ({ ...ZERO, ...overrides });
@@ -89,6 +90,7 @@ describe("countEventsUseCase", () => {
       "RESUBMITTED",
       "COMPLETED",
       "DEAD_LETTER",
+      "PURGED",
     ]);
   });
 

@@ -585,7 +585,7 @@ describe("redriveCwEvent", () => {
     expect(error.output.payload.status).toBe("COMPLETED");
   });
 
-  it("ignores a status that is not one of the six known ones", async () => {
+  it("ignores a status that is not one of the known ones", async () => {
     wreck.post.mockRejectedValue(httpError(409, { status: "SECRET" }));
 
     const error = await redriveCwEvent("inbox", ID).catch((e) => e);

@@ -41,6 +41,7 @@ const COUNTS = {
   RESUBMITTED: 0,
   COMPLETED: 0,
   DEAD_LETTER: 1,
+  PURGED: 0,
 };
 
 const STATUSES = statusVocabulary();

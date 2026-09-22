@@ -39,6 +39,7 @@ export const toEventDetail = ({ service, box, doc, maxAttempts }) => {
     segregationRef: orNull(doc.segregationRef),
     attemptHistory: toAttemptHistory(doc.attemptHistory),
     lastRedrive: intermediate.lastRedrive,
+    expiresAt: toIso(doc.expireAt),
     completionDate: toIso(doc.completionDate),
     lastResubmissionDate: toIso(doc.lastResubmissionDate),
   };

@@ -30,6 +30,7 @@ const ZERO = {
   RESUBMITTED: 0,
   COMPLETED: 0,
   DEAD_LETTER: 0,
+  PURGED: 0,
 };
 
 const counts = (overrides = {}) => ({ ...ZERO, ...overrides });
@@ -292,7 +293,7 @@ describe("GET /grant-admin/events/page - the counts facet", () => {
     expect(eventsPageResponseSchema.validate(body).error).toBeUndefined();
   });
 
-  it("carries the six numbers and nothing else", async () => {
+  it("carries the seven numbers and nothing else", async () => {
     await seedMixedGas();
 
     const body = await countEvents();
@@ -306,6 +307,7 @@ describe("GET /grant-admin/events/page - the counts facet", () => {
       "FAILED",
       "PROCESSING",
       "PUBLISHED",
+      "PURGED",
       "RESUBMITTED",
     ]);
   });

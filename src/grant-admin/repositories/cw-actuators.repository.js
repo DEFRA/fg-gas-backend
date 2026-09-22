@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
 import { wreck } from "../../common/wreck.js";
-import { REDRIVE_FROM_STATUS } from "../../events/event-redrive.js";
+import { DEAD_LETTER } from "../../events/event-redrive.js";
 import { EVENT_STATUSES } from "../../events/status-counts.js";
 
 const GATEWAY_TIMEOUT = 504;
@@ -190,7 +190,7 @@ const cwRequest = async (method, path, label) => {
 
     return payload;
   } catch (error) {
-    throw toFailure(error, label, REDRIVE_FROM_STATUS);
+    throw toFailure(error, label, DEAD_LETTER);
   }
 };
 

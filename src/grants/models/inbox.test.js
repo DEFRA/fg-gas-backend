@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { config } from "../../common/config.js";
 import { markPermanentFailure } from "../../events/retryable.js";
 import { Inbox, InboxStatus } from "./inbox.js";
 
@@ -531,5 +532,84 @@ describe("retryable", () => {
     const { retryable, ...document } = Inbox.createMock().toDocument();
 
     expect(Inbox.fromDocument(document).retryable).toBe(true);
+  });
+});
+
+describe("inbox model expireAt", () => {
+  const NOW = new Date("2026-09-17T16:18:00.000Z");
+  const NINETY_DAYS_ON = new Date("2026-12-16T16:18:00.000Z");
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("is null on a new row - nothing in flight is ever deleted", () => {
+    expect(Inbox.createMock().expireAt).toBeNull();
+  });
+
+  it("is set to the retention period after completion", () => {
+    const event = Inbox.createMock();
+
+    event.markAsComplete();
+
+    expect(config.events.retentionDays).toBe(90);
+    expect(event.expireAt).toEqual(NINETY_DAYS_ON);
+    expect(event.expireAt).toBeInstanceOf(Date);
+  });
+
+  it("is exactly the retention period after the completion it records", () => {
+    const event = Inbox.createMock();
+
+    event.markAsComplete();
+
+    expect(event.expireAt.getTime() - Date.parse(event.completionDate)).toBe(
+      config.events.retentionDays * 86_400_000,
+    );
+  });
+
+  it("is nulled by a retryable failure, which leaves the row FAILED", () => {
+    const event = Inbox.createMock();
+    event.markAsComplete();
+
+    event.markAsFailed(new Error("boom"));
+
+    expect(event.status).toBe(InboxStatus.FAILED);
+    expect(event.expireAt).toBeNull();
+  });
+
+  it("is nulled by a permanent failure, which dead-letters the row", () => {
+    const event = Inbox.createMock();
+    event.markAsComplete();
+
+    event.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    expect(event.status).toBe(InboxStatus.DEAD_LETTER);
+    expect(event.expireAt).toBeNull();
+  });
+
+  it("round-trips through toDocument and fromDocument", () => {
+    const event = Inbox.createMock();
+    event.markAsComplete();
+
+    const document = event.toDocument();
+
+    expect(document.expireAt).toEqual(NINETY_DAYS_ON);
+    expect(Inbox.fromDocument(document).expireAt).toEqual(NINETY_DAYS_ON);
+    expect(Inbox.fromDocument(document).toDocument().expireAt).toEqual(
+      NINETY_DAYS_ON,
+    );
+  });
+
+  it("reads a row written before the field existed as null", () => {
+    const document = Inbox.createMock().toDocument();
+    delete document.expireAt;
+
+    expect(Inbox.fromDocument(document).expireAt).toBeNull();
+    expect(Inbox.fromDocument(document).toDocument().expireAt).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EVENT_STATUSES } from "../../events/status-counts.js";
 import { eventsPageQuerySchema } from "./events-page-query.schema.js";
 
 const FROM = "2026-06-16T00:00:00.000Z";
@@ -38,8 +39,16 @@ describe("eventsPageQuerySchema", () => {
     expect(value).toEqual(query);
   });
 
+  it("accepts every status a row can hold, PURGED included", () => {
+    for (const status of EVENT_STATUSES) {
+      expect(validate({ status }).error).toBeUndefined();
+    }
+
+    expect(EVENT_STATUSES).toContain("PURGED");
+  });
+
   it.each([
-    ["a status outside the six", { status: "BOGUS" }],
+    ["a status outside the seven", { status: "BOGUS" }],
     ["a service outside the two", { service: "other" }],
     ["a q over 200 characters", { q: "a".repeat(201) }],
     ["an error over 1024 characters", { error: "x".repeat(1025) }],
