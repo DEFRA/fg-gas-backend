@@ -114,6 +114,7 @@ describe("getEventRoute over HTTP", () => {
     traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
     segregationRef: "GLD-9B2",
     completionDate: null,
+    expiresAt: null,
     lastResubmissionDate: null,
     attemptHistory: [],
     lastRedrive: null,

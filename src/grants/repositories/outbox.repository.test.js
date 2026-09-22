@@ -190,6 +190,7 @@ describe("outbox.repository", () => {
             claimedBy: null,
             completionAttempts: 1,
             completionDate: undefined,
+            expireAt: null,
             event: {},
             lastResubmissionDate: undefined,
             lastError: null,
@@ -220,7 +221,11 @@ describe("outbox.repository", () => {
             $lt: expect.any(Date),
           },
           status: {
-            $nin: [OutboxStatus.DEAD_LETTER, OutboxStatus.COMPLETED],
+            $nin: [
+              OutboxStatus.DEAD_LETTER,
+              OutboxStatus.COMPLETED,
+              OutboxStatus.PURGED,
+            ],
           },
         },
         {
@@ -317,7 +322,11 @@ describe("outbox.repository", () => {
         {
           completionAttempts: { $gte: MAX_RETRIES },
           status: {
-            $nin: [OutboxStatus.DEAD_LETTER, OutboxStatus.COMPLETED],
+            $nin: [
+              OutboxStatus.DEAD_LETTER,
+              OutboxStatus.COMPLETED,
+              OutboxStatus.PURGED,
+            ],
           },
         },
         {
@@ -633,6 +642,7 @@ describe("outbox.repository detail and redrive", () => {
           completionAttempts: 0,
           attemptHistory: [],
           lastRedrive: { at: expect.any(String), by: null },
+          expireAt: null,
           claimedBy: null,
           claimedAt: null,
           claimExpiresAt: null,
@@ -768,6 +778,7 @@ describe("outbox.repository countFacets", () => {
         RESUBMITTED: 0,
         COMPLETED: 0,
         DEAD_LETTER: 0,
+        PURGED: 0,
       },
     });
   });

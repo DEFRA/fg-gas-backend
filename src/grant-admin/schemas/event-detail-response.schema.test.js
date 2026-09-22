@@ -36,6 +36,7 @@ const aDetail = (overrides = {}) => ({
   payload: { id: "evt-1", data: { clientRef: "REF-1" } },
   traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
   completionDate: null,
+  expiresAt: null,
   lastResubmissionDate: null,
   attemptHistory: [],
   lastRedrive: null,
@@ -105,7 +106,12 @@ describe("eventDetailResponseSchema", () => {
   });
 
   it("requires every detail-only field", () => {
-    for (const key of ["traceId", "completionDate", "lastResubmissionDate"]) {
+    for (const key of [
+      "traceId",
+      "completionDate",
+      "expiresAt",
+      "lastResubmissionDate",
+    ]) {
       const { [key]: _dropped, ...without } = aDetail();
 
       expect(eventDetailResponseSchema.validate(without).error).toBeDefined();
@@ -248,6 +254,40 @@ describe("eventDetailResponseSchema attemptHistory", () => {
   it("is not on a list row", () => {
     expect(
       eventRowSchema.validate(aListRow({ attemptHistory: [] })).error,
+    ).toBeDefined();
+  });
+});
+
+// Response validation fails closed, so an unnamed key 500s the page.
+describe("eventDetailResponseSchema expiresAt", () => {
+  it("accepts a deletion date on a completed row", () => {
+    const { error } = eventDetailResponseSchema.validate(
+      aDetail({
+        status: "COMPLETED",
+        statusLabel: "Completed",
+        statusRole: "success",
+        expiresAt: "2026-12-16T10:00:00.000Z",
+      }),
+    );
+
+    expect(error).toBeUndefined();
+  });
+
+  it("accepts null, the value every dead-lettered and in-flight row has", () => {
+    expect(
+      eventDetailResponseSchema.validate(aDetail({ expiresAt: null })).error,
+    ).toBeUndefined();
+  });
+
+  it("requires the key, so a mapping gap fails a test rather than a render", () => {
+    const { expiresAt: _dropped, ...without } = aDetail();
+
+    expect(eventDetailResponseSchema.validate(without).error).toBeDefined();
+  });
+
+  it("rejects a value that is not an instant", () => {
+    expect(
+      eventDetailResponseSchema.validate(aDetail({ expiresAt: "soon" })).error,
     ).toBeDefined();
   });
 });

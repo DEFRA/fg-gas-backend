@@ -1,7 +1,9 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
 import { ObjectId } from "mongodb";
+import { config } from "../../common/config.js";
 import { isObjectIdHex } from "../../common/object-id-hex.js";
+import { expiryFrom } from "../../events/event-retention.js";
 import {
   appendAttempt,
   normaliseAttemptHistory,
@@ -75,6 +77,9 @@ export class Inbox {
     // Missing means retryable, so rows written before this existed are unaffected.
     this.retryable = props.retryable ?? true;
     this.completionDate = props.completionDate || null;
+    // Set on completion only, and must round-trip: the repository `$set`s the
+    // whole document, so a field missing here is erased on the next save.
+    this.expireAt = props.expireAt ?? null;
     this.lastRedrive = props.lastRedrive ?? null;
     this.claimedBy = null;
     this.claimedAt = null;
@@ -84,8 +89,12 @@ export class Inbox {
   }
 
   markAsComplete() {
+    // One clock reading, so the deadline is exactly the window from completion.
+    const completedAt = new Date();
+
     this.status = InboxStatus.COMPLETED;
-    this.completionDate = new Date().toISOString();
+    this.completionDate = completedAt.toISOString();
+    this.expireAt = expiryFrom(completedAt, config.events.retentionDays);
     this.claimedBy = null;
     this.claimedAt = null;
     this.claimExpiresAt = null;
@@ -97,6 +106,7 @@ export class Inbox {
   markAsFailed(error) {
     this.retryable = isRetryableFailure(error);
     this.status = this.retryable ? InboxStatus.FAILED : InboxStatus.DEAD_LETTER;
+    this.expireAt = null;
     this.lastResubmissionDate = new Date().toISOString();
     this.lastError = toLastError(error) ?? this.lastError;
     this.attemptHistory = appendAttempt(
@@ -125,6 +135,7 @@ export class Inbox {
       status: this.status,
       retryable: this.retryable,
       completionDate: this.completionDate,
+      expireAt: this.expireAt,
       lastRedrive: this.lastRedrive,
       claimedAt: this.claimedAt,
       claimedBy: this.claimedBy,
@@ -150,6 +161,7 @@ export class Inbox {
       status: doc.status,
       retryable: doc.retryable,
       completionDate: doc.completionDate,
+      expireAt: doc.expireAt,
       lastRedrive: doc.lastRedrive,
       claimedAt: doc.claimedAt,
       claimedBy: doc.claimedBy,
@@ -186,4 +198,5 @@ export const InboxStatus = {
   COMPLETED: "COMPLETED",
   RESUBMITTED: "RESUBMITTED",
   DEAD_LETTER: "DEAD_LETTER",
+  PURGED: "PURGED",
 };
