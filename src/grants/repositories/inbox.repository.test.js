@@ -194,7 +194,7 @@ describe("inbox.repository", () => {
     expect(updateMany).toHaveBeenCalledWith(
       {
         completionAttempts: { $gte: config.inbox.inboxMaxRetries },
-        status: { $ne: InboxStatus.DEAD_LETTER },
+        status: { $nin: [InboxStatus.DEAD_LETTER, InboxStatus.COMPLETED] },
       },
       {
         $set: {

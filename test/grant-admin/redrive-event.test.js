@@ -63,9 +63,10 @@ const aDeadInboxDoc = (overrides = {}) => ({
   ...overrides,
 });
 
-// Below the cap, or the dead-letter sweep can re-kill it mid-test.
+// At the cap, so a dead-letter sweep tick would re-kill it were the sweep to
+// match on the attempt count alone.
 const aCompletedInboxDoc = () =>
-  aDeadInboxDoc({ status: "COMPLETED", completionAttempts: 1 });
+  aDeadInboxDoc({ status: "COMPLETED", completionAttempts: GAS_MAX_ATTEMPTS });
 
 const aDeadOutboxDoc = (overrides = {}) => ({
   _id: new ObjectId(),
@@ -247,7 +248,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       const stored = await inbox.findOne({ _id: doc._id });
 
       expect(stored.status).toBe("COMPLETED");
-      expect(stored.completionAttempts).toBe(1);
+      expect(stored.completionAttempts).toBe(GAS_MAX_ATTEMPTS);
     });
 
     it("writes an audit outbox event recording who redrove what", async () => {
