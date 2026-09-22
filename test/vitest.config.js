@@ -72,8 +72,8 @@ export default defineConfig({
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__application_status_updated_fifo.fifo",
       CREATE_AGREEMENT_QUEUE_URL: `${SQS_URL}/create_agreement_fifo.fifo`,
       GAS__SNS__CREATE_PAYMENT_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
-      CREATE_PAYMENT_QUEUE_URL: `${SQS_URL}/create_payment_fifo.fifo`,
+        "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo",
+      CREATE_PAYMENT_QUEUE_URL: `${SQS_URL}/gps__sqs__create_payment.fifo`,
       GAS__SNS__CREATE_NEW_CASE_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_new_case_fifo.fifo",
       GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN:
