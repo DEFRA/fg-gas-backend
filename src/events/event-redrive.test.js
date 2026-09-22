@@ -6,6 +6,7 @@ import { Outbox } from "./models/outbox.js";
 import {
   claimEvents as claimInbox,
   updateDeadEvents as deadInbox,
+  processExpiredEvents as expiredInbox,
   updateFailedEvents as failedInbox,
   redriveById as redriveInbox,
   updateResubmittedEvents as resubmittedInbox,
@@ -13,11 +14,16 @@ import {
 import {
   claimEvents as claimOutbox,
   updateDeadEvents as deadOutbox,
+  updateExpiredEvents as expiredOutbox,
   updateFailedEvents as failedOutbox,
   redriveById as redriveOutbox,
   updateResubmittedEvents as resubmittedOutbox,
 } from "./repositories/outbox.repository.js";
-import { REDRIVE_FROM_STATUS, redriveConflict } from "./event-redrive.js";
+import {
+  DEAD_LETTER,
+  REDRIVABLE_STATUSES,
+  redriveConflict,
+} from "./event-redrive.js";
 
 vi.mock("../common/mongo-client.js");
 
@@ -129,6 +135,7 @@ const BOXES = [
     resubmitted: resubmittedInbox,
     failed: failedInbox,
     dead: deadInbox,
+    expired: expiredInbox,
     fail: (doc) => failWithModel(Inbox, doc, INBOX_PROPS),
   },
   {
@@ -139,6 +146,7 @@ const BOXES = [
     resubmitted: resubmittedOutbox,
     failed: failedOutbox,
     dead: deadOutbox,
+    expired: expiredOutbox,
     fail: (doc) => failWithModel(Outbox, doc, OUTBOX_PROPS),
   },
 ];
@@ -159,6 +167,7 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
   let resubmittedFilter;
   let resubmittedUpdate;
   let deadFilter;
+  let expiredFilter;
   let failedFilter;
   let failedUpdate;
 
@@ -172,11 +181,12 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
       box.resubmitted,
     );
     [deadFilter] = await capture("updateMany", box.dead);
+    [expiredFilter] = await capture("updateMany", box.expired);
     [failedFilter, failedUpdate] = await capture("updateMany", box.failed);
   });
 
   it("only matches a DEAD_LETTER row, so a concurrent change loses cleanly", () => {
-    expect(redriveFilter.status).toBe(REDRIVE_FROM_STATUS);
+    expect(redriveFilter.status).toBe(DEAD_LETTER);
     expect(matchesFilter(aDeadLetter(), redriveFilter)).toBe(true);
     expect(
       matchesFilter({ ...aDeadLetter(), status: "PROCESSING" }, redriveFilter),
@@ -204,6 +214,39 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
   it("records no actor where none was given, and never a display name", () => {
     expect(redriveDoc.$set.lastRedrive.by).toBeNull();
     expect(JSON.stringify(redriveDoc)).not.toContain("System");
+  });
+
+  // A deadline left behind would let the TTL index delete a row mid-retry.
+  it("clears any deletion deadline", () => {
+    const redriven = applyUpdate(
+      { ...aDeadLetter(), expireAt: new Date("2026-09-14T10:00:00.000Z") },
+      redriveDoc,
+    );
+
+    expect(redriveDoc.$set.expireAt).toBeNull();
+    expect(redriven.expireAt).toBeNull();
+  });
+
+  // A purged row sits at the cap with a stale claim - the exact shape both
+  // sweeps match on, so only the status exclusion keeps it PURGED.
+  it("leaves a PURGED row alone in both sweeps, whatever its attempts", () => {
+    const purged = {
+      ...aDeadLetter(),
+      status: "PURGED",
+      claimExpiresAt: new Date("2026-06-16T10:00:00.000Z"),
+      expireAt: new Date("2026-12-16T10:00:00.000Z"),
+    };
+
+    expect(matchesFilter(purged, deadFilter)).toBe(false);
+    expect(matchesFilter(purged, expiredFilter)).toBe(false);
+  });
+
+  it("would re-kill that PURGED row if only its status did not say so", () => {
+    const { status: _dropped, ...withoutStatus } = deadFilter;
+
+    expect(
+      matchesFilter({ ...aDeadLetter(), status: "PURGED" }, withoutStatus),
+    ).toBe(true);
   });
 
   it("releases any claim", () => {
@@ -309,6 +352,17 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
   });
 });
 
+describe("REDRIVABLE_STATUSES", () => {
+  it("is the dead letter and the purged row, in that order", () => {
+    expect(REDRIVABLE_STATUSES).toEqual(["DEAD_LETTER", "PURGED"]);
+  });
+
+  it("is not yet what the fence matches on", () => {
+    expect(DEAD_LETTER).toBe("DEAD_LETTER");
+    expect(REDRIVABLE_STATUSES).toContain(DEAD_LETTER);
+  });
+});
+
 describe("redriveConflict", () => {
   it("is a 409", () => {
     expect(
@@ -336,6 +390,6 @@ describe("redriveConflict", () => {
     expect(message).toContain("gas outbox");
     expect(message).toContain(ID);
     expect(message).toContain("PUBLISHED");
-    expect(message).toContain(REDRIVE_FROM_STATUS);
+    expect(message).toContain(DEAD_LETTER);
   });
 });

@@ -24,6 +24,7 @@ export const eventDetailResponseSchema = eventRowWithAttemptsSchema
       .required()
       .example("4bf92f3577b34da6a3ce929d0e0e4736"),
     completionDate: isoOrNull,
+    expiresAt: isoOrNull,
     lastResubmissionDate: isoOrNull,
     claimedBy: Joi.any().forbidden(),
     attemptHistory: Joi.array().items(eventAttemptSchema).required(),

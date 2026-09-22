@@ -10,7 +10,7 @@ import {
 import { breakdownStages, toBreakdownGroups } from "../event-breakdown.js";
 import { toSourceFacets } from "../event-facets.js";
 import { buildEventListFilter } from "../event-list-filter.js";
-import { REDRIVE_FROM_STATUS, redriveUpdate } from "../event-redrive.js";
+import { DEAD_LETTER, redriveUpdate } from "../event-redrive.js";
 import {
   claimExpiredAttempt,
   claimExpiredError,
@@ -130,7 +130,14 @@ export const processExpiredEvents = async () => {
   await db.collection(collection).updateMany(
     {
       claimExpiresAt: { $lt: new Date() },
-      status: { $nin: [InboxStatus.DEAD_LETTER, InboxStatus.COMPLETED] },
+      // Terminal too: a stale claim must not put a purged row back in the cycle.
+      status: {
+        $nin: [
+          InboxStatus.DEAD_LETTER,
+          InboxStatus.COMPLETED,
+          InboxStatus.PURGED,
+        ],
+      },
     },
     {
       $set: {
@@ -155,7 +162,15 @@ export const updateDeadEvents = async () => {
       // A success is terminal. The counter counts failures, so a row that
       // succeeded normally sits below the cap and never matches - but lowering
       // `INBOX_MAX_RETRIES` puts already-succeeded rows at or above it.
-      status: { $nin: [InboxStatus.DEAD_LETTER, InboxStatus.COMPLETED] },
+      // A purged row keeps the attempts that killed it, so it sits at the cap
+      // and this sweep would flip it back to DEAD_LETTER on the next tick.
+      status: {
+        $nin: [
+          InboxStatus.DEAD_LETTER,
+          InboxStatus.COMPLETED,
+          InboxStatus.PURGED,
+        ],
+      },
     },
     {
       $set: {
@@ -281,7 +296,7 @@ export const redriveById = async (id, { by, session } = {}) => {
   const { matchedCount } = await db
     .collection(collection)
     .updateOne(
-      { _id: toId(id), status: REDRIVE_FROM_STATUS },
+      { _id: toId(id), status: DEAD_LETTER },
       redriveUpdate(InboxStatus.RESUBMITTED, { by }),
       { session },
     );

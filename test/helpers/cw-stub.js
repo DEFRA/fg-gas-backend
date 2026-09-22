@@ -32,6 +32,7 @@ const emptyBox = () => ({
     RESUBMITTED: 0,
     COMPLETED: 0,
     DEAD_LETTER: 0,
+    PURGED: 0,
   },
   groups: [],
 });
