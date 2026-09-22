@@ -63,6 +63,7 @@ const commonAgreementData = (agreement) => ({
     reportingInclusiveEndDateTime(agreement.endDate),
   ),
   ...optional("agreementValue", optionalPounds(agreement.totalAmountPence)),
+  parcels: (agreement.parcels ?? []).map(({ id }) => id),
 });
 
 const hasRequiredReportingOptionValues = ({ optionQuantity, optionValue }) =>
