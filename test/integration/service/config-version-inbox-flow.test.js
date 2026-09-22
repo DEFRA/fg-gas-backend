@@ -20,8 +20,10 @@ const { Inbox, InboxStatus } =
   await import("../../../src/events/models/inbox.js");
 const { InboxSubscriber } =
   await import("../../../src/events/subscribers/inbox.subscriber.js");
-const { clearInboxMessageHandlers, registerInboxMessageHandler } =
-  await import("../../../src/events/services/inbox-message-handlers.js");
+const { clearEventHandlers, registerEventHandler } =
+  await import("../../../src/events/services/event-handlers.js");
+const { CONFIG_VERSION_UPDATED_EVENT_TYPE } =
+  await import("../../../src/grants/events/inbound-event-types.js");
 const { handleConfigVersionMessage } =
   await import("../../../src/grants/handlers/handle-config-version-message.js");
 const { saveConfigVersionInboxMessageUseCase } =
@@ -60,7 +62,10 @@ beforeAll(async () => {
   db = client.db(DATABASE);
   inbox = db.collection("inbox");
   configVersions = db.collection("config_versions");
-  registerInboxMessageHandler("CB", handleConfigVersionMessage);
+  registerEventHandler(
+    CONFIG_VERSION_UPDATED_EVENT_TYPE,
+    handleConfigVersionMessage,
+  );
 });
 
 beforeEach(async () => {
@@ -69,7 +74,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  clearInboxMessageHandlers();
+  clearEventHandlers();
   await client?.close();
 });
 

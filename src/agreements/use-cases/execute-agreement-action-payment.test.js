@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { saveOutboxEvents } from "../../events/save-outbox-events.js";
+import { saveEvents } from "../../events/index.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { allocateNextSequence } from "../../payments/repositories/counter.repository.js";
 import { insertPayment } from "../../payments/repositories/payment.repository.js";
@@ -16,7 +16,7 @@ import {
 import { executeAgreementActionUseCase } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 
-vi.mock("../../events/save-outbox-events.js");
+vi.mock("../../events/index.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock(
@@ -210,7 +210,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       }),
       session,
     );
-    expect(saveOutboxEvents).toHaveBeenCalledWith(
+    expect(saveEvents).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
           event: expect.objectContaining({
@@ -256,7 +256,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       expect.anything(),
       session,
     );
-    expect(saveOutboxEvents).toHaveBeenCalledWith(expect.anything(), session);
+    expect(saveEvents).toHaveBeenCalledWith(expect.anything(), session);
   });
 
   it("creates Payment from the exact resolved values", async () => {
@@ -312,8 +312,8 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
   it("commits the payment event with the lifecycle event in one write", async () => {
     await executeAgreementActionUseCase(options);
 
-    expect(saveOutboxEvents).toHaveBeenCalledTimes(1);
-    const [publications] = saveOutboxEvents.mock.calls[0];
+    expect(saveEvents).toHaveBeenCalledTimes(1);
+    const [publications] = saveEvents.mock.calls[0];
 
     expect(publications).toHaveLength(4);
     expect(
@@ -333,7 +333,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
   it("builds the payment event from the committed Payment", async () => {
     await executeAgreementActionUseCase(options);
 
-    const [publications] = saveOutboxEvents.mock.calls[0];
+    const [publications] = saveEvents.mock.calls[0];
     const [payment] = insertPayment.mock.calls[0];
     const { data } = findPaymentPublication(publications).event;
 
@@ -354,7 +354,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
   it("groups the payment event without changing its message", async () => {
     await executeAgreementActionUseCase(options);
 
-    const [publications] = saveOutboxEvents.mock.calls[0];
+    const [publications] = saveEvents.mock.calls[0];
 
     const paymentPublication = findPaymentPublication(publications);
 
@@ -365,7 +365,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
   it("targets the Payment Service topic", async () => {
     await executeAgreementActionUseCase(options);
 
-    const [publications] = saveOutboxEvents.mock.calls[0];
+    const [publications] = saveEvents.mock.calls[0];
 
     expect(findPaymentPublication(publications).target).toBe(
       "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo",
@@ -489,7 +489,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     expect(replaceCurrentAgreement).not.toHaveBeenCalled();
     expect(insertAgreementVersion).not.toHaveBeenCalled();
     expect(insertPayment).not.toHaveBeenCalled();
-    expect(saveOutboxEvents).not.toHaveBeenCalled();
+    expect(saveEvents).not.toHaveBeenCalled();
   });
 
   it("resolves a duplicate Payment for the same Agreement Version idempotently", async () => {
@@ -547,7 +547,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     expect(insertPayment).not.toHaveBeenCalled();
     expect(allocateNextSequence).not.toHaveBeenCalled();
 
-    const [publications] = saveOutboxEvents.mock.calls[0];
+    const [publications] = saveEvents.mock.calls[0];
 
     expect(publications).toHaveLength(3);
     expect(
@@ -573,7 +573,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       'Unsupported Agreement Action commit operation "unsupported"',
     );
     expect(insertPayment).not.toHaveBeenCalled();
-    expect(saveOutboxEvents).not.toHaveBeenCalled();
+    expect(saveEvents).not.toHaveBeenCalled();
   });
 
   it("rejects more than one Payment commit operation", async () => {
@@ -589,6 +589,6 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
       "Agreement Action cannot create more than one Payment",
     );
     expect(insertPayment).not.toHaveBeenCalled();
-    expect(saveOutboxEvents).not.toHaveBeenCalled();
+    expect(saveEvents).not.toHaveBeenCalled();
   });
 });

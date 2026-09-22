@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { insertMany } from "./repositories/outbox.repository.js";
-import { saveOutboxEvents } from "./save-outbox-events.js";
+import { saveEvents } from "./save-events.js";
 
 vi.mock("./repositories/outbox.repository.js");
 
@@ -24,13 +24,13 @@ const paymentPublication = {
   },
 };
 
-describe("saveOutboxEvents", () => {
+describe("saveEvents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("derives the segregation reference from the event data", async () => {
-    await saveOutboxEvents([lifecyclePublication], session);
+    await saveEvents([lifecyclePublication], session);
 
     const [entries] = insertMany.mock.calls[0];
 
@@ -38,7 +38,7 @@ describe("saveOutboxEvents", () => {
   });
 
   it("uses the publication's own segregation reference when it has one", async () => {
-    await saveOutboxEvents([paymentPublication], session);
+    await saveEvents([paymentPublication], session);
 
     const [entries] = insertMany.mock.calls[0];
 
@@ -49,7 +49,7 @@ describe("saveOutboxEvents", () => {
   });
 
   it("writes every publication in one insert", async () => {
-    await saveOutboxEvents([lifecyclePublication, paymentPublication], session);
+    await saveEvents([lifecyclePublication, paymentPublication], session);
 
     expect(insertMany).toHaveBeenCalledTimes(1);
     expect(insertMany.mock.calls[0][0]).toHaveLength(2);
@@ -57,7 +57,7 @@ describe("saveOutboxEvents", () => {
   });
 
   it("writes nothing when there are no publications", async () => {
-    await saveOutboxEvents([], session);
+    await saveEvents([], session);
 
     expect(insertMany).not.toHaveBeenCalled();
   });

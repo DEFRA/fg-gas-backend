@@ -182,6 +182,7 @@ export default [
               from: ["**/agreements/**"],
               except: [
                 "**/agreements/use-cases/load-entitlement-reference-context.js",
+                "**/agreements/events/agreement-status-updated.event.js",
                 "**/agreements/use-cases/compile-agreement-definition.js",
               ],
               message:

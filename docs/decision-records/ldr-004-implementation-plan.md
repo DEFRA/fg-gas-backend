@@ -8,13 +8,15 @@ Decision: [Event-driven Payment Creation in GAS](./ldr-004-event-driven-payment-
 
 Read the decision record, then resume at the first unchecked item in the numbered work packages, following their stage order. Update the checkboxes and the checkpoint in the same change that completes a work package. The checkpoint also records compatibility and deployment gates that deliberately remain open until work packages 7 and 8; it is not the execution order. This is the single delivery checklist; design rationale remains in the decision record.
 
-Current checkpoint, 18 September 2026:
+Current checkpoint, 22 September 2026:
 
 - [x] Record the architecture decision and consumer research.
 - [ ] Retain executable proof that the GAS Payment event matches the legacy runtime-serialized event after normalising generated identifiers and times. The completed one-off comparison informed the design but is not repeatable evidence.
 - [x] Align local, Vitest and FloCi configuration to `create_payment.fifo` and `gps__sqs__create_payment.fifo`.
 - [ ] Retain a repeatable runtime SNS-adapter smoke that receives the unchanged body from the FloCi Payment queue. The completed one-off smoke informed the design but is not retained proof.
 - [x] Treat the externally managed CDP tenant publish permission as provisioned.
+- [x] Move durable event infrastructure into `src/events/` and replace source-keyed dispatch with exact CloudEvent type registration.
+- [x] Freeze producer-owned `AgreementPaymentRequested` and `ClaimPaymentRequested` contracts without emitting them from production paths.
 - [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
 The code is not yet event-driven. Agreement acceptance and Claim submission still import Payments use-cases, resolve Payment definitions before their source transactions, allocate Payment Hub identifiers inside those transactions and persist Payment Service publications in the source-owned outbox work.
@@ -75,11 +77,9 @@ The live subscription inventory is a deployment gate, not a blocker to implement
 
 - [x] Move the durable event models, repositories, FIFO locking and pollers from `src/grants/` into `src/events/`. Move `src/common/save-outbox-events.js` behind the same module interface.
 - [x] Preserve the existing `inbox`, `outbox` and FIFO-lock collection identities and document shapes; this move must not require data migration or break old rows.
-- [ ] Give `src/events/` a small interface for saving durable events, registering typed handlers and dispatching an event. Keep persistence, locking, retry, dead-letter and completion bookkeeping behind that interface.
-- [ ] Until the typed registry replaces it, retain the legacy source-keyed `AS`,
-      `CW` and `CB` dispatch only as a Stage 1 compatibility seam. Do not register
-      new event types through that interim registry.
-- [ ] Keep the command bus for commands. Route internally delivered domain events through the event handler registry, including the existing Agreement-status handler.
+- [x] Give `src/events/` a small interface for saving durable events, registering typed handlers and dispatching an event. Keep persistence, locking, retry, dead-letter and completion bookkeeping behind that interface.
+- [x] Remove the Stage 1 source-keyed dispatcher. Retain `AS`, `CW` and `CB` only as persistence and administration metadata.
+- [x] Keep the command bus for commands. Route internally delivered domain events through the event handler registry, including the existing Agreement-status handler.
 - [x] Register the shared pollers once at application startup rather than from the Grants plugin. Ensure all context handlers are registered before polling starts.
 - [x] Update Grant Admin to use the shared event repositories without changing list, detail, facet, failure-history or redrive behaviour.
 - [x] Migrate `src/common/write-audit-event.js` and every other event-store caller to the shared events interface so `src/common/` no longer imports Grants event models or repositories.
@@ -90,12 +90,12 @@ Completion criterion: existing inbound and outbound event integration tests, Adm
 
 ### 2. Freeze producer-owned request contracts
 
-- [ ] Add `AgreementPaymentRequested` under `src/agreements/events/` and `ClaimPaymentRequested` under `src/grants/events/`. Define each CloudEvent type once and register handlers against the exact type rather than suffix or substring matching.
-- [ ] Give every request a generated event ID plus a stable logical request identity. Agreement identity is `agreementNumber + resulting agreementVersion`; Claim identity is `code + clientRef + clientClaimRef`.
-- [ ] Include the immutable source snapshot required by Payment mapping, the source identity, pinned configuration version and original source execution time. Do not make the handler reload mutable source records.
-- [ ] Include the Agreement reference needed by a Claim Payment: Agreement Number, Agreement Version and correlation ID at submission time.
-- [ ] Validate each request at its producer interface so malformed events cannot be committed.
-- [ ] Specify a stable FIFO segregation reference: Agreement Number for Agreement requests and Client Reference for Claim requests.
+- [x] Add `AgreementPaymentRequested` under `src/agreements/events/` and `ClaimPaymentRequested` under `src/grants/events/`. Define each CloudEvent type once and register handlers against the exact type rather than suffix or substring matching.
+- [x] Give every request a generated event ID plus a stable logical request identity. Agreement identity is `agreementNumber + resulting agreementVersion`; Claim identity is `code + clientRef + clientClaimRef`.
+- [x] Include the immutable source snapshot required by Payment mapping, the source identity, pinned configuration version and original source execution time. Do not make the handler reload mutable source records.
+- [x] Include the Agreement reference needed by a Claim Payment: Agreement Number, Agreement Version and correlation ID at submission time.
+- [x] Validate each request at its producer interface so malformed events cannot be committed.
+- [x] Specify a stable FIFO segregation reference: Agreement Number for Agreement requests and Client Reference for Claim requests.
 
 Completion criterion: contract tests construct each request from source-owned values and prove the event contains everything Payments needs without importing either producer.
 

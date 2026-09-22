@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { randomUUID } from "node:crypto";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
-import { saveOutboxEvents } from "../../events/save-outbox-events.js";
+import { saveEvents } from "../../events/index.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import {
   createAgreementCreatedReportingPublication,
@@ -80,7 +80,7 @@ const persistAgreement = async (agreement) => {
   return withTransaction(async (session) => {
     await insertCurrentAgreement(agreement, session);
     await insertAgreementVersion(agreementVersion, session);
-    await saveOutboxEvents(outboundEvents, session);
+    await saveEvents(outboundEvents, session);
 
     return agreement;
   });
