@@ -145,6 +145,7 @@ export default [
               target: "src/common/**/!(*.test).js",
               from: [
                 "src/agreements/**",
+                "src/auth/**",
                 "src/events/**",
                 "src/grant-admin/**",
                 "src/grants/**",
