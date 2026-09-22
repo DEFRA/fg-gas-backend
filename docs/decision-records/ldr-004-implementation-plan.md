@@ -6,14 +6,14 @@ Decision: [Event-driven Payment Creation in GAS](./ldr-004-event-driven-payment-
 
 ## Resume Here
 
-Read the decision record, then start at the first unchecked item in this plan. Update the checkboxes and the checkpoint in the same change that completes a work package. This is the single delivery checklist; design rationale remains in the decision record.
+Read the decision record, then resume at the first unchecked item in the numbered work packages, following their stage order. Update the checkboxes and the checkpoint in the same change that completes a work package. The checkpoint also records compatibility and deployment gates that deliberately remain open until work packages 7 and 8; it is not the execution order. This is the single delivery checklist; design rationale remains in the decision record.
 
 Current checkpoint, 18 September 2026:
 
 - [x] Record the architecture decision and consumer research.
-- [x] Prove the GAS Payment event is structurally compatible with the legacy event after normalising generated identifiers and times.
+- [ ] Retain executable proof that the GAS Payment event matches the legacy runtime-serialized event after normalising generated identifiers and times. The completed one-off comparison informed the design but is not repeatable evidence.
 - [x] Align local, Vitest and FloCi configuration to `create_payment.fifo` and `gps__sqs__create_payment.fifo`.
-- [x] Publish through the runtime SNS adapter and receive the unchanged body from the FloCi Payment queue.
+- [ ] Retain a repeatable runtime SNS-adapter smoke that receives the unchanged body from the FloCi Payment queue. The completed one-off smoke informed the design but is not retained proof.
 - [x] Treat the externally managed CDP tenant publish permission as provisioned.
 - [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
@@ -34,21 +34,27 @@ Every work package must preserve these invariants:
 9. The direct and event-driven creation paths never create Payments concurrently for the same producer. A shadow path may validate only; it must not persist or publish.
 10. Existing MongoDB collection names, Admin event inspection and redrive behaviour remain compatible while event infrastructure moves.
 
+## FGP-1397 Composition
+
+This preparatory refactor was identified while designing FGP-1397, but it does not deliver that ticket's conditional Application transition. Implement FGP-1397 after the refactor through `Application.moveTo` and a shared `transitionApplicationUseCase`.
+
+The Claim submission transaction is the composition seam. Once all entitlements are satisfied, it must atomically persist the Claim, any Application position change, the Caseworking status command and configured transition processes, and any applicable durable `ClaimPaymentRequested` event. The later Payments handler remains post-commit and cannot roll back the Claim or Application transition.
+
 ## Local Stage Protocol
 
 Implement each stage on its own branch. Every branch must preserve current behaviour or complete one producer cutover; do not push an intermediate state in which the application only compiles or both creation paths can write.
 
-| Stage | Local change                                                                                                    | Safe intermediate state                                                                       | Required local proof                                                                                                               |
-| ----- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | Preserve the current synchronous baseline and captured compatibility evidence.                                  | Current behaviour remains the comparison oracle.                                              | Focused Payment and Agreement tests pass.                                                                                          |
-| 1     | Move the event stores, pollers, locking and Admin seams into `src/events/` without changing dispatch behaviour. | All existing messages still use the same collections and handlers.                            | Existing inbox, outbox, Admin and redrive tests pass; collection names are unchanged.                                              |
-| 2     | Add exact typed event registration and the two producer-owned Payment request contracts.                        | Existing commands and events still work; no producer emits a Payment request yet.             | Registration, unknown-type, duplicate-registration and contract tests pass.                                                        |
-| 3     | Add configuration ingestion and whole-version readiness.                                                        | Direct Payment creation still runs, now against definitions validated before use.             | Readiness, optional-definition and runtime-mapping-failure scenarios pass.                                                         |
-| 4     | Add Payments handlers and Payments-owned idempotent transactions.                                               | Handlers can be exercised directly, but production source paths still emit no request events. | Direct handler, redelivery, concurrency, transaction-retry and publication-isolation scenarios pass.                               |
-| 5     | Cut Claim submission from direct creation to `ClaimPaymentRequested` in one change.                             | Agreements remain synchronous; Claims have exactly one active creation path.                  | Claim submission, replay, approval-required, missing-definition and downstream-failure scenarios pass.                             |
-| 6     | Cut Agreement acceptance from direct creation to `AgreementPaymentRequested` in one change.                     | Both producers now use events, with no direct creation path left.                             | Acceptance atomicity, downstream independence, lifecycle contract, Woodland exclusion and complete local transport scenarios pass. |
-| 7     | Remove obsolete seams and tighten ESLint and documentation.                                                     | The event-driven design is the only implementation.                                           | Repository-wide lint and tests pass with no producer-to-Payments exceptions.                                                       |
-| 8     | Satisfy deployment-only gates.                                                                                  | The locally proven implementation is eligible for environment rollout.                        | Live subscription inventory, CDP permission and scheme-by-scheme compatibility evidence are recorded.                              |
+| Stage | Local change                                                                                                    | Safe intermediate state                                                                        | Required local proof                                                                                                               |
+| ----- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Preserve the current synchronous baseline, align local transport and record the decision.                       | Current behaviour remains the comparison oracle.                                               | Focused Payment and Agreement tests pass.                                                                                          |
+| 1     | Move the event stores, pollers, locking and Admin seams into `src/events/` without changing dispatch behaviour. | All existing messages still use the same collections and handlers.                             | Existing inbox, outbox, Admin and redrive tests pass; collection names are unchanged.                                              |
+| 2     | Add exact typed event registration and the two producer-owned Payment request contracts.                        | Existing commands and events still work; no producer emits a Payment request yet.              | Registration, unknown-type, duplicate-registration and contract tests pass.                                                        |
+| 3     | Extend the existing configuration-readiness gate for exact pinned-version event handling.                       | Direct Payment creation still runs against definitions validated before the version is stored. | Invalid-definition, optional-definition, exact-version and runtime-mapping-failure scenarios pass.                                 |
+| 4     | Add Payments handlers and Payments-owned idempotent transactions.                                               | Handlers can be exercised directly, but production source paths still emit no request events.  | Direct handler, redelivery, concurrency, transaction-retry and publication-isolation scenarios pass.                               |
+| 5     | Cut Claim submission from direct creation to `ClaimPaymentRequested` in one change.                             | Agreements remain synchronous; Claims have exactly one active creation path.                   | Claim submission, replay, approval-required, missing-definition and downstream-failure scenarios pass.                             |
+| 6     | Cut Agreement acceptance from direct creation to `AgreementPaymentRequested` in one change.                     | Both producers now use events, with no direct creation path left.                              | Acceptance atomicity, downstream independence, lifecycle contract, Woodland exclusion and complete local transport scenarios pass. |
+| 7     | Remove obsolete seams and tighten ESLint and documentation.                                                     | The event-driven design is the only implementation.                                            | Repository-wide lint and tests pass with no producer-to-Payments exceptions.                                                       |
+| 8     | Satisfy deployment-only gates.                                                                                  | The locally proven implementation is eligible for environment rollout.                         | Live subscription inventory, CDP permission and scheme-by-scheme compatibility evidence are recorded.                              |
 
 Use this branch-per-stage workflow:
 
@@ -90,17 +96,16 @@ Completion criterion: existing inbound and outbound event integration tests, Adm
 
 Completion criterion: contract tests construct each request from source-owned values and prove the event contains everything Payments needs without importing either producer.
 
-### 3. Make configuration versions ready before use
+### 3. Extend configuration readiness for pinned events
 
-- [ ] Add an explicit whole-version readiness rule to the configuration catalogue. A declared definition is ready only after it has been fetched, schema-validated and compiled; an absent optional `payment.json` is ready as a valid no-op.
-- [ ] During configuration ingestion, fetch and compile every declared Payment definition and persist its fetch status before the version becomes usable.
-- [ ] Reuse the existing Payment definition model for schema and JSONata compilation. Preserve duplicate-safe definition storage and exact-version loading.
-- [ ] Apply the readiness rule consistently when selecting Grant, Agreement and Payment definitions so a newer partially ingested version cannot be selected as usable.
-- [ ] Classify definition file, schema and expression compilation failures as configuration failures. Record actionable fetch errors against the relevant definition.
-- [ ] Treat mapping evaluation against a particular Agreement or Claim snapshot as an event-processing failure. It must retry/dead-letter that request and must not mark the shared definition permanently unusable.
-- [ ] Preserve fallback semantics explicitly where they remain valid; exact pinned event handling must never silently switch configuration versions.
+- [ ] Preserve the existing pre-upsert whole-version gate: `validateConfigDefinitions` fetches and compiles every declared Grant, Agreement and Payment definition before the version is recorded; an absent optional `payment.json` remains a valid no-op.
+- [ ] Reuse the existing Payment definition model for schema and JSONata compilation. Do not introduce a second readiness mechanism or write fetch status during the pre-upsert validation check.
+- [ ] Load each Payment request's definition by its exact pinned configuration version. Exact event handling must never silently switch to a fallback version.
+- [ ] Keep genuine definition fetch, schema and expression compilation failures classified as configuration failures with actionable diagnostics.
+- [ ] Treat mapping evaluation against a particular Agreement or Claim snapshot as an event-processing failure. It must retry or dead-letter that request without marking the shared definition or configuration version unusable.
+- [ ] Preserve fallback semantics only for existing callers that deliberately select a compatible version.
 
-Completion criterion: an invalid declared Payment definition prevents that configuration version becoming usable, an absent optional Payment definition does not, and a data-dependent mapping failure leaves configuration readiness unchanged while the event reaches retry/dead-letter handling.
+Completion criterion: an invalid declared Payment definition prevents the configuration version being recorded, an absent optional Payment definition does not, and a data-dependent mapping failure leaves catalogue readiness unchanged while the event reaches retry/dead-letter handling.
 
 ### 4. Add Payments-owned event handling
 
@@ -115,21 +120,7 @@ Completion criterion: an invalid declared Payment definition prevents that confi
 
 Completion criterion: sequential redelivery, concurrent delivery, transaction retry and manual redrive of one logical request leave exactly one Payment, one committed claim-ID increment and one external Payment event.
 
-### 5. Cut Agreement acceptance over last
-
-Prerequisite: work packages 1–4 and the Agreement compatibility gates in work package 7 are complete.
-
-- [ ] Replace pre-transaction Payment definition resolution and direct Payment creation in `execute-agreement-action.use-case.js` with construction of `AgreementPaymentRequested` from the resulting Agreement and action execution snapshot.
-- [ ] In the existing Agreement transaction, persist the current Agreement, Agreement Version, lifecycle publications, reporting publication and Payment request event together.
-- [ ] Remove `claimId` and every Payment parameter from `create-outbox-messages.js`; lifecycle publication must depend only on Agreement-owned data.
-- [ ] Preserve the normal `303` Agreement action response. It returns no Payment Hub identifier and does not wait for Payment handling.
-- [ ] Preserve Agreement validation, optimistic concurrency and idempotency behaviour. Failure to persist the durable request rolls back acceptance; later Payment processing failure does not.
-- [ ] Apply the same cutover through `commitAgreementAction` so HTTP actions and internal Agreement-status commands cannot diverge.
-- [ ] Keep Agreement-originated Woodland Payments excluded. A Woodland definition must not gain a Payment commit operation as part of this work.
-
-Completion criterion: acceptance succeeds with Payments processing unavailable, the accepted Agreement and durable request are committed, the lifecycle event has no `claimId`, and a local transaction failure leaves none of those writes committed.
-
-### 6. Cut Claim submission over
+### 5. Cut Claim submission over
 
 - [ ] Replace `resolveClaimPayment` and `createClaimPaymentUseCase` calls in `src/grants/services/claims.service.js` with a producer-owned `ClaimPaymentRequested` event for an eligible auto-paying Claim.
 - [ ] Persist the Claim and Payment request in the same Claim submission transaction. Preserve replay, application-version retry and capacity checks.
@@ -139,30 +130,44 @@ Completion criterion: acceptance succeeds with Payments processing unavailable, 
 
 Completion criterion: a replayed Claim submission returns the existing Claim and cannot create another request or Payment; a later Payment failure does not roll back the committed Claim.
 
-### 7. Close compatibility and cutover gates
+### 6. Close Agreement compatibility gates and cut acceptance over last
 
-- [ ] Immediately before removing lifecycle `claimId`, compare the live SNS subscription inventory with the two source-controlled Agreement-status subscriptions. Resolve any unexpected subscriber before cutover.
-- [ ] For every migrated scheme, compare its Payment definition with the legacy constants and mappings. For FPTT this includes `scheme: SFI`, `sourceSystem: FPTT`, `deliveryBody: RP00`, `fesCode: FALS_FPTT`, `ledger: AP`, `accountCode: SOS710`, `fundCode: DRD10`, marketing year, descriptions, dates and stringified money.
+Prerequisite: work packages 1–5 are complete.
+
+- [ ] For every migrated Agreement scheme, compare its Payment definition with the legacy constants and mappings. For FPTT this includes `scheme: SFI`, `sourceSystem: FPTT`, `deliveryBody: RP00`, `fesCode: FALS_FPTT`, `ledger: AP`, `accountCode: SOS710`, `fundCode: DRD10`, marketing year, descriptions, dates and stringified money.
 - [ ] Prove one Agreement with multiple scheduled payments produces one Payment Service event with all entries in `payments[]`, `paymentRequestNumber: 1` and the expected invoice-number format.
 - [ ] Prove the complete runtime-serialized CloudEvent matches the captured legacy fixture except for generated IDs and times.
-- [ ] Prove the accepted Agreement lifecycle event and Agreement HTTP contract contain no Payment Hub `claimId`.
-- [ ] Prove Agreement-originated Woodland acceptance emits no Payment request while Claim-originated Woodland behaviour remains intact.
 - [ ] Exercise the complete local path: source transaction → durable request → Payments handler transaction → external outbox → runtime SNS adapter → `gps__sqs__create_payment.fifo`.
-- [ ] Confirm Admin exposes mapping and publication failures with enough detail to redrive the durable event safely.
+- [ ] Replace pre-transaction Payment definition resolution and direct Payment creation in `execute-agreement-action.use-case.js` with construction of `AgreementPaymentRequested` from the resulting Agreement and action execution snapshot.
+- [ ] In the existing Agreement transaction, persist the current Agreement, Agreement Version, lifecycle publications, reporting publication and Payment request event together.
+- [ ] Remove `claimId` and every Payment parameter from `create-outbox-messages.js`; lifecycle publication must depend only on Agreement-owned data.
+- [ ] Preserve the normal `303` Agreement action response. It returns no Payment Hub identifier and does not wait for Payment handling.
+- [ ] Preserve Agreement validation, optimistic concurrency and idempotency behaviour. Failure to persist the durable request rolls back acceptance; later Payment processing failure does not.
+- [ ] Apply the same cutover through `commitAgreementAction` so HTTP actions and internal Agreement-status commands cannot diverge.
+- [ ] Keep Agreement-originated Woodland Payments excluded. A Woodland definition must not gain a Payment commit operation as part of this work, while Claim-originated Woodland behaviour remains intact.
 
-Completion criterion: every gate above has executable evidence, and no migrated live source is enabled before its definition-specific comparison passes.
+Completion criterion: the executable compatibility gates pass; acceptance succeeds with Payments processing unavailable; the accepted Agreement and durable request are committed; the lifecycle event and HTTP contract have no Payment Hub `claimId`; and a local transaction failure leaves none of those writes committed.
 
-### 8. Clean cutover
+### 7. Clean cutover
 
 - [ ] Remove obsolete direct creation use-cases, pre-transaction resolvers, caller-owned Payment transaction coordination and tests that describe the old synchronous contract.
 - [ ] Remove the Payments import exceptions for Agreements and Grants from `eslint.config.js`; lint must enforce the event seam in both directions.
 - [ ] Move Agreement-only endpoint helpers from `src/common/agreements/` into Agreements. Move the mapping compiler used by both Agreements and Payments to a context-neutral shared mapping module; Payments must not depend on an Agreement-named shared path.
 - [ ] Add an ESLint zone that limits `test-endpoints` to its documented Agreements entry points, matching the enforcement already applied to Grant Admin.
 - [ ] Rewrite the Payment section of `docs/MODULE_BOUNDARIES.md` around producer events and the Payments handler interface.
-- [ ] Remove obsolete aliases, exports, comments, fixtures and mocks. Keep the legacy event fixture only while it remains the compatibility oracle.
+- [ ] Confirm Admin exposes mapping and publication failures with enough detail to redrive the durable event safely.
+- [ ] Remove obsolete aliases, exports, comments, fixtures and mocks. Keep the legacy event fixture as the repeatable compatibility oracle.
 - [ ] Update LDR-004 with final implementation evidence and change its status to the repository's completed/accepted convention.
 
-Completion criterion: no production import crosses from Agreements or Grants into Payments, no direct creation path remains, `src/common/` imports no context module or Agreement-owned implementation, and repository-wide lint and tests pass.
+Completion criterion: no production import crosses from Agreements or Grants into Payments, no direct creation path remains, `src/common/` imports no context module or Agreement-owned implementation, Admin can redrive failures safely, and repository-wide lint and tests pass.
+
+### 8. Satisfy deployment-only gates
+
+- [ ] Immediately before deploying lifecycle `claimId` removal, compare the live SNS subscription inventory with the two source-controlled Agreement-status subscriptions. Resolve any unexpected subscriber before rollout.
+- [ ] Confirm the externally managed CDP tenant publish permission remains provisioned.
+- [ ] Record the approved definition-specific compatibility evidence for every scheme enabled in the rollout.
+
+Completion criterion: the live inventory and permission match the source-controlled design, every enabled scheme has recorded compatibility evidence, and the implementation is eligible for environment rollout.
 
 ## Required Verification Matrix
 

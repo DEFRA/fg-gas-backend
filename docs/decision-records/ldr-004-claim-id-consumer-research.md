@@ -18,6 +18,8 @@ The distinction between the two event paths is important:
 
 This is a source-evidence conclusion, not proof of the complete live AWS topology. Runtime/manual subscriptions, code outside repositories visible to the authenticated identity, non-default branches and consumers outside the DEFRA organisation remain residual uncertainty.
 
+Agreement UI and Caseworking were not inspected for field-level `claimId` use. Queue-name searches established that neither is a direct source-controlled subscriber to the lifecycle topic, but this research makes no claim about indirect receipt through another module or interface.
+
 ## What counts as a consumer
 
 For this research, a **confirmed `claimId` consumer** must address the field specifically: for example by accessing or destructuring it, declaring it in a consumer schema, validating it, persisting it as a required field, or using it in business logic.

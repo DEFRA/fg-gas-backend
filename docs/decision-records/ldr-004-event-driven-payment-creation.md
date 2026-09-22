@@ -91,11 +91,9 @@ The existing durable MongoDB event mechanism moves from Grants/Common into share
 
 ## Payment Definition Validation
 
-Payment definitions that are present are schema-validated and their JSONata expressions are compiled when configuration is ingested. A missing optional `payment.json` is a valid no-op. A configuration version that declares a Payment definition is not usable until that definition passes validation.
+Configuration ingestion already has a whole-version readiness gate. Before a version is recorded, `validateConfigDefinitions` fetches and compiles every declared Grant, Agreement and Payment definition. A missing optional `payment.json` is a valid no-op. The check deliberately writes no fetch status: it proves that the version is usable rather than putting a definition into service.
 
-This is a new readiness capability. The current configuration catalogue tracks definition types independently and has no whole-version readiness gate. The implementation must add an explicit shared readiness rule rather than assume one already exists.
-
-Ingestion-time validation can prove the definition's structure and expression syntax. It cannot prove that every expression will resolve against future Claim or Agreement data. A data-dependent runtime failure therefore occurs after the source transaction has committed; it follows normal retry, dead-letter and Admin redrive handling.
+The event-driven path extends that existing capability by loading the Payment definition for the request's exact pinned version and by separating configuration failures from data-dependent mapping failures. Ingestion-time validation can prove the definition's structure and expression syntax, but it cannot prove that every expression will resolve against future Claim or Agreement data. A mapping failure for one source snapshot must therefore leave catalogue readiness unchanged and follow normal retry, dead-letter and Admin redrive handling.
 
 ## Payment Hub Identity and Request Shape
 
@@ -138,7 +136,7 @@ External publication retries independently from Payment creation. A publication 
 
 ## Agreement Lifecycle and HTTP Interfaces
 
-Both the legacy Agreements API and current GAS implementation copy `claimId` into the accepted Agreement lifecycle event. The [supporting DEFRA repository research](./ldr-004-claim-id-consumer-research.md) and the CDP tenant configuration identify only two subscribers to the Agreement-status topic: GAS and `farming-grants-agreements-pdf`. GAS uses Agreement identity and status; the PDF service uses Agreement and document fields. Neither reads or contracts `claimId`, and the topic has no cross-account allow-list. Agreement UI and Caseworking do not reference the field, while Admin only labels the event type. The legacy producer obtains the value from the Payment payload and forwards it; Agreement behaviour does not use it.
+Both the legacy Agreements API and current GAS implementation copy `claimId` into the accepted Agreement lifecycle event. The [supporting DEFRA repository research](./ldr-004-claim-id-consumer-research.md) and the CDP tenant configuration identify only two source-controlled subscribers to the Agreement-status topic: GAS and `farming-grants-agreements-pdf`. Source inspection confirms that GAS uses Agreement identity and status while the PDF service uses Agreement and document fields; neither reads or contracts `claimId`. The topic has no cross-account allow-list. Admin only labels the event type and can expose the stored payload generically. The legacy producer obtains the value from the Payment payload and forwards it; Agreement behaviour does not use it.
 
 The decision is therefore to keep `claimId` in the Payment Hub event only and remove it from the Agreement lifecycle event. This keeps the Payment Hub identifier inside Payments and avoids delaying the lifecycle event for a Payments-produced response. A future consumer requirement would be a new explicit interface decision, not a reason to reintroduce a direct Agreements-to-Payments import.
 
@@ -146,7 +144,7 @@ Agreement acceptance is the completed business action; Payment Service availabil
 
 ## Compatibility and Cutover Gates
 
-A one-off local executable comparison ran the legacy mapper and SNS serializer against an Agreement with two scheduled payments and both parcel-level and Agreement-level invoice lines, then built and mapped the equivalent GAS Payment. After normalising only generated event IDs, event times and due-payment correlation IDs, the complete CloudEvent payloads were structurally identical. This closes the payload-shape question; the throwaway comparison code was removed after execution.
+A one-off local comparison ran the legacy mapper and SNS serializer against an Agreement with two scheduled payments and both parcel-level and Agreement-level invoice lines, then built and mapped the equivalent GAS Payment. After normalising only generated event IDs, event times and due-payment correlation IDs, the complete CloudEvent payloads were structurally identical. This informed the decision, but the throwaway comparison code was removed and therefore does not close the repeatable compatibility gate below.
 
 The prior topic difference was a source-tree configuration inconsistency, not a deployed topic change. GAS's local environment, Vitest configuration and FloCi wiring now use the Payment Service's existing `create_payment.fifo` topic, matching CDP application configuration in every environment. FloCi subscribes the production-named `gps__sqs__create_payment.fifo` queue. The required CDP tenant publish permission is managed externally and treated as provisioned for this decision.
 
@@ -164,20 +162,22 @@ Payment cutover remains blocked until all of the following are satisfied:
 
 The compatibility proof must exercise the published event through the same serializer and SNS adapter used at runtime. A hand-authored fixture or a mapper-only unit test is not sufficient evidence of transport compatibility.
 
-A local transport smoke published through the runtime `src/common/sns-client.js` adapter to Floci's `create_payment.fifo` topic and received the unchanged message body from `gps__sqs__create_payment.fifo`.
+During design, a one-off local transport smoke published through the runtime `src/common/sns-client.js` adapter to Floci's `create_payment.fifo` topic and received the unchanged message body from `gps__sqs__create_payment.fifo`. Because no executable smoke was retained, this is observed design evidence rather than repeatable cutover proof; the migration plan keeps that gate open.
 
 ## Migration
 
 The migration is staged:
 
 1. Move the durable event infrastructure into `src/events/` without changing behaviour or MongoDB collection identities.
-2. Add event-type dispatch while retaining the existing Grants handler.
-3. Add the Payments plugin, handlers, identifier allocation and idempotency.
-4. Add ingestion-time Payment definition validation and the explicit configuration-readiness rule.
-5. Complete the Payment payload, configuration, transport, Woodland, lifecycle and HTTP compatibility gates.
-6. Cut Claims over to `ClaimPaymentRequested`.
-7. Cut Agreements over to `AgreementPaymentRequested` only after its legacy-facing compatibility gates pass.
-8. Remove the direct Payments calls, obsolete transaction coordination, lint exceptions and outdated module-boundary documentation.
+2. Add exact event-type dispatch and the producer-owned Payment request contracts while retaining the existing Grants handler.
+3. Extend the existing configuration-readiness gate for exact pinned-version event handling and keep source-data mapping failures out of catalogue readiness.
+4. Add the Payments plugin, handlers, identifier allocation and idempotency.
+5. Cut Claims over to `ClaimPaymentRequested`.
+6. Complete the Agreement payload, transport, Woodland, lifecycle and HTTP compatibility gates, then cut Agreements over to `AgreementPaymentRequested`.
+7. Remove the direct Payments calls, obsolete transaction coordination, lint exceptions and outdated module-boundary documentation.
+8. Satisfy the deployment-only subscription, permission and scheme rollout gates.
+
+This refactor was identified while designing FGP-1397, but it does not implement that story's conditional Application transition. After the refactor, FGP-1397's `Application.moveTo` and `transitionApplicationUseCase` work belongs in the Claim source transaction: the Claim, any Application position change, its status command and configured processes, and any applicable `ClaimPaymentRequested` event must be persisted atomically. Payment mapping and creation remain post-commit work owned by Payments.
 
 The synchronous and asynchronous creation paths must never create Payments for the same source request at the same time. A temporary shadow event path may observe and validate events, but it must not persist Payments or publish Payment Hub events.
 
