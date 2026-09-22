@@ -2,8 +2,8 @@ import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { config } from "../../src/common/config.js";
-import { updateDeadEvents as sweepInbox } from "../../src/grants/repositories/inbox.repository.js";
-import { updateDeadEvents as sweepOutbox } from "../../src/grants/repositories/outbox.repository.js";
+import { updateDeadEvents as sweepInbox } from "../../src/events/repositories/inbox.repository.js";
+import { updateDeadEvents as sweepOutbox } from "../../src/events/repositories/outbox.repository.js";
 
 // The sweep counts FAILURES, not attempts: `markAsComplete` never increments
 // `completionAttempts`, and a row at the cap can never be claimed again. So a
