@@ -195,10 +195,20 @@ describe("Outbox model", () => {
     ).toThrow(/"target" is required/);
   });
 
-  it("should return segregationRef from event data via getSegregationRef", () => {
-    const event = { data: { clientRef: "CR001", grantCode: "GC001" } };
-    const ref = Outbox.getSegregationRef(event);
-    expect(ref).toBe("CR001-GC001");
+  it("should prefer the segregation reference derived from event data", () => {
+    const event = {
+      data: { clientRef: "CR001", grantCode: "GC001" },
+      messageGroupId: "other-group",
+    };
+    expect(Outbox.getSegregationRef(event)).toBe("CR001-GC001");
+  });
+
+  it("should fall back to the event message group when data has no routing fields", () => {
+    const event = {
+      data: { source: { clientRef: "CR001" } },
+      messageGroupId: "CR001",
+    };
+    expect(Outbox.getSegregationRef(event)).toBe("CR001");
   });
 
   it("should mark outbox as failed", () => {

@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AgreementPaymentRequestedEvent } from "../agreements/events/agreement-payment-requested.event.js";
+import { ClaimPaymentRequestedEvent } from "../grants/events/claim-payment-requested.event.js";
 import { insertMany } from "./repositories/outbox.repository.js";
 import { saveEvents } from "./save-events.js";
 
@@ -46,6 +48,44 @@ describe("saveEvents", () => {
       target: "create-payment-topic",
       segregationRef: "PMF823153883",
     });
+  });
+
+  it("uses the Agreement request's message group when source fields are nested", async () => {
+    const event = new AgreementPaymentRequestedEvent({
+      agreement: {
+        agreementNumber: "AGR-1",
+        version: 2,
+        code: "woodland",
+        configVersion: "1.28.2",
+        correlationId: "correlation-1",
+      },
+      executedAt: "2026-09-14T13:11:01.000Z",
+    });
+
+    await saveEvents([{ event, target: "payment-requests-topic" }], session);
+
+    expect(insertMany.mock.calls[0][0][0].segregationRef).toBe("AGR-1");
+  });
+
+  it("uses the Claim request's message group when source fields are nested", async () => {
+    const event = new ClaimPaymentRequestedEvent({
+      code: "woodland",
+      clientRef: "WDL-1",
+      clientClaimRef: "claim-1",
+      entitlementId: "entitlement-1",
+      configVersion: "1.28.2",
+      agreement: {
+        agreementNumber: "AGR-1",
+        agreementVersion: 2,
+        correlationId: "correlation-1",
+      },
+      executedAt: "2026-09-14T13:11:01.000Z",
+      claim: { totalAmountPence: 150000 },
+    });
+
+    await saveEvents([{ event, target: "payment-requests-topic" }], session);
+
+    expect(insertMany.mock.calls[0][0][0].segregationRef).toBe("WDL-1");
   });
 
   it("writes every publication in one insert", async () => {
