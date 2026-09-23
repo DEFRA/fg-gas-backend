@@ -1,7 +1,7 @@
-import Boom from "@hapi/boom";
 import Joi from "joi";
 import { CloudEvent } from "../../common/cloud-event.js";
 import { config } from "../../common/config.js";
+import { deepFreeze, validateEventProps } from "../../events/event-contract.js";
 
 const type = "agreement.payment.requested";
 
@@ -20,34 +20,13 @@ const requestSchema = Joi.object({
   executedAt: Joi.string().isoDate().required(),
 });
 
-const validate = (props) => {
-  const { error, value } = requestSchema.validate(props, {
-    abortEarly: false,
-    allowUnknown: false,
-    convert: false,
-  });
-
-  if (error) {
-    throw Boom.badRequest(
-      `Invalid AgreementPaymentRequested: ${error.details.map((detail) => detail.message).join(", ")}`,
-    );
-  }
-
-  return value;
-};
-
-const deepFreeze = (value) => {
-  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    Object.values(value).forEach(deepFreeze);
-  }
-
-  return value;
-};
-
 export class AgreementPaymentRequestedEvent extends CloudEvent {
   constructor(props) {
-    const { agreement, executedAt } = validate(props);
+    const { agreement, executedAt } = validateEventProps(
+      requestSchema,
+      props,
+      "AgreementPaymentRequested",
+    );
     const snapshot = structuredClone(agreement);
     const source = {
       agreementNumber: agreement.agreementNumber,

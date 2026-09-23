@@ -1,7 +1,7 @@
-import Boom from "@hapi/boom";
 import Joi from "joi";
 import { CloudEvent } from "../../common/cloud-event.js";
 import { config } from "../../common/config.js";
+import { deepFreeze, validateEventProps } from "../../events/event-contract.js";
 
 const type = "claim.payment.requested";
 
@@ -22,31 +22,6 @@ const requestSchema = Joi.object({
   claim: Joi.object().unknown(true).required(),
 });
 
-const validate = (props) => {
-  const { error, value } = requestSchema.validate(props, {
-    abortEarly: false,
-    allowUnknown: false,
-    convert: false,
-  });
-
-  if (error) {
-    throw Boom.badRequest(
-      `Invalid ClaimPaymentRequested: ${error.details.map((detail) => detail.message).join(", ")}`,
-    );
-  }
-
-  return value;
-};
-
-const deepFreeze = (value) => {
-  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    Object.values(value).forEach(deepFreeze);
-  }
-
-  return value;
-};
-
 export class ClaimPaymentRequestedEvent extends CloudEvent {
   constructor(props) {
     const {
@@ -58,7 +33,7 @@ export class ClaimPaymentRequestedEvent extends CloudEvent {
       configVersion,
       entitlementId,
       executedAt,
-    } = validate(props);
+    } = validateEventProps(requestSchema, props, "ClaimPaymentRequested");
     const source = { code, clientRef, clientClaimRef, entitlementId };
 
     super(
