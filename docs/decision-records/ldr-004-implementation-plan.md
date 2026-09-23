@@ -107,7 +107,9 @@ Completion criterion: contract tests construct each request from source-owned va
 - [x] Load each Payment request's definition by its exact pinned configuration version. Exact event handling must never silently switch to a fallback version.
 - [x] Keep genuine definition fetch, schema and expression compilation failures classified as configuration failures with actionable diagnostics.
 - [x] Treat mapping evaluation against a particular Agreement or Claim snapshot as a retryable request-processing failure without marking the shared definition or configuration version unusable. Prove durable retry/dead-letter delivery when the Payments handler exists in work package 4.
-- [x] Preserve fallback semantics only for existing callers that deliberately select a compatible version.
+- N/A for Payments: definition loading always uses the exact pinned version; there is no Payment fallback path to preserve.
+
+Readiness checks definition shape and expression syntax, not resolved Payment totals. Even constant mappings that can never balance may pass ingestion and fail each request as retryable. This is a deliberate limit of the pre-upsert gate; work package 4 must make repeated failures visible for operational investigation and redrive rather than add a separate constant-only evaluation path.
 
 Completion criterion: an invalid declared Payment definition prevents the configuration version being recorded, an absent optional Payment definition does not, and a data-dependent mapping failure leaves catalogue readiness unchanged while the request error remains retryable. Work package 4 verifies that the Inbox retries or dead-letters the durable request.
 
@@ -116,6 +118,7 @@ Completion criterion: an invalid declared Payment definition prevents the config
 - [ ] Add a Payments plugin and register it in `src/main.js`. The plugin registers handlers for both producer event types and owns no producer imports.
 - [ ] Map each immutable request snapshot through its exact pinned Payment definition inside the Payments handler.
 - [ ] Prove a failed snapshot mapping reaches Inbox retry/dead-letter handling without making that Payment definition unusable for another request.
+- [ ] Classify definition-loading failures that cannot recover on retry as permanent for the Inbox, while snapshot-mapping failures remain retryable; do not treat every Boom error as permanent.
 - [ ] Add repository lookup by logical request identity using the existing Agreement and Claim unique source indexes.
 - [ ] In a Payments-owned MongoDB transaction, find an existing Payment before allocation. If absent, allocate the next `R########` claim ID, build and insert the Payment, and persist its external Payment Service publication.
 - [ ] Make source-index duplicate races idempotent: abort the losing transaction, reload the existing Payment and complete without another counter value or publication.

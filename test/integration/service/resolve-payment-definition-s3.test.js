@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { updateDefinitionLocation } from "../../../src/common/config-broker/config-catalog.repository.js";
 import { config } from "../../../src/common/config.js";
 import { FetchStatus } from "../../../src/common/fetch-status.js";
+import { isRetryableFailure } from "../../../src/events/retryable.js";
 import { ConfigVersion } from "../../../src/grants/models/config-version.js";
 import { upsert } from "../../../src/grants/repositories/config-version.repository.js";
 import { resolvePaymentDefinition } from "../../../src/payments/use-cases/resolve-payment-definition.js";
@@ -230,7 +231,12 @@ describe("Payment definition ingestion (real S3)", () => {
       output: { statusCode: 500 },
       message: expect.stringContaining("Payment mapping failed"),
     });
-    expect(failure.retryable).not.toBe(false);
+    expect(isRetryableFailure(failure)).toBe(true);
+
+    const configVersion = await configVersions.findOne({ grantCode, version });
+    expect(configVersion.definitions.payment.fetchStatus).toBe(
+      FetchStatus.Fetched,
+    );
 
     await expect(
       resolvePaymentDefinition({
