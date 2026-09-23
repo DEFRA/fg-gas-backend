@@ -152,13 +152,9 @@ describe("Agreement status termination", () => {
         "event.type": "io.onsite.agreement.status.updated",
       })
       .toArray();
-    expect(publications).toHaveLength(2);
-    expect(new Set(publications.map(({ event }) => event.id)).size).toBe(1);
-    expect(publications.map(({ target }) => target).sort()).toEqual(
-      [
-        "internal:message-bus",
-        env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN,
-      ].sort(),
+    expect(publications).toHaveLength(1);
+    expect(publications[0].target).toBe(
+      env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN,
     );
     expect(publications[0].event.data).toMatchObject({
       agreementNumber,

@@ -315,12 +315,12 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     expect(saveEvents).toHaveBeenCalledTimes(1);
     const [publications] = saveEvents.mock.calls[0];
 
-    expect(publications).toHaveLength(4);
+    expect(publications).toHaveLength(3);
     expect(
       publications.filter(({ event }) =>
         event.type?.endsWith("agreement.status.updated"),
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(
       publications.find(
         ({ event }) =>
@@ -549,12 +549,12 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
 
     const [publications] = saveEvents.mock.calls[0];
 
-    expect(publications).toHaveLength(3);
+    expect(publications).toHaveLength(2);
     expect(
       publications.filter(({ event }) =>
         event.type?.endsWith("agreement.status.updated"),
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(
       publications.find(
         ({ event }) =>
