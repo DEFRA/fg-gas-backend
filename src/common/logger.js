@@ -22,9 +22,12 @@ const format = {
 // serialized to logs. It is redacted alongside the existing sensitive headers.
 // The x-agreement-* identity headers (grant code, client ref, sbi) are personal
 // identifiers and are redacted too so grantCode/clientRef/sbi never reach logs.
+// FGP-1394: x-user-context is the renamed replacement for x-encrypted-auth and
+// carries the same signed caller JWT, so it is redacted for the same reason.
 export const productionRedactPaths = [
   "req.headers.authorization",
   "req.headers.cookie",
+  'req.headers["x-user-context"]',
   'req.headers["x-encrypted-auth"]',
   'req.headers["x-agreement-code"]',
   'req.headers["x-agreement-client-ref"]',

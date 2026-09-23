@@ -114,8 +114,10 @@ writes Agreement-created and Agreement-status-changed events to its transactiona
 outbox so they are committed atomically with the corresponding Agreement version.
 
 `AGREEMENTS_JWT_SECRET` (FGP-1307) is the shared HS256 secret GAS uses to verify
-the caller token (the `x-encrypted-auth` header) forwarded by Agreements UI on
-the agreement routes. It must match the secret the producer services sign with
+the caller token forwarded by Agreements UI on the agreement routes. The token is
+read from the `x-user-context` header (FGP-1394), falling back to the older
+`x-encrypted-auth` header name when `x-user-context` is absent, so producers can
+migrate independently. It must match the secret the producer services sign with
 (Caseworking frontend, PDF service and Grants UI). It is supplied per
 environment from the platform secret store and must never be committed. It is
 optional while verification runs in warn-only mode; when absent the caller token

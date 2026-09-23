@@ -5,7 +5,11 @@ import { logger } from "../common/logger.js";
 import { db } from "../common/mongo-client.js";
 import { verifyCallerToken } from "./caller-token.js";
 
-const CALLER_TOKEN_HEADER = "x-encrypted-auth";
+// FGP-1394: the caller-token header is being renamed from 'x-encrypted-auth' to
+// 'x-user-context' (it carries a signed, not encrypted, value). Accept the new
+// name first, falling back to the old one, so producers can migrate independently.
+const CALLER_TOKEN_HEADER = "x-user-context";
+const CALLER_TOKEN_HEADER_LEGACY = "x-encrypted-auth";
 
 // FGP-1307: reason recorded/logged when no caller token is present on an
 // agreement route (used in both warn-only and enforcement paths).
@@ -155,10 +159,7 @@ const handleEnforcedCallerToken = (request, token) => {
   }
 
   request.app.callerToken = result;
-  logger.info(
-    { iss: result.payload.iss },
-    "Caller token verified (FGP-1307)",
-  );
+  logger.info({ iss: result.payload.iss }, "Caller token verified (FGP-1307)");
 };
 
 const registerCallerTokenVerification = (server) => {
@@ -167,7 +168,9 @@ const registerCallerTokenVerification = (server) => {
       return h.continue;
     }
 
-    const token = request.headers[CALLER_TOKEN_HEADER];
+    const token =
+      request.headers[CALLER_TOKEN_HEADER] ??
+      request.headers[CALLER_TOKEN_HEADER_LEGACY];
 
     if (config.callerToken.enforce) {
       handleEnforcedCallerToken(request, token);
