@@ -55,6 +55,7 @@ const uploadDefinitions = () =>
       "woodland/1.2.4/gas/gas.json",
       "woodland/1.2.5/gas/gas.json",
       "woodland/1.2.7/gas/gas.json",
+      "woodland/1.2.8/gas/gas.json",
       "woodland/2.0.0/gas/gas.json",
       "farm-payments/1.2.6/gas/gas.json",
     ].map((key) => put(key, grantDefinition)),
@@ -71,6 +72,10 @@ const uploadDefinitions = () =>
       code: "frps-private-beta",
     }),
     put("woodland/1.2.7/gas/payment.json", paymentDefinition),
+    put("woodland/1.2.8/gas/payment.json", {
+      ...paymentDefinition,
+      code: "another-grant",
+    }),
   ]);
 
 beforeAll(async () => {
@@ -159,6 +164,27 @@ describe("config broker message flow", () => {
       fetchAttempts: 0,
     });
     expect(doc.definitions.agreement).toBeUndefined();
+  });
+
+  it("rejects an unusable Payment definition before recording its version", async () => {
+    const version = "1.2.8";
+
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version,
+        status: "active",
+        s3Bucket: BUCKET,
+        manifest: [
+          `woodland/${version}/gas/gas.json`,
+          `woodland/${version}/gas/payment.json`,
+        ],
+      }),
+    ).rejects.toThrow('does not match "woodland"');
+
+    await expect(
+      configVersionsCol.findOne({ grantCode: "woodland", version }),
+    ).resolves.toBeNull();
   });
 
   it("does not reset Agreement fetch state on a duplicate message", async () => {

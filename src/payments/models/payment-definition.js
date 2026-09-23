@@ -76,6 +76,11 @@ const invalidDefinition = (code, error) =>
     `Invalid Payment definition "${code}": ${validationMessage(error)}`,
   );
 
+const invalidMapping = (code, error) =>
+  Boom.badImplementation(
+    `Payment mapping failed for "${code}": ${validationMessage(error)}`,
+  );
+
 const selectMappings = (definition) =>
   Object.fromEntries(mappingFields.map((field) => [field, definition[field]]));
 
@@ -141,11 +146,7 @@ export class PaymentDefinition {
 
       return value;
     } catch (error) {
-      if (Boom.isBoom(error)) {
-        throw error;
-      }
-
-      throw invalidDefinition(this.code, error);
+      throw invalidMapping(this.code, error);
     }
   }
 }
