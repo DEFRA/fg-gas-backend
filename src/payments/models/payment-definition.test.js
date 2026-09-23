@@ -369,7 +369,7 @@ describe("PaymentDefinition", () => {
     );
   });
 
-  it("wraps unresolved references as configuration errors", async () => {
+  it("reports unresolved snapshot references as mapping failures", async () => {
     const definition = new PaymentDefinition({
       ...validDefinition,
       sbi: "$.missing",
@@ -378,7 +378,7 @@ describe("PaymentDefinition", () => {
     await expectResolutionError(definition, {}, "Unresolved process mapping");
   });
 
-  it("wraps JSONata evaluation failures as configuration errors", async () => {
+  it("reports JSONata evaluation failures as mapping failures", async () => {
     const definition = new PaymentDefinition({
       ...validDefinition,
       sbi: 'jsonata:$error("failed")',

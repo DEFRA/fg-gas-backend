@@ -8,7 +8,7 @@ Decision: [Event-driven Payment Creation in GAS](./ldr-004-event-driven-payment-
 
 Read the decision record, then resume at the first unchecked item in the numbered work packages, following their stage order. Update the checkboxes and the checkpoint in the same change that completes a work package. The checkpoint also records compatibility and deployment gates that deliberately remain open until work packages 7 and 8; it is not the execution order. This is the single delivery checklist; design rationale remains in the decision record.
 
-Current checkpoint, 22 September 2026:
+Current checkpoint, 23 September 2026:
 
 - [x] Record the architecture decision and consumer research.
 - [ ] Retain executable proof that the GAS Payment event matches the legacy runtime-serialized event after normalising generated identifiers and times. The completed one-off comparison informed the design but is not repeatable evidence.
@@ -17,6 +17,7 @@ Current checkpoint, 22 September 2026:
 - [x] Treat the externally managed CDP tenant publish permission as provisioned.
 - [x] Move durable event infrastructure into `src/events/` and replace source-keyed dispatch with exact CloudEvent type registration.
 - [x] Freeze producer-owned `AgreementPaymentRequested` and `ClaimPaymentRequested` contracts without emitting them from production paths.
+- [x] Preserve the whole-version readiness gate and exact Payment definition loading; classify source-data mapping failures as retryable request failures without poisoning configuration readiness.
 - [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
 The code is not yet event-driven. Agreement acceptance and Claim submission still import Payments use-cases, resolve Payment definitions before their source transactions, allocate Payment Hub identifiers inside those transactions and persist Payment Service publications in the source-owned outbox work.
@@ -101,19 +102,23 @@ Completion criterion: contract tests construct each request from source-owned va
 
 ### 3. Extend configuration readiness for pinned events
 
-- [ ] Preserve the existing pre-upsert whole-version gate: `validateConfigDefinitions` fetches and compiles every declared Grant, Agreement and Payment definition before the version is recorded; an absent optional `payment.json` remains a valid no-op.
-- [ ] Reuse the existing Payment definition model for schema and JSONata compilation. Do not introduce a second readiness mechanism or write fetch status during the pre-upsert validation check.
-- [ ] Load each Payment request's definition by its exact pinned configuration version. Exact event handling must never silently switch to a fallback version.
-- [ ] Keep genuine definition fetch, schema and expression compilation failures classified as configuration failures with actionable diagnostics.
-- [ ] Treat mapping evaluation against a particular Agreement or Claim snapshot as an event-processing failure. It must retry or dead-letter that request without marking the shared definition or configuration version unusable.
-- [ ] Preserve fallback semantics only for existing callers that deliberately select a compatible version.
+- [x] Preserve the existing pre-upsert whole-version gate: `validateConfigDefinitions` fetches and compiles every declared Grant, Agreement and Payment definition before the version is recorded; an absent optional `payment.json` remains a valid no-op.
+- [x] Reuse the existing Payment definition model for schema and JSONata compilation. Do not introduce a second readiness mechanism or write fetch status during the pre-upsert validation check.
+- [x] Load each Payment request's definition by its exact pinned configuration version. Exact event handling must never silently switch to a fallback version.
+- [x] Keep genuine definition fetch, schema and expression compilation failures classified as configuration failures with actionable diagnostics.
+- [x] Treat mapping evaluation against a particular Agreement or Claim snapshot as a retryable request-processing failure without marking the shared definition or configuration version unusable. Prove durable retry/dead-letter delivery when the Payments handler exists in work package 4.
+- N/A for Payments: definition loading always uses the exact pinned version; there is no Payment fallback path to preserve.
 
-Completion criterion: an invalid declared Payment definition prevents the configuration version being recorded, an absent optional Payment definition does not, and a data-dependent mapping failure leaves catalogue readiness unchanged while the event reaches retry/dead-letter handling.
+Readiness checks definition shape and expression syntax, not resolved Payment totals. Even constant mappings that can never balance may pass ingestion and fail each request as retryable. This is a deliberate limit of the pre-upsert gate; work package 4 must make repeated failures visible for operational investigation and redrive rather than add a separate constant-only evaluation path.
+
+Completion criterion: an invalid declared Payment definition prevents the configuration version being recorded, an absent optional Payment definition does not, and a data-dependent mapping failure leaves catalogue readiness unchanged while the request error remains retryable. Work package 4 verifies that the Inbox retries or dead-letters the durable request.
 
 ### 4. Add Payments-owned event handling
 
 - [ ] Add a Payments plugin and register it in `src/main.js`. The plugin registers handlers for both producer event types and owns no producer imports.
 - [ ] Map each immutable request snapshot through its exact pinned Payment definition inside the Payments handler.
+- [ ] Prove a failed snapshot mapping reaches Inbox retry/dead-letter handling without making that Payment definition unusable for another request.
+- [ ] Classify definition-loading failures that cannot recover on retry as permanent for the Inbox, while snapshot-mapping failures remain retryable; do not treat every Boom error as permanent.
 - [ ] Add repository lookup by logical request identity using the existing Agreement and Claim unique source indexes.
 - [ ] In a Payments-owned MongoDB transaction, find an existing Payment before allocation. If absent, allocate the next `R########` claim ID, build and insert the Payment, and persist its external Payment Service publication.
 - [ ] Make source-index duplicate races idempotent: abort the losing transaction, reload the existing Payment and complete without another counter value or publication.

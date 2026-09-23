@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { updateDefinitionLocation } from "../../../src/common/config-broker/config-catalog.repository.js";
 import { config } from "../../../src/common/config.js";
 import { FetchStatus } from "../../../src/common/fetch-status.js";
+import { isRetryableFailure } from "../../../src/events/retryable.js";
 import { ConfigVersion } from "../../../src/grants/models/config-version.js";
 import { upsert } from "../../../src/grants/repositories/config-version.repository.js";
 import { resolvePaymentDefinition } from "../../../src/payments/use-cases/resolve-payment-definition.js";
@@ -202,13 +203,40 @@ describe("Payment definition ingestion (real S3)", () => {
     );
   });
 
-  it("records a permanent error when the resolved totals are unbalanced", async () => {
+  it("does not substitute a different Payment version for a missing pinned version", async () => {
+    await upload(s3Keys["9.9.1"], paymentDefinitionJson);
+    await seedConfigVersion("9.9.1");
+
+    await expect(
+      resolvePaymentDefinition({
+        code: grantCode,
+        configVersion: "9.9.3",
+        context,
+      }),
+    ).rejects.toThrow('version "9.9.3" is unavailable');
+  });
+
+  it("keeps a pinned definition usable after one snapshot fails to map", async () => {
     const version = "9.9.2";
-    await upload(
-      s3Keys[version],
-      JSON.stringify({ ...paymentDefinition, totalAmountPence: 3799 }),
-    );
+    await upload(s3Keys[version], paymentDefinitionJson);
     await seedConfigVersion(version);
+
+    const failure = await resolvePaymentDefinition({
+      code: grantCode,
+      configVersion: version,
+      context: {},
+    }).catch((error) => error);
+    expect(failure).toMatchObject({
+      isBoom: true,
+      output: { statusCode: 500 },
+      message: expect.stringContaining("Payment mapping failed"),
+    });
+    expect(isRetryableFailure(failure)).toBe(true);
+
+    const configVersion = await configVersions.findOne({ grantCode, version });
+    expect(configVersion.definitions.payment.fetchStatus).toBe(
+      FetchStatus.Fetched,
+    );
 
     await expect(
       resolvePaymentDefinition({
@@ -216,17 +244,6 @@ describe("Payment definition ingestion (real S3)", () => {
         configVersion: version,
         context,
       }),
-    ).rejects.toMatchObject({
-      isBoom: true,
-      output: { statusCode: 500 },
-      message: expect.stringContaining(
-        "totalAmountPence does not balance with payments",
-      ),
-    });
-
-    const configVersion = await configVersions.findOne({ grantCode, version });
-    expect(configVersion.definitions.payment.fetchStatus).toBe(
-      FetchStatus.PermanentError,
-    );
+    ).resolves.toEqual(expectedPayment);
   });
 });
