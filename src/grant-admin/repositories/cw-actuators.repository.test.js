@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { wreck } from "../../common/wreck.js";
 import {
   describeError,
+  editCwPayload,
   findCwEvent,
   findCwPage,
   isCwConfigured,
@@ -841,5 +842,140 @@ describe("purgeCwEvent", () => {
       output: { statusCode: 502 },
     });
     expect(wreck.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("editCwPayload", () => {
+  const anEdit = (overrides = {}) => ({
+    by: "donatas",
+    payload: { id: "evt-1", data: { sheetId: "S1" } },
+    note: "sheetId was sent as a number",
+    revision: 0,
+    ...overrides,
+  });
+
+  const edited = {
+    payloadRevision: 1,
+    changedPaths: ["/data/sheetId"],
+    changedPathsTruncated: false,
+  };
+
+  it("POSTs /actuators/events/{box}/{id}/payload with the bearer token", async () => {
+    wreck.post.mockResolvedValue({ payload: edited });
+
+    await editCwPayload("outbox", ID, anEdit());
+
+    expect(new URL(wreck.post.mock.calls[0][0]).pathname).toBe(
+      `/actuators/events/outbox/${ID}/payload`,
+    );
+    expect(wreck.post.mock.calls[0][1]).toMatchObject({
+      json: true,
+      timeout: TIMEOUT_MS,
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+  });
+
+  it("sends the payload, the note and the revision as the body", async () => {
+    wreck.post.mockResolvedValue({ payload: edited });
+
+    await editCwPayload("inbox", ID, anEdit({ revision: 3 }));
+
+    expect(wreck.post.mock.calls[0][1].payload).toEqual({
+      payload: { id: "evt-1", data: { sheetId: "S1" } },
+      note: "sheetId was sent as a number",
+      revision: 3,
+    });
+  });
+
+  it("names the operator on the query string, percent-encoded", async () => {
+    wreck.post.mockResolvedValue({ payload: edited });
+
+    await editCwPayload("inbox", ID, anEdit({ by: "a b&c" }));
+
+    expect(new URL(wreck.post.mock.calls[0][0]).searchParams.get("by")).toBe(
+      "a b&c",
+    );
+  });
+
+  it("returns what caseworking changed", async () => {
+    wreck.post.mockResolvedValue({ payload: edited });
+
+    expect(await editCwPayload("inbox", ID, anEdit())).toEqual(edited);
+  });
+
+  it("turns a caseworking 404 into a 404", async () => {
+    wreck.post.mockRejectedValue(httpError(404, { message: "nope" }));
+
+    await expect(editCwPayload("inbox", ID, anEdit())).rejects.toMatchObject({
+      output: { statusCode: 404 },
+    });
+  });
+
+  it("turns a caseworking 409 into a 409 naming what an edit needs", async () => {
+    wreck.post.mockRejectedValue(
+      httpError(409, { statusCode: 409, status: "COMPLETED" }),
+    );
+
+    const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(409);
+    expect(error.output.payload.status).toBe("COMPLETED");
+    expect(error.message).toBe(
+      `CW-BE inbox event "${ID}" is COMPLETED, not editable (DEAD_LETTER or PURGED)`,
+    );
+  });
+
+  // Not "could not be reached": the admin tells the operator to reload.
+  it("passes a caseworking 412 through as a 412", async () => {
+    wreck.post.mockRejectedValue(
+      httpError(412, { statusCode: 412, message: "SECRET-BODY" }),
+    );
+
+    const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(412);
+    expect(error.message).not.toContain("SECRET-BODY");
+  });
+
+  it.each(["TOO_LARGE", "UNCHANGED", "NOT_AN_OBJECT", "DOLLAR_KEY"])(
+    "passes a caseworking 422 through with its %s reason",
+    async (reason) => {
+      wreck.post.mockRejectedValue(
+        httpError(422, { statusCode: 422, reason, message: "SECRET-BODY" }),
+      );
+
+      const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+
+      expect(error.output.statusCode).toBe(422);
+      expect(error.output.payload.reason).toBe(reason);
+      expect(error.message).not.toContain("SECRET-BODY");
+    },
+  );
+
+  it("drops a 422 reason it does not know", async () => {
+    wreck.post.mockRejectedValue(httpError(422, { reason: "SECRET-REASON" }));
+
+    const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(422);
+    expect(error.output.payload.reason).toBeNull();
+    expect(JSON.stringify(error.output.payload)).not.toContain("SECRET");
+  });
+
+  it("turns a caseworking timeout into a 504", async () => {
+    wreck.post.mockRejectedValue(Boom.gatewayTimeout("Client request timeout"));
+
+    const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(504);
+  });
+
+  it("turns any other caseworking failure into a 502", async () => {
+    wreck.post.mockRejectedValue(httpError(500, { message: "SECRET-BODY" }));
+
+    const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(502);
+    expect(error.message).not.toContain("SECRET-BODY");
   });
 });
