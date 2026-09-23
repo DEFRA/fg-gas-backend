@@ -186,8 +186,8 @@ export default [
                 "**/agreements/use-cases/compile-agreement-definition.js",
               ],
               message:
-                "Grants may only enter Agreements through its reviewed entitlement reference-context query " +
-                "and its definition check. See docs/MODULE_BOUNDARIES.md.",
+                "Grants may only enter Agreements through its reviewed entitlement reference-context query, " +
+                "status event contract and definition check. See docs/MODULE_BOUNDARIES.md.",
             },
             {
               target: "**/grant-admin/**/!(*.test).js",
