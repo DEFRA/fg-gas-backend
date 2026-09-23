@@ -4,7 +4,7 @@ import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import woodlandSubmission from "../../../test/fixtures/woodland-claim-submission.json";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
-import { saveOutboxEvents } from "../../events/save-outbox-events.js";
+import { saveEvents } from "../../events/index.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
@@ -43,7 +43,7 @@ vi.mock("../../common/mongo-errors.js", () => ({
   isMongoDuplicateKeyError: vi.fn((error) => error?.duplicate),
 }));
 vi.mock("../../agreements/use-cases/load-entitlement-reference-context.js");
-vi.mock("../../events/save-outbox-events.js");
+vi.mock("../../events/index.js");
 vi.mock("../../payments/use-cases/create-claim-payment.use-case.js");
 vi.mock("../../payments/use-cases/resolve-claim-payment.js");
 vi.mock("../repositories/application.repository.js");
@@ -547,7 +547,7 @@ describe("claims.service", () => {
         },
         session,
       );
-      expect(saveOutboxEvents).toHaveBeenCalledWith(
+      expect(saveEvents).toHaveBeenCalledWith(
         [{ event: { id: "event-1" }, segregationRef: clientRef }],
         session,
       );
@@ -658,7 +658,7 @@ describe("claims.service", () => {
         submitClaim({ code, clientRef, payload }),
       ).resolves.toMatchObject({ created: true });
       expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
-      expect(saveOutboxEvents).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
 
     it("refuses a Claim whose Entitlement is missing rather than skipping its Payment", async () => {
@@ -679,7 +679,7 @@ describe("claims.service", () => {
         created: false,
       });
       expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
-      expect(saveOutboxEvents).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
   });
 
@@ -698,7 +698,7 @@ describe("claims.service", () => {
 
       expect(resolveClaimPayment).not.toHaveBeenCalled();
       expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
-      expect(saveOutboxEvents).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
   });
 

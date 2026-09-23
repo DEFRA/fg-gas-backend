@@ -10,7 +10,7 @@ import {
 } from "vitest";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { dispatchInboxMessage } from "../services/inbox-message-handlers.js";
+import { dispatchEvent } from "../services/event-handlers.js";
 import { Inbox } from "../models/inbox.js";
 import {
   cleanupStaleLocks,
@@ -28,7 +28,7 @@ import { InboxSubscriber } from "./inbox.subscriber.js";
 
 vi.mock("../repositories/inbox.repository.js");
 vi.mock("../repositories/fifo-lock.repository.js");
-vi.mock("../services/inbox-message-handlers.js");
+vi.mock("../services/event-handlers.js");
 
 const createInbox = (doc) =>
   new Inbox({
@@ -109,7 +109,7 @@ describe("inbox.subscriber", () => {
       .mockResolvedValueOnce([mockEvent])
       .mockResolvedValue([]);
 
-    dispatchInboxMessage.mockResolvedValue();
+    dispatchEvent.mockResolvedValue();
 
     const subscriber = new InboxSubscriber();
     subscriber.start();
@@ -121,7 +121,7 @@ describe("inbox.subscriber", () => {
     await vi.advanceTimersByTimeAsync(subscriber.interval);
 
     await vi.waitFor(() => {
-      expect(dispatchInboxMessage).toHaveBeenCalledWith(mockEvent);
+      expect(dispatchEvent).toHaveBeenCalledWith(mockEvent);
     });
 
     await vi.advanceTimersByTimeAsync(subscriber.interval);
@@ -362,11 +362,11 @@ describe("inbox.subscriber", () => {
         source: "AS",
         markAsComplete: vi.fn(),
       };
-      dispatchInboxMessage.mockResolvedValue();
+      dispatchEvent.mockResolvedValue();
 
       await new InboxSubscriber().processEvents([message]);
 
-      expect(dispatchInboxMessage).toHaveBeenCalledWith(message);
+      expect(dispatchEvent).toHaveBeenCalledWith(message);
       expect(message.markAsComplete).toHaveBeenCalledOnce();
     });
   });
@@ -375,7 +375,7 @@ describe("inbox.subscriber", () => {
 describe("InboxSubscriber failure reasons", () => {
   it("passes the caught exception to markAsFailed", async () => {
     const failure = new TypeError("cannot read currentStatus");
-    dispatchInboxMessage.mockRejectedValueOnce(failure);
+    dispatchEvent.mockRejectedValueOnce(failure);
 
     const message = {
       messageId: "message-1234",
@@ -395,7 +395,7 @@ describe("InboxSubscriber failure reasons", () => {
     const failure = new Error(
       'No inbox message handler registered for source "unknown"',
     );
-    dispatchInboxMessage.mockRejectedValueOnce(failure);
+    dispatchEvent.mockRejectedValueOnce(failure);
     const message = {
       messageId: "message-1234",
       type: "u.nknown.event.id",

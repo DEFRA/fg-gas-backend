@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createOutboxMessages } from "../../src/agreements/services/integrations/create-outbox-messages.js";
 import { sendMessage } from "../helpers/sqs.js";
 
 const code = "woodland";
@@ -39,12 +40,14 @@ describe("Legacy Agreement status updates", () => {
   let applications;
   let client;
   let grants;
+  let inbox;
   let outbox;
 
   const clearScenarioData = () =>
     Promise.all([
       applications.deleteMany({ clientRef, code }),
       grants.deleteMany({ code }),
+      inbox.deleteMany({ "event.data.clientRef": clientRef }),
       outbox.deleteMany({
         $or: [
           { "event.data.clientRef": clientRef },
@@ -59,6 +62,7 @@ describe("Legacy Agreement status updates", () => {
     const database = client.db();
     applications = database.collection("applications");
     grants = database.collection("grants");
+    inbox = database.collection("inbox");
     outbox = database.collection("outbox");
   });
 
@@ -71,6 +75,46 @@ describe("Legacy Agreement status updates", () => {
   afterAll(async () => {
     await clearScenarioData();
     await client?.close();
+  });
+
+  it("delivers a GAS lifecycle publication through SNS and the inbox once", async () => {
+    const [publication] = createOutboxMessages(["lifecycle"], {
+      agreementNumber,
+      correlationId: randomUUID(),
+      clientRef,
+      code,
+      version: 1,
+      state: "offered",
+      updatedAt: agreementDate,
+    });
+
+    await outbox.insertOne({
+      publicationDate: new Date(),
+      ...publication,
+      completionAttempts: 0,
+      status: "PUBLISHED",
+      segregationRef: `${clientRef}-${code}`,
+    });
+
+    await expect(outbox).toHaveRecord({
+      "event.id": publication.event.id,
+      target: publication.target,
+      status: "COMPLETED",
+    });
+    await expect(inbox).toHaveRecord({
+      messageId: publication.event.id,
+      type: publication.event.type,
+      status: "COMPLETED",
+    });
+    await expect(applications).toHaveRecord({
+      clientRef,
+      code,
+      currentStage: "STAGE_PREPARING_AGREEMENT",
+      currentStatus: "STATUS_AGREEMENT_READY_FOR_APPLICANT",
+    });
+    expect(
+      await outbox.countDocuments({ "event.id": publication.event.id }),
+    ).toBe(1);
   });
 
   it("updates Grants and publishes the Caseworking status after an Agreement Service offer", async () => {

@@ -80,10 +80,6 @@ describe("internal-command-bus", () => {
       internalCommandTypes.AGREEMENT_STATUS_UPDATE,
       "cloud.defra.dev.gas.agreement.status.update",
     ],
-    [
-      internalCommandTypes.AGREEMENT_STATUS_UPDATED,
-      "cloud.defra.dev.gas.agreement.status.updated",
-    ],
   ])("dispatches %s events", async (handlerType, eventType) => {
     const handler = vi.fn();
     const event = { type: eventType, data: { code: "pigs-might-fly" } };

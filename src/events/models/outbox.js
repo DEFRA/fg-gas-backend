@@ -132,7 +132,7 @@ export class Outbox {
 
   static getSegregationRef(event) {
     const { data } = event;
-    return getMessageGroupId(null, data);
+    return getMessageGroupId(null, data) ?? event.messageGroupId;
   }
 
   static fromDocument(doc) {

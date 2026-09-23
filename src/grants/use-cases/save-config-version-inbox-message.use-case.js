@@ -2,8 +2,7 @@ import { logger } from "../../common/logger.js";
 import { getTraceParent } from "../../common/trace-parent.js";
 import { messageSource } from "../../events/services/message-source.js";
 import { saveInboxMessageUseCase } from "../../events/use-cases/save-inbox-message.use-case.js";
-
-export const CONFIG_VERSION_EVENT_TYPE = "config-version.updated";
+import { CONFIG_VERSION_UPDATED_EVENT_TYPE } from "../events/inbound-event-types.js";
 
 // An event with no grant cannot be grouped, but must still reach the Inbox to be visible.
 export const UNGROUPED_SEGREGATION_REF = "unknown-grant";
@@ -36,7 +35,7 @@ export const saveConfigVersionInboxMessageUseCase = async (
 
   const event = {
     id: messageId,
-    type: CONFIG_VERSION_EVENT_TYPE,
+    type: CONFIG_VERSION_UPDATED_EVENT_TYPE,
     time: toEventTime(sentTimeStamp),
     traceparent: getTraceParent(),
     data: {

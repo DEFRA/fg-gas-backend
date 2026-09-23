@@ -1,13 +1,15 @@
 import { up } from "migrate-mongo";
-import { registerInternalCommandHandler } from "../common/internal-command-bus.js";
-import { internalCommandTypes } from "../common/internal-command-types.js";
+import { AGREEMENT_STATUS_UPDATED_EVENT_TYPE } from "../agreements/events/agreement-status-updated.event.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
-import { registerInboxMessageHandler } from "../events/services/inbox-message-handlers.js";
+import { registerEventHandler } from "../events/index.js";
 import { messageSource } from "../events/services/message-source.js";
-import { saveInboxMessageUseCase } from "../events/use-cases/save-inbox-message.use-case.js";
 import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
 import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
+import {
+  CASE_STATUS_UPDATED_EVENT_TYPE,
+  CONFIG_VERSION_UPDATED_EVENT_TYPE,
+} from "./events/inbound-event-types.js";
 import { applicationStatusRoute } from "./routes/application-status.route.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";
@@ -22,23 +24,24 @@ import { submitApplicationRoute } from "./routes/submit-application.route.js";
 import { submitClaimRoute } from "./routes/submit-claim.route.js";
 import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
 
+const grantStatusHandler = (source) => (message) =>
+  handleGrantStatusMessage({ ...message, source });
+
+const handleAgreementStatus = grantStatusHandler(
+  messageSource.AgreementService,
+);
+const handleCaseStatus = grantStatusHandler(messageSource.CaseWorking);
+
 export const grants = {
   name: "grants",
   async register(server) {
-    registerInternalCommandHandler(
-      internalCommandTypes.AGREEMENT_STATUS_UPDATED,
-      (event) => saveInboxMessageUseCase(event, messageSource.AgreementService),
+    registerEventHandler(
+      AGREEMENT_STATUS_UPDATED_EVENT_TYPE,
+      handleAgreementStatus,
     );
-    registerInboxMessageHandler(
-      messageSource.AgreementService,
-      handleGrantStatusMessage,
-    );
-    registerInboxMessageHandler(
-      messageSource.CaseWorking,
-      handleGrantStatusMessage,
-    );
-    registerInboxMessageHandler(
-      messageSource.ConfigBroker,
+    registerEventHandler(CASE_STATUS_UPDATED_EVENT_TYPE, handleCaseStatus);
+    registerEventHandler(
+      CONFIG_VERSION_UPDATED_EVENT_TYPE,
       handleConfigVersionMessage,
     );
 

@@ -15,6 +15,7 @@ import {
 } from "../../common/internal-command-bus.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
+import { dispatchEvent, hasEventHandler } from "../services/event-handlers.js";
 import { Outbox } from "../models/outbox.js";
 import {
   cleanupStaleLocks,
@@ -35,6 +36,7 @@ import { OutboxSubscriber } from "./outbox.subscriber.js";
 
 vi.mock("../../common/internal-command-bus.js");
 vi.mock("../../common/sns-client.js");
+vi.mock("../services/event-handlers.js");
 
 vi.mock("../repositories/fifo-lock.repository.js");
 vi.mock("../repositories/outbox.repository.js");
@@ -56,6 +58,7 @@ describe("outbox.subscriber", () => {
     updateFailedEvents.mockResolvedValue({ modifiedCount: 1 });
     publish.mockResolvedValue(1);
     claimEvents.mockResolvedValue([]);
+    hasEventHandler.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -287,12 +290,16 @@ describe("outbox.subscriber", () => {
     );
   });
 
-  it("delivers events addressed to the internal message bus without publishing", async () => {
-    dispatchInternally.mockResolvedValue();
+  it("delivers registered events by exact type without publishing", async () => {
+    hasEventHandler.mockReturnValue(true);
+    dispatchEvent.mockResolvedValue();
 
     const mockEvent = {
       target: internalMessageBusTarget,
       event: {
+        id: "event-1",
+        source: "urn:service:agreement",
+        traceparent: "trace-1",
         type: "io.onsite.agreement.status.updated",
         data: { code: "pigs-might-fly", status: "accepted" },
       },
@@ -302,7 +309,14 @@ describe("outbox.subscriber", () => {
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
 
-    expect(dispatchInternally).toHaveBeenCalledWith(mockEvent.event);
+    expect(dispatchEvent).toHaveBeenCalledWith({
+      event: mockEvent.event,
+      messageId: "event-1",
+      source: "urn:service:agreement",
+      traceparent: "trace-1",
+      type: "io.onsite.agreement.status.updated",
+    });
+    expect(dispatchInternally).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
@@ -319,6 +333,8 @@ describe("outbox.subscriber", () => {
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
 
+    expect(dispatchInternally).toHaveBeenCalledWith(mockEvent.event);
+    expect(dispatchEvent).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
     expect(mockEvent.markAsFailed).toHaveBeenCalled();
   });

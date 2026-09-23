@@ -3,8 +3,8 @@
 //
 // ⚠️ CRITICAL FIELDS ⚠️
 //
-// Our code expects (src/events/subscribers/case-status-updated.subscriber.js):
-//   - source: "fg-cw-backend" | "CaseWorking" | "CW" (all mapped to "CW" for routing)
+// Our code expects:
+//   - type: exact `cloud.defra.test.fg-cw-backend.case.status.updated`
 //   - data.caseRef: Used to find application by clientRef
 //   - data.currentStatus: Must be in format "PHASE:STAGE:STATUS" (e.g., "PRE_AWARD:ASSESSMENT:WITHDRAWAL_REQUESTED")
 //   - data.workflowCode: Used for validation
@@ -12,7 +12,7 @@
 // The currentStatus is parsed in applyExternalStateChange() to extract phase, stage, and status.
 // If format is wrong, parsing will fail and state won't update.
 //
-// Source field is used for routing in inbox.subscriber.js - wrong value means message won't be processed.
+// The exact type selects the handler; unknown types are rejected.
 //
 import { MatchersV2, MessageConsumerPact } from "@pact-foundation/pact";
 import path from "path";
@@ -36,9 +36,9 @@ describe("fg-gas-backend Consumer (receives messages from fg-cw-backend)", () =>
           // CloudEvent fields
           id: uuid("12345678-1234-1234-1234-123456789013"),
 
-          type: like("cloud.defra.test.fg-cw-backend.case.status.updated"),
+          type: "cloud.defra.test.fg-cw-backend.case.status.updated",
 
-          // Source must be one of the accepted values
+          // Source identifies the producer but does not select the handler
           source: term({
             generate: "fg-cw-backend",
             matcher: "^(fg-cw-backend|CaseWorking|CW)$",
@@ -91,11 +91,10 @@ describe("fg-gas-backend Consumer (receives messages from fg-cw-backend)", () =>
           // CloudEvent fields
           id: uuid("12345678-1234-1234-1234-123456789012"),
 
-          // Type is flexible - GAS doesn't check this, routes by source instead
-          type: like("cloud.defra.test.fg-cw-backend.case.status.updated"),
+          // Exact: GAS dispatches by CloudEvent type rather than source
+          type: "cloud.defra.test.fg-cw-backend.case.status.updated",
 
-          // Source is critical for routing - must be one of these values
-          // GAS maps all to "CW" internally (see case-status-updated.subscriber.js)
+          // Source identifies the producer. GAS records the queue as CW.
           source: term({
             generate: "fg-cw-backend",
             matcher: "^(fg-cw-backend|CaseWorking|CW)$",

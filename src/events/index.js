@@ -3,6 +3,12 @@ import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.s
 import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
 import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 
+export {
+  dispatchEvent,
+  registerEventHandler,
+} from "./services/event-handlers.js";
+export { saveEvents } from "./save-events.js";
+
 export const events = {
   name: "events",
   register(server) {

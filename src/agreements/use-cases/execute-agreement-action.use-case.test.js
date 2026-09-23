@@ -1,6 +1,6 @@
 import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { saveOutboxEvents } from "../../events/save-outbox-events.js";
+import { saveEvents } from "../../events/index.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { Agreement } from "../models/agreement.js";
 import {
@@ -15,7 +15,7 @@ import { loadCurrentAgreementActionContext } from "./load-current-agreement-acti
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 import { loadAgreementForAction } from "./load-current-agreement.js";
 
-vi.mock("../../events/save-outbox-events.js");
+vi.mock("../../events/index.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("../services/build-agreement-page-model.js");
@@ -139,7 +139,7 @@ describe("executeAgreementActionUseCase", () => {
       }),
       session,
     );
-    expect(saveOutboxEvents).toHaveBeenCalledWith(
+    expect(saveEvents).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
           event: expect.objectContaining({
@@ -175,7 +175,7 @@ describe("executeAgreementActionUseCase", () => {
 
     await executeAgreementActionUseCase(options);
 
-    expect(saveOutboxEvents).toHaveBeenCalledWith([], session);
+    expect(saveEvents).toHaveBeenCalledWith([], session);
   });
 
   it("preserves every offered value in current state and its Version", async () => {
@@ -261,7 +261,7 @@ describe("executeAgreementActionUseCase", () => {
     expect(withTransaction).not.toHaveBeenCalled();
     expect(replaceCurrentAgreement).not.toHaveBeenCalled();
     expect(insertAgreementVersion).not.toHaveBeenCalled();
-    expect(saveOutboxEvents).not.toHaveBeenCalled();
+    expect(saveEvents).not.toHaveBeenCalled();
   });
 
   it("returns field errors applied to the configured validation page", async () => {

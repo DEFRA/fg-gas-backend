@@ -9,6 +9,7 @@ import {
 } from "../../common/internal-command-bus.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
+import { dispatchEvent, hasEventHandler } from "../services/event-handlers.js";
 import {
   cleanupStaleLocks,
   freeFifoLock,
@@ -25,6 +26,19 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "../repositories/outbox.repository.js";
+
+const toEventMessage = (event) => ({
+  event,
+  messageId: event.id,
+  source: event.source,
+  traceparent: event.traceparent,
+  type: event.type,
+});
+
+const deliverInternally = async (message) =>
+  hasEventHandler(message.type)
+    ? dispatchEvent(toEventMessage(message))
+    : dispatchInternally(message);
 
 export class OutboxSubscriber {
   static ACTOR = "OUTBOX";
@@ -154,8 +168,8 @@ export class OutboxSubscriber {
     } = outboxEvent;
     try {
       if (target === internalMessageBusTarget) {
-        logger.info("Deliver outbox event to the internal message bus");
-        await dispatchInternally(message);
+        logger.info("Deliver outbox event internally");
+        await deliverInternally(message);
       } else {
         logger.info(`Send outbox event to ${target}`);
         const fifoOptions = target.endsWith(".fifo")

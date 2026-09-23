@@ -99,7 +99,7 @@ describe("PMF Agreement creation", () => {
     await sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
       id: randomUUID(),
       traceparent: "pmf-create-agreement-trace",
-      type: "fg.cw-backend.test.case.status.updated",
+      type: "cloud.defra.local.fg-cw-backend.case.status.updated",
       source: "CW",
       data: {
         caseRef: clientRef,

@@ -46,7 +46,7 @@ describe("On CaseStatusUpdated", () => {
     await sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
       id: messageId,
       traceparent,
-      type: "fg.cw-backend.test.case.status.updated",
+      type: "cloud.defra.local.fg-cw-backend.case.status.updated",
       source: "CW",
       data: {
         caseRef: clientRef,
@@ -112,7 +112,7 @@ describe("On CaseStatusUpdated", () => {
     await sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
       id: randomUUID(),
       traceparent: "ts-002",
-      type: "fg.cw-backend.test.case.status.updated",
+      type: "cloud.defra.local.fg-cw-backend.case.status.updated",
       source: "CW",
       data: {
         caseRef: clientRef,
