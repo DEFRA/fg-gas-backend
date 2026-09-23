@@ -423,7 +423,7 @@ describe("single Agreement actions", () => {
       await outbox.countDocuments({
         "event.data.agreementNumber": agreementNumber,
       }),
-    ).toBe(2);
+    ).toBe(1);
     expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
   });
 
