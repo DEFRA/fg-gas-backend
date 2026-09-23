@@ -159,6 +159,7 @@ Completion criterion: the executable compatibility gates pass; acceptance succee
 - [ ] Add an ESLint zone that limits `test-endpoints` to its documented Agreements entry points, matching the enforcement already applied to Grant Admin.
 - [ ] Rewrite the Payment section of `docs/MODULE_BOUNDARIES.md` around producer events and the Payments handler interface.
 - [ ] Confirm Admin exposes mapping and publication failures with enough detail to redrive the durable event safely.
+- [ ] Replace handler-presence routing for internal outbox delivery with explicit event and command targets. Keep commands on the command bus and dispatch events by exact type; unknown event types must fail through the event retry/dead-letter path rather than fall back to the command bus. Test known events, commands and unknown events.
 - [ ] Remove obsolete aliases, exports, comments, fixtures and mocks. Keep the legacy event fixture as the repeatable compatibility oracle.
 - [ ] Update LDR-004 with final implementation evidence and change its status to the repository's completed/accepted convention.
 
