@@ -1,12 +1,17 @@
 import hapi from "@hapi/hapi";
 import { up } from "migrate-mongo";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AGREEMENT_STATUS_UPDATED_EVENT_TYPE } from "../agreements/events/agreement-status-updated.event.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
 import {
-  clearInboxMessageHandlers,
-  dispatchInboxMessage,
-} from "../events/services/inbox-message-handlers.js";
+  clearEventHandlers,
+  dispatchEvent,
+} from "../events/services/event-handlers.js";
+import {
+  CASE_STATUS_UPDATED_EVENT_TYPE,
+  CONFIG_VERSION_UPDATED_EVENT_TYPE,
+} from "./events/inbound-event-types.js";
 import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
 import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import { grants } from "./index.js";
@@ -27,7 +32,7 @@ describe("grants", () => {
     server = hapi.server();
     up.mockResolvedValue([]);
     vi.clearAllMocks();
-    clearInboxMessageHandlers();
+    clearEventHandlers();
   });
 
   it("runs migrations on startup", async () => {
@@ -69,24 +74,33 @@ describe("grants", () => {
     expect(configVersionUpdatedSubscriber.stop).toHaveBeenCalled();
   });
 
-  it("registers Grants handlers for all external message sources", async () => {
+  it("registers Grants handlers for every exact event type", async () => {
     await server.register(grants);
 
-    const agreementMessage = { source: "AS" };
-    const caseWorkingMessage = { source: "CW" };
-    const configBrokerMessage = { source: "CB" };
-    await dispatchInboxMessage(agreementMessage);
-    await dispatchInboxMessage(caseWorkingMessage);
-    await dispatchInboxMessage(configBrokerMessage);
+    const agreementMessage = {
+      type: AGREEMENT_STATUS_UPDATED_EVENT_TYPE,
+      source: "urn:service:agreement",
+    };
+    const caseWorkingMessage = {
+      type: CASE_STATUS_UPDATED_EVENT_TYPE,
+      source: "fg-cw-backend",
+    };
+    const configBrokerMessage = {
+      type: CONFIG_VERSION_UPDATED_EVENT_TYPE,
+      source: "config-broker",
+    };
+    await dispatchEvent(agreementMessage);
+    await dispatchEvent(caseWorkingMessage);
+    await dispatchEvent(configBrokerMessage);
 
-    expect(handleGrantStatusMessage).toHaveBeenNthCalledWith(
-      1,
-      agreementMessage,
-    );
-    expect(handleGrantStatusMessage).toHaveBeenNthCalledWith(
-      2,
-      caseWorkingMessage,
-    );
+    expect(handleGrantStatusMessage).toHaveBeenNthCalledWith(1, {
+      ...agreementMessage,
+      source: "AS",
+    });
+    expect(handleGrantStatusMessage).toHaveBeenNthCalledWith(2, {
+      ...caseWorkingMessage,
+      source: "CW",
+    });
     expect(handleConfigVersionMessage).toHaveBeenCalledWith(
       configBrokerMessage,
     );

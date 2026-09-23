@@ -5,8 +5,8 @@ import {
   findByMessageId,
   insertOne,
 } from "../../events/repositories/inbox.repository.js";
+import { CONFIG_VERSION_UPDATED_EVENT_TYPE } from "../events/inbound-event-types.js";
 import {
-  CONFIG_VERSION_EVENT_TYPE,
   saveConfigVersionInboxMessageUseCase,
   UNGROUPED_SEGREGATION_REF,
 } from "./save-config-version-inbox-message.use-case.js";
@@ -71,7 +71,7 @@ describe("save config version inbox message", () => {
 
     expect(savedInbox().event).toEqual({
       id: "msg-1",
-      type: CONFIG_VERSION_EVENT_TYPE,
+      type: CONFIG_VERSION_UPDATED_EVENT_TYPE,
       time: "2025-09-17T11:00:00.000Z",
       traceparent: undefined,
       data: {

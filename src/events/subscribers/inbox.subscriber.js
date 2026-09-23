@@ -3,7 +3,7 @@ import { setTimeout } from "node:timers/promises";
 
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { dispatchInboxMessage } from "../services/inbox-message-handlers.js";
+import { dispatchEvent } from "../services/event-handlers.js";
 import {
   cleanupStaleLocks,
   freeFifoLock,
@@ -126,7 +126,7 @@ export class InboxSubscriber {
     );
 
     try {
-      await dispatchInboxMessage(message);
+      await dispatchEvent(message);
       await this.markEventComplete(message);
     } catch (error) {
       logger.error(

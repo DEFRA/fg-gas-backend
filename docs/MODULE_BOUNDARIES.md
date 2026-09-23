@@ -36,8 +36,9 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 | **Commands**                              | Send commands via the message bus; command shapes live in `src/*/commands/`                                                                                                                                                     |
 | **Inbox / Outbox records**                | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox                                                                                                                                     |
 | **Shared infrastructure**                 | Import from `src/common/` (logger, DB client, messaging helpers)                                                                                                                                                                |
-| **Shared event domain**                   | Import from `src/events/` (audit predicate, list filter, status counts, facets, breakdown, redrive, retention, last error)                                                                                                                 |
+| **Shared event domain**                   | Import from `src/events/` (audit predicate, list filter, status counts, facets, breakdown, redrive, retention, last error)                                                                                                      |
 | **Grants → Agreements reference context** | `grants` may call the reviewed Agreements query interface for a plain reference-resolution context. The query accepts the active Mongo session; it does not expose an Agreements repository or domain model.                    |
+| **Grants → Agreements status event type** | `grants` imports only `agreements/events/agreement-status-updated.event.js` to register its handler against the producer-owned exact CloudEvent type; the event still arrives through SNS/SQS.                                  |
 | **Config definition checks**              | When the Config Broker publishes a version, `grants` asks each owning context whether its own definition file is usable, before the version is recorded. See [Config definition entry points](#config-definition-entry-points). |
 
 ### Grant Admin entry points
@@ -87,11 +88,10 @@ from `src/events/` and maps them into its own view models.
 
 ### Cross-module event contract
 
-The current inbox dispatcher is a Stage 1 compatibility seam: it preserves the
-legacy `AS`, `CW` and `CB` source routing while the durable infrastructure moves.
-Stage 2 replaces that source-keyed registry with exact CloudEvent type
-registration. The exact-type rules below are the target contract for new
-cross-module events; new event types must not extend the interim source registry.
+Inbox and internally delivered events are dispatched by exact CloudEvent type.
+The `AS`, `CW` and `CB` values remain persistence and administration metadata;
+they never select a handler. Unknown types fail delivery and follow the same
+retry, dead-letter and redrive path as handler failures.
 
 - Use a command for an imperative request with one owning handler. Use an event
   for an immutable fact or durable cross-module request that can be processed

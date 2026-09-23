@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
-import { saveOutboxEvents } from "../../events/save-outbox-events.js";
+import { saveEvents } from "../../events/index.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { createClaimPaymentUseCase } from "../../payments/use-cases/create-claim-payment.use-case.js";
@@ -380,7 +380,7 @@ const createClaimPayment = async (
     session,
   );
 
-  await saveOutboxEvents([publication], session);
+  await saveEvents([publication], session);
 };
 
 const submitInTransaction = async (

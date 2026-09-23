@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pmfAgreementDefinitionFixture } from "../../../test/fixtures/pmf-agreement-definition.js";
-import { saveOutboxEvents } from "../../events/save-outbox-events.js";
+import { saveEvents } from "../../events/index.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import {
@@ -15,7 +15,7 @@ import {
 import { createAgreementUseCase } from "./create-agreement.use-case.js";
 import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
-vi.mock("../../events/save-outbox-events.js");
+vi.mock("../../events/index.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("./load-agreement-definition.js");
 vi.mock("../repositories/agreement.repository.js");
@@ -156,7 +156,7 @@ const expectNoPersistence = () => {
   expect(withTransaction).not.toHaveBeenCalled();
   expect(insertCurrentAgreement).not.toHaveBeenCalled();
   expect(insertAgreementVersion).not.toHaveBeenCalled();
-  expect(saveOutboxEvents).not.toHaveBeenCalled();
+  expect(saveEvents).not.toHaveBeenCalled();
 };
 
 const withInvoiceLines = (invoiceLines, totalAmountPence) => ({
@@ -276,7 +276,7 @@ describe("createAgreementUseCase", () => {
       }),
       session,
     );
-    expect(saveOutboxEvents).toHaveBeenCalledWith(
+    expect(saveEvents).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
           event: expect.objectContaining({
