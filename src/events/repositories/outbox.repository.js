@@ -10,6 +10,7 @@ import {
   auditGroupExpression,
 } from "../event-audit.js";
 import { breakdownStages, toBreakdownGroups } from "../event-breakdown.js";
+import { editUpdate, revisionFilter } from "../event-edit.js";
 import { toSourceFacets } from "../event-facets.js";
 import { buildEventListFilter } from "../event-list-filter.js";
 import { purgeUpdate } from "../event-purge.js";
@@ -338,6 +339,42 @@ export const purgeById = async (id, { by, reasonCode, note, session } = {}) => {
       reasonCode,
       note,
       retentionDays: RETENTION_DAYS,
+    }),
+    { session },
+  );
+
+  return matchedCount > 0;
+};
+
+// What an edit needs to decide on and to diff against, read in its transaction.
+export const findEditableById = (id, session) =>
+  db.collection(collection).findOne(
+    { _id: toId(id) },
+    {
+      projection: { status: 1, event: 1, payloadRevision: 1, lastEdit: 1 },
+      session,
+    },
+  );
+
+// True when a redrivable row still at `revision` took the new payload. A lost
+// race - a status change or another edit - returns false and the caller reads
+// the status.
+export const editPayloadById = async (
+  id,
+  { revision, event, original, by, note, session },
+) => {
+  const { matchedCount } = await db.collection(collection).updateOne(
+    {
+      _id: toId(id),
+      status: { $in: REDRIVABLE_STATUSES },
+      payloadRevision: revisionFilter(revision),
+    },
+    editUpdate({
+      event,
+      by,
+      note,
+      revision,
+      original,
     }),
     { session },
   );

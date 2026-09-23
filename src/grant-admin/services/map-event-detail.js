@@ -1,5 +1,7 @@
+import { payloadRevisionOf } from "../../events/event-edit.js";
 import { DEAD_LETTER } from "../../events/event-redrive.js";
 import { expiryFrom } from "../../events/event-retention.js";
+import { isPlainJson, withJsonNumbers } from "../../events/plain-json.js";
 import { actorName } from "./event-display.js";
 import { CASEWORKING } from "./event-sources.js";
 import {
@@ -30,6 +32,34 @@ const toLastPurge = (value) =>
       }
     : null;
 
+const toLastEdit = (value) =>
+  value
+    ? {
+        at: toIso(value.at),
+        by: actorName(value.by),
+        note: toText(value.note, null),
+      }
+    : null;
+
+const numberOrNull = (value) => (typeof value === "number" ? value : null);
+
+const booleanOrNull = (value) => (typeof value === "boolean" ? value : null);
+
+// The owning service computes both, so a Caseworking that cannot edit names
+// neither and they read null; a null revision is what hides the admin's Edit
+// button. Only Caseworking can tell whether its own row is plain JSON: its
+// answer has already lost the BSON types.
+const toEditFacts = (service, doc) =>
+  service === CASEWORKING
+    ? {
+        payloadRevision: numberOrNull(doc.payloadRevision),
+        payloadIsPlainJson: booleanOrNull(doc.payloadIsPlainJson),
+      }
+    : {
+        payloadRevision: payloadRevisionOf(doc),
+        payloadIsPlainJson: isPlainJson(doc.event),
+      };
+
 // When this row would be deleted if it were purged now, and the admin's
 // signal that purging it is possible at all. The owning service computes it,
 // so a Caseworking without a purge endpoint names no key and this reads null.
@@ -48,8 +78,12 @@ const normaliseDocument = (box, doc, maxAttempts) =>
     ? normaliseGasInbox(doc, maxAttempts)
     : normaliseGasOutbox(doc, maxAttempts);
 
-const payloadFacts = (doc) => ({
-  payload: doc.event ?? null,
+const payloadFacts = (service, doc) => ({
+  payload: withJsonNumbers(doc.event ?? null),
+  ...toEditFacts(service, doc),
+  lastEdit: toLastEdit(doc.lastEdit),
+  // Kept from the first edit for as long as the row is.
+  originalPayload: withJsonNumbers(doc.originalPayload ?? null),
 });
 
 // GAS cannot recognise Caseworking's audit topic, so CW's own label is taken verbatim.
@@ -71,7 +105,7 @@ export const toEventDetail = ({
 
   return {
     ...row,
-    ...payloadFacts(doc),
+    ...payloadFacts(service, doc),
     traceId: deriveTraceId(intermediate.traceparent),
     segregationRef: orNull(doc.segregationRef),
     attemptHistory: toAttemptHistory(doc.attemptHistory),

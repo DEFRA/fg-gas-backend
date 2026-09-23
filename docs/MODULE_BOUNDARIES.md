@@ -36,7 +36,7 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 | **Commands**                              | Send commands through the internal command target; command shapes live in `src/*/commands/`                                                                                                                                     |
 | **Inbox / Outbox records**                | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox                                                                                                                                     |
 | **Shared infrastructure**                 | Import from `src/common/` (logger, DB client, messaging helpers)                                                                                                                                                                |
-| **Shared event domain**                   | Import from `src/events/` (audit predicate, list filter, status counts, facets, breakdown, redrive, purge, retention, last error)                                                                                               |
+| **Shared event domain**                   | Import from `src/events/` (audit predicate, list filter, status counts, facets, breakdown, redrive, purge, payload edits, retention, last error)                                                                                |
 | **Grants → Agreements reference context** | `grants` may call the reviewed Agreements query interface for a plain reference-resolution context. The query accepts the active Mongo session; it does not expose an Agreements repository or domain model.                    |
 | **Grants → Agreements status event type** | `grants` imports only `agreements/events/agreement-status-updated.event.js` to register its handler against the producer-owned exact CloudEvent type; the event still arrives through SNS/SQS.                                  |
 | **Config definition checks**              | When the Config Broker publishes a version, `grants` asks each owning context whether its own definition file is usable, before the version is recorded. See [Config definition entry points](#config-definition-entry-points). |
@@ -46,25 +46,27 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 Grant Admin enters the Grants application layer through two named services. Event
 administration enters the shared event module directly:
 
-| Caller        | Entry point                                | Responsibility                                                    |
-| ------------- | ------------------------------------------ | ----------------------------------------------------------------- |
-| `grant-admin` | `grants/services/entitlement.service.js`   | Entitlement overview and creation operations                      |
-| `grant-admin` | `grants/services/claims.service.js`        | Claimable-entitlement lookup and Claim submission                 |
-| `grant-admin` | `events/repositories/inbox.repository.js`  | Event admin: list, inspect, redrive and purge GAS inbound events  |
-| `grant-admin` | `events/repositories/outbox.repository.js` | Event admin: list, inspect, redrive and purge GAS outbound events |
+| Caller        | Entry point                                | Responsibility                                                          |
+| ------------- | ------------------------------------------ | ----------------------------------------------------------------------- |
+| `grant-admin` | `grants/services/entitlement.service.js`   | Entitlement overview and creation operations                            |
+| `grant-admin` | `grants/services/claims.service.js`        | Claimable-entitlement lookup and Claim submission                       |
+| `grant-admin` | `events/repositories/inbox.repository.js`  | Event admin: list, inspect, redrive, purge and edit GAS inbound events  |
+| `grant-admin` | `events/repositories/outbox.repository.js` | Event admin: list, inspect, redrive, purge and edit GAS outbound events |
 
 ### Events domain
 
 `src/events/` owns the durable inbox/outbox mechanism shared by every context:
 the models, repositories, FIFO locks, pollers, retries, dead-letter handling,
-redrive and purge operations, and event audit helpers. It also defines what an
+redrive, purge and payload-edit operations, and event audit helpers. It also defines what an
 event-store row means: which rows are audit records (`event-audit.js`), how a
 list of them is selected (`event-list-filter.js`), the statuses they move
 through and how they are counted and grouped (`status-counts.js`,
 `event-facets.js`, `event-breakdown.js`), how long a terminal row is kept
 (`event-retention.js`), what redriving one means (`event-redrive.js`), what
-purging one means (`event-purge.js`), and how a failure is recorded
-(`last-error.js`).
+purging one means (`event-purge.js`), what editing one's payload means
+(`event-edit.js`, with `payload-changes.js` for what an edit changed and
+`plain-json.js` for whether a payload survives one), and how a failure is
+recorded (`last-error.js`).
 
 The event-store code previously lived partly in `src/common/` and partly in
 `src/grants/`. Neither was a valid owner: `common` is infrastructure with no

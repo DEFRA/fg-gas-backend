@@ -24,6 +24,12 @@ export const eventLastPurgeSchema = Joi.object({
   note: Joi.string().allow(null, "").required(),
 }).label("EventLastPurge");
 
+export const eventLastEditSchema = Joi.object({
+  at: Joi.string().isoDate().allow(null).required(),
+  by: Joi.string().required().example("System"),
+  note: Joi.string().allow(null, "").required(),
+}).label("EventLastEdit");
+
 const statusDisplaySchema = {
   statusLabel: Joi.string().required().example("Dead letter"),
   statusRole: Joi.string()

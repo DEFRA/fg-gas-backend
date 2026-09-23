@@ -35,6 +35,8 @@ export const purgeUpdate = (
       // A BSON Date: the TTL index does not read strings.
       expireAt: expiryFrom(when, retentionDays),
     },
+    // An editor opened before the purge must not save onto the purged row.
+    $inc: { payloadRevision: 1 },
   };
 };
 
