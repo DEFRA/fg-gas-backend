@@ -14,7 +14,7 @@ Current checkpoint, 24 September 2026:
 - [ ] Retain executable proof that the GAS Payment event matches the legacy runtime-serialized event after normalising generated identifiers and times. The completed one-off comparison informed the design but is not repeatable evidence.
 - [x] Align local, Vitest and FloCi configuration to GAS-owned `gas__sns__create_payment_fifo.fifo` and `gas__sns__agreement_status_updated_fifo.fifo`, with the existing Payment, GAS and PDF queues.
 - [x] Retain a repeatable runtime SNS-adapter smoke that receives the unchanged body from the existing FloCi Payment queue via the GAS-owned topic. This proves transport wiring, not full Payment payload compatibility or the source-to-handler end-to-end path.
-- [ ] Confirm the CDP-owned topic and subscription request is applied in each environment before switching its GAS application configuration. CDP does not support publishing to another service's topic.
+- [x] Merge the CDP tenant configuration for GAS-owned topics and subscriptions in dev, test, perf-test, ext-test and prod, including the Payment Service queue subscription. Verify live delivery before each environment's GAS application ARN switch; CDP does not support publishing to another service's topic.
 - [x] Move durable event infrastructure into `src/events/` and replace source-keyed dispatch with exact CloudEvent type registration.
 - [x] Freeze producer-owned `AgreementPaymentRequested` and `ClaimPaymentRequested` contracts without emitting them from production paths.
 - [x] Preserve the whole-version readiness gate and exact Payment definition loading; classify source-data mapping failures as retryable request failures without poisoning configuration readiness.
@@ -172,12 +172,12 @@ Completion criterion: no production import crosses from Agreements or Grants int
 
 ### 8. Satisfy deployment-only gates
 
-- [ ] Before switching the Agreement-status ARN in each environment, confirm the GAS-owned FIFO topic is live and subscribed to both the existing GAS and PDF queues; leave the legacy topic subscriptions in place for legacy traffic.
-- [ ] Before switching the Payment ARN in each environment, obtain the Payment Service queue owner's agreement and confirm the GAS-owned FIFO topic is subscribed to `gps__sqs__create_payment.fifo`. A publish with no subscription can complete the outbox row without delivering a Payment.
+- [ ] Before switching the Agreement-status ARN in each environment, verify the merged GAS-owned FIFO topic subscription delivers to both existing GAS and PDF queues; leave the legacy topic subscriptions in place for legacy traffic.
+- [ ] Before switching the Payment ARN in each environment, verify the merged GAS-owned FIFO topic subscription delivers to `gps__sqs__create_payment.fifo`. A publish with no working subscription can complete the outbox row without delivering a Payment.
 - [ ] Plan controlled recovery of failed GAS outbox records targeting legacy-owned topics. Redrive alone retains the stored old ARN and cannot resolve the failure.
 - [ ] Record the approved definition-specific compatibility evidence for every scheme enabled in the rollout.
 
-Completion criterion: the GAS-owned topics and their subscriptions are live and verified before application configuration changes, failed legacy-target outbox rows have a recovery plan, every enabled scheme has recorded compatibility evidence, and the implementation is eligible for environment rollout.
+Completion criterion: each per-environment `cdp-app-config` ARN switch follows verification of live delivery to its existing consumer queues, failed legacy-target outbox rows have a recovery plan, every enabled scheme has recorded compatibility evidence, and the implementation is eligible for environment rollout.
 
 ## Required Verification Matrix
 
@@ -199,7 +199,7 @@ Use the narrowest focused tests while implementing each package. Before cutover,
 
 ## External Dependency
 
-CDP confirmed on 24 September 2026 that a service may publish only to a topic it owns. The earlier cross-service publish-permission assumption is invalid. CDP tenant request [#1849](https://github.com/DEFRA/cdp-tenant-config/pull/1849) creates the GAS-owned Agreement-status and Payment FIFO topics and adds GAS and PDF subscriptions. The Payment Service queue subscription requires its owner's agreement and separate CDP coordination. Per-environment `cdp-app-config` changes to GAS's two topic ARNs are also outside this repository. Do not deploy either ARN switch until its subscriptions are live; these gates may be met separately.
+CDP confirmed on 24 September 2026 that a service may publish only to a topic it owns. The earlier cross-service publish-permission assumption is invalid. Merged CDP tenant request [#1849](https://github.com/DEFRA/cdp-tenant-config/pull/1849) adds the GAS-owned Agreement-status and Payment FIFO topics and the GAS and PDF subscriptions in dev, test, perf-test, ext-test and prod. The Payment Service-owned queue configuration also subscribes `gps__sqs__create_payment.fifo` to the GAS-owned Payment topic in all five environments. The remaining transport rollout is the per-environment `cdp-app-config` switch to GAS's two topic ARNs; verify live delivery to each existing consumer queue before switching. These ARN switches may be staged separately. Failed outbox rows retain their old target ARN and still need a recovery plan.
 
 ## Non-goals
 
