@@ -1,3 +1,4 @@
+import { Collection, MongoServerError } from "mongodb";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { readFileSync } from "node:fs";
 import {
@@ -9,6 +10,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { deliverClaimPaymentRequest } from "../../../test/helpers/deliver-claim-payment-request.js";
 
 const request = {
   code: "woodland",
@@ -34,6 +36,8 @@ let InboxStatus;
 let InboxSubscriber;
 let clearEventHandlers;
 let payments;
+let Payment;
+let handleClaimPaymentRequested;
 
 beforeAll(async () => {
   replSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
@@ -50,6 +54,9 @@ beforeAll(async () => {
   ({ clearEventHandlers } =
     await import("../../events/services/event-handlers.js"));
   ({ payments } = await import("../index.js"));
+  ({ Payment } = await import("../models/payment.js"));
+  ({ handleClaimPaymentRequested } =
+    await import("./handle-claim-payment-requested.js"));
 
   await mongoClient.connect();
   await db.collection("config_versions").insertOne({
@@ -77,7 +84,11 @@ beforeAll(async () => {
       "source.clientRef": 1,
       "source.clientClaimRef": 1,
     },
-    { unique: true, partialFilterExpression: { "source.type": "claim" } },
+    {
+      unique: true,
+      partialFilterExpression: { "source.type": "claim" },
+      name: "claim_payment_source_unique",
+    },
   );
   payments.register({});
 }, 120_000);
@@ -98,18 +109,27 @@ afterAll(async () => {
   vi.unstubAllEnvs();
 }, 120_000);
 
-const deliver = async (props = request) => {
-  const event = new ClaimPaymentRequestedEvent(props);
-  const { insertedId } = await db.collection("inbox").insertOne({
-    source: "GAS",
-    type: event.type,
-    event,
-    messageId: event.id,
-    segregationRef: event.messageGroupId,
+const deliver = (props = request) =>
+  deliverClaimPaymentRequest({
+    props,
+    ClaimPaymentRequestedEvent,
+    inbox: db.collection("inbox"),
+    Inbox,
+    InboxSubscriber,
   });
-  const document = await db.collection("inbox").findOne({ _id: insertedId });
-  await new InboxSubscriber().handleEvent(Inbox.fromDocument(document));
-  return db.collection("inbox").findOne({ _id: insertedId });
+
+const handlerRequest = (props = request) => ({
+  event: new ClaimPaymentRequestedEvent(props),
+});
+
+const assertOnePayment = async () => {
+  await expect(
+    db.collection("payments__payments").countDocuments({}),
+  ).resolves.toBe(1);
+  await expect(db.collection("outbox").countDocuments({})).resolves.toBe(1);
+  await expect(
+    db.collection("payments__counters").findOne({ _id: "claimIds" }),
+  ).resolves.toMatchObject({ seq: 1 });
 };
 
 describe("Claim payment request inbox flow", () => {
@@ -160,6 +180,155 @@ describe("Claim payment request inbox flow", () => {
         .findOne({ "source.clientClaimRef": "claim-2" }),
     ).resolves.toMatchObject({ paymentHubClaimId: "R00000002" });
     await expect(db.collection("outbox").countDocuments({})).resolves.toBe(2);
+  });
+
+  it("completes redelivery of an existing Payment even when its snapshot cannot be mapped", async () => {
+    await deliver();
+    const repeated = await deliver({
+      ...request,
+      claim: { frn: "1101234567", totalAmountPence: 4200 },
+    });
+
+    expect(repeated.status).toBe(InboxStatus.COMPLETED);
+    await assertOnePayment();
+  });
+
+  it("completes redelivery of an existing Payment even when its definition cannot be loaded", async () => {
+    await deliver();
+    const repeated = await deliver({
+      ...request,
+      configVersion: "unavailable-version",
+    });
+    expect(repeated.status).toBe(InboxStatus.COMPLETED);
+    await assertOnePayment();
+  });
+
+  it("completes both concurrent Inbox deliveries with one committed Payment and publication", async () => {
+    const [first, second] = await Promise.all([deliver(), deliver()]);
+    expect(first.status).toBe(InboxStatus.COMPLETED);
+    expect(second.status).toBe(InboxStatus.COMPLETED);
+    await assertOnePayment();
+  });
+
+  it("retries a transient transaction failure without allocating another claim ID", async () => {
+    const update = Collection.prototype.findOneAndUpdate;
+    let attempts = 0;
+    const retry = vi
+      .spyOn(Collection.prototype, "findOneAndUpdate")
+      .mockImplementation(function (filter, change, options) {
+        if (this.collectionName === "payments__counters" && ++attempts === 1) {
+          return Promise.reject(
+            new MongoServerError({
+              code: 112,
+              errorLabels: ["TransientTransactionError"],
+              errmsg: "transient write conflict",
+            }),
+          );
+        }
+        return update.call(this, filter, change, options);
+      });
+    try {
+      const payment = await handleClaimPaymentRequested(handlerRequest());
+      expect(payment).toBeInstanceOf(Payment);
+    } finally {
+      retry.mockRestore();
+    }
+    expect(attempts).toBe(2);
+    await assertOnePayment();
+  });
+
+  it("recovers from a Claim source duplicate after an out-of-date lookup", async () => {
+    const winner = await handleClaimPaymentRequested(handlerRequest());
+    const findOne = Collection.prototype.findOne;
+    let staleReads = 2; // Early identity check and in-transaction recheck.
+    const lookup = vi
+      .spyOn(Collection.prototype, "findOne")
+      .mockImplementation(function (filter, options) {
+        if (this.collectionName === "payments__payments" && staleReads > 0) {
+          staleReads--;
+          return Promise.resolve(null);
+        }
+        return findOne.call(this, filter, options);
+      });
+    const insertOne = Collection.prototype.insertOne;
+    const duplicate = new MongoServerError({
+      code: 11000,
+      keyPattern: {
+        "source.code": 1,
+        "source.clientRef": 1,
+        "source.clientClaimRef": 1,
+      },
+      errmsg: "duplicate Claim source",
+    });
+    const insert = vi
+      .spyOn(Collection.prototype, "insertOne")
+      .mockImplementation(function (document, options) {
+        return this.collectionName === "payments__payments"
+          ? Promise.reject(duplicate)
+          : insertOne.call(this, document, options);
+      });
+
+    let recovered;
+    try {
+      recovered = await handleClaimPaymentRequested(handlerRequest());
+    } finally {
+      lookup.mockRestore();
+      insert.mockRestore();
+    }
+    expect(recovered.id).toBe(winner.id);
+    await assertOnePayment();
+  });
+
+  it("does not acknowledge a Claim source duplicate without a committed winner", async () => {
+    const insertOne = Collection.prototype.insertOne;
+    const duplicate = new MongoServerError({
+      code: 11000,
+      keyPattern: {
+        "source.code": 1,
+        "source.clientRef": 1,
+        "source.clientClaimRef": 1,
+      },
+      errmsg: "duplicate Claim source",
+    });
+    const insert = vi
+      .spyOn(Collection.prototype, "insertOne")
+      .mockImplementation(function (document, options) {
+        return this.collectionName === "payments__payments"
+          ? Promise.reject(duplicate)
+          : insertOne.call(this, document, options);
+      });
+    try {
+      await expect(handleClaimPaymentRequested(handlerRequest())).rejects.toBe(
+        duplicate,
+      );
+    } finally {
+      insert.mockRestore();
+    }
+    await expect(db.collection("outbox").countDocuments({})).resolves.toBe(0);
+  });
+
+  it("does not acknowledge an unrelated duplicate-key error", async () => {
+    const insertOne = Collection.prototype.insertOne;
+    const duplicate = new MongoServerError({
+      code: 11000,
+      keyPattern: { paymentHubClaimId: 1 },
+      errmsg: "duplicate Payment Hub claim ID",
+    });
+    const insert = vi
+      .spyOn(Collection.prototype, "insertOne")
+      .mockImplementation(function (document, options) {
+        return this.collectionName === "payments__payments"
+          ? Promise.reject(duplicate)
+          : insertOne.call(this, document, options);
+      });
+    try {
+      await expect(handleClaimPaymentRequested(handlerRequest())).rejects.toBe(
+        duplicate,
+      );
+    } finally {
+      insert.mockRestore();
+    }
+    await expect(db.collection("outbox").countDocuments({})).resolves.toBe(0);
   });
 
   it("leaves an invalid snapshot retryable without spoiling the next request", async () => {

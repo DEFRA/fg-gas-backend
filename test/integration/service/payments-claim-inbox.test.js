@@ -6,7 +6,16 @@ import {
 import { MongoClient } from "mongodb";
 import { readFileSync } from "node:fs";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { deliverClaimPaymentRequest } from "../../helpers/deliver-claim-payment-request.js";
 
 const DATABASE = "fg-gas-backend-payments-claim-inbox-test";
 vi.stubEnv("MONGO_DATABASE", DATABASE);
@@ -39,7 +48,10 @@ const CLIENT_REF = "CL-claim-inbox-001";
 const AGREEMENT_NUMBER = "WM987654321";
 const EXECUTED_AT = "2026-08-06T10:15:00.000Z";
 const definitionJson = readFileSync(
-  new URL("../../../compose/seed/woodland/1.28.2/gas/payment.json", import.meta.url),
+  new URL(
+    "../../../compose/seed/woodland/1.28.2/gas/payment.json",
+    import.meta.url,
+  ),
   "utf8",
 );
 
@@ -122,19 +134,14 @@ afterAll(async () => {
   vi.unstubAllEnvs();
 });
 
-const deliver = async (props = request) => {
-  const event = new ClaimPaymentRequestedEvent(props);
-  const { insertedId } = await inbox.insertOne({
-    source: "GAS",
-    type: event.type,
-    event,
-    messageId: event.id,
-    segregationRef: event.messageGroupId,
+const deliver = (props = request) =>
+  deliverClaimPaymentRequest({
+    props,
+    ClaimPaymentRequestedEvent,
+    inbox,
+    Inbox,
+    InboxSubscriber,
   });
-  const document = await inbox.findOne({ _id: insertedId });
-  await new InboxSubscriber().handleEvent(Inbox.fromDocument(document));
-  return inbox.findOne({ _id: insertedId });
-};
 
 describe("Payments Claim request inbox flow", () => {
   it("creates a Payment and publication from the pinned Claim snapshot before completing the request", async () => {
@@ -218,7 +225,10 @@ describe("Payments Claim request inbox flow", () => {
     expect(failed.retryable).toBe(true);
     await expect(paymentDocuments.countDocuments({})).resolves.toBe(0);
 
-    const completed = await deliver({ ...request, clientClaimRef: "claim-valid" });
+    const completed = await deliver({
+      ...request,
+      clientClaimRef: "claim-valid",
+    });
     expect(completed.status).toBe(InboxStatus.COMPLETED);
     await expect(paymentDocuments.findOne({})).resolves.toMatchObject({
       paymentHubClaimId: "R00000001",
