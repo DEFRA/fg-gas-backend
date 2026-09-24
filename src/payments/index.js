@@ -4,7 +4,7 @@ import { handleAgreementPaymentRequested } from "./handlers/handle-agreement-pay
 
 // Keep identical to the producer-owned type in
 // agreements/events/agreement-payment-requested.event.js without crossing the
-// Agreements-to-Payments module boundary.
+// Agreements-to-Payments module boundary. index.test.js guards this contract.
 const AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE = `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.agreement.payment.requested`;
 
 export const payments = {

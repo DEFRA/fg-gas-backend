@@ -3,10 +3,18 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { MongoClient } from "mongodb";
+import { Collection, MongoClient } from "mongodb";
 import { readFileSync } from "node:fs";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const DATABASE = "fg-gas-backend-payments-agreement-inbox-test";
 vi.stubEnv("MONGO_DATABASE", DATABASE);
@@ -30,6 +38,9 @@ const { ConfigVersion } =
 const { upsert } =
   await import("../../../src/grants/repositories/config-version.repository.js");
 const { payments } = await import("../../../src/payments/index.js");
+const { handleAgreementPaymentRequested } =
+  await import("../../../src/payments/handlers/handle-agreement-payment-requested.js");
+const { Payment } = await import("../../../src/payments/models/payment.js");
 
 const BUCKET = "config-broker-local";
 const GRANT_CODE = "pigs-might-fly";
@@ -149,6 +160,15 @@ beforeAll(async () => {
   inbox = db.collection("inbox");
   paymentDocuments = db.collection("payments__payments");
   outbox = db.collection("outbox");
+  // This isolated test database does not run the service's migrations.
+  await paymentDocuments.createIndex(
+    { "source.agreementNumber": 1, "source.version": 1 },
+    {
+      unique: true,
+      partialFilterExpression: { "source.type": "agreement" },
+      name: "source.agreementNumber_1_source.version_1",
+    },
+  );
 
   await s3Client.send(
     new PutObjectCommand({
@@ -187,9 +207,7 @@ beforeEach(async () => {
 
 afterAll(async () => {
   clearEventHandlers();
-  await s3Client.send(
-    new DeleteObjectCommand({ Bucket: BUCKET, Key: S3_KEY }),
-  );
+  await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: S3_KEY }));
   await db?.dropDatabase();
   await client?.close();
   await mongoClient.close();
@@ -258,6 +276,9 @@ describe("Payments Agreement request inbox flow", () => {
 
     await expect(paymentDocuments.countDocuments({})).resolves.toBe(1);
     await expect(outbox.countDocuments({})).resolves.toBe(1);
+    const existingPayment = await handleAgreementPaymentRequested(request);
+    expect(existingPayment).toBeInstanceOf(Payment);
+    expect(existingPayment).not.toHaveProperty("_id");
     await expect(paymentDocuments.findOne({})).resolves.toMatchObject({
       paymentHubClaimId: "R00000001",
       source: {
@@ -266,6 +287,58 @@ describe("Payments Agreement request inbox flow", () => {
         version: 1,
       },
     });
+  });
+
+  it("completes concurrent deliveries of one Agreement request without a second Payment or claim ID", async () => {
+    const first = await insertRequest();
+    const second = await insertRequest();
+    expect(first.messageId).not.toBe(second.messageId);
+    expect(first.event.data.requestId).toBe(second.event.data.requestId);
+
+    const completed = await Promise.all([handle(first), handle(second)]);
+
+    expect(completed.map(({ status }) => status)).toEqual([
+      InboxStatus.COMPLETED,
+      InboxStatus.COMPLETED,
+    ]);
+    await expect(paymentDocuments.countDocuments({})).resolves.toBe(1);
+    await expect(outbox.countDocuments({})).resolves.toBe(1);
+    await expect(
+      db.collection("payments__counters").findOne({ _id: "claimIds" }),
+    ).resolves.toMatchObject({ seq: 1 });
+  });
+
+  it("completes when a concurrent winner commits after the initial source lookup", async () => {
+    const winner = await insertRequest();
+    await handle(winner);
+    const loser = await insertRequest();
+
+    // Make the loser's first database read observe the pre-commit snapshot.
+    // The real source-unique index then rejects its insert, as in a race.
+    const findOne = Collection.prototype.findOne;
+    let staleRead = true;
+    const lookup = vi
+      .spyOn(Collection.prototype, "findOne")
+      .mockImplementation(function (filter, options) {
+        if (this.collectionName === "payments__payments" && staleRead) {
+          staleRead = false;
+          return Promise.resolve(null);
+        }
+        return findOne.call(this, filter, options);
+      });
+
+    try {
+      const completed = await handle(loser);
+      expect(completed.status).toBe(InboxStatus.COMPLETED);
+    } finally {
+      lookup.mockRestore();
+    }
+
+    await expect(paymentDocuments.countDocuments({})).resolves.toBe(1);
+    await expect(outbox.countDocuments({})).resolves.toBe(1);
+    await expect(
+      db.collection("payments__counters").findOne({ _id: "claimIds" }),
+    ).resolves.toMatchObject({ seq: 1 });
   });
 
   it("leaves the request retryable and the definition usable when one snapshot fails to map", async () => {
