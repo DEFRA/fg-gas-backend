@@ -8,13 +8,13 @@ Decision: [Event-driven Payment Creation in GAS](./ldr-004-event-driven-payment-
 
 Read the decision record, then resume at the first unchecked item in the numbered work packages, following their stage order. Update the checkboxes and the checkpoint in the same change that completes a work package. The checkpoint also records compatibility and deployment gates that deliberately remain open until work packages 7 and 8; it is not the execution order. This is the single delivery checklist; design rationale remains in the decision record.
 
-Current checkpoint, 23 September 2026:
+Current checkpoint, 24 September 2026:
 
 - [x] Record the architecture decision and consumer research.
 - [ ] Retain executable proof that the GAS Payment event matches the legacy runtime-serialized event after normalising generated identifiers and times. The completed one-off comparison informed the design but is not repeatable evidence.
-- [x] Align local, Vitest and FloCi configuration to `create_payment.fifo` and `gps__sqs__create_payment.fifo`.
-- [ ] Retain a repeatable runtime SNS-adapter smoke that receives the unchanged body from the FloCi Payment queue. The completed one-off smoke informed the design but is not retained proof.
-- [x] Treat the externally managed CDP tenant publish permission as provisioned.
+- [x] Align local, Vitest and FloCi configuration to GAS-owned `gas__sns__create_payment_fifo.fifo` and `gas__sns__agreement_status_updated_fifo.fifo`, with the existing Payment, GAS and PDF queues.
+- [x] Retain a repeatable runtime SNS-adapter smoke that receives the unchanged body from the existing FloCi Payment queue via the GAS-owned topic. This proves transport wiring, not full Payment payload compatibility or the source-to-handler end-to-end path.
+- [ ] Confirm the CDP-owned topic and subscription request is applied in each environment before switching its GAS application configuration. CDP does not support publishing to another service's topic.
 - [x] Move durable event infrastructure into `src/events/` and replace source-keyed dispatch with exact CloudEvent type registration.
 - [x] Freeze producer-owned `AgreementPaymentRequested` and `ClaimPaymentRequested` contracts without emitting them from production paths.
 - [x] Preserve the whole-version readiness gate and exact Payment definition loading; classify source-data mapping failures as retryable request failures without poisoning configuration readiness.
@@ -57,7 +57,7 @@ Implement each stage on its own branch. Every branch must preserve current behav
 | 5     | Cut Claim submission from direct creation to `ClaimPaymentRequested` in one change.                             | Agreements remain synchronous; Claims have exactly one active creation path.                   | Claim submission, replay, approval-required, missing-definition and downstream-failure scenarios pass.                             |
 | 6     | Cut Agreement acceptance from direct creation to `AgreementPaymentRequested` in one change.                     | Both producers now use events, with no direct creation path left.                              | Acceptance atomicity, downstream independence, lifecycle contract, Woodland exclusion and complete local transport scenarios pass. |
 | 7     | Remove obsolete seams and tighten ESLint and documentation.                                                     | The event-driven design is the only implementation.                                            | Repository-wide lint and tests pass with no producer-to-Payments exceptions.                                                       |
-| 8     | Satisfy deployment-only gates.                                                                                  | The locally proven implementation is eligible for environment rollout.                         | Live subscription inventory, CDP permission and scheme-by-scheme compatibility evidence are recorded.                              |
+| 8     | Satisfy deployment-only gates.                                                                                  | The locally proven implementation is eligible for environment rollout.                         | GAS-owned topic and subscription inventory, outbox recovery and scheme-by-scheme compatibility evidence are recorded.              |
 
 Use this branch-per-stage workflow:
 
@@ -172,11 +172,12 @@ Completion criterion: no production import crosses from Agreements or Grants int
 
 ### 8. Satisfy deployment-only gates
 
-- [ ] Immediately before deploying lifecycle `claimId` removal, compare the live SNS subscription inventory with the two source-controlled Agreement-status subscriptions. Resolve any unexpected subscriber before rollout.
-- [ ] Confirm the externally managed CDP tenant publish permission remains provisioned.
+- [ ] Before switching the Agreement-status ARN in each environment, confirm the GAS-owned FIFO topic is live and subscribed to both the existing GAS and PDF queues; leave the legacy topic subscriptions in place for legacy traffic.
+- [ ] Before switching the Payment ARN in each environment, obtain the Payment Service queue owner's agreement and confirm the GAS-owned FIFO topic is subscribed to `gps__sqs__create_payment.fifo`. A publish with no subscription can complete the outbox row without delivering a Payment.
+- [ ] Plan controlled recovery of failed GAS outbox records targeting legacy-owned topics. Redrive alone retains the stored old ARN and cannot resolve the failure.
 - [ ] Record the approved definition-specific compatibility evidence for every scheme enabled in the rollout.
 
-Completion criterion: the live inventory and permission match the source-controlled design, every enabled scheme has recorded compatibility evidence, and the implementation is eligible for environment rollout.
+Completion criterion: the GAS-owned topics and their subscriptions are live and verified before application configuration changes, failed legacy-target outbox rows have a recovery plan, every enabled scheme has recorded compatibility evidence, and the implementation is eligible for environment rollout.
 
 ## Required Verification Matrix
 
@@ -198,7 +199,7 @@ Use the narrowest focused tests while implementing each package. Before cutover,
 
 ## External Dependency
 
-The CDP application configuration already points at `create_payment.fifo`. The team-owned CDP tenant permission change is outside this repository and is treated as complete, as agreed on 18 September 2026. Do not create a replacement topic or subscription.
+CDP confirmed on 24 September 2026 that a service may publish only to a topic it owns. The earlier cross-service publish-permission assumption is invalid. CDP tenant request [#1849](https://github.com/DEFRA/cdp-tenant-config/pull/1849) creates the GAS-owned Agreement-status and Payment FIFO topics and adds GAS and PDF subscriptions. The Payment Service queue subscription requires its owner's agreement and separate CDP coordination. Per-environment `cdp-app-config` changes to GAS's two topic ARNs are also outside this repository. Do not deploy either ARN switch until its subscriptions are live; these gates may be met separately.
 
 ## Non-goals
 

@@ -105,7 +105,8 @@ describe("createClaimPaymentUseCase", () => {
     );
 
     expect(publication).toMatchObject({
-      target: "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo",
+      target:
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
       segregationRef: "wmp-tu3-lbj",
       event: {
         type: "io.onsite.agreement.create-payment",

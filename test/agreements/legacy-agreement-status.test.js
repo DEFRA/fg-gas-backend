@@ -2,9 +2,17 @@ import { MongoClient } from "mongodb";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { createOutboxMessages } from "../../src/agreements/services/integrations/create-outbox-messages.js";
-import { sendMessage } from "../helpers/sqs.js";
+import { receiveMessages, sendMessage } from "../helpers/sqs.js";
 
 const code = "woodland";
 const clientRef = "legacy-agreement-status-client";
@@ -115,6 +123,19 @@ describe("Legacy Agreement status updates", () => {
     expect(
       await outbox.countDocuments({ "event.id": publication.event.id }),
     ).toBe(1);
+    await vi.waitFor(
+      async () => {
+        const messages = await receiveMessages(env.PDF_AGREEMENT_QUEUE_URL);
+        expect(messages).toContainEqual(
+          expect.objectContaining({
+            id: publication.event.id,
+            type: publication.event.type,
+            data: expect.objectContaining({ status: "offered" }),
+          }),
+        );
+      },
+      { timeout: 5000 },
+    );
   });
 
   it("updates Grants and publishes the Caseworking status after an Agreement Service offer", async () => {

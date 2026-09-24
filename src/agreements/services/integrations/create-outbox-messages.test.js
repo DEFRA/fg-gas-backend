@@ -17,6 +17,9 @@ describe("createOutboxMessages", () => {
 
     const publications = createOutboxMessages(["lifecycle"], agreement);
 
+    expect(config.sns.agreementStatusUpdatedTopicArn).toBe(
+      "arn:aws:sns:eu-west-2:000000000000:gas__sns__agreement_status_updated_fifo.fifo",
+    );
     expect(publications).toEqual([
       {
         target: config.sns.agreementStatusUpdatedTopicArn,
