@@ -9,6 +9,7 @@ MAX_READS="${MAX_READS:-1}"
 
 function create_topic() {
   local topic_name=$1
+  local content_based_deduplication=${2:-true}
   # Two masking hazards, so every command-substitution assignment carries an
   # explicit `|| return`:
   #   1. `local topic_arn=$(...)` returns the status of `local` (always 0).
@@ -20,7 +21,7 @@ function create_topic() {
   local topic_arn
   topic_arn=$(awslocal sns create-topic \
 	  --name $topic_name \
-	  --attributes '{ "FifoTopic":"true","ContentBasedDeduplication":"true"}' \
+	  --attributes "{ \"FifoTopic\":\"true\",\"ContentBasedDeduplication\":\"$content_based_deduplication\"}" \
 	  --query "TopicArn" \
 	  --output text) || return
   echo $topic_arn
@@ -90,15 +91,27 @@ function subscribe_queue_to_topic() {
 function create_topic_and_queue() {
   local topic_name=$1
   local queue_name=$2
+  local content_based_deduplication=${3:-true}
 
   echo "$topic_name $queue_name"
 
   local topic_arn
-  topic_arn=$(create_topic $topic_name) || return
+  topic_arn=$(create_topic "$topic_name" "$content_based_deduplication") || return
   local queue_arn
-  queue_arn=$(create_queue $queue_name) || return
+  queue_arn=$(create_queue "$queue_name") || return
 
-  subscribe_queue_to_topic $topic_arn $queue_arn
+  subscribe_queue_to_topic "$topic_arn" "$queue_arn"
+}
+
+function create_agreement_status_fanout() {
+  local topic_arn
+  topic_arn=$(create_topic "gas__sns__agreement_status_updated_fifo.fifo" false) || return
+  local queue_arn
+  local queue_name
+  for queue_name in "gas__sqs__update_agreement_status_fifo.fifo" "create_agreement_pdf_fifo.fifo"; do
+    queue_arn=$(create_queue "$queue_name") || return
+    subscribe_queue_to_topic "$topic_arn" "$queue_arn" || return
+  done
 }
 
 function create_standard_topic() {
@@ -170,13 +183,13 @@ pids=()
 
 create_topic_and_queue "cw__sns__case_status_updated_fifo.fifo" "gas__sqs__update_status_fifo.fifo" & pids+=($!)
 create_topic_and_queue "gas__sns__update_agreement_status_fifo.fifo" "update_agreement_status_fifo.fifo" & pids+=($!)
-create_topic_and_queue "agreement_status_updated_fifo.fifo" "gas__sqs__update_agreement_status_fifo.fifo" & pids+=($!)
+create_agreement_status_fanout & pids+=($!)
 create_topic_and_queue "gas__sns__grant_application_created_fifo.fifo" "gas__sqs__grant_application_created_fifo.fifo" & pids+=($!)
 create_topic_and_queue "gas__sns__application_status_updated_fifo.fifo" "gas__sqs__application_status_updated_fifo.fifo" & pids+=($!)
 create_topic_and_queue "gas__sns__create_new_case_fifo.fifo" "cw__sqs__create_new_case_fifo.fifo" & pids+=($!)
 create_topic_and_queue "gas__sns__update_case_status_fifo.fifo" "cw__sqs__update_status_fifo.fifo" & pids+=($!)
 create_topic_and_queue "gas__sns__create_agreement_fifo.fifo" "create_agreement_fifo.fifo" & pids+=($!)
-create_topic_and_queue "create_payment.fifo" "gps__sqs__create_payment.fifo" & pids+=($!)
+create_topic_and_queue "gas__sns__create_payment_fifo.fifo" "gps__sqs__create_payment.fifo" false & pids+=($!)
 
 create_standard_topic_and_queue "gfr__sns___config_update" "gas__sqs__config_version_updated"
 create_standard_topic "gas__sns__audit_topic_arn" & pids+=($!)

@@ -78,6 +78,7 @@ beforeEach(async () => {
     env.GAS__SQS__UPDATE_STATUS_QUEUE_URL,
     env.CREATE_AGREEMENT_QUEUE_URL,
     env.CREATE_PAYMENT_QUEUE_URL,
+    env.PDF_AGREEMENT_QUEUE_URL,
   ]);
 });
 

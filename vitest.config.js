@@ -42,7 +42,7 @@ export default defineConfig({
       FIFO_LOCK_TTL_MS: 300000,
       GAS__SNS__UPDATE_AGREEMENT_STATUS_TOPIC_ARN: "some:arn",
       GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:agreement_status_updated_fifo.fifo",
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__agreement_status_updated_fifo.fifo",
       GAS__SNS__REPORTING_EVENTS_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gfr__sns___reporting_events",
       GAS__SNS__CREATE_AGREEMENT_TOPIC_ARN: "some:arn",
@@ -54,7 +54,7 @@ export default defineConfig({
       GAS__SNS__AUDIT_TOPIC_ARN:
         "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn",
       GAS__SNS__CREATE_PAYMENT_TOPIC_ARN:
-        "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo",
+        "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
       GRANT_FUNDING_CALCULATOR_URL: "http://grant-funding-calculator.test",
     },
   },
