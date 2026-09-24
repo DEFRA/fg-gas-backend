@@ -368,7 +368,7 @@ describe("executeAgreementActionUseCase with a Payment commit operation", () => 
     const [publications] = saveEvents.mock.calls[0];
 
     expect(findPaymentPublication(publications).target).toBe(
-      "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo",
+      "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
     );
   });
 
