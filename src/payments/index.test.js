@@ -1,5 +1,6 @@
 import { afterEach, expect, it } from "vitest";
 import { AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE } from "../agreements/events/agreement-payment-requested.event.js";
+import { CLAIM_PAYMENT_REQUESTED_EVENT_TYPE } from "../grants/events/claim-payment-requested.event.js";
 import {
   clearEventHandlers,
   hasEventHandler,
@@ -12,4 +13,10 @@ it("registers against the producer-owned Agreement payment request type", () => 
   payments.register();
 
   expect(hasEventHandler(AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE)).toBe(true);
+});
+
+it("registers against the producer-owned Claim payment request type", () => {
+  payments.register();
+
+  expect(hasEventHandler(CLAIM_PAYMENT_REQUESTED_EVENT_TYPE)).toBe(true);
 });
