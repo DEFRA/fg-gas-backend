@@ -81,7 +81,7 @@
     "openapi-types": "12.1.3",
     "prettier": "^3.9.6",
     "prettier-plugin-organize-imports": "^4.3.0",
-    "testcontainers": "12.0.4",
+    "testcontainers": "12.1.0",
     "typescript": "^7.0.2",
     "vite": "8.3.0",
     "vitest": "^5.0.0"
