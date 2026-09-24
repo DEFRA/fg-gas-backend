@@ -8,7 +8,7 @@ Decision: [Event-driven Payment Creation in GAS](./ldr-004-event-driven-payment-
 
 Read the decision record, then resume at the first unchecked item in the numbered work packages, following their stage order. Update the checkboxes and the checkpoint in the same change that completes a work package. The checkpoint also records compatibility and deployment gates that deliberately remain open until work packages 7 and 8; it is not the execution order. This is the single delivery checklist; design rationale remains in the decision record.
 
-Current checkpoint, 23 September 2026:
+Current checkpoint, 24 September 2026:
 
 - [x] Record the architecture decision and consumer research.
 - [ ] Retain executable proof that the GAS Payment event matches the legacy runtime-serialized event after normalising generated identifiers and times. The completed one-off comparison informed the design but is not repeatable evidence.
@@ -18,9 +18,11 @@ Current checkpoint, 23 September 2026:
 - [x] Move durable event infrastructure into `src/events/` and replace source-keyed dispatch with exact CloudEvent type registration.
 - [x] Freeze producer-owned `AgreementPaymentRequested` and `ClaimPaymentRequested` contracts without emitting them from production paths.
 - [x] Preserve the whole-version readiness gate and exact Payment definition loading; classify source-data mapping failures as retryable request failures without poisoning configuration readiness.
+- [x] Add the Agreement and Claim Payments handlers (#688 and #700): both register by producer event type, map pinned snapshots, look up logical source identity before allocating, and commit Payment, claim-ID increment and external publication together. Claim source-index duplicate recovery reloads the committed winner; handler and Inbox tests cover redelivery, concurrency, transaction retry and retryable bad snapshots.
+- [ ] Finish work package 4: classify irrecoverable definition-loading failures as permanent for the Inbox in both handlers; prove failed external SNS publication retries independently of Payment creation and manual redrive keeps a single Payment, counter increment and publication. Keep the WP4 completion criterion open until those checks pass.
 - [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
-The code is not yet event-driven. Agreement acceptance and Claim submission still import Payments use-cases, resolve Payment definitions before their source transactions, allocate Payment Hub identifiers inside those transactions and persist Payment Service publications in the source-owned outbox work.
+The code is not yet event-driven from production sources. Agreement acceptance and Claim submission still import Payments use-cases, resolve Payment definitions before their source transactions, allocate Payment Hub identifiers inside those transactions and persist Payment Service publications in the source-owned outbox work.
 
 ## Target Invariants
 
@@ -115,15 +117,15 @@ Completion criterion: an invalid declared Payment definition prevents the config
 
 ### 4. Add Payments-owned event handling
 
-- [ ] Add a Payments plugin and register it in `src/main.js`. The plugin registers handlers for both producer event types and owns no producer imports.
-- [ ] Map each immutable request snapshot through its exact pinned Payment definition inside the Payments handler.
-- [ ] Prove a failed snapshot mapping reaches Inbox retry/dead-letter handling without making that Payment definition unusable for another request.
+- [x] Add a Payments plugin and register it in `src/main.js`. The plugin registers handlers for both producer event types and owns no producer imports.
+- [x] Map each immutable request snapshot through its exact pinned Payment definition inside the Payments handler.
+- [x] Prove a failed snapshot mapping reaches Inbox retry/dead-letter handling without making that Payment definition unusable for another request.
 - [ ] Classify definition-loading failures that cannot recover on retry as permanent for the Inbox, while snapshot-mapping failures remain retryable; do not treat every Boom error as permanent.
-- [ ] Add repository lookup by logical request identity using the existing Agreement and Claim unique source indexes.
-- [ ] In a Payments-owned MongoDB transaction, find an existing Payment before allocation. If absent, allocate the next `R########` claim ID, build and insert the Payment, and persist its external Payment Service publication.
-- [ ] Make source-index duplicate races idempotent: abort the losing transaction, reload the existing Payment and complete without another counter value or publication.
-- [ ] Commit the Payment, counter increment and external publication atomically. Mark the incoming durable request complete only after the handler returns; completion remains a separate at-least-once write.
-- [ ] Preserve stable SNS deduplication using the persisted external event ID and preserve the per-source FIFO grouping already implemented.
+- [x] Add repository lookup by logical request identity using the existing Agreement and Claim unique source indexes.
+- [x] In a Payments-owned MongoDB transaction, find an existing Payment before allocation. If absent, allocate the next `R########` claim ID, build and insert the Payment, and persist its external Payment Service publication.
+- [x] Make source-index duplicate races idempotent: abort the losing transaction, reload the existing Payment and complete without another counter value or publication.
+- [x] Commit the Payment, counter increment and external publication atomically. Mark the incoming durable request complete only after the handler returns; completion remains a separate at-least-once write.
+- [x] Preserve stable SNS deduplication using the persisted external event ID and preserve the per-source FIFO grouping already implemented.
 - [ ] Keep external publication retry independent from Payment creation. Retrying a failed SNS publication must not invoke the Payment request handler again.
 
 Completion criterion: sequential redelivery, concurrent delivery, transaction retry and manual redrive of one logical request leave exactly one Payment, one committed claim-ID increment and one external Payment event.
