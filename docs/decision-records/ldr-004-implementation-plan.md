@@ -19,7 +19,8 @@ Current checkpoint, 24 September 2026:
 - [x] Freeze producer-owned `AgreementPaymentRequested` and `ClaimPaymentRequested` contracts without emitting them from production paths.
 - [x] Preserve the whole-version readiness gate and exact Payment definition loading; classify source-data mapping failures as retryable request failures without poisoning configuration readiness.
 - [x] Add the Agreement and Claim Payments handlers (#688 and #700): both register by producer event type, map pinned snapshots, look up logical source identity before allocating, and commit Payment, claim-ID increment and external publication together. Claim source-index duplicate recovery reloads the committed winner; handler and Inbox tests cover redelivery, concurrency, transaction retry and retryable bad snapshots.
-- [ ] Finish work package 4: classify irrecoverable definition-loading failures as permanent for the Inbox in both handlers; prove failed external SNS publication retries independently of Payment creation and manual redrive keeps a single Payment, counter increment and publication. Keep the WP4 completion criterion open until those checks pass.
+- [x] Classify irrecoverable pinned Payment definition failures as non-retryable for both handlers; keep transient loading and source-data mapping failures retryable, with Inbox and handler proof.
+- [ ] Finish work package 4: prove failed external SNS publication retries independently of Payment creation and manual redrive keeps a single Payment, counter increment and publication. Keep the WP4 completion criterion open until those checks pass.
 - [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
 The code is not yet event-driven from production sources. Agreement acceptance and Claim submission still import Payments use-cases, resolve Payment definitions before their source transactions, allocate Payment Hub identifiers inside those transactions and persist Payment Service publications in the source-owned outbox work.
@@ -120,7 +121,7 @@ Completion criterion: an invalid declared Payment definition prevents the config
 - [x] Add a Payments plugin and register it in `src/main.js`. The plugin registers handlers for both producer event types and owns no producer imports.
 - [x] Map each immutable request snapshot through its exact pinned Payment definition inside the Payments handler.
 - [x] Prove a failed snapshot mapping reaches Inbox retry/dead-letter handling without making that Payment definition unusable for another request.
-- [ ] Classify definition-loading failures that cannot recover on retry as permanent for the Inbox, while snapshot-mapping failures remain retryable; do not treat every Boom error as permanent.
+- [x] Classify definition-loading failures that cannot recover on retry as permanent for the Inbox, while snapshot-mapping failures remain retryable; do not treat every Boom error as permanent.
 - [x] Add repository lookup by logical request identity using the existing Agreement and Claim unique source indexes.
 - [x] In a Payments-owned MongoDB transaction, find an existing Payment before allocation. If absent, allocate the next `R########` claim ID, build and insert the Payment, and persist its external Payment Service publication.
 - [x] Make source-index duplicate races idempotent: abort the losing transaction, reload the existing Payment and complete without another counter value or publication.

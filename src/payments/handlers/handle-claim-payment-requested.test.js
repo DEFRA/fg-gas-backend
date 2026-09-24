@@ -10,7 +10,6 @@ import {
   it,
   vi,
 } from "vitest";
-import { deliverClaimPaymentRequest } from "../../../test/helpers/deliver-claim-payment-request.js";
 
 const request = {
   code: "woodland",
@@ -31,11 +30,6 @@ let replSet;
 let mongoClient;
 let db;
 let ClaimPaymentRequestedEvent;
-let Inbox;
-let InboxStatus;
-let InboxSubscriber;
-let clearEventHandlers;
-let payments;
 let Payment;
 let handleClaimPaymentRequested;
 
@@ -48,12 +42,6 @@ beforeAll(async () => {
   ({ mongoClient, db } = await import("../../common/mongo-client.js"));
   ({ ClaimPaymentRequestedEvent } =
     await import("../../grants/events/claim-payment-requested.event.js"));
-  ({ Inbox, InboxStatus } = await import("../../events/models/inbox.js"));
-  ({ InboxSubscriber } =
-    await import("../../events/subscribers/inbox.subscriber.js"));
-  ({ clearEventHandlers } =
-    await import("../../events/services/event-handlers.js"));
-  ({ payments } = await import("../index.js"));
   ({ Payment } = await import("../models/payment.js"));
   ({ handleClaimPaymentRequested } =
     await import("./handle-claim-payment-requested.js"));
@@ -90,12 +78,10 @@ beforeAll(async () => {
       name: "claim_payment_source_unique",
     },
   );
-  payments.register({});
 }, 120_000);
 
 beforeEach(async () => {
   await Promise.all([
-    db.collection("inbox").deleteMany({}),
     db.collection("payments__payments").deleteMany({}),
     db.collection("payments__counters").deleteMany({}),
     db.collection("outbox").deleteMany({}),
@@ -103,20 +89,10 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  clearEventHandlers?.();
   await mongoClient?.close();
   await replSet?.stop();
   vi.unstubAllEnvs();
 }, 120_000);
-
-const deliver = (props = request) =>
-  deliverClaimPaymentRequest({
-    props,
-    ClaimPaymentRequestedEvent,
-    inbox: db.collection("inbox"),
-    Inbox,
-    InboxSubscriber,
-  });
 
 const handlerRequest = (props = request) => ({
   event: new ClaimPaymentRequestedEvent(props),
@@ -132,11 +108,11 @@ const assertOnePayment = async () => {
   ).resolves.toMatchObject({ seq: 1 });
 };
 
-describe("Claim payment request inbox flow", () => {
-  it("completes the Inbox request only after creating its Payment and publication", async () => {
-    const completed = await deliver();
+describe("Claim payment request handler", () => {
+  it("creates a Payment and its durable publication", async () => {
+    const payment = await handleClaimPaymentRequested(handlerRequest());
 
-    expect(completed.status).toBe(InboxStatus.COMPLETED);
+    expect(payment).toBeInstanceOf(Payment);
     await expect(
       db.collection("payments__payments").findOne({}),
     ).resolves.toMatchObject({
@@ -160,20 +136,27 @@ describe("Claim payment request inbox flow", () => {
   });
 
   it("reuses the first Payment on redelivery but creates one for a different Claim", async () => {
-    await deliver();
-    const repeated = await deliver({
-      ...request,
-      entitlementId: "changed-entitlement",
-      claim: { ...request.claim, totalAmountPence: 9000 },
-    });
-    expect(repeated.status).toBe(InboxStatus.COMPLETED);
+    const first = await handleClaimPaymentRequested(handlerRequest());
+    const repeated = await handleClaimPaymentRequested(
+      handlerRequest({
+        ...request,
+        entitlementId: "changed-entitlement",
+        claim: { ...request.claim, totalAmountPence: 9000 },
+      }),
+    );
+    expect(repeated.id).toBe(first.id);
     await expect(
       db.collection("payments__payments").countDocuments({}),
     ).resolves.toBe(1);
     await expect(db.collection("outbox").countDocuments({})).resolves.toBe(1);
 
-    const next = await deliver({ ...request, clientClaimRef: "claim-2" });
-    expect(next.status).toBe(InboxStatus.COMPLETED);
+    const next = await handleClaimPaymentRequested(
+      handlerRequest({
+        ...request,
+        clientClaimRef: "claim-2",
+      }),
+    );
+    expect(next).toBeInstanceOf(Payment);
     await expect(
       db
         .collection("payments__payments")
@@ -182,31 +165,38 @@ describe("Claim payment request inbox flow", () => {
     await expect(db.collection("outbox").countDocuments({})).resolves.toBe(2);
   });
 
-  it("completes redelivery of an existing Payment even when its snapshot cannot be mapped", async () => {
-    await deliver();
-    const repeated = await deliver({
-      ...request,
-      claim: { frn: "1101234567", totalAmountPence: 4200 },
-    });
+  it("returns an existing Payment even when the repeated snapshot cannot be mapped", async () => {
+    const first = await handleClaimPaymentRequested(handlerRequest());
+    const repeated = await handleClaimPaymentRequested(
+      handlerRequest({
+        ...request,
+        claim: { frn: "1101234567", totalAmountPence: 4200 },
+      }),
+    );
 
-    expect(repeated.status).toBe(InboxStatus.COMPLETED);
+    expect(repeated.id).toBe(first.id);
     await assertOnePayment();
   });
 
-  it("completes redelivery of an existing Payment even when its definition cannot be loaded", async () => {
-    await deliver();
-    const repeated = await deliver({
-      ...request,
-      configVersion: "unavailable-version",
-    });
-    expect(repeated.status).toBe(InboxStatus.COMPLETED);
+  it("returns an existing Payment even when the repeated definition is unavailable", async () => {
+    const first = await handleClaimPaymentRequested(handlerRequest());
+    const repeated = await handleClaimPaymentRequested(
+      handlerRequest({
+        ...request,
+        configVersion: "unavailable-version",
+      }),
+    );
+    expect(repeated.id).toBe(first.id);
     await assertOnePayment();
   });
 
-  it("completes both concurrent Inbox deliveries with one committed Payment and publication", async () => {
-    const [first, second] = await Promise.all([deliver(), deliver()]);
-    expect(first.status).toBe(InboxStatus.COMPLETED);
-    expect(second.status).toBe(InboxStatus.COMPLETED);
+  it("returns the same Payment from concurrent handler calls", async () => {
+    const [first, second] = await Promise.all([
+      handleClaimPaymentRequested(handlerRequest()),
+      handleClaimPaymentRequested(handlerRequest()),
+    ]);
+    expect(first).toBeInstanceOf(Payment);
+    expect(second.id).toBe(first.id);
     await assertOnePayment();
   });
 
@@ -331,20 +321,27 @@ describe("Claim payment request inbox flow", () => {
     await expect(db.collection("outbox").countDocuments({})).resolves.toBe(0);
   });
 
-  it("leaves an invalid snapshot retryable without spoiling the next request", async () => {
-    const failed = await deliver({
-      ...request,
-      clientClaimRef: "bad-claim",
-      claim: { frn: "1101234567", totalAmountPence: 4200 },
-    });
-    expect(failed.status).toBe(InboxStatus.FAILED);
-    expect(failed.retryable).toBe(true);
+  it("leaves invalid snapshot mapping retryable without spoiling the next request", async () => {
+    await expect(
+      handleClaimPaymentRequested(
+        handlerRequest({
+          ...request,
+          clientClaimRef: "bad-claim",
+          claim: { frn: "1101234567", totalAmountPence: 4200 },
+        }),
+      ),
+    ).rejects.not.toHaveProperty("retryable", false);
     await expect(
       db.collection("payments__payments").countDocuments({}),
     ).resolves.toBe(0);
 
-    const valid = await deliver({ ...request, clientClaimRef: "good-claim" });
-    expect(valid.status).toBe(InboxStatus.COMPLETED);
-    await expect(db.collection("outbox").countDocuments({})).resolves.toBe(1);
+    const valid = await handleClaimPaymentRequested(
+      handlerRequest({
+        ...request,
+        clientClaimRef: "good-claim",
+      }),
+    );
+    expect(valid).toBeInstanceOf(Payment);
+    await assertOnePayment();
   });
 });

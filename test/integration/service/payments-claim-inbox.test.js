@@ -15,7 +15,6 @@ import {
   it,
   vi,
 } from "vitest";
-import { deliverClaimPaymentRequest } from "../../helpers/deliver-claim-payment-request.js";
 
 const DATABASE = "fg-gas-backend-payments-claim-inbox-test";
 vi.stubEnv("MONGO_DATABASE", DATABASE);
@@ -134,14 +133,19 @@ afterAll(async () => {
   vi.unstubAllEnvs();
 });
 
-const deliver = (props = request) =>
-  deliverClaimPaymentRequest({
-    props,
-    ClaimPaymentRequestedEvent,
-    inbox,
-    Inbox,
-    InboxSubscriber,
+const deliver = async (props = request) => {
+  const event = new ClaimPaymentRequestedEvent(props);
+  const { insertedId } = await inbox.insertOne({
+    source: "GAS",
+    type: event.type,
+    event,
+    messageId: event.id,
+    segregationRef: event.messageGroupId,
   });
+  const document = await inbox.findOne({ _id: insertedId });
+  await new InboxSubscriber().handleEvent(Inbox.fromDocument(document));
+  return inbox.findOne({ _id: insertedId });
+};
 
 describe("Payments Claim request inbox flow", () => {
   it("creates a Payment and publication from the pinned Claim snapshot before completing the request", async () => {
@@ -202,6 +206,18 @@ describe("Payments Claim request inbox flow", () => {
     });
   });
 
+  it("completes concurrent requests for one Claim without another Payment or claim ID", async () => {
+    const [first, second] = await Promise.all([deliver(), deliver()]);
+
+    expect(first.status).toBe(InboxStatus.COMPLETED);
+    expect(second.status).toBe(InboxStatus.COMPLETED);
+    await expect(paymentDocuments.countDocuments({})).resolves.toBe(1);
+    await expect(outbox.countDocuments({})).resolves.toBe(1);
+    await expect(
+      db.collection("payments__counters").findOne({ _id: "claimIds" }),
+    ).resolves.toMatchObject({ seq: 1 });
+  });
+
   it("creates distinct Payments for different Claims under the same client reference", async () => {
     await deliver();
     const nextClaim = await deliver({ ...request, clientClaimRef: "claim-2" });
@@ -212,6 +228,19 @@ describe("Payments Claim request inbox flow", () => {
     await expect(
       paymentDocuments.findOne({ "source.clientClaimRef": "claim-2" }),
     ).resolves.toMatchObject({ paymentHubClaimId: "R00000002" });
+  });
+
+  it("dead-letters a request for a missing pinned Payment definition", async () => {
+    const failed = await deliver({
+      ...request,
+      clientClaimRef: "claim-missing-definition",
+      configVersion: "unavailable-version",
+    });
+
+    expect(failed.status).toBe(InboxStatus.DEAD_LETTER);
+    expect(failed.retryable).toBe(false);
+    await expect(paymentDocuments.countDocuments({})).resolves.toBe(0);
+    await expect(outbox.countDocuments({})).resolves.toBe(0);
   });
 
   it("leaves a bad Claim snapshot retryable without poisoning its pinned definition", async () => {

@@ -7,6 +7,7 @@ import { FetchStatus } from "../../common/fetch-status.js";
 import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
+import { markPermanentFailure } from "../../events/retryable.js";
 import {
   findPaymentDefinition,
   insertPaymentDefinition,
@@ -18,8 +19,10 @@ const compiledDefinitions = new Map();
 const loadsInFlight = new Map();
 
 const unavailable = (code, version) =>
-  Boom.badImplementation(
-    `Payment definition "${code}" version "${version}" is unavailable`,
+  markPermanentFailure(
+    Boom.badImplementation(
+      `Payment definition "${code}" version "${version}" is unavailable`,
+    ),
   );
 
 const updateStatus = (target, fetchStatus, fetchError = null) =>
@@ -100,7 +103,9 @@ const load = async (target, code, cacheKey) => {
       { error, event: { action: "payment-definition-load-failed" } },
       `Payment definition load failed for ${target.grantCode}@${target.version}`,
     );
-    throw error;
+    throw failureStatus(error) === FetchStatus.PermanentError
+      ? markPermanentFailure(error)
+      : error;
   }
 };
 
