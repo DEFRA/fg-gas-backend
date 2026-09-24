@@ -5,6 +5,7 @@ import { grantAdmin } from "./grant-admin/index.js";
 import { events } from "./events/index.js";
 import { grants } from "./grants/index.js";
 import { health } from "./health/index.js";
+import { payments } from "./payments/index.js";
 import { createServer } from "./server.js";
 import { testEndpoints } from "./test-endpoints/index.js";
 
@@ -21,6 +22,7 @@ await server.register([
   grantAdmin,
   testEndpoints,
   events,
+  payments,
 ]);
 // After register, which runs the migrations, and before any request is served.
 await seedAccessToken();
