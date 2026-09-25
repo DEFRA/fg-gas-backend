@@ -16,7 +16,6 @@ import {
   insert,
 } from "../repositories/claim.repository.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
-import { enqueueClaimStatusUpdateUseCase } from "../use-cases/enqueue-claim-status-update.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import {
   pinnedVersionOf,
@@ -403,56 +402,62 @@ const requestClaimPayment = async (
   );
 };
 
-const transitionOnFinalClaim = async (
-  { grant, application, claimable, configVersion },
+const hasRemainingApplicationClaimCapacity = async (
+  { grant, application },
   session,
 ) => {
+  const existing = await findExistingEntitlements(
+    application.clientRef,
+    application.code,
+    session,
+  );
+  const claimables = candidatesFor({ grant, existing });
+  const counts = await Promise.all(
+    claimables.map((claimable) =>
+      countByEntitlement(
+        {
+          code: application.code,
+          clientRef: application.clientRef,
+          entitlementId: claimable.entitlement.id,
+        },
+        session,
+      ),
+    ),
+  );
+
+  return claimables.some((claimable, index) =>
+    claimable.hasRemainingCapacity(counts[index]),
+  );
+};
+
+const transitionOnFinalClaim = async (
+  { grant, application, claimable },
+  session,
+) => {
+  if (claimable.claim.requiresApproval) {
+    return;
+  }
+
   const targetPosition = grant.claimApprovalTransitionFor(
     application.currentPosition(),
   );
-  if (!targetPosition) {
+  if (
+    !targetPosition ||
+    (await hasRemainingApplicationClaimCapacity({ grant, application }, session))
+  ) {
     return;
   }
 
-  const countAfterInsert = await countByEntitlement(
-    {
-      code: application.code,
-      clientRef: application.clientRef,
-      entitlementId: claimable.entitlement.id,
-    },
-    session,
-  );
-  if (claimable.hasRemainingCapacity(countAfterInsert)) {
-    return;
-  }
-
-  const previousPhase = application.currentPhase;
-  const previousStage = application.currentStage;
-  const move = await transitionApplicationUseCase(
+  await transitionApplicationUseCase(
     {
       application,
       grant,
       targetPosition,
+      publishCaseWorkingStatusUpdate: true,
       sideEffectContext: {
         clientRef: application.clientRef,
         code: application.code,
       },
-    },
-    session,
-  );
-
-  if (!move.changed) {
-    return;
-  }
-
-  await enqueueClaimStatusUpdateUseCase(
-    {
-      clientRef: application.clientRef,
-      code: application.code,
-      previousPhase,
-      previousStage,
-      newStatus: move.new,
-      configVersion,
     },
     session,
   );
@@ -486,10 +491,7 @@ const submitInTransaction = async (
     session,
   );
 
-  await transitionOnFinalClaim(
-    { grant, application, claimable, configVersion: pinnedVersion },
-    session,
-  );
+  await transitionOnFinalClaim({ grant, application, claimable }, session);
 
   await requestClaimPayment(
     {

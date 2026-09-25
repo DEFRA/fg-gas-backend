@@ -331,6 +331,33 @@ describe("Grant", () => {
       },
     );
 
+    it("throws when the target does not allow the configured current position", () => {
+      expect(() =>
+        createTestGrant({
+          claims,
+          phases: [
+            {
+              code: "PRE_AWARD",
+              stages: [
+                {
+                  code: "ASSESSMENT",
+                  statuses: [
+                    { code: "APPLICATION_RECEIVED", validFrom: [] },
+                    {
+                      code: "IN_REVIEW",
+                      validFrom: [{ code: "SOME_OTHER_STATUS" }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      ).toThrow(
+        'claims.onClaimApproval target position "PRE_AWARD:ASSESSMENT:IN_REVIEW" is not a valid transition from "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"',
+      );
+    });
+
     it("returns the target for an exact current-position match", () => {
       const grant = createTestGrant({ claims });
 

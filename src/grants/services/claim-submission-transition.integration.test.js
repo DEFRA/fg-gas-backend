@@ -37,8 +37,12 @@ let createTestGrant;
 let config;
 let fixtureNumber = 0;
 
-const entitlementTemplate = (maximumClaims) => ({
-  claimCode: "ENT_CLAIMABLE",
+const entitlementTemplate = ({
+  claimCode,
+  maximumClaims,
+  requiresApproval,
+}) => ({
+  claimCode,
   name: "Claimable entitlement",
   materialised: false,
   maxEntitlements: 1,
@@ -55,7 +59,7 @@ const entitlementTemplate = (maximumClaims) => ({
   claim: {
     claimableAt: [currentPosition, mismatchPosition],
     limits: { maximumClaims },
-    requiresApproval: true,
+    requiresApproval,
   },
 });
 
@@ -101,24 +105,44 @@ const claimCommand = ({ code, clientRef, entitlementId, clientClaimRef }) => ({
 });
 
 const seedFixture = async (options = {}) => {
-  const { maximumClaims, position, claimsConfigured, targetReachable } = {
+  const {
+    maximumClaims,
+    position,
+    claimsConfigured,
+    targetReachable,
+    entitlementCount,
+    requiresApproval,
+  } = {
     maximumClaims: 1,
     position: currentPosition,
     claimsConfigured: true,
     targetReachable: true,
+    entitlementCount: 1,
+    requiresApproval: false,
     ...options,
   };
   fixtureNumber += 1;
   const code = `claim-transition-${fixtureNumber}`;
   const clientRef = `application-${fixtureNumber}`;
-  const entitlementId = `entitlement-${fixtureNumber}`;
+  const entitlements = Array.from(
+    { length: entitlementCount },
+    (_, index) => ({
+      id: `entitlement-${fixtureNumber}-${index + 1}`,
+      code,
+      clientRef,
+      claimCode: `ENT_CLAIMABLE_${index + 1}`,
+      instanceNumber: 1,
+    }),
+  );
 
   await saveGrant(
     createTestGrant({
       code,
       version: configVersion,
       phases: phases(targetReachable),
-      entitlementTemplates: [entitlementTemplate(maximumClaims)],
+      entitlementTemplates: entitlements.map(({ claimCode }) =>
+        entitlementTemplate({ claimCode, maximumClaims, requiresApproval }),
+      ),
       claims: claimsConfigured
         ? { onClaimApproval: { currentPosition, targetPosition } }
         : undefined,
@@ -147,20 +171,17 @@ const seedFixture = async (options = {}) => {
       currentStatus: position.status,
     }),
   );
-  await db.collection("entitlements").insertOne({
-    id: entitlementId,
-    code,
-    clientRef,
-    claimCode: "ENT_CLAIMABLE",
-    instanceNumber: 1,
-  });
+  await db.collection("entitlements").insertMany(entitlements);
 
   return {
     code,
     clientRef,
-    entitlementId,
-    command: (clientClaimRef = "claim-1") =>
-      claimCommand({ code, clientRef, entitlementId, clientClaimRef }),
+    entitlementId: entitlements[0].id,
+    entitlementIds: entitlements.map(({ id }) => id),
+    command: (
+      clientClaimRef = "claim-1",
+      entitlementId = entitlements[0].id,
+    ) => claimCommand({ code, clientRef, entitlementId, clientClaimRef }),
   };
 };
 
@@ -231,6 +252,42 @@ describe("Claim submission application transition", () => {
     await expect(
       db.collection("claims").countDocuments({ code: fixture.code }),
     ).resolves.toBe(1);
+    await expect(applicationFor(fixture)).resolves.toMatchObject({
+      currentStatus: currentPosition.status,
+    });
+    await expect(countCommands(fixture)).resolves.toBe(0);
+    await expect(countStatusEvents(fixture)).resolves.toBe(0);
+  });
+
+  it("waits until every application entitlement is fully claimed", async () => {
+    const fixture = await seedFixture({ entitlementCount: 2 });
+
+    await expect(
+      submitClaim(fixture.command("claim-1", fixture.entitlementIds[0])),
+    ).resolves.toMatchObject({ created: true });
+
+    await expect(applicationFor(fixture)).resolves.toMatchObject({
+      currentStatus: currentPosition.status,
+    });
+    await expect(countCommands(fixture)).resolves.toBe(0);
+
+    await expect(
+      submitClaim(fixture.command("claim-2", fixture.entitlementIds[1])),
+    ).resolves.toMatchObject({ created: true });
+
+    await expect(applicationFor(fixture)).resolves.toMatchObject({
+      currentStatus: targetPosition.status,
+    });
+    await expect(countCommands(fixture)).resolves.toBe(1);
+  });
+
+  it("does not transition claims that require approval", async () => {
+    const fixture = await seedFixture({ requiresApproval: true });
+
+    await expect(submitClaim(fixture.command())).resolves.toMatchObject({
+      created: true,
+    });
+
     await expect(applicationFor(fixture)).resolves.toMatchObject({
       currentStatus: currentPosition.status,
     });
@@ -343,18 +400,25 @@ describe("Claim submission application transition", () => {
     });
   });
 
-  it("rolls back the claim, application, events, and audits when the transition is invalid", async () => {
-    const fixture = await seedFixture({ targetReachable: false });
-    const applicationBefore = await applicationFor(fixture);
+  it("serializes concurrent claims before checking final capacity", async () => {
+    const fixture = await seedFixture({ maximumClaims: 2 });
 
-    await expect(submitClaim(fixture.command())).rejects.toThrow(
-      /Invalid transition from "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED" to "PRE_AWARD:ASSESSMENT:AWARD_READY"/,
-    );
+    const results = await Promise.all([
+      submitClaim(fixture.command("claim-concurrent-1")),
+      submitClaim(fixture.command("claim-concurrent-2")),
+    ]);
 
+    expect(results).toEqual([
+      expect.objectContaining({ created: true }),
+      expect.objectContaining({ created: true }),
+    ]);
     await expect(
       db.collection("claims").countDocuments({ code: fixture.code }),
-    ).resolves.toBe(0);
-    await expect(db.collection("outbox").countDocuments({})).resolves.toBe(0);
-    await expect(applicationFor(fixture)).resolves.toEqual(applicationBefore);
+    ).resolves.toBe(2);
+    await expect(countCommands(fixture)).resolves.toBe(1);
+    await expect(countStatusEvents(fixture)).resolves.toBe(1);
+    await expect(applicationFor(fixture)).resolves.toMatchObject({
+      currentStatus: targetPosition.status,
+    });
   });
 });

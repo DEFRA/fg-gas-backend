@@ -1,4 +1,8 @@
+import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
+import { Outbox } from "../../events/models/outbox.js";
+import { insertMany } from "../../events/repositories/outbox.repository.js";
+import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { update } from "../repositories/application.repository.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
 import { addAgreementUseCase } from "./add-agreement.use-case.js";
@@ -42,29 +46,81 @@ const getHandlersForAllProcesses = (processes) => {
     .filter((handler) => handler !== undefined);
 };
 
+const enqueueCaseWorkingStatusUpdate = async (
+  { application, previousPosition, newStatus },
+  session,
+) => {
+  const statusCommand = new UpdateCaseStatusCommand({
+    caseRef: application.clientRef,
+    workflowCode: application.code,
+    configVersion: application.currentConfigVersion,
+    newStatus,
+    phase: previousPosition.phase,
+    stage: previousPosition.stage,
+  });
+
+  await insertMany(
+    [
+      new Outbox({
+        event: statusCommand,
+        target: config.sns.updateCaseStatusTopicArn,
+        segregationRef: Outbox.getSegregationRef(statusCommand),
+      }),
+    ],
+    session,
+  );
+};
+
+const publishCaseWorkingUpdateIfRequested = async (
+  requested,
+  transition,
+  session,
+) => {
+  if (requested) {
+    await enqueueCaseWorkingStatusUpdate(transition, session);
+  }
+};
+
+const runTransitionProcesses = async (processes, context, session) => {
+  for (const handler of getHandlersForAllProcesses(processes)) {
+    await handler(context, session);
+  }
+};
+
 export const transitionApplicationUseCase = async (
-  { application, grant, targetPosition, sideEffectContext },
+  {
+    application,
+    grant,
+    targetPosition,
+    sideEffectContext,
+    publishCaseWorkingStatusUpdate = false,
+  },
   session,
 ) => {
   const { clientRef, code, currentConfigVersion } = application;
+  const previousPosition = application.currentPosition();
   const move = application.moveTo(targetPosition, grant);
 
-  if (move.changed) {
-    await update(application, session);
-
-    const publishStatusTransition = createStatusTransitionUpdateUseCase({
-      clientRef,
-      code,
-      configVersion: currentConfigVersion,
-      originalFullyQualifiedStatus: move.previous,
-      newFullyQualifiedStatus: move.new,
-    });
-    await publishStatusTransition(session);
-
-    for (const handler of getHandlersForAllProcesses(move.processes)) {
-      await handler(sideEffectContext, session);
-    }
+  if (!move.changed) {
+    return;
   }
 
-  return move;
+  await update(application, session);
+
+  const publishStatusTransition = createStatusTransitionUpdateUseCase({
+    clientRef,
+    code,
+    configVersion: currentConfigVersion,
+    originalFullyQualifiedStatus: move.previous,
+    newFullyQualifiedStatus: move.new,
+  });
+  await publishStatusTransition(session);
+
+  await publishCaseWorkingUpdateIfRequested(
+    publishCaseWorkingStatusUpdate,
+    { application, previousPosition, newStatus: move.new },
+    session,
+  );
+
+  await runTransitionProcesses(move.processes, sideEffectContext, session);
 };

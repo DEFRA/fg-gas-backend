@@ -79,9 +79,10 @@ Content-Type: application/json
 
 ### Configure claim-approval transitions
 
-A grant can optionally move an Application when a Claim consumes the last
-available claim slot for its entitlement. Configure `claims.onClaimApproval`
-on the grant with complete source and target positions:
+A grant can optionally move an Application when a Claim that does not require
+approval consumes the final available claim slot across all of the Application's
+entitlements. Configure `claims.onClaimApproval` on the grant with complete
+source and target positions:
 
 ```json
 {
@@ -103,9 +104,10 @@ on the grant with complete source and target positions:
 ```
 
 All six position fields are required and must name positions in the grant's
-`phases`. The source position must exactly match the Application's current
-position; a Claim with remaining entitlement capacity, an absent configuration,
-or a non-matching position does not move the Application.
+`phases`; the target must also allow a transition from the configured source.
+The source position must exactly match the Application's current position. A
+Claim that requires approval, any remaining entitlement capacity, an absent
+configuration, or a non-matching position does not move the Application.
 
 Grant Admin accepts this optional block when creating a grant with `POST /grants` or replacing one with `PUT /grants/{code}`. Replacement is not a
 patch: omitting `claims` removes an existing claim-approval configuration.

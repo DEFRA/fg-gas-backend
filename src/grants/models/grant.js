@@ -160,6 +160,27 @@ export class Grant {
       "targetPosition",
       config.targetPosition,
     );
+    this.#assertClaimApprovalTransitionValid(config);
+  }
+
+  #assertClaimApprovalTransitionValid({ currentPosition, targetPosition }) {
+    const current = formatPosition(currentPosition);
+    const target = formatPosition(targetPosition);
+    if (current === target) {
+      return;
+    }
+
+    const transition = this.isValidTransition(
+      targetPosition.phase,
+      targetPosition.stage,
+      targetPosition.status,
+      current,
+    );
+    if (!transition.valid) {
+      throw Boom.badImplementation(
+        `Grant "${this.code}" claims.onClaimApproval target position "${target}" is not a valid transition from "${current}"`,
+      );
+    }
   }
 
   #assertClaimApprovalPositionComplete(label, position) {
