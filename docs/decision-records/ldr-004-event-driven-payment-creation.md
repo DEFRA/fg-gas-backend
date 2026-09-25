@@ -2,7 +2,7 @@
 
 |                  |                  |
 | ---------------- | ---------------- |
-| status           | accepted         |
+| status           | proposed         |
 | date             | 18 Sep 2026      |
 | decision makers  | Core Grants Team |
 | people consulted | Martin Smith     |

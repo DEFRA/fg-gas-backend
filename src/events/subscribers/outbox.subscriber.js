@@ -38,7 +38,6 @@ const toEventMessage = (event) => ({
   type: event.type,
 });
 
-
 export class OutboxSubscriber {
   static ACTOR = "OUTBOX";
   asyncLocalStorage = new AsyncLocalStorage();

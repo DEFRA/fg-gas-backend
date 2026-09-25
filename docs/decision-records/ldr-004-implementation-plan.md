@@ -22,11 +22,11 @@ Current checkpoint, 25 September 2026:
 - [x] Classify irrecoverable pinned Payment definition failures as non-retryable for both handlers; keep transient loading and source-data mapping failures retryable, with Inbox and handler proof.
 - [x] Finish work package 4: a failed SNS publication retries the same persisted event ID without re-entering Payment creation; manual Inbox redrive after Payment commit completes both Claim and Agreement requests without another Payment, claim-ID increment or publication.
 - [x] Finish work package 5: Claim submission now writes a pinned `ClaimPaymentRequested` alongside the Claim, without creating a Payment synchronously. Mongo replica-set tests prove replay, missing optional definition, source-transaction rollback when request persistence fails, subsequent Payment creation and independence from a failed Payment handler; the existing Claim service and HTTP route tests preserve capacity, version retry and response behaviour. Full unit suite (3,019 tests), focused container-backed Claim inbox tests (8) and lint pass.
-- [x] Finish work package 6 verification. Agreement actions and internal status commands commit pinned `AgreementPaymentRequested` events; focused tests cover atomicity, replay and concurrency, downstream independence, Woodland exclusion, two scheduled payments, lifecycle removal of `claimId`, and source-to-SNS-to-GPS delivery using the compose seed demo grant `pigs-might-fly`. Legacy parity is outside this development-only cutover but remains required for a future live migration. Full unit suite (3,004 tests), focused container-backed Agreement and transport tests (22) and lint passed at the checkpoint. The incomplete full integration run is explicitly dispositioned as the reproduced baseline Client request timeout issue rather than recorded as a pass.
+- [ ] Finish work package 6 verification. Agreement actions and internal status commands commit pinned `AgreementPaymentRequested` events; focused tests cover atomicity, replay and concurrency, downstream independence, Woodland exclusion, two scheduled payments, lifecycle removal of `claimId`, and source-to-SNS-to-GPS delivery using the compose seed demo grant `pigs-might-fly`. The FPTT definition comparison and complete runtime-serialized legacy parity proof remain open. Full unit suite (3,004 tests), focused container-backed Agreement and transport tests (22) and lint passed at the checkpoint. The incomplete full integration run is explicitly dispositioned as the reproduced baseline Client request timeout issue rather than recorded as a pass.
 - [x] Finish work package 7: remove the obsolete synchronous Payment seams, enforce module boundaries, introduce explicit event and command routing, and record the clean-cutover verification evidence. Repository-wide lint and all 2,995 unit tests pass; the focused source and handler integration suites pass 61 tests.
-- [x] Approve LDR-004 and change its status from `proposed` to `accepted`.
+- [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
-Work packages 1–7 are complete. Work package 8's deployment-only gates are next.
+Work packages 1–5 and 7 are complete. Work package 6's compatibility gates and work package 8's deployment-only gates remain open.
 
 ## Target Invariants
 
@@ -172,7 +172,7 @@ Completion criterion: the executable compatibility gates pass; acceptance succee
 - [x] Confirm Admin exposes mapping and publication failures with enough detail to redrive the durable event safely.
 - [x] Replace handler-presence routing for internal outbox delivery with explicit event and command targets. Keep commands on the command bus and dispatch events by exact type; unknown event types must fail through the event retry/dead-letter path rather than fall back to the command bus. Test known events, commands and unknown events.
 - [x] Remove obsolete aliases, exports, comments, fixtures and mocks. Keep the legacy event fixture as the repeatable compatibility oracle.
-- [x] Update LDR-004 with final implementation evidence and change its status to the repository's completed/accepted convention.
+- [x] Update LDR-004 with final implementation evidence; retain its `proposed` status until team sign-off.
 
 Completion criterion: no production import crosses from Agreements or Grants into Payments, no direct creation path remains, `src/common/` imports no context module or Agreement-owned implementation, Admin can redrive failures safely, and repository-wide lint and tests pass.
 

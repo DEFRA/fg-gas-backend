@@ -206,8 +206,8 @@ export default [
               from: ["src/agreements/**", "src/grants/**"],
               message:
                 "Payments must not import Agreements or Grants domain internals directly. " +
-                "Payments is entered through its own use cases and knows nothing about " +
-                "the modules that source a Payment. See docs/MODULE_BOUNDARIES.md.",
+                "Payments handles producer-owned events and knows nothing about the " +
+                "modules that source a Payment. See docs/MODULE_BOUNDARIES.md.",
             },
             {
               target: "**/agreements/**/!(*.test).js",

@@ -11,8 +11,6 @@ export const registerEventHandler = (type, handler) => {
   handlers.set(type, handler);
 };
 
-export const hasEventHandler = (type) => handlers.has(type);
-
 export const dispatchEvent = async (message) => {
   const handler = handlers.get(message.type);
   if (!handler) {

@@ -126,10 +126,10 @@ retry, dead-letter and redrive path as handler failures.
 Agreements and Grants do not import Payments. They commit producer-owned request
 events with their own state changes:
 
-| Producer     | Contract                                             | Payments handler                                      |
-| ------------ | ---------------------------------------------------- | ----------------------------------------------------- |
+| Producer     | Contract                                                 | Payments handler                                          |
+| ------------ | -------------------------------------------------------- | --------------------------------------------------------- |
 | `agreements` | `agreements/events/agreement-payment-requested.event.js` | `payments/handlers/handle-agreement-payment-requested.js` |
-| `grants`     | `grants/events/claim-payment-requested.event.js`     | `payments/handlers/handle-claim-payment-requested.js` |
+| `grants`     | `grants/events/claim-payment-requested.event.js`         | `payments/handlers/handle-claim-payment-requested.js`     |
 
 Both requests use the explicit `internal:event-bus` outbox target. The outbox
 dispatches the exact CloudEvent type after the producer transaction commits;
@@ -185,15 +185,15 @@ Grants checks its own `gas.json` through `Grant.fromDefinition`, which needs no 
 
 The FGP-1411 QA endpoints reuse the Agreements command handlers rather than reimplementing agreement setup, so that data created by the test suites is indistinguishable from normally processed data:
 
-| Caller           | Entry point                     | Why                                                                                                                                                |
-| ---------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `test-endpoints` | `agreements/testing.js`         | Explicitly exports only Agreement creation, status transition, current lookup and ownership checks needed by the feature-flagged QA adapter        |
+| Caller           | Entry point             | Why                                                                                                                                         |
+| ---------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test-endpoints` | `agreements/testing.js` | Explicitly exports only Agreement creation, status transition, current lookup and ownership checks needed by the feature-flagged QA adapter |
 
 The adapter adds only HTTP concerns: the feature flag, request and response schemas, the
 shared Agreement ownership check, and translating a rejected transition into a 409. It
 holds no agreement logic of its own and never touches an Agreements repository or domain
-model directly. ESLint permits this one Agreements entry point and rejects all other
-production imports from `test-endpoints`. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
+model directly. ESLint permits this one Agreements entry point and rejects every other
+production Agreements import made by `test-endpoints`. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
 
 ## Adding a New Seam
 
