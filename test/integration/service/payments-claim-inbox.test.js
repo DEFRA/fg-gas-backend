@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { SNSClient } from "@aws-sdk/client-sns";
 import { MongoClient } from "mongodb";
 import { readFileSync } from "node:fs";
 import { env } from "node:process";
@@ -29,10 +30,15 @@ const { updateDefinitionLocation } =
   await import("../../../src/common/config-broker/config-catalog.repository.js");
 const { Inbox, InboxStatus } =
   await import("../../../src/events/models/inbox.js");
+const { OutboxStatus } = await import("../../../src/events/models/outbox.js");
+const { deadLetterEvent, redriveById, updateResubmittedEvents } =
+  await import("../../../src/events/repositories/inbox.repository.js");
 const { clearEventHandlers } =
   await import("../../../src/events/services/event-handlers.js");
 const { InboxSubscriber } =
   await import("../../../src/events/subscribers/inbox.subscriber.js");
+const { OutboxSubscriber } =
+  await import("../../../src/events/subscribers/outbox.subscriber.js");
 const { ConfigVersion } =
   await import("../../../src/grants/models/config-version.js");
 const { upsert } =
@@ -211,6 +217,95 @@ describe("Payments Claim request inbox flow", () => {
 
     expect(first.status).toBe(InboxStatus.COMPLETED);
     expect(second.status).toBe(InboxStatus.COMPLETED);
+    await expect(paymentDocuments.countDocuments({})).resolves.toBe(1);
+    await expect(outbox.countDocuments({})).resolves.toBe(1);
+    await expect(
+      db.collection("payments__counters").findOne({ _id: "claimIds" }),
+    ).resolves.toMatchObject({ seq: 1 });
+  });
+
+  it("retries only the persisted Payment publication after an SNS failure", async () => {
+    const completed = await deliver();
+    const payment = await paymentDocuments.findOne({});
+    const publication = await outbox.findOne({});
+    const send = vi
+      .spyOn(SNSClient.prototype, "send")
+      .mockRejectedValueOnce(new Error("temporary SNS outage"))
+      .mockResolvedValueOnce({ MessageId: "published" });
+
+    try {
+      const subscriber = new OutboxSubscriber();
+      await subscriber.processWithLock("claim-first-publish", CLIENT_REF);
+      const failed = await outbox.findOne({ _id: publication._id });
+      expect(failed.status).toBe(OutboxStatus.FAILED);
+      expect(failed.completionAttempts).toBe(1);
+      expect(failed.event.id).toBe(publication.event.id);
+
+      // The outbox poller resubmits and claims the same publication, not the Inbox request.
+      await subscriber.processFailedEvents();
+      await subscriber.processResubmittedEvents();
+      await subscriber.processWithLock("claim-retry-publish", CLIENT_REF);
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(send.mock.calls[0][0].input.MessageDeduplicationId).toBe(
+        publication.event.id,
+      );
+      expect(send.mock.calls[1][0].input.MessageDeduplicationId).toBe(
+        publication.event.id,
+      );
+    } finally {
+      send.mockRestore();
+    }
+    await expect(
+      outbox.findOne({ _id: publication._id }),
+    ).resolves.toMatchObject({
+      status: OutboxStatus.COMPLETED,
+      event: { id: publication.event.id },
+      completionAttempts: 1,
+    });
+    await expect(inbox.findOne({ _id: completed._id })).resolves.toMatchObject({
+      status: InboxStatus.COMPLETED,
+    });
+    await expect(paymentDocuments.findOne({})).resolves.toMatchObject({
+      _id: payment._id,
+      paymentHubClaimId: payment.paymentHubClaimId,
+    });
+    await expect(paymentDocuments.countDocuments({})).resolves.toBe(1);
+    await expect(outbox.countDocuments({})).resolves.toBe(1);
+    await expect(
+      db.collection("payments__counters").findOne({ _id: "claimIds" }),
+    ).resolves.toMatchObject({ seq: 1 });
+  });
+
+  it("redrives a Claim request after Payment commit without duplicating its effects", async () => {
+    const completed = await deliver();
+    const payment = await paymentDocuments.findOne({});
+    const publication = await outbox.findOne({});
+
+    // Simulate a lost Inbox completion after the Payment transaction committed.
+    await deadLetterEvent(Inbox.fromDocument(completed));
+    expect(
+      await redriveById(completed._id.toHexString(), { by: "operator" }),
+    ).toBe(true);
+    await updateResubmittedEvents();
+    const redriven = await inbox.findOne({ _id: completed._id });
+    expect(redriven.status).toBe(InboxStatus.PUBLISHED);
+    expect(redriven.lastRedrive.by).toBe("operator");
+
+    await new InboxSubscriber().processWithLock(
+      "claim-manual-redrive",
+      CLIENT_REF,
+    );
+    await expect(inbox.findOne({ _id: completed._id })).resolves.toMatchObject({
+      status: InboxStatus.COMPLETED,
+    });
+    await expect(paymentDocuments.findOne({})).resolves.toMatchObject({
+      _id: payment._id,
+      paymentHubClaimId: payment.paymentHubClaimId,
+    });
+    await expect(outbox.findOne({})).resolves.toMatchObject({
+      _id: publication._id,
+      event: { id: publication.event.id },
+    });
     await expect(paymentDocuments.countDocuments({})).resolves.toBe(1);
     await expect(outbox.countDocuments({})).resolves.toBe(1);
     await expect(
