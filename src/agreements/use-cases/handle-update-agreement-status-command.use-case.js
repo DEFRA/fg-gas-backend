@@ -1,10 +1,7 @@
 import { logger } from "../../common/logger.js";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { findVersionByIdempotencyKey } from "../repositories/agreement.repository.js";
-import {
-  commitAgreementAction,
-  resolveAgreementPayment,
-} from "./execute-agreement-action.use-case.js";
+import { commitAgreementAction } from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
 const findCompleted = async ({ agreementNumber, status }, idempotencyKey) => {
@@ -41,18 +38,11 @@ const executeStatusTransition = async ({ command, agreement, definition }) => {
     values: {},
     execution,
   });
-  const resolvedPayment = await resolveAgreementPayment({
-    agreement,
-    next,
-    execution,
-  });
-
   return commitAgreementAction({
     actionName,
     current: agreement,
     idempotencyKey: command.id,
     next,
-    resolvedPayment,
   });
 };
 

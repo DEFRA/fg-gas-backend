@@ -22,9 +22,10 @@ Current checkpoint, 25 September 2026:
 - [x] Classify irrecoverable pinned Payment definition failures as non-retryable for both handlers; keep transient loading and source-data mapping failures retryable, with Inbox and handler proof.
 - [x] Finish work package 4: a failed SNS publication retries the same persisted event ID without re-entering Payment creation; manual Inbox redrive after Payment commit completes both Claim and Agreement requests without another Payment, claim-ID increment or publication.
 - [x] Finish work package 5: Claim submission now writes a pinned `ClaimPaymentRequested` alongside the Claim, without creating a Payment synchronously. Mongo replica-set tests prove replay, missing optional definition, source-transaction rollback when request persistence fails, subsequent Payment creation and independence from a failed Payment handler; the existing Claim service and HTTP route tests preserve capacity, version retry and response behaviour. Full unit suite (3,019 tests), focused container-backed Claim inbox tests (8) and lint pass.
+- [ ] Finish work package 6 verification. Agreement actions and internal status commands commit pinned `AgreementPaymentRequested` events; focused tests cover atomicity, replay and concurrency, downstream independence, Woodland exclusion, two scheduled payments, lifecycle removal of `claimId`, and source-to-SNS-to-GPS delivery using the compose seed demo grant `pigs-might-fly`. Legacy parity is outside this development-only cutover but remains required for a future live migration. Full unit suite (3,004 tests), focused container-backed Agreement and transport tests (22) and lint passed at the checkpoint, but the full integration run failed on Client request timeouts (also reproduced on the parent branch); resolve or explicitly disposition that incomplete run before marking WP6 finished.
 - [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
-Claim submission now emits a durable request instead of importing Payments creation use-cases. Agreement acceptance still uses synchronous Payment creation and remains the next producer cutover.
+Claim submission and Agreement acceptance now emit durable Payment requests instead of importing Payments creation use-cases. Clean-up of obsolete direct creation seams is next.
 
 ## Target Invariants
 
@@ -68,7 +69,7 @@ Use this branch-per-stage stack:
 1. Complete and verify each stage as a safe intermediate state. Base the next branch on the exact head of its predecessor; the Claim cutover starts from the Payments-handler branch (#700).
 2. Open a child PR **against its predecessor branch**, never against `main` while that predecessor remains unmerged. Confirm the PR's three-dot diff contains only its own stage; a parent update must be merged into the child and reverified before review resumes.
 3. Merge bottom-up. `main` squash-merges PRs (as with #688 and #701), so do not retarget a stacked child PR directly to `main`: the parent's commits would appear in the child's diff.
-4. Once #700 lands, create a **new** branch from the merged `main`, cherry-pick only this Claim cutover's commits, reverify, and open a replacement PR. Repeat for each child stage. Never force-push or silently rewrite a reviewed branch; keep the old PR for review provenance until its replacement is ready.
+4. After a parent lands, merge the updated `main` into its existing child and confirm the three-dot diff contains only that child stage. If it does not, create a **new** branch from merged `main`, cherry-pick only the child's own commits, reverify, and open a replacement PR. Never force-push or silently rewrite a reviewed branch; keep the old PR for review provenance until its replacement is ready.
 
 Keep deployment-only environment gates outside the code-PR stack. Do not merge a child while its parent is open or let a cutover branch enable both direct and event-driven Payment creation for the same producer.
 
@@ -147,16 +148,16 @@ Completion criterion: a replayed Claim submission returns the existing Claim and
 Prerequisite: work packages 1–5 are complete.
 
 - [ ] For every migrated Agreement scheme, compare its Payment definition with the legacy constants and mappings. For FPTT this includes `scheme: SFI`, `sourceSystem: FPTT`, `deliveryBody: RP00`, `fesCode: FALS_FPTT`, `ledger: AP`, `accountCode: SOS710`, `fundCode: DRD10`, marketing year, descriptions, dates and stringified money.
-- [ ] Prove one Agreement with multiple scheduled payments produces one Payment Service event with all entries in `payments[]`, `paymentRequestNumber: 1` and the expected invoice-number format.
+- [x] Prove one Agreement with multiple scheduled payments produces one Payment Service event with all entries in `payments[]`, `paymentRequestNumber: 1` and the expected invoice-number format.
 - [ ] Prove the complete runtime-serialized CloudEvent matches the captured legacy fixture except for generated IDs and times.
-- [ ] Exercise the complete local path: source transaction → durable request → Payments handler transaction → external outbox → runtime SNS adapter → `gps__sqs__create_payment.fifo`.
-- [ ] Replace pre-transaction Payment definition resolution and direct Payment creation in `execute-agreement-action.use-case.js` with construction of `AgreementPaymentRequested` from the resulting Agreement and action execution snapshot.
-- [ ] In the existing Agreement transaction, persist the current Agreement, Agreement Version, lifecycle publications, reporting publication and Payment request event together.
-- [ ] Remove `claimId` and every Payment parameter from `create-outbox-messages.js`; lifecycle publication must depend only on Agreement-owned data.
-- [ ] Preserve the normal `303` Agreement action response. It returns no Payment Hub identifier and does not wait for Payment handling.
-- [ ] Preserve Agreement validation, optimistic concurrency and idempotency behaviour. Failure to persist the durable request rolls back acceptance; later Payment processing failure does not.
-- [ ] Apply the same cutover through `commitAgreementAction` so HTTP actions and internal Agreement-status commands cannot diverge.
-- [ ] Keep Agreement-originated Woodland Payments excluded. A Woodland definition must not gain a Payment commit operation as part of this work, while Claim-originated Woodland behaviour remains intact.
+- [x] Exercise the complete local path: source transaction → durable request → Payments handler transaction → external outbox → runtime SNS adapter → `gps__sqs__create_payment.fifo`.
+- [x] Replace pre-transaction Payment definition resolution and direct Payment creation in `execute-agreement-action.use-case.js` with construction of `AgreementPaymentRequested` from the resulting Agreement and action execution snapshot.
+- [x] In the existing Agreement transaction, persist the current Agreement, Agreement Version, lifecycle publications, reporting publication and Payment request event together.
+- [x] Remove `claimId` and every Payment parameter from `create-outbox-messages.js`; lifecycle publication must depend only on Agreement-owned data.
+- [x] Preserve the normal `303` Agreement action response. It returns no Payment Hub identifier and does not wait for Payment handling.
+- [x] Preserve Agreement validation, optimistic concurrency and idempotency behaviour. Failure to persist the durable request rolls back acceptance; later Payment processing failure does not.
+- [x] Apply the same cutover through `commitAgreementAction` so HTTP actions and internal Agreement-status commands cannot diverge.
+- [x] Keep Agreement-originated Woodland Payments excluded. A Woodland definition must not gain a Payment commit operation as part of this work, while Claim-originated Woodland behaviour remains intact.
 
 Completion criterion: the executable compatibility gates pass; acceptance succeeds with Payments processing unavailable; the accepted Agreement and durable request are committed; the lifecycle event and HTTP contract have no Payment Hub `claimId`; and a local transaction failure leaves none of those writes committed.
 
