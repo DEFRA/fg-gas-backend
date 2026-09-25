@@ -29,6 +29,8 @@ const { updateDefinitionLocation } =
   await import("../../../src/common/config-broker/config-catalog.repository.js");
 const { Inbox, InboxStatus } =
   await import("../../../src/events/models/inbox.js");
+const { deadLetterEvent, redriveById, updateResubmittedEvents } =
+  await import("../../../src/events/repositories/inbox.repository.js");
 const { clearEventHandlers } =
   await import("../../../src/events/services/event-handlers.js");
 const { InboxSubscriber } =
@@ -289,6 +291,44 @@ describe("Payments Agreement request inbox flow", () => {
     });
   });
 
+  it("redrives an Agreement request after Payment commit without duplicating its effects", async () => {
+    const request = await insertRequest();
+    const completed = await handle(request);
+    const payment = await paymentDocuments.findOne({});
+    const publication = await outbox.findOne({});
+
+    // The Payment committed, but the separate Inbox completion write was lost.
+    await deadLetterEvent(Inbox.fromDocument(completed));
+    expect(
+      await redriveById(request._id.toHexString(), { by: "operator" }),
+    ).toBe(true);
+    await updateResubmittedEvents();
+    const redriven = await inbox.findOne({ _id: request._id });
+    expect(redriven.status).toBe(InboxStatus.PUBLISHED);
+    expect(redriven.lastRedrive.by).toBe("operator");
+
+    await new InboxSubscriber().processWithLock(
+      "agreement-manual-redrive",
+      AGREEMENT_NUMBER,
+    );
+    await expect(inbox.findOne({ _id: request._id })).resolves.toMatchObject({
+      status: InboxStatus.COMPLETED,
+    });
+    await expect(paymentDocuments.findOne({})).resolves.toMatchObject({
+      _id: payment._id,
+      paymentHubClaimId: payment.paymentHubClaimId,
+    });
+    await expect(outbox.findOne({})).resolves.toMatchObject({
+      _id: publication._id,
+      event: { id: publication.event.id },
+    });
+    await expect(paymentDocuments.countDocuments({})).resolves.toBe(1);
+    await expect(outbox.countDocuments({})).resolves.toBe(1);
+    await expect(
+      db.collection("payments__counters").findOne({ _id: "claimIds" }),
+    ).resolves.toMatchObject({ seq: 1 });
+  });
+
   it("completes concurrent deliveries of one Agreement request without a second Payment or claim ID", async () => {
     const first = await insertRequest();
     const second = await insertRequest();
@@ -339,6 +379,19 @@ describe("Payments Agreement request inbox flow", () => {
     await expect(
       db.collection("payments__counters").findOne({ _id: "claimIds" }),
     ).resolves.toMatchObject({ seq: 1 });
+  });
+
+  it("dead-letters an Agreement request for a missing pinned Payment definition", async () => {
+    const request = await insertRequest({
+      ...agreement,
+      configVersion: "unavailable-version",
+    });
+    const failed = await handle(request);
+
+    expect(failed.status).toBe(InboxStatus.DEAD_LETTER);
+    expect(failed.retryable).toBe(false);
+    await expect(paymentDocuments.countDocuments({})).resolves.toBe(0);
+    await expect(outbox.countDocuments({})).resolves.toBe(0);
   });
 
   it("leaves the request retryable and the definition usable when one snapshot fails to map", async () => {
