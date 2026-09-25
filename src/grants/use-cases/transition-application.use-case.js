@@ -39,7 +39,7 @@ const getHandlersForAllProcesses = (processes) => {
 
   return processes
     .map((processName) => getHandlerForProcess(processName))
-    .filter((handler) => typeof handler !== "undefined");
+    .filter((handler) => handler !== undefined);
 };
 
 export const transitionApplicationUseCase = async (
@@ -49,23 +49,21 @@ export const transitionApplicationUseCase = async (
   const { clientRef, code, currentConfigVersion } = application;
   const move = application.moveTo(targetPosition, grant);
 
-  if (!move.changed) {
-    return move;
-  }
+  if (move.changed) {
+    await update(application, session);
 
-  await update(application, session);
+    const publishStatusTransition = createStatusTransitionUpdateUseCase({
+      clientRef,
+      code,
+      configVersion: currentConfigVersion,
+      originalFullyQualifiedStatus: move.previous,
+      newFullyQualifiedStatus: move.new,
+    });
+    await publishStatusTransition(session);
 
-  const publishStatusTransition = createStatusTransitionUpdateUseCase({
-    clientRef,
-    code,
-    configVersion: currentConfigVersion,
-    originalFullyQualifiedStatus: move.previous,
-    newFullyQualifiedStatus: move.new,
-  });
-  await publishStatusTransition(session);
-
-  for (const handler of getHandlersForAllProcesses(move.processes)) {
-    await handler(sideEffectContext, session);
+    for (const handler of getHandlersForAllProcesses(move.processes)) {
+      await handler(sideEffectContext, session);
+    }
   }
 
   return move;
