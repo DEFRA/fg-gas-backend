@@ -11,7 +11,7 @@ Read the decision record, then resume at the first unchecked item in the numbere
 Current checkpoint, 25 September 2026:
 
 - [x] Record the architecture decision and consumer research.
-- N/A for the current development-only Agreement cutover: executable parity with a legacy runtime-serialized Payment event. No live Agreement scheme is being migrated. The captured fixture and demo-grant transport test do not prove live-scheme parity; revisit this gate before real Agreement Payment traffic is enabled.
+- [ ] Retain executable proof that the GAS Payment event matches the legacy runtime-serialized event after normalising generated identifiers and times. The completed one-off comparison informed the design but is not repeatable evidence.
 - [x] Align local, Vitest and FloCi configuration to GAS-owned `gas__sns__create_payment_fifo.fifo` and `gas__sns__agreement_status_updated_fifo.fifo`, with the existing Payment, GAS and PDF queues.
 - [x] Retain a repeatable runtime SNS-adapter smoke that receives the unchanged body from the existing FloCi Payment queue via the GAS-owned topic. This proves transport wiring, not full Payment payload compatibility or the source-to-handler end-to-end path.
 - [x] Merge the CDP tenant configuration for GAS-owned topics and subscriptions in dev, test, perf-test, ext-test and prod, including the Payment Service queue subscription. Verify live delivery before each environment's GAS application ARN switch; CDP does not support publishing to another service's topic.
@@ -147,9 +147,9 @@ Completion criterion: a replayed Claim submission returns the existing Claim and
 
 Prerequisite: work packages 1–5 are complete.
 
-- N/A for the current development-only cutover: compare each migrated Agreement scheme's Payment definition with legacy constants and mappings. There is no live Agreement scheme being migrated; `pigs-might-fly` is a compose seed/test grant, FPTT is closed, and future Woodland Payments belong to Claims. Before any live Agreement scheme is enabled, revisit its actual interface, including scheme, source system, accounting codes, marketing year, descriptions, dates and stringified money.
+- [ ] For every migrated Agreement scheme, compare its Payment definition with the legacy constants and mappings. For FPTT this includes `scheme: SFI`, `sourceSystem: FPTT`, `deliveryBody: RP00`, `fesCode: FALS_FPTT`, `ledger: AP`, `accountCode: SOS710`, `fundCode: DRD10`, marketing year, descriptions, dates and stringified money.
 - [x] Prove one Agreement with multiple scheduled payments produces one Payment Service event with all entries in `payments[]`, `paymentRequestNumber: 1` and the expected invoice-number format.
-- N/A for the current development-only cutover: prove complete runtime-serialized CloudEvent parity with a captured legacy event except for generated IDs and times. The captured FPTT fixture and `pigs-might-fly` local transport test are not such a comparison; require scheme-specific evidence before live Agreement traffic.
+- [ ] Prove the complete runtime-serialized CloudEvent matches the captured legacy fixture except for generated IDs and times.
 - [x] Exercise the complete local path: source transaction → durable request → Payments handler transaction → external outbox → runtime SNS adapter → `gps__sqs__create_payment.fifo`.
 - [x] Replace pre-transaction Payment definition resolution and direct Payment creation in `execute-agreement-action.use-case.js` with construction of `AgreementPaymentRequested` from the resulting Agreement and action execution snapshot.
 - [x] In the existing Agreement transaction, persist the current Agreement, Agreement Version, lifecycle publications, reporting publication and Payment request event together.
