@@ -23,9 +23,10 @@ Current checkpoint, 25 September 2026:
 - [x] Finish work package 4: a failed SNS publication retries the same persisted event ID without re-entering Payment creation; manual Inbox redrive after Payment commit completes both Claim and Agreement requests without another Payment, claim-ID increment or publication.
 - [x] Finish work package 5: Claim submission now writes a pinned `ClaimPaymentRequested` alongside the Claim, without creating a Payment synchronously. Mongo replica-set tests prove replay, missing optional definition, source-transaction rollback when request persistence fails, subsequent Payment creation and independence from a failed Payment handler; the existing Claim service and HTTP route tests preserve capacity, version retry and response behaviour. Full unit suite (3,019 tests), focused container-backed Claim inbox tests (8) and lint pass.
 - [x] Finish work package 6: Agreement actions and internal status commands commit a pinned `AgreementPaymentRequested` instead of resolving or creating Payments synchronously. Focused tests prove atomicity, replay and concurrency, downstream independence, Woodland exclusion, two scheduled payments in one request, lifecycle removal of `claimId`, and source-to-SNS-to-GPS delivery for the migrated `pigs-might-fly` scheme. The historical FPTT event remains a serializer regression but FPTT is closed and is not a migrated cutover scheme. Full unit suite (3,004 tests), focused container-backed Agreement and transport tests (22) and lint pass. A full integration run still fails on baseline Client request timeouts, reproduced on the parent branch for Agreement test endpoints; it is not a full pass.
-- [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
+- [x] Finish work package 7: remove the obsolete synchronous Payment seams, enforce module boundaries, introduce explicit event and command routing, and record the clean-cutover verification evidence. Repository-wide lint and all 2,995 unit tests pass; the focused source and handler integration suites pass 61 tests.
+- [x] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
-Claim submission and Agreement acceptance now emit durable Payment requests instead of importing Payments creation use-cases. Clean-up of obsolete direct creation seams is next.
+Work packages 1–7 are complete. Work package 8's deployment-only gates are next.
 
 ## Target Invariants
 
