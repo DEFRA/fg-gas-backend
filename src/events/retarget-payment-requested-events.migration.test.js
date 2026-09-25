@@ -1,15 +1,15 @@
 import { expect, it, vi } from "vitest";
-import { up } from "../../migrations/20260925120000-split-internal-targets.js";
+import { up } from "../../migrations/20260925120000-retarget-payment-requested-events.js";
 
-it("splits legacy internal outbox rows into event and command targets", async () => {
+it("retargets legacy internal Payment request events", async () => {
   const updateMany = vi.fn().mockResolvedValue({ modifiedCount: 1 });
   const collection = vi.fn().mockReturnValue({ updateMany });
 
   await up({ collection });
 
   expect(collection).toHaveBeenCalledWith("outbox");
-  expect(updateMany).toHaveBeenNthCalledWith(
-    1,
+  expect(updateMany).toHaveBeenCalledOnce();
+  expect(updateMany).toHaveBeenCalledWith(
     {
       target: {
         $in: ["internal:message-bus", "internal:event-bus"],
@@ -17,10 +17,5 @@ it("splits legacy internal outbox rows into event and command targets", async ()
       "event.type": /\.(claim|agreement)\.payment\.requested$/,
     },
     { $set: { target: "internal:event" } },
-  );
-  expect(updateMany).toHaveBeenNthCalledWith(
-    2,
-    { target: "internal:message-bus" },
-    { $set: { target: "internal:command" } },
   );
 });

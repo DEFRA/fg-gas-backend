@@ -8,7 +8,7 @@ import {
   statusDisplay,
 } from "./event-display.js";
 
-const INTERNAL_TARGETS = new Set(["internal:command", "internal:event"]);
+const INTERNAL_TARGETS = new Set(["internal:message-bus", "internal:event"]);
 const INTERNAL_TARGET_NAME = "internal";
 const HEX = 16;
 // OpenSearch indexes only the trace-id half; a non-W3C value already is one.

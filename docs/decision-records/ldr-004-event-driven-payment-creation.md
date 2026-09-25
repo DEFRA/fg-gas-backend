@@ -186,8 +186,8 @@ The synchronous and asynchronous creation paths must never create Payments for t
 The implementation was delivered as a bottom-up stack covering shared event
 infrastructure and handlers, Claim cutover, Agreement cutover and clean
 cutover. Claims and Agreements now commit producer-owned requests to the
-explicit `internal:event` target; commands use `internal:command`. Exact-type
-dispatch rejects unknown event types into
+explicit `internal:event` target; commands retain the established
+`internal:message-bus` stored target for rolling-deploy compatibility. Exact-type dispatch rejects unknown event types into
 the existing retry, dead-letter and Admin redrive lifecycle.
 
 The final clean cutover removed all direct Payment creation and Claim resolver

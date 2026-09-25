@@ -1,6 +1,6 @@
 import { internalCommandTypes } from "./internal-command-types.js";
 
-export const internalCommandTarget = "internal:command";
+export const internalCommandTarget = "internal:message-bus";
 
 const handlers = new Map();
 const internalTypes = Object.values(internalCommandTypes);
