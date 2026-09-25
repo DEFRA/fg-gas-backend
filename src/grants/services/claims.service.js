@@ -1,12 +1,13 @@
 import Boom from "@hapi/boom";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
+import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
+import { internalMessageBusTarget } from "../../common/internal-command-bus.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveEvents } from "../../events/index.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { createClaimPaymentUseCase } from "../../payments/use-cases/create-claim-payment.use-case.js";
-import { resolveClaimPayment } from "../../payments/use-cases/resolve-claim-payment.js";
+import { ClaimPaymentRequestedEvent } from "../events/claim-payment-requested.event.js";
 import { Claim } from "../models/claim.js";
 import { ClaimableEntitlement } from "../models/claimable-entitlement.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
@@ -329,17 +330,21 @@ const claimFacts = ({ metadata, claim }) => ({
   totalAmountPence: claim.totalClaimAmountPence,
 });
 
-// Before the transaction, so a definition that cannot be resolved writes nothing.
+// Check the optional definition without loading or evaluating it: mapping
+// belongs to Payments and must not make an accepted Claim fail.
 const claimPaymentFor = async ({ command, grant, configVersion }) => {
   const template = await claimTemplateFor({ command, grant });
 
-  return templatePaysOnSubmission(template)
-    ? resolveClaimPayment({
-        code: command.code,
-        configVersion,
-        claim: claimFacts(command.payload),
-      })
-    : null;
+  if (!templatePaysOnSubmission(template) || !configVersion) {
+    return false;
+  }
+
+  const definition = await findConfigDefinition({
+    grantCode: command.code,
+    version: configVersion,
+    definitionType: "payment",
+  });
+  return Boolean(definition?.s3Key);
 };
 
 const agreementFor = async ({ code, clientRef }, session) => {
@@ -357,34 +362,44 @@ const agreementFor = async ({ code, clientRef }, session) => {
   return agreement;
 };
 
-const createClaimPayment = async (
-  { command, claimable, resolvedPayment },
+const requestClaimPayment = async (
+  { command, claimable, configVersion, paymentConfigured },
   session,
 ) => {
-  if (resolvedPayment === null || claimable.claim?.requiresApproval) {
+  if (!paymentConfigured || claimable.claim?.requiresApproval) {
     return;
   }
 
   const agreement = await agreementFor(command, session);
-  const { publication } = await createClaimPaymentUseCase(
-    {
-      code: command.code,
-      clientRef: command.clientRef,
-      clientClaimRef: command.payload.metadata.clientClaimRef,
-      entitlementId: command.payload.claim.entitlementId,
+  const event = new ClaimPaymentRequestedEvent({
+    code: command.code,
+    clientRef: command.clientRef,
+    clientClaimRef: command.payload.metadata.clientClaimRef,
+    entitlementId: command.payload.claim.entitlementId,
+    configVersion,
+    agreement: {
       agreementNumber: agreement.agreementNumber,
       agreementVersion: agreement.version,
       correlationId: agreement.correlationId,
-      resolved: resolvedPayment,
     },
+    executedAt: new Date().toISOString(),
+    claim: claimFacts(command.payload),
+  });
+
+  await saveEvents(
+    [
+      {
+        event,
+        target: internalMessageBusTarget,
+        segregationRef: command.clientRef,
+      },
+    ],
     session,
   );
-
-  await saveEvents([publication], session);
 };
 
 const submitInTransaction = async (
-  { command, grant, pinnedVersion, resolvedPayment },
+  { command, grant, pinnedVersion, paymentConfigured },
   session,
 ) => {
   const application = await lockedApplicationFor(
@@ -411,7 +426,10 @@ const submitInTransaction = async (
     session,
   );
 
-  await createClaimPayment({ command, claimable, resolvedPayment }, session);
+  await requestClaimPayment(
+    { command, claimable, configVersion: pinnedVersion, paymentConfigured },
+    session,
+  );
 
   return result;
 };
@@ -459,7 +477,7 @@ const submitAttempt = async (command, attempt) => {
     code: command.code,
     pinnedVersion,
   });
-  const resolvedPayment = await claimPaymentFor({
+  const paymentConfigured = await claimPaymentFor({
     command,
     grant,
     configVersion: pinnedVersion,
@@ -467,7 +485,7 @@ const submitAttempt = async (command, attempt) => {
   try {
     return await withTransaction((session) =>
       submitInTransaction(
-        { command, grant, pinnedVersion, resolvedPayment },
+        { command, grant, pinnedVersion, paymentConfigured },
         session,
       ),
     );

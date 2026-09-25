@@ -8,7 +8,7 @@ Decision: [Event-driven Payment Creation in GAS](./ldr-004-event-driven-payment-
 
 Read the decision record, then resume at the first unchecked item in the numbered work packages, following their stage order. Update the checkboxes and the checkpoint in the same change that completes a work package. The checkpoint also records compatibility and deployment gates that deliberately remain open until work packages 7 and 8; it is not the execution order. This is the single delivery checklist; design rationale remains in the decision record.
 
-Current checkpoint, 24 September 2026:
+Current checkpoint, 25 September 2026:
 
 - [x] Record the architecture decision and consumer research.
 - [ ] Retain executable proof that the GAS Payment event matches the legacy runtime-serialized event after normalising generated identifiers and times. The completed one-off comparison informed the design but is not repeatable evidence.
@@ -21,9 +21,10 @@ Current checkpoint, 24 September 2026:
 - [x] Add the Agreement and Claim Payments handlers (#688 and #700): both register by producer event type, map pinned snapshots, look up logical source identity before allocating, and commit Payment, claim-ID increment and external publication together. Claim source-index duplicate recovery reloads the committed winner; handler and Inbox tests cover redelivery, concurrency, transaction retry and retryable bad snapshots.
 - [x] Classify irrecoverable pinned Payment definition failures as non-retryable for both handlers; keep transient loading and source-data mapping failures retryable, with Inbox and handler proof.
 - [x] Finish work package 4: a failed SNS publication retries the same persisted event ID without re-entering Payment creation; manual Inbox redrive after Payment commit completes both Claim and Agreement requests without another Payment, claim-ID increment or publication.
+- [x] Finish work package 5: Claim submission now writes a pinned `ClaimPaymentRequested` alongside the Claim, without creating a Payment synchronously. Mongo replica-set tests prove replay, missing optional definition, source-transaction rollback when request persistence fails, subsequent Payment creation and independence from a failed Payment handler; the existing Claim service and HTTP route tests preserve capacity, version retry and response behaviour. Full unit suite (3,019 tests), focused container-backed Claim inbox tests (8) and lint pass.
 - [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
-The code is not yet event-driven from production sources. Agreement acceptance and Claim submission still import Payments use-cases, resolve Payment definitions before their source transactions, allocate Payment Hub identifiers inside those transactions and persist Payment Service publications in the source-owned outbox work.
+Claim submission now emits a durable request instead of importing Payments creation use-cases. Agreement acceptance still uses synchronous Payment creation and remains the next producer cutover.
 
 ## Target Invariants
 
@@ -69,7 +70,7 @@ Use this branch-per-stage stack:
 3. Merge bottom-up. Prefer a merge commit for a parent with open children so its commits remain ancestors of the child; after it merges, retarget the immediate child PR to `main`, confirm its diff still contains only the child stage, and rerun checks before merging it. Repeat for each child.
 4. If a parent is squash- or rebase-merged instead, do not retarget its child blindly: create a **new** branch from merged `main`, cherry-pick only the child's own commits, reverify, and open a replacement PR. Never force-push or silently rewrite a reviewed branch; keep the old PR for review provenance until its replacement is ready.
 
-Wait for #700's head checks before opening its child PR; local work on the child branch may start earlier. Keep deployment-only environment gates outside the code-PR stack. Do not merge a child while its parent is open or let a cutover branch enable both direct and event-driven Payment creation for the same producer.
+Wait for #700's head checks before opening its child PR (all were green on 25 September 2026). Keep deployment-only environment gates outside the code-PR stack. Do not merge a child while its parent is open or let a cutover branch enable both direct and event-driven Payment creation for the same producer.
 
 No runtime feature flag is required for this sequential workflow. If stages must instead be deployed independently, use one mutually exclusive mode (`direct` or `event`) per producer, default it to the currently proven path, and remove it after cutover. Never use independent booleans that can enable both paths.
 
@@ -133,11 +134,11 @@ Completion criterion: sequential redelivery, concurrent delivery, transaction re
 
 ### 5. Cut Claim submission over
 
-- [ ] Replace `resolveClaimPayment` and `createClaimPaymentUseCase` calls in `src/grants/services/claims.service.js` with a producer-owned `ClaimPaymentRequested` event for an eligible auto-paying Claim.
-- [ ] Persist the Claim and Payment request in the same Claim submission transaction. Preserve replay, application-version retry and capacity checks.
-- [ ] Carry the pinned configuration version and point-in-time Agreement reference in the request; the Payments handler must not reload the current Agreement.
-- [ ] Preserve the existing no-Payment behaviour for Claims requiring approval and configurations without an optional Payment definition.
-- [ ] Preserve the Claim submission HTTP `claimId`: it is the GAS Claim document identifier, not the Payment Hub `claimId` covered by LDR-004.
+- [x] Replace `resolveClaimPayment` and `createClaimPaymentUseCase` calls in `src/grants/services/claims.service.js` with a producer-owned `ClaimPaymentRequested` event for an eligible auto-paying Claim.
+- [x] Persist the Claim and Payment request in the same Claim submission transaction. Preserve replay, application-version retry and capacity checks.
+- [x] Carry the pinned configuration version and point-in-time Agreement reference in the request; the Payments handler must not reload the current Agreement.
+- [x] Preserve the existing no-Payment behaviour for Claims requiring approval and configurations without an optional Payment definition.
+- [x] Preserve the Claim submission HTTP `claimId`: it is the GAS Claim document identifier, not the Payment Hub `claimId` covered by LDR-004.
 
 Completion criterion: a replayed Claim submission returns the existing Claim and cannot create another request or Payment; a later Payment failure does not roll back the committed Claim.
 
