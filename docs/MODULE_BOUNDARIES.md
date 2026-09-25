@@ -10,7 +10,7 @@
 | `grant-admin`    | `src/grant-admin/`    | Inbound admin adapter for Entitlement and Claim operations        |
 | `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes     |
 | `auth`           | `src/auth/`           | Authentication and authorisation                                  |
-| `common`         | `src/common/`         | Shared infrastructure (logger, database, messaging clients)       |
+| `common`         | `src/common/`         | Shared infrastructure and context-neutral mapping utilities       |
 | `events`         | `src/events/`         | Shared event domain: what an inbox/outbox event IS and means      |
 
 ## Forbidden Imports
@@ -121,27 +121,45 @@ retry, dead-letter and redrive path as handler failures.
   idempotent redelivery/concurrency verification and retry/dead-letter/redrive
   coverage.
 
-### Payment entry points
+### Payment event interface
 
-Agreement acceptance and Claim submission use named Payment use cases:
+Agreements and Grants do not import Payments. They commit producer-owned request
+events with their own state changes:
 
-| Caller       | Entry point                                               | Why                                                                                                                                                                                                                                                        |
-| ------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agreements` | `payments/use-cases/resolve-payment-definition.js`        | Resolves and validates the persisted Agreement's exact Payment definition before the transaction starts, so configuration or fetch failures write nothing                                                                                                  |
-| `agreements` | `payments/use-cases/create-agreement-payment.use-case.js` | Creates the Payment in the Agreement action's Mongo session so the Payment, Agreement, Version and lifecycle event commit together                                                                                                                         |
-| `grants`     | `payments/use-cases/resolve-claim-payment.js`             | Resolves the Payment a submitted Claim would raise, before the submission transaction starts. Payments owns the catalogue lookup, the definition type, the mapping context and what an unconfigured definition means; Grants passes the Claim as submitted |
-| `grants`     | `payments/use-cases/create-claim-payment.use-case.js`     | Creates the Payment in the Claim submission's Mongo session so the Payment and the Claim commit together, and roll back together on any replay or retry                                                                                                    |
-| `grants`     | `payments/use-cases/compile-payment-definition.js`        | Checks a published Payment definition before the config version is recorded. Payments owns what makes one unusable; Grants passes the fetched file and is told only whether it is good                                                                     |
+| Producer     | Contract                                             | Payments handler                                      |
+| ------------ | ---------------------------------------------------- | ----------------------------------------------------- |
+| `agreements` | `agreements/events/agreement-payment-requested.event.js` | `payments/handlers/handle-agreement-payment-requested.js` |
+| `grants`     | `grants/events/claim-payment-requested.event.js`     | `payments/handlers/handle-claim-payment-requested.js` |
 
-The resolver is a read-only, pre-transaction seam. Config Broker loading and mapping validation stay outside the write transaction. The creation use case is the transactional seam, and the caller passes its session in.
+Both requests use the explicit `internal:event-bus` outbox target. The outbox
+dispatches the exact CloudEvent type after the producer transaction commits;
+`internal:message-bus` is reserved for commands. An unknown event type fails
+and follows the normal retry, dead-letter and Admin redrive path. It is never
+reinterpreted as a command.
 
-A Payment definition supplies `originalInvoiceNumber` as a top-level lookup or literal mapping. It also supplies `deliveryBody` and `marketingYear` at both Payment and invoice-line levels. Invoice-line values may differ from the Payment-level values, and `payments` preserves them when it builds the Payment. `payments` generates `invoiceNumber`.
+The producer event contains a stable request identity, pinned configuration
+version and immutable snapshot. Payments resolves its definition, maps the
+snapshot, allocates the Payment Hub identifier, writes the Payment and creates
+the external Payment Service event in its own transaction. Its uniqueness
+indexes make repeated or concurrent delivery converge on one Payment and one
+publication.
 
-Nothing else in `payments` is importable from Agreements or Grants. Each ESLint zone lists its exceptions explicitly so adding another one is a deliberate, reviewed change.
+A Payment definition supplies `originalInvoiceNumber` as a top-level lookup or
+literal mapping. It also supplies `deliveryBody` and `marketingYear` at both
+Payment and invoice-line levels. Invoice-line values may differ from the
+Payment-level values, and Payments preserves them when it builds the Payment.
+Payments generates `invoiceNumber`.
 
-Claim submission is transactional for the same reason Agreement acceptance is. `grants/services/claims.service.js` replays a duplicate `clientClaimRef`, retries when the Application's pinned version moves under it, and runs inside `session.withTransaction`, which may re-run the callback on a transient error. A Payment created outside that session would survive every one of those paths, so the claim ID allocation and the Payment insert take the submission's session and roll back with the Claim.
+No production import may cross from Agreements or Grants into Payments; ESLint
+has no exception for a Payment use case, model or helper. Payments likewise
+imports neither producer context. The event contract and the handler are the
+entire runtime interface.
 
-`payments` owns the shape of the Payment Service message (`payments/events/create-payment.event.js`) and returns it from the creation entry point as an outbox publication. The caller writes it to the outbox inside its own transaction, so the message commits with the Agreement while `payments` stays out of the outbox and out of publishing.
+Grant Admin exposes failed internal request rows with their exact event type,
+request payload, last error and attempt history. Redrive changes only delivery
+state: it retains that original contract, target and failure evidence, allowing
+a corrected mapping or publication dependency to retry safely without
+reconstructing producer state.
 
 ### Config definition entry points
 
@@ -151,23 +169,15 @@ when the event arrives, so a definition nothing can use never becomes something 
 agreement or payment later resolves to.
 
 Grants runs that check because it owns the config catalogue, but it must not decide what
-makes another context's definition valid. Each context exposes a narrow entry point
-instead:
+makes another context's definition valid. Agreements exposes its reviewed definition
+check. Payments registers its check with the context-neutral registry in
+`common/config-broker/definition-checks.js` when the Payments plugin starts, so Grants
+does not import Payments to invoke it.
 
-| Caller   | Entry point                                            | Why                                                                                                                                                                               |
-| -------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `grants` | `agreements/use-cases/compile-agreement-definition.js` | Checks a published Agreement definition. Also decides what is _not_ the config's fault: a missing endpoint service URL is this deployment's problem and must not fail the version |
-| `grants` | `payments/use-cases/compile-payment-definition.js`     | Checks a published Payment definition. Building the model is the check                                                                                                            |
-
-Both are pure and read-only. They fetch nothing, cache nothing, and write no fetch status —
-they are told a parsed file and answer whether it is usable. That is why they are separate
-files rather than exports from the loaders: whitelisting a loader would also hand Grants
-`loadAgreementDefinition`, its cache and its catalogue lookups.
-
-The two are deliberately not symmetrical. Agreements needs `checkAgreementDefinition` as
-well as `compileAgreementDefinition`, because only Agreements knows that an
-`EndpointServiceUrlError` means our deployment is misconfigured rather than the published
-config being bad. Payments has no such case, so it exposes the compile step alone.
+Both checks are read-only. They fetch nothing, cache nothing, and write no fetch status;
+they are given a parsed file and answer whether it is usable. Agreements additionally
+knows that an `EndpointServiceUrlError` is a deployment fault rather than a bad published
+definition and therefore must not poison the config version.
 
 Grants checks its own `gas.json` through `Grant.fromDefinition`, which needs no seam.
 
@@ -175,14 +185,15 @@ Grants checks its own `gas.json` through `Grant.fromDefinition`, which needs no 
 
 The FGP-1411 QA endpoints reuse the Agreements command handlers rather than reimplementing agreement setup, so that data created by the test suites is indistinguishable from normally processed data:
 
-| Caller           | Entry point                                                               | Why                                                                                                                       |
-| ---------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `test-endpoints` | `agreements/use-cases/handle-create-agreement-command.use-case.js`        | Creates an Agreement through the same handler the SQS consumer uses, so validation, persistence and side effects match    |
-| `test-endpoints` | `agreements/use-cases/handle-update-agreement-status-command.use-case.js` | Applies a status transition through the same handler, so lifecycle rules are enforced by the grant's agreement definition |
-| `test-endpoints` | `agreements/use-cases/load-current-agreement.js`                          | Resolves the Agreement by number, which supplies the 404 for an unknown Agreement before any command is dispatched        |
-| `test-endpoints` | `agreements/services/agreement-ownership.js`                              | Applies the same legacy denylist as the command bus before exposing test mutations                                        |
+| Caller           | Entry point                     | Why                                                                                                                                                |
+| ---------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test-endpoints` | `agreements/testing.js`         | Explicitly exports only Agreement creation, status transition, current lookup and ownership checks needed by the feature-flagged QA adapter        |
 
-The adapter adds only HTTP concerns: the feature flag, request and response schemas, the shared Agreement ownership check, and translating a rejected transition into a 409. It holds no agreement logic of its own and never touches an Agreements repository or domain model directly. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
+The adapter adds only HTTP concerns: the feature flag, request and response schemas, the
+shared Agreement ownership check, and translating a rejected transition into a 409. It
+holds no agreement logic of its own and never touches an Agreements repository or domain
+model directly. ESLint permits this one Agreements entry point and rejects all other
+production imports from `test-endpoints`. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
 
 ## Adding a New Seam
 

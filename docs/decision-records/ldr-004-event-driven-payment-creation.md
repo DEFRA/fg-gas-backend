@@ -2,7 +2,7 @@
 
 |                  |                  |
 | ---------------- | ---------------- |
-| status           | proposed         |
+| status           | accepted         |
 | date             | 18 Sep 2026      |
 | decision makers  | Core Grants Team |
 | people consulted | Martin Smith     |
@@ -180,6 +180,35 @@ The migration is staged:
 This refactor was identified while designing FGP-1397, but it does not implement that story's conditional Application transition. After the refactor, FGP-1397's `Application.moveTo` and `transitionApplicationUseCase` work belongs in the Claim source transaction: the Claim, any Application position change, its status command and configured processes, and any applicable `ClaimPaymentRequested` event must be persisted atomically. Payment mapping and creation remain post-commit work owned by Payments.
 
 The synchronous and asynchronous creation paths must never create Payments for the same source request at the same time. A temporary shadow event path may observe and validate events, but it must not persist Payments or publish Payment Hub events.
+
+## Implementation Evidence
+
+The implementation was delivered as a bottom-up stack covering shared event
+infrastructure and handlers, Claim cutover, Agreement cutover and clean
+cutover. Claims and Agreements now commit producer-owned requests to the
+explicit `internal:event-bus` target; commands retain
+`internal:message-bus`. Exact-type dispatch rejects unknown event types into
+the existing retry, dead-letter and Admin redrive lifecycle.
+
+The final clean cutover removed all direct Payment creation and Claim resolver
+use cases, removed every Agreements/Grants-to-Payments ESLint exception, moved
+Agreement endpoint adapters into Agreements, and moved the shared mapping
+compiler to `common/mapping`. Config validation uses a context-neutral
+registration seam rather than a Grants import of Payments. The QA adapter is
+restricted to `agreements/testing.js`.
+
+Verification includes repository-wide lint, 2,995 unit tests, focused
+container-backed source/handler tests, runtime SNS delivery to the GPS queue,
+and compatibility coverage for multi-schedule Agreement Payments and the
+retained complete legacy event fixture. Grant Admin mapping and redrive tests
+show the original payload, target, last error and attempt history remain
+available for safe retry. The known Caseworking HTTP test-harness client
+timeouts remain reproducible independently of this decision; they do not
+change GAS event persistence or redrive behaviour.
+
+Deployment-only topic subscription, ARN switch and per-scheme rollout gates
+remain in the implementation plan and do not reopen this architectural
+decision.
 
 ## Consequences
 

@@ -163,17 +163,25 @@ Completion criterion: the executable compatibility gates pass; acceptance succee
 
 ### 7. Clean cutover
 
-- [ ] Remove obsolete direct creation use-cases, pre-transaction resolvers, caller-owned Payment transaction coordination and tests that describe the old synchronous contract.
-- [ ] Remove the Payments import exceptions for Agreements and Grants from `eslint.config.js`; lint must enforce the event seam in both directions.
-- [ ] Move Agreement-only endpoint helpers from `src/common/agreements/` into Agreements. Move the mapping compiler used by both Agreements and Payments to a context-neutral shared mapping module; Payments must not depend on an Agreement-named shared path.
-- [ ] Add an ESLint zone that limits `test-endpoints` to its documented Agreements entry points, matching the enforcement already applied to Grant Admin.
-- [ ] Rewrite the Payment section of `docs/MODULE_BOUNDARIES.md` around producer events and the Payments handler interface.
-- [ ] Confirm Admin exposes mapping and publication failures with enough detail to redrive the durable event safely.
-- [ ] Replace handler-presence routing for internal outbox delivery with explicit event and command targets. Keep commands on the command bus and dispatch events by exact type; unknown event types must fail through the event retry/dead-letter path rather than fall back to the command bus. Test known events, commands and unknown events.
-- [ ] Remove obsolete aliases, exports, comments, fixtures and mocks. Keep the legacy event fixture as the repeatable compatibility oracle.
-- [ ] Update LDR-004 with final implementation evidence and change its status to the repository's completed/accepted convention.
+- [x] Remove obsolete direct creation use-cases, pre-transaction resolvers, caller-owned Payment transaction coordination and tests that describe the old synchronous contract.
+- [x] Remove the Payments import exceptions for Agreements and Grants from `eslint.config.js`; lint must enforce the event seam in both directions.
+- [x] Move Agreement-only endpoint helpers from `src/common/agreements/` into Agreements. Move the mapping compiler used by both Agreements and Payments to a context-neutral shared mapping module; Payments must not depend on an Agreement-named shared path.
+- [x] Add an ESLint zone that limits `test-endpoints` to its documented Agreements entry points, matching the enforcement already applied to Grant Admin.
+- [x] Rewrite the Payment section of `docs/MODULE_BOUNDARIES.md` around producer events and the Payments handler interface.
+- [x] Confirm Admin exposes mapping and publication failures with enough detail to redrive the durable event safely.
+- [x] Replace handler-presence routing for internal outbox delivery with explicit event and command targets. Keep commands on the command bus and dispatch events by exact type; unknown event types must fail through the event retry/dead-letter path rather than fall back to the command bus. Test known events, commands and unknown events.
+- [x] Remove obsolete aliases, exports, comments, fixtures and mocks. Keep the legacy event fixture as the repeatable compatibility oracle.
+- [x] Update LDR-004 with final implementation evidence and change its status to the repository's completed/accepted convention.
 
 Completion criterion: no production import crosses from Agreements or Grants into Payments, no direct creation path remains, `src/common/` imports no context module or Agreement-owned implementation, Admin can redrive failures safely, and repository-wide lint and tests pass.
+
+Evidence: explicit routing is covered for known events, commands and unknown
+event types; the three focused source/handler integration files passed 61 tests;
+all 2,995 unit tests and repository-wide lint passed. Admin's GAS redrive cases
+passed and retain the original payload, target, failure and attempt history.
+The broader Admin/Caseworking integration cases continue to hit the previously
+reproduced `Client request timeout` baseline (five Caseworking redrive cases in
+an isolated run).
 
 ### 8. Satisfy deployment-only gates
 
