@@ -139,12 +139,12 @@ describe("inbox.repository", () => {
   });
 
   it("should process expired events", async () => {
-    const updateMany = vi.fn().mockResolvedValue({});
+    const updateMany = vi.fn().mockResolvedValue({ modifiedCount: 1 });
     db.collection.mockReturnValue({
       updateMany,
     });
 
-    await processExpiredEvents();
+    expect(await processExpiredEvents()).toEqual({ modifiedCount: 1 });
 
     expect(updateMany).toHaveBeenCalledWith(
       {
@@ -292,16 +292,16 @@ describe("inbox.repository", () => {
     expect(insertOneMock.mock.calls[0][0]).toStrictEqual(doc.toDocument());
   });
 
-  it("should update a document", async () => {
+  it("should update a document only while the claim is held", async () => {
     const inbox = Inbox.createMock();
     const updateOneMock = vi.fn();
     db.collection.mockReturnValue({ updateOne: updateOneMock });
 
-    await update(inbox);
+    await update(inbox, "claim-token-1");
 
     const { _id, ...expected } = inbox;
     expect(updateOneMock).toHaveBeenCalledWith(
-      { _id: inbox._id },
+      { _id: inbox._id, claimedBy: "claim-token-1" },
       {
         $set: expected,
       },
