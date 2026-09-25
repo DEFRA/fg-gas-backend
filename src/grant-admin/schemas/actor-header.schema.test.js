@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { actorHeaderSchema } from "./actor-header.schema.js";
+import {
+  actorHeaderSchema,
+  requiredActorHeaderSchema,
+} from "./actor-header.schema.js";
 
 describe("actorHeaderSchema", () => {
   it("accepts an operator name", () => {
@@ -49,6 +52,40 @@ describe("actorHeaderSchema", () => {
       actorHeaderSchema.validate({
         authorization: "Bearer token",
         "x-cdp-request-id": "abc",
+      }).error,
+    ).toBeUndefined();
+  });
+});
+
+describe("requiredActorHeaderSchema", () => {
+  it("accepts an operator name", () => {
+    expect(
+      requiredActorHeaderSchema.validate({ "x-actor": "donatas" }).error,
+    ).toBeUndefined();
+  });
+
+  it("refuses a request that names nobody", () => {
+    expect(requiredActorHeaderSchema.validate({}).error).toBeDefined();
+    expect(
+      requiredActorHeaderSchema.validate({ "x-actor": "" }).error,
+    ).toBeDefined();
+    expect(
+      requiredActorHeaderSchema.validate({ "x-actor": "  " }).error,
+    ).toBeDefined();
+  });
+
+  it("caps the name the same way", () => {
+    expect(
+      requiredActorHeaderSchema.validate({ "x-actor": "x".repeat(129) }).error
+        .message,
+    ).toBe('"x-actor" must be at most 128 characters');
+  });
+
+  it("lets every other header through", () => {
+    expect(
+      requiredActorHeaderSchema.validate({
+        "x-actor": "donatas",
+        authorization: "Bearer token",
       }).error,
     ).toBeUndefined();
   });

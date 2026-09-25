@@ -13,7 +13,7 @@ export const redriveEventRoute = {
   path: "/grant-admin/events/{service}/{box}/{id}/redrive",
   options: {
     description:
-      "Admin: put one DEAD_LETTER event back in front of its poller. 409 when the row is in any other status.",
+      "Admin: put one DEAD_LETTER or PURGED event back in front of its poller. 409 when the row is in any other status.",
     tags: ["api"],
     validate: { params: eventParamsSchema, headers: actorHeaderSchema },
     plugins: {
@@ -22,7 +22,7 @@ export const redriveEventRoute = {
           [constants.HTTP_STATUS_NO_CONTENT]: { description: "Redriven" },
           [constants.HTTP_STATUS_NOT_FOUND]: { description: "No such event" },
           [constants.HTTP_STATUS_CONFLICT]: {
-            description: "Not DEAD_LETTER; the body names its status",
+            description: "Not redrivable; the body names its status",
           },
           [constants.HTTP_STATUS_GATEWAY_TIMEOUT]: {
             description:

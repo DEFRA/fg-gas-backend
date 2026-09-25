@@ -40,6 +40,8 @@ const aDetail = (overrides = {}) => ({
   lastResubmissionDate: null,
   attemptHistory: [],
   lastRedrive: null,
+  lastPurge: null,
+  purgeDeletionDate: null,
   segregationRef: "GLD-9B2",
   ...overrides,
 });
@@ -346,6 +348,104 @@ describe("eventDetailResponseSchema as the whole answer", () => {
     expect(
       eventDetailResponseSchema.validate(aDetail({ attemptHistory: null }))
         .error,
+    ).toBeDefined();
+  });
+});
+
+// Response validation fails closed: a key the schema does not know 500s the
+// event page.
+describe("eventDetailResponseSchema lastPurge", () => {
+  const aPurge = (overrides = {}) => ({
+    at: "2026-09-21T09:00:00.000Z",
+    by: "donatas",
+    reasonCode: "BROKEN_PAYLOAD",
+    note: "the payload lost its clientRef",
+    ...overrides,
+  });
+
+  it("accepts a purge record with its actor, reason and note", () => {
+    expect(
+      eventDetailResponseSchema.validate(aDetail({ lastPurge: aPurge() }))
+        .error,
+    ).toBeUndefined();
+  });
+
+  it("accepts a record with no note, which is every purge that gave none", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ lastPurge: aPurge({ note: null }) }),
+      ).error,
+    ).toBeUndefined();
+  });
+
+  it("accepts null, the value every row nobody purged has", () => {
+    expect(
+      eventDetailResponseSchema.validate(aDetail({ lastPurge: null })).error,
+    ).toBeUndefined();
+  });
+
+  it("requires the key, so a mapping gap fails a test rather than a render", () => {
+    const { lastPurge: _dropped, ...without } = aDetail();
+
+    expect(eventDetailResponseSchema.validate(without).error).toBeDefined();
+  });
+
+  // The label is the admin's business; an unknown code must not 500 the page.
+  it("takes a reason code it does not recognise", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ lastPurge: aPurge({ reasonCode: "SOMETHING_NEW" }) }),
+      ).error,
+    ).toBeUndefined();
+  });
+
+  it("requires every key of the record", () => {
+    for (const key of ["at", "by", "reasonCode", "note"]) {
+      const { [key]: _dropped, ...partial } = aPurge();
+
+      expect(
+        eventDetailResponseSchema.validate(aDetail({ lastPurge: partial }))
+          .error,
+      ).toBeDefined();
+    }
+  });
+
+  it("rejects an `at` that is not an instant", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ lastPurge: aPurge({ at: "yesterday" }) }),
+      ).error,
+    ).toBeDefined();
+  });
+});
+
+describe("eventDetailResponseSchema purgeDeletionDate", () => {
+  it("accepts a projection on a dead-lettered row", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ purgeDeletionDate: "2026-12-20T09:00:00.000Z" }),
+      ).error,
+    ).toBeUndefined();
+  });
+
+  it("accepts null, the value every row that cannot be purged has", () => {
+    expect(
+      eventDetailResponseSchema.validate(aDetail({ purgeDeletionDate: null }))
+        .error,
+    ).toBeUndefined();
+  });
+
+  it("requires the key, so a mapping gap fails a test rather than a render", () => {
+    const { purgeDeletionDate: _dropped, ...without } = aDetail();
+
+    expect(eventDetailResponseSchema.validate(without).error).toBeDefined();
+  });
+
+  it("rejects a value that is not an instant", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ purgeDeletionDate: "in 90 days" }),
+      ).error,
     ).toBeDefined();
   });
 });
