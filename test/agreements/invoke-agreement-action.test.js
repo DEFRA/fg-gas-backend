@@ -1,6 +1,15 @@
 import { MongoClient } from "mongodb";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { receiveMessages } from "../helpers/sqs.js";
 import { wreck } from "../helpers/wreck.js";
 
 const agreementNumber = "PMF823153884";
@@ -62,6 +71,9 @@ const agreement = () => ({
 const paymentEventQuery = {
   "event.data.grants.agreementNumber": agreementNumber,
 };
+const paymentRequestQuery = {
+  "event.data.source.agreementNumber": agreementNumber,
+};
 
 const toFundedValues = (value) => ({
   application: value.application,
@@ -109,6 +121,9 @@ describe("single Agreement actions", () => {
   let versions;
   let outbox;
   let payments;
+  let paymentDefinitions;
+  let configVersions;
+  let fifoLocks;
 
   beforeAll(async () => {
     client = await MongoClient.connect(env.MONGO_URI);
@@ -117,6 +132,9 @@ describe("single Agreement actions", () => {
     versions = database.collection("agreements__versions");
     outbox = database.collection("outbox");
     payments = database.collection("payments__payments");
+    paymentDefinitions = database.collection("payments__definitions");
+    configVersions = database.collection("config_versions");
+    fifoLocks = database.collection("fifo_locks");
   });
 
   beforeEach(async () => {
@@ -125,7 +143,12 @@ describe("single Agreement actions", () => {
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
       outbox.deleteMany(paymentEventQuery),
+      outbox.deleteMany(paymentRequestQuery),
       payments.deleteMany({ "source.agreementNumber": agreementNumber }),
+      fifoLocks.deleteMany({
+        segregationRef: agreementNumber,
+        actor: "OUTBOX",
+      }),
     ]);
     const current = agreement();
     await agreements.insertOne(current);
@@ -135,6 +158,14 @@ describe("single Agreement actions", () => {
       snapshot: { ...current, _id: undefined },
       versionedAt: createdAt,
     });
+    // Keep the running outbox poller from handling the request before the
+    // action's transaction and response can be inspected.
+    await fifoLocks.insertOne({
+      segregationRef: agreementNumber,
+      actor: "OUTBOX",
+      locked: true,
+      lockedAt: new Date(Date.now() + 60_000),
+    });
   });
 
   afterAll(async () => {
@@ -143,7 +174,12 @@ describe("single Agreement actions", () => {
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
       outbox.deleteMany(paymentEventQuery),
+      outbox.deleteMany(paymentRequestQuery),
       payments.deleteMany({ "source.agreementNumber": agreementNumber }),
+      fifoLocks.deleteMany({
+        segregationRef: agreementNumber,
+        actor: "OUTBOX",
+      }),
     ]);
     await client.close();
   });
@@ -220,14 +256,109 @@ describe("single Agreement actions", () => {
     expect(version.snapshot).toEqual(persistedAccepted);
   });
 
-  it("creates the immutable Payment and both publications from the stored offer", async () => {
+  it("defers Payment creation until after acceptance without leaking claimId", async () => {
     const offered = await agreements.findOne({ agreementNumber });
     const { response } = await requestAction();
 
     expect(response.statusCode).toBe(303);
-    const payment = await payments.findOne({
-      "source.agreementNumber": agreementNumber,
+    expect(response.headers.location).toBe("/agreements/current");
+    expect(
+      await payments.countDocuments({
+        "source.agreementNumber": agreementNumber,
+      }),
+    ).toBe(0);
+    expect(await outbox.findOne(paymentRequestQuery)).toMatchObject({
+      target: "internal:message-bus",
+      event: {
+        data: {
+          source: { agreementNumber, agreementVersion: 2 },
+          configVersion,
+          snapshot: {
+            agreementNumber,
+            version: 2,
+            paymentSchedule: offered.paymentSchedule,
+          },
+        },
+      },
     });
+    const lifecycle = await outbox.findOne({
+      "event.data.agreementNumber": agreementNumber,
+    });
+    expect(lifecycle.event.data).not.toHaveProperty("claimId");
+  });
+
+  it("accepts an internal status command despite a broken Payment definition", async () => {
+    const query = { code: "pigs-might-fly", version: configVersion };
+    const previous = await paymentDefinitions.findOne(query);
+    const previousConfig = await configVersions.findOne({
+      grantCode: query.code,
+      version: configVersion,
+    });
+    expect(previousConfig).toBeTruthy();
+    await paymentDefinitions.updateOne(
+      query,
+      { $set: { definition: { invalid: true } } },
+      { upsert: true },
+    );
+    try {
+      vi.stubEnv("GRANT_FUNDING_CALCULATOR_URL", "http://127.0.0.1:1");
+      const { handleUpdateAgreementStatusCommandUseCase } =
+        await import("../../src/agreements/use-cases/handle-update-agreement-status-command.use-case.js");
+      await handleUpdateAgreementStatusCommandUseCase({
+        id: "status-acceptance-1",
+        data: { agreementNumber, code: query.code, status: "accepted" },
+      });
+
+      expect(await agreements.findOne({ agreementNumber })).toMatchObject({
+        state: "accepted",
+        version: 2,
+      });
+      expect(await outbox.findOne(paymentRequestQuery)).toMatchObject({
+        target: "internal:message-bus",
+      });
+      expect(
+        await payments.countDocuments({
+          "source.agreementNumber": agreementNumber,
+        }),
+      ).toBe(0);
+    } finally {
+      if (previous) {
+        await paymentDefinitions.replaceOne({ _id: previous._id }, previous);
+      } else {
+        await paymentDefinitions.deleteOne(query);
+      }
+      await configVersions.replaceOne(
+        { _id: previousConfig._id },
+        previousConfig,
+      );
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("creates the immutable Payment after acceptance from the stored offer", async () => {
+    const offered = await agreements.findOne({ agreementNumber });
+    const { response } = await requestAction();
+
+    expect(response.statusCode).toBe(303);
+    expect(
+      await payments.countDocuments({
+        "source.agreementNumber": agreementNumber,
+      }),
+    ).toBe(0);
+    await fifoLocks.updateOne(
+      { segregationRef: agreementNumber, actor: "OUTBOX" },
+      { $set: { locked: false, lockedAt: null } },
+    );
+    let payment;
+    await vi.waitFor(
+      async () => {
+        payment = await payments.findOne({
+          "source.agreementNumber": agreementNumber,
+        });
+        expect(payment).toBeTruthy();
+      },
+      { timeout: 15000 },
+    );
     expect(payment).toMatchObject({
       source: { type: "agreement", agreementNumber, version: 2 },
       sbi: "300000070",
@@ -261,7 +392,30 @@ describe("single Agreement actions", () => {
         }),
       ],
     });
-    expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
+    const externalPublication = await outbox.findOne(paymentEventQuery);
+    expect(externalPublication).toMatchObject({
+      target: expect.stringContaining("gas__sns__create_payment_fifo.fifo"),
+      event: {
+        type: "io.onsite.agreement.create-payment",
+        data: {
+          claimId: payment.paymentHubClaimId,
+          grants: [
+            {
+              paymentRequestNumber: 1,
+              agreementNumber,
+              payments: expect.any(Array),
+            },
+          ],
+        },
+      },
+    });
+    await vi.waitFor(
+      async () => {
+        const received = await receiveMessages(env.CREATE_PAYMENT_QUEUE_URL);
+        expect(received).toContainEqual(externalPublication.event);
+      },
+      { timeout: 15000 },
+    );
     const lifecyclePublication = await outbox.findOne({
       "event.data.agreementNumber": agreementNumber,
     });
@@ -275,16 +429,74 @@ describe("single Agreement actions", () => {
         version: 2,
         status: "accepted",
         date: expect.any(String),
-        claimId: payment.paymentHubClaimId,
         startDate: offered.startDate,
         endDate: offered.endDate,
         agreementUrl: `http://localhost:3000/${agreementNumber}`,
       },
     });
+    expect(lifecyclePublication.event.data).not.toHaveProperty("claimId");
     const accepted = await agreements.findOne({ agreementNumber });
     const version = await versions.findOne({ agreementNumber, version: 2 });
     expect(accepted).not.toHaveProperty("paymentCalculation");
     expect(version.snapshot).not.toHaveProperty("paymentCalculation");
+  });
+
+  it("sends both scheduled payments in one Payment Service event", async () => {
+    await agreements.updateOne(
+      { agreementNumber },
+      {
+        $set: {
+          totalAmountPence: 7000,
+          "paymentSchedule.instalments": [
+            {
+              id: "instalment:1",
+              dueDate: "2026-11-06",
+              totalAmountPence: 5000,
+              lineItems: [{ actionId: "action:1", amountPence: 5000 }],
+            },
+            {
+              id: "instalment:2",
+              dueDate: "2027-02-06",
+              totalAmountPence: 2000,
+              lineItems: [{ actionId: "action:1", amountPence: 2000 }],
+            },
+          ],
+        },
+      },
+    );
+    const { response } = await requestAction();
+    expect(response.statusCode).toBe(303);
+    expect(
+      await payments.countDocuments({
+        "source.agreementNumber": agreementNumber,
+      }),
+    ).toBe(0);
+
+    await fifoLocks.updateOne(
+      { segregationRef: agreementNumber, actor: "OUTBOX" },
+      { $set: { locked: false, lockedAt: null } },
+    );
+    let external;
+    await vi.waitFor(
+      async () => {
+        external = await outbox.findOne(paymentEventQuery);
+        expect(external).toBeTruthy();
+      },
+      { timeout: 15000 },
+    );
+    const grant = external.event.data.grants[0];
+    expect(external.event.data.grants).toHaveLength(1);
+    expect(grant).toMatchObject({
+      agreementNumber,
+      paymentRequestNumber: 1,
+      invoiceNumber: expect.stringMatching(/^R\d{8}-V001QX$/),
+      totalAmountPence: "7000",
+      payments: [
+        { dueDate: "2026-11-06", totalAmountPence: "5000" },
+        { dueDate: "2027-02-06", totalAmountPence: "2000" },
+      ],
+    });
+    expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
   });
 
   it("returns a render-ready validation page without changing the Agreement", async () => {
@@ -378,9 +590,7 @@ describe("single Agreement actions", () => {
   it("replays a successful idempotency key without duplicating acceptance", async () => {
     const first = await requestAction();
     const accepted = await agreements.findOne({ agreementNumber });
-    const payment = await payments.findOne({
-      "source.agreementNumber": agreementNumber,
-    });
+    const request = await outbox.findOne(paymentRequestQuery);
     const replay = await requestAction();
 
     expect(first.response.statusCode).toBe(303);
@@ -389,15 +599,13 @@ describe("single Agreement actions", () => {
     expect((await agreements.findOne({ agreementNumber })).acceptedAt).toBe(
       accepted.acceptedAt,
     );
+    expect(await outbox.countDocuments(paymentRequestQuery)).toBe(1);
+    expect(await outbox.findOne(paymentRequestQuery)).toEqual(request);
     expect(
       await payments.countDocuments({
         "source.agreementNumber": agreementNumber,
       }),
-    ).toBe(1);
-    expect(
-      await payments.findOne({ "source.agreementNumber": agreementNumber }),
-    ).toEqual(payment);
-    expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
+    ).toBe(0);
   });
 
   it("allows only one concurrent acceptance to commit", async () => {
@@ -418,13 +626,54 @@ describe("single Agreement actions", () => {
       await payments.countDocuments({
         "source.agreementNumber": agreementNumber,
       }),
-    ).toBe(1);
+    ).toBe(0);
     expect(
       await outbox.countDocuments({
         "event.data.agreementNumber": agreementNumber,
       }),
     ).toBe(1);
-    expect(await outbox.countDocuments(paymentEventQuery)).toBe(1);
+    expect(await outbox.countDocuments(paymentRequestQuery)).toBe(1);
+  });
+
+  it("rolls back acceptance when its durable Payment request cannot be recorded", async () => {
+    const indexName = "reject-duplicate-agreement-payment-request";
+    const requestId = `agreement:${agreementNumber}:v2`;
+    await outbox.createIndex(
+      { "event.data.requestId": 1 },
+      {
+        name: indexName,
+        unique: true,
+        partialFilterExpression: { "event.data.requestId": requestId },
+      },
+    );
+    await outbox.insertOne({
+      _id: "blocking-payment-request",
+      event: { data: { requestId } },
+      status: "DEAD_LETTER",
+    });
+
+    try {
+      const offered = await agreements.findOne({ agreementNumber });
+      const { response } = await requestAction();
+
+      expect(response.statusCode).toBe(500);
+      expect(await agreements.findOne({ agreementNumber })).toEqual(offered);
+      expect(await versions.countDocuments({ agreementNumber })).toBe(1);
+      expect(await outbox.countDocuments(paymentRequestQuery)).toBe(0);
+      expect(
+        await outbox.countDocuments({
+          "event.data.agreementNumber": agreementNumber,
+        }),
+      ).toBe(0);
+      expect(
+        await payments.countDocuments({
+          "source.agreementNumber": agreementNumber,
+        }),
+      ).toBe(0);
+    } finally {
+      await outbox.dropIndex(indexName);
+      await outbox.deleteOne({ _id: "blocking-payment-request" });
+    }
   });
 
   it("rolls back acceptance when its publication cannot be recorded", async () => {
