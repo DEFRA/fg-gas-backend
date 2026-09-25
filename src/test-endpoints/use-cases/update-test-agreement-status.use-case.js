@@ -1,10 +1,12 @@
 import Boom from "@hapi/boom";
 import { randomUUID } from "node:crypto";
-import { isGasManagedAgreementGrant } from "../../agreements/services/agreement-ownership.js";
+import {
+  handleUpdateAgreementStatusCommandUseCase,
+  isGasManagedAgreementGrant,
+  loadCurrentAgreementByNumber,
+} from "../../agreements/testing.js";
 import { logger } from "../../common/logger.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
-import { handleUpdateAgreementStatusCommandUseCase } from "../../agreements/use-cases/handle-update-agreement-status-command.use-case.js";
-import { loadCurrentAgreementByNumber } from "../../agreements/use-cases/load-current-agreement.js";
 
 const CONFLICT = 409;
 

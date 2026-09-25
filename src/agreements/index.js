@@ -1,5 +1,5 @@
 import { config } from "../common/config.js";
-import { registerInternalCommandHandler } from "../common/internal-command-bus.js";
+import { registerInternalCommandHandler } from "../common/internal-command-handlers.js";
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { isGasManagedAgreementGrant } from "./services/agreement-ownership.js";
 import { getAgreementByNumberRoute } from "./routes/get-agreement-by-number.route.js";

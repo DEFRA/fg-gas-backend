@@ -2,9 +2,10 @@ import Boom from "@hapi/boom";
 import {
   EndpointServiceUrlError,
   validateEndpointServiceUrls,
-} from "../../common/agreements/resolve-endpoint-service-url.js";
+} from "../services/integrations/resolve-endpoint-service-url.js";
 import { logger } from "../../common/logger.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
+import { callAgreementEndpoint } from "../services/integrations/call-agreement-endpoint.js";
 import { validateAgreementDefinition } from "../models/agreement-definitions/validate.js";
 
 export const compileAgreementDefinition = (rawDefinition, code, version) => {
@@ -23,7 +24,9 @@ export const compileAgreementDefinition = (rawDefinition, code, version) => {
 
   const definition = { ...rawDefinition, configVersion: version };
   validateEndpointServiceUrls([validateAgreementDefinition(definition)]);
-  return new AgreementDefinition(definition);
+  return new AgreementDefinition(definition, {
+    callEndpoint: callAgreementEndpoint,
+  });
 };
 
 // The seam for checking a published definition before it is recorded. A missing service

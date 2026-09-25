@@ -5,7 +5,7 @@ import {
   canHandleInternalCommand,
   clearInternalCommandHandlers,
   getInternalCommandHandler,
-} from "../common/internal-command-bus.js";
+} from "../common/internal-command-handlers.js";
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { agreements } from "./index.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";

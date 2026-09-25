@@ -10,12 +10,12 @@ import {
   vi,
 } from "vitest";
 import {
-  dispatchInternally,
-  internalMessageBusTarget,
-} from "../../common/internal-command-bus.js";
+  dispatchCommand,
+  internalCommandTarget,
+} from "../../common/internal-command-handlers.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
-import { dispatchEvent, hasEventHandler } from "../services/event-handlers.js";
+import { dispatchEvent } from "../services/event-handlers.js";
 import { Outbox } from "../models/outbox.js";
 import {
   cleanupStaleLocks,
@@ -34,7 +34,7 @@ import {
 } from "../repositories/outbox.repository.js";
 import { OutboxSubscriber } from "./outbox.subscriber.js";
 
-vi.mock("../../common/internal-command-bus.js");
+vi.mock("../../common/internal-command-handlers.js");
 vi.mock("../../common/sns-client.js");
 vi.mock("../services/event-handlers.js");
 
@@ -58,7 +58,6 @@ describe("outbox.subscriber", () => {
     updateFailedEvents.mockResolvedValue({ modifiedCount: 1 });
     publish.mockResolvedValue(1);
     claimEvents.mockResolvedValue([]);
-    hasEventHandler.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -292,12 +291,11 @@ describe("outbox.subscriber", () => {
     );
   });
 
-  it("delivers registered events by exact type without publishing", async () => {
-    hasEventHandler.mockReturnValue(true);
+  it("delivers explicitly targeted events by exact type without publishing", async () => {
     dispatchEvent.mockResolvedValue();
 
     const mockEvent = {
-      target: internalMessageBusTarget,
+      target: "internal:event",
       event: {
         id: "event-1",
         source: "urn:service:agreement",
@@ -318,16 +316,38 @@ describe("outbox.subscriber", () => {
       traceparent: "trace-1",
       type: "io.onsite.agreement.status.updated",
     });
-    expect(dispatchInternally).not.toHaveBeenCalled();
+    expect(dispatchCommand).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
   });
 
+  it("never falls back to command dispatch for an unknown event type", async () => {
+    const failure = new Error("No event handler registered");
+    dispatchEvent.mockRejectedValue(failure);
+    const mockEvent = {
+      target: "internal:event",
+      event: { type: "unknown.event", data: {} },
+      markAsFailed: vi.fn(),
+    };
+
+    await new OutboxSubscriber().sendEvent(mockEvent);
+
+    expect(dispatchEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: mockEvent.event,
+        type: "unknown.event",
+      }),
+    );
+    expect(dispatchCommand).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+    expect(mockEvent.markAsFailed).toHaveBeenCalledWith(failure);
+  });
+
   it("marks an internal command as unsent if internal delivery fails", async () => {
-    dispatchInternally.mockRejectedValue(new Error("handler failed"));
+    dispatchCommand.mockRejectedValue(new Error("handler failed"));
 
     const mockEvent = {
-      target: internalMessageBusTarget,
+      target: internalCommandTarget,
       event: { type: "agreement.create", data: { code: "pigs-might-fly" } },
       markAsFailed: vi.fn(),
     };
@@ -335,7 +355,7 @@ describe("outbox.subscriber", () => {
     const outbox = new OutboxSubscriber();
     await outbox.sendEvent(mockEvent);
 
-    expect(dispatchInternally).toHaveBeenCalledWith(mockEvent.event);
+    expect(dispatchCommand).toHaveBeenCalledWith(mockEvent.event);
     expect(dispatchEvent).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
     expect(mockEvent.markAsFailed).toHaveBeenCalled();
@@ -598,10 +618,10 @@ describe("OutboxSubscriber failure reasons", () => {
 
   it("passes the caught internal-delivery exception to markAsFailed", async () => {
     const failure = new Error("handler failed");
-    dispatchInternally.mockRejectedValue(failure);
+    dispatchCommand.mockRejectedValue(failure);
 
     const event = {
-      target: internalMessageBusTarget,
+      target: internalCommandTarget,
       event: { type: "agreement.create", data: { code: "pigs-might-fly" } },
       markAsFailed: vi.fn(),
     };

@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import {
   resolveProcessMapping,
   validateProcessMapping,
-} from "../../common/agreements/resolve-process-mapping.js";
+} from "../../common/mapping/resolve-process-mapping.js";
 import {
   paymentDefinitionSchema,
   resolvedPaymentValueSchema,

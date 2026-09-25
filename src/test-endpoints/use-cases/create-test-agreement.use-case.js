@@ -1,7 +1,9 @@
 import Boom from "@hapi/boom";
-import { isGasManagedAgreementGrant } from "../../agreements/services/agreement-ownership.js";
+import {
+  createAgreementUseCase,
+  isGasManagedAgreementGrant,
+} from "../../agreements/testing.js";
 import { logger } from "../../common/logger.js";
-import { createAgreementUseCase } from "../../agreements/use-cases/create-agreement.use-case.js";
 
 const INTERNAL_SERVER_ERROR = 500;
 
