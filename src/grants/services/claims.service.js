@@ -17,6 +17,7 @@ import {
 } from "../repositories/claim.repository.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
+import { hasRemainingApplicationClaimCapacityUseCase } from "../use-cases/has-remaining-application-claim-capacity.use-case.js";
 import {
   pinnedVersionOf,
   resolveCurrentGrantUseCase,
@@ -402,34 +403,6 @@ const requestClaimPayment = async (
   );
 };
 
-const hasRemainingApplicationClaimCapacity = async (
-  { grant, application },
-  session,
-) => {
-  const existing = await findExistingEntitlements(
-    application.clientRef,
-    application.code,
-    session,
-  );
-  const claimables = candidatesFor({ grant, existing });
-  const counts = await Promise.all(
-    claimables.map((claimable) =>
-      countByEntitlement(
-        {
-          code: application.code,
-          clientRef: application.clientRef,
-          entitlementId: claimable.entitlement.id,
-        },
-        session,
-      ),
-    ),
-  );
-
-  return claimables.some((claimable, index) =>
-    claimable.hasRemainingCapacity(counts[index]),
-  );
-};
-
 const transitionOnFinalClaim = async (
   { grant, application, claimable },
   session,
@@ -441,9 +414,21 @@ const transitionOnFinalClaim = async (
   const targetPosition = grant.claimApprovalTransitionFor(
     application.currentPosition(),
   );
+  if (!targetPosition) {
+    return;
+  }
+
+  const existing = await findExistingEntitlements(
+    application.clientRef,
+    application.code,
+    session,
+  );
+  const claimables = candidatesFor({ grant, existing });
   if (
-    !targetPosition ||
-    (await hasRemainingApplicationClaimCapacity({ grant, application }, session))
+    await hasRemainingApplicationClaimCapacityUseCase(
+      { application, claimables },
+      session,
+    )
   ) {
     return;
   }
