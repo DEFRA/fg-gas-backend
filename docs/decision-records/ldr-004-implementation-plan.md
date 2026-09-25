@@ -67,10 +67,10 @@ Use this branch-per-stage stack:
 
 1. Complete and verify each stage as a safe intermediate state. Base the next branch on the exact head of its predecessor; the Claim cutover starts from the Payments-handler branch (#700).
 2. Open a child PR **against its predecessor branch**, never against `main` while that predecessor remains unmerged. Confirm the PR's three-dot diff contains only its own stage; a parent update must be merged into the child and reverified before review resumes.
-3. Merge bottom-up. Prefer a merge commit for a parent with open children so its commits remain ancestors of the child; after it merges, retarget the immediate child PR to `main`, confirm its diff still contains only the child stage, and rerun checks before merging it. Repeat for each child.
-4. If a parent is squash- or rebase-merged instead, do not retarget its child blindly: create a **new** branch from merged `main`, cherry-pick only the child's own commits, reverify, and open a replacement PR. Never force-push or silently rewrite a reviewed branch; keep the old PR for review provenance until its replacement is ready.
+3. Merge bottom-up. `main` squash-merges PRs (as with #688 and #701), so do not retarget a stacked child PR directly to `main`: the parent's commits would appear in the child's diff.
+4. Once #700 lands, create a **new** branch from the merged `main`, cherry-pick only this Claim cutover's commits, reverify, and open a replacement PR. Repeat for each child stage. Never force-push or silently rewrite a reviewed branch; keep the old PR for review provenance until its replacement is ready.
 
-Wait for #700's head checks before opening its child PR (all were green on 25 September 2026). Keep deployment-only environment gates outside the code-PR stack. Do not merge a child while its parent is open or let a cutover branch enable both direct and event-driven Payment creation for the same producer.
+Keep deployment-only environment gates outside the code-PR stack. Do not merge a child while its parent is open or let a cutover branch enable both direct and event-driven Payment creation for the same producer.
 
 No runtime feature flag is required for this sequential workflow. If stages must instead be deployed independently, use one mutually exclusive mode (`direct` or `event`) per producer, default it to the currently proven path, and remove it after cutover. Never use independent booleans that can enable both paths.
 
@@ -191,7 +191,7 @@ Completion criterion: each per-environment `cdp-app-config` ARN switch follows v
 | Downstream independence | Commit the source while Payments handling fails; source remains committed and event becomes retryable/dead-lettered.                 |
 | Idempotency             | Deliver the same request sequentially and concurrently; one Payment, claim ID and external event exist.                              |
 | Publication isolation   | Fail SNS publication and retry it; Payment creation is not re-entered.                                                               |
-| Configuration readiness | Invalid declared definition is unusable; missing optional definition is usable; runtime data failure does not poison the definition. |
+| Configuration readiness | Invalid config blocks ingestion; `PermanentError`: Claim commits, request dead-letters; no optional: no requests; mapping retryable. |
 | Agreement compatibility | `303` response remains stable and lifecycle data has no Payment Hub `claimId`.                                                       |
 | Payment compatibility   | Complete CloudEvent matches the legacy fixture and one request contains all scheduled payments.                                      |
 | Woodland exclusion      | Agreement acceptance raises no Woodland Payment request; Claim-originated Woodland coverage still passes.                            |
