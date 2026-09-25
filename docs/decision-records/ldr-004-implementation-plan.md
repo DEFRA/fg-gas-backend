@@ -8,7 +8,7 @@ Decision: [Event-driven Payment Creation in GAS](./ldr-004-event-driven-payment-
 
 Read the decision record, then resume at the first unchecked item in the numbered work packages, following their stage order. Update the checkboxes and the checkpoint in the same change that completes a work package. The checkpoint also records compatibility and deployment gates that deliberately remain open until work packages 7 and 8; it is not the execution order. This is the single delivery checklist; design rationale remains in the decision record.
 
-Current checkpoint, 24 September 2026:
+Current checkpoint, 25 September 2026:
 
 - [x] Record the architecture decision and consumer research.
 - [ ] Retain executable proof that the GAS Payment event matches the legacy runtime-serialized event after normalising generated identifiers and times. The completed one-off comparison informed the design but is not repeatable evidence.
@@ -21,9 +21,10 @@ Current checkpoint, 24 September 2026:
 - [x] Add the Agreement and Claim Payments handlers (#688 and #700): both register by producer event type, map pinned snapshots, look up logical source identity before allocating, and commit Payment, claim-ID increment and external publication together. Claim source-index duplicate recovery reloads the committed winner; handler and Inbox tests cover redelivery, concurrency, transaction retry and retryable bad snapshots.
 - [x] Classify irrecoverable pinned Payment definition failures as non-retryable for both handlers; keep transient loading and source-data mapping failures retryable, with Inbox and handler proof.
 - [x] Finish work package 4: a failed SNS publication retries the same persisted event ID without re-entering Payment creation; manual Inbox redrive after Payment commit completes both Claim and Agreement requests without another Payment, claim-ID increment or publication.
+- [x] Finish work package 5: Claim submission now writes a pinned `ClaimPaymentRequested` alongside the Claim, without creating a Payment synchronously. Mongo replica-set tests prove replay, missing optional definition, source-transaction rollback when request persistence fails, subsequent Payment creation and independence from a failed Payment handler; the existing Claim service and HTTP route tests preserve capacity, version retry and response behaviour. Full unit suite (3,019 tests), focused container-backed Claim inbox tests (8) and lint pass.
 - [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
-The code is not yet event-driven from production sources. Agreement acceptance and Claim submission still import Payments use-cases, resolve Payment definitions before their source transactions, allocate Payment Hub identifiers inside those transactions and persist Payment Service publications in the source-owned outbox work.
+Claim submission now emits a durable request instead of importing Payments creation use-cases. Agreement acceptance still uses synchronous Payment creation and remains the next producer cutover.
 
 ## Target Invariants
 
@@ -48,7 +49,7 @@ The Claim submission transaction is the composition seam. Once all entitlements 
 
 ## Local Stage Protocol
 
-Implement each stage on its own branch. Every branch must preserve current behaviour or complete one producer cutover; do not push an intermediate state in which the application only compiles or both creation paths can write.
+Implement each stage on its own branch, stacked on its immediate predecessor while that PR is open. Every branch must preserve current behaviour or complete one producer cutover; do not push an intermediate state in which the application only compiles or both creation paths can write.
 
 | Stage | Local change                                                                                                    | Safe intermediate state                                                                        | Required local proof                                                                                                               |
 | ----- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -62,14 +63,14 @@ Implement each stage on its own branch. Every branch must preserve current behav
 | 7     | Remove obsolete seams and tighten ESLint and documentation.                                                     | The event-driven design is the only implementation.                                            | Repository-wide lint and tests pass with no producer-to-Payments exceptions.                                                       |
 | 8     | Satisfy deployment-only gates.                                                                                  | The locally proven implementation is eligible for environment rollout.                         | GAS-owned topic and subscription inventory, outbox recovery and scheme-by-scheme compatibility evidence are recorded.              |
 
-Use this branch-per-stage workflow:
+Use this branch-per-stage stack:
 
-1. Complete and verify one stage locally.
-2. Push only that stage's branch and merge its PR.
-3. Refresh the local base from the merged target branch.
-4. Create the next stage branch from that refreshed base.
+1. Complete and verify each stage as a safe intermediate state. Base the next branch on the exact head of its predecessor; the Claim cutover starts from the Payments-handler branch (#700).
+2. Open a child PR **against its predecessor branch**, never against `main` while that predecessor remains unmerged. Confirm the PR's three-dot diff contains only its own stage; a parent update must be merged into the child and reverified before review resumes.
+3. Merge bottom-up. `main` squash-merges PRs (as with #688 and #701), so do not retarget a stacked child PR directly to `main`: the parent's commits would appear in the child's diff.
+4. Once #700 lands, create a **new** branch from the merged `main`, cherry-pick only this Claim cutover's commits, reverify, and open a replacement PR. Repeat for each child stage. Never force-push or silently rewrite a reviewed branch; keep the old PR for review provenance until its replacement is ready.
 
-This keeps every PR small and prevents later-stage changes appearing in an earlier review. Do not open several dependent PRs against the target branch: until their predecessors merge, GitHub will show the earlier stages in every later diff. If work must continue while a PR is awaiting review, a later branch may temporarily start from the preceding local branch, but it must be rebased onto the merged target and fully reverified before it is pushed.
+Keep deployment-only environment gates outside the code-PR stack. Do not merge a child while its parent is open or let a cutover branch enable both direct and event-driven Payment creation for the same producer.
 
 No runtime feature flag is required for this sequential workflow. If stages must instead be deployed independently, use one mutually exclusive mode (`direct` or `event`) per producer, default it to the currently proven path, and remove it after cutover. Never use independent booleans that can enable both paths.
 
@@ -133,11 +134,11 @@ Completion criterion: sequential redelivery, concurrent delivery, transaction re
 
 ### 5. Cut Claim submission over
 
-- [ ] Replace `resolveClaimPayment` and `createClaimPaymentUseCase` calls in `src/grants/services/claims.service.js` with a producer-owned `ClaimPaymentRequested` event for an eligible auto-paying Claim.
-- [ ] Persist the Claim and Payment request in the same Claim submission transaction. Preserve replay, application-version retry and capacity checks.
-- [ ] Carry the pinned configuration version and point-in-time Agreement reference in the request; the Payments handler must not reload the current Agreement.
-- [ ] Preserve the existing no-Payment behaviour for Claims requiring approval and configurations without an optional Payment definition.
-- [ ] Preserve the Claim submission HTTP `claimId`: it is the GAS Claim document identifier, not the Payment Hub `claimId` covered by LDR-004.
+- [x] Replace `resolveClaimPayment` and `createClaimPaymentUseCase` calls in `src/grants/services/claims.service.js` with a producer-owned `ClaimPaymentRequested` event for an eligible auto-paying Claim.
+- [x] Persist the Claim and Payment request in the same Claim submission transaction. Preserve replay, application-version retry and capacity checks.
+- [x] Carry the pinned configuration version and point-in-time Agreement reference in the request; the Payments handler must not reload the current Agreement.
+- [x] Preserve the existing no-Payment behaviour for Claims requiring approval and configurations without an optional Payment definition.
+- [x] Preserve the Claim submission HTTP `claimId`: it is the GAS Claim document identifier, not the Payment Hub `claimId` covered by LDR-004.
 
 Completion criterion: a replayed Claim submission returns the existing Claim and cannot create another request or Payment; a later Payment failure does not roll back the committed Claim.
 
@@ -190,7 +191,7 @@ Completion criterion: each per-environment `cdp-app-config` ARN switch follows v
 | Downstream independence | Commit the source while Payments handling fails; source remains committed and event becomes retryable/dead-lettered.                 |
 | Idempotency             | Deliver the same request sequentially and concurrently; one Payment, claim ID and external event exist.                              |
 | Publication isolation   | Fail SNS publication and retry it; Payment creation is not re-entered.                                                               |
-| Configuration readiness | Invalid declared definition is unusable; missing optional definition is usable; runtime data failure does not poison the definition. |
+| Configuration readiness | Invalid config blocks ingestion; `PermanentError`: Claim commits, request dead-letters; no optional: no requests; mapping retryable. |
 | Agreement compatibility | `303` response remains stable and lifecycle data has no Payment Hub `claimId`.                                                       |
 | Payment compatibility   | Complete CloudEvent matches the legacy fixture and one request contains all scheduled payments.                                      |
 | Woodland exclusion      | Agreement acceptance raises no Woodland Payment request; Claim-originated Woodland coverage still passes.                            |

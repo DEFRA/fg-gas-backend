@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
@@ -15,8 +16,6 @@ import {
 } from "../repositories/claim.repository.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
-import { createClaimPaymentUseCase } from "../../payments/use-cases/create-claim-payment.use-case.js";
-import { resolveClaimPayment } from "../../payments/use-cases/resolve-claim-payment.js";
 import { resolveCurrentGrantUseCase } from "../use-cases/resolve-current-grant.use-case.js";
 import {
   listClaimableEntitlements,
@@ -25,6 +24,7 @@ import {
 } from "./claims.service.js";
 
 vi.mock("../../common/with-transaction.js");
+vi.mock("../../common/config-broker/config-catalog.repository.js");
 vi.mock("../../events/with-audit.js", () => ({
   buildAuditEvent: vi.fn((event) => event),
   withAudit:
@@ -44,8 +44,6 @@ vi.mock("../../common/mongo-errors.js", () => ({
 }));
 vi.mock("../../agreements/use-cases/load-entitlement-reference-context.js");
 vi.mock("../../events/index.js");
-vi.mock("../../payments/use-cases/create-claim-payment.use-case.js");
-vi.mock("../../payments/use-cases/resolve-claim-payment.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/claim.repository.js");
 vi.mock("../repositories/entitlement.repository.js");
@@ -116,7 +114,6 @@ const approvalGrant = () => {
   return approving;
 };
 
-const resolvedPayment = { totalAmountPence: 100 };
 const agreement = {
   agreementNumber: "WMP-WMPTU3LBJ",
   version: 3,
@@ -134,6 +131,7 @@ const application = (overrides = {}) =>
 describe("claims.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    findConfigDefinition.mockResolvedValue({ s3Key: "woodland/payment.json" });
     withTransaction.mockImplementation((callback) => callback(session));
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application());
     lockForUpdate.mockResolvedValue(application());
@@ -141,12 +139,7 @@ describe("claims.service", () => {
       grant: grant(false),
       resolvedVersion: "1.0.0",
     });
-    resolveClaimPayment.mockResolvedValue(resolvedPayment);
     loadEntitlementReferenceContext.mockResolvedValue({ agreement });
-    createClaimPaymentUseCase.mockResolvedValue({
-      payment: { id: "payment-1" },
-      publication: { event: { id: "event-1" }, segregationRef: clientRef },
-    });
     findExistingEntitlements.mockResolvedValue([persistedEntitlement]);
     existsByClientClaimRef.mockResolvedValue(false);
     countByEntitlement.mockResolvedValue(0);
@@ -298,12 +291,6 @@ describe("claims.service", () => {
       grant: grant(false),
       resolvedVersion: "1.0.0",
     });
-    resolveClaimPayment.mockResolvedValue(resolvedPayment);
-    loadEntitlementReferenceContext.mockResolvedValue({ agreement });
-    createClaimPaymentUseCase.mockResolvedValue({
-      payment: { id: "payment-1" },
-      publication: { event: { id: "event-1" }, segregationRef: clientRef },
-    });
     findExistingEntitlements.mockResolvedValue([
       { ...persistedEntitlement, data: { area: 100000 } },
     ]);
@@ -378,12 +365,6 @@ describe("claims.service", () => {
       grant: grant(false),
       resolvedVersion: "1.0.0",
     });
-    resolveClaimPayment.mockResolvedValue(resolvedPayment);
-    loadEntitlementReferenceContext.mockResolvedValue({ agreement });
-    createClaimPaymentUseCase.mockResolvedValue({
-      payment: { id: "payment-1" },
-      publication: { event: { id: "event-1" }, segregationRef: clientRef },
-    });
     findExistingEntitlements.mockResolvedValue([persisted]);
 
     await expect(
@@ -410,12 +391,6 @@ describe("claims.service", () => {
     resolveCurrentGrantUseCase.mockResolvedValue({
       grant: grant(false),
       resolvedVersion: "1.0.0",
-    });
-    resolveClaimPayment.mockResolvedValue(resolvedPayment);
-    loadEntitlementReferenceContext.mockResolvedValue({ agreement });
-    createClaimPaymentUseCase.mockResolvedValue({
-      payment: { id: "payment-1" },
-      publication: { event: { id: "event-1" }, segregationRef: clientRef },
     });
     findExistingEntitlements.mockResolvedValue([]);
     await expect(
@@ -531,41 +506,41 @@ describe("claims.service", () => {
   });
 
   describe("claim payments", () => {
-    it("creates the Payment on the submitting session and outboxes it", async () => {
+    it("outboxes a request with the pinned version and Agreement snapshot", async () => {
       await submitClaim({ code, clientRef, payload });
 
-      expect(createClaimPaymentUseCase).toHaveBeenCalledWith(
-        {
-          code,
-          clientRef,
-          clientClaimRef: "claim-1",
-          entitlementId,
-          agreementNumber: "WMP-WMPTU3LBJ",
-          agreementVersion: 3,
-          correlationId: "123e4567-e89b-12d3-a456-426614174000",
-          resolved: resolvedPayment,
-        },
-        session,
-      );
       expect(saveEvents).toHaveBeenCalledWith(
-        [{ event: { id: "event-1" }, segregationRef: clientRef }],
+        [
+          {
+            event: expect.objectContaining({
+              data: expect.objectContaining({
+                configVersion: "1.0.0",
+                agreement: {
+                  agreementNumber: "WMP-WMPTU3LBJ",
+                  agreementVersion: 3,
+                  correlationId: "123e4567-e89b-12d3-a456-426614174000",
+                },
+              }),
+            }),
+            target: "internal:message-bus",
+            segregationRef: clientRef,
+          },
+        ],
         session,
       );
     });
 
-    // Config Broker loading and mapping validation stay outside the write
-    // transaction, so a broken definition writes nothing at all.
-    it("resolves the definition before the transaction opens", async () => {
-      resolveClaimPayment.mockRejectedValue(new Error("bad definition"));
+    it("does not open a transaction when configuration lookup fails", async () => {
+      findConfigDefinition.mockRejectedValue(new Error("catalog unavailable"));
 
       await expect(submitClaim({ code, clientRef, payload })).rejects.toThrow(
-        "bad definition",
+        "catalog unavailable",
       );
       expect(withTransaction).not.toHaveBeenCalled();
       expect(insert).not.toHaveBeenCalled();
     });
 
-    it("resolves the Payment definition at the Application's pinned version", async () => {
+    it("checks for the optional definition at the Application's pinned version", async () => {
       resolveCurrentGrantUseCase.mockResolvedValue({
         grant: grant(false),
         resolvedVersion: "1.0.1",
@@ -573,10 +548,10 @@ describe("claims.service", () => {
 
       await submitClaim({ code, clientRef, payload });
 
-      expect(resolveClaimPayment).toHaveBeenCalledWith({
-        code,
-        configVersion: "1.0.0",
-        claim: expect.any(Object),
+      expect(findConfigDefinition).toHaveBeenCalledWith({
+        grantCode: code,
+        version: "1.0.0",
+        definitionType: "payment",
       });
     });
 
@@ -595,14 +570,22 @@ describe("claims.service", () => {
         },
       });
 
-      expect(resolveClaimPayment).toHaveBeenCalledWith(
-        expect.objectContaining({
-          claim: {
-            sbi: woodlandSubmission.metadata.sbi,
-            frn: woodlandSubmission.metadata.frn,
-            totalAmountPence: woodlandSubmission.claim.totalClaimAmountPence,
-          },
-        }),
+      expect(saveEvents).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            event: expect.objectContaining({
+              data: expect.objectContaining({
+                snapshot: {
+                  sbi: woodlandSubmission.metadata.sbi,
+                  frn: woodlandSubmission.metadata.frn,
+                  totalAmountPence:
+                    woodlandSubmission.claim.totalClaimAmountPence,
+                },
+              }),
+            }),
+          }),
+        ],
+        session,
       );
     });
 
@@ -623,7 +606,7 @@ describe("claims.service", () => {
       await expect(
         submitClaim({ code, clientRef, payload }),
       ).rejects.toMatchObject({ output: { statusCode: 500 } });
-      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
 
     // Another template auto-paying must not drag this claim into resolving a
@@ -647,17 +630,16 @@ describe("claims.service", () => {
       await expect(
         submitClaim({ code, clientRef, payload }),
       ).resolves.toMatchObject({ created: true });
-      expect(resolveClaimPayment).not.toHaveBeenCalled();
-      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+      expect(findConfigDefinition).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
 
-    it("raises no Payment when Payments resolves none", async () => {
-      resolveClaimPayment.mockResolvedValue(null);
+    it("raises no Payment request without a configured definition", async () => {
+      findConfigDefinition.mockResolvedValue(null);
 
       await expect(
         submitClaim({ code, clientRef, payload }),
       ).resolves.toMatchObject({ created: true });
-      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
       expect(saveEvents).not.toHaveBeenCalled();
     });
 
@@ -669,7 +651,7 @@ describe("claims.service", () => {
       ).rejects.toMatchObject({ output: { statusCode: 404 } });
       expect(withTransaction).not.toHaveBeenCalled();
       expect(insert).not.toHaveBeenCalled();
-      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
 
     it("does not pay a replayed Claim", async () => {
@@ -678,7 +660,6 @@ describe("claims.service", () => {
       await expect(submitClaim({ code, clientRef, payload })).resolves.toEqual({
         created: false,
       });
-      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
       expect(saveEvents).not.toHaveBeenCalled();
     });
   });
@@ -696,8 +677,7 @@ describe("claims.service", () => {
         submitClaim({ code, clientRef, payload }),
       ).resolves.toMatchObject({ created: true });
 
-      expect(resolveClaimPayment).not.toHaveBeenCalled();
-      expect(createClaimPaymentUseCase).not.toHaveBeenCalled();
+      expect(findConfigDefinition).not.toHaveBeenCalled();
       expect(saveEvents).not.toHaveBeenCalled();
     });
   });
