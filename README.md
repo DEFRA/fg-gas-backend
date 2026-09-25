@@ -5,6 +5,7 @@ Grant Application Service defines and manages farming grants and applications. I
 - [Running with other services](#running-with-other-services)
 - [User guide](#user-guide)
   - [Configure grant actions](#configure-grant-actions)
+  - [Configure claim-approval transitions](#configure-claim-approval-transitions)
 - [Developer guide](#developer-guide)
   - [Node.js](#nodejs)
 - [Local development](#local-development)
@@ -75,6 +76,48 @@ Content-Type: application/json
   "someKey": "someValue"
 }
 ```
+
+### Configure claim-approval transitions
+
+A grant can optionally move an Application when a Claim that does not require
+approval consumes the final available claim slot across all of the Application's
+entitlements. Configure `claims.onClaimApproval` on the grant with complete
+source and target positions:
+
+```json
+{
+  "claims": {
+    "onClaimApproval": {
+      "currentPosition": {
+        "phase": "PRE_AWARD",
+        "stage": "ASSESSMENT",
+        "status": "APPLICATION_RECEIVED"
+      },
+      "targetPosition": {
+        "phase": "PRE_AWARD",
+        "stage": "ASSESSMENT",
+        "status": "AWARD_READY"
+      }
+    }
+  }
+}
+```
+
+All six position fields are required and must name positions in the grant's
+`phases`; the target must also allow a transition from the configured source.
+The source position must exactly match the Application's current position. A
+Claim that requires approval, any remaining entitlement capacity, an absent
+configuration, or a non-matching position does not move the Application.
+
+Grant Admin accepts this optional block when creating a grant with `POST /grants` or replacing one with `PUT /grants/{code}`. Replacement is not a
+patch: omitting `claims` removes an existing claim-approval configuration.
+
+The final Claim, Application move, normal application-status event, and
+Caseworking status-update command are committed as one transaction. If the
+configured move or one of its target-status processes fails, none of those
+changes, including the Claim, is committed. Configure a target status only with
+processes that can run with the Claim context (`clientRef` and grant `code`);
+a process that requires external event data fails the transaction.
 
 ## Developer guide
 

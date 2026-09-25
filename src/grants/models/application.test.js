@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
+import { createTestGrant } from "../../../test/helpers/grants.js";
 import { Agreement, AgreementStatus } from "./agreement.js";
 import {
   Application,
@@ -16,6 +17,72 @@ describe("Application", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  describe("moveTo", () => {
+    it("moves to a reachable target and returns the transition details", () => {
+      const application = createTestApplication();
+      const grant = createTestGrant();
+      vi.setSystemTime(new Date("2021-02-02T13:00:00.000Z"));
+
+      const result = application.moveTo(
+        {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "IN_REVIEW",
+        },
+        grant,
+      );
+
+      expect(result).toEqual({
+        changed: true,
+        previous: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+        new: "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+        processes: ["STORE_AGREEMENT_CASE"],
+      });
+      expect(application.currentPhase).toBe("PRE_AWARD");
+      expect(application.currentStage).toBe("ASSESSMENT");
+      expect(application.currentStatus).toBe("IN_REVIEW");
+      expect(application.updatedAt).toBe("2021-02-02T13:00:00.000Z");
+    });
+
+    it("does nothing when the target is the current position", () => {
+      const application = createTestApplication();
+      const before = { ...application };
+      const grant = createTestGrant();
+      vi.setSystemTime(new Date("2021-02-02T13:00:00.000Z"));
+
+      const result = application.moveTo(application.currentPosition(), grant);
+
+      expect(result).toEqual({
+        changed: false,
+        previous: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+        new: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+        processes: [],
+      });
+      expect(application).toEqual(before);
+    });
+
+    it("rejects an unreachable target without mutating the application", () => {
+      const application = createTestApplication();
+      const before = { ...application };
+      const grant = createTestGrant();
+      vi.setSystemTime(new Date("2021-02-02T13:00:00.000Z"));
+
+      expect(() =>
+        application.moveTo(
+          {
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "APPLICATION_REJECTED",
+          },
+          grant,
+        ),
+      ).toThrow(
+        'Invalid transition from "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED" to "PRE_AWARD:ASSESSMENT:APPLICATION_REJECTED"',
+      );
+      expect(application).toEqual(before);
+    });
   });
 
   describe("isReplacementAllowed", () => {

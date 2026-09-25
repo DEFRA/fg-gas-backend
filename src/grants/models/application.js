@@ -126,6 +126,39 @@ export class Application {
     return `${this.currentPhase}:${this.currentStage}:${this.currentStatus}`;
   }
 
+  moveTo({ phase, stage, status }, grant) {
+    const previous = this.getFullyQualifiedStatus();
+    const next = [phase, stage, status].join(":");
+
+    if (previous === next) {
+      return { changed: false, previous, new: previous, processes: [] };
+    }
+
+    const transition = grant.isValidTransition(
+      phase,
+      stage,
+      status,
+      previous,
+    );
+    if (!transition.valid) {
+      throw Boom.badRequest(
+        `Invalid transition from "${previous}" to "${next}"`,
+      );
+    }
+
+    this.currentPhase = phase;
+    this.currentStage = stage;
+    this.currentStatus = status;
+    this.updatedAt = this.#getTimestamp();
+
+    return {
+      changed: true,
+      previous,
+      new: next,
+      processes: transition.processes ?? [],
+    };
+  }
+
   // The same position as getFullyQualifiedStatus, by part rather than joined,
   currentPosition() {
     return {
