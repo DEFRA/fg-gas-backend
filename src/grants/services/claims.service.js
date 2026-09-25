@@ -244,7 +244,11 @@ const insertClaim = async ({ command, claimCode }, session) => {
   });
   const insertedId = await insert(claim, session);
 
-  return { created: true, claimId: insertedId.toString() };
+  return {
+    created: true,
+    claimId: insertedId.toString(),
+    createdAt: claim.createdAt,
+  };
 };
 
 const insertClaimWithAudit = withAudit(insertClaim, auditDataBuilder);
@@ -299,8 +303,8 @@ const claimableWithCapacity = async (
   return claimable;
 };
 
-// Read outside the transaction only to decide whether a definition is worth
-// resolving; the authoritative read and every claim check happen inside it.
+// Read outside the transaction only to identify the entitlement's template;
+// the authoritative read and every claim check happen inside it.
 const claimTemplateFor = async ({ command, grant }) => {
   const existing = await findExistingEntitlements(
     command.clientRef,
@@ -343,7 +347,7 @@ const claimPaymentFor = async ({ command, grant, configVersion }) => {
     version: configVersion,
     definitionType: "payment",
   });
-  return Boolean(definition?.s3Key);
+  return Boolean(definition);
 };
 
 const agreementFor = async ({ code, clientRef }, session) => {
@@ -362,7 +366,7 @@ const agreementFor = async ({ code, clientRef }, session) => {
 };
 
 const requestClaimPayment = async (
-  { command, claimable, configVersion, paymentConfigured },
+  { command, claimable, configVersion, paymentConfigured, executedAt },
   session,
 ) => {
   if (!paymentConfigured || claimable.claim?.requiresApproval) {
@@ -381,7 +385,7 @@ const requestClaimPayment = async (
       agreementVersion: agreement.version,
       correlationId: agreement.correlationId,
     },
-    executedAt: new Date().toISOString(),
+    executedAt,
     claim: claimFacts(command.payload),
   });
 
@@ -420,13 +424,19 @@ const submitInTransaction = async (
     session,
   );
 
-  const result = await insertClaimWithAudit(
+  const { createdAt, ...result } = await insertClaimWithAudit(
     { command, claimCode: claimable.claimCode },
     session,
   );
 
   await requestClaimPayment(
-    { command, claimable, configVersion: pinnedVersion, paymentConfigured },
+    {
+      command,
+      claimable,
+      configVersion: pinnedVersion,
+      paymentConfigured,
+      executedAt: createdAt,
+    },
     session,
   );
 

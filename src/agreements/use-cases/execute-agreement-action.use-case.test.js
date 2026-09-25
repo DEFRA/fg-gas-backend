@@ -250,6 +250,30 @@ describe("executeAgreementActionUseCase", () => {
     expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
   });
 
+  it("rejects more than one Payment commit operation before writing", async () => {
+    agreementDefinition.executeAction.mockResolvedValue({
+      agreement: transitionAgreement(),
+      commitOperations: [
+        { type: "create-agreement-payment" },
+        { type: "create-agreement-payment" },
+      ],
+    });
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toMatchObject({
+      output: {
+        statusCode: 500,
+        payload: {
+          message: "An internal server error occurred",
+        },
+      },
+      message: "Agreement Action cannot create more than one Payment",
+    });
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(replaceCurrentAgreement).not.toHaveBeenCalled();
+    expect(insertAgreementVersion).not.toHaveBeenCalled();
+    expect(saveEvents).not.toHaveBeenCalled();
+  });
+
   it("writes nothing when transition candidate resolution fails", async () => {
     agreementDefinition.executeAction.mockRejectedValue(
       new Error("invalid transition candidate"),

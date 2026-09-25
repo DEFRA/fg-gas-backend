@@ -11,7 +11,7 @@ Read the decision record, then resume at the first unchecked item in the numbere
 Current checkpoint, 25 September 2026:
 
 - [x] Record the architecture decision and consumer research.
-- [x] Retain the captured legacy FPTT event as historical serializer regression evidence. FPTT is closed and is not a migrated Agreement scheme, so its source-specific mapping is not a cutover gate; live migrated schemes require definition-specific compatibility evidence.
+- N/A for the current development-only Agreement cutover: executable parity with a legacy runtime-serialized Payment event. No live Agreement scheme is being migrated. The captured fixture and demo-grant transport test do not prove live-scheme parity; revisit this gate before real Agreement Payment traffic is enabled.
 - [x] Align local, Vitest and FloCi configuration to GAS-owned `gas__sns__create_payment_fifo.fifo` and `gas__sns__agreement_status_updated_fifo.fifo`, with the existing Payment, GAS and PDF queues.
 - [x] Retain a repeatable runtime SNS-adapter smoke that receives the unchanged body from the existing FloCi Payment queue via the GAS-owned topic. This proves transport wiring, not full Payment payload compatibility or the source-to-handler end-to-end path.
 - [x] Merge the CDP tenant configuration for GAS-owned topics and subscriptions in dev, test, perf-test, ext-test and prod, including the Payment Service queue subscription. Verify live delivery before each environment's GAS application ARN switch; CDP does not support publishing to another service's topic.
@@ -22,7 +22,7 @@ Current checkpoint, 25 September 2026:
 - [x] Classify irrecoverable pinned Payment definition failures as non-retryable for both handlers; keep transient loading and source-data mapping failures retryable, with Inbox and handler proof.
 - [x] Finish work package 4: a failed SNS publication retries the same persisted event ID without re-entering Payment creation; manual Inbox redrive after Payment commit completes both Claim and Agreement requests without another Payment, claim-ID increment or publication.
 - [x] Finish work package 5: Claim submission now writes a pinned `ClaimPaymentRequested` alongside the Claim, without creating a Payment synchronously. Mongo replica-set tests prove replay, missing optional definition, source-transaction rollback when request persistence fails, subsequent Payment creation and independence from a failed Payment handler; the existing Claim service and HTTP route tests preserve capacity, version retry and response behaviour. Full unit suite (3,019 tests), focused container-backed Claim inbox tests (8) and lint pass.
-- [x] Finish work package 6: Agreement actions and internal status commands commit a pinned `AgreementPaymentRequested` instead of resolving or creating Payments synchronously. Focused tests prove atomicity, replay and concurrency, downstream independence, Woodland exclusion, two scheduled payments in one request, lifecycle removal of `claimId`, and source-to-SNS-to-GPS delivery for the migrated `pigs-might-fly` scheme. The historical FPTT event remains a serializer regression but FPTT is closed and is not a migrated cutover scheme. Full unit suite (3,004 tests), focused container-backed Agreement and transport tests (22) and lint pass. A full integration run still fails on baseline Client request timeouts, reproduced on the parent branch for Agreement test endpoints; it is not a full pass.
+- [x] Finish work package 6 verification. Agreement actions and internal status commands commit pinned `AgreementPaymentRequested` events; focused tests cover atomicity, replay and concurrency, downstream independence, Woodland exclusion, two scheduled payments, lifecycle removal of `claimId`, and source-to-SNS-to-GPS delivery using the compose seed demo grant `pigs-might-fly`. Legacy parity is outside this development-only cutover but remains required for a future live migration. Full unit suite (3,004 tests), focused container-backed Agreement and transport tests (22) and lint passed at the checkpoint. The incomplete full integration run is explicitly dispositioned as the reproduced baseline Client request timeout issue rather than recorded as a pass.
 - [x] Finish work package 7: remove the obsolete synchronous Payment seams, enforce module boundaries, introduce explicit event and command routing, and record the clean-cutover verification evidence. Repository-wide lint and all 2,995 unit tests pass; the focused source and handler integration suites pass 61 tests.
 - [x] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
@@ -69,10 +69,10 @@ Use this branch-per-stage stack:
 
 1. Complete and verify each stage as a safe intermediate state. Base the next branch on the exact head of its predecessor; the Claim cutover starts from the Payments-handler branch (#700).
 2. Open a child PR **against its predecessor branch**, never against `main` while that predecessor remains unmerged. Confirm the PR's three-dot diff contains only its own stage; a parent update must be merged into the child and reverified before review resumes.
-3. Merge bottom-up. Prefer a merge commit for a parent with open children so its commits remain ancestors of the child; after it merges, retarget the immediate child PR to `main`, confirm its diff still contains only the child stage, and rerun checks before merging it. Repeat for each child.
-4. If a parent is squash- or rebase-merged instead, do not retarget its child blindly: create a **new** branch from merged `main`, cherry-pick only the child's own commits, reverify, and open a replacement PR. Never force-push or silently rewrite a reviewed branch; keep the old PR for review provenance until its replacement is ready.
+3. Merge bottom-up. `main` squash-merges PRs (as with #688 and #701), so do not retarget a stacked child PR directly to `main`: the parent's commits would appear in the child's diff.
+4. After a parent lands, merge the updated `main` into its existing child and confirm the three-dot diff contains only that child stage. If it does not, create a **new** branch from merged `main`, cherry-pick only the child's own commits, reverify, and open a replacement PR. Never force-push or silently rewrite a reviewed branch; keep the old PR for review provenance until its replacement is ready.
 
-Wait for #700's head checks before opening its child PR (all were green on 25 September 2026). Keep deployment-only environment gates outside the code-PR stack. Do not merge a child while its parent is open or let a cutover branch enable both direct and event-driven Payment creation for the same producer.
+Keep deployment-only environment gates outside the code-PR stack. Do not merge a child while its parent is open or let a cutover branch enable both direct and event-driven Payment creation for the same producer.
 
 No runtime feature flag is required for this sequential workflow. If stages must instead be deployed independently, use one mutually exclusive mode (`direct` or `event`) per producer, default it to the currently proven path, and remove it after cutover. Never use independent booleans that can enable both paths.
 
@@ -148,9 +148,9 @@ Completion criterion: a replayed Claim submission returns the existing Claim and
 
 Prerequisite: work packages 1–5 are complete.
 
-- [x] For every migrated Agreement scheme, compare its Payment definition with its supported interface. The migrated `pigs-might-fly` definition is exercised end to end for `scheme: SFI`, `sourceSystem: FPTT`, `deliveryBody: RP00`, `fesCode: FALS_FPTT`, `ledger: AP`, `accountCode: SOS710`, `fundCode: DRD10`, marketing year, descriptions, dates and stringified money. The closed FPTT grant is not in migration scope.
+- N/A for the current development-only cutover: compare each migrated Agreement scheme's Payment definition with legacy constants and mappings. There is no live Agreement scheme being migrated; `pigs-might-fly` is a compose seed/test grant, FPTT is closed, and future Woodland Payments belong to Claims. Before any live Agreement scheme is enabled, revisit its actual interface, including scheme, source system, accounting codes, marketing year, descriptions, dates and stringified money.
 - [x] Prove one Agreement with multiple scheduled payments produces one Payment Service event with all entries in `payments[]`, `paymentRequestNumber: 1` and the expected invoice-number format.
-- [x] Preserve the complete captured legacy FPTT CloudEvent as a serializer regression and prove the migrated `pigs-might-fly` event reaches the existing GPS queue unchanged through the runtime SNS adapter. Exact source-data parity with FPTT is not required because the grant is closed and is not migrated.
+- N/A for the current development-only cutover: prove complete runtime-serialized CloudEvent parity with a captured legacy event except for generated IDs and times. The captured FPTT fixture and `pigs-might-fly` local transport test are not such a comparison; require scheme-specific evidence before live Agreement traffic.
 - [x] Exercise the complete local path: source transaction → durable request → Payments handler transaction → external outbox → runtime SNS adapter → `gps__sqs__create_payment.fifo`.
 - [x] Replace pre-transaction Payment definition resolution and direct Payment creation in `execute-agreement-action.use-case.js` with construction of `AgreementPaymentRequested` from the resulting Agreement and action execution snapshot.
 - [x] In the existing Agreement transaction, persist the current Agreement, Agreement Version, lifecycle publications, reporting publication and Payment request event together.
@@ -160,7 +160,7 @@ Prerequisite: work packages 1–5 are complete.
 - [x] Apply the same cutover through `commitAgreementAction` so HTTP actions and internal Agreement-status commands cannot diverge.
 - [x] Keep Agreement-originated Woodland Payments excluded. A Woodland definition must not gain a Payment commit operation as part of this work, while Claim-originated Woodland behaviour remains intact.
 
-Completion criterion: the executable compatibility gates pass; acceptance succeeds with Payments processing unavailable; the accepted Agreement and durable request are committed; the lifecycle event and HTTP contract have no Payment Hub `claimId`; and a local transaction failure leaves none of those writes committed.
+Completion criterion for the current development-only scope: the Payment Service event contract and applicable local transport/behaviour gates pass; acceptance succeeds with Payments processing unavailable; the accepted Agreement and durable request are committed; the lifecycle event and HTTP contract have no Payment Hub `claimId`; and a local transaction failure leaves none of those writes committed. Legacy parity is not applicable to this scope and is not proven; complete or explicitly disposition the full integration run before marking WP6 complete.
 
 ### 7. Clean cutover
 
@@ -195,21 +195,21 @@ Completion criterion: each per-environment `cdp-app-config` ARN switch follows v
 
 ## Required Verification Matrix
 
-| Behaviour               | Required proof                                                                                                                                                     |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Source atomicity        | Force durable request persistence to fail; source state, version/lifecycle or Claim all roll back.                                                                 |
-| Downstream independence | Commit the source while Payments handling fails; source remains committed and event becomes retryable/dead-lettered.                                               |
-| Idempotency             | Deliver the same request sequentially and concurrently; one Payment, claim ID and external event exist.                                                            |
-| Publication isolation   | Fail SNS publication and retry it; Payment creation is not re-entered.                                                                                             |
-| Configuration readiness | Invalid declared definition is unusable; missing optional definition is usable; runtime data failure does not poison the definition.                               |
-| Agreement compatibility | `303` response remains stable and lifecycle data has no Payment Hub `claimId`.                                                                                     |
-| Payment compatibility   | A migrated scheme's complete CloudEvent reaches GPS unchanged and one request contains all scheduled payments; closed FPTT remains historical serializer evidence. |
-| Woodland exclusion      | Agreement acceptance raises no Woodland Payment request; Claim-originated Woodland coverage still passes.                                                          |
-| Operational recovery    | Admin shows the failed request and a redrive completes without duplication.                                                                                        |
-| Module independence     | ESLint passes with no producer-to-Payments exceptions.                                                                                                             |
-| Runtime transport       | Local end-to-end message arrives on `gps__sqs__create_payment.fifo`.                                                                                               |
+| Behaviour               | Required proof                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Source atomicity        | Force durable request persistence to fail; source state, version/lifecycle or Claim all roll back.                                   |
+| Downstream independence | Commit the source while Payments handling fails; source remains committed and event becomes retryable/dead-lettered.                 |
+| Idempotency             | Deliver the same request sequentially and concurrently; one Payment, claim ID and external event exist.                              |
+| Publication isolation   | Fail SNS publication and retry it; Payment creation is not re-entered.                                                               |
+| Configuration readiness | Invalid config blocks ingestion; `PermanentError`: Claim commits, request dead-letters; no optional: no requests; mapping retryable. |
+| Agreement compatibility | `303` response remains stable and lifecycle data has no Payment Hub `claimId`.                                                       |
+| Payment compatibility   | Validate the Payment Service event contract and all scheduled payments in one request; legacy parity is N/A for current dev scope.   |
+| Woodland exclusion      | Agreement acceptance raises no Woodland Payment request; Claim-originated Woodland coverage still passes.                            |
+| Operational recovery    | Admin shows the failed request and a redrive completes without duplication.                                                          |
+| Module independence     | ESLint passes with no producer-to-Payments exceptions.                                                                               |
+| Runtime transport       | Local end-to-end message arrives on `gps__sqs__create_payment.fifo`.                                                                 |
 
-Use the narrowest focused tests while implementing each package. Before cutover, run `npm run lint`, `npm test`, the end-to-end local transport scenario and the definition-specific compatibility comparisons.
+Use the narrowest focused tests while implementing each package. Before development cutover, run `npm run lint`, `npm test` and the end-to-end local transport scenario; resolve or explicitly disposition failures. Require definition-specific legacy compatibility evidence before any live Agreement scheme migration.
 
 ## External Dependency
 

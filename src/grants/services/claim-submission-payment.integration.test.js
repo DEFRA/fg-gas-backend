@@ -169,6 +169,9 @@ describe("Claim submission and durable Payment request", () => {
 
     expect(result).toEqual({ created: true, claimId: expect.any(String) });
     expect(result.claimId).toMatch(/^[a-f0-9]{24}$/);
+    const committedClaim = await db.collection("claims").findOne({
+      clientClaimRef: payload.metadata.clientClaimRef,
+    });
     await expect(
       db.collection("outbox").findOne({ target: "internal:event-bus" }),
     ).resolves.toMatchObject({
@@ -178,6 +181,7 @@ describe("Claim submission and durable Payment request", () => {
           requestId: `claim:${code}:${clientRef}:claim-1`,
           source: { code, clientRef, clientClaimRef: "claim-1", entitlementId },
           configVersion,
+          executedAt: committedClaim.createdAt,
           agreement: {
             agreementNumber: "WM987654321",
             agreementVersion: 2,
@@ -240,12 +244,12 @@ describe("Claim submission and durable Payment request", () => {
     ).resolves.toBe(1);
   });
 
-  it("does not request a Payment when its optional definition has no location", async () => {
+  it("does not request a Payment when its optional definition is absent", async () => {
     await db
       .collection("config_versions")
       .updateOne(
         { grantCode: code, version: configVersion },
-        { $set: { "definitions.payment.s3Key": null } },
+        { $unset: { "definitions.payment": "" } },
       );
     try {
       await expect(
@@ -260,12 +264,17 @@ describe("Claim submission and durable Payment request", () => {
           .countDocuments({ target: "internal:event-bus" }),
       ).resolves.toBe(0);
     } finally {
-      await db
-        .collection("config_versions")
-        .updateOne(
-          { grantCode: code, version: configVersion },
-          { $set: { "definitions.payment.s3Key": "woodland/payment.json" } },
-        );
+      await db.collection("config_versions").updateOne(
+        { grantCode: code, version: configVersion },
+        {
+          $set: {
+            "definitions.payment": {
+              s3Key: "woodland/payment.json",
+              fetchStatus: "fetched",
+            },
+          },
+        },
+      );
     }
   });
 
