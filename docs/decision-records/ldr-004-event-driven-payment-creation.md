@@ -160,7 +160,7 @@ Payment cutover remains blocked until all of the following are satisfied:
 - Immediately before removing lifecycle `claimId`, the live subscription inventory for the GAS-owned Agreement-status topic matches the GAS and PDF queues. Retain the legacy topic subscriptions for legacy traffic and resolve unexpected subscribers before rollout.
 - The acceptance API contract and client tests reflect a successful accepted Agreement without `claimId`; downstream Payment failure is covered by retry/DLQ operations rather than HTTP failure or Agreement rollback.
 
-For a future live Agreement scheme migration, the legacy compatibility proof must exercise the published event through the same serializer and SNS adapter used at runtime. A hand-authored fixture or a mapper-only unit test is not sufficient evidence of transport compatibility. In the current development-only scope, prove the Payment Service contract and local transport path without treating the demo grant as legacy parity.
+The compatibility proof must exercise the published event through the same serializer and SNS adapter used at runtime. A hand-authored fixture or a mapper-only unit test is not sufficient evidence of transport compatibility.
 
 During design, a one-off local transport smoke published through the runtime `src/common/sns-client.js` adapter to Floci's legacy `create_payment.fifo` topic and received the unchanged message body from `gps__sqs__create_payment.fifo`. A retained integration smoke now publishes through the same adapter to GAS's new `gas__sns__create_payment_fifo.fifo` topic and checks the unchanged body on that existing queue. This proves local topic wiring, not a complete Payment payload or an end-to-end source-to-handler cutover.
 

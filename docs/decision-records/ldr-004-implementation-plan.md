@@ -159,7 +159,7 @@ Prerequisite: work packages 1–5 are complete.
 - [x] Apply the same cutover through `commitAgreementAction` so HTTP actions and internal Agreement-status commands cannot diverge.
 - [x] Keep Agreement-originated Woodland Payments excluded. A Woodland definition must not gain a Payment commit operation as part of this work, while Claim-originated Woodland behaviour remains intact.
 
-Completion criterion for the current development-only scope: the Payment Service event contract and applicable local transport/behaviour gates pass; acceptance succeeds with Payments processing unavailable; the accepted Agreement and durable request are committed; the lifecycle event and HTTP contract have no Payment Hub `claimId`; and a local transaction failure leaves none of those writes committed. Legacy parity is not applicable to this scope and is not proven; complete or explicitly disposition the full integration run before marking WP6 complete.
+Completion criterion: the executable compatibility gates pass; acceptance succeeds with Payments processing unavailable; the accepted Agreement and durable request are committed; the lifecycle event and HTTP contract have no Payment Hub `claimId`; and a local transaction failure leaves none of those writes committed.
 
 ### 7. Clean cutover
 
@@ -194,13 +194,13 @@ Completion criterion: each per-environment `cdp-app-config` ARN switch follows v
 | Publication isolation   | Fail SNS publication and retry it; Payment creation is not re-entered.                                                               |
 | Configuration readiness | Invalid config blocks ingestion; `PermanentError`: Claim commits, request dead-letters; no optional: no requests; mapping retryable. |
 | Agreement compatibility | `303` response remains stable and lifecycle data has no Payment Hub `claimId`.                                                       |
-| Payment compatibility   | Validate the Payment Service event contract and all scheduled payments in one request; legacy parity is N/A for current dev scope.   |
+| Payment compatibility   | Complete CloudEvent matches the legacy fixture and one request contains all scheduled payments.                                      |
 | Woodland exclusion      | Agreement acceptance raises no Woodland Payment request; Claim-originated Woodland coverage still passes.                            |
 | Operational recovery    | Admin shows the failed request and a redrive completes without duplication.                                                          |
 | Module independence     | ESLint passes with no producer-to-Payments exceptions.                                                                               |
 | Runtime transport       | Local end-to-end message arrives on `gps__sqs__create_payment.fifo`.                                                                 |
 
-Use the narrowest focused tests while implementing each package. Before development cutover, run `npm run lint`, `npm test` and the end-to-end local transport scenario; resolve or explicitly disposition failures. Require definition-specific legacy compatibility evidence before any live Agreement scheme migration.
+Use the narrowest focused tests while implementing each package. Before cutover, run `npm run lint`, `npm test`, the end-to-end local transport scenario and the definition-specific compatibility comparisons.
 
 ## External Dependency
 
