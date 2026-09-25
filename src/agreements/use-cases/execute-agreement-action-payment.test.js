@@ -103,7 +103,7 @@ describe("Agreement acceptance Payment request", () => {
         .collection("outbox")
         .findOne({ "event.data.source.agreementNumber": agreementNumber }),
     ).resolves.toMatchObject({
-      target: "internal:message-bus",
+      target: "internal:event-bus",
       event: {
         data: {
           requestId: `agreement:${agreementNumber}:v2`,
@@ -163,7 +163,7 @@ describe("Agreement acceptance Payment request", () => {
     await expect(
       db
         .collection("outbox")
-        .countDocuments({ target: "internal:message-bus" }),
+        .countDocuments({ target: "internal:event-bus" }),
     ).resolves.toBe(0);
     await expect(
       db.collection("payments__payments").countDocuments({}),

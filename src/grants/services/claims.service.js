@@ -2,9 +2,8 @@ import Boom from "@hapi/boom";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
-import { internalMessageBusTarget } from "../../common/internal-command-bus.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
-import { saveEvents } from "../../events/index.js";
+import { internalEventBusTarget, saveEvents } from "../../events/index.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { ClaimPaymentRequestedEvent } from "../events/claim-payment-requested.event.js";
@@ -390,7 +389,7 @@ const requestClaimPayment = async (
     [
       {
         event,
-        target: internalMessageBusTarget,
+        target: internalEventBusTarget,
         segregationRef: command.clientRef,
       },
     ],

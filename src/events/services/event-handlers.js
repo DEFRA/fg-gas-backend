@@ -1,3 +1,5 @@
+export const internalEventBusTarget = "internal:event-bus";
+
 const handlers = new Map();
 
 export const registerEventHandler = (type, handler) => {

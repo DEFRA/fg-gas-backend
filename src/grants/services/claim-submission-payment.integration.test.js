@@ -170,9 +170,9 @@ describe("Claim submission and durable Payment request", () => {
     expect(result).toEqual({ created: true, claimId: expect.any(String) });
     expect(result.claimId).toMatch(/^[a-f0-9]{24}$/);
     await expect(
-      db.collection("outbox").findOne({ target: "internal:message-bus" }),
+      db.collection("outbox").findOne({ target: "internal:event-bus" }),
     ).resolves.toMatchObject({
-      target: "internal:message-bus",
+      target: "internal:event-bus",
       event: {
         data: {
           requestId: `claim:${code}:${clientRef}:claim-1`,
@@ -206,7 +206,7 @@ describe("Claim submission and durable Payment request", () => {
     await expect(
       db
         .collection("outbox")
-        .countDocuments({ target: "internal:message-bus" }),
+        .countDocuments({ target: "internal:event-bus" }),
     ).resolves.toBe(1);
     await expect(
       db.collection("payments__payments").countDocuments({}),
@@ -223,7 +223,7 @@ describe("Claim submission and durable Payment request", () => {
     await new OutboxSubscriber().processWithLock("claim-delivery", clientRef);
 
     await expect(
-      db.collection("outbox").findOne({ target: "internal:message-bus" }),
+      db.collection("outbox").findOne({ target: "internal:event-bus" }),
     ).resolves.toMatchObject({ status: "COMPLETED" });
     await expect(db.collection("claims").countDocuments({})).resolves.toBe(1);
     await expect(
@@ -257,7 +257,7 @@ describe("Claim submission and durable Payment request", () => {
       await expect(
         db
           .collection("outbox")
-          .countDocuments({ target: "internal:message-bus" }),
+          .countDocuments({ target: "internal:event-bus" }),
       ).resolves.toBe(0);
     } finally {
       await db
@@ -277,7 +277,7 @@ describe("Claim submission and durable Payment request", () => {
     );
     await outbox.insertOne({
       event: { data: { requestId: `claim:${code}:${clientRef}:claim-1` } },
-      target: "internal:message-bus",
+      target: "internal:event-bus",
     });
     try {
       await expect(submitClaim({ code, clientRef, payload })).rejects.toThrow();
@@ -292,7 +292,7 @@ describe("Claim submission and durable Payment request", () => {
     const accepted = await submitClaim({ code, clientRef, payload });
     const request = await db
       .collection("outbox")
-      .findOne({ target: "internal:message-bus" });
+      .findOne({ target: "internal:event-bus" });
     const { payments } = await import("../../payments/index.js");
     await payments.register({});
     await db
