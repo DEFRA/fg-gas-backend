@@ -36,7 +36,7 @@ describe("createOutboxMessages", () => {
     ]);
   });
 
-  it("adds committed Agreement and Payment facts to the accepted lifecycle wire", () => {
+  it("keeps Payment Hub identity out of the accepted lifecycle wire", () => {
     const agreement = {
       agreementNumber: "PMF123",
       correlationId: "correlation-id",
@@ -72,7 +72,6 @@ describe("createOutboxMessages", () => {
             sbi: "123456789",
             startDate: "2026-08-01",
             endDate: "2027-07-31",
-            claimId: "R00000001",
           },
         }),
       },

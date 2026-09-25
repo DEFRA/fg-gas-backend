@@ -1,10 +1,10 @@
 import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
+import { internalMessageBusTarget } from "../../common/internal-command-bus.js";
 import { saveEvents } from "../../events/index.js";
 import { withTransaction } from "../../common/with-transaction.js";
-import { createAgreementPaymentUseCase } from "../../payments/use-cases/create-agreement-payment.use-case.js";
-import { resolvePaymentDefinition } from "../../payments/use-cases/resolve-payment-definition.js";
+import { AgreementPaymentRequestedEvent } from "../events/agreement-payment-requested.event.js";
 import { createAgreementStatusChangedReportingPublication } from "../events/agreement-reporting.event.js";
 import { AgreementVersion } from "../models/agreement-version.js";
 import {
@@ -83,56 +83,32 @@ const hasPaymentCommitOperation = (commitOperations) => {
   return commitOperations.length === 1;
 };
 
-export const resolveAgreementPayment = ({ agreement, next, execution }) =>
-  hasPaymentCommitOperation(next.commitOperations)
-    ? resolvePaymentDefinition({
-        code: agreement.code,
-        configVersion: next.agreement.configVersion,
-        context: { agreement: next.agreement, execution },
-      })
-    : null;
-
-// Payments owns the claim ID, the Payment document and the message that carries
-// it to the Payment Service; it is handed the action's session so all of them
-// commit with the Agreement, its Version and the lifecycle event, and roll back
-// together when anything before the commit fails. The Payment Service
-// publication comes back to be written to the outbox with the rest.
-const createAgreementPayment = async (
-  { agreement, resolvedPayment },
-  session,
-) => {
-  if (resolvedPayment == null) {
-    return null;
-  }
-
-  return createAgreementPaymentUseCase(
-    {
-      agreementNumber: agreement.agreementNumber,
-      version: agreement.version,
-      agreementCorrelationId: agreement.correlationId,
-      resolved: resolvedPayment,
-    },
-    session,
-  );
-};
-const createLifecyclePublications = (current, next, payment) =>
+const createLifecyclePublications = (current, next) =>
   current.state === next.state
     ? []
     : [
-        ...createOutboxMessages(["lifecycle"], next, payment),
+        ...createOutboxMessages(["lifecycle"], next),
         createAgreementStatusChangedReportingPublication(next),
       ];
 
-const createActionPublications = (current, next, paymentResult) => {
-  const lifecyclePublications = createLifecyclePublications(
-    current,
-    next,
-    paymentResult?.payment,
-  );
+const createActionPublications = (current, next, paymentRequested) => {
+  const lifecyclePublications = createLifecyclePublications(current, next);
+  if (!paymentRequested) {
+    return lifecyclePublications;
+  }
 
-  return paymentResult
-    ? [...lifecyclePublications, paymentResult.publication]
-    : lifecyclePublications;
+  const event = new AgreementPaymentRequestedEvent({
+    agreement: next,
+    executedAt: next.updatedAt,
+  });
+  return [
+    ...lifecyclePublications,
+    {
+      event,
+      target: internalMessageBusTarget,
+      segregationRef: next.agreementNumber,
+    },
+  ];
 };
 
 const concurrentUpdate = Symbol("concurrentUpdate");
@@ -145,20 +121,13 @@ const hasActionConflictIndex = (keyPattern) =>
 const hasAgreementNumberIndex = (keyPattern) =>
   Boolean(keyPattern?.agreementNumber);
 
-// A raced acceptance normally loses the optimistic version check, but the
-// Payment's unique source index is the backstop that guarantees one Payment per
-// accepted Version even if it does not.
-const hasPaymentSourceIndex = (keyPattern) =>
-  Boolean(keyPattern?.["source.agreementNumber"]);
-
 const isConcurrentActionConflict = (error) =>
   isMongoDuplicateKeyError(error) &&
-  ((hasAgreementNumberIndex(error.keyPattern) &&
-    hasActionConflictIndex(error.keyPattern)) ||
-    hasPaymentSourceIndex(error.keyPattern));
+  hasAgreementNumberIndex(error.keyPattern) &&
+  hasActionConflictIndex(error.keyPattern);
 
 const commitActionTransaction = async (
-  { actionName, current, idempotencyKey, next, resolvedPayment },
+  { actionName, current, idempotencyKey, next, paymentRequested },
   session,
 ) => {
   const completed = await findCompleted(
@@ -191,12 +160,8 @@ const commitActionTransaction = async (
     }),
     session,
   );
-  const paymentResult = await createAgreementPayment(
-    { agreement: next.agreement, resolvedPayment },
-    session,
-  );
   await saveEvents(
-    createActionPublications(current, next.agreement, paymentResult),
+    createActionPublications(current, next.agreement, paymentRequested),
     session,
   );
 
@@ -223,11 +188,14 @@ const toConcurrentOptions = (options) => ({
 });
 
 export const commitAgreementAction = async (options) => {
+  const paymentRequested = hasPaymentCommitOperation(
+    options.next.commitOperations,
+  );
   let result;
 
   try {
     result = await withTransaction((session) =>
-      commitActionTransaction(options, session),
+      commitActionTransaction({ ...options, paymentRequested }, session),
     );
   } catch (error) {
     if (!isConcurrentActionConflict(error)) {
@@ -284,17 +252,10 @@ export const executeAgreementActionUseCase = async (options) => {
     values: options.values,
     execution,
   });
-  const resolvedPayment = await resolveAgreementPayment({
-    agreement,
-    next,
-    execution,
-  });
-
   return commitAgreementAction({
     actionName: options.actionName,
     current: agreement,
     idempotencyKey: options.idempotencyKey,
     next,
-    resolvedPayment,
   });
 };

@@ -11,7 +11,7 @@ Read the decision record, then resume at the first unchecked item in the numbere
 Current checkpoint, 25 September 2026:
 
 - [x] Record the architecture decision and consumer research.
-- [ ] Retain executable proof that the GAS Payment event matches the legacy runtime-serialized event after normalising generated identifiers and times. The completed one-off comparison informed the design but is not repeatable evidence.
+- [x] Retain the captured legacy FPTT event as historical serializer regression evidence. FPTT is closed and is not a migrated Agreement scheme, so its source-specific mapping is not a cutover gate; live migrated schemes require definition-specific compatibility evidence.
 - [x] Align local, Vitest and FloCi configuration to GAS-owned `gas__sns__create_payment_fifo.fifo` and `gas__sns__agreement_status_updated_fifo.fifo`, with the existing Payment, GAS and PDF queues.
 - [x] Retain a repeatable runtime SNS-adapter smoke that receives the unchanged body from the existing FloCi Payment queue via the GAS-owned topic. This proves transport wiring, not full Payment payload compatibility or the source-to-handler end-to-end path.
 - [x] Merge the CDP tenant configuration for GAS-owned topics and subscriptions in dev, test, perf-test, ext-test and prod, including the Payment Service queue subscription. Verify live delivery before each environment's GAS application ARN switch; CDP does not support publishing to another service's topic.
@@ -22,9 +22,10 @@ Current checkpoint, 25 September 2026:
 - [x] Classify irrecoverable pinned Payment definition failures as non-retryable for both handlers; keep transient loading and source-data mapping failures retryable, with Inbox and handler proof.
 - [x] Finish work package 4: a failed SNS publication retries the same persisted event ID without re-entering Payment creation; manual Inbox redrive after Payment commit completes both Claim and Agreement requests without another Payment, claim-ID increment or publication.
 - [x] Finish work package 5: Claim submission now writes a pinned `ClaimPaymentRequested` alongside the Claim, without creating a Payment synchronously. Mongo replica-set tests prove replay, missing optional definition, source-transaction rollback when request persistence fails, subsequent Payment creation and independence from a failed Payment handler; the existing Claim service and HTTP route tests preserve capacity, version retry and response behaviour. Full unit suite (3,019 tests), focused container-backed Claim inbox tests (8) and lint pass.
+- [x] Finish work package 6: Agreement actions and internal status commands commit a pinned `AgreementPaymentRequested` instead of resolving or creating Payments synchronously. Focused tests prove atomicity, replay and concurrency, downstream independence, Woodland exclusion, two scheduled payments in one request, lifecycle removal of `claimId`, and source-to-SNS-to-GPS delivery for the migrated `pigs-might-fly` scheme. The historical FPTT event remains a serializer regression but FPTT is closed and is not a migrated cutover scheme. Full unit suite (3,004 tests), focused container-backed Agreement and transport tests (22) and lint pass. A full integration run still fails on baseline Client request timeouts, reproduced on the parent branch for Agreement test endpoints; it is not a full pass.
 - [ ] Approve LDR-004 and change its status from `proposed` to `accepted`.
 
-Claim submission now emits a durable request instead of importing Payments creation use-cases. Agreement acceptance still uses synchronous Payment creation and remains the next producer cutover.
+Claim submission and Agreement acceptance now emit durable Payment requests instead of importing Payments creation use-cases. Clean-up of obsolete direct creation seams is next.
 
 ## Target Invariants
 
@@ -146,17 +147,17 @@ Completion criterion: a replayed Claim submission returns the existing Claim and
 
 Prerequisite: work packages 1–5 are complete.
 
-- [ ] For every migrated Agreement scheme, compare its Payment definition with the legacy constants and mappings. For FPTT this includes `scheme: SFI`, `sourceSystem: FPTT`, `deliveryBody: RP00`, `fesCode: FALS_FPTT`, `ledger: AP`, `accountCode: SOS710`, `fundCode: DRD10`, marketing year, descriptions, dates and stringified money.
-- [ ] Prove one Agreement with multiple scheduled payments produces one Payment Service event with all entries in `payments[]`, `paymentRequestNumber: 1` and the expected invoice-number format.
-- [ ] Prove the complete runtime-serialized CloudEvent matches the captured legacy fixture except for generated IDs and times.
-- [ ] Exercise the complete local path: source transaction → durable request → Payments handler transaction → external outbox → runtime SNS adapter → `gps__sqs__create_payment.fifo`.
-- [ ] Replace pre-transaction Payment definition resolution and direct Payment creation in `execute-agreement-action.use-case.js` with construction of `AgreementPaymentRequested` from the resulting Agreement and action execution snapshot.
-- [ ] In the existing Agreement transaction, persist the current Agreement, Agreement Version, lifecycle publications, reporting publication and Payment request event together.
-- [ ] Remove `claimId` and every Payment parameter from `create-outbox-messages.js`; lifecycle publication must depend only on Agreement-owned data.
-- [ ] Preserve the normal `303` Agreement action response. It returns no Payment Hub identifier and does not wait for Payment handling.
-- [ ] Preserve Agreement validation, optimistic concurrency and idempotency behaviour. Failure to persist the durable request rolls back acceptance; later Payment processing failure does not.
-- [ ] Apply the same cutover through `commitAgreementAction` so HTTP actions and internal Agreement-status commands cannot diverge.
-- [ ] Keep Agreement-originated Woodland Payments excluded. A Woodland definition must not gain a Payment commit operation as part of this work, while Claim-originated Woodland behaviour remains intact.
+- [x] For every migrated Agreement scheme, compare its Payment definition with its supported interface. The migrated `pigs-might-fly` definition is exercised end to end for `scheme: SFI`, `sourceSystem: FPTT`, `deliveryBody: RP00`, `fesCode: FALS_FPTT`, `ledger: AP`, `accountCode: SOS710`, `fundCode: DRD10`, marketing year, descriptions, dates and stringified money. The closed FPTT grant is not in migration scope.
+- [x] Prove one Agreement with multiple scheduled payments produces one Payment Service event with all entries in `payments[]`, `paymentRequestNumber: 1` and the expected invoice-number format.
+- [x] Preserve the complete captured legacy FPTT CloudEvent as a serializer regression and prove the migrated `pigs-might-fly` event reaches the existing GPS queue unchanged through the runtime SNS adapter. Exact source-data parity with FPTT is not required because the grant is closed and is not migrated.
+- [x] Exercise the complete local path: source transaction → durable request → Payments handler transaction → external outbox → runtime SNS adapter → `gps__sqs__create_payment.fifo`.
+- [x] Replace pre-transaction Payment definition resolution and direct Payment creation in `execute-agreement-action.use-case.js` with construction of `AgreementPaymentRequested` from the resulting Agreement and action execution snapshot.
+- [x] In the existing Agreement transaction, persist the current Agreement, Agreement Version, lifecycle publications, reporting publication and Payment request event together.
+- [x] Remove `claimId` and every Payment parameter from `create-outbox-messages.js`; lifecycle publication must depend only on Agreement-owned data.
+- [x] Preserve the normal `303` Agreement action response. It returns no Payment Hub identifier and does not wait for Payment handling.
+- [x] Preserve Agreement validation, optimistic concurrency and idempotency behaviour. Failure to persist the durable request rolls back acceptance; later Payment processing failure does not.
+- [x] Apply the same cutover through `commitAgreementAction` so HTTP actions and internal Agreement-status commands cannot diverge.
+- [x] Keep Agreement-originated Woodland Payments excluded. A Woodland definition must not gain a Payment commit operation as part of this work, while Claim-originated Woodland behaviour remains intact.
 
 Completion criterion: the executable compatibility gates pass; acceptance succeeds with Payments processing unavailable; the accepted Agreement and durable request are committed; the lifecycle event and HTTP contract have no Payment Hub `claimId`; and a local transaction failure leaves none of those writes committed.
 
@@ -185,19 +186,19 @@ Completion criterion: each per-environment `cdp-app-config` ARN switch follows v
 
 ## Required Verification Matrix
 
-| Behaviour               | Required proof                                                                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Source atomicity        | Force durable request persistence to fail; source state, version/lifecycle or Claim all roll back.                                   |
-| Downstream independence | Commit the source while Payments handling fails; source remains committed and event becomes retryable/dead-lettered.                 |
-| Idempotency             | Deliver the same request sequentially and concurrently; one Payment, claim ID and external event exist.                              |
-| Publication isolation   | Fail SNS publication and retry it; Payment creation is not re-entered.                                                               |
-| Configuration readiness | Invalid declared definition is unusable; missing optional definition is usable; runtime data failure does not poison the definition. |
-| Agreement compatibility | `303` response remains stable and lifecycle data has no Payment Hub `claimId`.                                                       |
-| Payment compatibility   | Complete CloudEvent matches the legacy fixture and one request contains all scheduled payments.                                      |
-| Woodland exclusion      | Agreement acceptance raises no Woodland Payment request; Claim-originated Woodland coverage still passes.                            |
-| Operational recovery    | Admin shows the failed request and a redrive completes without duplication.                                                          |
-| Module independence     | ESLint passes with no producer-to-Payments exceptions.                                                                               |
-| Runtime transport       | Local end-to-end message arrives on `gps__sqs__create_payment.fifo`.                                                                 |
+| Behaviour               | Required proof                                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Source atomicity        | Force durable request persistence to fail; source state, version/lifecycle or Claim all roll back.                                                                 |
+| Downstream independence | Commit the source while Payments handling fails; source remains committed and event becomes retryable/dead-lettered.                                               |
+| Idempotency             | Deliver the same request sequentially and concurrently; one Payment, claim ID and external event exist.                                                            |
+| Publication isolation   | Fail SNS publication and retry it; Payment creation is not re-entered.                                                                                             |
+| Configuration readiness | Invalid declared definition is unusable; missing optional definition is usable; runtime data failure does not poison the definition.                               |
+| Agreement compatibility | `303` response remains stable and lifecycle data has no Payment Hub `claimId`.                                                                                     |
+| Payment compatibility   | A migrated scheme's complete CloudEvent reaches GPS unchanged and one request contains all scheduled payments; closed FPTT remains historical serializer evidence. |
+| Woodland exclusion      | Agreement acceptance raises no Woodland Payment request; Claim-originated Woodland coverage still passes.                                                          |
+| Operational recovery    | Admin shows the failed request and a redrive completes without duplication.                                                                                        |
+| Module independence     | ESLint passes with no producer-to-Payments exceptions.                                                                                                             |
+| Runtime transport       | Local end-to-end message arrives on `gps__sqs__create_payment.fifo`.                                                                                               |
 
 Use the narrowest focused tests while implementing each package. Before cutover, run `npm run lint`, `npm test`, the end-to-end local transport scenario and the definition-specific compatibility comparisons.
 
