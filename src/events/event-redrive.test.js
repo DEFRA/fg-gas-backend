@@ -218,6 +218,14 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     expect(redriveDoc.$set).not.toHaveProperty("lastPurge");
   });
 
+  it("moves the payload revision on, so an editor opened before it is stale", () => {
+    expect(applyUpdate(aDeadLetter(), redriveDoc).payloadRevision).toBe(1);
+    expect(
+      applyUpdate({ ...aDeadLetter(), payloadRevision: 2 }, redriveDoc)
+        .payloadRevision,
+    ).toBe(3);
+  });
+
   it("leaves the row RESUBMITTED with its attempts reset to 0", () => {
     const redriven = applyUpdate(aDeadLetter(), redriveDoc);
 

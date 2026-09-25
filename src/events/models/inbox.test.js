@@ -613,3 +613,24 @@ describe("inbox model expireAt", () => {
     expect(Inbox.fromDocument(document).toDocument().expireAt).toBeNull();
   });
 });
+
+describe("Inbox.eventColumns", () => {
+  it("derives the columns exactly as the constructor does", () => {
+    const event = { type: "a.b.c", time: "2026-09-20T08:00:00+01:00" };
+    const inbox = Inbox.createMock({ type: "a.b.c", event });
+
+    expect(Inbox.eventColumns(event)).toEqual({
+      type: inbox.type,
+      eventTime: inbox.eventTime,
+    });
+    expect(Inbox.eventColumns(event).eventTime).toBe(
+      "2026-09-20T07:00:00.000Z",
+    );
+  });
+
+  it("stores a null type for an event without one", () => {
+    expect(
+      Inbox.eventColumns({ time: "2026-09-20T07:00:00.000Z" }).type,
+    ).toBeNull();
+  });
+});

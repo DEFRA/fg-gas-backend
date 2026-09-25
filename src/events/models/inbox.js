@@ -88,6 +88,15 @@ export class Inbox {
     this.eventTime = toSortableInstant(props.event?.time);
   }
 
+  // The columns an inbox row derives from its event, so an edited event is
+  // claimed in its new order at once rather than after the next poller save.
+  static eventColumns(event) {
+    return {
+      type: event.type ?? null,
+      eventTime: toSortableInstant(event.time),
+    };
+  }
+
   markAsComplete() {
     // One clock reading, so the deadline is exactly the window from completion.
     const completedAt = new Date();

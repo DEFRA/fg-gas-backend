@@ -35,6 +35,14 @@ const ROUTES = [
       }),
   ],
   [
+    "a payload edit",
+    () =>
+      wreck.post(`/grant-admin/events/gas/inbox/${ID}/payload`, {
+        ...as(OTHER_SERVICE),
+        payload: { payload: { id: "evt-1" }, note: "n", revision: 0 },
+      }),
+  ],
+  [
     "the claims read",
     () =>
       wreck.get(
