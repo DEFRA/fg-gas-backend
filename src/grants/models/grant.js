@@ -7,6 +7,10 @@ const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
 const formatPosition = ({ phase, stage, status }) =>
   [phase, stage, status].filter((part) => part != null).join(":");
 
+const positionParts = ["phase", "stage", "status"];
+const isNonEmptyString = (value) =>
+  typeof value === "string" && value.trim().length > 0;
+
 export class Grant {
   constructor({
     code,
@@ -24,6 +28,7 @@ export class Grant {
     // a grant no admin page is configured for, which is every grant until one
     // is written.
     pages,
+    claims,
   }) {
     this.code = code;
     this.version = version;
@@ -39,9 +44,11 @@ export class Grant {
       (template) => new EntitlementTemplate(template),
     );
     this.pages = pages;
+    this.claims = claims;
 
     this.#assertEntitlementTemplateClaimCodesUnique();
     this.#assertEntitlementTemplatePositionsExist();
+    this.#assertClaimApprovalPositionsExist();
   }
 
   // Builds a Grant from a published grant definition, so a definition can be checked
@@ -63,6 +70,22 @@ export class Grant {
     return this.entitlementTemplates.filter((template) =>
       template.isAvailableAt(position),
     );
+  }
+
+  // eslint-disable-next-line complexity
+  claimApprovalTransitionFor(position) {
+    const config = this.claims?.onClaimApproval;
+    if (!config) {
+      return null;
+    }
+
+    const { currentPosition, targetPosition } = config;
+    const matches =
+      currentPosition.phase === position.phase &&
+      currentPosition.stage === position.stage &&
+      currentPosition.status === position.status;
+
+    return matches ? targetPosition : null;
   }
 
   // findEntitlementTemplate returns the first match, so a duplicated claim code
@@ -119,6 +142,42 @@ export class Grant {
     if (!this.#positionExists(position)) {
       throw Boom.badImplementation(
         `Entitlement template "${claimCode}" is ${relation} position "${formatPosition(position)}" which does not match any position in "phases"`,
+      );
+    }
+  }
+
+  #assertClaimApprovalPositionsExist() {
+    const config = this.claims?.onClaimApproval;
+    if (!config) {
+      return;
+    }
+
+    this.#assertClaimApprovalPositionExists(
+      "currentPosition",
+      config.currentPosition,
+    );
+    this.#assertClaimApprovalPositionExists(
+      "targetPosition",
+      config.targetPosition,
+    );
+  }
+
+  #assertClaimApprovalPositionComplete(label, position) {
+    for (const part of positionParts) {
+      if (!isNonEmptyString(position?.[part])) {
+        throw Boom.badImplementation(
+          `Grant "${this.code}" claims.onClaimApproval.${label}.${part} must be a non-empty string`,
+        );
+      }
+    }
+  }
+
+  #assertClaimApprovalPositionExists(label, position) {
+    this.#assertClaimApprovalPositionComplete(label, position);
+
+    if (!this.#positionExists(position)) {
+      throw Boom.badImplementation(
+        `Grant "${this.code}" claims.onClaimApproval.${label} "${formatPosition(position)}" does not match any position in "phases"`,
       );
     }
   }

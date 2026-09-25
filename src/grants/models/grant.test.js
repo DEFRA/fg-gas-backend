@@ -227,6 +227,140 @@ describe("Grant", () => {
     });
   });
 
+  describe("claims", () => {
+    const currentPosition = {
+      phase: "PRE_AWARD",
+      stage: "ASSESSMENT",
+      status: "APPLICATION_RECEIVED",
+    };
+    const targetPosition = {
+      phase: "PRE_AWARD",
+      stage: "ASSESSMENT",
+      status: "IN_REVIEW",
+    };
+    const claims = {
+      onClaimApproval: { currentPosition, targetPosition },
+    };
+
+    it("keeps the configured claim approval transition", () => {
+      const grant = createTestGrant({ claims });
+
+      expect(grant.claims).toEqual(claims);
+    });
+
+    it.each([
+      ["currentPosition", "phase"],
+      ["currentPosition", "stage"],
+      ["currentPosition", "status"],
+      ["targetPosition", "phase"],
+      ["targetPosition", "stage"],
+      ["targetPosition", "status"],
+    ])(
+      "throws when claims.onClaimApproval.%s is missing %s",
+      (positionName, missingPart) => {
+        const incompletePosition = {
+          ...(positionName === "currentPosition"
+            ? currentPosition
+            : targetPosition),
+        };
+        delete incompletePosition[missingPart];
+
+        expect(() =>
+          createTestGrant({
+            claims: {
+              onClaimApproval: {
+                currentPosition,
+                targetPosition,
+                [positionName]: incompletePosition,
+              },
+            },
+          }),
+        ).toThrow(
+          `Grant "test-grant" claims.onClaimApproval.${positionName}.${missingPart} must be a non-empty string`,
+        );
+      },
+    );
+
+    it.each([
+      ["currentPosition", "phase"],
+      ["currentPosition", "stage"],
+      ["currentPosition", "status"],
+      ["targetPosition", "phase"],
+      ["targetPosition", "stage"],
+      ["targetPosition", "status"],
+    ])(
+      "throws when claims.onClaimApproval.%s has an empty %s",
+      (positionName, emptyPart) => {
+        const position =
+          positionName === "currentPosition" ? currentPosition : targetPosition;
+
+        expect(() =>
+          createTestGrant({
+            claims: {
+              onClaimApproval: {
+                currentPosition,
+                targetPosition,
+                [positionName]: { ...position, [emptyPart]: " " },
+              },
+            },
+          }),
+        ).toThrow(
+          `Grant "test-grant" claims.onClaimApproval.${positionName}.${emptyPart} must be a non-empty string`,
+        );
+      },
+    );
+
+    it.each(["currentPosition", "targetPosition"])(
+      "throws when %s does not exist in phases",
+      (positionName) => {
+        expect(() =>
+          createTestGrant({
+            claims: {
+              onClaimApproval: {
+                currentPosition,
+                targetPosition,
+                [positionName]: { ...currentPosition, status: "UNKNOWN" },
+              },
+            },
+          }),
+        ).toThrow(
+          new RegExp(
+            `claims.onClaimApproval.${positionName} "PRE_AWARD:ASSESSMENT:UNKNOWN" does not match any position`,
+          ),
+        );
+      },
+    );
+
+    it("returns the target for an exact current-position match", () => {
+      const grant = createTestGrant({ claims });
+
+      expect(grant.claimApprovalTransitionFor(currentPosition)).toEqual(
+        targetPosition,
+      );
+    });
+
+    it("returns null when no claim approval transition is configured", () => {
+      expect(
+        createTestGrant().claimApprovalTransitionFor(currentPosition),
+      ).toBeNull();
+    });
+
+    it.each([
+      ["phase", "UNKNOWN"],
+      ["stage", "UNKNOWN"],
+      ["status", "IN_REVIEW"],
+    ])("returns null when the %s does not match", (part, value) => {
+      const grant = createTestGrant({ claims });
+
+      expect(
+        grant.claimApprovalTransitionFor({
+          ...currentPosition,
+          [part]: value,
+        }),
+      ).toBeNull();
+    });
+  });
+
   describe("entitlementTemplates", () => {
     const entitlementTemplates = [
       {

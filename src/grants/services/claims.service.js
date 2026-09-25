@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
-import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { internalEventTarget, saveEvents } from "../../events/index.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
@@ -16,11 +16,13 @@ import {
   insert,
 } from "../repositories/claim.repository.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
+import { enqueueClaimStatusUpdateUseCase } from "../use-cases/enqueue-claim-status-update.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import {
   pinnedVersionOf,
   resolveCurrentGrantUseCase,
 } from "../use-cases/resolve-current-grant.use-case.js";
+import { transitionApplicationUseCase } from "../use-cases/transition-application.use-case.js";
 
 const retries = 1;
 
@@ -401,6 +403,61 @@ const requestClaimPayment = async (
   );
 };
 
+const transitionOnFinalClaim = async (
+  { grant, application, claimable, configVersion },
+  session,
+) => {
+  const targetPosition = grant.claimApprovalTransitionFor(
+    application.currentPosition(),
+  );
+  if (!targetPosition) {
+    return;
+  }
+
+  const countAfterInsert = await countByEntitlement(
+    {
+      code: application.code,
+      clientRef: application.clientRef,
+      entitlementId: claimable.entitlement.id,
+    },
+    session,
+  );
+  if (claimable.hasRemainingCapacity(countAfterInsert)) {
+    return;
+  }
+
+  const previousPhase = application.currentPhase;
+  const previousStage = application.currentStage;
+  const move = await transitionApplicationUseCase(
+    {
+      application,
+      grant,
+      targetPosition,
+      sideEffectContext: {
+        clientRef: application.clientRef,
+        code: application.code,
+      },
+    },
+    session,
+  );
+
+  if (!move.changed) {
+    return;
+  }
+
+  await enqueueClaimStatusUpdateUseCase(
+    {
+      clientRef: application.clientRef,
+      code: application.code,
+      previousPhase,
+      previousStage,
+      newStatus: move.new,
+      configVersion,
+    },
+    session,
+  );
+};
+
 const submitInTransaction = async (
   { command, grant, pinnedVersion, paymentConfigured },
   session,
@@ -426,6 +483,11 @@ const submitInTransaction = async (
 
   const { createdAt, ...result } = await insertClaimWithAudit(
     { command, claimCode: claimable.claimCode },
+    session,
+  );
+
+  await transitionOnFinalClaim(
+    { grant, application, claimable, configVersion: pinnedVersion },
     session,
   );
 

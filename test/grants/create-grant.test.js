@@ -42,6 +42,7 @@ describe("POST /grants", () => {
         // externalStatusMap does, because the driver resolves ignoreUndefined
         // to false.
         pages: null,
+        claims: null,
         // A grant with no templates now stores an empty collection rather than
         // null: the model always holds one, so that is what reaches the
         // document. externalStatusMap is untouched and still serializes to null.
