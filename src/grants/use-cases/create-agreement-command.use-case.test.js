@@ -3,9 +3,9 @@ import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { config } from "../../common/config.js";
 import {
   clearInternalCommandHandlers,
-  internalMessageBusTarget,
+  internalCommandTarget,
   registerInternalCommandHandler,
-} from "../../common/internal-command-bus.js";
+} from "../../common/internal-command-handlers.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { Application } from "../models/application.js";
@@ -37,9 +37,9 @@ describe("create agreement use case", () => {
 
   it.each([
     [
-      "internal message bus for a configured Agreement definition",
+      "internal command target for a configured Agreement definition",
       "pigs-might-fly",
-      internalMessageBusTarget,
+      internalCommandTarget,
     ],
     [
       "legacy Agreements topic when no Agreement definition is configured",

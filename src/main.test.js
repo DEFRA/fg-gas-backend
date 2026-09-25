@@ -30,6 +30,9 @@ describe("main", () => {
       testEndpoints: { name: "test-endpoints" },
     }));
     vi.doMock("./common/logger.js");
+    vi.doMock("./common/config-broker/definition-checks.js", () => ({
+      assertDefinitionCheckRegistered: vi.fn(),
+    }));
     vi.doMock("./auth/seed-access-token.js", () => ({
       seedAccessToken: vi.fn().mockResolvedValue(undefined),
     }));
@@ -51,6 +54,8 @@ describe("main", () => {
     const { events } = await import("./events/index.js");
     const { payments } = await import("./payments/index.js");
     const { testEndpoints } = await import("./test-endpoints/index.js");
+    const { assertDefinitionCheckRegistered } =
+      await import("./common/config-broker/definition-checks.js");
 
     expect(createServer).toHaveBeenCalled();
     expect(mockServer.register).toHaveBeenCalledWith([
@@ -62,6 +67,13 @@ describe("main", () => {
       events,
       payments,
     ]);
+    expect(assertDefinitionCheckRegistered).toHaveBeenCalledWith("payment");
+    expect(
+      assertDefinitionCheckRegistered.mock.invocationCallOrder[0],
+    ).toBeGreaterThan(mockServer.register.mock.invocationCallOrder[0]);
+    expect(
+      assertDefinitionCheckRegistered.mock.invocationCallOrder[0],
+    ).toBeLessThan(mockServer.start.mock.invocationCallOrder[0]);
     expect(mockServer.start).toHaveBeenCalled();
   });
 

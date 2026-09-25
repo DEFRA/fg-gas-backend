@@ -2,8 +2,8 @@ import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { config } from "../../common/config.js";
 import {
   canHandleInternalCommand,
-  internalMessageBusTarget,
-} from "../../common/internal-command-bus.js";
+  internalCommandTarget,
+} from "../../common/internal-command-handlers.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
 import { logger } from "../../common/logger.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
@@ -31,7 +31,7 @@ const resolveAgreementCommandTarget = async (command) =>
     internalCommandTypes.AGREEMENT_CREATE,
     command,
   ))
-    ? internalMessageBusTarget
+    ? internalCommandTarget
     : config.sns.createAgreementTopicArn;
 
 const createAgreementCommand = async ({ clientRef, code }, session) => {
