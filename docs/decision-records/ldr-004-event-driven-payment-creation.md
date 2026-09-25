@@ -140,7 +140,7 @@ Both the legacy Agreements API and current GAS implementation copy `claimId` int
 
 The decision is therefore to keep `claimId` in the Payment Hub event only and remove it from the Agreement lifecycle event. This keeps the Payment Hub identifier inside Payments and avoids delaying the lifecycle event for a Payments-produced response. A future consumer requirement would be a new explicit interface decision, not a reason to reintroduce a direct Agreements-to-Payments import.
 
-Agreement acceptance is the completed business action; Payment Service availability is not part of that decision. The endpoint returns its normal success response once one local transaction has persisted the accepted Agreement, the Agreement lifecycle event and the durable Payment command. It does not wait for Payment processing, return a Payment Hub `claimId`, or roll the Agreement back when downstream publication or processing fails. Acceptance still fails when its own validation, concurrency check or local transaction fails, including failure to persist the durable command. Payment failures are retried and ultimately surfaced through the outbox/DLQ operational path.
+Agreement acceptance is the completed business action; Payment Service availability is not part of that decision. The endpoint returns its normal success response once one local transaction has persisted the accepted Agreement, the Agreement lifecycle event and the durable Payment request event. It does not wait for Payment processing, return a Payment Hub `claimId`, or roll the Agreement back when downstream publication or processing fails. Acceptance still fails when its own validation, concurrency check or local transaction fails, including failure to persist the durable request event. Payment failures are retried and ultimately surfaced through the outbox/DLQ operational path.
 
 ## Compatibility and Cutover Gates
 
@@ -186,8 +186,8 @@ The synchronous and asynchronous creation paths must never create Payments for t
 The implementation was delivered as a bottom-up stack covering shared event
 infrastructure and handlers, Claim cutover, Agreement cutover and clean
 cutover. Claims and Agreements now commit producer-owned requests to the
-explicit `internal:event-bus` target; commands retain
-`internal:message-bus`. Exact-type dispatch rejects unknown event types into
+explicit `internal:event` target; commands use `internal:command`. Exact-type
+dispatch rejects unknown event types into
 the existing retry, dead-letter and Admin redrive lifecycle.
 
 The final clean cutover removed all direct Payment creation and Claim resolver

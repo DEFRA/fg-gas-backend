@@ -42,7 +42,7 @@ describe("isAuditTarget", () => {
     expect(isAuditTarget(ARN)).toBe(true);
   });
 
-  it.each([OTHER_ARN, "internal:message-bus", null, undefined, ""])(
+  it.each([OTHER_ARN, "internal:command", null, undefined, ""])(
     "does not recognise %p",
     (target) => {
       expect(isAuditTarget(target)).toBe(false);

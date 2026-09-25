@@ -33,7 +33,7 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **HTTP / REST API**                       | Call the Grants HTTP endpoints; do not share route handlers or controllers                                                                                                                                                      |
 | **Events**                                | Publish to or consume from SNS/SQS topics; event shapes live in `src/*/events/`                                                                                                                                                 |
-| **Commands**                              | Send commands via the message bus; command shapes live in `src/*/commands/`                                                                                                                                                     |
+| **Commands**                              | Send commands through the internal command target; command shapes live in `src/*/commands/`                                                                                                                                     |
 | **Inbox / Outbox records**                | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox                                                                                                                                     |
 | **Shared infrastructure**                 | Import from `src/common/` (logger, DB client, messaging helpers)                                                                                                                                                                |
 | **Shared event domain**                   | Import from `src/events/` (audit predicate, list filter, status counts, facets, breakdown, redrive, retention, last error)                                                                                                      |
@@ -131,9 +131,9 @@ events with their own state changes:
 | `agreements` | `agreements/events/agreement-payment-requested.event.js` | `payments/handlers/handle-agreement-payment-requested.js` |
 | `grants`     | `grants/events/claim-payment-requested.event.js`         | `payments/handlers/handle-claim-payment-requested.js`     |
 
-Both requests use the explicit `internal:event-bus` outbox target. The outbox
+Both requests use the explicit `internal:event` outbox target. The outbox
 dispatches the exact CloudEvent type after the producer transaction commits;
-`internal:message-bus` is reserved for commands. An unknown event type fails
+`internal:command` is reserved for commands. An unknown event type fails
 and follows the normal retry, dead-letter and Admin redrive path. It is never
 reinterpreted as a command.
 

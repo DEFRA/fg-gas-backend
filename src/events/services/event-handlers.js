@@ -1,4 +1,4 @@
-export const internalEventBusTarget = "internal:event-bus";
+export const internalEventTarget = "internal:event";
 
 const handlers = new Map();
 

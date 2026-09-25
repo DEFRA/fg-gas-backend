@@ -5,7 +5,7 @@ import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 
 export {
   dispatchEvent,
-  internalEventBusTarget,
+  internalEventTarget,
   registerEventHandler,
 } from "./services/event-handlers.js";
 export { saveEvents } from "./save-events.js";

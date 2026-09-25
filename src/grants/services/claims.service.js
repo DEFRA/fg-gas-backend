@@ -3,7 +3,7 @@ import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
-import { internalEventBusTarget, saveEvents } from "../../events/index.js";
+import { internalEventTarget, saveEvents } from "../../events/index.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { ClaimPaymentRequestedEvent } from "../events/claim-payment-requested.event.js";
@@ -393,7 +393,7 @@ const requestClaimPayment = async (
     [
       {
         event,
-        target: internalEventBusTarget,
+        target: internalEventTarget,
         segregationRef: command.clientRef,
       },
     ],

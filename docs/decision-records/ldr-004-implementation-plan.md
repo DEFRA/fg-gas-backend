@@ -86,7 +86,7 @@ The live subscription inventory is a deployment gate, not a blocker to implement
 - [x] Preserve the existing `inbox`, `outbox` and FIFO-lock collection identities and document shapes; this move must not require data migration or break old rows.
 - [x] Give `src/events/` a small interface for saving durable events, registering typed handlers and dispatching an event. Keep persistence, locking, retry, dead-letter and completion bookkeeping behind that interface.
 - [x] Remove the Stage 1 source-keyed dispatcher. Retain `AS`, `CW` and `CB` only as persistence and administration metadata.
-- [x] Keep the command bus for commands. Route internally delivered domain events through the event handler registry, including the existing Agreement-status handler.
+- [x] Keep command dispatch for commands. Route internally delivered domain events through the event handler registry, including the existing Agreement-status handler.
 - [x] Register the shared pollers once at application startup rather than from the Grants plugin. Ensure all context handlers are registered before polling starts.
 - [x] Update Grant Admin to use the shared event repositories without changing list, detail, facet, failure-history or redrive behaviour.
 - [x] Migrate `src/common/write-audit-event.js` and every other event-store caller to the shared events interface so `src/common/` no longer imports Grants event models or repositories.
@@ -170,7 +170,7 @@ Completion criterion: the executable compatibility gates pass; acceptance succee
 - [x] Add an ESLint zone that limits `test-endpoints` to its documented Agreements entry points, matching the enforcement already applied to Grant Admin.
 - [x] Rewrite the Payment section of `docs/MODULE_BOUNDARIES.md` around producer events and the Payments handler interface.
 - [x] Confirm Admin exposes mapping and publication failures with enough detail to redrive the durable event safely.
-- [x] Replace handler-presence routing for internal outbox delivery with explicit event and command targets. Keep commands on the command bus and dispatch events by exact type; unknown event types must fail through the event retry/dead-letter path rather than fall back to the command bus. Test known events, commands and unknown events.
+- [x] Replace handler-presence routing for internal outbox delivery with explicit event and command targets. Dispatch commands through command handlers and events by exact type; unknown event types must fail through the event retry/dead-letter path rather than fall back to command dispatch. Test known events, commands and unknown events.
 - [x] Remove obsolete aliases, exports, comments, fixtures and mocks. Keep the legacy event fixture as the repeatable compatibility oracle.
 - [x] Update LDR-004 with final implementation evidence; retain its `proposed` status until team sign-off.
 

@@ -1,6 +1,6 @@
 import { internalCommandTypes } from "./internal-command-types.js";
 
-export const internalMessageBusTarget = "internal:message-bus";
+export const internalCommandTarget = "internal:command";
 
 const handlers = new Map();
 const internalTypes = Object.values(internalCommandTypes);
@@ -37,15 +37,15 @@ export const canHandleInternalCommand = async (type, command) => {
   return Boolean(await registration.canHandle(command));
 };
 
-export const dispatchInternally = async (event) => {
-  const type = getInternalType(event);
+export const dispatchCommand = async (command) => {
+  const type = getInternalType(command);
   const handler = getInternalCommandHandler(type);
 
   if (!handler) {
     throw new Error(`No internal command handler registered for "${type}"`);
   }
 
-  await handler(event);
+  await handler(command);
 };
 
 export const clearInternalCommandHandlers = () => handlers.clear();

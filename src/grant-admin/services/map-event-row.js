@@ -8,11 +8,8 @@ import {
   statusDisplay,
 } from "./event-display.js";
 
-const INTERNAL_BUS_TARGETS = new Set([
-  "internal:message-bus",
-  "internal:event-bus",
-]);
-const INTERNAL_BUS_NAME = "internal";
+const INTERNAL_TARGETS = new Set(["internal:command", "internal:event"]);
+const INTERNAL_TARGET_NAME = "internal";
 const HEX = 16;
 // OpenSearch indexes only the trace-id half; a non-W3C value already is one.
 const W3C_TRACEPARENT = /^[0-9a-f]{2}-([0-9a-f]{32})-/i;
@@ -97,8 +94,8 @@ const targetName = (target) => {
     return null;
   }
 
-  if (INTERNAL_BUS_TARGETS.has(target)) {
-    return INTERNAL_BUS_NAME;
+  if (INTERNAL_TARGETS.has(target)) {
+    return INTERNAL_TARGET_NAME;
   }
 
   return target.slice(target.lastIndexOf(":") + 1);

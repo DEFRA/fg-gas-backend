@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
-import { internalEventBusTarget, saveEvents } from "../../events/index.js";
+import { internalEventTarget, saveEvents } from "../../events/index.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementPaymentRequestedEvent } from "../events/agreement-payment-requested.event.js";
 import { createAgreementStatusChangedReportingPublication } from "../events/agreement-reporting.event.js";
@@ -104,7 +104,7 @@ const createActionPublications = (current, next, paymentRequested) => {
     ...lifecyclePublications,
     {
       event,
-      target: internalEventBusTarget,
+      target: internalEventTarget,
       segregationRef: next.agreementNumber,
     },
   ];

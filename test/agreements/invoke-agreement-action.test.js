@@ -268,7 +268,7 @@ describe("single Agreement actions", () => {
       }),
     ).toBe(0);
     expect(await outbox.findOne(paymentRequestQuery)).toMatchObject({
-      target: "internal:event-bus",
+      target: "internal:event",
       event: {
         data: {
           source: { agreementNumber, agreementVersion: 2 },
@@ -314,7 +314,7 @@ describe("single Agreement actions", () => {
         version: 2,
       });
       expect(await outbox.findOne(paymentRequestQuery)).toMatchObject({
-        target: "internal:event-bus",
+        target: "internal:event",
       });
       expect(
         await payments.countDocuments({

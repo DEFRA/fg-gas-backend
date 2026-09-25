@@ -522,7 +522,7 @@ describe("claims.service", () => {
                 },
               }),
             }),
-            target: "internal:event-bus",
+            target: "internal:event",
             segregationRef: clientRef,
           },
         ],

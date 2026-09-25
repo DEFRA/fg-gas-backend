@@ -4,14 +4,14 @@ import { setTimeout } from "node:timers/promises";
 import { config } from "../../common/config.js";
 import { getMessageGroupId } from "../../common/get-message-group-id.js";
 import {
-  dispatchInternally,
-  internalMessageBusTarget,
-} from "../../common/internal-command-bus.js";
+  dispatchCommand,
+  internalCommandTarget,
+} from "../../common/internal-command-handlers.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import {
   dispatchEvent,
-  internalEventBusTarget,
+  internalEventTarget,
 } from "../services/event-handlers.js";
 import {
   cleanupStaleLocks,
@@ -173,14 +173,14 @@ export class OutboxSubscriber {
   }
 
   async deliver(target, message, segregationRef) {
-    if (target === internalEventBusTarget) {
+    if (target === internalEventTarget) {
       logger.info("Deliver outbox event internally");
       return dispatchEvent(toEventMessage(message));
     }
 
-    if (target === internalMessageBusTarget) {
+    if (target === internalCommandTarget) {
       logger.info("Deliver outbox command internally");
-      return dispatchInternally(message);
+      return dispatchCommand(message);
     }
 
     return this.sendExternally(target, message, segregationRef);

@@ -256,7 +256,7 @@ describe("GET /grant-admin/events/page list", () => {
   it("keeps a legacy io.onsite type whole", async () => {
     await outbox.insertMany([
       outboxDoc(1, {
-        target: "internal:message-bus",
+        target: "internal:command",
         event: { id: "evt-1", type: "io.onsite.agreement.status.updated" },
       }),
     ]);
