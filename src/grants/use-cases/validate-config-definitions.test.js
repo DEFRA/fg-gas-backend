@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  clearDefinitionChecks,
+  registerDefinitionCheck,
+} from "../../common/config-broker/definition-checks.js";
 import { validateConfigDefinitions } from "./validate-config-definitions.js";
 
 const { mockFetchConfigFile, mockCheckAgreement, mockCompilePayment } =
@@ -16,10 +20,6 @@ vi.mock("../../common/s3-client.js", () => ({
 
 vi.mock("../../agreements/use-cases/compile-agreement-definition.js", () => ({
   checkAgreementDefinition: (...args) => mockCheckAgreement(...args),
-}));
-
-vi.mock("../../payments/use-cases/compile-payment-definition.js", () => ({
-  compilePaymentDefinition: (...args) => mockCompilePayment(...args),
 }));
 
 const grantDefinition = {
@@ -50,6 +50,10 @@ const validate = (s3Keys) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearDefinitionChecks();
+  registerDefinitionCheck("payment", ({ definition, grantCode }) =>
+    mockCompilePayment(definition, grantCode),
+  );
   mockFetchConfigFile.mockResolvedValue(grantDefinition);
 });
 

@@ -1,5 +1,5 @@
 import Boom from "@hapi/boom";
-import { EndpointServiceUrlError } from "../../common/agreements/resolve-endpoint-service-url.js";
+import { EndpointServiceUrlError } from "../services/integrations/resolve-endpoint-service-url.js";
 import {
   findConfigDefinition,
   findLatestUsableDefinition,
