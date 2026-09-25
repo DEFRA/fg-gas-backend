@@ -9,7 +9,10 @@ import {
 } from "../../common/internal-command-bus.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
-import { dispatchEvent, hasEventHandler } from "../services/event-handlers.js";
+import {
+  dispatchEvent,
+  internalEventBusTarget,
+} from "../services/event-handlers.js";
 import {
   cleanupStaleLocks,
   freeFifoLock,
@@ -35,10 +38,6 @@ const toEventMessage = (event) => ({
   type: event.type,
 });
 
-const deliverInternally = async (message) =>
-  hasEventHandler(message.type)
-    ? dispatchEvent(toEventMessage(message))
-    : dispatchInternally(message);
 
 export class OutboxSubscriber {
   static ACTOR = "OUTBOX";
@@ -159,31 +158,39 @@ export class OutboxSubscriber {
     logger.trace(`Marked outbox event as complete: ${event._id}`);
   }
 
+  async sendExternally(target, message, segregationRef) {
+    logger.info(`Send outbox event to ${target}`);
+    const fifoOptions = target.endsWith(".fifo")
+      ? {
+          messageGroupId: this.getMessageGroupId(
+            message.messageGroupId,
+            message,
+            segregationRef,
+          ),
+          deduplicationId: message.id,
+        }
+      : undefined;
+    await publish(target, message, fifoOptions);
+  }
+
+  async deliver(target, message, segregationRef) {
+    if (target === internalEventBusTarget) {
+      logger.info("Deliver outbox event internally");
+      return dispatchEvent(toEventMessage(message));
+    }
+
+    if (target === internalMessageBusTarget) {
+      logger.info("Deliver outbox command internally");
+      return dispatchInternally(message);
+    }
+
+    return this.sendExternally(target, message, segregationRef);
+  }
+
   async sendEvent(outboxEvent) {
-    const {
-      target,
-      segregationRef,
-      event: message,
-      event: { messageGroupId },
-    } = outboxEvent;
+    const { target, segregationRef, event: message } = outboxEvent;
     try {
-      if (target === internalMessageBusTarget) {
-        logger.info("Deliver outbox event internally");
-        await deliverInternally(message);
-      } else {
-        logger.info(`Send outbox event to ${target}`);
-        const fifoOptions = target.endsWith(".fifo")
-          ? {
-              messageGroupId: this.getMessageGroupId(
-                messageGroupId,
-                message,
-                segregationRef,
-              ),
-              deduplicationId: message.id,
-            }
-          : undefined;
-        await publish(target, message, fifoOptions);
-      }
+      await this.deliver(target, message, segregationRef);
       await this.markEventComplete(outboxEvent);
     } catch (ex) {
       logger.error(ex, "Error sending outbox event");

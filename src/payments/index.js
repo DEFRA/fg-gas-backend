@@ -1,7 +1,9 @@
+import { registerDefinitionCheck } from "../common/config-broker/definition-checks.js";
 import { config } from "../common/config.js";
 import { registerEventHandler } from "../events/index.js";
 import { handleAgreementPaymentRequested } from "./handlers/handle-agreement-payment-requested.js";
 import { handleClaimPaymentRequested } from "./handlers/handle-claim-payment-requested.js";
+import { compilePaymentDefinition } from "./use-cases/compile-payment-definition.js";
 
 // Keep identical to the producer-owned type in
 // agreements/events/agreement-payment-requested.event.js without crossing the
@@ -15,6 +17,9 @@ const CLAIM_PAYMENT_REQUESTED_EVENT_TYPE = `cloud.defra.${config.cdpEnvironment}
 export const payments = {
   name: "payments",
   register() {
+    registerDefinitionCheck("payment", ({ definition, grantCode }) =>
+      compilePaymentDefinition(definition, grantCode),
+    );
     registerEventHandler(
       AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE,
       handleAgreementPaymentRequested,

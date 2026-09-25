@@ -15,7 +15,7 @@ import {
 } from "../../common/internal-command-bus.js";
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
-import { dispatchEvent, hasEventHandler } from "../services/event-handlers.js";
+import { dispatchEvent } from "../services/event-handlers.js";
 import { Outbox } from "../models/outbox.js";
 import {
   cleanupStaleLocks,
@@ -58,7 +58,6 @@ describe("outbox.subscriber", () => {
     updateFailedEvents.mockResolvedValue({ modifiedCount: 1 });
     publish.mockResolvedValue(1);
     claimEvents.mockResolvedValue([]);
-    hasEventHandler.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -292,12 +291,11 @@ describe("outbox.subscriber", () => {
     );
   });
 
-  it("delivers registered events by exact type without publishing", async () => {
-    hasEventHandler.mockReturnValue(true);
+  it("delivers explicitly targeted events by exact type without publishing", async () => {
     dispatchEvent.mockResolvedValue();
 
     const mockEvent = {
-      target: internalMessageBusTarget,
+      target: "internal:event-bus",
       event: {
         id: "event-1",
         source: "urn:service:agreement",
@@ -321,6 +319,26 @@ describe("outbox.subscriber", () => {
     expect(dispatchInternally).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
     expect(mockEvent.markAsComplete).toHaveBeenCalled();
+  });
+
+  it("never falls back to the command bus for an unknown event type", async () => {
+    const failure = new Error("No event handler registered");
+    dispatchEvent.mockRejectedValue(failure);
+    const mockEvent = {
+      target: "internal:event-bus",
+      event: { type: "unknown.event", data: {} },
+      markAsFailed: vi.fn(),
+    };
+
+    await new OutboxSubscriber().sendEvent(mockEvent);
+
+    expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({
+      event: mockEvent.event,
+      type: "unknown.event",
+    }));
+    expect(dispatchInternally).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+    expect(mockEvent.markAsFailed).toHaveBeenCalledWith(failure);
   });
 
   it("marks an internal command as unsent if internal delivery fails", async () => {

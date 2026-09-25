@@ -288,11 +288,12 @@ describe("map-event-row", () => {
     expect(JSON.stringify(row)).not.toContain("details");
   });
 
-  it("reduces internal:message-bus to internal, not message-bus", () => {
-    expect(
-      gasOutboxSingle({ target: "internal:message-bus" }).targetTopic,
-    ).toEqual("internal");
-  });
+  it.each(["internal:message-bus", "internal:event-bus"])(
+    "reduces %s to internal rather than exposing its bus name",
+    (target) => {
+      expect(gasOutboxSingle({ target }).targetTopic).toEqual("internal");
+    },
+  );
 
   it("reduces a .fifo SNS ARN to its topic name and never emits a full ARN", () => {
     const target = "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo";

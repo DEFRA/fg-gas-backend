@@ -1,7 +1,7 @@
 import { checkAgreementDefinition } from "../../agreements/use-cases/compile-agreement-definition.js";
+import { checkDefinition as checkRegisteredDefinition } from "../../common/config-broker/definition-checks.js";
 import { logger } from "../../common/logger.js";
 import { fetchConfigFile } from "../../common/s3-client.js";
-import { compilePaymentDefinition } from "../../payments/use-cases/compile-payment-definition.js";
 import { Grant } from "../models/grant.js";
 
 // Building each model is the check: every one throws on a definition its context cannot
@@ -11,8 +11,7 @@ const checks = {
   grant: ({ definition, version }) => Grant.fromDefinition(definition, version),
   agreement: ({ definition, grantCode, version }) =>
     checkAgreementDefinition(definition, grantCode, version),
-  payment: ({ definition, grantCode }) =>
-    compilePaymentDefinition(definition, grantCode),
+  payment: (context) => checkRegisteredDefinition("payment", context),
 };
 
 const checkDefinition = async ({
