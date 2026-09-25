@@ -48,7 +48,7 @@ The Claim submission transaction is the composition seam. Once all entitlements 
 
 ## Local Stage Protocol
 
-Implement each stage on its own branch. Every branch must preserve current behaviour or complete one producer cutover; do not push an intermediate state in which the application only compiles or both creation paths can write.
+Implement each stage on its own branch, stacked on its immediate predecessor while that PR is open. Every branch must preserve current behaviour or complete one producer cutover; do not push an intermediate state in which the application only compiles or both creation paths can write.
 
 | Stage | Local change                                                                                                    | Safe intermediate state                                                                        | Required local proof                                                                                                               |
 | ----- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -62,14 +62,14 @@ Implement each stage on its own branch. Every branch must preserve current behav
 | 7     | Remove obsolete seams and tighten ESLint and documentation.                                                     | The event-driven design is the only implementation.                                            | Repository-wide lint and tests pass with no producer-to-Payments exceptions.                                                       |
 | 8     | Satisfy deployment-only gates.                                                                                  | The locally proven implementation is eligible for environment rollout.                         | GAS-owned topic and subscription inventory, outbox recovery and scheme-by-scheme compatibility evidence are recorded.              |
 
-Use this branch-per-stage workflow:
+Use this branch-per-stage stack:
 
-1. Complete and verify one stage locally.
-2. Push only that stage's branch and merge its PR.
-3. Refresh the local base from the merged target branch.
-4. Create the next stage branch from that refreshed base.
+1. Complete and verify each stage as a safe intermediate state. Base the next branch on the exact head of its predecessor; the Claim cutover starts from the Payments-handler branch (#700).
+2. Open a child PR **against its predecessor branch**, never against `main` while that predecessor remains unmerged. Confirm the PR's three-dot diff contains only its own stage; a parent update must be merged into the child and reverified before review resumes.
+3. Merge bottom-up. Prefer a merge commit for a parent with open children so its commits remain ancestors of the child; after it merges, retarget the immediate child PR to `main`, confirm its diff still contains only the child stage, and rerun checks before merging it. Repeat for each child.
+4. If a parent is squash- or rebase-merged instead, do not retarget its child blindly: create a **new** branch from merged `main`, cherry-pick only the child's own commits, reverify, and open a replacement PR. Never force-push or silently rewrite a reviewed branch; keep the old PR for review provenance until its replacement is ready.
 
-This keeps every PR small and prevents later-stage changes appearing in an earlier review. Do not open several dependent PRs against the target branch: until their predecessors merge, GitHub will show the earlier stages in every later diff. If work must continue while a PR is awaiting review, a later branch may temporarily start from the preceding local branch, but it must be rebased onto the merged target and fully reverified before it is pushed.
+Wait for #700's head checks before opening its child PR; local work on the child branch may start earlier. Keep deployment-only environment gates outside the code-PR stack. Do not merge a child while its parent is open or let a cutover branch enable both direct and event-driven Payment creation for the same producer.
 
 No runtime feature flag is required for this sequential workflow. If stages must instead be deployed independently, use one mutually exclusive mode (`direct` or `event`) per producer, default it to the currently proven path, and remove it after cutover. Never use independent booleans that can enable both paths.
 
