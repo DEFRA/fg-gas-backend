@@ -51,6 +51,33 @@ describe("POST /grants", () => {
     ]);
   });
 
+  it("persists claims.onClaimApproval configured on the grant", async () => {
+    const claims = {
+      onClaimApproval: {
+        currentPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "RECEIVED",
+        },
+        targetPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "REVIEW",
+        },
+      },
+    };
+    const code = `${grant1.code}-claims`;
+
+    const response = await wreck.post("/grants", {
+      payload: { ...grant1, code, claims },
+    });
+
+    expect(response.res.statusCode).toEqual(204);
+
+    const document = await grants.findOne({ code });
+    expect(document.claims).toEqual(claims);
+  });
+
   it("returns 409 when code exists", async () => {
     await wreck.post("/grants", {
       json: true,

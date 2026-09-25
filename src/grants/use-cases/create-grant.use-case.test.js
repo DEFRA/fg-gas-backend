@@ -196,6 +196,51 @@ describe("createGrantUseCase", () => {
     expect(grant.entitlementTemplates).toEqual(entitlementTemplates);
   });
 
+  it("creates a grant with claims.onClaimApproval configured", async () => {
+    const phases = [
+      {
+        code: "PRE_AWARD",
+        stages: [
+          {
+            code: "ASSESSMENT",
+            statuses: [
+              { code: "APPLICATION_RECEIVED", validFrom: [] },
+              { code: "AWARD_READY", validFrom: [] },
+            ],
+          },
+        ],
+      },
+    ];
+    const claims = {
+      onClaimApproval: {
+        currentPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "APPLICATION_RECEIVED",
+        },
+        targetPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "AWARD_READY",
+        },
+      },
+    };
+
+    const grant = await createGrantUseCase({
+      code: "test-grant",
+      metadata: {
+        description: "Test Grant Description",
+        startDate: "2023-01-01T00:00:00Z",
+      },
+      actions: [],
+      phases,
+      claims,
+    });
+
+    expect(save).toHaveBeenCalledWith(grant);
+    expect(grant.claims).toEqual(claims);
+  });
+
   it("creates a grant with the pages it configures", async () => {
     const pages = {
       claims: {
