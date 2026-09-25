@@ -133,7 +133,7 @@ events with their own state changes:
 
 Both requests use the explicit `internal:event` outbox target. The outbox
 dispatches the exact CloudEvent type after the producer transaction commits;
-`internal:command` is reserved for commands. An unknown event type fails
+`internal:message-bus` remains the stored command target for rolling-deploy compatibility. An unknown event type fails
 and follows the normal retry, dead-letter and Admin redrive path. It is never
 reinterpreted as a command.
 

@@ -4,7 +4,7 @@ export const registerDefinitionCheck = (definitionType, check) => {
   checks.set(definitionType, check);
 };
 
-export const checkDefinition = (definitionType, context) => {
+const getDefinitionCheck = (definitionType) => {
   const check = checks.get(definitionType);
 
   if (!check) {
@@ -13,7 +13,14 @@ export const checkDefinition = (definitionType, context) => {
     );
   }
 
-  return check(context);
+  return check;
 };
+
+export const assertDefinitionCheckRegistered = (definitionType) => {
+  getDefinitionCheck(definitionType);
+};
+
+export const checkDefinition = (definitionType, context) =>
+  getDefinitionCheck(definitionType)(context);
 
 export const clearDefinitionChecks = () => checks.clear();

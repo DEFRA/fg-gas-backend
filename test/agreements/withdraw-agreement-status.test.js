@@ -84,7 +84,7 @@ describe("Agreement status withdrawal", () => {
       outbox.insertOne({
         _id,
         publicationDate: new Date(),
-        target: "internal:command",
+        target: "internal:message-bus",
         event: command,
         completionAttempts: 1,
         status: "PUBLISHED",

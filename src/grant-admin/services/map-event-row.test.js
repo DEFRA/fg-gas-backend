@@ -288,7 +288,7 @@ describe("map-event-row", () => {
     expect(JSON.stringify(row)).not.toContain("details");
   });
 
-  it.each(["internal:command", "internal:event"])(
+  it.each(["internal:message-bus", "internal:event"])(
     "reduces %s to internal rather than exposing its target name",
     (target) => {
       expect(gasOutboxSingle({ target }).targetTopic).toEqual("internal");
