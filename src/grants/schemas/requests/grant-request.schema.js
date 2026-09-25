@@ -1,5 +1,6 @@
 import Joi from "joi";
 import { action } from "../grant/action/action.js";
+import { claims } from "../grant/claims.js";
 import { entitlementTemplates } from "../grant/entitlement-template.js";
 import { externalStatusMap } from "../grant/external-status-map.js";
 import { description } from "../grant/metadata/description.js";
@@ -22,4 +23,5 @@ export const grantRequestSchema = Joi.object({
   externalStatusMap: externalStatusMap.optional(),
   entitlementTemplates: entitlementTemplates.optional(),
   pages: pages.optional(),
+  claims: claims.optional(),
 });

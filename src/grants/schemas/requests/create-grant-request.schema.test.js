@@ -167,6 +167,105 @@ it("requires actions to be unique by name", () => {
   expect(error.message).toEqual('"Actions" contains a duplicate value');
 });
 
+it("accepts claims as optional", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+  });
+
+  expect(error).toBeUndefined();
+});
+
+it("accepts a valid claims.onClaimApproval block", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    claims: {
+      onClaimApproval: {
+        currentPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "APPLICATION_RECEIVED",
+        },
+        targetPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "AWARD_READY",
+        },
+      },
+    },
+  });
+
+  expect(error).toBeUndefined();
+});
+
+it("rejects a claims.onClaimApproval.currentPosition missing stage and status", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    claims: {
+      onClaimApproval: {
+        currentPosition: { phase: "PRE_AWARD" },
+        targetPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "AWARD_READY",
+        },
+      },
+    },
+  });
+
+  expect(error?.message).toContain("stage");
+});
+
+it("rejects unknown keys inside claims", () => {
+  const { error } = createGrantRequestSchema.validate({
+    code: "test",
+    metadata: {
+      description: "test",
+      startDate: "2100-01-01T00:00:00.000Z",
+    },
+    phases: validPhases,
+    actions: [],
+    amendablePositions: [],
+    claims: {
+      onClaimApproval: {
+        currentPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "APPLICATION_RECEIVED",
+          unexpected: true,
+        },
+        targetPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "AWARD_READY",
+        },
+      },
+    },
+  });
+
+  expect(error?.message).toContain("unexpected");
+});
+
 it("accepts externalStatusMap as optional", () => {
   const { error } = createGrantRequestSchema.validate({
     code: "test",
