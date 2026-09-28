@@ -8,8 +8,8 @@ import {
   statusDisplay,
 } from "./event-display.js";
 
-const INTERNAL_BUS = "internal:message-bus";
-const INTERNAL_BUS_NAME = "internal";
+const INTERNAL_TARGETS = new Set(["internal:message-bus", "internal:event"]);
+const INTERNAL_TARGET_NAME = "internal";
 const HEX = 16;
 // OpenSearch indexes only the trace-id half; a non-W3C value already is one.
 const W3C_TRACEPARENT = /^[0-9a-f]{2}-([0-9a-f]{32})-/i;
@@ -88,14 +88,14 @@ const deriveType = (intermediate) =>
         isAuditTarget(intermediate.target),
       );
 
-// `internal:message-bus` contains a colon too, so it is special-cased first.
+// Internal targets contain a colon too, so they are special-cased first.
 const targetName = (target) => {
   if (!target) {
     return null;
   }
 
-  if (target === INTERNAL_BUS) {
-    return INTERNAL_BUS_NAME;
+  if (INTERNAL_TARGETS.has(target)) {
+    return INTERNAL_TARGET_NAME;
   }
 
   return target.slice(target.lastIndexOf(":") + 1);

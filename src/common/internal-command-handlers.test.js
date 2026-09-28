@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   canHandleInternalCommand,
   clearInternalCommandHandlers,
-  dispatchInternally,
+  dispatchCommand,
   getInternalCommandHandler,
   registerInternalCommandHandler,
-} from "./internal-command-bus.js";
+} from "./internal-command-handlers.js";
 import { internalCommandTypes } from "./internal-command-types.js";
 
-describe("internal-command-bus", () => {
+describe("internal-command-handlers", () => {
   afterEach(() => {
     clearInternalCommandHandlers();
   });
@@ -64,9 +64,9 @@ describe("internal-command-bus", () => {
   });
 
   it("throws when no handler is registered for a command", async () => {
-    const event = { type: internalCommandTypes.AGREEMENT_CREATE, data: {} };
+    const command = { type: internalCommandTypes.AGREEMENT_CREATE, data: {} };
 
-    await expect(dispatchInternally(event)).rejects.toThrow(
+    await expect(dispatchCommand(command)).rejects.toThrow(
       'No internal command handler registered for "agreement.create"',
     );
   });
@@ -80,14 +80,14 @@ describe("internal-command-bus", () => {
       internalCommandTypes.AGREEMENT_STATUS_UPDATE,
       "cloud.defra.dev.gas.agreement.status.update",
     ],
-  ])("dispatches %s events", async (handlerType, eventType) => {
+  ])("dispatches %s commands", async (handlerType, commandType) => {
     const handler = vi.fn();
-    const event = { type: eventType, data: { code: "pigs-might-fly" } };
+    const command = { type: commandType, data: { code: "pigs-might-fly" } };
     registerInternalCommandHandler(handlerType, handler);
 
-    await dispatchInternally(event);
+    await dispatchCommand(command);
 
-    expect(handler).toHaveBeenCalledWith(event);
+    expect(handler).toHaveBeenCalledWith(command);
   });
 
   it("overwrites a previously registered handler for the same type", () => {

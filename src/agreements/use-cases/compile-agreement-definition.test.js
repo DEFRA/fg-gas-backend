@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { EndpointServiceUrlError } from "../../common/agreements/resolve-endpoint-service-url.js";
+import { EndpointServiceUrlError } from "../services/integrations/resolve-endpoint-service-url.js";
 import { logger } from "../../common/logger.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import {
@@ -16,9 +16,9 @@ const { mockValidateEndpointServiceUrls } = vi.hoisted(() => ({
 
 // Only the URL check is mocked: it is the one thing that fails because of our deployment
 // rather than the definition, which is the distinction this module exists to make.
-vi.mock("../../common/agreements/resolve-endpoint-service-url.js", async () => {
+vi.mock("../services/integrations/resolve-endpoint-service-url.js", async () => {
   const actual = await vi.importActual(
-    "../../common/agreements/resolve-endpoint-service-url.js",
+    "../services/integrations/resolve-endpoint-service-url.js",
   );
 
   return {
