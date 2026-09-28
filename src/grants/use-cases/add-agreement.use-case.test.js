@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
+import { saveEvents } from "../../events/index.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { Agreement } from "../models/agreement.js";
@@ -10,12 +11,10 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
-import { Outbox } from "../../events/models/outbox.js";
 import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
 import {
   addAgreementUseCase,
   auditDataBuilder,
@@ -24,13 +23,11 @@ import {
 vi.mock("../commands/update-case-status.command.js");
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
-vi.mock("../../events/models/outbox.js");
-vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/index.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
 vi.mock("../../common/with-transaction.js");
-vi.mock("../../events/repositories/outbox.repository.js");
 vi.mock("../../events/write-audit-event.js");
 
 describe("addAgreementUseCase", () => {
@@ -53,7 +50,7 @@ describe("addAgreementUseCase", () => {
 
     findByClientRefAndCode.mockResolvedValue(testApplication);
 
-    insertMany.mockResolvedValue(true);
+    saveEvents.mockResolvedValue(undefined);
     writeAuditEvent.mockResolvedValue(undefined);
 
     await addAgreementUseCase(
@@ -76,7 +73,11 @@ describe("addAgreementUseCase", () => {
     const application = update.mock.calls[0][0];
     expect(application).toBeInstanceOf(Application);
     expect(application.agreements["agreement-123"]).toBeInstanceOf(Agreement);
-    expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], {});
+    expect(saveEvents).toHaveBeenCalledWith(
+      [expect.objectContaining({ event: expect.any(UpdateCaseStatusCommand) })],
+      {},
+    );
+    expect(saveEvents.mock.calls[0][0][0].segregationRef).toBeUndefined();
     expect(UpdateCaseStatusCommand).toHaveBeenCalledWith({
       caseRef: "test-client-ref",
       workflowCode: "test-code",
