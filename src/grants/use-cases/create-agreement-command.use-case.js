@@ -6,11 +6,10 @@ import {
 } from "../../common/internal-command-handlers.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
 import { logger } from "../../common/logger.js";
+import { saveEvents } from "../../events/index.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { CreateAgreementCommand } from "../events/create-agreement.command.js";
-import { Outbox } from "../../events/models/outbox.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
 
 export const auditDataBuilder = (args) => {
   const { clientRef, code } = args[0];
@@ -44,13 +43,12 @@ const createAgreementCommand = async ({ clientRef, code }, session) => {
     session,
   );
   const command = new CreateAgreementCommand(application);
-  await insertMany(
+  await saveEvents(
     [
-      new Outbox({
+      {
         event: command,
         target: await resolveAgreementCommandTarget(command),
-        segregationRef: Outbox.getSegregationRef(command),
-      }),
+      },
     ],
     session,
   );

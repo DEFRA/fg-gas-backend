@@ -1,12 +1,12 @@
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { logger } from "../../common/logger.js";
+import { saveEvents } from "../../events/index.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
-import { createAgreementCaseUpdateOutbox } from "./agreement-case-update.helpers.js";
+import { createAgreementCaseUpdatePublication } from "./agreement-case-update.helpers.js";
 
 export const auditDataBuilder = (args) => {
   const { clientRef, code, eventData } = args[0];
@@ -52,9 +52,9 @@ const acceptAgreement = async (command, session) => {
     `Application ${clientRef} status updated from ${previousStatus} to ${application.getFullyQualifiedStatus()}`,
   );
 
-  await insertMany(
+  await saveEvents(
     [
-      createAgreementCaseUpdateOutbox({
+      createAgreementCaseUpdatePublication({
         clientRef,
         code,
         application,
