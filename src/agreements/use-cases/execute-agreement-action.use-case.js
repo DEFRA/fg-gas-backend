@@ -1,7 +1,9 @@
 import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
+import { auditStatus } from "../../events/audit-constants.js";
 import { internalEventTarget, saveEvents } from "../../events/index.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { AgreementPaymentRequestedEvent } from "../events/agreement-payment-requested.event.js";
 import { createAgreementStatusChangedReportingPublication } from "../events/agreement-reporting.event.js";
@@ -12,6 +14,7 @@ import {
   insertAgreementVersion,
   replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
+import { buildAgreementActionAudit } from "../services/agreement-audit.js";
 import { applyActionValidation } from "../services/apply-action-validation.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
@@ -163,6 +166,14 @@ const commitActionTransaction = async (
     createActionPublications(current, next.agreement, paymentRequested),
     session,
   );
+  await writeAuditEvent(
+    buildAgreementActionAudit({
+      actionName,
+      previous: current,
+      next: next.agreement,
+    }),
+    session,
+  );
 
   return { location: currentAgreementLocation };
 };
@@ -186,7 +197,24 @@ const toConcurrentOptions = (options) => ({
   idempotencyKey: options.idempotencyKey,
 });
 
-export const commitAgreementAction = async (options) => {
+const recordActionFailure = async (options, error) => {
+  try {
+    await writeAuditEvent(
+      buildAgreementActionAudit({
+        actionName: options.actionName,
+        previous: options.current,
+        next: options.next.agreement,
+        status: auditStatus.FAILURE,
+        error,
+      }),
+      null,
+    );
+  } catch (auditError) {
+    logger.error(auditError, "Failed to record Agreement action failure audit");
+  }
+};
+
+const commitAgreementActionAttempt = async (options) => {
   const paymentRequested = hasPaymentCommitOperation(
     options.next.commitOperations,
   );
@@ -206,6 +234,15 @@ export const commitAgreementAction = async (options) => {
   return result === concurrentUpdate
     ? resolveConcurrentUpdate(toConcurrentOptions(options))
     : result;
+};
+
+export const commitAgreementAction = async (options) => {
+  try {
+    return await commitAgreementActionAttempt(options);
+  } catch (error) {
+    await recordActionFailure(options, error);
+    throw error;
+  }
 };
 
 export const executeAgreementActionUseCase = async (options) => {

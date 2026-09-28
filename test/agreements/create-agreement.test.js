@@ -198,5 +198,16 @@ describe("PMF Agreement creation", () => {
       "event.eventData.agreementId": agreement.agreementNumber,
       "event.eventData.agreementStatus": "offered",
     });
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__AUDIT_TOPIC_ARN,
+      "event.audit.entities.entity": "AGREEMENT",
+      "event.audit.entities.action": "CREATE_AGREEMENT_RECORD",
+      "event.audit.entities.entityid": agreement.agreementNumber,
+      "event.audit.status": "SUCCESS",
+      "event.audit.accounts.sbi": sbi,
+      "event.audit.details.clientRef": clientRef,
+      "event.audit.details.code": code,
+      "event.audit.details.state": "offered",
+    });
   });
 });

@@ -74,6 +74,10 @@ const paymentEventQuery = {
 const paymentRequestQuery = {
   "event.data.source.agreementNumber": agreementNumber,
 };
+const acceptanceAuditQuery = {
+  "event.audit.entities.entityid": agreementNumber,
+  "event.audit.entities.action": "ACCEPT_AGREEMENT",
+};
 
 const toFundedValues = (value) => ({
   application: value.application,
@@ -142,6 +146,7 @@ describe("single Agreement actions", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
+      outbox.deleteMany({ "event.audit.entities.entityid": agreementNumber }),
       outbox.deleteMany(paymentEventQuery),
       outbox.deleteMany(paymentRequestQuery),
       payments.deleteMany({ "source.agreementNumber": agreementNumber }),
@@ -173,6 +178,7 @@ describe("single Agreement actions", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
+      outbox.deleteMany({ "event.audit.entities.entityid": agreementNumber }),
       outbox.deleteMany(paymentEventQuery),
       outbox.deleteMany(paymentRequestQuery),
       payments.deleteMany({ "source.agreementNumber": agreementNumber }),
@@ -196,6 +202,16 @@ describe("single Agreement actions", () => {
     expect(response.headers.etag).toBe(etagFor(1));
     expect(payload.agreement.agreementNumber).toBe(agreementNumber);
     expect(JSON.stringify(payload)).not.toContain("agreementItem");
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__AUDIT_TOPIC_ARN,
+      "event.audit.entities.entity": "AGREEMENT",
+      "event.audit.entities.action": "VIEW_AGREEMENT",
+      "event.audit.entities.entityid": agreementNumber,
+      "event.audit.status": "SUCCESS",
+      "event.audit.accounts.sbi": agreementAccessHeaders["x-agreement-sbi"],
+      "event.audit.details.view": "action-preparation",
+      "event.audit.details.actionName": "accept",
+    });
   });
 
   it("does not prepare an action for another SBI account", async () => {
@@ -254,6 +270,18 @@ describe("single Agreement actions", () => {
     const persistedAccepted = structuredClone(accepted);
     delete persistedAccepted._id;
     expect(version.snapshot).toEqual(persistedAccepted);
+    await expect(outbox).toHaveRecord({
+      ...acceptanceAuditQuery,
+      target: env.GAS__SNS__AUDIT_TOPIC_ARN,
+      "event.audit.status": "SUCCESS",
+      "event.audit.accounts.sbi": "300000070",
+      "event.audit.accounts.frn": "1101234567",
+      "event.audit.details.actionName": "accept",
+      "event.audit.details.previousState": "offered",
+      "event.audit.details.state": "accepted",
+      "event.security.pmccode": "0704",
+      "event.security.details.transactioncode": "2311",
+    });
   });
 
   it("defers Payment creation until after acceptance without leaking claimId", async () => {
@@ -601,6 +629,7 @@ describe("single Agreement actions", () => {
     );
     expect(await outbox.countDocuments(paymentRequestQuery)).toBe(1);
     expect(await outbox.findOne(paymentRequestQuery)).toEqual(request);
+    expect(await outbox.countDocuments(acceptanceAuditQuery)).toBe(1);
     expect(
       await payments.countDocuments({
         "source.agreementNumber": agreementNumber,
@@ -718,6 +747,22 @@ describe("single Agreement actions", () => {
         }),
       ).toBe(0);
       expect(await outbox.countDocuments(paymentEventQuery)).toBe(0);
+      await expect(outbox).toHaveRecord({
+        ...acceptanceAuditQuery,
+        target: env.GAS__SNS__AUDIT_TOPIC_ARN,
+        "event.audit.status": "FAILURE",
+        "event.audit.details.actionName": "accept",
+        "event.audit.details.previousState": "offered",
+        "event.audit.details.state": "accepted",
+        "event.security.pmccode": "0704",
+        "event.security.details.transactioncode": "2311",
+      });
+      expect(
+        await outbox.countDocuments({
+          ...acceptanceAuditQuery,
+          "event.audit.status": "SUCCESS",
+        }),
+      ).toBe(0);
     } finally {
       await outbox.deleteOne({ _id: blockingEventId });
       await outbox.dropIndex(indexName);

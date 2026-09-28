@@ -2,6 +2,7 @@ import Boom from "@hapi/boom";
 import { randomUUID } from "node:crypto";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveEvents } from "../../events/index.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import {
   createAgreementCreatedReportingPublication,
@@ -14,6 +15,7 @@ import {
   insertAgreementVersion,
   insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
+import { buildAgreementCreationAudit } from "../services/agreement-audit.js";
 import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
 import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
@@ -81,6 +83,7 @@ const persistAgreement = async (agreement) => {
     await insertCurrentAgreement(agreement, session);
     await insertAgreementVersion(agreementVersion, session);
     await saveEvents(outboundEvents, session);
+    await writeAuditEvent(buildAgreementCreationAudit(agreement), session);
 
     return agreement;
   });

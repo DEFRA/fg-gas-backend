@@ -16,6 +16,7 @@ import { createAgreementUseCase } from "./create-agreement.use-case.js";
 import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
 vi.mock("../../events/index.js");
+vi.mock("../../events/write-audit-event.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("./load-agreement-definition.js");
 vi.mock("../repositories/agreement.repository.js");

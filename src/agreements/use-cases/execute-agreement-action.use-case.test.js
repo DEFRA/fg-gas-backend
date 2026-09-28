@@ -16,6 +16,7 @@ import { loadCurrentAgreementContext } from "./load-current-agreement-context.js
 import { loadAgreementForAction } from "./load-current-agreement.js";
 
 vi.mock("../../events/index.js");
+vi.mock("../../events/write-audit-event.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("../services/build-agreement-page-model.js");
