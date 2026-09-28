@@ -130,16 +130,17 @@ its domain state. Use cases hand ordered publications to `saveEvents` as
 not construct `Outbox` records or call the outbox repository directly.
 
 The Events module exclusively owns Outbox construction, persistence and default
-segregation-reference derivation. A producer supplies `segregationRef` only when
-the contract's normal routing fields or `messageGroupId` do not express the
-required ordering boundary. Consumers own their handlers and register against
-the producer's exact contract type; consuming a contract does not transfer
-ownership of its vocabulary.
+segregation-reference derivation. A producer may supply `segregationRef` when it
+needs a domain-specific processing lane or ordering boundary instead of the
+derived default. Consumers own their handlers and register against the producer's
+exact contract type; consuming a contract does not transfer ownership of its
+vocabulary.
 
 ESLint enforces this persistence boundary throughout the Agreements, Grants and
-Payments producer modules. Tests should mock `events/index.js` and assert against
-`saveEvents`, rather than mock an Outbox model or repository that belongs behind
-the facade.
+Payments producer modules. Producer unit tests should mock `events/index.js` and
+assert against `saveEvents`, rather than mock an Outbox model or repository that
+belongs behind the facade. Integration tests may inspect persisted event rows
+when verifying durable behaviour.
 
 ### Payment event interface
 
