@@ -63,7 +63,7 @@ const entitlementTemplate = ({
   },
 });
 
-const phases = (targetReachable = true) => [
+const phases = [
   {
     code: "PRE_AWARD",
     stages: [
@@ -75,12 +75,7 @@ const phases = (targetReachable = true) => [
           {
             code: "AWARD_READY",
             validFrom: [
-              {
-                code: targetReachable
-                  ? "APPLICATION_RECEIVED"
-                  : "SOME_OTHER_STATUS",
-                processes: [],
-              },
+              { code: "APPLICATION_RECEIVED", processes: [] },
             ],
           },
         ],
@@ -109,14 +104,12 @@ const seedFixture = async (options = {}) => {
     maximumClaims,
     position,
     claimsConfigured,
-    targetReachable,
     entitlementCount,
     requiresApproval,
   } = {
     maximumClaims: 1,
     position: currentPosition,
     claimsConfigured: true,
-    targetReachable: true,
     entitlementCount: 1,
     requiresApproval: false,
     ...options,
@@ -139,7 +132,7 @@ const seedFixture = async (options = {}) => {
     createTestGrant({
       code,
       version: configVersion,
-      phases: phases(targetReachable),
+      phases,
       entitlementTemplates: entitlements.map(({ claimCode }) =>
         entitlementTemplate({ claimCode, maximumClaims, requiresApproval }),
       ),
@@ -176,7 +169,6 @@ const seedFixture = async (options = {}) => {
   return {
     code,
     clientRef,
-    entitlementId: entitlements[0].id,
     entitlementIds: entitlements.map(({ id }) => id),
     command: (
       clientClaimRef = "claim-1",

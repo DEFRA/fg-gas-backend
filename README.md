@@ -107,7 +107,10 @@ All six position fields are required and must name positions in the grant's
 `phases`; the target must also allow a transition from the configured source.
 The source position must exactly match the Application's current position. A
 Claim that requires approval, any remaining entitlement capacity, an absent
-configuration, or a non-matching position does not move the Application.
+configuration, or a non-matching position does not move the Application. Do not
+rely on this transition for a mix of approval and non-approval templates: if an
+approval claim consumes the final slot, it deliberately does not trigger the
+move. An approval-driven transition is outside FGP-1397.
 
 Grant Admin accepts this optional block when creating a grant with `POST /grants` or replacing one with `PUT /grants/{code}`. Replacement is not a
 patch: omitting `claims` removes an existing claim-approval configuration.
