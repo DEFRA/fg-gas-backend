@@ -2,10 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { config } from "../../common/config.js";
 import { Agreement } from "../models/agreement.js";
-import { Outbox } from "../../events/models/outbox.js";
 import {
   createApplicationStatusUpdatedEventData,
-  createApplicationStatusUpdatedOutbox,
+  createApplicationStatusUpdatedPublication,
 } from "./agreement-case-update.helpers.js";
 
 describe("agreement-case-update.helpers", () => {
@@ -39,7 +38,7 @@ describe("agreement-case-update.helpers", () => {
     });
   });
 
-  it("creates an application status updated outbox", () => {
+  it("creates an application status updated publication", () => {
     const agreement = Agreement.new({
       agreementRef: "agreement-1",
       date: "2024-01-15T10:30:00.000Z",
@@ -51,24 +50,23 @@ describe("agreement-case-update.helpers", () => {
       currentStatus: "APPLICATION_APPROVED",
     });
 
-    const outbox = createApplicationStatusUpdatedOutbox({
+    const publication = createApplicationStatusUpdatedPublication({
       clientRef: application.clientRef,
       code: application.code,
       previousStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
       application,
     });
 
-    expect(outbox).toBeInstanceOf(Outbox);
-    expect(outbox.target).toBe(
+    expect(publication.target).toBe(
       config.sns.grantApplicationStatusUpdatedTopicArn,
     );
-    expect(outbox.event.data).toEqual({
+    expect(publication.event.data).toEqual({
       clientRef: "application-1",
       grantCode: "grant-1",
       currentConfigVersion: "1.0.0",
       previousStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
       currentStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_APPROVED",
     });
-    expect(outbox.segregationRef).toBe(Outbox.getSegregationRef(outbox.event));
+    expect(publication.segregationRef).toBeUndefined();
   });
 });
