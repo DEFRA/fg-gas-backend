@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { config } from "../../../common/config.js";
-import { createOutboxMessages } from "./create-outbox-messages.js";
+import { createAgreementPublications } from "./create-publications.js";
 
-describe("createOutboxMessages", () => {
-  it("creates a lifecycle outbox message from the resulting Agreement", () => {
+describe("createAgreementPublications", () => {
+  it("creates a lifecycle publication from the resulting Agreement", () => {
     const agreement = {
       agreementNumber: "PMF123",
       correlationId: "correlation-id",
@@ -15,7 +15,7 @@ describe("createOutboxMessages", () => {
       updatedAt: "2026-07-17T11:29:00.000Z",
     };
 
-    const publications = createOutboxMessages(["lifecycle"], agreement);
+    const publications = createAgreementPublications(["lifecycle"], agreement);
 
     expect(publications).toEqual([
       {
@@ -51,7 +51,9 @@ describe("createOutboxMessages", () => {
     };
     const payment = { paymentHubClaimId: "R00000001" };
 
-    expect(createOutboxMessages(["lifecycle"], agreement, payment)).toEqual([
+    expect(
+      createAgreementPublications(["lifecycle"], agreement, payment),
+    ).toEqual([
       {
         target: config.sns.agreementStatusUpdatedTopicArn,
         event: expect.objectContaining({
@@ -78,9 +80,9 @@ describe("createOutboxMessages", () => {
     ]);
   });
 
-  it("rejects an unsupported outbox message type with a clear error", () => {
-    expect(() => createOutboxMessages(["unknown"], {})).toThrow(
-      'Unsupported Agreement outbox message type: "unknown"',
+  it("rejects an unsupported publication type with a clear error", () => {
+    expect(() => createAgreementPublications(["unknown"], {})).toThrow(
+      'Unsupported Agreement publication type: "unknown"',
     );
   });
 });
