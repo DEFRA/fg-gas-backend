@@ -105,6 +105,16 @@ export default [
                 "Use cases should only import services, commands, repositories, models, events, publishers and common",
             },
             {
+              target: "src/grants/use-cases/**/!(*.test).js",
+              from: [
+                "**/events/models/outbox.js",
+                "**/events/repositories/outbox.repository.js",
+              ],
+              message:
+                "Grants use cases must persist publications through saveEvents. " +
+                "Outbox construction and repositories belong to the Events module.",
+            },
+            {
               target: "**/publishers/**/!(*.test).js",
               from: ["src/**/**"],
               except: ["**/common/**", "**/events/**", "**/commands/**"],
