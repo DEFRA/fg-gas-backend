@@ -93,9 +93,9 @@ afterAll(async () => {
   vi.unstubAllEnvs();
 }, 120_000);
 
-const request = () => ({
+const request = (overrides = {}) => ({
   event: new AgreementPaymentRequestedEvent({
-    agreement,
+    agreement: { ...agreement, ...overrides },
     executedAt: "2026-08-06T10:15:00.000Z",
   }),
 });
@@ -124,6 +124,16 @@ describe("Agreement payment request handler", () => {
     const redelivered = await handleAgreementPaymentRequested(request());
 
     expect(redelivered).toBeInstanceOf(Payment);
+    expect(redelivered.id).toBe(first.id);
+    await assertOnePublication();
+  });
+
+  it("returns the existing Payment when the redelivered definition is unavailable", async () => {
+    const first = await handleAgreementPaymentRequested(request());
+    const redelivered = await handleAgreementPaymentRequested(
+      request({ configVersion: "unavailable-version" }),
+    );
+
     expect(redelivered.id).toBe(first.id);
     await assertOnePublication();
   });
@@ -183,12 +193,12 @@ describe("Agreement payment request handler", () => {
   it("recovers when the source unique index rejects an out-of-date lookup", async () => {
     const winner = await handleAgreementPaymentRequested(request());
     const findOne = Collection.prototype.findOne;
-    let staleRead = true;
+    let staleReads = 2; // Early identity check and in-transaction recheck.
     const lookup = vi
       .spyOn(Collection.prototype, "findOne")
       .mockImplementation(function (filter, options) {
-        if (this.collectionName === "payments__payments" && staleRead) {
-          staleRead = false;
+        if (this.collectionName === "payments__payments" && staleReads > 0) {
+          staleReads--;
           return Promise.resolve(null);
         }
         return findOne.call(this, filter, options);

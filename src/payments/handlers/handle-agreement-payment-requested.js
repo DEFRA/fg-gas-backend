@@ -11,20 +11,39 @@ const isAgreementSourceDuplicate = (error) =>
     (key) => error.keyPattern?.[key] === 1,
   );
 
+const recoverAgreementSourceDuplicate = async (error, source) => {
+  if (!isAgreementSourceDuplicate(error)) {
+    throw error;
+  }
+
+  // The losing transaction is aborted; only a committed winner can complete it.
+  const winner = await findPaymentBySource(source);
+  if (!winner) {
+    throw error;
+  }
+
+  return winner;
+};
+
 export const handleAgreementPaymentRequested = async (message) => {
   const { source, code, configVersion, executedAt, snapshot } =
     message.event.data;
-  const resolved = await resolvePaymentDefinition({
-    code,
-    configVersion,
-    context: { agreement: snapshot, execution: { executedAt } },
-  });
-
   const paymentSource = {
     type: PaymentSourceType.AGREEMENT,
     agreementNumber: source.agreementNumber,
     version: source.agreementVersion,
   };
+
+  const existing = await findPaymentBySource(paymentSource);
+  if (existing) {
+    return existing;
+  }
+
+  const resolved = await resolvePaymentDefinition({
+    code,
+    configVersion,
+    context: { agreement: snapshot, execution: { executedAt } },
+  });
 
   try {
     return await withTransaction((session) =>
@@ -38,16 +57,6 @@ export const handleAgreementPaymentRequested = async (message) => {
       ),
     );
   } catch (error) {
-    if (!isAgreementSourceDuplicate(error)) {
-      throw error;
-    }
-
-    // The losing transaction is aborted; only the winning Payment is visible.
-    const existing = await findPaymentBySource(paymentSource);
-    if (!existing) {
-      throw error;
-    }
-
-    return existing;
+    return recoverAgreementSourceDuplicate(error, paymentSource);
   }
 };
