@@ -1,7 +1,5 @@
 import { config } from "../../common/config.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
-import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { Outbox } from "../../events/models/outbox.js";
 
 export const getAgreementData = (application, agreementNumber) =>
   application
@@ -32,36 +30,7 @@ export const createAgreementCaseUpdateCommand = ({
   });
 };
 
-export const createApplicationStatusUpdatedEventData = ({
-  clientRef,
-  code,
-  previousStatus,
-  application,
-}) =>
-  new ApplicationStatusUpdatedEvent({
-    clientRef,
-    code,
-    currentConfigVersion: application.currentConfigVersion,
-    previousStatus,
-    currentStatus: application.getFullyQualifiedStatus(),
-  });
-
-export const createAgreementCaseUpdateOutbox = (props) => {
-  const statusCommand = createAgreementCaseUpdateCommand(props);
-
-  return new Outbox({
-    event: statusCommand,
-    target: config.sns.updateCaseStatusTopicArn,
-    segregationRef: Outbox.getSegregationRef(statusCommand),
-  });
-};
-
-export const createApplicationStatusUpdatedOutbox = (props) => {
-  const statusEvent = createApplicationStatusUpdatedEventData(props);
-
-  return new Outbox({
-    event: statusEvent,
-    target: config.sns.grantApplicationStatusUpdatedTopicArn,
-    segregationRef: Outbox.getSegregationRef(statusEvent),
-  });
-};
+export const createAgreementCaseUpdatePublication = (props) => ({
+  event: createAgreementCaseUpdateCommand(props),
+  target: config.sns.updateCaseStatusTopicArn,
+});

@@ -14,7 +14,7 @@ import {
 } from "../models/agreement.js";
 import { Application } from "../models/application.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
+import { saveEvents } from "../../events/index.js";
 import {
   auditDataBuilder,
   requestAgreementCancellationUseCase,
@@ -27,7 +27,7 @@ vi.mock("../../common/internal-command-handlers.js", async () => {
   return { ...actual, canHandleInternalCommand: vi.fn() };
 });
 vi.mock("../repositories/application.repository.js");
-vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/index.js");
 vi.mock("../../events/write-audit-event.js");
 
 const offeredApplication = () => {
@@ -72,7 +72,7 @@ describe("requestAgreementCancellationUseCase", () => {
       {},
     );
 
-    expect(insertMany.mock.calls[0][0][0].target).toBe(internalCommandTarget);
+    expect(saveEvents.mock.calls[0][0][0].target).toBe(internalCommandTarget);
   });
 
   it("publishes an agreement cancellation command when an offered agreement exists", async () => {
@@ -109,7 +109,7 @@ describe("requestAgreementCancellationUseCase", () => {
       {},
     );
 
-    expect(insertMany).toHaveBeenCalledWith(
+    expect(saveEvents).toHaveBeenCalledWith(
       [
         expect.objectContaining({
           event: expect.objectContaining({
@@ -169,7 +169,7 @@ describe("requestAgreementCancellationUseCase", () => {
       {},
     );
 
-    expect(insertMany).not.toHaveBeenCalled();
+    expect(saveEvents).not.toHaveBeenCalled();
     expect(writeAuditEvent).not.toHaveBeenCalled();
   });
 });
