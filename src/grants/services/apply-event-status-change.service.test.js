@@ -8,19 +8,11 @@ import {
   update,
 } from "../repositories/application.repository.js";
 import { insertMany } from "../../events/repositories/outbox.repository.js";
-import { acceptAgreementUseCase } from "../use-cases/accept-agreement.use-case.js";
 import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
-import { cancelAgreementUseCase } from "../use-cases/cancel-agreement.use-case.js";
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
-import { requestAgreementCancellationUseCase } from "../use-cases/request-agreement-cancellation.use-case.js";
 import { resolveGrantForApplication } from "../use-cases/resolve-current-grant.use-case.js";
-import { withdrawAgreementUseCase } from "../use-cases/withdraw-agreement.use-case.js";
-import { withdrawApplicationUseCase } from "../use-cases/withdraw-application.use-case.js";
-import {
-  applyExternalStateChange,
-  getHandlersForAllProcesses,
-} from "./apply-event-status-change.service.js";
+import { applyExternalStateChange } from "./apply-event-status-change.service.js";
 
 vi.mock("../use-cases/create-status-transition-update.use-case.js");
 vi.mock("../use-cases/add-agreement.use-case.js");
@@ -129,68 +121,7 @@ describe("applyExternalStateChange", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe("getHandlersForAllProcesses", () => {
-    it("should log warning if entry process is a string", () => {
-      vi.spyOn(logger, "warn").mockImplementationOnce(() => {});
-      expect(getHandlersForAllProcesses("process")).toHaveLength(0);
-      expect(logger.warn).toBeCalled();
-    });
-
-    it("should return empty array for no entry processes", () => {
-      const processes = [];
-      expect(getHandlersForAllProcesses(processes)).toHaveLength(0);
-      expect(getHandlersForAllProcesses(undefined)).toHaveLength(0);
-    });
-
-    it("should return handlers for valid entry process", () => {
-      const processes = ["GENERATE_OFFER"];
-      const handlers = getHandlersForAllProcesses(processes);
-      expect(handlers).toHaveLength(1);
-      expect(handlers[0]).toBe(createAgreementCommandUseCase);
-    });
-
-    it("should resolve accept agreement process", () => {
-      const processes = ["ACCEPT_AGREEMENT"];
-      const handlers = getHandlersForAllProcesses(processes);
-      expect(handlers).toHaveLength(1);
-      expect(handlers[0]).toBe(acceptAgreementUseCase);
-    });
-
-    it("should resolve request agreement cancellation process", () => {
-      const processes = ["REQUEST_AGREEMENT_CANCELLATION"];
-      const handlers = getHandlersForAllProcesses(processes);
-      expect(handlers).toHaveLength(1);
-      expect(handlers[0]).toBe(requestAgreementCancellationUseCase);
-    });
-
-    it("should resolve cancel agreement process", () => {
-      const processes = ["CANCEL_AGREEMENT"];
-      const handlers = getHandlersForAllProcesses(processes);
-      expect(handlers).toHaveLength(1);
-      expect(handlers[0]).toBe(cancelAgreementUseCase);
-    });
-
-    it("should resolve request application withdrawal process", () => {
-      const processes = ["REQUEST_APPLICATION_WITHDRAWAL"];
-      const handlers = getHandlersForAllProcesses(processes);
-      expect(handlers).toHaveLength(1);
-      expect(handlers[0]).toBe(withdrawApplicationUseCase);
-    });
-
-    it("should resolve withdraw agreement process", () => {
-      const processes = ["WITHDRAW_AGREEMENT"];
-      const handlers = getHandlersForAllProcesses(processes);
-      expect(handlers).toHaveLength(1);
-      expect(handlers[0]).toBe(withdrawAgreementUseCase);
-    });
-
-    it("should ignore unknown processes", () => {
-      const processes = ["GENERATE_OFFER", "UNKNOWN"];
-      const handlers = getHandlersForAllProcesses(processes);
-      expect(handlers).toHaveLength(1);
-    });
+    createStatusTransitionUpdateUseCase.mockReturnValue(vi.fn());
   });
 
   describe("when application is not found", () => {
@@ -276,6 +207,10 @@ describe("applyExternalStateChange", () => {
     });
 
     it("should publish status update event when status changes", async () => {
+      const publishStatusTransition = vi.fn();
+      createStatusTransitionUpdateUseCase.mockReturnValue(
+        publishStatusTransition,
+      );
       const application = new Application({
         ...mockApplication,
         currentStatus: "RECEIVED",
@@ -294,7 +229,16 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
-      expect(createStatusTransitionUpdateUseCase).toHaveBeenCalled();
+      expect(createStatusTransitionUpdateUseCase).toHaveBeenCalledWith({
+        clientRef: "APP-123",
+        code: "test-grant",
+        configVersion: null,
+        originalFullyQualifiedStatus:
+          "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
+        newFullyQualifiedStatus:
+          "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+      });
+      expect(publishStatusTransition).toHaveBeenCalledWith({});
     });
 
     it("should not publish status update event when status remains the same", async () => {
@@ -332,6 +276,31 @@ describe("applyExternalStateChange", () => {
         eventData: {},
       });
 
+      expect(update).not.toHaveBeenCalled();
+      expect(createStatusTransitionUpdateUseCase).not.toHaveBeenCalled();
+      expect(insertMany).not.toHaveBeenCalled();
+    });
+
+    it("should treat a mapped current position as a no-op when validFrom rejects itself", async () => {
+      const application = new Application({
+        ...mockApplication,
+        currentStatus: "IN_PROGRESS",
+      });
+      findByClientRefAndCode.mockResolvedValue(application);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: mockGrant,
+        resolvedVersion: null,
+      });
+
+      await applyExternalStateChange({
+        clientRef: "APP-123",
+        externalRequestedState: "IN_PROGRESS",
+        sourceSystem: "CW",
+        eventData: {},
+      });
+
+      expect(update).not.toHaveBeenCalled();
+      expect(createStatusTransitionUpdateUseCase).not.toHaveBeenCalled();
       expect(insertMany).not.toHaveBeenCalled();
     });
   });
@@ -652,7 +621,13 @@ describe("applyExternalStateChange", () => {
   });
 
   describe("when transition has multiple entry processes", () => {
-    it("should execute all entry processes in order", async () => {
+    it("should execute entry processes sequentially", async () => {
+      let resolveFirstProcess;
+      createAgreementCommandUseCase.mockReturnValue(
+        new Promise((resolve) => {
+          resolveFirstProcess = resolve;
+        }),
+      );
       const application = new Application({
         ...mockApplication,
         currentStatus: "RECEIVED",
@@ -690,7 +665,7 @@ describe("applyExternalStateChange", () => {
         resolvedVersion: null,
       });
 
-      await applyExternalStateChange({
+      const transition = applyExternalStateChange({
         clientRef: "APP-123",
         code: "foo",
         externalRequestedState: "IN_PROGRESS",
@@ -698,9 +673,114 @@ describe("applyExternalStateChange", () => {
         eventData: { data: "test" },
       });
 
-      expect(createAgreementCommandUseCase).toHaveBeenCalled();
-      expect(addAgreementUseCase).toHaveBeenCalled();
+      await vi.waitFor(() => {
+        expect(createAgreementCommandUseCase).toHaveBeenCalled();
+      });
+      expect(addAgreementUseCase).not.toHaveBeenCalled();
 
+      resolveFirstProcess();
+      await transition;
+
+      expect(addAgreementUseCase).toHaveBeenCalled();
+      expect(update).toHaveBeenCalled();
+    });
+  });
+
+  describe("when transition includes an unknown entry process", () => {
+    it("should ignore the unknown process and run known processes", async () => {
+      const application = new Application({
+        ...mockApplication,
+        currentStatus: "RECEIVED",
+      });
+      const grantWithUnknownProcess = new Grant({
+        ...mockGrant,
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "REVIEW_APPLICATION",
+                statuses: [
+                  { code: "RECEIVED" },
+                  {
+                    code: "IN_PROGRESS",
+                    validFrom: [
+                      {
+                        code: "RECEIVED",
+                        processes: ["UNKNOWN", "GENERATE_OFFER"],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      findByClientRefAndCode.mockResolvedValue(application);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithUnknownProcess,
+        resolvedVersion: null,
+      });
+
+      await applyExternalStateChange({
+        clientRef: "APP-123",
+        code: "foo",
+        externalRequestedState: "IN_PROGRESS",
+        sourceSystem: "CW",
+        eventData: {},
+      });
+
+      expect(createAgreementCommandUseCase).toHaveBeenCalled();
+      expect(update).toHaveBeenCalled();
+    });
+  });
+
+  describe("when transition processes is a bare string", () => {
+    it("should persist the transition without running a process", async () => {
+      const application = new Application({
+        ...mockApplication,
+        currentStatus: "RECEIVED",
+      });
+      const grantWithStringProcess = new Grant({
+        ...mockGrant,
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "REVIEW_APPLICATION",
+                statuses: [
+                  { code: "RECEIVED" },
+                  {
+                    code: "IN_PROGRESS",
+                    validFrom: [
+                      { code: "RECEIVED", processes: "GENERATE_OFFER" },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      findByClientRefAndCode.mockResolvedValue(application);
+      resolveGrantForApplication.mockResolvedValue({
+        grant: grantWithStringProcess,
+        resolvedVersion: null,
+      });
+
+      await applyExternalStateChange({
+        clientRef: "APP-123",
+        code: "foo",
+        externalRequestedState: "IN_PROGRESS",
+        sourceSystem: "CW",
+        eventData: {},
+      });
+
+      expect(createAgreementCommandUseCase).not.toHaveBeenCalled();
       expect(update).toHaveBeenCalled();
     });
   });

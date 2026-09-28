@@ -23,6 +23,7 @@ export const toGrant = (doc) =>
     // Stored as null by the driver when a grant carries none, which the model
     // reads as "absent" only if it arrives undefined.
     pages: doc.pages ?? undefined,
+    claims: doc.claims ?? undefined,
   });
 
 export const collection = "grants";

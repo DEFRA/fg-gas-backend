@@ -38,6 +38,7 @@ export const replaceGrant = async ({ code, command }) => {
     amendablePositions: command.amendablePositions,
     entitlementTemplates: command.entitlementTemplates,
     pages: command.pages,
+    claims: command.claims,
   });
 
   await replace(grant);

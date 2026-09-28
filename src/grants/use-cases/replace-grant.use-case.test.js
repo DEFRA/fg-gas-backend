@@ -461,6 +461,131 @@ describe("replaceGrantUseCase", () => {
 
     expect(replacedGrant.pages).toBeUndefined();
   });
+
+  it("carries the claims a replacement configures", async () => {
+    writeAuditEvent.mockResolvedValue(true);
+    const phases = [
+      {
+        code: "PRE_AWARD",
+        stages: [
+          {
+            code: "ASSESSMENT",
+            statuses: [
+              { code: "APPLICATION_RECEIVED", validFrom: [] },
+              { code: "AWARD_READY", validFrom: [] },
+            ],
+          },
+        ],
+      },
+    ];
+    const claims = {
+      onClaimApproval: {
+        currentPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "APPLICATION_RECEIVED",
+        },
+        targetPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "AWARD_READY",
+        },
+      },
+    };
+    findByCode.mockResolvedValue(
+      new Grant({
+        code: "test-grant",
+        version: "0.0.0",
+        metadata: {
+          description: "Test Grant Description",
+          startDate: "2023-01-01T00:00:00Z",
+        },
+        actions: [],
+        phases,
+        claims,
+      }),
+    );
+
+    await replaceGrantUseCase({
+      code: "test-grant",
+      command: {
+        code: "test-grant",
+        metadata: {
+          description: "Updated Test Grant Description",
+          startDate: "2023-01-02T00:00:00Z",
+        },
+        actions: [],
+        phases,
+        claims,
+      },
+    });
+
+    const [replacedGrant] = replace.mock.calls.at(-1);
+
+    expect(replacedGrant.claims).toEqual(claims);
+  });
+
+  it("clears claims when the replacement omits them", async () => {
+    writeAuditEvent.mockResolvedValue(true);
+    const phases = [
+      {
+        code: "PRE_AWARD",
+        stages: [
+          {
+            code: "ASSESSMENT",
+            statuses: [
+              { code: "APPLICATION_RECEIVED", validFrom: [] },
+              { code: "AWARD_READY", validFrom: [] },
+            ],
+          },
+        ],
+      },
+    ];
+    const claims = {
+      onClaimApproval: {
+        currentPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "APPLICATION_RECEIVED",
+        },
+        targetPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "AWARD_READY",
+        },
+      },
+    };
+    findByCode.mockResolvedValue(
+      new Grant({
+        code: "test-grant",
+        version: "0.0.0",
+        metadata: {
+          description: "Test Grant Description",
+          startDate: "2023-01-01T00:00:00Z",
+        },
+        actions: [],
+        phases,
+        claims,
+      }),
+    );
+
+    await replaceGrantUseCase({
+      code: "test-grant",
+      command: {
+        code: "test-grant",
+        metadata: {
+          description: "Updated Test Grant Description",
+          startDate: "2023-01-02T00:00:00Z",
+        },
+        actions: [],
+        phases,
+      },
+    });
+
+    const [replacedGrant] = replace.mock.calls.at(-1);
+
+    expect(replacedGrant.claims).toBeUndefined();
+  });
 });
 
 describe("replaceGrantAuditBuilder", () => {
