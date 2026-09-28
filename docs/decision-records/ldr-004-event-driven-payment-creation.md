@@ -2,11 +2,13 @@
 
 |                  |                  |
 | ---------------- | ---------------- |
-| status           | accepted         |
+| status           | proposed         |
 | date             | 18 Sep 2026      |
 | decision makers  | Core Grants Team |
 | people consulted | Martin Smith     |
 | people informed  | Core Grants Team |
+
+Implementation and resume checklist: [LDR-004 implementation plan](./ldr-004-implementation-plan.md).
 
 ## Context and Problem Statement
 
@@ -134,15 +136,15 @@ External publication retries independently from Payment creation. A publication 
 
 ## Agreement Lifecycle and HTTP Interfaces
 
-Both the legacy Agreements API and the pre-decision GAS implementation copied `claimId` into the accepted Agreement lifecycle event. Dedicated consumer research (18 September 2026), backed by the CDP tenant configuration, identified only two source-controlled subscribers to the Agreement-status topic: GAS and `farming-grants-agreements-pdf`. Source inspection confirmed GAS uses Agreement identity and status while the PDF service uses Agreement and document fields; neither reads or contracts `claimId`. The topic has no cross-account allow-list. Admin only labels the event type and can expose the stored payload generically. The legacy producer obtained the value from the Payment payload and forwarded it; Agreement behaviour did not use it. This is a source-evidence conclusion, not proof of the complete live AWS topology: manually created subscriptions and consumers outside the DEFRA GitHub organisation remain residual uncertainty, which is why the live subscription inventory must still be reconfirmed immediately before removing the field in any environment that still carries it (see Rollout Obligations).
+Both the legacy Agreements API and the pre-decision GAS implementation copied `claimId` into the accepted Agreement lifecycle event. [Dedicated consumer research](./ldr-004-claim-id-consumer-research.md) (18 September 2026), backed by the CDP tenant configuration, identified only two source-controlled subscribers to the Agreement-status topic: GAS and `farming-grants-agreements-pdf`. Source inspection confirmed GAS uses Agreement identity and status while the PDF service uses Agreement and document fields; neither reads or contracts `claimId`. The topic has no cross-account allow-list. Admin only labels the event type and can expose the stored payload generically. The legacy producer obtained the value from the Payment payload and forwarded it; Agreement behaviour did not use it. This is a source-evidence conclusion, not proof of the complete live AWS topology: manually created subscriptions and consumers outside the DEFRA GitHub organisation remain residual uncertainty, which is why the live subscription inventory must still be reconfirmed immediately before removing the field in any environment that still carries it (see Compatibility and Cutover Gates).
 
 The decision was therefore to keep `claimId` in the Payment Hub event only and remove it from the Agreement lifecycle event; that removal is implemented and the acceptance API contract no longer returns a Payment Hub identifier. This keeps the Payment Hub identifier inside Payments and avoids delaying the lifecycle event for a Payments-produced response. A future consumer requirement would be a new explicit interface decision, not a reason to reintroduce a direct Agreements-to-Payments import.
 
 Agreement acceptance is the completed business action; Payment Service availability is not part of that decision. The endpoint returns its normal success response once one local transaction has persisted the accepted Agreement, the Agreement lifecycle event and the durable Payment request event. It does not wait for Payment processing, return a Payment Hub `claimId`, or roll the Agreement back when downstream publication or processing fails. Acceptance still fails when its own validation, concurrency check or local transaction fails, including failure to persist the durable request event. Payment failures are retried and ultimately surfaced through the outbox/DLQ operational path.
 
-## Compatibility Evidence
+## Compatibility and Cutover Gates
 
-A one-off local comparison ran the legacy mapper and SNS serializer against an Agreement with two scheduled payments and both parcel-level and Agreement-level invoice lines, then built and mapped the equivalent GAS Payment. After normalising only generated event IDs, event times and due-payment correlation IDs, the complete CloudEvent payloads were structurally identical. This historical comparison informed the decision; it is not a remaining live-cutover gate.
+A one-off local comparison ran the legacy mapper and SNS serializer against an Agreement with two scheduled payments and both parcel-level and Agreement-level invoice lines, then built and mapped the equivalent GAS Payment. After normalising only generated event IDs, event times and due-payment correlation IDs, the complete CloudEvent payloads were structurally identical. This informed the decision, but the throwaway comparison code was removed and therefore does not close the repeatable compatibility gate below.
 
 The initial transport comparison used the legacy Agreements API's `create_payment.fifo` topic and established that the Payment Service consumes the resulting CloudEvent on `gps__sqs__create_payment.fifo`. That assumption was superseded on 24 September 2026: CDP does not permit GAS to publish to a topic owned by another service. GAS publishes to its own `gas__sns__create_payment_fifo.fifo` topic instead. Merged CDP tenant configuration subscribes the existing Payment Service queue to it in dev, test, perf-test, ext-test and prod; the GAS-owned `gas__sns__agreement_status_updated_fifo.fifo` topic is likewise configured for the existing GAS and PDF queues. The legacy Agreements API topics and subscriptions remain in place for its own traffic. Local, Vitest and FloCi configuration already model this topology, and a retained integration smoke publishes through the runtime `src/common/sns-client.js` adapter to the GAS-owned Payment topic and checks the unchanged body on the existing FloCi queue. That smoke proves local topic wiring, not a complete Payment payload or an end-to-end comparison against the legacy fixture.
 
@@ -150,17 +152,16 @@ GAS retains per-source FIFO grouping. Payment Service does not read the SQS mess
 
 GAS intentionally retains stable event-ID deduplication rather than legacy random deduplication. Every outbox event has a unique ID and retries reuse that ID, so distinct Payments remain distinct while repeated publication within the FIFO deduplication window is suppressed. Payment Service also enforces unique grant and due-payment correlation IDs and handles duplicate-key delivery. Stable deduplication is therefore a compatibility-safe reliability improvement, not a cutover blocker.
 
-Agreement-originated Woodland Payments remain excluded, matching the legacy Agreements API's behaviour for Woodland acceptance; a Woodland Agreement definition has no Payment commit operation, and this does not affect the distinct Claim-originated Woodland Payment flow.
+Payment cutover remains blocked until all of the following are satisfied:
 
-If a future scheme change requires another compatibility comparison, exercise the published event through the runtime serializer and SNS adapter rather than relying on a hand-authored fixture or mapper-only unit test.
-
-## Rollout Obligations
-
-These operational obligations remain open. They gate environment rollout; they do not reopen this architectural decision or turn the historical FPTT comparison into a live-cutover gate.
-
-- Before each environment switches its `cdp-app-config` topic ARNs, verify the GAS-owned Agreement-status topic reaches both the GAS and PDF queues and the GAS-owned Payment topic reaches `gps__sqs__create_payment.fifo`.
+- Every Payment definition used for a migrated scheme is checked against the legacy constants and mappings. For the FPTT interface this includes `scheme: SFI`, `sourceSystem: FPTT`, `deliveryBody: RP00`, `fesCode: FALS_FPTT`, `ledger: AP`, invoice-line `accountCode: SOS710`, `fundCode: DRD10`, invoice-line `deliveryBody: RP00`, marketing-year derivation, descriptions, dates and stringified monetary values. Configurability must not silently change the contract.
+- Local, test and FloCi publish to GAS-owned topics. Before each environment switches its application configuration, verify the GAS-owned Agreement-status topic reaches both the GAS and PDF queues and the GAS-owned Payment topic reaches `gps__sqs__create_payment.fifo`. The CloudEvent `source`, `type`, `specversion` and `datacontenttype` must remain compatible with the legacy producer.
+- Agreement-originated Woodland Payments remain excluded. The legacy Agreements API deliberately does not publish a Payment event for Woodland acceptance; a Woodland Agreement definition must not introduce a Payment commit operation without a separate migration decision. This does not affect the distinct Claim-originated Woodland Payment flow.
+- Immediately before removing lifecycle `claimId`, the live subscription inventory for the GAS-owned Agreement-status topic matches the GAS and PDF queues. Retain the legacy topic subscriptions for legacy traffic and resolve unexpected subscribers before rollout.
+- The acceptance API contract and client tests reflect a successful accepted Agreement without `claimId`; downstream Payment failure is covered by retry/DLQ operations rather than HTTP failure or Agreement rollback.
 - Plan controlled recovery of already-failed GAS outbox records that still target legacy-owned topic ARNs: an application configuration switch does not retarget a stored row, and redrive alone replays the old ARN.
-- Immediately before removing the lifecycle `claimId` field in any environment still carrying it, reconfirm the live subscription inventory for the GAS-owned Agreement-status topic matches only the GAS and PDF queues; investigate any unexpected subscriber before proceeding.
+
+The compatibility proof must exercise the published event through the same serializer and SNS adapter used at runtime. A hand-authored fixture or a mapper-only unit test is not sufficient evidence of transport compatibility.
 
 ## Implementation Evidence
 
@@ -172,7 +173,7 @@ Verification includes repository-wide lint, the full unit test suite, focused re
 
 Agreement redelivery now checks for an existing Payment before resolving the pinned Payment definition, matching the Claim handler and this record's own stated invariant that redelivery finds the existing Payment even when the definition is no longer available (see Payment Hub Identity and Request Shape). A real Mongo replica-set regression proves one Payment, one counter increment and one external publication survive redelivery against an unavailable definition.
 
-The remaining deployment work is limited to the Rollout Obligations above and does not reopen this architectural decision.
+The remaining compatibility and deployment gates are tracked in the implementation plan and in Compatibility and Cutover Gates above.
 
 ## Consequences
 
@@ -188,4 +189,4 @@ One Payment Hub event can carry multiple scheduled payments in its `payments` ar
 
 The legacy Agreements service remains useful as evidence for the external Payment Hub event shape, but its internal identifier storage and synchronous publication flow are not copied into GAS.
 
-This record defines the intended architecture and its implementation. Live legacy traffic migration still depends on the Rollout Obligations above.
+This record defines the intended architecture and its implementation. Live legacy traffic migration still depends on the Compatibility and Cutover Gates above.
