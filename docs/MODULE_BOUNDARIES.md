@@ -121,6 +121,24 @@ retry, dead-letter and redrive path as handler failures.
   idempotent redelivery/concurrency verification and retry/dead-letter/redrive
   coverage.
 
+### Event and command ownership
+
+The producing context owns each event or command contract and constructs it from
+its domain state. Use cases hand ordered publications to `saveEvents` as
+`{ event, target, segregationRef? }` values in the caller's transaction. They do
+not construct `Outbox` records or call the outbox repository directly.
+
+The Events module exclusively owns Outbox construction, persistence and default
+segregation-reference derivation. A producer supplies `segregationRef` only when
+the contract's normal routing fields or `messageGroupId` do not express the
+required ordering boundary. Consumers own their handlers and register against
+the producer's exact contract type; consuming a contract does not transfer
+ownership of its vocabulary.
+
+ESLint enforces this persistence boundary for Grants use cases. Tests should
+mock `events/index.js` and assert against `saveEvents`, rather than mock an
+Outbox model or repository that belongs behind the facade.
+
 ### Payment event interface
 
 Agreements and Grants do not import Payments. They commit producer-owned request
