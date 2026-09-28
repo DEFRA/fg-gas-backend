@@ -1,54 +1,92 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { config } from "../../common/config.js";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
+import { saveEvents } from "../../events/index.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
-import { Outbox } from "../../events/models/outbox.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
 import {
   auditDataBuilder,
   createStatusTransitionUpdateUseCase,
 } from "./create-status-transition-update.use-case.js";
 
-vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/index.js");
 vi.mock("../../events/write-audit-event.js");
+
+const transition = {
+  clientRef: "some-client-ref",
+  code: "some-code",
+  newFullyQualifiedStatus: "SOME:STATUS:FOO",
+  originalFullyQualifiedStatus: "SOME:STATUS:BARR",
+  configVersion: "1.2.3",
+};
 
 describe("create status transition update", () => {
   beforeEach(() => {
+    saveEvents.mockResolvedValue(undefined);
     writeAuditEvent.mockResolvedValue(undefined);
   });
 
-  it("should create a callback handler that executes an outbox publisher command", async () => {
+  it("publishes the status-updated event to the status topic via saveEvents", async () => {
     const session = {};
-    const handler = createStatusTransitionUpdateUseCase({
-      clientRef: "some-client-ref",
-      code: "some-code",
-      newFullyQualifiedStatus: "SOME:STATUS:FOO",
-      originalFullyQualifiedStatus: "SOME:STATUS:BARR",
-    });
+    const handler = createStatusTransitionUpdateUseCase(transition);
+
     await handler(session);
-    expect(insertMany).toHaveBeenCalledWith([expect.any(Outbox)], session);
+
+    expect(saveEvents).toHaveBeenCalledWith(
+      [
+        {
+          target: config.sns.grantApplicationStatusUpdatedTopicArn,
+          event: expect.objectContaining({
+            data: expect.objectContaining({
+              clientRef: transition.clientRef,
+              grantCode: transition.code,
+              previousStatus: transition.originalFullyQualifiedStatus,
+              currentStatus: transition.newFullyQualifiedStatus,
+            }),
+          }),
+        },
+      ],
+      session,
+    );
+  });
+
+  it("does not set an explicit segregationRef", async () => {
+    const handler = createStatusTransitionUpdateUseCase(transition);
+
+    await handler({});
+
+    expect(saveEvents.mock.calls[0][0][0].segregationRef).toBeUndefined();
   });
 
   it("should do nothing if the statuses match", async () => {
     const session = {};
     const handler = createStatusTransitionUpdateUseCase({
-      clientRef: "some-client-ref",
-      code: "some-code",
-      newFullyQualifiedStatus: "SOME:STATUS:FOO",
-      originalFullyQualifiedStatus: "SOME:STATUS:FOO",
+      ...transition,
+      originalFullyQualifiedStatus: transition.newFullyQualifiedStatus,
     });
+
     await handler(session);
-    expect(insertMany).not.toHaveBeenCalled();
+
+    expect(saveEvents).not.toHaveBeenCalled();
     expect(writeAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("publishes the status event before writing the audit event", async () => {
+    const order = [];
+    saveEvents.mockImplementation(async () => order.push("saveEvents"));
+    writeAuditEvent.mockImplementation(async () =>
+      order.push("writeAuditEvent"),
+    );
+    const handler = createStatusTransitionUpdateUseCase(transition);
+
+    await handler({});
+
+    expect(order).toEqual(["saveEvents", "writeAuditEvent"]);
   });
 
   it("writes an audit event after a successful transition", async () => {
     const session = {};
-    const handler = createStatusTransitionUpdateUseCase({
-      clientRef: "some-client-ref",
-      code: "some-code",
-      newFullyQualifiedStatus: "SOME:STATUS:FOO",
-      originalFullyQualifiedStatus: "SOME:STATUS:BARR",
-    });
+    const handler = createStatusTransitionUpdateUseCase(transition);
+
     await handler(session);
 
     expect(writeAuditEvent).toHaveBeenCalledWith(
@@ -70,6 +108,14 @@ describe("create status transition update", () => {
       }),
       session,
     );
+  });
+
+  it("propagates a saveEvents failure", async () => {
+    const error = new Error("outbox down");
+    saveEvents.mockRejectedValueOnce(error);
+    const handler = createStatusTransitionUpdateUseCase(transition);
+
+    await expect(handler({})).rejects.toBe(error);
   });
 });
 

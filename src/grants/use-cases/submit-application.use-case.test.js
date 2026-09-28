@@ -4,14 +4,15 @@ import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { Application, ApplicationPhase } from "../models/application.js";
 import { save } from "../repositories/application.repository.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
+import { saveEvents } from "../../events/index.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 import {
   auditDataBuilder,
   submitApplicationUseCase,
 } from "./submit-application.use-case.js";
 
-vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/index.js");
+vi.mock("../../events/write-audit-event.js");
 vi.mock("../services/resolve-config-version.service.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/application-series.repository.js");
@@ -31,9 +32,7 @@ describe("submitApplicationUseCase", () => {
 
   it("creates an application", async () => {
     save.mockResolvedValue({ insertedId: "1234" });
-    insertMany.mockResolvedValueOnce({
-      insertedId: "1",
-    });
+    saveEvents.mockResolvedValueOnce(undefined);
     const mockSession = {};
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
     resolveAndFetchGrant.mockResolvedValue({
