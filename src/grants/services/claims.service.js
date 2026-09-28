@@ -17,10 +17,12 @@ import {
 } from "../repositories/claim.repository.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
+import { hasRemainingApplicationClaimCapacityUseCase } from "../use-cases/has-remaining-application-claim-capacity.use-case.js";
 import {
   pinnedVersionOf,
   resolveCurrentGrantUseCase,
 } from "../use-cases/resolve-current-grant.use-case.js";
+import { transitionApplicationUseCase } from "../use-cases/transition-application.use-case.js";
 
 const retries = 1;
 
@@ -401,6 +403,51 @@ const requestClaimPayment = async (
   );
 };
 
+const transitionOnFinalClaim = async (
+  { grant, application, claimable },
+  session,
+) => {
+  if (claimable.claim.requiresApproval) {
+    return;
+  }
+
+  const targetPosition = grant.claimApprovalTransitionFor(
+    application.currentPosition(),
+  );
+  if (!targetPosition) {
+    return;
+  }
+
+  const existing = await findExistingEntitlements(
+    application.clientRef,
+    application.code,
+    session,
+  );
+  const claimables = candidatesFor({ grant, existing });
+  if (
+    await hasRemainingApplicationClaimCapacityUseCase(
+      { application, claimables },
+      session,
+    )
+  ) {
+    return;
+  }
+
+  await transitionApplicationUseCase(
+    {
+      application,
+      grant,
+      targetPosition,
+      publishCaseWorkingStatusUpdate: true,
+      sideEffectContext: {
+        clientRef: application.clientRef,
+        code: application.code,
+      },
+    },
+    session,
+  );
+};
+
 const submitInTransaction = async (
   { command, grant, pinnedVersion, paymentConfigured },
   session,
@@ -428,6 +475,8 @@ const submitInTransaction = async (
     { command, claimCode: claimable.claimCode },
     session,
   );
+
+  await transitionOnFinalClaim({ grant, application, claimable }, session);
 
   await requestClaimPayment(
     {
