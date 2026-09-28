@@ -135,9 +135,9 @@ required ordering boundary. Consumers own their handlers and register against
 the producer's exact contract type; consuming a contract does not transfer
 ownership of its vocabulary.
 
-ESLint enforces this persistence boundary for Grants use cases. Tests should
-mock `events/index.js` and assert against `saveEvents`, rather than mock an
-Outbox model or repository that belongs behind the facade.
+ESLint enforces this persistence boundary for Agreements, Grants and Payments
+use cases. Tests should mock `events/index.js` and assert against `saveEvents`,
+rather than mock an Outbox model or repository that belongs behind the facade.
 
 ### Payment event interface
 
