@@ -21,6 +21,7 @@ export const createGrantUseCase = async (createGrantCommand) => {
     externalStatusMap: createGrantCommand.externalStatusMap,
     entitlementTemplates: createGrantCommand.entitlementTemplates,
     pages: createGrantCommand.pages,
+    claims: createGrantCommand.claims,
   });
 
   await save(grant);

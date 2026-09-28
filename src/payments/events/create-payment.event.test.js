@@ -187,7 +187,7 @@ describe("createPaymentPublication", () => {
     const { target } = createPaymentPublication(payment);
 
     expect(target).toBe(
-      "arn:aws:sns:eu-west-2:000000000000:create_payment.fifo",
+      "arn:aws:sns:eu-west-2:000000000000:gas__sns__create_payment_fifo.fifo",
     );
   });
 

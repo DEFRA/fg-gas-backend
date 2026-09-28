@@ -1,5 +1,5 @@
 import Boom from "@hapi/boom";
-import { wreck } from "../wreck.js";
+import { wreck } from "../../../common/wreck.js";
 import {
   resolveEndpointServiceHeaders,
   resolveEndpointServiceUrl,

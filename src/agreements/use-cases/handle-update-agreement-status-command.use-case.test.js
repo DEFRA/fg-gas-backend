@@ -1,14 +1,12 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
-import { resolvePaymentDefinition } from "../../payments/use-cases/resolve-payment-definition.js";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { findVersionByIdempotencyKey } from "../repositories/agreement.repository.js";
 import { commitAgreementAction } from "./execute-agreement-action.use-case.js";
 import { handleUpdateAgreementStatusCommandUseCase } from "./handle-update-agreement-status-command.use-case.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
-vi.mock("../../payments/use-cases/resolve-payment-definition.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("./execute-agreement-action.use-case.js", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -33,8 +31,6 @@ const agreement = {
   correlationId: "agreement-correlation-id",
   state: "offered",
 };
-
-const resolvedPayment = { totalAmountPence: 3800 };
 
 describe("handleUpdateAgreementStatusCommandUseCase", () => {
   beforeEach(() => {
@@ -72,17 +68,15 @@ describe("handleUpdateAgreementStatusCommandUseCase", () => {
         executedAt: expect.any(String),
       },
     });
-    expect(resolvePaymentDefinition).not.toHaveBeenCalled();
     expect(commitAgreementAction).toHaveBeenCalledWith({
       actionName: "withdraw",
       current: agreement,
       idempotencyKey: command.id,
       next,
-      resolvedPayment: null,
     });
   });
 
-  it("resolves Payment for an acceptance commit operation", async () => {
+  it("commits an acceptance Payment request without resolving Payments", async () => {
     const acceptCommand = {
       ...command,
       id: "acceptance-command-id",
@@ -106,22 +100,13 @@ describe("handleUpdateAgreementStatusCommandUseCase", () => {
       agreement,
       agreementDefinition,
     });
-    resolvePaymentDefinition.mockResolvedValue(resolvedPayment);
-
     await handleUpdateAgreementStatusCommandUseCase(acceptCommand);
 
-    const [{ execution }] = agreementDefinition.executeAction.mock.calls[0];
-    expect(resolvePaymentDefinition).toHaveBeenCalledWith({
-      code: agreement.code,
-      configVersion: next.agreement.configVersion,
-      context: { agreement: next.agreement, execution },
-    });
     expect(commitAgreementAction).toHaveBeenCalledWith({
       actionName: "accept",
       current: agreement,
       idempotencyKey: acceptCommand.id,
       next,
-      resolvedPayment,
     });
   });
 

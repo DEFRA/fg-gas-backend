@@ -99,6 +99,7 @@ export default [
                 "**/use-cases/**",
                 "**/commands/**",
                 "**/services/**",
+                "**/agreements/testing.js",
               ],
               message:
                 "Use cases should only import services, commands, repositories, models, events, publishers and common",
@@ -167,15 +168,9 @@ export default [
             {
               target: "**/grants/**/!(*.test).js",
               from: ["**/payments/**"],
-              except: [
-                "**/payments/use-cases/create-claim-payment.use-case.js",
-                "**/payments/use-cases/resolve-claim-payment.js",
-                "**/payments/use-cases/compile-payment-definition.js",
-              ],
               message:
-                "Grants may only enter Payments through its reviewed Claim Payment " +
-                "resolution and creation use cases, and its definition check. " +
-                "See docs/MODULE_BOUNDARIES.md.",
+                "Grants must not import Payments. Use registered definition checks " +
+                "or durable events. See docs/MODULE_BOUNDARIES.md.",
             },
             {
               target: "**/grants/**/!(*.test).js",
@@ -211,19 +206,23 @@ export default [
               from: ["src/agreements/**", "src/grants/**"],
               message:
                 "Payments must not import Agreements or Grants domain internals directly. " +
-                "Payments is entered through its own use cases and knows nothing about " +
-                "the modules that source a Payment. See docs/MODULE_BOUNDARIES.md.",
+                "Payments handles producer-owned events and knows nothing about the " +
+                "modules that source a Payment. See docs/MODULE_BOUNDARIES.md.",
             },
             {
               target: "**/agreements/**/!(*.test).js",
               from: ["**/payments/**"],
-              except: [
-                "**/payments/use-cases/create-agreement-payment.use-case.js",
-                "**/payments/use-cases/resolve-payment-definition.js",
-              ],
               message:
-                "Agreements may only enter Payments through its reviewed Payment creation " +
-                "and definition resolution use cases. See docs/MODULE_BOUNDARIES.md.",
+                "Agreements must not import Payments. Use durable events. " +
+                "See docs/MODULE_BOUNDARIES.md.",
+            },
+            {
+              target: "**/test-endpoints/**/!(*.test).js",
+              from: ["**/agreements/**"],
+              except: ["**/agreements/testing.js"],
+              message:
+                "Test Endpoints may only enter Agreements through its documented QA adapter. " +
+                "See docs/MODULE_BOUNDARIES.md.",
             },
           ],
         },

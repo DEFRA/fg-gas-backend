@@ -10,6 +10,7 @@ import {
 } from "../../../src/common/config-broker/config-catalog.repository.js";
 import { FetchStatus } from "../../../src/grants/models/config-version.js";
 import { processConfigVersionUseCase } from "../../../src/grants/use-cases/process-config-version.use-case.js";
+import { payments } from "../../../src/payments/index.js";
 
 let client;
 let configVersionsCol;
@@ -79,6 +80,7 @@ const uploadDefinitions = () =>
   ]);
 
 beforeAll(async () => {
+  payments.register();
   client = await MongoClient.connect(env.MONGO_URI);
   const db = client.db(env.MONGO_DATABASE);
   configVersionsCol = db.collection("config_versions");

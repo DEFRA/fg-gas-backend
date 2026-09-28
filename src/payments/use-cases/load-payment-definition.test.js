@@ -164,6 +164,7 @@ describe("loadPaymentDefinition", () => {
       .mockResolvedValueOnce({ insertedId: "definition" });
 
     await expect(loadPaymentDefinition(options)).rejects.toBe(error);
+    expect(error.retryable).toBeUndefined();
     expectStatus(FetchStatus.TransientError, error.message);
     expectLogged(error);
 
@@ -181,6 +182,7 @@ describe("loadPaymentDefinition", () => {
       .mockResolvedValueOnce(null);
 
     await expect(loadPaymentDefinition(options)).rejects.toBe(error);
+    expect(error.retryable).toBeUndefined();
     expectStatus(FetchStatus.TransientError, error.message);
     expectLogged(error);
 
@@ -216,6 +218,7 @@ describe("loadPaymentDefinition", () => {
 
     await expect(loadPaymentDefinition(options)).rejects.toMatchObject({
       isBoom: true,
+      retryable: false,
       output: { statusCode: 500 },
     });
     expect(findPaymentDefinition).not.toHaveBeenCalled();
@@ -230,6 +233,7 @@ describe("loadPaymentDefinition", () => {
 
     await expect(loadPaymentDefinition(options)).rejects.toMatchObject({
       isBoom: true,
+      retryable: false,
       output: { statusCode: 500 },
     });
     expect(findPaymentDefinition).not.toHaveBeenCalled();
@@ -242,6 +246,7 @@ describe("loadPaymentDefinition", () => {
 
     await expect(loadPaymentDefinition(options)).rejects.toMatchObject({
       isBoom: true,
+      retryable: false,
       output: { statusCode: 500 },
       message: expect.stringContaining('does not match "gas"'),
     });
@@ -261,6 +266,7 @@ describe("loadPaymentDefinition", () => {
 
     expect(error).toMatchObject({
       isBoom: true,
+      retryable: false,
       output: { statusCode: 500 },
     });
     expect(error).not.toBeInstanceOf(TypeError);
@@ -303,6 +309,9 @@ describe("loadPaymentDefinition", () => {
     fetchConfigFile.mockRejectedValue(error);
 
     await expect(loadPaymentDefinition(options)).rejects.toBe(error);
+    expect(error.retryable).toBe(
+      status === FetchStatus.PermanentError ? false : undefined,
+    );
     expectStatus(status, error.message);
     expectLogged(error);
   });

@@ -3,8 +3,8 @@ import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { config } from "../../common/config.js";
 import {
   canHandleInternalCommand,
-  internalMessageBusTarget,
-} from "../../common/internal-command-bus.js";
+  internalCommandTarget,
+} from "../../common/internal-command-handlers.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import {
   Agreement,
@@ -28,8 +28,10 @@ import {
   withdrawApplicationUseCase,
 } from "./withdraw-application.use-case.js";
 
-vi.mock("../../common/internal-command-bus.js", async () => {
-  const actual = await vi.importActual("../../common/internal-command-bus.js");
+vi.mock("../../common/internal-command-handlers.js", async () => {
+  const actual = await vi.importActual(
+    "../../common/internal-command-handlers.js",
+  );
   return { ...actual, canHandleInternalCommand: vi.fn() };
 });
 vi.mock("../repositories/application.repository.js");
@@ -95,9 +97,7 @@ describe("withdrawApplicationUseCase", () => {
 
     expect(insertMany).toHaveBeenCalledTimes(1);
     expect(insertMany.mock.calls[0][0]).toHaveLength(1);
-    expect(insertMany.mock.calls[0][0][0].target).toBe(
-      internalMessageBusTarget,
-    );
+    expect(insertMany.mock.calls[0][0][0].target).toBe(internalCommandTarget);
     expect(agreement.latestStatus).toBe(Status.Offered);
 
     expect(writeAuditEvent).toHaveBeenCalledWith(
