@@ -12,16 +12,25 @@ const assertDecodedLength = (value, helpers) =>
     ? helpers.error("actor.tooLong")
     : value;
 
+const actorHeader = Joi.string()
+  .trim()
+  .max(ENCODED_MAX)
+  .custom(assertDecodedLength)
+  .messages({
+    "actor.tooLong": `"x-actor" must be at most ${ACTOR_MAX} characters`,
+  })
+  .empty("");
+
 export const actorHeaderSchema = Joi.object({
-  "x-actor": Joi.string()
-    .trim()
-    .max(ENCODED_MAX)
-    .custom(assertDecodedLength)
-    .messages({
-      "actor.tooLong": `"x-actor" must be at most ${ACTOR_MAX} characters`,
-    })
-    .empty("")
-    .optional(),
+  "x-actor": actorHeader.optional(),
 })
   .unknown(true)
   .label("ActorHeaders");
+
+// A purge writes an audit event of its own, on both backends, and an anonymous
+// one would record no operator at all - so the purge route insists on a name.
+export const requiredActorHeaderSchema = Joi.object({
+  "x-actor": actorHeader.required(),
+})
+  .unknown(true)
+  .label("RequiredActorHeaders");

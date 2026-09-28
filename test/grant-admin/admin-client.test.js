@@ -27,6 +27,14 @@ const ROUTES = [
       ),
   ],
   [
+    "a purge",
+    () =>
+      wreck.post(`/grant-admin/events/gas/inbox/${ID}/purge`, {
+        ...as(OTHER_SERVICE),
+        payload: { reasonCode: "BROKEN_PAYLOAD" },
+      }),
+  ],
+  [
     "the claims read",
     () =>
       wreck.get(

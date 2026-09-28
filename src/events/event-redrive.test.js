@@ -21,6 +21,7 @@ import {
 } from "./repositories/outbox.repository.js";
 import {
   DEAD_LETTER,
+  REDRIVABLE_DESCRIPTION,
   REDRIVABLE_STATUSES,
   redriveConflict,
 } from "./event-redrive.js";
@@ -38,6 +39,7 @@ const OPERATORS = {
   $lte: (value, operand) => value <= operand,
   $gte: (value, operand) => value >= operand,
   $nin: (value, operand) => !operand.includes(value),
+  $in: (value, operand) => operand.includes(value),
 };
 
 const isOperatorObject = (condition) =>
@@ -185,12 +187,35 @@ describe.each(BOXES)("redrive invariants ($name)", (box) => {
     [failedFilter, failedUpdate] = await capture("updateMany", box.failed);
   });
 
-  it("only matches a DEAD_LETTER row, so a concurrent change loses cleanly", () => {
-    expect(redriveFilter.status).toBe(DEAD_LETTER);
+  it("only matches a redrivable row, so a concurrent change loses cleanly", () => {
+    expect(redriveFilter.status).toEqual({ $in: REDRIVABLE_STATUSES });
     expect(matchesFilter(aDeadLetter(), redriveFilter)).toBe(true);
     expect(
       matchesFilter({ ...aDeadLetter(), status: "PROCESSING" }, redriveFilter),
     ).toBe(false);
+  });
+
+  // The promise the purge confirm makes: "You can redrive it until then."
+  it("matches a purged row too, so a purge can be undone until it is deleted", () => {
+    expect(
+      matchesFilter({ ...aDeadLetter(), status: "PURGED" }, redriveFilter),
+    ).toBe(true);
+  });
+
+  it("keeps lastPurge, so a redriven row still says it was purged once", () => {
+    const lastPurge = {
+      at: "2026-09-21T09:00:00.000Z",
+      by: "donatas",
+      reasonCode: "BROKEN_PAYLOAD",
+      note: null,
+    };
+    const redriven = applyUpdate(
+      { ...aDeadLetter(), status: "PURGED", lastPurge },
+      redriveDoc,
+    );
+
+    expect(redriven.lastPurge).toEqual(lastPurge);
+    expect(redriveDoc.$set).not.toHaveProperty("lastPurge");
   });
 
   it("leaves the row RESUBMITTED with its attempts reset to 0", () => {
@@ -357,9 +382,14 @@ describe("REDRIVABLE_STATUSES", () => {
     expect(REDRIVABLE_STATUSES).toEqual(["DEAD_LETTER", "PURGED"]);
   });
 
-  it("is not yet what the fence matches on", () => {
+  it("is what the fence matches on, and DEAD_LETTER stays its own constant", () => {
     expect(DEAD_LETTER).toBe("DEAD_LETTER");
     expect(REDRIVABLE_STATUSES).toContain(DEAD_LETTER);
+  });
+
+  // The 409 the admin turns into "this event can't be redriven".
+  it("is spelled out for a refusal to read", () => {
+    expect(REDRIVABLE_DESCRIPTION).toBe("redrivable (DEAD_LETTER or PURGED)");
   });
 });
 
@@ -383,13 +413,24 @@ describe("redriveConflict", () => {
     ).toBe("Dead letter");
   });
 
-  it("names the box, the id and the required status in the message", () => {
+  it("names the box, the id and every status it would have taken", () => {
     const { message } = redriveConflict("gas outbox", ID, "PUBLISHED").output
       .payload;
 
     expect(message).toContain("gas outbox");
     expect(message).toContain(ID);
     expect(message).toContain("PUBLISHED");
-    expect(message).toContain(DEAD_LETTER);
+    expect(message).toContain(REDRIVABLE_DESCRIPTION);
+  });
+
+  // A purged row is redrivable, so a refusal must not tell an operator that
+  // only a dead letter can be redriven.
+  it("does not claim a dead letter is the only thing a redrive takes", () => {
+    const { message } = redriveConflict("gas inbox", ID, "COMPLETED").output
+      .payload;
+
+    expect(message).toBe(
+      `gas inbox event "${ID}" is COMPLETED, not redrivable (DEAD_LETTER or PURGED)`,
+    );
   });
 });

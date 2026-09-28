@@ -1,5 +1,6 @@
 import Joi from "joi";
 import {
+  eventLastPurgeSchema,
   eventLastRedriveSchema,
   eventRowWithAttemptsSchema,
 } from "./events-shared.schema.js";
@@ -29,5 +30,9 @@ export const eventDetailResponseSchema = eventRowWithAttemptsSchema
     claimedBy: Joi.any().forbidden(),
     attemptHistory: Joi.array().items(eventAttemptSchema).required(),
     lastRedrive: eventLastRedriveSchema.allow(null).required(),
+    lastPurge: eventLastPurgeSchema.allow(null).required(),
+    // Present only where a purge is possible: the admin gates its button on
+    // it. Null on anything but a dead letter.
+    purgeDeletionDate: isoOrNull,
   })
   .label("EventDetail");

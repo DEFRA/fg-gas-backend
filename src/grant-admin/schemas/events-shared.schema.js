@@ -15,6 +15,15 @@ export const eventLastRedriveSchema = Joi.object({
   by: Joi.string().required().example("System"),
 }).label("EventLastRedrive");
 
+// `reasonCode` is a free string, not an enum, so a code this version has not
+// heard of cannot 500 the page.
+export const eventLastPurgeSchema = Joi.object({
+  at: Joi.string().isoDate().allow(null).required(),
+  by: Joi.string().required().example("System"),
+  reasonCode: Joi.string().allow("").required().example("BROKEN_PAYLOAD"),
+  note: Joi.string().allow(null, "").required(),
+}).label("EventLastPurge");
+
 const statusDisplaySchema = {
   statusLabel: Joi.string().required().example("Dead letter"),
   statusRole: Joi.string()

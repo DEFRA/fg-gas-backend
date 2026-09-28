@@ -118,6 +118,8 @@ describe("getEventRoute over HTTP", () => {
     lastResubmissionDate: null,
     attemptHistory: [],
     lastRedrive: null,
+    lastPurge: null,
+    purgeDeletionDate: null,
   };
 
   const url = `/grant-admin/events/gas/outbox/${ID}`;

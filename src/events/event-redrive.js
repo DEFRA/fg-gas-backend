@@ -5,8 +5,11 @@ const RESET_ATTEMPTS = 0;
 
 export const DEAD_LETTER = "DEAD_LETTER";
 
-// Wider than the redrive fence, which still matches DEAD_LETTER alone.
+// A purged row stays redrivable until its deletion date, which is what the
+// purge confirm promises.
 export const REDRIVABLE_STATUSES = [DEAD_LETTER, "PURGED"];
+
+export const REDRIVABLE_DESCRIPTION = `redrivable (${REDRIVABLE_STATUSES.join(" or ")})`;
 
 const redriveRecord = (by, at) => ({
   at: (at ?? new Date()).toISOString(),
@@ -31,7 +34,7 @@ export const redriveUpdate = (resubmittedStatus, { by, at } = {}) => ({
 // The status labels are passed in: this module is shared with the pollers.
 export const redriveConflict = (box, id, status, statusLabel) => {
   const error = Boom.conflict(
-    `${box} event "${id}" is ${status}, not ${DEAD_LETTER}`,
+    `${box} event "${id}" is ${status}, not ${REDRIVABLE_DESCRIPTION}`,
   );
 
   error.output.payload.status = status;

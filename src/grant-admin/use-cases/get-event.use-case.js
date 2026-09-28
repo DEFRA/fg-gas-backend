@@ -32,6 +32,7 @@ const getGasEvent = async (box, id) => {
     box,
     doc,
     maxAttempts: GAS_BOXES[box].maxAttempts(),
+    retentionDays: config.events.retentionDays,
   });
 };
 

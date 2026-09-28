@@ -21,10 +21,13 @@ const emptyBox = () => ({
   mode: "ok",
   data: [],
   pagination: { endCursor: null, hasNextPage: false },
-  // A null `detail` or a false `redrive` is a 404; a conflict status is a 409.
+  // A null `detail` or a false `redrive`/`purge` is a 404; a conflict status
+  // is a 409.
   detail: null,
   redrive: false,
   redriveConflictStatus: null,
+  purge: false,
+  purgeConflictStatus: null,
   counts: {
     PUBLISHED: 0,
     PROCESSING: 0,
@@ -180,8 +183,22 @@ const handleDetail = async (name, id, request, response) => {
   return send(response, OK, { ...box.detail, _id: id });
 };
 
-// POST /actuators/events/{box}/{id}/redrive: 204 with no body, or 409/404.
-const handleRedrive = async (name, id, request, response) => {
+const conflict = (response, status, required) =>
+  send(response, CONFLICT, {
+    statusCode: CONFLICT,
+    error: "Conflict",
+    message: `event is ${status}, not ${required}`,
+    status,
+  });
+
+// POST /actuators/events/{box}/{id}/{redrive|purge}: 204, 409 or 404. Both
+// real routes answer the same way, so one handler serves both.
+const handleAction = async (
+  name,
+  request,
+  response,
+  { allowed, conflictStatus, required },
+) => {
   await record(name, request);
 
   if (!isAuthorised(request)) {
@@ -194,16 +211,11 @@ const handleRedrive = async (name, id, request, response) => {
     return respondForMode(box, response);
   }
 
-  if (box.redriveConflictStatus) {
-    return send(response, CONFLICT, {
-      statusCode: CONFLICT,
-      error: "Conflict",
-      message: `event is ${box.redriveConflictStatus}, not DEAD_LETTER`,
-      status: box.redriveConflictStatus,
-    });
+  if (box[conflictStatus]) {
+    return conflict(response, box[conflictStatus], required);
   }
 
-  if (!box.redrive) {
+  if (!box[allowed]) {
     return send(response, NOT_FOUND, { message: "Not found" });
   }
 
@@ -211,8 +223,22 @@ const handleRedrive = async (name, id, request, response) => {
   return response.end();
 };
 
+// A redrive may start from a purged row too; a purge may not.
+const ACTIONS = {
+  redrive: {
+    allowed: "redrive",
+    conflictStatus: "redriveConflictStatus",
+    required: "redrivable (DEAD_LETTER or PURGED)",
+  },
+  purge: {
+    allowed: "purge",
+    conflictStatus: "purgeConflictStatus",
+    required: "DEAD_LETTER",
+  },
+};
+
 const EVENT_PATH =
-  /^\/actuators\/events\/(inbox|outbox)\/([^/]+)(?:\/(redrive))?$/;
+  /^\/actuators\/events\/(inbox|outbox)\/([^/]+)(?:\/(redrive|purge))?$/;
 
 const routeEvent = (pathname, request, response) => {
   const match = EVENT_PATH.exec(pathname);
@@ -223,8 +249,8 @@ const routeEvent = (pathname, request, response) => {
 
   const [, name, id, action] = match;
 
-  if (action === "redrive") {
-    return handleRedrive(name, id, request, response);
+  if (action) {
+    return handleAction(name, request, response, ACTIONS[action]);
   }
 
   return handleDetail(name, id, request, response);
