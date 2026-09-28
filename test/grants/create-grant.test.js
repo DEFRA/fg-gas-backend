@@ -42,12 +42,40 @@ describe("POST /grants", () => {
         // externalStatusMap does, because the driver resolves ignoreUndefined
         // to false.
         pages: null,
+        claims: null,
         // A grant with no templates now stores an empty collection rather than
         // null: the model always holds one, so that is what reaches the
         // document. externalStatusMap is untouched and still serializes to null.
         entitlementTemplates: [],
       },
     ]);
+  });
+
+  it("persists claims.onClaimApproval configured on the grant", async () => {
+    const claims = {
+      onClaimApproval: {
+        currentPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "RECEIVED",
+        },
+        targetPosition: {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "REVIEW",
+        },
+      },
+    };
+    const code = `${grant1.code}-claims`;
+
+    const response = await wreck.post("/grants", {
+      payload: { ...grant1, code, claims },
+    });
+
+    expect(response.res.statusCode).toEqual(204);
+
+    const document = await grants.findOne({ code });
+    expect(document.claims).toEqual(claims);
   });
 
   it("returns 409 when code exists", async () => {

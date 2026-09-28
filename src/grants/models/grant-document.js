@@ -9,5 +9,6 @@ export class GrantDocument {
     this.amendablePositions = grant.amendablePositions;
     this.entitlementTemplates = grant.entitlementTemplates;
     this.pages = grant.pages;
+    this.claims = grant.claims;
   }
 }
