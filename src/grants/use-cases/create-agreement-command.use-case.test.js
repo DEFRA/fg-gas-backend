@@ -7,16 +7,16 @@ import {
   registerInternalCommandHandler,
 } from "../../common/internal-command-handlers.js";
 import { internalCommandTypes } from "../../common/internal-command-types.js";
+import { saveEvents } from "../../events/index.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { Application } from "../models/application.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
 import {
   auditDataBuilder,
   createAgreementCommandUseCase,
 } from "./create-agreement-command.use-case.js";
 
-vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/index.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../../events/write-audit-event.js");
 
@@ -63,10 +63,11 @@ describe("create agreement use case", () => {
       session,
     );
 
-    expect(insertMany).toHaveBeenCalledWith(
+    expect(saveEvents).toHaveBeenCalledWith(
       [expect.objectContaining({ target })],
       session,
     );
+    expect(saveEvents.mock.calls[0][0][0].segregationRef).toBeUndefined();
   });
 
   it("writes a CREATE_AGREEMENT audit event", async () => {
