@@ -34,7 +34,7 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 | **HTTP / REST API**                       | Call the Grants HTTP endpoints; do not share route handlers or controllers                                                                                                                                                      |
 | **Events**                                | Publish to or consume from SNS/SQS topics; event shapes live in `src/*/events/`                                                                                                                                                 |
 | **Commands**                              | Send commands through the internal command target; command shapes live in `src/*/commands/`                                                                                                                                     |
-| **Inbox / Outbox records**                | Write to the shared inbox/outbox collection; poll or subscribe to the other module's outbox                                                                                                                                     |
+| **Durable publications**                  | Pass producer-owned events or commands to `saveEvents` in the caller's transaction. Direct inbox/outbox collection access belongs to the Events module and the documented Grant Admin seam.                                     |
 | **Shared infrastructure**                 | Import from `src/common/` (logger, DB client, messaging helpers)                                                                                                                                                                |
 | **Shared event domain**                   | Import from `src/events/` (audit predicate, list filter, status counts, facets, breakdown, redrive, retention, last error)                                                                                                      |
 | **Grants → Agreements reference context** | `grants` may call the reviewed Agreements query interface for a plain reference-resolution context. The query accepts the active Mongo session; it does not expose an Agreements repository or domain model.                    |
@@ -135,9 +135,10 @@ required ordering boundary. Consumers own their handlers and register against
 the producer's exact contract type; consuming a contract does not transfer
 ownership of its vocabulary.
 
-ESLint enforces this persistence boundary for Agreements, Grants and Payments
-use cases. Tests should mock `events/index.js` and assert against `saveEvents`,
-rather than mock an Outbox model or repository that belongs behind the facade.
+ESLint enforces this persistence boundary throughout the Agreements, Grants and
+Payments producer modules. Tests should mock `events/index.js` and assert against
+`saveEvents`, rather than mock an Outbox model or repository that belongs behind
+the facade.
 
 ### Payment event interface
 

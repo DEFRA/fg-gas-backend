@@ -123,7 +123,7 @@ const persistWithAgreementNumberRetry = async (definition, agreement) => {
 
 // Owns the whole agreement creation operation so every caller shares identical
 // behaviour: loading the agreement definition, building and persisting the
-// Agreement with its version and outbox events, and collapsing concurrent
+// Agreement with its version and durable publications, and collapsing concurrent
 // duplicate requests onto the stored Agreement. The production message path and
 // the QA test endpoint both map their own input into this single use case
 // rather than reproducing the steps.
