@@ -7,6 +7,7 @@ import {
   internalCommandTarget,
 } from "../../common/internal-command-handlers.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
+import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -172,6 +173,10 @@ describe("withdrawApplicationUseCase", () => {
     expect(saveEvents).toHaveBeenCalledTimes(1);
     expect(saveEvents).toHaveBeenCalledWith(expect.any(Array), session);
     expect(saveEvents.mock.calls[0][0]).toHaveLength(2);
+    expect(saveEvents.mock.calls[0][0][0]).toEqual({
+      event: expect.any(UpdateCaseStatusCommand),
+      target: config.sns.updateCaseStatusTopicArn,
+    });
     expect(saveEvents.mock.calls[0][0][1]).toEqual(
       expect.objectContaining({
         event: expect.objectContaining({
