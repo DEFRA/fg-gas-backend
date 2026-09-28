@@ -3,8 +3,7 @@ import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
-import { Outbox } from "../../events/models/outbox.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
+import { saveEvents } from "../../events/index.js";
 
 const writeStatusTransition = async (
   { clientRef, code, previousStatus, currentStatus, currentConfigVersion },
@@ -18,13 +17,12 @@ const writeStatusTransition = async (
     currentStatus,
   });
 
-  await insertMany(
+  await saveEvents(
     [
-      new Outbox({
+      {
         event: statusEvent,
         target: config.sns.grantApplicationStatusUpdatedTopicArn,
-        segregationRef: Outbox.getSegregationRef(statusEvent),
-      }),
+      },
     ],
     session,
   );

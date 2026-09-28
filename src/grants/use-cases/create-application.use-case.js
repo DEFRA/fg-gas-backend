@@ -3,9 +3,8 @@ import { logger } from "../../common/logger.js";
 import { CreateNewCaseCommand } from "../commands/create-new-case.command.js";
 import { ApplicationCreatedEvent } from "../events/application-created.event.js";
 import { Application } from "../models/application.js";
-import { Outbox } from "../../events/models/outbox.js";
+import { saveEvents } from "../../events/index.js";
 import { save } from "../repositories/application.repository.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
 import { validateAnswersAgainstSchema } from "../services/schema-validation.service.js";
 import { resolveGrantForSubmission } from "./resolve-current-grant.use-case.js";
 
@@ -75,18 +74,16 @@ export const createApplicationUseCase = async (
 
   const createNewCaseCommand = new CreateNewCaseCommand(application);
 
-  await insertMany(
+  await saveEvents(
     [
-      new Outbox({
+      {
         event: applicationCreatedEvent,
         target: config.sns.grantApplicationCreatedTopicArn,
-        segregationRef: Outbox.getSegregationRef(applicationCreatedEvent),
-      }),
-      new Outbox({
+      },
+      {
         event: createNewCaseCommand,
         target: config.sns.createNewCaseTopicArn,
-        segregationRef: Outbox.getSegregationRef(createNewCaseCommand),
-      }),
+      },
     ],
     session,
   );

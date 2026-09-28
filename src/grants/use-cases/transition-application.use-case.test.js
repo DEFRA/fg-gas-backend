@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { config } from "../../common/config.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
 import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
+import { config } from "../../common/config.js";
+import { saveEvents } from "../../events/index.js";
 import { update } from "../repositories/application.repository.js";
 import { createStatusTransitionUpdateUseCase } from "./create-status-transition-update.use-case.js";
 import { transitionApplicationUseCase } from "./transition-application.use-case.js";
 
-vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/index.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("./create-status-transition-update.use-case.js");
 
@@ -74,12 +74,11 @@ describe("transitionApplicationUseCase", () => {
       clientRef: "application-1",
       code: "test-grant",
       configVersion: "1.2.3",
-      originalFullyQualifiedStatus:
-        "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+      originalFullyQualifiedStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
       newFullyQualifiedStatus: "PRE_AWARD:ASSESSMENT:IN_REVIEW",
     });
     expect(publishStatusTransition).toHaveBeenCalledWith(session);
-    expect(insertMany).not.toHaveBeenCalled();
+    expect(saveEvents).not.toHaveBeenCalled();
   });
 
   it("publishes the Claims-originated Case Working status command", async () => {
@@ -88,9 +87,9 @@ describe("transitionApplicationUseCase", () => {
       session,
     );
 
-    expect(insertMany).toHaveBeenCalledWith(
+    expect(saveEvents).toHaveBeenCalledWith(
       [
-        expect.objectContaining({
+        {
           target: config.sns.updateCaseStatusTopicArn,
           event: expect.objectContaining({
             data: expect.objectContaining({
@@ -104,10 +103,11 @@ describe("transitionApplicationUseCase", () => {
               },
             }),
           }),
-        }),
+        },
       ],
       session,
     );
+    expect(saveEvents.mock.calls[0][0][0].segregationRef).toBeUndefined();
   });
 
   it("keeps a move to the current position as a true no-op", async () => {
@@ -120,6 +120,6 @@ describe("transitionApplicationUseCase", () => {
 
     expect(update).not.toHaveBeenCalled();
     expect(createStatusTransitionUpdateUseCase).not.toHaveBeenCalled();
-    expect(insertMany).not.toHaveBeenCalled();
+    expect(saveEvents).not.toHaveBeenCalled();
   });
 });

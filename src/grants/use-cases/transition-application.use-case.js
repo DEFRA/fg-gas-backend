@@ -1,7 +1,6 @@
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import { Outbox } from "../../events/models/outbox.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
+import { saveEvents } from "../../events/index.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import { update } from "../repositories/application.repository.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
@@ -59,13 +58,12 @@ const enqueueCaseWorkingStatusUpdate = async (
     stage: previousPosition.stage,
   });
 
-  await insertMany(
+  await saveEvents(
     [
-      new Outbox({
+      {
         event: statusCommand,
         target: config.sns.updateCaseStatusTopicArn,
-        segregationRef: Outbox.getSegregationRef(statusCommand),
-      }),
+      },
     ],
     session,
   );
