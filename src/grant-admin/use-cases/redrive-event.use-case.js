@@ -13,6 +13,7 @@ import {
   redriveById as redriveGasOutbox,
 } from "../../events/repositories/outbox.repository.js";
 import { redriveCwEvent } from "../repositories/cw-actuators.repository.js";
+import { withStatusLabel } from "../services/cw-conflict.js";
 import { statusDisplay } from "../services/event-display.js";
 import { GAS } from "../services/event-sources.js";
 
@@ -40,19 +41,6 @@ const redriveGasEvent = async (box, id, actor, session) => {
     status,
     statusDisplay(status).statusLabel,
   );
-};
-
-// A Caseworking 409 gains the same status label a GAS conflict carries.
-const conflictPayload = (error) => error.output?.payload;
-
-const withStatusLabel = (error) => {
-  const payload = conflictPayload(error) ?? {};
-
-  if (payload.status) {
-    payload.statusLabel = statusDisplay(payload.status).statusLabel;
-  }
-
-  throw error;
 };
 
 const redriveCaseworkingEvent = async (box, id, actor) => {

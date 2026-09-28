@@ -1,6 +1,8 @@
 import { ObjectId } from "mongodb";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toEventDetail } from "./map-event-detail.js";
+
+const RETENTION_DAYS = 90;
 
 const objectId = new ObjectId("665f1c2e9a1b2c3d4e5f6a7b");
 const TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
@@ -61,6 +63,7 @@ const inboxDetail = (overrides) =>
     box: "inbox",
     doc: anInboxDoc(overrides),
     maxAttempts: 5,
+    retentionDays: RETENTION_DAYS,
   });
 
 const outboxDetail = (overrides) =>
@@ -69,6 +72,7 @@ const outboxDetail = (overrides) =>
     box: "outbox",
     doc: anOutboxDoc(overrides),
     maxAttempts: 5,
+    retentionDays: RETENTION_DAYS,
   });
 
 // `lastError` stores a stack; this transform stands between it and the wire.
@@ -528,4 +532,176 @@ describe("toEventDetail traceId", () => {
       expect(inboxDetail({ traceparent }).traceId).toBeNull();
     },
   );
+});
+
+describe("toEventDetail lastPurge", () => {
+  const aPurge = (overrides = {}) => ({
+    at: "2026-09-21T09:00:00.000Z",
+    by: "donatas",
+    reasonCode: "BROKEN_PAYLOAD",
+    note: "the payload lost its clientRef",
+    ...overrides,
+  });
+
+  it("is null on a row nobody has purged", () => {
+    expect(inboxDetail().lastPurge).toBeNull();
+    expect(outboxDetail().lastPurge).toBeNull();
+  });
+
+  it("is null on a row written before the field existed", () => {
+    expect(inboxDetail({ lastPurge: undefined }).lastPurge).toBeNull();
+  });
+
+  it("maps the record key by key", () => {
+    expect(inboxDetail({ lastPurge: aPurge() }).lastPurge).toEqual({
+      at: "2026-09-21T09:00:00.000Z",
+      by: "donatas",
+      reasonCode: "BROKEN_PAYLOAD",
+      note: "the payload lost its clientRef",
+    });
+  });
+
+  it("drops a key another version added rather than passing it on", () => {
+    const detail = inboxDetail({
+      lastPurge: aPurge({ approvedBy: "SOMEONE-ELSE" }),
+    });
+
+    expect(Object.keys(detail.lastPurge)).toEqual([
+      "at",
+      "by",
+      "reasonCode",
+      "note",
+    ]);
+    expect(JSON.stringify(detail)).not.toContain("SOMEONE-ELSE");
+  });
+
+  it("names an unattributed purge as the platform's own", () => {
+    const doc = anInboxDoc({ lastPurge: aPurge({ by: null }) });
+
+    expect(
+      toEventDetail({
+        service: "gas",
+        box: "inbox",
+        doc,
+        maxAttempts: 5,
+        retentionDays: RETENTION_DAYS,
+      }).lastPurge.by,
+    ).toBe("System");
+    expect(doc.lastPurge.by).toBeNull();
+  });
+
+  it("keeps a missing note null rather than inventing one", () => {
+    expect(
+      inboxDetail({ lastPurge: aPurge({ note: null }) }).lastPurge.note,
+    ).toBeNull();
+    expect(
+      inboxDetail({ lastPurge: aPurge({ note: undefined }) }).lastPurge.note,
+    ).toBeNull();
+  });
+
+  it("survives a record with no reason code at all", () => {
+    expect(
+      inboxDetail({ lastPurge: aPurge({ reasonCode: undefined }) }).lastPurge
+        .reasonCode,
+    ).toBe("");
+  });
+
+  it("stays on a row that has since been redriven", () => {
+    const detail = inboxDetail({
+      status: "RESUBMITTED",
+      lastPurge: aPurge(),
+      lastRedrive: { at: "2026-09-22T09:00:00.000Z", by: "donatas" },
+    });
+
+    expect(detail.status).toBe("RESUBMITTED");
+    expect(detail.lastPurge).not.toBeNull();
+  });
+
+  it("passes a Caseworking record through the same mapping", () => {
+    const detail = toEventDetail({
+      service: "caseworking",
+      box: "inbox",
+      doc: {
+        ...anInboxDoc(),
+        _id: "665f1c2e9a1b2c3d4e5f6a7b",
+        lastPurge: aPurge({ by: null }),
+      },
+      maxAttempts: 7,
+      retentionDays: RETENTION_DAYS,
+    });
+
+    expect(detail.lastPurge).toEqual({
+      at: "2026-09-21T09:00:00.000Z",
+      by: "System",
+      reasonCode: "BROKEN_PAYLOAD",
+      note: "the payload lost its clientRef",
+    });
+  });
+});
+
+describe("toEventDetail purgeDeletionDate", () => {
+  const NOW = new Date("2026-09-21T09:00:00.000Z");
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("projects now + the retention on a GAS dead letter", () => {
+    expect(inboxDetail().purgeDeletionDate).toBe("2026-12-20T09:00:00.000Z");
+    expect(outboxDetail().purgeDeletionDate).toBe("2026-12-20T09:00:00.000Z");
+  });
+
+  it("follows a shorter configured retention", () => {
+    const detail = toEventDetail({
+      service: "gas",
+      box: "inbox",
+      doc: anInboxDoc(),
+      maxAttempts: 5,
+      retentionDays: 30,
+    });
+
+    expect(detail.purgeDeletionDate).toBe("2026-10-21T09:00:00.000Z");
+  });
+
+  it.each(["COMPLETED", "PURGED", "PUBLISHED", "PROCESSING", "FAILED"])(
+    "is null on a %s row, which cannot be purged",
+    (status) => {
+      expect(inboxDetail({ status }).purgeDeletionDate).toBeNull();
+      expect(outboxDetail({ status }).purgeDeletionDate).toBeNull();
+    },
+  );
+
+  // The two services may be configured with different retentions.
+  it("passes a Caseworking projection through untouched", () => {
+    const detail = toEventDetail({
+      service: "caseworking",
+      box: "inbox",
+      doc: {
+        ...anInboxDoc(),
+        _id: "665f1c2e9a1b2c3d4e5f6a7b",
+        purgeDeletionDate: "2027-01-01T00:00:00.000Z",
+      },
+      maxAttempts: 7,
+      retentionDays: RETENTION_DAYS,
+    });
+
+    expect(detail.purgeDeletionDate).toBe("2027-01-01T00:00:00.000Z");
+  });
+
+  it("is null for a Caseworking row that names no projection", () => {
+    const detail = toEventDetail({
+      service: "caseworking",
+      box: "inbox",
+      doc: { ...anInboxDoc(), _id: "665f1c2e9a1b2c3d4e5f6a7b" },
+      maxAttempts: 7,
+      retentionDays: RETENTION_DAYS,
+    });
+
+    expect(detail.purgeDeletionDate).toBeNull();
+  });
 });
