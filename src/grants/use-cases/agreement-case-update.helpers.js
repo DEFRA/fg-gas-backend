@@ -1,6 +1,5 @@
 import { config } from "../../common/config.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
-import { ApplicationStatusUpdatedEvent } from "../events/application-status-updated.event.js";
 
 export const getAgreementData = (application, agreementNumber) =>
   application
@@ -31,26 +30,7 @@ export const createAgreementCaseUpdateCommand = ({
   });
 };
 
-export const createApplicationStatusUpdatedEventData = ({
-  clientRef,
-  code,
-  previousStatus,
-  application,
-}) =>
-  new ApplicationStatusUpdatedEvent({
-    clientRef,
-    code,
-    currentConfigVersion: application.currentConfigVersion,
-    previousStatus,
-    currentStatus: application.getFullyQualifiedStatus(),
-  });
-
 export const createAgreementCaseUpdatePublication = (props) => ({
   event: createAgreementCaseUpdateCommand(props),
   target: config.sns.updateCaseStatusTopicArn,
-});
-
-export const createApplicationStatusUpdatedPublication = (props) => ({
-  event: createApplicationStatusUpdatedEventData(props),
-  target: config.sns.grantApplicationStatusUpdatedTopicArn,
 });
