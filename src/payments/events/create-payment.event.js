@@ -79,7 +79,7 @@ const createPaymentEvent = (payment) => ({
   },
 });
 
-// The outbox FIFO lock, and the SNS message group ID once published: an
+// The publication ordering key and SNS message group ID: an
 // Agreement's payments stay ordered behind its number, a Claim's behind the
 // Client Reference it shares with every other Claim on that Application.
 const segregationRefOf = (payment) =>
@@ -88,8 +88,7 @@ const segregationRefOf = (payment) =>
     : payment.source.agreementNumber;
 
 /**
- * Turns a persisted Payment into the outbox record that publishes it to the
- * Payment Service.
+ * Turns a persisted Payment into the publication sent to the Payment Service.
  *
  * Everything the message needs is already on the Payment, so building it never
  * loads the Agreement, the Claim or the definition.

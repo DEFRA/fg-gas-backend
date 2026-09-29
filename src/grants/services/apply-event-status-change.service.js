@@ -7,11 +7,11 @@
  * 1. Maps external status codes to internal application states
  * 2. Validates state transitions according to grant configuration
  * 3. Updates the application state
- * 4. Creates outbox records for side effects (events, commands)
- * 5. Persists changes atomically within a transaction
+ * 4. Raises events and commands for downstream processes
+ * 5. Persists state and publications atomically within a transaction
  *
- * The service uses the Outbox pattern to ensure reliable eventual consistency
- * when publishing events or triggering downstream processes.
+ * Durable publication is delegated to the Events module so this service
+ * remains focused on mapping and applying the domain transition.
  */
 
 import Boom from "@hapi/boom";
@@ -75,7 +75,9 @@ const processStateTransition = async (application, grant, command, session) => {
     sideEffectContext: command,
   };
 
-  if (originalFullyQualifiedStatus === Object.values(targetPosition).join(":")) {
+  if (
+    originalFullyQualifiedStatus === Object.values(targetPosition).join(":")
+  ) {
     await transitionApplicationUseCase(transition, session);
     return application;
   }

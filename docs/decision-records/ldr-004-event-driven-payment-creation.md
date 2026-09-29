@@ -8,8 +8,6 @@
 | people consulted | Martin Smith     |
 | people informed  | Core Grants Team |
 
-Implementation and resume checklist: [LDR-004 implementation plan](./ldr-004-implementation-plan.md).
-
 ## Context and Problem Statement
 
 Before this decision, Claims and Agreements called Payments use-cases directly. The caller resolved the Payment definition before starting its transaction, then passed the transaction session into Payments so the source record, Payment, Payment Hub event and durable event records committed or rolled back together.
@@ -154,6 +152,7 @@ GAS intentionally retains stable event-ID deduplication rather than legacy rando
 
 Payment cutover remains blocked until all of the following are satisfied:
 
+- A repeatable compatibility test compares the complete runtime-serialized GAS Payment CloudEvent with the legacy producer output, normalising only generated event IDs, event times and due-payment correlation IDs.
 - Every Payment definition used for a migrated scheme is checked against the legacy constants and mappings. For the FPTT interface this includes `scheme: SFI`, `sourceSystem: FPTT`, `deliveryBody: RP00`, `fesCode: FALS_FPTT`, `ledger: AP`, invoice-line `accountCode: SOS710`, `fundCode: DRD10`, invoice-line `deliveryBody: RP00`, marketing-year derivation, descriptions, dates and stringified monetary values. Configurability must not silently change the contract.
 - Local, test and FloCi publish to GAS-owned topics. Before each environment switches its application configuration, verify the GAS-owned Agreement-status topic reaches both the GAS and PDF queues and the GAS-owned Payment topic reaches `gps__sqs__create_payment.fifo`. The CloudEvent `source`, `type`, `specversion` and `datacontenttype` must remain compatible with the legacy producer.
 - Agreement-originated Woodland Payments remain excluded. The legacy Agreements API deliberately does not publish a Payment event for Woodland acceptance; a Woodland Agreement definition must not introduce a Payment commit operation without a separate migration decision. This does not affect the distinct Claim-originated Woodland Payment flow.
@@ -173,7 +172,7 @@ Verification includes repository-wide lint, the full unit test suite, focused re
 
 Agreement redelivery now checks for an existing Payment before resolving the pinned Payment definition, matching the Claim handler and this record's own stated invariant that redelivery finds the existing Payment even when the definition is no longer available (see Payment Hub Identity and Request Shape). A real Mongo replica-set regression proves one Payment, one counter increment and one external publication survive redelivery against an unavailable definition.
 
-The remaining compatibility and deployment gates are tracked in the implementation plan and in Compatibility and Cutover Gates above.
+The remaining compatibility and deployment gates are tracked in Compatibility and Cutover Gates above.
 
 ## Consequences
 

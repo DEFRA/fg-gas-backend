@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, vitest } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import {
@@ -29,8 +29,6 @@ vi.mock("../publishers/case-event.publisher.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../events/index.js");
 vi.mock("../../events/write-audit-event.js");
-
-vitest.mock("../repositories/outbox.repository.js");
 
 describe("applyAgreementTerminationUseCase", () => {
   it("should terminate an agreement and notify CW", async () => {

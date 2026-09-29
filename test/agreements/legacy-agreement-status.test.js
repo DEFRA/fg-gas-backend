@@ -11,7 +11,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { createOutboxMessages } from "../../src/agreements/services/integrations/create-outbox-messages.js";
+import { createAgreementPublications } from "../../src/agreements/services/integrations/create-publications.js";
 import { receiveMessages, sendMessage } from "../helpers/sqs.js";
 
 const code = "woodland";
@@ -86,7 +86,7 @@ describe("Legacy Agreement status updates", () => {
   });
 
   it("delivers a GAS lifecycle publication through SNS and the inbox once", async () => {
-    const [publication] = createOutboxMessages(["lifecycle"], {
+    const [publication] = createAgreementPublications(["lifecycle"], {
       agreementNumber,
       correlationId: randomUUID(),
       clientRef,

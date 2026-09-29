@@ -1,13 +1,13 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
+import { saveEvents } from "../../events/index.js";
 import { Application } from "../models/application.js";
 import { Grant } from "../models/grant.js";
 import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
 import { addAgreementUseCase } from "../use-cases/add-agreement.use-case.js";
 import { createAgreementCommandUseCase } from "../use-cases/create-agreement-command.use-case.js";
 import { createStatusTransitionUpdateUseCase } from "../use-cases/create-status-transition-update.use-case.js";
@@ -23,7 +23,7 @@ vi.mock("../use-cases/request-agreement-cancellation.use-case.js");
 vi.mock("../use-cases/withdraw-application.use-case.js");
 vi.mock("../use-cases/withdraw-agreement.use-case.js");
 vi.mock("../repositories/application.repository.js");
-vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/index.js");
 vi.mock(
   "../use-cases/resolve-current-grant.use-case.js",
   async (importOriginal) => {
@@ -233,10 +233,8 @@ describe("applyExternalStateChange", () => {
         clientRef: "APP-123",
         code: "test-grant",
         configVersion: null,
-        originalFullyQualifiedStatus:
-          "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
-        newFullyQualifiedStatus:
-          "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+        originalFullyQualifiedStatus: "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
+        newFullyQualifiedStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
       });
       expect(publishStatusTransition).toHaveBeenCalledWith({});
     });
@@ -278,7 +276,7 @@ describe("applyExternalStateChange", () => {
 
       expect(update).not.toHaveBeenCalled();
       expect(createStatusTransitionUpdateUseCase).not.toHaveBeenCalled();
-      expect(insertMany).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
 
     it("should treat a mapped current position as a no-op when validFrom rejects itself", async () => {
@@ -301,7 +299,7 @@ describe("applyExternalStateChange", () => {
 
       expect(update).not.toHaveBeenCalled();
       expect(createStatusTransitionUpdateUseCase).not.toHaveBeenCalled();
-      expect(insertMany).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
   });
 
@@ -325,7 +323,7 @@ describe("applyExternalStateChange", () => {
         "Acknowledged unknown transition for grantCode undefined from current position PRE_AWARD:REVIEW_APPLICATION:RECEIVED to target position UNMAPPED_STATUS for clientRef APP-123",
       );
       expect(update).not.toHaveBeenCalled();
-      expect(insertMany).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
   });
 
@@ -355,7 +353,7 @@ describe("applyExternalStateChange", () => {
       );
 
       expect(update).not.toHaveBeenCalled();
-      expect(insertMany).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
   });
 
@@ -380,7 +378,7 @@ describe("applyExternalStateChange", () => {
         "Acknowledged unknown transition for grantCode foo from current position PRE_AWARD:REVIEW_APPLICATION:RECEIVED to target position IN_PROGRESS for clientRef APP-123",
       );
       expect(update).not.toHaveBeenCalled();
-      expect(insertMany).not.toHaveBeenCalled();
+      expect(saveEvents).not.toHaveBeenCalled();
     });
   });
 
