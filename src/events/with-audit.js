@@ -33,7 +33,8 @@ export const buildAuditEvent = ({
 /**
  * see https://eaflood.atlassian.net/wiki/spaces/FDM/pages/6241288852/Publishing+Audit+events
  *
- * f: function to wrap. f is called via proxy.apply() and result is passed into dataBuilder
+ * f: function to wrap. f is called via proxy.apply() and its result, or the
+ * error it threw, is passed into dataBuilder
  * dataBuilder: should return object with
  * - entities
  * - accounts
@@ -53,9 +54,13 @@ export const buildAuditEvent = ({
  * no audit event - the one outcome auditing exists to prevent. There the error
  * goes back to the caller, which aborts the transaction.
  */
-const writeAudit = async (dataBuilder, args, result, status, session) => {
+const writeAudit = async (
+  dataBuilder,
+  { args, result, error, status },
+  session,
+) => {
   try {
-    const auditData = dataBuilder(args, result);
+    const auditData = dataBuilder(args, result, error);
 
     if (!auditData) {
       logger.info(
@@ -89,6 +94,7 @@ export const withAudit = (f, dataBuilder) =>
       logger.info("withAudit: Begin attempt audit with proxy.");
 
       let result;
+      let failure;
       let status = auditStatus.SUCCESS;
       // The caller's transaction, where there is one - `withTransaction` passes
       // it as the second argument, and it carries through to the audit event's
@@ -100,6 +106,7 @@ export const withAudit = (f, dataBuilder) =>
         result = await target.apply(_, args);
       } catch (error) {
         status = auditStatus.FAILURE;
+        failure = error;
         // Deliberately outside the aborting transaction: a refused attempt is
         // still an attempt, and rolling back would erase the record of it.
         session = null;
@@ -108,9 +115,7 @@ export const withAudit = (f, dataBuilder) =>
         logger.debug(result, "withAudit: Use case result within proxy.");
         auditFailure = await writeAudit(
           dataBuilder,
-          args,
-          result,
-          status,
+          { args, result, error: failure, status },
           session,
         );
       }

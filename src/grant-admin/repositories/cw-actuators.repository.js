@@ -2,6 +2,10 @@ import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
 import { wreck } from "../../common/wreck.js";
 import {
+  EDITABLE_DESCRIPTION,
+  EDIT_REFUSAL_REASONS,
+} from "../../events/event-edit.js";
+import {
   DEAD_LETTER,
   REDRIVABLE_DESCRIPTION,
 } from "../../events/event-redrive.js";
@@ -113,6 +117,8 @@ export const findCwPage = async (options) => {
 
 const NOT_FOUND = 404;
 const CONFLICT = 409;
+const PRECONDITION_FAILED = 412;
+const UNPROCESSABLE = 422;
 
 const parseJson = (raw) => {
   try {
@@ -133,7 +139,8 @@ const bodyOf = (error) => {
   return isRaw(payload) ? parseJson(payload.toString()) : payload;
 };
 
-// The only value ever read from a CW response body: a known status.
+// The only values ever read from a CW error body: a known status here, and a
+// known refusal reason below.
 const conflictStatusOf = (error) => {
   const status = bodyOf(error)?.status;
 
@@ -155,23 +162,44 @@ const toConflict = (error, label, expected) => {
   return conflict;
 };
 
+const refusalReasonOf = (error) => {
+  const reason = bodyOf(error)?.reason;
+
+  return Object.values(EDIT_REFUSAL_REASONS).includes(reason) ? reason : null;
+};
+
+const toRefusal = (error, label) => {
+  const refusal = Boom.badData(`CW-BE refused the payload of ${label}`);
+
+  refusal.output.payload.reason = refusalReasonOf(error);
+
+  return refusal;
+};
+
+const notFound = (_, label) => Boom.notFound(`CW-BE ${label} not found`);
+
+const stale = (_, label) =>
+  Boom.preconditionFailed(`CW-BE ${label} was edited since the revision given`);
+
+// No answer is not a refusal: a redrive may still have committed.
+const timedOut = (_, label) =>
+  Boom.gatewayTimeout(`CW-BE did not answer in time for ${label}`);
+
+const FAILURES = {
+  [NOT_FOUND]: notFound,
+  [CONFLICT]: toConflict,
+  [PRECONDITION_FAILED]: stale,
+  [UNPROCESSABLE]: toRefusal,
+  [GATEWAY_TIMEOUT]: timedOut,
+  [CLIENT_TIMEOUT]: timedOut,
+};
+
 const toFailure = (error, label, expected) => {
-  const statusCode = statusOf(error);
+  const failure = FAILURES[statusOf(error)];
 
-  if (statusCode === NOT_FOUND) {
-    return Boom.notFound(`CW-BE ${label} not found`);
-  }
-
-  if (statusCode === CONFLICT) {
-    return toConflict(error, label, expected);
-  }
-
-  // No answer is not a refusal: a redrive may still have committed.
-  if (TIMEOUT_STATUSES.has(statusCode)) {
-    return Boom.gatewayTimeout(`CW-BE did not answer in time for ${label}`);
-  }
-
-  return Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
+  return failure
+    ? failure(error, label, expected)
+    : Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
 };
 
 const requestOptions = () => ({
@@ -241,4 +269,14 @@ export const purgeCwEvent = (box, id, { by, reasonCode, note }) =>
     `${eventPath(box, id)}/purge?by=${encodeURIComponent(by)}`,
     labelFor(box, id),
     { body: purgeBody(reasonCode, note), expected: DEAD_LETTER },
+  );
+
+// Named on the query string as purge's is: Caseworking audits the edit
+// itself and refuses one that names nobody.
+export const editCwPayload = (box, id, { by, payload, note, revision }) =>
+  cwRequest(
+    "post",
+    `${eventPath(box, id)}/payload?by=${encodeURIComponent(by)}`,
+    labelFor(box, id),
+    { body: { payload, note, revision }, expected: EDITABLE_DESCRIPTION },
   );

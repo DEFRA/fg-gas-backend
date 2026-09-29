@@ -105,9 +105,11 @@ describe("withAudit", () => {
 
       await withAudit(fn, dataBuilder)("arg0", "session-id");
 
-      expect(dataBuilder).toHaveBeenCalledWith(["arg0", "session-id"], {
-        id: "123",
-      });
+      expect(dataBuilder).toHaveBeenCalledWith(
+        ["arg0", "session-id"],
+        { id: "123" },
+        undefined,
+      );
     });
 
     it("writes the audit event with entities, details and security from dataBuilder", async () => {
@@ -249,15 +251,16 @@ describe("withAudit", () => {
       expect(writeAuditEvent).toHaveBeenCalledWith(expect.anything(), null);
     });
 
-    it("calls dataBuilder with undefined result when the wrapped function throws", async () => {
-      const fn = vi.fn().mockRejectedValue(new Error("use case failed"));
+    it("calls dataBuilder with undefined result and the error when the wrapped function throws", async () => {
+      const failure = new Error("use case failed");
+      const fn = vi.fn().mockRejectedValue(failure);
       const dataBuilder = vi
         .fn()
         .mockReturnValue({ entities: [], details: {} });
 
       await withAudit(fn, dataBuilder)("arg0").catch(() => {});
 
-      expect(dataBuilder).toHaveBeenCalledWith(["arg0"], undefined);
+      expect(dataBuilder).toHaveBeenCalledWith(["arg0"], undefined, failure);
     });
 
     it("rethrows the original error even when dataBuilder throws", async () => {

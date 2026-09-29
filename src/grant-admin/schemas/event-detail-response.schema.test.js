@@ -42,6 +42,10 @@ const aDetail = (overrides = {}) => ({
   lastRedrive: null,
   lastPurge: null,
   purgeDeletionDate: null,
+  payloadRevision: 0,
+  payloadIsPlainJson: true,
+  lastEdit: null,
+  originalPayload: null,
   segregationRef: "GLD-9B2",
   ...overrides,
 });
@@ -446,6 +450,66 @@ describe("eventDetailResponseSchema purgeDeletionDate", () => {
       eventDetailResponseSchema.validate(
         aDetail({ purgeDeletionDate: "in 90 days" }),
       ).error,
+    ).toBeDefined();
+  });
+});
+
+describe("eventDetailResponseSchema payload edits", () => {
+  const validate = (overrides) =>
+    eventDetailResponseSchema.validate(aDetail(overrides));
+
+  it("takes every edit field null, as from a Caseworking that cannot edit", () => {
+    expect(
+      validate({
+        payloadRevision: null,
+        payloadIsPlainJson: null,
+        lastEdit: null,
+        originalPayload: null,
+      }).error,
+    ).toBeUndefined();
+  });
+
+  it("takes every edit field set", () => {
+    expect(
+      validate({
+        payloadRevision: 2,
+        payloadIsPlainJson: false,
+        lastEdit: {
+          at: "2026-09-23T14:08:00.000Z",
+          by: "donatas",
+          note: "sheetId was sent as a number",
+        },
+        originalPayload: { id: "evt-1", data: { sheetId: 679 } },
+      }).error,
+    ).toBeUndefined();
+  });
+
+  it.each([
+    "payloadRevision",
+    "payloadIsPlainJson",
+    "lastEdit",
+    "originalPayload",
+  ])("insists %s is named", (field) => {
+    const detail = aDetail();
+    delete detail[field];
+
+    expect(eventDetailResponseSchema.validate(detail).error).toBeDefined();
+  });
+
+  it("refuses a negative revision", () => {
+    expect(validate({ payloadRevision: -1 }).error).toBeDefined();
+  });
+
+  it("refuses a lastEdit with a key it does not name", () => {
+    expect(
+      validate({
+        lastEdit: {
+          at: "2026-09-23T14:08:00.000Z",
+          by: "donatas",
+          note: "n",
+          approvedBy: "x",
+        },
+      }).error,
     ).toBeDefined();
   });
 });
