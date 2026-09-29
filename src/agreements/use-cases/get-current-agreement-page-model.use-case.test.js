@@ -3,6 +3,7 @@ import { buildAgreementPageModel } from "../services/build-agreement-page-model.
 import { getCurrentAgreementPageModelUseCase } from "./get-current-agreement-page-model.use-case.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
+vi.mock("../../events/write-audit-event.js");
 vi.mock("../services/build-agreement-page-model.js");
 vi.mock("./load-current-agreement-context.js");
 
