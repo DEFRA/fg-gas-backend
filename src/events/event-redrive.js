@@ -29,6 +29,8 @@ export const redriveUpdate = (resubmittedStatus, { by, at } = {}) => ({
     claimedAt: null,
     claimExpiresAt: null,
   },
+  // An editor opened before the redrive must not save onto what came of it.
+  $inc: { payloadRevision: 1 },
 });
 
 // The status labels are passed in: this module is shared with the pollers.

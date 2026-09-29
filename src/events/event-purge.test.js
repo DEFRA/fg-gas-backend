@@ -59,6 +59,10 @@ describe("purgeUpdate", () => {
     ]);
   });
 
+  it("moves the payload revision on, so an editor opened before it is stale", () => {
+    expect(anUpdate().$inc).toEqual({ payloadRevision: 1 });
+  });
+
   it("moves the row to the status it was given", () => {
     expect(anUpdate().$set.status).toBe("PURGED");
   });

@@ -1,5 +1,6 @@
 import { requireAdminClient } from "./admin-client.js";
 import { createEntitlementRoute } from "./routes/create-entitlement.route.js";
+import { editPayloadRoute } from "./routes/edit-payload.route.js";
 import { eventsPageRoute } from "./routes/events-page.route.js";
 import { getClaimRoute } from "./routes/get-claim.route.js";
 import { getClaimsRoute } from "./routes/get-claims.route.js";
@@ -21,6 +22,7 @@ export const grantAdmin = {
       getEventRoute,
       redriveEventRoute,
       purgeEventRoute,
+      editPayloadRoute,
     ]);
   },
 };
