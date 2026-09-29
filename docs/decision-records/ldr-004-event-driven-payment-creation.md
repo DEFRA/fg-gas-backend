@@ -152,6 +152,7 @@ GAS intentionally retains stable event-ID deduplication rather than legacy rando
 
 Payment cutover remains blocked until all of the following are satisfied:
 
+- A repeatable compatibility test compares the complete runtime-serialized GAS Payment CloudEvent with the legacy producer output, normalising only generated event IDs, event times and due-payment correlation IDs.
 - Every Payment definition used for a migrated scheme is checked against the legacy constants and mappings. For the FPTT interface this includes `scheme: SFI`, `sourceSystem: FPTT`, `deliveryBody: RP00`, `fesCode: FALS_FPTT`, `ledger: AP`, invoice-line `accountCode: SOS710`, `fundCode: DRD10`, invoice-line `deliveryBody: RP00`, marketing-year derivation, descriptions, dates and stringified monetary values. Configurability must not silently change the contract.
 - Local, test and FloCi publish to GAS-owned topics. Before each environment switches its application configuration, verify the GAS-owned Agreement-status topic reaches both the GAS and PDF queues and the GAS-owned Payment topic reaches `gps__sqs__create_payment.fifo`. The CloudEvent `source`, `type`, `specversion` and `datacontenttype` must remain compatible with the legacy producer.
 - Agreement-originated Woodland Payments remain excluded. The legacy Agreements API deliberately does not publish a Payment event for Woodland acceptance; a Woodland Agreement definition must not introduce a Payment commit operation without a separate migration decision. This does not affect the distinct Claim-originated Woodland Payment flow.
