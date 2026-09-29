@@ -28,6 +28,7 @@ const captureLog = (logObject) => {
 
 describe("logger redaction (FGP-1307)", () => {
   it("lists the caller token header in the production redaction paths", () => {
+    expect(productionRedactPaths).toContain('req.headers["x-user-context"]');
     expect(productionRedactPaths).toContain('req.headers["x-encrypted-auth"]');
   });
 
@@ -52,6 +53,21 @@ describe("logger redaction (FGP-1307)", () => {
 
     expect(output).not.toContain(TOKEN);
     expect(output).not.toContain("x-encrypted-auth");
+  });
+
+  it("never serializes the caller token to logs when sent as x-user-context (FGP-1394)", () => {
+    const output = captureLog({
+      req: {
+        headers: {
+          authorization: "Bearer service-token",
+          "x-user-context": TOKEN,
+          "x-agreement-sbi": "123456789",
+        },
+      },
+    });
+
+    expect(output).not.toContain(TOKEN);
+    expect(output).not.toContain("x-user-context");
   });
 
   it("never serializes x-agreement identity values (grantCode/clientRef/sbi) to logs", () => {

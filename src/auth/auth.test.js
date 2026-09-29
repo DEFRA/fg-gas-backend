@@ -232,6 +232,46 @@ describe("auth plugin", () => {
       expect(res.result.callerToken.warnings).toEqual([]);
     });
 
+    it("accepts a caller token sent as x-user-context (FGP-1394)", async () => {
+      const server = await createServer();
+      routeExposingCallerToken(server);
+      await server.initialize();
+
+      const res = await server.inject({
+        method: "GET",
+        url: "/agreements/current",
+        headers: {
+          authorization: "Bearer good",
+          "x-user-context": mintToken(DEFAULT_SECRET),
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.result.callerToken.verified).toBe(true);
+      expect(res.result.callerToken.warnings).toEqual([]);
+    });
+
+    it("prefers x-user-context over x-encrypted-auth when both are present (FGP-1394)", async () => {
+      const server = await createServer();
+      routeExposingCallerToken(server);
+      await server.initialize();
+
+      const res = await server.inject({
+        method: "GET",
+        url: "/agreements/current",
+        headers: {
+          authorization: "Bearer good",
+          "x-user-context": mintToken(DEFAULT_SECRET),
+          "x-encrypted-auth": mintToken(
+            "a-different-secret-at-least-256-bits-long-00000",
+          ),
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.result.callerToken.verified).toBe(true);
+    });
+
     it("verifies a rotated caller token by its kid using the keyring", async () => {
       config.callerToken.keyring = { [ROTATED_KID]: ROTATED_SECRET };
 
