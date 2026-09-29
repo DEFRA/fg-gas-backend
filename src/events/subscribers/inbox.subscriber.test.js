@@ -22,6 +22,8 @@ import {
   claimEvents,
   deadLetterEvent,
   findNextMessage,
+  processExpiredEvents,
+  update,
 } from "../repositories/inbox.repository.js";
 
 import { InboxSubscriber } from "./inbox.subscriber.js";
@@ -234,6 +236,24 @@ describe("inbox.subscriber", () => {
     subscriber.stop();
   });
 
+  it("should sweep expired claims during poll", async () => {
+    vi.spyOn(logger, "info");
+    findNextMessage.mockResolvedValue(null);
+    getFifoLocks.mockResolvedValue([]);
+    processExpiredEvents.mockResolvedValue({ modifiedCount: 2 });
+
+    const subscriber = new InboxSubscriber();
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.info).toHaveBeenCalledWith(
+        "Updated 2 expired inbox events",
+      );
+    });
+
+    subscriber.stop();
+  });
+
   describe("available segregation Ref", () => {
     it("should DLQ any records with no segregationRef and try getNextAvailable again", async () => {
       findNextMessage
@@ -415,5 +435,65 @@ describe("InboxSubscriber failure reasons", () => {
     await new InboxSubscriber().markEventFailed(message, failure);
 
     expect(message.markAsFailed).toHaveBeenCalledWith(failure);
+  });
+});
+
+describe("InboxSubscriber writes only while it holds the claim", () => {
+  const claimed = (subscriber, fn) =>
+    subscriber.asyncLocalStorage.run("claim-token-1", fn);
+
+  const aMessage = () => ({
+    messageId: "m-1",
+    markAsComplete: vi.fn(),
+    markAsFailed: vi.fn(),
+  });
+
+  it.each([
+    ["complete", (s, m) => s.markEventComplete(m)],
+    ["failed", (s, m) => s.markEventFailed(m, new Error("boom"))],
+  ])("carries the claim token when marking an event %s", async (_, mark) => {
+    update.mockResolvedValue({ matchedCount: 1 });
+    const subscriber = new InboxSubscriber();
+    const message = aMessage();
+
+    await claimed(subscriber, () => mark(subscriber, message));
+
+    expect(update).toHaveBeenCalledWith(message, "claim-token-1");
+  });
+
+  it.each([
+    ["complete", (s, m) => s.markEventComplete(m)],
+    ["failed", (s, m) => s.markEventFailed(m, new Error("boom"))],
+  ])(
+    "warns instead of throwing when the claim was lost marking an event %s",
+    async (_, mark) => {
+      update.mockResolvedValue({ matchedCount: 0 });
+      const warn = vi.spyOn(logger, "warn");
+      const info = vi.spyOn(logger, "info");
+      const subscriber = new InboxSubscriber();
+
+      await claimed(subscriber, () => mark(subscriber, aMessage()));
+
+      expect(warn).toHaveBeenCalledWith(
+        "Inbox event m-1 was reclaimed before its handler finished",
+      );
+      expect(info).not.toHaveBeenCalledWith(
+        expect.stringContaining("Marked inbox event"),
+      );
+    },
+  );
+
+  it("runs claimed events inside the claim's own store", async () => {
+    const subscriber = new InboxSubscriber();
+    claimEvents.mockResolvedValue([Inbox.createMock()]);
+    setFifoLock.mockResolvedValue({ upsertedCount: 1, modifiedCount: 0 });
+    let seen = null;
+    vi.spyOn(subscriber, "processEvents").mockImplementation(async () => {
+      seen = subscriber.asyncLocalStorage.getStore();
+    });
+
+    await subscriber.processWithLock("claim-token-2", "ref-1");
+
+    expect(seen).toBe("claim-token-2");
   });
 });
