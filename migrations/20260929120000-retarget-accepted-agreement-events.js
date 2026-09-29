@@ -6,25 +6,36 @@ const EVENT_IDS = [
   "1f2dad1d-d437-4404-9ff9-28a406e23fc0",
 ];
 
-const LEGACY_TOPIC =
-  "arn:aws:sns:eu-west-2:409408189387:agreement_status_updated_fifo.fifo";
-const GAS_TOPIC =
-  "arn:aws:sns:eu-west-2:409408189387:gas__sns__agreement_status_updated_fifo.fifo";
+const LEGACY_TOPIC_NAME = "agreement_status_updated_fifo.fifo";
+const GAS_TOPIC_NAME = "gas__sns__agreement_status_updated_fifo.fifo";
 
-export const up = async (db) => {
-  if (process.env.ENVIRONMENT !== "prod") {
-    return;
+const topicArns = () => {
+  const gas = process.env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN;
+  const suffix = `:${GAS_TOPIC_NAME}`;
+
+  if (!gas?.endsWith(suffix)) {
+    throw new Error(
+      "GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN must identify the GAS-owned Agreement status topic",
+    );
   }
 
+  return {
+    gas,
+    legacy: `${gas.slice(0, -suffix.length)}:${LEGACY_TOPIC_NAME}`,
+  };
+};
+
+export const up = async (db) => {
+  const topics = topicArns();
   const result = await db.collection("outbox").updateMany(
     {
       status: "DEAD_LETTER",
-      target: LEGACY_TOPIC,
+      target: topics.legacy,
       "event.id": { $in: EVENT_IDS },
       "event.type": "io.onsite.agreement.status.updated",
       "event.data.status": "accepted",
     },
-    { $set: { target: GAS_TOPIC } },
+    { $set: { target: topics.gas } },
   );
 
   logger.info(

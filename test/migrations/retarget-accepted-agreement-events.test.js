@@ -12,30 +12,25 @@ const EVENT_IDS = [
   "1f2dad1d-d437-4404-9ff9-28a406e23fc0",
 ];
 
-const LEGACY_TOPIC =
-  "arn:aws:sns:eu-west-2:409408189387:agreement_status_updated_fifo.fifo";
-const GAS_TOPIC =
-  "arn:aws:sns:eu-west-2:409408189387:gas__sns__agreement_status_updated_fifo.fifo";
+const ACCOUNT = "111122223333";
+const LEGACY_TOPIC = `arn:aws:sns:eu-west-2:${ACCOUNT}:agreement_status_updated_fifo.fifo`;
+const GAS_TOPIC = `arn:aws:sns:eu-west-2:${ACCOUNT}:gas__sns__agreement_status_updated_fifo.fifo`;
 
-const originalEnvironment = process.env.ENVIRONMENT;
+const originalTopic =
+  process.env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN;
 
 afterEach(() => {
-  process.env.ENVIRONMENT = originalEnvironment;
+  if (originalTopic === undefined) {
+    delete process.env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN;
+  } else {
+    process.env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN = originalTopic;
+  }
   vi.clearAllMocks();
 });
 
 describe("retarget accepted Agreement events migration", () => {
-  it("does nothing outside production", async () => {
-    process.env.ENVIRONMENT = "test";
-    const db = { collection: vi.fn() };
-
-    await up(db);
-
-    expect(db.collection).not.toHaveBeenCalled();
-  });
-
-  it("retargets only the three accepted legacy dead letters", async () => {
-    process.env.ENVIRONMENT = "prod";
+  it("retargets only the three accepted legacy dead letters in the current environment", async () => {
+    process.env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN = GAS_TOPIC;
     const updateMany = vi.fn().mockResolvedValue({
       matchedCount: 3,
       modifiedCount: 3,
@@ -65,5 +60,16 @@ describe("retarget accepted Agreement events migration", () => {
       },
       "Retargeted accepted Agreement lifecycle dead letters",
     );
+  });
+
+  it("refuses to derive a target from an unexpected configured topic", async () => {
+    process.env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN =
+      `arn:aws:sns:eu-west-2:${ACCOUNT}:unexpected.fifo`;
+    const db = { collection: vi.fn() };
+
+    await expect(up(db)).rejects.toThrow(
+      "GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN must identify the GAS-owned Agreement status topic",
+    );
+    expect(db.collection).not.toHaveBeenCalled();
   });
 });
