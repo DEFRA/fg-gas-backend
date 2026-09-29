@@ -1,12 +1,14 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { findVersionByIdempotencyKey } from "../repositories/agreement.repository.js";
 import { commitAgreementAction } from "./execute-agreement-action.use-case.js";
 import { handleUpdateAgreementStatusCommandUseCase } from "./handle-update-agreement-status-command.use-case.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
+vi.mock("../../events/write-audit-event.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("./execute-agreement-action.use-case.js", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -120,6 +122,7 @@ describe("handleUpdateAgreementStatusCommandUseCase", () => {
 
     expect(loadCurrentAgreementContext).not.toHaveBeenCalled();
     expect(commitAgreementAction).not.toHaveBeenCalled();
+    expect(writeAuditEvent).not.toHaveBeenCalled();
   });
 
   it("acknowledges an invalid transition without writing", async () => {
@@ -143,6 +146,16 @@ describe("handleUpdateAgreementStatusCommandUseCase", () => {
 
     expect(commitAgreementAction).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalled();
+    expect(writeAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "FAILURE",
+        details: expect.objectContaining({
+          state: "accepted",
+          attemptedState: "withdrawn",
+        }),
+      }),
+      null,
+    );
   });
 
   it("acknowledges a lost concurrent transition without retry", async () => {
@@ -158,15 +171,18 @@ describe("handleUpdateAgreementStatusCommandUseCase", () => {
       agreement,
       agreementDefinition,
     });
-    commitAgreementAction.mockRejectedValue(
-      Boom.preconditionFailed("Agreement version is stale"),
+    const concurrencyLoss = Boom.preconditionFailed(
+      "Agreement version is stale",
     );
+    concurrencyLoss.data = { agreementActionConcurrencyLoss: true };
+    commitAgreementAction.mockRejectedValue(concurrencyLoss);
 
     await expect(
       handleUpdateAgreementStatusCommandUseCase(command),
     ).resolves.toBeUndefined();
 
     expect(logger.warn).toHaveBeenCalled();
+    expect(writeAuditEvent).not.toHaveBeenCalled();
   });
 
   it("rethrows infrastructure failures for retry", async () => {

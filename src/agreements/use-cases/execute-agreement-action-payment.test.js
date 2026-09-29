@@ -179,27 +179,6 @@ describe("Agreement acceptance Payment request", () => {
     await expect(
       db.collection("agreements__agreements").findOne({ _id: agreementNumber }),
     ).resolves.toMatchObject({ state: "offered", version: 1 });
-    await expect(
-      db.collection("outbox").findOne({
-        "event.audit.entities.entityid": agreementNumber,
-      }),
-    ).resolves.toMatchObject({
-      event: {
-        audit: {
-          entities: [
-            {
-              entity: "AGREEMENT",
-              action: "ACCEPT_AGREEMENT",
-              entityid: agreementNumber,
-            },
-          ],
-          status: "FAILURE",
-        },
-        security: {
-          pmccode: "0704",
-          details: { transactioncode: "2311" },
-        },
-      },
-    });
+    await expect(db.collection("outbox").countDocuments({})).resolves.toBe(0);
   });
 });

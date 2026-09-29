@@ -1,7 +1,6 @@
 import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
-import { auditStatus } from "../../events/audit-constants.js";
 import { internalEventTarget, saveEvents } from "../../events/index.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { withTransaction } from "../../common/with-transaction.js";
@@ -14,7 +13,10 @@ import {
   insertAgreementVersion,
   replaceCurrentAgreement,
 } from "../repositories/agreement.repository.js";
-import { buildAgreementActionAudit } from "../services/agreement-audit.js";
+import {
+  buildAgreementActionAudit,
+  recordAgreementActionFailure,
+} from "../services/agreement-audit.js";
 import { applyActionValidation } from "../services/apply-action-validation.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { createAgreementPublications } from "../services/integrations/create-publications.js";
@@ -169,8 +171,8 @@ const commitActionTransaction = async (
   await writeAuditEvent(
     buildAgreementActionAudit({
       actionName,
-      previous: current,
-      next: next.agreement,
+      current,
+      attempted: next.agreement,
     }),
     session,
   );
@@ -186,9 +188,9 @@ const resolveConcurrentUpdate = async (options) => {
 
   const agreement = await findAgreementByNumber(options.agreementNumber);
   if (!agreement) {
-    throw Boom.notFound("Agreement not found");
+    throw concurrencyLoss(Boom.notFound("Agreement not found"));
   }
-  throw staleError(await staleEtag(agreement));
+  throw concurrencyLoss(staleError(await staleEtag(agreement)));
 };
 
 const toConcurrentOptions = (options) => ({
@@ -197,22 +199,13 @@ const toConcurrentOptions = (options) => ({
   idempotencyKey: options.idempotencyKey,
 });
 
-const recordActionFailure = async (options, error) => {
-  try {
-    await writeAuditEvent(
-      buildAgreementActionAudit({
-        actionName: options.actionName,
-        previous: options.current,
-        next: options.next.agreement,
-        status: auditStatus.FAILURE,
-        error,
-      }),
-      null,
-    );
-  } catch (auditError) {
-    logger.error(auditError, "Failed to record Agreement action failure audit");
-  }
+const concurrencyLoss = (error) => {
+  error.data = { ...error.data, agreementActionConcurrencyLoss: true };
+  return error;
 };
+
+export const isAgreementActionConcurrencyLoss = (error) =>
+  error.data?.agreementActionConcurrencyLoss === true;
 
 const commitAgreementActionAttempt = async (options) => {
   const paymentRequested = hasPaymentCommitOperation(
@@ -236,62 +229,91 @@ const commitAgreementActionAttempt = async (options) => {
     : result;
 };
 
-export const commitAgreementAction = async (options) => {
+export const commitAgreementAction = commitAgreementActionAttempt;
+
+const validationFailure = () =>
+  Boom.badRequest("Agreement action validation failed");
+
+const recordAttemptFailure = async ({ options, agreement, attempted, error }) => {
+  if (isAgreementActionConcurrencyLoss(error)) {
+    return;
+  }
+  await recordAgreementActionFailure({
+    actionName: options.actionName,
+    current: agreement,
+    attempted,
+    error,
+    idempotencyKey: options.idempotencyKey,
+  });
+};
+
+const executeAgreementActionAttempt = async (options, agreement) => {
+  let attempted;
+
   try {
-    return await commitAgreementActionAttempt(options);
+    const context = await loadCurrentAgreementActionContext({
+      ...options,
+      agreement,
+    });
+    const { action, agreementDefinition, etag } = context;
+    attempted = { state: action.transition.target };
+
+    if (options.ifMatch !== etag) {
+      throw staleError(etag);
+    }
+    const validation = action.validate(options.values);
+    if (!validation.valid) {
+      const pageModel = await buildAgreementPageModel({
+        agreement,
+        agreementDefinition,
+        page: validation.page,
+        mode: "view",
+      });
+      await recordAgreementActionFailure({
+        actionName: options.actionName,
+        current: agreement,
+        attempted,
+        error: validationFailure(),
+        idempotencyKey: options.idempotencyKey,
+      });
+      return {
+        ...applyActionValidation({
+          pageModel,
+          values: options.values,
+          errors: validation.errors,
+        }),
+        etag,
+      };
+    }
+
+    const execution = {
+      correlationId: agreement.correlationId,
+      executedAt: new Date().toISOString(),
+    };
+    const next = await agreementDefinition.executeAction({
+      agreement,
+      actionName: options.actionName,
+      values: options.values,
+      execution,
+    });
+    attempted = next.agreement;
+    return await commitAgreementAction({
+      actionName: options.actionName,
+      current: agreement,
+      idempotencyKey: options.idempotencyKey,
+      next,
+    });
   } catch (error) {
-    await recordActionFailure(options, error);
+    await recordAttemptFailure({ options, agreement, attempted, error });
     throw error;
   }
 };
 
 export const executeAgreementActionUseCase = async (options) => {
-  const authorisedAgreement = await loadAgreementForAction(options);
+  const agreement = await loadAgreementForAction(options);
   const completed = await findCompleted(options);
   if (completed) {
     return completed;
   }
-
-  const { action, agreement, agreementDefinition, etag } =
-    await loadCurrentAgreementActionContext({
-      ...options,
-      agreement: authorisedAgreement,
-    });
-  if (options.ifMatch !== etag) {
-    throw staleError(etag);
-  }
-  const validation = action.validate(options.values);
-  if (!validation.valid) {
-    const pageModel = await buildAgreementPageModel({
-      agreement,
-      agreementDefinition,
-      page: validation.page,
-      mode: "view",
-    });
-    return {
-      ...applyActionValidation({
-        pageModel,
-        values: options.values,
-        errors: validation.errors,
-      }),
-      etag,
-    };
-  }
-
-  const execution = {
-    correlationId: agreement.correlationId,
-    executedAt: new Date().toISOString(),
-  };
-  const next = await agreementDefinition.executeAction({
-    agreement,
-    actionName: options.actionName,
-    values: options.values,
-    execution,
-  });
-  return commitAgreementAction({
-    actionName: options.actionName,
-    current: agreement,
-    idempotencyKey: options.idempotencyKey,
-    next,
-  });
+  return executeAgreementActionAttempt(options, agreement);
 };

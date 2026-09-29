@@ -76,7 +76,7 @@ const paymentRequestQuery = {
 };
 const acceptanceAuditQuery = {
   "event.audit.entities.entityid": agreementNumber,
-  "event.audit.entities.action": "ACCEPT_AGREEMENT",
+  "event.audit.entities.action": "ACCEPT_AGREEMENT_OFFER",
 };
 
 const toFundedValues = (value) => ({
@@ -603,6 +603,13 @@ describe("single Agreement actions", () => {
         "event.data.agreementNumber": agreementNumber,
       }),
     ).toBe(0);
+    await expect(outbox).toHaveRecord({
+      ...acceptanceAuditQuery,
+      "event.audit.status": "FAILURE",
+      "event.audit.details.state": "offered",
+      "event.audit.details.version": 1,
+      "event.audit.details.attemptedState": "accepted",
+    });
   });
 
   it("rejects a stale expected version without changing the offer", async () => {
@@ -613,6 +620,13 @@ describe("single Agreement actions", () => {
     expect(response.headers.etag).toBe(etagFor(1));
     expect(await agreements.findOne({ agreementNumber })).toEqual(offered);
     expect(await versions.countDocuments({ agreementNumber })).toBe(1);
+    await expect(outbox).toHaveRecord({
+      ...acceptanceAuditQuery,
+      "event.audit.status": "FAILURE",
+      "event.audit.details.state": "offered",
+      "event.audit.details.version": 1,
+      "event.audit.details.error": "Agreement version is stale",
+    });
   });
 
   it("replays a successful idempotency key without duplicating acceptance", async () => {
@@ -662,6 +676,18 @@ describe("single Agreement actions", () => {
       }),
     ).toBe(1);
     expect(await outbox.countDocuments(paymentRequestQuery)).toBe(1);
+    expect(
+      await outbox.countDocuments({
+        ...acceptanceAuditQuery,
+        "event.audit.status": "SUCCESS",
+      }),
+    ).toBe(1);
+    expect(
+      await outbox.countDocuments({
+        ...acceptanceAuditQuery,
+        "event.audit.status": "FAILURE",
+      }),
+    ).toBe(0);
   });
 
   it("rolls back acceptance when its durable Payment request cannot be recorded", async () => {
@@ -753,7 +779,10 @@ describe("single Agreement actions", () => {
         "event.audit.status": "FAILURE",
         "event.audit.details.actionName": "accept",
         "event.audit.details.previousState": "offered",
-        "event.audit.details.state": "accepted",
+        "event.audit.details.state": "offered",
+        "event.audit.details.version": 1,
+        "event.audit.details.attemptedState": "accepted",
+        "event.audit.details.attemptedVersion": 2,
         "event.security.pmccode": "0704",
         "event.security.details.transactioncode": "2311",
       });
