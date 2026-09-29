@@ -16,7 +16,7 @@ import {
   insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
 import { buildAgreementCreationAudit } from "../services/agreement-audit.js";
-import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
+import { createAgreementPublications } from "../services/integrations/create-publications.js";
 import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
 const createAgreement = async (input) => {
@@ -74,7 +74,7 @@ const persistAgreement = async (agreement) => {
     versionedAt: agreement.createdAt,
   });
   const outboundEvents = [
-    ...createOutboxMessages(["lifecycle"], agreement),
+    ...createAgreementPublications(["lifecycle"], agreement),
     createAgreementCreatedReportingPublication(agreement),
     createAgreementStatusChangedReportingPublication(agreement),
   ];
@@ -126,7 +126,7 @@ const persistWithAgreementNumberRetry = async (definition, agreement) => {
 
 // Owns the whole agreement creation operation so every caller shares identical
 // behaviour: loading the agreement definition, building and persisting the
-// Agreement with its version and outbox events, and collapsing concurrent
+// Agreement with its version and durable publications, and collapsing concurrent
 // duplicate requests onto the stored Agreement. The production message path and
 // the QA test endpoint both map their own input into this single use case
 // rather than reproducing the steps.

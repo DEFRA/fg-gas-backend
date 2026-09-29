@@ -17,7 +17,7 @@ import {
 import { buildAgreementActionAudit } from "../services/agreement-audit.js";
 import { applyActionValidation } from "../services/apply-action-validation.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
-import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
+import { createAgreementPublications } from "../services/integrations/create-publications.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 import { loadAgreementForAction } from "./load-current-agreement.js";
@@ -89,7 +89,7 @@ const createLifecyclePublications = (current, next) =>
   current.state === next.state
     ? []
     : [
-        ...createOutboxMessages(["lifecycle"], next),
+        ...createAgreementPublications(["lifecycle"], next),
         createAgreementStatusChangedReportingPublication(next),
       ];
 

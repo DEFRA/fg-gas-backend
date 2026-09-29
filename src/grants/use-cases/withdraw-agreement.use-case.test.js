@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, vitest } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import {
@@ -16,7 +16,7 @@ import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
+import { saveEvents } from "../../events/index.js";
 import {
   auditDataBuilder,
   withdrawAgreementUseCase,
@@ -27,10 +27,8 @@ vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
 vi.mock("../../common/with-transaction.js");
-vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/index.js");
 vi.mock("../../events/write-audit-event.js");
-
-vitest.mock("../repositories/outbox.repository.js");
 
 describe("withdraw agreement use case", () => {
   it("should withdraw an agreement", async () => {
@@ -78,8 +76,8 @@ describe("withdraw agreement use case", () => {
 
     expect(update).toHaveBeenCalledTimes(1);
     expect(agreement.latestStatus).toBe(Status.Withdrawn);
-    expect(insertMany).toBeCalledTimes(1);
-    expect(insertMany.mock.calls[0][0]).toHaveLength(1);
+    expect(saveEvents).toBeCalledTimes(1);
+    expect(saveEvents.mock.calls[0][0]).toHaveLength(1);
 
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
