@@ -57,6 +57,7 @@ describe("Agreement status withdrawal", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
+      outbox.deleteMany({ "event.audit.entities.entityid": agreementNumber }),
       payments.deleteMany({ "source.agreementNumber": agreementNumber }),
     ]);
     const current = agreement();
@@ -74,6 +75,7 @@ describe("Agreement status withdrawal", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
+      outbox.deleteMany({ "event.audit.entities.entityid": agreementNumber }),
       payments.deleteMany({ "source.agreementNumber": agreementNumber }),
     ]);
     await client.close();
@@ -139,5 +141,25 @@ describe("Agreement status withdrawal", () => {
       status: "withdrawn",
       version: 2,
     });
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__AUDIT_TOPIC_ARN,
+      "event.audit.entities.entity": "AGREEMENT",
+      "event.audit.entities.action": "UPDATE_AGREEMENT",
+      "event.audit.entities.entityid": agreementNumber,
+      "event.audit.status": "SUCCESS",
+      "event.audit.accounts.sbi": "300000079",
+      "event.audit.accounts.frn": "1101234567",
+      "event.audit.details.actionName": "withdraw",
+      "event.audit.details.previousState": "offered",
+      "event.audit.details.state": "withdrawn",
+      "event.security.pmccode": "0706",
+      "event.security.details.transactioncode": "2309",
+    });
+    expect(
+      await outbox.countDocuments({
+        "event.audit.entities.entityid": agreementNumber,
+        "event.audit.entities.action": "UPDATE_AGREEMENT",
+      }),
+    ).toBe(1);
   });
 });
