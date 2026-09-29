@@ -1,8 +1,10 @@
 import { logger } from "../../common/logger.js";
+import { withAudit } from "../../events/with-audit.js";
+import { buildAgreementViewAudit } from "../services/agreement-audit.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
-export const getCurrentAgreementPageModelUseCase = async ({
+const getCurrentAgreementPageModel = async ({
   agreementNumber,
   code,
   clientRef,
@@ -38,3 +40,11 @@ export const getCurrentAgreementPageModelUseCase = async ({
   );
   return { agreement, pageModel, etag };
 };
+
+const auditCurrentView = (_args, result) =>
+  result?.agreement ? buildAgreementViewAudit(result.agreement, "current") : null;
+
+export const getCurrentAgreementPageModelUseCase = withAudit(
+  getCurrentAgreementPageModel,
+  auditCurrentView,
+);

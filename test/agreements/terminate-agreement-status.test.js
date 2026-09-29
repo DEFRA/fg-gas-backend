@@ -72,6 +72,7 @@ describe("Agreement status termination", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
+      outbox.deleteMany({ "event.audit.entities.entityid": agreementNumber }),
       payments.deleteMany({ "source.agreementNumber": agreementNumber }),
     ]);
     const current = agreement();
@@ -89,6 +90,7 @@ describe("Agreement status termination", () => {
       agreements.deleteMany({ agreementNumber }),
       versions.deleteMany({ agreementNumber }),
       outbox.deleteMany({ "event.data.agreementNumber": agreementNumber }),
+      outbox.deleteMany({ "event.audit.entities.entityid": agreementNumber }),
       payments.deleteMany({ "source.agreementNumber": agreementNumber }),
     ]);
     await client.close();

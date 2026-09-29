@@ -1,7 +1,11 @@
 import { logger } from "../../common/logger.js";
 import { InvalidAgreementTransitionError } from "../models/invalid-agreement-transition.error.js";
 import { findVersionByIdempotencyKey } from "../repositories/agreement.repository.js";
-import { commitAgreementAction } from "./execute-agreement-action.use-case.js";
+import { recordAgreementActionFailure } from "../services/agreement-audit.js";
+import {
+  commitAgreementAction,
+  isAgreementActionConcurrencyLoss,
+} from "./execute-agreement-action.use-case.js";
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 
 const findCompleted = async ({ agreementNumber, status }, idempotencyKey) => {
@@ -22,12 +26,18 @@ const findCompleted = async ({ agreementNumber, status }, idempotencyKey) => {
   return version.snapshot;
 };
 
-const executeStatusTransition = async ({ command, agreement, definition }) => {
+const executeStatusTransition = async ({
+  command,
+  agreement,
+  definition,
+  attempt,
+}) => {
   const { status } = command.data;
   const actionName = definition.resolveActionForStatus({
     state: agreement.state,
     status,
   }).transition.action;
+  attempt.actionName = actionName;
   const execution = {
     correlationId: agreement.correlationId,
     executedAt: new Date().toISOString(),
@@ -73,13 +83,27 @@ export const handleUpdateAgreementStatusCommandUseCase = async (command) => {
     agreementNumber: command.data.agreementNumber,
   });
 
+  const attempt = {
+    actionName: command.data.status,
+    state: command.data.status,
+  };
   try {
     return await executeStatusTransition({
       command,
       agreement,
       definition: agreementDefinition,
+      attempt,
     });
   } catch (error) {
+    if (!isAgreementActionConcurrencyLoss(error)) {
+      await recordAgreementActionFailure({
+        actionName: attempt.actionName,
+        current: agreement,
+        attempted: { state: attempt.state },
+        error,
+        idempotencyKey: command.id,
+      });
+    }
     return reportRejectedTransition(error, command, agreement);
   }
 };
