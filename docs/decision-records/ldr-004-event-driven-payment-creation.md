@@ -8,8 +8,6 @@
 | people consulted | Martin Smith     |
 | people informed  | Core Grants Team |
 
-Implementation and resume checklist: [LDR-004 implementation plan](./ldr-004-implementation-plan.md).
-
 ## Context and Problem Statement
 
 Before this decision, Claims and Agreements called Payments use-cases directly. The caller resolved the Payment definition before starting its transaction, then passed the transaction session into Payments so the source record, Payment, Payment Hub event and durable event records committed or rolled back together.
@@ -173,7 +171,7 @@ Verification includes repository-wide lint, the full unit test suite, focused re
 
 Agreement redelivery now checks for an existing Payment before resolving the pinned Payment definition, matching the Claim handler and this record's own stated invariant that redelivery finds the existing Payment even when the definition is no longer available (see Payment Hub Identity and Request Shape). A real Mongo replica-set regression proves one Payment, one counter increment and one external publication survive redelivery against an unavailable definition.
 
-The remaining compatibility and deployment gates are tracked in the implementation plan and in Compatibility and Cutover Gates above.
+The remaining compatibility and deployment gates are tracked in Compatibility and Cutover Gates above.
 
 ## Consequences
 
