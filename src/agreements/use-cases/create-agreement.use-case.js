@@ -2,6 +2,7 @@ import Boom from "@hapi/boom";
 import { randomUUID } from "node:crypto";
 import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { saveEvents } from "../../events/index.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import {
   createAgreementCreatedReportingPublication,
@@ -14,7 +15,8 @@ import {
   insertAgreementVersion,
   insertCurrentAgreement,
 } from "../repositories/agreement.repository.js";
-import { createOutboxMessages } from "../services/integrations/create-outbox-messages.js";
+import { buildAgreementCreationAudit } from "../services/agreement-audit.js";
+import { createAgreementPublications } from "../services/integrations/create-publications.js";
 import { loadAgreementDefinition } from "./load-agreement-definition.js";
 
 const createAgreement = async (input) => {
@@ -72,7 +74,7 @@ const persistAgreement = async (agreement) => {
     versionedAt: agreement.createdAt,
   });
   const outboundEvents = [
-    ...createOutboxMessages(["lifecycle"], agreement),
+    ...createAgreementPublications(["lifecycle"], agreement),
     createAgreementCreatedReportingPublication(agreement),
     createAgreementStatusChangedReportingPublication(agreement),
   ];
@@ -81,6 +83,7 @@ const persistAgreement = async (agreement) => {
     await insertCurrentAgreement(agreement, session);
     await insertAgreementVersion(agreementVersion, session);
     await saveEvents(outboundEvents, session);
+    await writeAuditEvent(buildAgreementCreationAudit(agreement), session);
 
     return agreement;
   });
@@ -123,7 +126,7 @@ const persistWithAgreementNumberRetry = async (definition, agreement) => {
 
 // Owns the whole agreement creation operation so every caller shares identical
 // behaviour: loading the agreement definition, building and persisting the
-// Agreement with its version and outbox events, and collapsing concurrent
+// Agreement with its version and durable publications, and collapsing concurrent
 // duplicate requests onto the stored Agreement. The production message path and
 // the QA test endpoint both map their own input into this single use case
 // rather than reproducing the steps.

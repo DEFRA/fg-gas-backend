@@ -1,7 +1,14 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
 import { wreck } from "../../common/wreck.js";
-import { DEAD_LETTER } from "../../events/event-redrive.js";
+import {
+  EDITABLE_DESCRIPTION,
+  EDIT_REFUSAL_REASONS,
+} from "../../events/event-edit.js";
+import {
+  DEAD_LETTER,
+  REDRIVABLE_DESCRIPTION,
+} from "../../events/event-redrive.js";
 import { EVENT_STATUSES } from "../../events/status-counts.js";
 
 const GATEWAY_TIMEOUT = 504;
@@ -110,6 +117,8 @@ export const findCwPage = async (options) => {
 
 const NOT_FOUND = 404;
 const CONFLICT = 409;
+const PRECONDITION_FAILED = 412;
+const UNPROCESSABLE = 422;
 
 const parseJson = (raw) => {
   try {
@@ -130,7 +139,8 @@ const bodyOf = (error) => {
   return isRaw(payload) ? parseJson(payload.toString()) : payload;
 };
 
-// The only value ever read from a CW response body: a known status.
+// The only values ever read from a CW error body: a known status here, and a
+// known refusal reason below.
 const conflictStatusOf = (error) => {
   const status = bodyOf(error)?.status;
 
@@ -152,23 +162,44 @@ const toConflict = (error, label, expected) => {
   return conflict;
 };
 
+const refusalReasonOf = (error) => {
+  const reason = bodyOf(error)?.reason;
+
+  return Object.values(EDIT_REFUSAL_REASONS).includes(reason) ? reason : null;
+};
+
+const toRefusal = (error, label) => {
+  const refusal = Boom.badData(`CW-BE refused the payload of ${label}`);
+
+  refusal.output.payload.reason = refusalReasonOf(error);
+
+  return refusal;
+};
+
+const notFound = (_, label) => Boom.notFound(`CW-BE ${label} not found`);
+
+const stale = (_, label) =>
+  Boom.preconditionFailed(`CW-BE ${label} was edited since the revision given`);
+
+// No answer is not a refusal: a redrive may still have committed.
+const timedOut = (_, label) =>
+  Boom.gatewayTimeout(`CW-BE did not answer in time for ${label}`);
+
+const FAILURES = {
+  [NOT_FOUND]: notFound,
+  [CONFLICT]: toConflict,
+  [PRECONDITION_FAILED]: stale,
+  [UNPROCESSABLE]: toRefusal,
+  [GATEWAY_TIMEOUT]: timedOut,
+  [CLIENT_TIMEOUT]: timedOut,
+};
+
 const toFailure = (error, label, expected) => {
-  const statusCode = statusOf(error);
+  const failure = FAILURES[statusOf(error)];
 
-  if (statusCode === NOT_FOUND) {
-    return Boom.notFound(`CW-BE ${label} not found`);
-  }
-
-  if (statusCode === CONFLICT) {
-    return toConflict(error, label, expected);
-  }
-
-  // No answer is not a refusal: a redrive may still have committed.
-  if (TIMEOUT_STATUSES.has(statusCode)) {
-    return Boom.gatewayTimeout(`CW-BE did not answer in time for ${label}`);
-  }
-
-  return Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
+  return failure
+    ? failure(error, label, expected)
+    : Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
 };
 
 const requestOptions = () => ({
@@ -177,7 +208,15 @@ const requestOptions = () => ({
   headers: { authorization: `Bearer ${config.cwBackend.token}` },
 });
 
-const cwRequest = async (method, path, label) => {
+// `wreck` serialises an object payload as JSON and sets the content type.
+const optionsWith = (body) =>
+  body === undefined
+    ? requestOptions()
+    : { ...requestOptions(), payload: body };
+
+// `expected` is what Caseworking's 409 says the row was not, and it differs
+// per route.
+const cwRequest = async (method, path, label, { body, expected } = {}) => {
   if (!isCwConfigured()) {
     throw Boom.badGateway("CW-BE is not configured");
   }
@@ -185,12 +224,12 @@ const cwRequest = async (method, path, label) => {
   try {
     const { payload } = await wreck[method](
       new URL(path, config.cwBackend.url).toString(),
-      requestOptions(),
+      optionsWith(body),
     );
 
     return payload;
   } catch (error) {
-    throw toFailure(error, label, DEAD_LETTER);
+    throw toFailure(error, label, expected);
   }
 };
 
@@ -199,8 +238,11 @@ const eventPath = (box, id) =>
 
 const labelFor = (box, id) => `${box} event "${id}"`;
 
+// A read never conflicts, so its `expected` is only ever a fallback wording.
 export const findCwEvent = (box, id) =>
-  cwRequest("get", eventPath(box, id), labelFor(box, id));
+  cwRequest("get", eventPath(box, id), labelFor(box, id), {
+    expected: DEAD_LETTER,
+  });
 
 const withActor = (path, by) =>
   by ? `${path}?by=${encodeURIComponent(by)}` : path;
@@ -210,4 +252,31 @@ export const redriveCwEvent = (box, id, { by } = {}) =>
     "post",
     withActor(`${eventPath(box, id)}/redrive`, by),
     labelFor(box, id),
+    { expected: REDRIVABLE_DESCRIPTION },
+  );
+
+// The key is left out rather than sent null: Caseworking's schema stores null
+// for an absent note, exactly as GAS does.
+const purgeBody = (reasonCode, note) =>
+  note === null || note === undefined ? { reasonCode } : { reasonCode, note };
+
+// Caseworking refuses a purge that names nobody, because it audits the purge
+// itself. `x-actor` is required on the route that reaches here, so `by` is
+// always sent rather than left off as a redrive's is.
+export const purgeCwEvent = (box, id, { by, reasonCode, note }) =>
+  cwRequest(
+    "post",
+    `${eventPath(box, id)}/purge?by=${encodeURIComponent(by)}`,
+    labelFor(box, id),
+    { body: purgeBody(reasonCode, note), expected: DEAD_LETTER },
+  );
+
+// Named on the query string as purge's is: Caseworking audits the edit
+// itself and refuses one that names nobody.
+export const editCwPayload = (box, id, { by, payload, note, revision }) =>
+  cwRequest(
+    "post",
+    `${eventPath(box, id)}/payload?by=${encodeURIComponent(by)}`,
+    labelFor(box, id),
+    { body: { payload, note, revision }, expected: EDITABLE_DESCRIPTION },
   );

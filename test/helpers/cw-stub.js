@@ -11,6 +11,8 @@ const RESET_PATH = "/__reset";
 const OK = 200;
 const NO_CONTENT = 204;
 const CONFLICT = 409;
+const PRECONDITION_FAILED = 412;
+const UNPROCESSABLE = 422;
 const UNAUTHORIZED = 401;
 const SERVER_ERROR = 500;
 const NOT_FOUND = 404;
@@ -21,10 +23,19 @@ const emptyBox = () => ({
   mode: "ok",
   data: [],
   pagination: { endCursor: null, hasNextPage: false },
-  // A null `detail` or a false `redrive` is a 404; a conflict status is a 409.
+  // A null `detail` or a false `redrive`/`purge` is a 404; a conflict status
+  // is a 409.
   detail: null,
   redrive: false,
   redriveConflictStatus: null,
+  purge: false,
+  purgeConflictStatus: null,
+  // An edit answers `edit` as its 200 body, or 404 when it is null; a stale
+  // revision is a 412 and a refusal reason a 422.
+  edit: null,
+  editConflictStatus: null,
+  editStale: false,
+  editRefusal: null,
   counts: {
     PUBLISHED: 0,
     PROCESSING: 0,
@@ -180,8 +191,22 @@ const handleDetail = async (name, id, request, response) => {
   return send(response, OK, { ...box.detail, _id: id });
 };
 
-// POST /actuators/events/{box}/{id}/redrive: 204 with no body, or 409/404.
-const handleRedrive = async (name, id, request, response) => {
+const conflict = (response, status, required) =>
+  send(response, CONFLICT, {
+    statusCode: CONFLICT,
+    error: "Conflict",
+    message: `event is ${status}, not ${required}`,
+    status,
+  });
+
+// POST /actuators/events/{box}/{id}/{redrive|purge}: 204, 409 or 404. Both
+// real routes answer the same way, so one handler serves both.
+const handleAction = async (
+  name,
+  request,
+  response,
+  { allowed, conflictStatus, required },
+) => {
   await record(name, request);
 
   if (!isAuthorised(request)) {
@@ -194,16 +219,11 @@ const handleRedrive = async (name, id, request, response) => {
     return respondForMode(box, response);
   }
 
-  if (box.redriveConflictStatus) {
-    return send(response, CONFLICT, {
-      statusCode: CONFLICT,
-      error: "Conflict",
-      message: `event is ${box.redriveConflictStatus}, not DEAD_LETTER`,
-      status: box.redriveConflictStatus,
-    });
+  if (box[conflictStatus]) {
+    return conflict(response, box[conflictStatus], required);
   }
 
-  if (!box.redrive) {
+  if (!box[allowed]) {
     return send(response, NOT_FOUND, { message: "Not found" });
   }
 
@@ -211,8 +231,76 @@ const handleRedrive = async (name, id, request, response) => {
   return response.end();
 };
 
+// A redrive may start from a purged row too; a purge may not.
+const ACTIONS = {
+  redrive: {
+    allowed: "redrive",
+    conflictStatus: "redriveConflictStatus",
+    required: "redrivable (DEAD_LETTER or PURGED)",
+  },
+  purge: {
+    allowed: "purge",
+    conflictStatus: "purgeConflictStatus",
+    required: "DEAD_LETTER",
+  },
+};
+
+const refuseEdit = (response, box) => {
+  if (box.editConflictStatus) {
+    return conflict(
+      response,
+      box.editConflictStatus,
+      "redrivable (DEAD_LETTER or PURGED)",
+    );
+  }
+
+  if (box.editStale) {
+    return send(response, PRECONDITION_FAILED, {
+      statusCode: PRECONDITION_FAILED,
+      error: "Precondition Failed",
+      message: "event was edited since the revision given",
+    });
+  }
+
+  return send(response, UNPROCESSABLE, {
+    statusCode: UNPROCESSABLE,
+    error: "Unprocessable Entity",
+    message: "Payload refused",
+    reason: box.editRefusal,
+  });
+};
+
+const isEditRefused = (box) =>
+  Boolean(box.editConflictStatus || box.editStale || box.editRefusal);
+
+// POST /actuators/events/{box}/{id}/payload: 200 with what changed, or 404,
+// 409, 412 or 422.
+const handleEdit = async (name, request, response) => {
+  await record(name, request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const box = state[name];
+
+  if (box.mode !== "ok") {
+    return respondForMode(box, response);
+  }
+
+  if (isEditRefused(box)) {
+    return refuseEdit(response, box);
+  }
+
+  if (!box.edit) {
+    return send(response, NOT_FOUND, { message: "Not found" });
+  }
+
+  return send(response, OK, box.edit);
+};
+
 const EVENT_PATH =
-  /^\/actuators\/events\/(inbox|outbox)\/([^/]+)(?:\/(redrive))?$/;
+  /^\/actuators\/events\/(inbox|outbox)\/([^/]+)(?:\/(redrive|purge|payload))?$/;
 
 const routeEvent = (pathname, request, response) => {
   const match = EVENT_PATH.exec(pathname);
@@ -223,8 +311,12 @@ const routeEvent = (pathname, request, response) => {
 
   const [, name, id, action] = match;
 
-  if (action === "redrive") {
-    return handleRedrive(name, id, request, response);
+  if (action === "payload") {
+    return handleEdit(name, request, response);
+  }
+
+  if (action) {
+    return handleAction(name, request, response, ACTIONS[action]);
   }
 
   return handleDetail(name, id, request, response);

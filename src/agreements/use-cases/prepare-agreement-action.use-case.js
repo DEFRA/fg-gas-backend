@@ -1,9 +1,11 @@
 import Boom from "@hapi/boom";
+import { withAudit } from "../../events/with-audit.js";
+import { buildAgreementViewAudit } from "../services/agreement-audit.js";
 import { buildAgreementPageModel } from "../services/build-agreement-page-model.js";
 import { loadCurrentAgreementActionContext } from "./load-current-agreement-action-context.js";
 import { loadAgreementForAction } from "./load-current-agreement.js";
 
-export const prepareAgreementActionUseCase = async ({
+const prepareAgreementAction = async ({
   actionName,
   agreementNumber,
   access,
@@ -31,5 +33,17 @@ export const prepareAgreementActionUseCase = async ({
     mode: "view",
   });
 
-  return { pageModel, etag };
+  return { agreement, pageModel, etag };
 };
+
+const auditActionPreparation = ([{ actionName }], result) =>
+  result?.agreement
+    ? buildAgreementViewAudit(result.agreement, "action-preparation", {
+        actionName,
+      })
+    : null;
+
+export const prepareAgreementActionUseCase = withAudit(
+  prepareAgreementAction,
+  auditActionPreparation,
+);

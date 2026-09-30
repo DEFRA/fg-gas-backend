@@ -1,6 +1,8 @@
 import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../../common/logger.js";
 import { saveEvents } from "../../events/index.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { Agreement } from "../models/agreement.js";
 import {
@@ -15,7 +17,9 @@ import { loadCurrentAgreementActionContext } from "./load-current-agreement-acti
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 import { loadAgreementForAction } from "./load-current-agreement.js";
 
+vi.mock("../../common/logger.js");
 vi.mock("../../events/index.js");
+vi.mock("../../events/write-audit-event.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../repositories/agreement.repository.js");
 vi.mock("../services/build-agreement-page-model.js");
@@ -76,6 +80,7 @@ const agreement = new Agreement({
   updatedAt: "2026-07-17T10:00:00.000Z",
 });
 const action = {
+  transition: { target: "accepted" },
   validate: vi.fn().mockReturnValue({ valid: true }),
 };
 const agreementDefinition = {
@@ -217,6 +222,18 @@ describe("executeAgreementActionUseCase", () => {
       location: "/agreements/current",
     });
     expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
+    expect(writeAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an idempotency key reused for another action without auditing", async () => {
+    findVersionByIdempotencyKey.mockResolvedValue({
+      actionExecution: { name: "withdraw" },
+    });
+
+    await expect(executeAgreementActionUseCase(options)).rejects.toMatchObject({
+      output: { statusCode: 409 },
+    });
+    expect(writeAuditEvent).not.toHaveBeenCalled();
   });
 
   it("rejects stale ETags", async () => {
@@ -231,6 +248,29 @@ describe("executeAgreementActionUseCase", () => {
         },
       },
     });
+    expect(writeAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "FAILURE",
+        details: expect.objectContaining({
+          state: "offered",
+          version: 1,
+          attemptedState: "accepted",
+        }),
+      }),
+      null,
+    );
+  });
+
+  it("logs audit write failures with Agreement and action context", async () => {
+    writeAuditEvent.mockRejectedValueOnce(new Error("audit unavailable"));
+
+    await expect(
+      executeAgreementActionUseCase({ ...options, ifMatch: '"stale"' }),
+    ).rejects.toMatchObject({ output: { statusCode: 412 } });
+
+    expect(logger.error).toHaveBeenCalledWith(
+      "Failed to record audit for Agreement PMF823153883 action accept: audit unavailable",
+    );
   });
 
   it("rejects acceptance when a newer compatible config became active", async () => {
@@ -336,6 +376,17 @@ describe("executeAgreementActionUseCase", () => {
     });
     expect(agreementDefinition.executeAction).not.toHaveBeenCalled();
     expect(withTransaction).not.toHaveBeenCalled();
+    expect(writeAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "FAILURE",
+        details: expect.objectContaining({
+          state: "offered",
+          version: 1,
+          attemptedState: "accepted",
+        }),
+      }),
+      null,
+    );
   });
 
   it("preserves array-valued checkbox selections by configured value", async () => {
@@ -509,6 +560,7 @@ describe("executeAgreementActionUseCase", () => {
       output: { statusCode: 412 },
     });
     expect(insertAgreementVersion).not.toHaveBeenCalled();
+    expect(writeAuditEvent).not.toHaveBeenCalled();
   });
 
   it("returns not found when the Agreement disappears during conflict resolution", async () => {

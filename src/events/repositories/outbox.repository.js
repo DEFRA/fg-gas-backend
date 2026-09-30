@@ -10,9 +10,15 @@ import {
   auditGroupExpression,
 } from "../event-audit.js";
 import { breakdownStages, toBreakdownGroups } from "../event-breakdown.js";
+import { editUpdate, revisionFilter } from "../event-edit.js";
 import { toSourceFacets } from "../event-facets.js";
 import { buildEventListFilter } from "../event-list-filter.js";
-import { DEAD_LETTER, redriveUpdate } from "../event-redrive.js";
+import { purgeUpdate } from "../event-purge.js";
+import {
+  DEAD_LETTER,
+  REDRIVABLE_STATUSES,
+  redriveUpdate,
+} from "../event-redrive.js";
 import {
   claimExpiredAttempt,
   claimExpiredError,
@@ -26,6 +32,7 @@ const collection = "outbox";
 const MAX_RETRIES = config.outbox.outboxMaxRetries;
 const EXPIRES_IN_MS = config.outbox.outboxExpiresMs;
 const NUMBER_OF_RECORDS = config.outbox.outboxClaimMaxRecords;
+const RETENTION_DAYS = config.events.retentionDays;
 
 // `target` decides whether a type-less row is an audit record.
 const listProjection = {
@@ -307,15 +314,70 @@ export const findStatusById = async (id, session) => {
   return doc ? doc.status : null;
 };
 
-// True when a DEAD_LETTER row was redriven.
+// True when a redrivable row - a dead letter, or one an operator purged - was
+// redriven.
 export const redriveById = async (id, { by, session } = {}) => {
   const { matchedCount } = await db
     .collection(collection)
     .updateOne(
-      { _id: toId(id), status: DEAD_LETTER },
+      { _id: toId(id), status: { $in: REDRIVABLE_STATUSES } },
       redriveUpdate(OutboxStatus.RESUBMITTED, { by }),
       { session },
     );
+
+  return matchedCount > 0;
+};
+
+// True when a DEAD_LETTER row was purged. The fence is the whole of the
+// concurrency control: a lost race returns false and the caller reads the
+// status.
+export const purgeById = async (id, { by, reasonCode, note, session } = {}) => {
+  const { matchedCount } = await db.collection(collection).updateOne(
+    { _id: toId(id), status: DEAD_LETTER },
+    purgeUpdate(OutboxStatus.PURGED, {
+      by,
+      reasonCode,
+      note,
+      retentionDays: RETENTION_DAYS,
+    }),
+    { session },
+  );
+
+  return matchedCount > 0;
+};
+
+// What an edit needs to decide on and to diff against, read in its transaction.
+export const findEditableById = (id, session) =>
+  db.collection(collection).findOne(
+    { _id: toId(id) },
+    {
+      projection: { status: 1, event: 1, payloadRevision: 1, lastEdit: 1 },
+      session,
+    },
+  );
+
+// True when a redrivable row still at `revision` took the new payload. A lost
+// race - a status change or another edit - returns false and the caller reads
+// the status.
+export const editPayloadById = async (
+  id,
+  { revision, event, original, by, note, session },
+) => {
+  const { matchedCount } = await db.collection(collection).updateOne(
+    {
+      _id: toId(id),
+      status: { $in: REDRIVABLE_STATUSES },
+      payloadRevision: revisionFilter(revision),
+    },
+    editUpdate({
+      event,
+      by,
+      note,
+      revision,
+      original,
+    }),
+    { session },
+  );
 
   return matchedCount > 0;
 };

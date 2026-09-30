@@ -40,6 +40,12 @@ const aDetail = (overrides = {}) => ({
   lastResubmissionDate: null,
   attemptHistory: [],
   lastRedrive: null,
+  lastPurge: null,
+  purgeDeletionDate: null,
+  payloadRevision: 0,
+  payloadIsPlainJson: true,
+  lastEdit: null,
+  originalPayload: null,
   segregationRef: "GLD-9B2",
   ...overrides,
 });
@@ -346,6 +352,164 @@ describe("eventDetailResponseSchema as the whole answer", () => {
     expect(
       eventDetailResponseSchema.validate(aDetail({ attemptHistory: null }))
         .error,
+    ).toBeDefined();
+  });
+});
+
+// Response validation fails closed: a key the schema does not know 500s the
+// event page.
+describe("eventDetailResponseSchema lastPurge", () => {
+  const aPurge = (overrides = {}) => ({
+    at: "2026-09-21T09:00:00.000Z",
+    by: "donatas",
+    reasonCode: "BROKEN_PAYLOAD",
+    note: "the payload lost its clientRef",
+    ...overrides,
+  });
+
+  it("accepts a purge record with its actor, reason and note", () => {
+    expect(
+      eventDetailResponseSchema.validate(aDetail({ lastPurge: aPurge() }))
+        .error,
+    ).toBeUndefined();
+  });
+
+  it("accepts a record with no note, which is every purge that gave none", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ lastPurge: aPurge({ note: null }) }),
+      ).error,
+    ).toBeUndefined();
+  });
+
+  it("accepts null, the value every row nobody purged has", () => {
+    expect(
+      eventDetailResponseSchema.validate(aDetail({ lastPurge: null })).error,
+    ).toBeUndefined();
+  });
+
+  it("requires the key, so a mapping gap fails a test rather than a render", () => {
+    const { lastPurge: _dropped, ...without } = aDetail();
+
+    expect(eventDetailResponseSchema.validate(without).error).toBeDefined();
+  });
+
+  // The label is the admin's business; an unknown code must not 500 the page.
+  it("takes a reason code it does not recognise", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ lastPurge: aPurge({ reasonCode: "SOMETHING_NEW" }) }),
+      ).error,
+    ).toBeUndefined();
+  });
+
+  it("requires every key of the record", () => {
+    for (const key of ["at", "by", "reasonCode", "note"]) {
+      const { [key]: _dropped, ...partial } = aPurge();
+
+      expect(
+        eventDetailResponseSchema.validate(aDetail({ lastPurge: partial }))
+          .error,
+      ).toBeDefined();
+    }
+  });
+
+  it("rejects an `at` that is not an instant", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ lastPurge: aPurge({ at: "yesterday" }) }),
+      ).error,
+    ).toBeDefined();
+  });
+});
+
+describe("eventDetailResponseSchema purgeDeletionDate", () => {
+  it("accepts a projection on a dead-lettered row", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ purgeDeletionDate: "2026-12-20T09:00:00.000Z" }),
+      ).error,
+    ).toBeUndefined();
+  });
+
+  it("accepts null, the value every row that cannot be purged has", () => {
+    expect(
+      eventDetailResponseSchema.validate(aDetail({ purgeDeletionDate: null }))
+        .error,
+    ).toBeUndefined();
+  });
+
+  it("requires the key, so a mapping gap fails a test rather than a render", () => {
+    const { purgeDeletionDate: _dropped, ...without } = aDetail();
+
+    expect(eventDetailResponseSchema.validate(without).error).toBeDefined();
+  });
+
+  it("rejects a value that is not an instant", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ purgeDeletionDate: "in 90 days" }),
+      ).error,
+    ).toBeDefined();
+  });
+});
+
+describe("eventDetailResponseSchema payload edits", () => {
+  const validate = (overrides) =>
+    eventDetailResponseSchema.validate(aDetail(overrides));
+
+  it("takes every edit field null, as from a Caseworking that cannot edit", () => {
+    expect(
+      validate({
+        payloadRevision: null,
+        payloadIsPlainJson: null,
+        lastEdit: null,
+        originalPayload: null,
+      }).error,
+    ).toBeUndefined();
+  });
+
+  it("takes every edit field set", () => {
+    expect(
+      validate({
+        payloadRevision: 2,
+        payloadIsPlainJson: false,
+        lastEdit: {
+          at: "2026-09-23T14:08:00.000Z",
+          by: "donatas",
+          note: "sheetId was sent as a number",
+        },
+        originalPayload: { id: "evt-1", data: { sheetId: 679 } },
+      }).error,
+    ).toBeUndefined();
+  });
+
+  it.each([
+    "payloadRevision",
+    "payloadIsPlainJson",
+    "lastEdit",
+    "originalPayload",
+  ])("insists %s is named", (field) => {
+    const detail = aDetail();
+    delete detail[field];
+
+    expect(eventDetailResponseSchema.validate(detail).error).toBeDefined();
+  });
+
+  it("refuses a negative revision", () => {
+    expect(validate({ payloadRevision: -1 }).error).toBeDefined();
+  });
+
+  it("refuses a lastEdit with a key it does not name", () => {
+    expect(
+      validate({
+        lastEdit: {
+          at: "2026-09-23T14:08:00.000Z",
+          by: "donatas",
+          note: "n",
+          approvedBy: "x",
+        },
+      }).error,
     ).toBeDefined();
   });
 });

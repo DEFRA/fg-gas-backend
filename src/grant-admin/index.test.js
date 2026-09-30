@@ -35,7 +35,15 @@ describe("grant-admin", () => {
       },
       {
         method: "post",
+        path: "/grant-admin/events/{service}/{box}/{id}/payload",
+      },
+      {
+        method: "post",
         path: "/grant-admin/events/{service}/{box}/{id}/redrive",
+      },
+      {
+        method: "post",
+        path: "/grant-admin/events/{service}/{box}/{id}/purge",
       },
       {
         method: "post",
@@ -56,6 +64,12 @@ describe("grant-admin", () => {
     expect(routes).toContain("get /grant-admin/events/{service}/{box}/{id}");
     expect(routes).toContain(
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
+    );
+    expect(routes).toContain(
+      "post /grant-admin/events/{service}/{box}/{id}/purge",
+    );
+    expect(routes).toContain(
+      "post /grant-admin/events/{service}/{box}/{id}/payload",
     );
   });
 });

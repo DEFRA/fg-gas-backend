@@ -4,6 +4,7 @@ import { loadCurrentAgreementActionContext } from "./load-current-agreement-acti
 import { loadAgreementForAction } from "./load-current-agreement.js";
 import { prepareAgreementActionUseCase } from "./prepare-agreement-action.use-case.js";
 
+vi.mock("../../events/write-audit-event.js");
 vi.mock("../services/build-agreement-page-model.js");
 vi.mock("./load-current-agreement-action-context.js");
 vi.mock("./load-current-agreement.js");

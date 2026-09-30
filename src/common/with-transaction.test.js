@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
+import { logger } from "./logger.js";
 import { mongoClient } from "./mongo-client.js";
 import { transactionOptions, withTransaction } from "./with-transaction.js";
 
@@ -47,5 +48,21 @@ describe("withTransaction", () => {
       transactionOptions,
     );
     expect(mockSession.endSession).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a 4xx refusal", Boom.preconditionFailed("stale"), 0],
+    ["a 5xx Boom", Boom.internal("broken"), 1],
+    ["an unexpected error", new Error("broken"), 1],
+  ])("logs %s as a failed transaction %i times", async (_, error, times) => {
+    vi.spyOn(mongoClient, "startSession").mockReturnValue({
+      withTransaction: vi.fn().mockRejectedValue(error),
+      endSession: vi.fn(),
+    });
+    const errorSpy = vi.spyOn(logger, "error");
+
+    await expect(withTransaction(vi.fn())).rejects.toBe(error);
+
+    expect(errorSpy).toHaveBeenCalledTimes(times);
   });
 });

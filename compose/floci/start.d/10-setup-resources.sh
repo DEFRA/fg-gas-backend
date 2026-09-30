@@ -114,15 +114,6 @@ function create_agreement_status_fanout() {
   done
 }
 
-function create_standard_topic() {
-  local topic_name=$1
-  local topic_arn=$(awslocal sns create-topic \
-	  --name $topic_name \
-	  --query "TopicArn" \
-	  --output text)
-  echo $topic_arn
-}
-
 function create_standard_queue() {
   local queue_name=$1
 
@@ -194,7 +185,6 @@ create_topic_and_queue "gas__sns__create_payment_fifo.fifo" "gps__sqs__create_pa
 create_standard_topic_and_queue "gfr__sns___config_update" "gas__sqs__config_version_updated"
 create_standard_topic "gas__sns__audit_topic_arn" & pids+=($!)
 create_standard_topic "gfr__sns___reporting_events" & pids+=($!)
-create_topic "gas__sns__update_agreement_status_fifo.fifo" & pids+=($!)
 
 for pid in "${pids[@]}"; do
   if ! wait "$pid"; then

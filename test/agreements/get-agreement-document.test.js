@@ -92,19 +92,27 @@ const sectionComponents = (section) => contentComponents(section);
 describe("read-only Agreement document", () => {
   let agreements;
   let client;
+  let outbox;
 
   beforeAll(async () => {
     client = await MongoClient.connect(env.MONGO_URI);
     agreements = client.db().collection("agreements__agreements");
+    outbox = client.db().collection("outbox");
   });
 
   beforeEach(async () => {
-    await agreements.deleteMany({ agreementNumber });
+    await Promise.all([
+      agreements.deleteMany({ agreementNumber }),
+      outbox.deleteMany({ "event.audit.entities.entityid": agreementNumber }),
+    ]);
     await agreements.insertOne(structuredClone(agreement));
   });
 
   afterAll(async () => {
-    await agreements.deleteMany({ agreementNumber });
+    await Promise.all([
+      agreements.deleteMany({ agreementNumber }),
+      outbox.deleteMany({ "event.audit.entities.entityid": agreementNumber }),
+    ]);
     await client.close();
   });
 
@@ -179,6 +187,35 @@ describe("read-only Agreement document", () => {
         }),
       ]),
     );
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__AUDIT_TOPIC_ARN,
+      "event.audit.entities.entity": "AGREEMENT",
+      "event.audit.entities.action": "VIEW_AGREEMENT",
+      "event.audit.entities.entityid": agreementNumber,
+      "event.audit.status": "SUCCESS",
+      "event.audit.accounts.sbi": sbi,
+      "event.audit.details.view": "document",
+    });
+  });
+
+  it("audits a successful current Agreement view", async () => {
+    const response = await wreck.request("GET", "/agreements/current", {
+      headers: {
+        ...documentHeaders,
+        "x-agreement-client-ref": clientRef,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    await expect(outbox).toHaveRecord({
+      target: env.GAS__SNS__AUDIT_TOPIC_ARN,
+      "event.audit.entities.entity": "AGREEMENT",
+      "event.audit.entities.action": "VIEW_AGREEMENT",
+      "event.audit.entities.entityid": agreementNumber,
+      "event.audit.status": "SUCCESS",
+      "event.audit.accounts.sbi": sbi,
+      "event.audit.details.view": "current",
+    });
   });
 
   it("returns the stored payment schedule without draft marking for an accepted Agreement document", async () => {

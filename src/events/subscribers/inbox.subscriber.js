@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 
@@ -14,6 +15,7 @@ import {
   claimEvents,
   deadLetterEvent,
   findNextMessage,
+  processExpiredEvents,
   update,
   updateDeadEvents,
   updateFailedEvents,
@@ -21,6 +23,8 @@ import {
 } from "../repositories/inbox.repository.js";
 
 export class InboxSubscriber {
+  asyncLocalStorage = new AsyncLocalStorage();
+
   static ACTOR = "INBOX";
 
   constructor() {
@@ -41,6 +45,7 @@ export class InboxSubscriber {
         await this.processResubmittedEvents();
         await this.processFailedEvents();
         await this.processDeadEvents();
+        await this.processExpiredEvents();
         await this.cleanupStaleLocks(InboxSubscriber.ACTOR);
       } catch (error) {
         logger.error(error, "Error polling inbox");
@@ -60,7 +65,9 @@ export class InboxSubscriber {
     }
     try {
       const events = await claimEvents(claimToken, segregationRef);
-      await this.processEvents(events);
+      await this.asyncLocalStorage.run(claimToken, async () =>
+        this.processEvents(events),
+      );
     } finally {
       await freeFifoLock(InboxSubscriber.ACTOR, segregationRef);
     }
@@ -89,6 +96,12 @@ export class InboxSubscriber {
       logger.info(`Updated ${results?.modifiedCount} dead inbox events`);
   }
 
+  async processExpiredEvents() {
+    const results = await processExpiredEvents();
+    results?.modifiedCount &&
+      logger.info(`Updated ${results?.modifiedCount} expired inbox events`);
+  }
+
   async processResubmittedEvents() {
     const results = await updateResubmittedEvents();
     results?.modifiedCount &&
@@ -107,16 +120,33 @@ export class InboxSubscriber {
       logger.info(`Cleaned up ${results?.modifiedCount} stale fifo locks`);
   }
 
+  // False when the claim was lost and nothing was written.
+  async writeClaimed(inboxEvent) {
+    const claimedBy = this.asyncLocalStorage.getStore();
+    const result = await update(inboxEvent, claimedBy);
+
+    if (result?.matchedCount === 0) {
+      logger.warn(
+        `Inbox event ${inboxEvent.messageId} was reclaimed before its handler finished`,
+      );
+      return false;
+    }
+
+    return true;
+  }
+
   async markEventFailed(inboxEvent, error) {
     inboxEvent.markAsFailed(error);
-    await update(inboxEvent);
-    logger.info(`Marked inbox event unsent ${inboxEvent.messageId}`);
+    if (await this.writeClaimed(inboxEvent)) {
+      logger.info(`Marked inbox event unsent ${inboxEvent.messageId}`);
+    }
   }
 
   async markEventComplete(inboxEvent) {
     inboxEvent.markAsComplete();
-    await update(inboxEvent);
-    logger.info(`Marked inbox event as complete ${inboxEvent.messageId}`);
+    if (await this.writeClaimed(inboxEvent)) {
+      logger.info(`Marked inbox event as complete ${inboxEvent.messageId}`);
+    }
   }
 
   async handleEvent(message) {

@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { config } from "../../common/config.js";
+import { saveEvents } from "../../events/index.js";
 import {
   canHandleInternalCommand,
   internalCommandTarget,
 } from "../../common/internal-command-handlers.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
+import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -22,7 +24,6 @@ import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application.repository.js";
-import { insertMany } from "../../events/repositories/outbox.repository.js";
 import {
   auditDataBuilder,
   withdrawApplicationUseCase,
@@ -37,7 +38,7 @@ vi.mock("../../common/internal-command-handlers.js", async () => {
 vi.mock("../repositories/application.repository.js");
 vi.mock("../publishers/application-event.publisher.js");
 vi.mock("../publishers/case-event.publisher.js");
-vi.mock("../../events/repositories/outbox.repository.js");
+vi.mock("../../events/index.js");
 vi.mock("../../events/write-audit-event.js");
 
 describe("withdrawApplicationUseCase", () => {
@@ -95,9 +96,10 @@ describe("withdrawApplicationUseCase", () => {
     findByClientRefAndCode.mockResolvedValueOnce(application);
     await withdrawApplicationUseCase(command, session);
 
-    expect(insertMany).toHaveBeenCalledTimes(1);
-    expect(insertMany.mock.calls[0][0]).toHaveLength(1);
-    expect(insertMany.mock.calls[0][0][0].target).toBe(internalCommandTarget);
+    expect(saveEvents).toHaveBeenCalledTimes(1);
+    expect(saveEvents.mock.calls[0][0]).toHaveLength(1);
+    expect(saveEvents.mock.calls[0][0][0].target).toBe(internalCommandTarget);
+    expect(saveEvents.mock.calls[0][0][0].segregationRef).toBeUndefined();
     expect(agreement.latestStatus).toBe(Status.Offered);
 
     expect(writeAuditEvent).toHaveBeenCalledWith(
@@ -138,7 +140,7 @@ describe("withdrawApplicationUseCase", () => {
       code: "legacy-code",
     });
 
-    expect(insertMany.mock.calls[0][0][0].target).toBe(
+    expect(saveEvents.mock.calls[0][0][0].target).toBe(
       config.sns.updateAgreementStatusTopicArn,
     );
   });
@@ -168,9 +170,14 @@ describe("withdrawApplicationUseCase", () => {
     await withdrawApplicationUseCase(command, session);
 
     expect(update).toHaveBeenCalledTimes(1);
-    expect(insertMany).toHaveBeenCalledTimes(1);
-    expect(insertMany.mock.calls[0][0]).toHaveLength(2);
-    expect(insertMany.mock.calls[0][0][1]).toEqual(
+    expect(saveEvents).toHaveBeenCalledTimes(1);
+    expect(saveEvents).toHaveBeenCalledWith(expect.any(Array), session);
+    expect(saveEvents.mock.calls[0][0]).toHaveLength(2);
+    expect(saveEvents.mock.calls[0][0][0]).toEqual({
+      event: expect.any(UpdateCaseStatusCommand),
+      target: config.sns.updateCaseStatusTopicArn,
+    });
+    expect(saveEvents.mock.calls[0][0][1]).toEqual(
       expect.objectContaining({
         event: expect.objectContaining({
           data: expect.objectContaining({

@@ -5,6 +5,7 @@ Grant Application Service defines and manages farming grants and applications. I
 - [Running with other services](#running-with-other-services)
 - [User guide](#user-guide)
   - [Configure grant actions](#configure-grant-actions)
+  - [Configure claim-approval transitions](#configure-claim-approval-transitions)
 - [Developer guide](#developer-guide)
   - [Node.js](#nodejs)
 - [Local development](#local-development)
@@ -76,6 +77,51 @@ Content-Type: application/json
 }
 ```
 
+### Configure claim-approval transitions
+
+A grant can optionally move an Application when a Claim that does not require
+approval consumes the final available claim slot across all of the Application's
+entitlements. Configure `claims.onClaimApproval` on the grant with complete
+source and target positions:
+
+```json
+{
+  "claims": {
+    "onClaimApproval": {
+      "currentPosition": {
+        "phase": "PRE_AWARD",
+        "stage": "ASSESSMENT",
+        "status": "APPLICATION_RECEIVED"
+      },
+      "targetPosition": {
+        "phase": "PRE_AWARD",
+        "stage": "ASSESSMENT",
+        "status": "AWARD_READY"
+      }
+    }
+  }
+}
+```
+
+All six position fields are required and must name positions in the grant's
+`phases`; the target must also allow a transition from the configured source.
+The source position must exactly match the Application's current position. A
+Claim that requires approval, any remaining entitlement capacity, an absent
+configuration, or a non-matching position does not move the Application. Do not
+rely on this transition for a mix of approval and non-approval templates: if an
+approval claim consumes the final slot, it deliberately does not trigger the
+move. An approval-driven transition is outside FGP-1397.
+
+Grant Admin accepts this optional block when creating a grant with `POST /grants` or replacing one with `PUT /grants/{code}`. Replacement is not a
+patch: omitting `claims` removes an existing claim-approval configuration.
+
+The final Claim, Application move, normal application-status event, and
+Caseworking status-update command are committed as one transaction. If the
+configured move or one of its target-status processes fails, none of those
+changes, including the Claim, is committed. Configure a target status only with
+processes that can run with the Claim context (`clientRef` and grant `code`);
+a process that requires external event data fails the transaction.
+
 ## Developer guide
 
 ### Node.js
@@ -114,8 +160,10 @@ writes Agreement-created and Agreement-status-changed events to its transactiona
 outbox so they are committed atomically with the corresponding Agreement version.
 
 `AGREEMENTS_JWT_SECRET` (FGP-1307) is the shared HS256 secret GAS uses to verify
-the caller token (the `x-encrypted-auth` header) forwarded by Agreements UI on
-the agreement routes. It must match the secret the producer services sign with
+the caller token forwarded by Agreements UI on the agreement routes. The token is
+read from the `x-user-context` header (FGP-1394), falling back to the older
+`x-encrypted-auth` header name when `x-user-context` is absent, so producers can
+migrate independently. It must match the secret the producer services sign with
 (Caseworking frontend, PDF service and Grants UI). It is supplied per
 environment from the platform secret store and must never be committed. It is
 optional while verification runs in warn-only mode; when absent the caller token
