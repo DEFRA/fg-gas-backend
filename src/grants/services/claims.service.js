@@ -17,6 +17,8 @@ import {
   insert,
 } from "../repositories/claim.repository.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
+import { toClaimableDto } from "./map-claimable-entitlement.js";
+import { toSubmittedClaim } from "./map-submitted-claim.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import {
   pinnedVersionOf,
@@ -105,61 +107,6 @@ const claimableFor = ({ grant, application, existing, entitlementId }) => {
   return ClaimableEntitlement.fromPersisted({ entitlement, template });
 };
 
-const dataValue = (field, value) => value ?? field.value ?? null;
-
-const unscaleDecimalAsText = (value, decimalPlaces) => {
-  const sign = value < 0 ? "-" : "";
-  const digits = String(Math.abs(value)).padStart(decimalPlaces + 1, "0");
-  const point = digits.length - decimalPlaces;
-
-  return Number(`${sign}${digits.slice(0, point)}.${digits.slice(point)}`);
-};
-
-const unscaled = (value, decimalPlaces) =>
-  typeof value === "number"
-    ? unscaleDecimalAsText(value, decimalPlaces)
-    : value;
-
-const decimalDataField = (field, value) => ({
-  value: unscaled(dataValue(field, value), field.decimalPlaces),
-  decimalPlaces: field.decimalPlaces,
-  minValue: field.minValue ?? null,
-  maxValue: field.maxValue ?? null,
-});
-
-const dataField = (field, value) => {
-  if (field.unitType === "decimal") {
-    return decimalDataField(field, value);
-  }
-  return { value: dataValue(field, value) };
-};
-
-const claimData = (claimable) =>
-  Object.fromEntries(
-    Object.entries(claimable.fields ?? {}).map(([name, field]) => [
-      name,
-      dataField(field, claimable.entitlement?.data?.[name]),
-    ]),
-  );
-
-const entitlementDetails = (entitlement) =>
-  entitlement
-    ? {
-        entitlementId: entitlement.id,
-        instanceNumber: entitlement.instanceNumber,
-      }
-    : { entitlementId: null, instanceNumber: null };
-
-const toClaimableDto = (claimable) => ({
-  source: claimable.type,
-  claimCode: claimable.claimCode,
-  name: claimable.name,
-  description: claimable.description ?? null,
-  data: claimData(claimable),
-  ...entitlementDetails(claimable.entitlement),
-  claim: structuredClone(claimable.claim),
-});
-
 const countClaimsFor = (claimable) =>
   countByEntitlement({
     code: claimable.code,
@@ -209,36 +156,6 @@ const listEntitlementsMatching = async ({ code, clientRef }, isEligible) => {
   );
 
   return matched.filter(Boolean).map(toClaimableDto);
-};
-
-// What the claim is for, as the claim itself reports it. The submit schema
-// keeps the value and its unit together, so one without the other never
-// reaches here.
-const quantityFor = (claim) => {
-  const { totalEligibleArea, unit } = claim.claim ?? {};
-
-  return unit === undefined ? null : { value: totalEligibleArea, unit };
-};
-
-const nameFor = (template, claim) => template?.name ?? claim.claimCode;
-
-const requiresApprovalFor = (template) =>
-  Boolean(template?.claim?.requiresApproval);
-
-const amountPenceFor = (claim) => claim.claim?.totalClaimAmountPence ?? null;
-
-const toSubmittedClaim = ({ claim, grant }) => {
-  const template = grant.findEntitlementTemplate(claim.claimCode);
-
-  return {
-    clientClaimRef: claim.clientClaimRef,
-    claimCode: claim.claimCode,
-    name: nameFor(template, claim),
-    quantity: quantityFor(claim),
-    totalClaimAmountPence: amountPenceFor(claim),
-    requiresApproval: requiresApprovalFor(template),
-    submittedAt: claim.createdAt,
-  };
 };
 
 // Every Claim submitted against one application, resolved against the template
