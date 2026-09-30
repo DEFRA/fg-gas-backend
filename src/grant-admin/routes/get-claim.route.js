@@ -1,11 +1,15 @@
 import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
-import { listEntitlementsWithClaimCapacity } from "../../grants/services/claims.service.js";
+import {
+  listEntitlementsWithClaimCapacity,
+  listSubmittedClaims,
+} from "../../grants/services/claims.service.js";
 import {
   getEntitlementCreationDetails,
   getEntitlementOverview,
 } from "../../grants/services/entitlement.service.js";
+import { listClaimPaymentsUseCase } from "../../payments/use-cases/list-claim-payments.use-case.js";
 import { code as grantCode } from "../schemas/code.js";
 import { getClaimResponseSchema } from "../schemas/get-claim-response.schema.js";
 import {
@@ -36,15 +40,27 @@ export const getClaimRoute = {
       `Get claim for application with code ${code}, claimCode ${claimCode} and clientRef ${clientRef}`,
     );
 
-    const [overview, creationDetails, claimableEntitlements] =
-      await Promise.all([
-        getEntitlementOverview({ code, clientRef }),
-        getEntitlementCreationDetails({ code, clientRef, claimCode }),
-        listEntitlementsWithClaimCapacity({ code, clientRef }),
-      ]);
+    const [
+      overview,
+      creationDetails,
+      claimableEntitlements,
+      claims,
+      claimPayments,
+    ] = await Promise.all([
+      getEntitlementOverview({ code, clientRef }),
+      getEntitlementCreationDetails({ code, clientRef, claimCode }),
+      listEntitlementsWithClaimCapacity({ code, clientRef }),
+      listSubmittedClaims({ code, clientRef }),
+      listClaimPaymentsUseCase({ code, clientRef }),
+    ]);
 
     return {
-      ...(await buildClaimsView({ ...overview, claimableEntitlements })),
+      ...(await buildClaimsView({
+        ...overview,
+        claimableEntitlements,
+        claims,
+        claimPayments,
+      })),
       entitlementTemplate: toEntitlementTemplate(creationDetails),
     };
   },

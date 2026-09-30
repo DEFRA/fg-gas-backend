@@ -151,6 +151,57 @@ describe("submitClaimRoute", () => {
     expect(submitClaim).not.toHaveBeenCalled();
   });
 
+  // The Claims page shows this quantity against its unit, so half of a
+  // measurement is refused rather than shown unlabelled.
+  it.each([
+    ["a quantity with no unit", { totalEligibleArea: 23 }],
+    ["a unit with no quantity", { unit: "ha" }],
+    ["a non-numeric quantity", { totalEligibleArea: "lots", unit: "ha" }],
+    ["a negative quantity", { totalEligibleArea: -1, unit: "ha" }],
+  ])("returns 400 for %s", async (_label, quantity) => {
+    const { statusCode } = await server.inject({
+      method: "POST",
+      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
+      payload: { ...payload, claim: { ...payload.claim, ...quantity } },
+    });
+
+    expect(statusCode).toBe(400);
+    expect(submitClaim).not.toHaveBeenCalled();
+  });
+
+  it("accepts a claim that measures nothing", async () => {
+    submitClaim.mockResolvedValue({ created: true, claimId: "claim-1" });
+
+    const { statusCode } = await server.inject({
+      method: "POST",
+      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
+      payload,
+    });
+
+    expect(statusCode).toBe(201);
+  });
+
+  it("keeps the quantity and its unit on the submitted claim", async () => {
+    submitClaim.mockResolvedValue({ created: true, claimId: "claim-1" });
+
+    await server.inject({
+      method: "POST",
+      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
+      payload: {
+        ...payload,
+        claim: { ...payload.claim, totalEligibleArea: 23, unit: "ha" },
+      },
+    });
+
+    expect(submitClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          claim: expect.objectContaining({ totalEligibleArea: 23, unit: "ha" }),
+        }),
+      }),
+    );
+  });
+
   // Joi converts before the handler runs, so a numerically valid string reaches
   // the Claim as an integer and is stored that way.
   it("normalises an amount sent as a string", async () => {

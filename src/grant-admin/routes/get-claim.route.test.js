@@ -9,15 +9,20 @@ import {
   it,
   vi,
 } from "vitest";
-import { listEntitlementsWithClaimCapacity } from "../../grants/services/claims.service.js";
+import {
+  listEntitlementsWithClaimCapacity,
+  listSubmittedClaims,
+} from "../../grants/services/claims.service.js";
 import {
   getEntitlementCreationDetails,
   getEntitlementOverview,
 } from "../../grants/services/entitlement.service.js";
+import { listClaimPaymentsUseCase } from "../../payments/use-cases/list-claim-payments.use-case.js";
 import { getClaimRoute } from "./get-claim.route.js";
 
 vi.mock("../../grants/services/entitlement.service.js");
 vi.mock("../../grants/services/claims.service.js");
+vi.mock("../../payments/use-cases/list-claim-payments.use-case.js");
 vi.mock("../../common/logger.js", () => ({
   logger: {
     info: vi.fn(),
@@ -97,6 +102,8 @@ describe("getClaimRoute", () => {
       creationOptions: [template],
     });
     getEntitlementCreationDetails.mockResolvedValue(template);
+    listSubmittedClaims.mockResolvedValue([]);
+    listClaimPaymentsUseCase.mockResolvedValue(new Set());
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
 
     const result = await server.inject({
@@ -136,6 +143,8 @@ describe("getClaimRoute", () => {
     getEntitlementCreationDetails.mockRejectedValue(
       Boom.conflict("already exists"),
     );
+    listSubmittedClaims.mockResolvedValue([]);
+    listClaimPaymentsUseCase.mockResolvedValue(new Set());
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
 
     const result = await server.inject({
@@ -155,6 +164,8 @@ describe("getClaimRoute", () => {
     getEntitlementCreationDetails.mockRejectedValue(
       Boom.notFound("not available"),
     );
+    listSubmittedClaims.mockResolvedValue([]);
+    listClaimPaymentsUseCase.mockResolvedValue(new Set());
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
 
     const result = await server.inject({

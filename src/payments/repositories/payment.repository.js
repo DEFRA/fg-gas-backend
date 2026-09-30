@@ -32,6 +32,28 @@ const sourceFilter = (source) => {
   throw new Error(`Unsupported Payment source type: ${source.type}`);
 };
 
+// Which of an application's claims have raised a Payment. A page read asks
+// about every claim at once, and only needs to know that one exists, so it
+// projects the reference rather than loading each Payment.
+export const findClaimPaymentClientClaimRefs = async (
+  { code, clientRef },
+  session,
+) => {
+  const documents = await db
+    .collection(paymentsCollection)
+    .find(
+      {
+        "source.type": PaymentSourceType.CLAIM,
+        "source.code": code,
+        "source.clientRef": clientRef,
+      },
+      { session, projection: { "source.clientClaimRef": 1 } },
+    )
+    .toArray();
+
+  return new Set(documents.map((document) => document.source.clientClaimRef));
+};
+
 export const findPaymentBySource = async (source, session) => {
   const document = await db
     .collection(paymentsCollection)

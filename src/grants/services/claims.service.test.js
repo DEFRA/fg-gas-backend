@@ -12,6 +12,7 @@ import { lockForUpdate } from "../repositories/application.repository.js";
 import {
   countByEntitlement,
   existsByClientClaimRef,
+  findByApplication,
   insert,
 } from "../repositories/claim.repository.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
@@ -20,6 +21,7 @@ import { resolveCurrentGrantUseCase } from "../use-cases/resolve-current-grant.u
 import {
   listClaimableEntitlements,
   listEntitlementsWithClaimCapacity,
+  listSubmittedClaims,
   submitClaim,
 } from "./claims.service.js";
 
@@ -144,6 +146,7 @@ describe("claims.service", () => {
     existsByClientClaimRef.mockResolvedValue(false);
     countByEntitlement.mockResolvedValue(0);
     insert.mockResolvedValue(new ObjectId("64b0c0c0c0c0c0c0c0c0c0c0"));
+    findByApplication.mockResolvedValue([]);
   });
 
   it.each([
@@ -726,5 +729,121 @@ describe("claims.service", () => {
     await expect(
       submitClaim({ code, clientRef, payload }),
     ).resolves.toMatchObject({ created: true });
+  });
+
+  describe("listSubmittedClaims", () => {
+    const submitted = (overrides = {}) => ({
+      code,
+      clientRef,
+      claimCode,
+      clientClaimRef: "claim-1",
+      entitlementId,
+      metadata: {},
+      claim: {
+        entitlementId,
+        totalEligibleArea: 23,
+        unit: "ha",
+        totalClaimAmountPence: 150000,
+      },
+      createdAt: "2026-09-15T12:50:08.932Z",
+      ...overrides,
+    });
+
+    it("returns nothing when no claim has been submitted", async () => {
+      expect(await listSubmittedClaims({ code, clientRef })).toEqual([]);
+      expect(resolveCurrentGrantUseCase).not.toHaveBeenCalled();
+    });
+
+    it("resolves a claim against the template it was made under", async () => {
+      findByApplication.mockResolvedValue([submitted()]);
+
+      const [claim] = await listSubmittedClaims({ code, clientRef });
+
+      expect(claim).toEqual({
+        clientClaimRef: "claim-1",
+        claimCode,
+        name: "Claimable entitlement",
+        quantity: { value: 23, unit: "ha" },
+        totalClaimAmountPence: 150000,
+        requiresApproval: false,
+        submittedAt: "2026-09-15T12:50:08.932Z",
+      });
+    });
+
+    // The quantity is the claim's own, not the entitlement it was made
+    // against: a grant that allows partial claims claims less than it holds.
+    it("reports the quantity claimed, not the quantity entitled", async () => {
+      findByApplication.mockResolvedValue([submitted()]);
+      findExistingEntitlements.mockResolvedValue([
+        { ...persistedEntitlement, data: { area: 42000 } },
+      ]);
+
+      const [claim] = await listSubmittedClaims({ code, clientRef });
+
+      expect(claim.quantity).toEqual({ value: 23, unit: "ha" });
+    });
+
+    it("reports a template that holds its claims for approval", async () => {
+      resolveCurrentGrantUseCase.mockResolvedValue({
+        grant: approvalGrant(),
+        resolvedVersion: "1.0.0",
+      });
+      findByApplication.mockResolvedValue([submitted()]);
+
+      const [claim] = await listSubmittedClaims({ code, clientRef });
+
+      expect(claim.requiresApproval).toBe(true);
+    });
+
+    // The entitlement a claim names leaves the claimable list once its claims
+    // are used up, so the claim has to carry what it was for.
+    it("names a claim whose template is no longer offered", async () => {
+      findByApplication.mockResolvedValue([
+        submitted({ claimCode: "ENT_GONE" }),
+      ]);
+
+      const [claim] = await listSubmittedClaims({ code, clientRef });
+
+      expect(claim.name).toBe("ENT_GONE");
+      expect(claim.requiresApproval).toBe(false);
+    });
+
+    it("returns no quantity for a claim that measures nothing", async () => {
+      findByApplication.mockResolvedValue([
+        submitted({
+          claim: { entitlementId, totalClaimAmountPence: 150000 },
+        }),
+      ]);
+
+      const [claim] = await listSubmittedClaims({ code, clientRef });
+
+      expect(claim.quantity).toBeNull();
+    });
+
+    it("returns every claim in the order it was submitted", async () => {
+      findByApplication.mockResolvedValue([
+        submitted({ clientClaimRef: "claim-1" }),
+        submitted({
+          clientClaimRef: "claim-2",
+          claim: {
+            entitlementId: "entitlement-2",
+            totalEligibleArea: 4.2,
+            unit: "ha",
+            totalClaimAmountPence: 1000,
+          },
+        }),
+      ]);
+
+      const claims = await listSubmittedClaims({ code, clientRef });
+
+      expect(claims.map((claim) => claim.clientClaimRef)).toEqual([
+        "claim-1",
+        "claim-2",
+      ]);
+      expect(claims.map((claim) => claim.quantity)).toEqual([
+        { value: 23, unit: "ha" },
+        { value: 4.2, unit: "ha" },
+      ]);
+    });
   });
 });

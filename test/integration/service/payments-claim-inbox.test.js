@@ -54,7 +54,7 @@ const AGREEMENT_NUMBER = "WM987654321";
 const EXECUTED_AT = "2026-08-06T10:15:00.000Z";
 const definitionJson = readFileSync(
   new URL(
-    "../../../compose/seed/woodland/1.28.2/gas/payment.json",
+    "../../../compose/seed/woodland/1.39.1/gas/payment.json",
     import.meta.url,
   ),
   "utf8",

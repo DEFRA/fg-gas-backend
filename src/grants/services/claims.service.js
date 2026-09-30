@@ -13,6 +13,7 @@ import { lockForUpdate } from "../repositories/application.repository.js";
 import {
   countByEntitlement,
   existsByClientClaimRef,
+  findByApplication,
   insert,
 } from "../repositories/claim.repository.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
@@ -175,7 +176,7 @@ const isClaimableNow = async (claimable, application) =>
 const hasRemainingClaimCapacity = async (claimable) =>
   claimable.hasRemainingCapacity(await countClaimsFor(claimable));
 
-const candidatesForApplication = async ({ code, clientRef }) => {
+const applicationAndGrant = async ({ code, clientRef }) => {
   const application = await findApplicationByClientRefAndCodeUseCase(
     clientRef,
     code,
@@ -184,6 +185,12 @@ const candidatesForApplication = async ({ code, clientRef }) => {
     code,
     pinnedVersion: pinnedVersionOf(application),
   });
+
+  return { application, grant };
+};
+
+const candidatesForApplication = async ({ code, clientRef }) => {
+  const { application, grant } = await applicationAndGrant({ code, clientRef });
   const existing = await findExistingEntitlements(clientRef, code);
 
   return { application, candidates: candidatesFor({ grant, existing }) };
@@ -202,6 +209,51 @@ const listEntitlementsMatching = async ({ code, clientRef }, isEligible) => {
   );
 
   return matched.filter(Boolean).map(toClaimableDto);
+};
+
+// What the claim is for, as the claim itself reports it. The submit schema
+// keeps the value and its unit together, so one without the other never
+// reaches here.
+const quantityFor = (claim) => {
+  const { totalEligibleArea, unit } = claim.claim ?? {};
+
+  return unit === undefined ? null : { value: totalEligibleArea, unit };
+};
+
+const nameFor = (template, claim) => template?.name ?? claim.claimCode;
+
+const requiresApprovalFor = (template) =>
+  Boolean(template?.claim?.requiresApproval);
+
+const amountPenceFor = (claim) => claim.claim?.totalClaimAmountPence ?? null;
+
+const toSubmittedClaim = ({ claim, grant }) => {
+  const template = grant.findEntitlementTemplate(claim.claimCode);
+
+  return {
+    clientClaimRef: claim.clientClaimRef,
+    claimCode: claim.claimCode,
+    name: nameFor(template, claim),
+    quantity: quantityFor(claim),
+    totalClaimAmountPence: amountPenceFor(claim),
+    requiresApproval: requiresApprovalFor(template),
+    submittedAt: claim.createdAt,
+  };
+};
+
+// Every Claim submitted against one application, resolved against the template
+// it was made under. Whether a Payment exists for it belongs to Payments, so
+// the adapter that can read both joins it on.
+export const listSubmittedClaims = async ({ code, clientRef }) => {
+  const claims = await findByApplication({ code, clientRef });
+
+  if (claims.length === 0) {
+    return [];
+  }
+
+  const { grant } = await applicationAndGrant({ code, clientRef });
+
+  return claims.map((claim) => toSubmittedClaim({ claim, grant }));
 };
 
 export const listClaimableEntitlements = ({ code, clientRef }) =>
