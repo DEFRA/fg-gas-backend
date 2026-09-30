@@ -5,7 +5,6 @@ import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
 import {
-  findAll,
   findByCode,
   replace,
   save,
@@ -189,100 +188,6 @@ describe("replace", () => {
         entitlementTemplates: [],
       }),
     );
-  });
-});
-
-describe("findAll", () => {
-  it("returns all Grants from the repository", async () => {
-    db.collection.mockReturnValueOnce({
-      find: () => ({
-        toArray: vi.fn().mockResolvedValueOnce([
-          {
-            code: "1",
-            version: "0.0.0",
-            metadata: {
-              description: "test 1",
-              startDate: "2021-01-01T00:00:00.000Z",
-            },
-            actions: [
-              {
-                method: "GET",
-                name: "test",
-                url: "http://localhost",
-              },
-            ],
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-            },
-          },
-          {
-            code: "2",
-            version: "0.0.0",
-            metadata: {
-              description: "test 2",
-              startDate: "2021-01-02T00:00:00.000Z",
-            },
-            actions: [
-              {
-                method: "GET",
-                name: "test",
-                url: "http://localhost",
-              },
-            ],
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-            },
-          },
-        ]),
-      }),
-    });
-
-    const result = await findAll();
-
-    expect(db.collection).toHaveBeenCalledWith("grants");
-
-    expect(result).toStrictEqual([
-      new Grant({
-        code: "1",
-        version: "0.0.0",
-        metadata: {
-          description: "test 1",
-          startDate: "2021-01-01T00:00:00.000Z",
-        },
-        actions: [
-          {
-            method: "GET",
-            name: "test",
-            url: "http://localhost",
-          },
-        ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
-      }),
-      new Grant({
-        code: "2",
-        version: "0.0.0",
-        metadata: {
-          description: "test 2",
-          startDate: "2021-01-02T00:00:00.000Z",
-        },
-        actions: [
-          {
-            method: "GET",
-            name: "test",
-            url: "http://localhost",
-          },
-        ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
-      }),
-    ]);
   });
 });
 

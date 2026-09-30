@@ -3,9 +3,7 @@ import Joi from "joi";
 // The MongoDB driver resolves ignoreUndefined to false, so a key this template
 // leaves undefined is stored as null and comes back as null on the next read.
 // Every optional key therefore has to read null as "absent", or a template that
-// omits one would save cleanly and then fail validation forever afterwards -
-// and because findAll rehydrates every document, one such grant would take out
-// the whole collection.
+// omits one would save cleanly and then fail validation when read back.
 const absentAsNull = (schema) => schema.optional().empty(null);
 
 export const UnitType = {
