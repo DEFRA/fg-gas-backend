@@ -1,12 +1,10 @@
 import { buildBanner } from "./build-banner.js";
 
-export const buildClaimsView = async ({
+const buildApplicationClaimsView = async ({
   claimsPage,
   applicationContext,
   creationOptions,
   claimableEntitlements,
-  claims,
-  claimPayments,
 }) => {
   const banner = await buildBanner({ claimsPage, applicationContext });
 
@@ -14,9 +12,25 @@ export const buildClaimsView = async ({
     banner,
     availableEntitlements: creationOptions.map(toAvailableEntitlement),
     claimableEntitlements: claimableEntitlements.map(toEntitlement),
-    claims: claims.map((claim) => toSubmittedClaim(claim, claimPayments)),
   };
 };
+
+export const buildClaimsView = async ({
+  claims,
+  claimPayments,
+  ...overview
+}) => ({
+  ...(await buildApplicationClaimsView(overview)),
+  claims: claims.map((claim) => toSubmittedClaim(claim, claimPayments)),
+});
+
+// The entitlement-creation view: the same application context, plus the one
+// template being created against. It shows no submitted Claims, so it reads
+// none - and stays clear of Payments entirely.
+export const buildClaimView = async ({ creationDetails, ...overview }) => ({
+  ...(await buildApplicationClaimsView(overview)),
+  entitlementTemplate: toEntitlementTemplate(creationDetails),
+});
 
 // A Payment is raised asynchronously, and only once a claim needs no approval,
 // so its absence means the payment is not scheduled - never that it failed.

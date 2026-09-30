@@ -1,21 +1,14 @@
 import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
-import {
-  listEntitlementsWithClaimCapacity,
-  listSubmittedClaims,
-} from "../../grants/services/claims.service.js";
+import { listEntitlementsWithClaimCapacity } from "../../grants/services/claims.service.js";
 import {
   getEntitlementCreationDetails,
   getEntitlementOverview,
 } from "../../grants/services/entitlement.service.js";
-import { listClaimPaymentsUseCase } from "../../payments/use-cases/list-claim-payments.use-case.js";
 import { code as grantCode } from "../schemas/code.js";
 import { getClaimResponseSchema } from "../schemas/get-claim-response.schema.js";
-import {
-  buildClaimsView,
-  toEntitlementTemplate,
-} from "../services/build-claims-view.js";
+import { buildClaimView } from "../services/build-claims-view.js";
 
 export const getClaimRoute = {
   method: "GET",
@@ -40,28 +33,17 @@ export const getClaimRoute = {
       `Get claim for application with code ${code}, claimCode ${claimCode} and clientRef ${clientRef}`,
     );
 
-    const [
-      overview,
-      creationDetails,
-      claimableEntitlements,
-      claims,
-      claimPayments,
-    ] = await Promise.all([
-      getEntitlementOverview({ code, clientRef }),
-      getEntitlementCreationDetails({ code, clientRef, claimCode }),
-      listEntitlementsWithClaimCapacity({ code, clientRef }),
-      listSubmittedClaims({ code, clientRef }),
-      listClaimPaymentsUseCase({ code, clientRef }),
-    ]);
+    const [overview, creationDetails, claimableEntitlements] =
+      await Promise.all([
+        getEntitlementOverview({ code, clientRef }),
+        getEntitlementCreationDetails({ code, clientRef, claimCode }),
+        listEntitlementsWithClaimCapacity({ code, clientRef }),
+      ]);
 
-    return {
-      ...(await buildClaimsView({
-        ...overview,
-        claimableEntitlements,
-        claims,
-        claimPayments,
-      })),
-      entitlementTemplate: toEntitlementTemplate(creationDetails),
-    };
+    return buildClaimView({
+      ...overview,
+      claimableEntitlements,
+      creationDetails,
+    });
   },
 };

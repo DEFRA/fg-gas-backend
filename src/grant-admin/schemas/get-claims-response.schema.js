@@ -82,9 +82,15 @@ const submittedClaim = Joi.object({
   submittedAt: Joi.string().required(),
 }).label("SubmittedClaim");
 
-export const getClaimsResponseSchema = Joi.object({
+// What every Claims-page read answers with, whichever page asked. The
+// submitted Claims are the list page's alone: the entitlement-creation view
+// does not show them, so it does not pay to read them.
+export const applicationClaimsSchema = Joi.object({
   banner: banner.required(),
   availableEntitlements,
   claimableEntitlements: Joi.array().items(claimableEntitlement).required(),
+});
+
+export const getClaimsResponseSchema = applicationClaimsSchema.keys({
   claims: Joi.array().items(submittedClaim).required(),
 });

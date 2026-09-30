@@ -783,6 +783,31 @@ describe("claims.service", () => {
       expect(claim.quantity).toEqual({ value: 23, unit: "ha" });
     });
 
+    // Claims stored before the submit schema paired a quantity with its unit
+    // can carry either half alone. A response that reported half a measurement
+    // would fail the admin response schema and take the page down with it.
+    it.each([
+      ["a unit with no quantity", { unit: "ha" }],
+      ["a quantity with no unit", { totalEligibleArea: 23 }],
+      [
+        "a quantity that is not a number",
+        { totalEligibleArea: "23", unit: "ha" },
+      ],
+    ])(
+      "returns no quantity for a legacy claim with %s",
+      async (_label, parts) => {
+        findByApplication.mockResolvedValue([
+          submitted({
+            claim: { entitlementId, totalClaimAmountPence: 150000, ...parts },
+          }),
+        ]);
+
+        const [claim] = await listSubmittedClaims({ code, clientRef });
+
+        expect(claim.quantity).toBeNull();
+      },
+    );
+
     it("reports a template that holds its claims for approval", async () => {
       resolveCurrentGrantUseCase.mockResolvedValue({
         grant: approvalGrant(),

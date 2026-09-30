@@ -1,12 +1,15 @@
 // A submitted Claim as the admin API answers it, resolved against the
 // entitlement template it was made under.
 
-// The submit schema keeps a quantity and its unit together, so one without the
-// other never reaches here.
+// Both halves are checked rather than trusted. The submit schema pairs them,
+// but it only binds what is submitted from now on: a Claim stored before it
+// may carry either half alone, and half a measurement is no measurement.
 const quantityFor = (claim) => {
   const { totalEligibleArea, unit } = claim.claim ?? {};
 
-  return unit === undefined ? null : { value: totalEligibleArea, unit };
+  return typeof totalEligibleArea === "number" && typeof unit === "string"
+    ? { value: totalEligibleArea, unit }
+    : null;
 };
 
 const nameFor = (template, claim) => template?.name ?? claim.claimCode;
