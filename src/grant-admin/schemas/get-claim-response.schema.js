@@ -1,8 +1,8 @@
 import {
+  applicationClaimsSchema,
   availableEntitlement,
-  getClaimsResponseSchema,
 } from "./get-claims-response.schema.js";
 
-export const getClaimResponseSchema = getClaimsResponseSchema.keys({
+export const getClaimResponseSchema = applicationClaimsSchema.keys({
   entitlementTemplate: availableEntitlement.required(),
 });

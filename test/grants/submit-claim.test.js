@@ -87,6 +87,7 @@ const claimPayload = (code, clientRef, clientClaimRef, entitlementId) => ({
   claim: {
     entitlementId,
     totalClaimAmountPence: 150000,
+    quantity: 23,
   },
 });
 

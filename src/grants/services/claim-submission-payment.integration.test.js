@@ -17,7 +17,7 @@ const entitlementId = "entitlement-1";
 const paymentDefinition = JSON.parse(
   readFileSync(
     new URL(
-      "../../../compose/seed/woodland/1.28.2/gas/payment.json",
+      "../../../compose/seed/woodland/1.39.1/gas/payment.json",
       import.meta.url,
     ),
     "utf8",
@@ -31,7 +31,7 @@ const payload = {
     sbi: "106284736",
     frn: "1101234567",
   },
-  claim: { entitlementId, totalClaimAmountPence: 4200 },
+  claim: { entitlementId, totalClaimAmountPence: 4200, quantity: 23 },
 };
 
 let replSet;

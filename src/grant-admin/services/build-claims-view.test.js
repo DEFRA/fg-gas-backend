@@ -53,6 +53,19 @@ describe("build claims view", () => {
     },
     creationOptions: [],
     claimableEntitlements: [],
+    claims: [],
+    claimPayments: new Set(),
+    ...overrides,
+  });
+
+  const submittedClaim = (overrides = {}) => ({
+    clientClaimRef: "WMP-001-C01",
+    claimCode: "ENT_PA3",
+    name: "PA3 entitlement",
+    quantity: { value: 4.2, unit: "HA" },
+    totalClaimAmountPence: 150000,
+    requiresApproval: false,
+    submittedAt: "2026-09-15T12:50:08.932Z",
     ...overrides,
   });
 
@@ -87,6 +100,46 @@ describe("build claims view", () => {
 
     expect(result.claimableEntitlements).toEqual([]);
     expect(result.claims).toEqual([]);
+  });
+
+  it("marks a claim with a Payment as scheduled", async () => {
+    const claim = submittedClaim();
+
+    const result = await buildClaimsView(
+      overview({
+        claims: [claim],
+        claimPayments: new Set([claim.clientClaimRef]),
+      }),
+    );
+
+    expect(result.claims).toEqual([{ ...claim, paymentScheduled: true }]);
+  });
+
+  it("leaves a claim with no Payment unscheduled", async () => {
+    const claim = submittedClaim();
+
+    const result = await buildClaimsView(overview({ claims: [claim] }));
+
+    expect(result.claims).toEqual([{ ...claim, paymentScheduled: false }]);
+  });
+
+  // The Payment a claim raised is its own, so one scheduled claim must not
+  // speak for another on the same application.
+  it("scheduled each claim on its own Payment", async () => {
+    const paid = submittedClaim({ clientClaimRef: "WMP-001-C01" });
+    const unpaid = submittedClaim({ clientClaimRef: "WMP-001-C02" });
+
+    const result = await buildClaimsView(
+      overview({
+        claims: [paid, unpaid],
+        claimPayments: new Set([paid.clientClaimRef]),
+      }),
+    );
+
+    expect(result.claims.map((claim) => claim.paymentScheduled)).toEqual([
+      true,
+      false,
+    ]);
   });
 
   it("returns the supplied claimable entitlements", async () => {

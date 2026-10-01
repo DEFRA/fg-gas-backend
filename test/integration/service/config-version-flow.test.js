@@ -30,8 +30,8 @@ const seedFixture = (path) =>
     readFileSync(new URL(`../../../compose/seed/${path}`, import.meta.url)),
   );
 
-const grantDefinition = seedFixture("woodland/1.28.2/gas/gas.json");
-const paymentDefinition = seedFixture("woodland/1.28.2/gas/payment.json");
+const grantDefinition = seedFixture("woodland/1.39.1/gas/gas.json");
+const paymentDefinition = seedFixture("woodland/1.39.1/gas/payment.json");
 const agreementDefinition = seedFixture(
   "pigs-might-fly/1.0.0/gas/agreement.json",
 );

@@ -8,10 +8,7 @@ import {
 } from "../../grants/services/entitlement.service.js";
 import { code as grantCode } from "../schemas/code.js";
 import { getClaimResponseSchema } from "../schemas/get-claim-response.schema.js";
-import {
-  buildClaimsView,
-  toEntitlementTemplate,
-} from "../services/build-claims-view.js";
+import { buildClaimView } from "../services/build-claims-view.js";
 
 export const getClaimRoute = {
   method: "GET",
@@ -43,9 +40,10 @@ export const getClaimRoute = {
         listEntitlementsWithClaimCapacity({ code, clientRef }),
       ]);
 
-    return {
-      ...(await buildClaimsView({ ...overview, claimableEntitlements })),
-      entitlementTemplate: toEntitlementTemplate(creationDetails),
-    };
+    return buildClaimView({
+      ...overview,
+      claimableEntitlements,
+      creationDetails,
+    });
   },
 };

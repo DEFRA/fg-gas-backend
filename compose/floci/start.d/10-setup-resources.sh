@@ -208,10 +208,10 @@ awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/agreement.json \
 awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/payment.json \
   s3://config-broker-local/pigs-might-fly/1.0.0/gas/payment.json
 
-awslocal s3 cp /etc/floci/seed/woodland/1.28.2/gas/gas.json \
-  s3://config-broker-local/woodland/1.28.2/gas/gas.json
+awslocal s3 cp /etc/floci/seed/woodland/1.39.1/gas/gas.json \
+  s3://config-broker-local/woodland/1.39.1/gas/gas.json
 
-awslocal s3 cp /etc/floci/seed/woodland/1.28.2/gas/payment.json \
-  s3://config-broker-local/woodland/1.28.2/gas/payment.json
+awslocal s3 cp /etc/floci/seed/woodland/1.39.1/gas/payment.json \
+  s3://config-broker-local/woodland/1.39.1/gas/payment.json
 
 echo "S3 config broker bucket ready"
