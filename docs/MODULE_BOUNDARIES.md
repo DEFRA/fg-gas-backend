@@ -43,15 +43,22 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 
 ### Grant Admin entry points
 
-Grant Admin enters the Grants application layer through two named services. Event
-administration enters the shared event module directly:
+Grant Admin enters the Grants application layer through two named services, and
+Payments through one named use case. Event administration enters the shared
+event module directly:
 
-| Caller        | Entry point                                | Responsibility                                                          |
-| ------------- | ------------------------------------------ | ----------------------------------------------------------------------- |
-| `grant-admin` | `grants/services/entitlement.service.js`   | Entitlement overview and creation operations                            |
-| `grant-admin` | `grants/services/claims.service.js`        | Claimable-entitlement lookup and Claim submission                       |
-| `grant-admin` | `events/repositories/inbox.repository.js`  | Event admin: list, inspect, redrive, purge and edit GAS inbound events  |
-| `grant-admin` | `events/repositories/outbox.repository.js` | Event admin: list, inspect, redrive, purge and edit GAS outbound events |
+| Caller        | Entry point                                          | Responsibility                                                           |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
+| `grant-admin` | `grants/services/entitlement.service.js`             | Entitlement overview and creation operations                             |
+| `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup, Claim submission and submitted-Claim reads |
+| `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                   |
+| `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: list, inspect, redrive, purge and edit GAS inbound events   |
+| `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: list, inspect, redrive, purge and edit GAS outbound events  |
+
+The Claims page is a read-model join across two contexts: Grants resolves a
+Claim against the template it was made under, Payments answers whether it has
+raised a Payment, and `grant-admin` puts the two together. Neither context
+imports the other.
 
 ### Events domain
 
