@@ -29,6 +29,7 @@ const payload = {
   claim: {
     entitlementId: "8cef007b-af1e-4cdc-bf4c-948b6bf85d05",
     totalClaimAmountPence: 150000,
+    quantity: 23,
   },
 };
 
@@ -149,6 +150,61 @@ describe("submitClaimRoute", () => {
 
     expect(statusCode).toBe(400);
     expect(submitClaim).not.toHaveBeenCalled();
+  });
+
+  // The Claims page shows what was claimed, so a claim that reports no
+  // quantity is refused rather than listed as a blank row.
+  it.each([
+    ["a non-numeric quantity", "lots"],
+    ["a negative quantity", -1],
+  ])("returns 400 for %s", async (_label, quantity) => {
+    const { statusCode } = await server.inject({
+      method: "POST",
+      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
+      payload: {
+        ...payload,
+        claim: { ...payload.claim, quantity },
+      },
+    });
+
+    expect(statusCode).toBe(400);
+    expect(submitClaim).not.toHaveBeenCalled();
+  });
+
+  // Optional until grants-ui sends it; the Claims page shows a blank quantity
+  // in the meantime rather than the submission being refused.
+  it("accepts a claim that sends no quantity", async () => {
+    submitClaim.mockResolvedValue({ created: true, claimId: "claim-1" });
+    const { quantity: _omitted, ...claim } = payload.claim;
+
+    const { statusCode } = await server.inject({
+      method: "POST",
+      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
+      payload: { ...payload, claim },
+    });
+
+    expect(statusCode).toBe(201);
+  });
+
+  // The unit belongs to the entitlement template, so a caller never has to
+  // send one and is not held to it if it does.
+  it("accepts a claim that sends no unit", async () => {
+    submitClaim.mockResolvedValue({ created: true, claimId: "claim-1" });
+
+    const { statusCode } = await server.inject({
+      method: "POST",
+      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
+      payload,
+    });
+
+    expect(statusCode).toBe(201);
+    expect(submitClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          claim: expect.objectContaining({ quantity: 23 }),
+        }),
+      }),
+    );
   });
 
   // Joi converts before the handler runs, so a numerically valid string reaches

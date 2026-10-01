@@ -86,6 +86,27 @@ describe("getClaimRoute", () => {
     await server.stop();
   });
 
+  // The add-claimable-item view shows no submitted Claims, so reading them -
+  // and reaching into Payments to price them - would be work thrown away on
+  // every form load and every validation error.
+  it("reads neither the submitted Claims nor their Payments", async () => {
+    getEntitlementOverview.mockResolvedValue({
+      claimsPage: { details: { banner } },
+      applicationContext: {},
+      creationOptions: [template],
+    });
+    getEntitlementCreationDetails.mockResolvedValue(template);
+    listEntitlementsWithClaimCapacity.mockResolvedValue([]);
+
+    const result = await server.inject({
+      method: "GET",
+      url: url("grant-1", "ref-1234", template.claimCode),
+    });
+
+    expect(result.statusCode).toEqual(200);
+    expect(result.result.claims).toBeUndefined();
+  });
+
   it("returns the claims data and the template for the claim code", async () => {
     const code = "grant-1";
     const clientRef = "ref-1234";
@@ -122,7 +143,6 @@ describe("getClaimRoute", () => {
       banner,
       availableEntitlements: [template],
       claimableEntitlements: [],
-      claims: [],
       entitlementTemplate: template,
     });
   });

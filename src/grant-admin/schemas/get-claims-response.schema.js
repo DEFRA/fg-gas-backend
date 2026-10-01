@@ -63,9 +63,32 @@ const claimableEntitlement = Joi.object({
   claim: Joi.object().unknown().required(),
 }).label("ClaimableEntitlement");
 
-export const getClaimsResponseSchema = Joi.object({
+// A Claim the applicant has submitted, resolved against the template it was
+// made under and the Payment it raised.
+const submittedClaim = Joi.object({
+  clientClaimRef: Joi.string().required(),
+  claimCode: Joi.string().required(),
+  name: Joi.string().required(),
+  quantity: Joi.object({
+    value: Joi.number().required(),
+    unit: Joi.string().allow(null).required(),
+  })
+    .allow(null)
+    .required(),
+  totalClaimAmountPence: Joi.number().integer().min(0).allow(null).required(),
+  requiresApproval: Joi.boolean().required(),
+  paymentScheduled: Joi.boolean().required(),
+  submittedAt: Joi.string().required(),
+}).label("SubmittedClaim");
+
+// What every Claims-page read answers with. The submitted Claims belong to the
+// list page alone; the entitlement-creation view does not show them.
+export const applicationClaimsSchema = Joi.object({
   banner: banner.required(),
   availableEntitlements,
   claimableEntitlements: Joi.array().items(claimableEntitlement).required(),
-  claims: Joi.array().required(),
+});
+
+export const getClaimsResponseSchema = applicationClaimsSchema.keys({
+  claims: Joi.array().items(submittedClaim).required(),
 });

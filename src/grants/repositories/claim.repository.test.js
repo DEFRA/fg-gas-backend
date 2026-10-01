@@ -7,6 +7,7 @@ import {
   countByClaimCode,
   countByEntitlement,
   existsByClientClaimRef,
+  findByApplication,
   insert,
 } from "./claim.repository.js";
 
@@ -168,5 +169,27 @@ describe("claim.repository", () => {
         claim: {},
       }),
     ).rejects.toBe(error);
+  });
+
+  it("returns an application's claims oldest first", async () => {
+    const session = {};
+    const claims = [{ clientClaimRef: "WMP-6HB-J8E-C0001" }];
+    const toArray = vi.fn().mockResolvedValue(claims);
+    const sort = vi.fn().mockReturnValue({ toArray });
+    const find = vi.fn().mockReturnValue({ sort });
+    db.collection.mockReturnValue({ find });
+
+    const result = await findByApplication(
+      { code: "woodland", clientRef: "wmp-6hb-j8e" },
+      session,
+    );
+
+    expect(db.collection).toHaveBeenCalledWith(collection);
+    expect(find).toHaveBeenCalledWith(
+      { code: "woodland", clientRef: "wmp-6hb-j8e" },
+      { session },
+    );
+    expect(sort).toHaveBeenCalledWith({ createdAt: 1 });
+    expect(result).toEqual(claims);
   });
 });

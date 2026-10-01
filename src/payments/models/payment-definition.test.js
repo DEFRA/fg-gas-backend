@@ -47,7 +47,7 @@ const woodlandClaim = {
 const woodlandDefinition = JSON.parse(
   readFileSync(
     new URL(
-      "../../../compose/seed/woodland/1.28.2/gas/payment.json",
+      "../../../compose/seed/woodland/1.39.1/gas/payment.json",
       import.meta.url,
     ),
     "utf8",

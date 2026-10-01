@@ -56,7 +56,7 @@ describe("saveEvents", () => {
         agreementNumber: "AGR-1",
         version: 2,
         code: "woodland",
-        configVersion: "1.28.2",
+        configVersion: "1.39.1",
         correlationId: "correlation-1",
       },
       executedAt: "2026-09-14T13:11:01.000Z",
@@ -73,7 +73,7 @@ describe("saveEvents", () => {
       clientRef: "WDL-1",
       clientClaimRef: "claim-1",
       entitlementId: "entitlement-1",
-      configVersion: "1.28.2",
+      configVersion: "1.39.1",
       agreement: {
         agreementNumber: "AGR-1",
         agreementVersion: 2,

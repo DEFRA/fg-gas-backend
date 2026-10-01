@@ -333,13 +333,15 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims/{claimC
         },
       ],
       claimableEntitlements: [],
-      claims: [],
       entitlementTemplate: {
         claimCode,
         name: "PA3 Woodland Management Plan entitlement",
         createdCount: 0,
       },
     });
+    // The add-claimable-item view shows no submitted Claims, so the detail
+    // route does not read them.
+    expect(response.payload.claims).toBeUndefined();
   });
 
   // The detail route carries the same claimable list as the page it is reached

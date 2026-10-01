@@ -35,6 +35,15 @@ export const countByClaimCode = async (
     .collection(collection)
     .countDocuments({ code, clientRef, claimCode }, { session });
 
+// Every Claim submitted against one application, oldest first, so the Claims
+// page lists them in the order they were made.
+export const findByApplication = async ({ code, clientRef }, session) =>
+  db
+    .collection(collection)
+    .find({ code, clientRef }, { session })
+    .sort({ createdAt: 1 })
+    .toArray();
+
 // Mongo assigns _id, which is the id the Claim is audited and reported under.
 // The model owns every other field.
 const toDocument = (claim) => ({
