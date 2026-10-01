@@ -31,7 +31,8 @@ export const submitClaimRequestSchema = Joi.object({
   claim: Joi.object({
     entitlementId: Joi.string().required(),
     totalClaimAmountPence: Joi.number().integer().min(0).required(),
-    quantity: Joi.number().min(0).required(),
+    // Optional only until grants-ui posts it; make it required then.
+    quantity: Joi.number().min(0).optional(),
   }).unknown(),
 })
   .options({
