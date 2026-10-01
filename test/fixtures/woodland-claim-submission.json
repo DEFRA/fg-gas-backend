@@ -11,8 +11,7 @@
   },
   "claim": {
     "entitlementId": "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
-    "totalEligibleArea": 23,
-    "unit": "ha",
+    "quantity": 23,
     "totalClaimAmountPence": 150000,
     "claimNumber": "WMP-TU3-LBJ-C01"
   }

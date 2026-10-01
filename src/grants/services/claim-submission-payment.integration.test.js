@@ -31,7 +31,7 @@ const payload = {
     sbi: "106284736",
     frn: "1101234567",
   },
-  claim: { entitlementId, totalClaimAmountPence: 4200 },
+  claim: { entitlementId, totalClaimAmountPence: 4200, quantity: 23 },
 };
 
 let replSet;

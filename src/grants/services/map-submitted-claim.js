@@ -1,13 +1,18 @@
-// A submitted Claim as the admin API answers it, resolved against the
-// entitlement template it was made under.
+const unitFields = (template) =>
+  Object.entries(template?.fields ?? {}).filter(([, field]) => field.unit);
 
-// Claims stored before the submit schema paired a quantity with its unit may
-// carry either half alone, and half a measurement is no measurement.
-const quantityFor = (claim) => {
-  const { totalEligibleArea, unit } = claim.claim ?? {};
+const unitFor = (template) => {
+  const fields = unitFields(template);
+  const preferred = fields.find(([, field]) => field.input) ?? fields[0];
 
-  return typeof totalEligibleArea === "number" && typeof unit === "string"
-    ? { value: totalEligibleArea, unit }
+  return preferred ? preferred[1].unit : null;
+};
+
+const quantityFor = (claim, template) => {
+  const { quantity } = claim.claim ?? {};
+
+  return typeof quantity === "number"
+    ? { value: quantity, unit: unitFor(template) }
     : null;
 };
 
@@ -25,7 +30,7 @@ export const toSubmittedClaim = ({ claim, grant }) => {
     clientClaimRef: claim.clientClaimRef,
     claimCode: claim.claimCode,
     name: nameFor(template, claim),
-    quantity: quantityFor(claim),
+    quantity: quantityFor(claim, template),
     totalClaimAmountPence: amountPenceFor(claim),
     requiresApproval: requiresApprovalFor(template),
     submittedAt: claim.createdAt,

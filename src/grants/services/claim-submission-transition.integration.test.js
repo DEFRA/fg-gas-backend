@@ -74,9 +74,7 @@ const phases = [
           { code: "IN_PROGRESS", validFrom: [] },
           {
             code: "AWARD_READY",
-            validFrom: [
-              { code: "APPLICATION_RECEIVED", processes: [] },
-            ],
+            validFrom: [{ code: "APPLICATION_RECEIVED", processes: [] }],
           },
         ],
       },
@@ -95,7 +93,11 @@ const claimCommand = ({ code, clientRef, entitlementId, clientClaimRef }) => ({
       sbi: "106284736",
       frn: "1101234567",
     },
-    claim: { entitlementId, totalClaimAmountPence: 4200 },
+    claim: {
+      entitlementId,
+      totalClaimAmountPence: 4200,
+      quantity: 23,
+    },
   },
 });
 
@@ -117,16 +119,13 @@ const seedFixture = async (options = {}) => {
   fixtureNumber += 1;
   const code = `claim-transition-${fixtureNumber}`;
   const clientRef = `application-${fixtureNumber}`;
-  const entitlements = Array.from(
-    { length: entitlementCount },
-    (_, index) => ({
-      id: `entitlement-${fixtureNumber}-${index + 1}`,
-      code,
-      clientRef,
-      claimCode: `ENT_CLAIMABLE_${index + 1}`,
-      instanceNumber: 1,
-    }),
-  );
+  const entitlements = Array.from({ length: entitlementCount }, (_, index) => ({
+    id: `entitlement-${fixtureNumber}-${index + 1}`,
+    code,
+    clientRef,
+    claimCode: `ENT_CLAIMABLE_${index + 1}`,
+    instanceNumber: 1,
+  }));
 
   await saveGrant(
     createTestGrant({
@@ -170,10 +169,8 @@ const seedFixture = async (options = {}) => {
     code,
     clientRef,
     entitlementIds: entitlements.map(({ id }) => id),
-    command: (
-      clientClaimRef = "claim-1",
-      entitlementId = entitlements[0].id,
-    ) => claimCommand({ code, clientRef, entitlementId, clientClaimRef }),
+    command: (clientClaimRef = "claim-1", entitlementId = entitlements[0].id) =>
+      claimCommand({ code, clientRef, entitlementId, clientClaimRef }),
   };
 };
 

@@ -71,7 +71,7 @@ const submittedClaim = Joi.object({
   name: Joi.string().required(),
   quantity: Joi.object({
     value: Joi.number().required(),
-    unit: Joi.string().required(),
+    unit: Joi.string().allow(null).required(),
   })
     .allow(null)
     .required(),

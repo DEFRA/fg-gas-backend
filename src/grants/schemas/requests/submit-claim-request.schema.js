@@ -31,15 +31,8 @@ export const submitClaimRequestSchema = Joi.object({
   claim: Joi.object({
     entitlementId: Joi.string().required(),
     totalClaimAmountPence: Joi.number().integer().min(0).required(),
-    // What the claim is for, in the caller's own units. Optional because only
-    // the grants that measure a claim send it, but neither half is any use
-    // alone, so a quantity without its unit is rejected rather than shown
-    // unlabelled on the Claims page.
-    totalEligibleArea: Joi.number().min(0).optional(),
-    unit: Joi.string().optional(),
-  })
-    .and("totalEligibleArea", "unit")
-    .unknown(),
+    quantity: Joi.number().min(0).required(),
+  }).unknown(),
 })
   .options({
     presence: "required",

@@ -29,6 +29,7 @@ const payload = {
   claim: {
     entitlementId: "8cef007b-af1e-4cdc-bf4c-948b6bf85d05",
     totalClaimAmountPence: 150000,
+    quantity: 23,
   },
 };
 
@@ -151,25 +152,29 @@ describe("submitClaimRoute", () => {
     expect(submitClaim).not.toHaveBeenCalled();
   });
 
-  // The Claims page shows this quantity against its unit, so half of a
-  // measurement is refused rather than shown unlabelled.
+  // The Claims page shows what was claimed, so a claim that reports no
+  // quantity is refused rather than listed as a blank row.
   it.each([
-    ["a quantity with no unit", { totalEligibleArea: 23 }],
-    ["a unit with no quantity", { unit: "ha" }],
-    ["a non-numeric quantity", { totalEligibleArea: "lots", unit: "ha" }],
-    ["a negative quantity", { totalEligibleArea: -1, unit: "ha" }],
+    ["a missing quantity", undefined],
+    ["a non-numeric quantity", "lots"],
+    ["a negative quantity", -1],
   ])("returns 400 for %s", async (_label, quantity) => {
     const { statusCode } = await server.inject({
       method: "POST",
       url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
-      payload: { ...payload, claim: { ...payload.claim, ...quantity } },
+      payload: {
+        ...payload,
+        claim: { ...payload.claim, quantity },
+      },
     });
 
     expect(statusCode).toBe(400);
     expect(submitClaim).not.toHaveBeenCalled();
   });
 
-  it("accepts a claim that measures nothing", async () => {
+  // The unit belongs to the entitlement template, so a caller never has to
+  // send one and is not held to it if it does.
+  it("accepts a claim that sends no unit", async () => {
     submitClaim.mockResolvedValue({ created: true, claimId: "claim-1" });
 
     const { statusCode } = await server.inject({
@@ -179,24 +184,10 @@ describe("submitClaimRoute", () => {
     });
 
     expect(statusCode).toBe(201);
-  });
-
-  it("keeps the quantity and its unit on the submitted claim", async () => {
-    submitClaim.mockResolvedValue({ created: true, claimId: "claim-1" });
-
-    await server.inject({
-      method: "POST",
-      url: "/grants/woodland/applications/wmp-6hb-j8e/claims",
-      payload: {
-        ...payload,
-        claim: { ...payload.claim, totalEligibleArea: 23, unit: "ha" },
-      },
-    });
-
     expect(submitClaim).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: expect.objectContaining({
-          claim: expect.objectContaining({ totalEligibleArea: 23, unit: "ha" }),
+          claim: expect.objectContaining({ quantity: 23 }),
         }),
       }),
     );

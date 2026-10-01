@@ -741,7 +741,7 @@ describe("claims.service", () => {
       metadata: {},
       claim: {
         entitlementId,
-        totalEligibleArea: 23,
+        quantity: 23,
         unit: "ha",
         totalClaimAmountPence: 150000,
       },
@@ -763,7 +763,7 @@ describe("claims.service", () => {
         clientClaimRef: "claim-1",
         claimCode,
         name: "Claimable entitlement",
-        quantity: { value: 23, unit: "ha" },
+        quantity: { value: 23, unit: "HA" },
         totalClaimAmountPence: 150000,
         requiresApproval: false,
         submittedAt: "2026-09-15T12:50:08.932Z",
@@ -780,33 +780,57 @@ describe("claims.service", () => {
 
       const [claim] = await listSubmittedClaims({ code, clientRef });
 
-      expect(claim.quantity).toEqual({ value: 23, unit: "ha" });
+      expect(claim.quantity).toEqual({ value: 23, unit: "HA" });
     });
 
-    // Claims stored before the submit schema paired a quantity with its unit
-    // can carry either half alone. A response that reported half a measurement
-    // would fail the admin response schema and take the page down with it.
+    // The unit is the template's, so a claim that sends one of its own is not
+    // believed over the definition.
+    it("labels the quantity from the template, not the claim", async () => {
+      findByApplication.mockResolvedValue([
+        submitted({
+          claim: {
+            entitlementId,
+            quantity: 23,
+            unit: "acres",
+            totalClaimAmountPence: 150000,
+          },
+        }),
+      ]);
+
+      const [claim] = await listSubmittedClaims({ code, clientRef });
+
+      expect(claim.quantity).toEqual({ value: 23, unit: "HA" });
+    });
+
+    // Claims stored before the quantity was required carry no number to show.
     it.each([
-      ["a unit with no quantity", { unit: "ha" }],
-      ["a quantity with no unit", { totalEligibleArea: 23 }],
-      [
-        "a quantity that is not a number",
-        { totalEligibleArea: "23", unit: "ha" },
-      ],
-    ])(
-      "returns no quantity for a legacy claim with %s",
-      async (_label, parts) => {
-        findByApplication.mockResolvedValue([
-          submitted({
-            claim: { entitlementId, totalClaimAmountPence: 150000, ...parts },
-          }),
-        ]);
+      ["no quantity", {}],
+      ["a quantity that is not a number", { quantity: "23" }],
+    ])("returns no quantity for a legacy claim with %s", async (_l, parts) => {
+      findByApplication.mockResolvedValue([
+        submitted({
+          claim: { entitlementId, totalClaimAmountPence: 150000, ...parts },
+        }),
+      ]);
 
-        const [claim] = await listSubmittedClaims({ code, clientRef });
+      const [claim] = await listSubmittedClaims({ code, clientRef });
 
-        expect(claim.quantity).toBeNull();
-      },
-    );
+      expect(claim.quantity).toBeNull();
+    });
+
+    it("leaves the unit unset when the template measures nothing", async () => {
+      const unitless = grant(false);
+      delete unitless.entitlementTemplates[0].fields;
+      resolveCurrentGrantUseCase.mockResolvedValue({
+        grant: unitless,
+        resolvedVersion: "1.0.0",
+      });
+      findByApplication.mockResolvedValue([submitted()]);
+
+      const [claim] = await listSubmittedClaims({ code, clientRef });
+
+      expect(claim.quantity).toEqual({ value: 23, unit: null });
+    });
 
     it("reports a template that holds its claims for approval", async () => {
       resolveCurrentGrantUseCase.mockResolvedValue({
@@ -852,7 +876,7 @@ describe("claims.service", () => {
           clientClaimRef: "claim-2",
           claim: {
             entitlementId: "entitlement-2",
-            totalEligibleArea: 4.2,
+            quantity: 4.2,
             unit: "ha",
             totalClaimAmountPence: 1000,
           },
@@ -866,8 +890,8 @@ describe("claims.service", () => {
         "claim-2",
       ]);
       expect(claims.map((claim) => claim.quantity)).toEqual([
-        { value: 23, unit: "ha" },
-        { value: 4.2, unit: "ha" },
+        { value: 23, unit: "HA" },
+        { value: 4.2, unit: "HA" },
       ]);
     });
   });
