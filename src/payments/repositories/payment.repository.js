@@ -32,9 +32,8 @@ const sourceFilter = (source) => {
   throw new Error(`Unsupported Payment source type: ${source.type}`);
 };
 
-// Which of an application's claims have raised a Payment. A page read asks
-// about every claim at once, and only needs to know that one exists, so it
-// projects the reference rather than loading each Payment.
+// Which of an application's claims have raised a Payment, in one query: the
+// caller only needs to know that one exists.
 export const findClaimPaymentClientClaimRefs = async (
   { code, clientRef },
   session,

@@ -64,8 +64,7 @@ const claimableEntitlement = Joi.object({
 }).label("ClaimableEntitlement");
 
 // A Claim the applicant has submitted, resolved against the template it was
-// made under and the Payment it raised. approvalStatus has no source yet: no
-// Claim carries an approval state, so the column it fills stays blank.
+// made under and the Payment it raised.
 const submittedClaim = Joi.object({
   clientClaimRef: Joi.string().required(),
   claimCode: Joi.string().required(),
@@ -82,9 +81,8 @@ const submittedClaim = Joi.object({
   submittedAt: Joi.string().required(),
 }).label("SubmittedClaim");
 
-// What every Claims-page read answers with, whichever page asked. The
-// submitted Claims are the list page's alone: the entitlement-creation view
-// does not show them, so it does not pay to read them.
+// What every Claims-page read answers with. The submitted Claims belong to the
+// list page alone; the entitlement-creation view does not show them.
 export const applicationClaimsSchema = Joi.object({
   banner: banner.required(),
   availableEntitlements,

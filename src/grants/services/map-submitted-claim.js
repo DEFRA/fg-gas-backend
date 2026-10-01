@@ -1,9 +1,8 @@
 // A submitted Claim as the admin API answers it, resolved against the
 // entitlement template it was made under.
 
-// Both halves are checked rather than trusted. The submit schema pairs them,
-// but it only binds what is submitted from now on: a Claim stored before it
-// may carry either half alone, and half a measurement is no measurement.
+// Claims stored before the submit schema paired a quantity with its unit may
+// carry either half alone, and half a measurement is no measurement.
 const quantityFor = (claim) => {
   const { totalEligibleArea, unit } = claim.claim ?? {};
 

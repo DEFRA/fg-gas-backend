@@ -1,7 +1,6 @@
 import { findClaimPaymentClientClaimRefs } from "../repositories/payment.repository.js";
 
-// The read other modules use to ask which of an application's claims have a
-// Payment. Exposed as a use case so nothing outside Payments reaches into its
-// repositories, the way Payments keeps out of Grants.
+// The seam other modules read Payments through, so nothing outside reaches into
+// its repositories. See docs/MODULE_BOUNDARIES.md.
 export const listClaimPaymentsUseCase = ({ code, clientRef }) =>
   findClaimPaymentClientClaimRefs({ code, clientRef });
