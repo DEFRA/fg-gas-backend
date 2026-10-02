@@ -355,10 +355,15 @@ Check the GAS startup logs, which will show one of:
 Then confirm the raw token is accepted:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' \
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
   -H "Authorization: Bearer <raw token>" \
+  -H "Content-Type: application/json" \
+  -d '{}' \
   https://fg-gas-backend.<env>.cdp-int.defra.cloud/grants
 ```
+
+A valid token reaches request validation and returns `400`; an invalid token
+returns `401`.
 
 ### Minting service access tokens
 

@@ -121,8 +121,6 @@ describe("grants", () => {
         { method: "post", path: "/grants/{code}/applications" },
         { method: "post", path: "/grants/{code}/actions/{name}/invoke" },
         { method: "put", path: "/tmp/grants/{code}" },
-        { method: "get", path: "/grants" },
-        { method: "get", path: "/grants/{code}" },
         { method: "get", path: "/grants/{code}/actions/{name}/invoke" },
         {
           method: "get",
@@ -138,6 +136,18 @@ describe("grants", () => {
         },
       ]),
     );
-    expect(routePaths).toHaveLength(10);
+    expect(routePaths).toHaveLength(8);
   });
+
+  it.each(["/grants", "/grants/woodland"])(
+    "does not expose GET %s",
+    async (url) => {
+      await server.register(grants);
+      await server.initialize();
+
+      const response = await server.inject({ method: "GET", url });
+
+      expect(response.statusCode).toBe(404);
+    },
+  );
 });

@@ -8,23 +8,6 @@ Authorization: Bearer {{serviceToken}}
 
 < ./test/fixtures/pmf-grant-definition.json
 
-
-### Get a Grant
-
-# @name getGrant
-
-GET {{base}}/grants/pigs-might-fly HTTP/1.1
-Authorization: Bearer {{serviceToken}}
-
-
-### Get all Grants
-
-# @name getGrants
-
-GET {{base}}/grants HTTP/1.1
-Authorization: Bearer {{serviceToken}}
-
-
 ### Submit application
 
 # @name submitApplication

@@ -12,8 +12,6 @@ import {
 } from "./events/inbound-event-types.js";
 import { applicationStatusRoute } from "./routes/application-status.route.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
-import { findGrantByCodeRoute } from "./routes/find-grant-by-code.route.js";
-import { findGrantsRoute } from "./routes/find-grants.route.js";
 import { getAvailableClaimsRoute } from "./routes/get-available-claims.route.js";
 import {
   invokeGetActionRoute,
@@ -61,8 +59,6 @@ export const grants = {
     server.route([
       createGrantRoute,
       replaceGrantRoute,
-      findGrantsRoute,
-      findGrantByCodeRoute,
       invokeGetActionRoute,
       invokePostActionRoute,
       submitApplicationRoute,

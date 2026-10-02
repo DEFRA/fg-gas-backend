@@ -83,13 +83,6 @@ describe("Simple Integration Tests", () => {
     expect(dbGrant.code).toBe(grantCode);
     expect(dbGrant.phases[0].questions.properties.farmName.type).toBe("string");
 
-    // Verify grant can be retrieved via API
-    const getResponse = await wreck.get(`/grants/${grantCode}`, {
-      json: true,
-    });
-    expect(getResponse.res.statusCode).toBe(200);
-    expect(getResponse.payload.code).toBe(grantCode);
-
     // Seed config version for the grant
     await seedConfigVersion(db, grantCode);
 
@@ -127,16 +120,5 @@ describe("Simple Integration Tests", () => {
     expect(dbApplication.phases[0].answers.farmName).toBe("Simple Test Farm");
     expect(dbApplication.phases[0].answers.farmSize).toBe(50.5);
     expect(dbApplication.identifiers.sbi).toBe("123456789");
-  });
-
-  it("should verify basic API endpoints are working", async () => {
-    // Test the basic endpoints that we know work
-
-    // GET /grants (should return empty initially)
-    const grantsResponse = await wreck.get("/grants", {
-      json: true,
-    });
-    expect(grantsResponse.res.statusCode).toBe(200);
-    expect(Array.isArray(grantsResponse.payload)).toBe(true);
   });
 });

@@ -52,12 +52,6 @@ export const replace = async (grant) => {
     .replaceOne({ code: grant.code, version: grant.version }, document);
 };
 
-export const findAll = async () => {
-  const results = await db.collection(collection).find().toArray();
-
-  return results.map(toGrant);
-};
-
 export const findByCode = async (code, version = "0.0.0") => {
   const result = await db.collection(collection).findOne({
     code,
