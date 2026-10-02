@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
+import Boom from "@hapi/boom";
 import { findApplicationSummary } from "../../grants/services/grant-admin.service.js";
+import { findCwCaseExistence } from "../repositories/cw-actuators.repository.js";
 import {
   APPLICATION_NOT_FOUND,
   readApplicationHeader,
 } from "./application-page.js";
 
+vi.mock("../../common/logger.js");
 vi.mock("../../grants/services/grant-admin.service.js");
+vi.mock("../repositories/cw-actuators.repository.js");
 
 const SUMMARY = {
   clientRef: "ref-1",
@@ -15,11 +19,12 @@ const SUMMARY = {
 };
 
 describe("readApplicationHeader", () => {
-  it("answers the refs, position and an unknown case link, and the identifiers for the audit", async () => {
+  it("answers the refs, position and case link, and the identifiers for the audit", async () => {
     findApplicationSummary.mockResolvedValue({
       summary: SUMMARY,
       storedBytes: 100,
     });
+    findCwCaseExistence.mockResolvedValue({ exists: true });
 
     const { header, accounts, sourceErrors } = await readApplicationHeader({
       clientRef: "ref-1",
@@ -34,8 +39,12 @@ describe("readApplicationHeader", () => {
       clientRef: "ref-1",
       code: "woodland",
       position: SUMMARY.position,
-      counterpart: null,
+      counterpart: { exists: true },
       fetchedAt: expect.any(String),
+    });
+    expect(findCwCaseExistence).toHaveBeenCalledWith({
+      workflowCode: "woodland",
+      caseRef: "ref-1",
     });
     expect(accounts).toEqual(SUMMARY.identifiers);
     expect(sourceErrors).toEqual([]);
@@ -54,5 +63,35 @@ describe("readApplicationHeader", () => {
       message: "application not found",
       reason: APPLICATION_NOT_FOUND,
     });
+  });
+
+  it("says the case does not exist when Caseworking says so", async () => {
+    findApplicationSummary.mockResolvedValue({ summary: SUMMARY });
+    findCwCaseExistence.mockResolvedValue({ exists: false });
+
+    const { header, sourceErrors } = await readApplicationHeader({
+      clientRef: "ref-1",
+      code: "woodland",
+    });
+
+    expect(header.counterpart).toEqual({ exists: false });
+    expect(sourceErrors).toEqual([]);
+  });
+
+  it("leaves the case link unknown, naming Caseworking's cases, when it cannot answer", async () => {
+    findApplicationSummary.mockResolvedValue({ summary: SUMMARY });
+    findCwCaseExistence.mockRejectedValue(
+      Boom.gatewayTimeout("CW-BE cases did not answer in time"),
+    );
+
+    const { header, sourceErrors } = await readApplicationHeader({
+      clientRef: "ref-1",
+      code: "woodland",
+    });
+
+    expect(header.counterpart).toBeNull();
+    expect(sourceErrors).toEqual([
+      { key: "cwCases", service: "caseworking", box: "cases" },
+    ]);
   });
 });

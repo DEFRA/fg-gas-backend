@@ -171,3 +171,19 @@ describe("readCaseworkingPage", () => {
     await expect(page).rejects.toThrow("down");
   });
 });
+
+describe("toPublicSourceErrors with counterpart checks", () => {
+  it("names the event sources first, then the counterpart checks", () => {
+    expect(
+      toPublicSourceErrors(
+        [{ key: "cwCases", service: CASEWORKING, box: "cases" }],
+        [{ key: "gasApplications", service: GAS, box: "applications" }],
+        [{ key: "cwOutbox", service: CASEWORKING, box: "outbox" }],
+      ),
+    ).toEqual([
+      { hop: "CW-BE Outbox" },
+      { hop: "GAS Applications" },
+      { hop: "CW-BE Cases" },
+    ]);
+  });
+});

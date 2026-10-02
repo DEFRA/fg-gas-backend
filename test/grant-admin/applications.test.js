@@ -330,7 +330,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     expect(page.header).toMatchObject({
       clientRef: "ref-1",
       code: "woodland",
-      counterpart: null,
+      counterpart: { exists: false },
     });
     expect(page.overview).toMatchObject({
       code: "woodland",
@@ -405,11 +405,11 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     expect(page.events.more).toBe(false);
     expect(page.sourceErrors).toEqual([]);
 
-    const requests = await cwStubRequests();
-    expect(requests.map((request) => request.query.q)).toContain("ref-1");
-    expect(requests.every((request) => request.query.audit === "exclude")).toBe(
-      true,
+    const pages = (await cwStubRequests()).filter(
+      (request) => request.box === "page",
     );
+    expect(pages.map((request) => request.query.q)).toEqual(["ref-1"]);
+    expect(pages[0].query.audit).toBe("exclude");
   });
 
   it("events: GAS's rows still, and a source error, when Caseworking is down", async () => {

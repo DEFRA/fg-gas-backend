@@ -144,6 +144,8 @@ describe("hopLabel", () => {
     [{ service: "gas", box: "outbox" }, "GAS Outbox"],
     [{ service: "caseworking", box: "inbox" }, "CW-BE Inbox"],
     [{ service: "caseworking", box: "outbox" }, "CW-BE Outbox"],
+    [{ service: "caseworking", box: "cases" }, "CW-BE Cases"],
+    [{ service: "gas", box: "applications" }, "GAS Applications"],
   ])("names %o as %s", (hop, label) => {
     expect(hopLabel(hop)).toBe(label);
   });

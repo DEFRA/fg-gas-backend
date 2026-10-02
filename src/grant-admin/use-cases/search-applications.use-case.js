@@ -12,12 +12,8 @@ import {
   findApplicationsPage,
   listGrantCodes,
 } from "../../grants/services/grant-admin.service.js";
+import { SEARCH, modeOf } from "../services/list-mode.js";
 import { PAGE_SIZE } from "../services/merge-event-pages.js";
-
-export const SEARCH = "search";
-export const BROWSE = "browse";
-
-export const modeOf = ({ ref }) => (ref ? SEARCH : BROWSE);
 
 const isFirstPage = ({ cursor }) => !cursor;
 

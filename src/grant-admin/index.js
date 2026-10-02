@@ -6,9 +6,13 @@ import { getClaimRoute } from "./routes/get-claim.route.js";
 import { getClaimsRoute } from "./routes/get-claims.route.js";
 import { getEventRoute } from "./routes/get-event.route.js";
 import { purgeEventRoute } from "./routes/purge-event.route.js";
-import { applicationPageRoutes } from "./routes/record-page.routes.js";
+import {
+  applicationPageRoutes,
+  casePageRoutes,
+} from "./routes/record-page.routes.js";
 import { redriveEventRoute } from "./routes/redrive-event.route.js";
 import { searchApplicationsRoute } from "./routes/search-applications.route.js";
+import { searchCasesRoute } from "./routes/search-cases.route.js";
 import { setAuditActor } from "./set-audit-actor.js";
 
 export const grantAdmin = {
@@ -29,6 +33,8 @@ export const grantAdmin = {
       editPayloadRoute,
       searchApplicationsRoute,
       ...applicationPageRoutes,
+      searchCasesRoute,
+      ...casePageRoutes,
     ]);
   },
 };
