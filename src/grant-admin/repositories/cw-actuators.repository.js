@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
+import { getRequestContext } from "../../common/get-request-context.js";
 import { wreck } from "../../common/wreck.js";
 import {
   EDITABLE_DESCRIPTION,
@@ -202,10 +203,20 @@ const toFailure = (error, label, expected) => {
     : Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
 };
 
+// Caseworking records the same operator on the audit events it writes.
+const actorIdHeader = () => {
+  const user = getRequestContext()?.user;
+
+  return user ? { "x-actor-id": user } : {};
+};
+
 const requestOptions = () => ({
   json: true,
   timeout: config.cwBackend.timeoutMs,
-  headers: { authorization: `Bearer ${config.cwBackend.token}` },
+  headers: {
+    authorization: `Bearer ${config.cwBackend.token}`,
+    ...actorIdHeader(),
+  },
 });
 
 // `wreck` serialises an object payload as JSON and sets the content type.

@@ -10,46 +10,41 @@ describe("grant-admin", () => {
     expect(server.registrations["grant-admin"]).toBeDefined();
   });
 
-  it("registers the admin claims and events endpoints", async () => {
+  it("registers the admin claims, events and applications endpoints", async () => {
     const server = hapi.server();
     await server.register(grantAdmin);
 
-    const routes = server.table().map(({ method, path }) => ({ method, path }));
+    const routes = server
+      .table()
+      .map(({ method, path }) => `${method} ${path}`)
+      .sort();
 
     expect(routes).toEqual([
-      {
-        method: "get",
-        path: "/grant-admin/events/page",
-      },
-      {
-        method: "get",
-        path: "/grant-admin/events/{service}/{box}/{id}",
-      },
-      {
-        method: "get",
-        path: "/grant-admin/grants/{code}/applications/{clientRef}/claims",
-      },
-      {
-        method: "get",
-        path: "/grant-admin/grants/{code}/applications/{clientRef}/claims/{claimCode}",
-      },
-      {
-        method: "post",
-        path: "/grant-admin/events/{service}/{box}/{id}/payload",
-      },
-      {
-        method: "post",
-        path: "/grant-admin/events/{service}/{box}/{id}/redrive",
-      },
-      {
-        method: "post",
-        path: "/grant-admin/events/{service}/{box}/{id}/purge",
-      },
-      {
-        method: "post",
-        path: "/grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
-      },
+      "get /grant-admin/events/page",
+      "get /grant-admin/events/{service}/{box}/{id}",
+      "get /grant-admin/grants/{code}/applications/{clientRef}/claims",
+      "get /grant-admin/grants/{code}/applications/{clientRef}/claims/{claimCode}",
+      "get /grant-admin/grants/{code}/applications/{clientRef}/events",
+      "get /grant-admin/grants/{code}/applications/{clientRef}/overview",
+      "get /grant-admin/grants/{code}/applications/{clientRef}/raw",
+      "post /grant-admin/applications/search",
+      "post /grant-admin/events/{service}/{box}/{id}/payload",
+      "post /grant-admin/events/{service}/{box}/{id}/purge",
+      "post /grant-admin/events/{service}/{box}/{id}/redrive",
+      "post /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
     ]);
+  });
+
+  it("still routes a claims path to the claims route beside the application tabs", async () => {
+    const server = hapi.server();
+    await server.register(grantAdmin);
+
+    expect(
+      server.match(
+        "get",
+        "/grant-admin/grants/woodland/applications/ref-1/claims",
+      ).path,
+    ).toBe("/grant-admin/grants/{code}/applications/{clientRef}/claims");
   });
 
   it("registers the admin events endpoint", async () => {

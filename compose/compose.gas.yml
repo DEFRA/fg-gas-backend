@@ -11,6 +11,8 @@ services:
       PORT: 3102
       MONGO_URI: mongodb://mongodb:27017/?replicaSet=mongoRepl
       AWS_ENDPOINT_URL: "http://floci:4566"
+      # cdp-metrics writes nothing to CloudWatch off the platform.
+      AWS_EMF_ENVIRONMENT: Local
       OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
       INBOX_POLL_MS: "${INBOX_POLL_MS}"
       GRANT_FUNDING_CALCULATOR_URL: "${GRANT_FUNDING_CALCULATOR_URL}"

@@ -93,6 +93,20 @@ describe("server", () => {
     expect(mongoClient.close).toHaveBeenCalled();
   });
 
+  it("puts cdp-metrics on every request", async () => {
+    const server = await createServer();
+    server.route({
+      method: "GET",
+      path: "/metrics-probe",
+      options: { auth: false },
+      handler: (request) => ({ counter: typeof request.metrics.counter }),
+    });
+
+    const response = await server.inject("/metrics-probe");
+
+    expect(response.result).toEqual({ counter: "function" });
+  });
+
   it("validates routes", async () => {
     const server = await createServer();
     const expectedErrorMessage = '"Payload" must be of type object';

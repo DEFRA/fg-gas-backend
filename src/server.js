@@ -1,3 +1,4 @@
+import { metrics } from "@defra/cdp-metrics";
 import { tracing } from "@defra/hapi-tracing";
 import hapi from "@hapi/hapi";
 import Inert from "@hapi/inert";
@@ -96,6 +97,7 @@ export const createServer = async () => {
         timeout: 10_000,
       },
     },
+    metrics,
     Inert,
     Vision,
     {

@@ -2,10 +2,12 @@ import Boom from "@hapi/boom";
 import { logger } from "../../common/logger.js";
 import {
   describeError,
+  findCwPage,
   isCwConfigured,
 } from "../repositories/cw-actuators.repository.js";
-import { SOURCE_KEYS } from "./event-cursor.js";
+import { SOURCE_KEYS, decodeCompositeCursor } from "./event-cursor.js";
 import { hopLabel } from "./event-display.js";
+import { PAGE_SIZE } from "./merge-event-pages.js";
 
 export const GAS = "gas";
 export const CASEWORKING = "caseworking";
@@ -15,6 +17,31 @@ export const serviceScope = (service) => service ?? "every service";
 
 export const selectsCaseworking = (service) =>
   !service || service === CASEWORKING;
+
+// One Caseworking read of the named sections, started by the caller and passed
+// to each use case that draws from it.
+export const readCaseworkingPage = ({
+  service,
+  cursor,
+  sections,
+  ...filters
+}) => {
+  if (!selectsCaseworking(service) || !isCwConfigured()) {
+    return undefined;
+  }
+
+  const page = findCwPage({
+    ...filters,
+    slices: decodeCompositeCursor(cursor),
+    pageSize: PAGE_SIZE,
+    sections,
+  });
+
+  // Unawaited if a section throws early; the no-op stops an unhandled rejection.
+  page.catch(() => {});
+
+  return page;
+};
 
 // A null section becomes a rejection, so a partial answer is a `sourceError`.
 const unavailable = (box, section) =>

@@ -118,6 +118,7 @@ const record = async (name, request) => {
     path: url.pathname,
     query: Object.fromEntries(url.searchParams),
     authorization: request.headers.authorization ?? null,
+    actorId: request.headers["x-actor-id"] ?? null,
     body: request.method === "POST" ? await readBody(request) : null,
   });
 };

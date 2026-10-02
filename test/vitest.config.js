@@ -50,6 +50,7 @@ export default defineConfig({
       LOG_FORMAT: "pino-pretty",
       TRACING_HEADER: "x-cdp-request-id",
       ENVIRONMENT: "local",
+      AWS_EMF_ENVIRONMENT: "Local",
       // FGP-1307: these integration tests drive caller identity through the
       // x-agreement-* headers (varying source/sbi/code per scenario). Caller-token
       // enforcement is exercised by the auth unit tests; keep the integration

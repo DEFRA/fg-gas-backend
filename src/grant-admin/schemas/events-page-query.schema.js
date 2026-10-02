@@ -8,12 +8,12 @@ const Q_MAX = 200;
 const ERROR_MAX = 1024;
 
 // A string, not a Date: each box coerces the bound to its own stored type.
-const rangeBound = () => Joi.string().isoDate();
+export const rangeBound = () => Joi.string().isoDate();
 
 const term = (max) => Joi.string().trim().min(1).max(max).empty("");
 
 // Compared as instants: offset-bearing strings order differently lexically.
-const assertRange = (value, helpers) =>
+export const assertRange = (value, helpers) =>
   value.from && value.to && Date.parse(value.from) > Date.parse(value.to)
     ? helpers.error("any.invalid")
     : value;

@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "nodemon --env-file=.env src/main.js",
+    "dev": "AWS_EMF_ENVIRONMENT=Local nodemon --env-file=.env src/main.js",
     "lint": "eslint",
     "test": "npm run test:unit -- --run && npm run test:integration -- --run",
     "test:unit": "vitest --config vitest.config.js --dir src",
@@ -44,6 +44,7 @@
     "@aws-sdk/client-sns": "^3.1137.0",
     "@aws-sdk/client-sqs": "^3.1137.0",
     "@aws-sdk/credential-providers": "^3.1136.0",
+    "@defra/cdp-metrics": "0.6.0",
     "@defra/fcp-audit-publisher": "^1.0.9",
     "@defra/grants-reporting-publisher": "0.3.0",
     "@defra/hapi-tracing": "^1.28.0",

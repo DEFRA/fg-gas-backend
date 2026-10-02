@@ -43,5 +43,16 @@ export const eventDetailResponseSchema = eventRowWithAttemptsSchema
     // Present only where a purge is possible: the admin gates its button on
     // it. Null on anything but a dead letter.
     purgeDeletionDate: isoOrNull,
+    // The one record this event belongs to, where its owning service has it.
+    record: Joi.object({
+      kind: Joi.string().valid("application", "case").required(),
+      code: Joi.string().required(),
+      ref: Joi.string().required(),
+    })
+      .allow(null)
+      .required()
+      .label("EventRecord"),
+    // What "Related" searches the events for; null on an audit row.
+    searchRef: Joi.string().allow(null).required(),
   })
   .label("EventDetail");

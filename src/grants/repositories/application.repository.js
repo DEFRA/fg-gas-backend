@@ -1,6 +1,8 @@
 import Boom from "@hapi/boom";
-import { MongoServerError } from "mongodb";
+import { MongoServerError, ObjectId } from "mongodb";
+import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
+import { paginate } from "../../common/paginate.js";
 import { Agreement, AgreementHistoryEntry } from "../models/agreement.js";
 import { ApplicationDocument } from "../models/application-document.js";
 import { Application } from "../models/application.js";
@@ -129,3 +131,112 @@ export const lockForUpdate = async ({ clientRef, code }, session) => {
 
   return toApplication(doc);
 };
+
+const adminReadOptions = () => ({ maxTimeMS: config.adminReadTimeoutMs });
+
+const listSort = { createdAt: -1, _id: -1 };
+
+// A cursor comes back from the caller, so only an instant may reach the query.
+const isIsoInstant = (value) => {
+  try {
+    return new Date(value).toISOString() === value;
+  } catch {
+    return false;
+  }
+};
+
+const decodeCreatedAt = (value) => {
+  if (!isIsoInstant(value)) {
+    throw new Error("Invalid createdAt in cursor");
+  }
+
+  return value;
+};
+
+// createdAt is an ISO string on every application, so it round-trips unchanged.
+const listCodecs = {
+  createdAt: {
+    encode: (value) => value ?? null,
+    decode: decodeCreatedAt,
+  },
+  _id: {
+    encode: (id) => id.toString(),
+    decode: (hex) => ObjectId.createFromHexString(hex),
+  },
+};
+
+// Grant Admin reads the stored document, never an Application: the model
+// drops fields an operator debugging a record needs to see.
+export const findStoredPage = ({ filter, projection, cursor, pageSize }) =>
+  paginate(db.collection(collection), {
+    ...adminReadOptions(),
+    filter,
+    sort: listSort,
+    codecs: listCodecs,
+    cursor,
+    pageSize,
+    project: projection,
+  });
+
+// Every branch of a ref search names a {clientRef, code} pair. Hinted, so a
+// selective created-time range cannot steer the plan onto a list index and
+// scan it, unsorted reads having nothing else to pick between.
+export const findStored = (filter, { projection, limit }) =>
+  db
+    .collection(collection)
+    .find(filter, {
+      ...adminReadOptions(),
+      projection,
+      limit,
+      hint: { clientRef: 1, code: 1 },
+    })
+    .toArray();
+
+export const countStored = (filter, limit) =>
+  db
+    .collection(collection)
+    .countDocuments(filter, { ...adminReadOptions(), limit });
+
+const readOne = async (pipeline) => {
+  const [doc] = await db
+    .collection(collection)
+    .aggregate(pipeline, adminReadOptions())
+    .toArray();
+
+  return doc ?? null;
+};
+
+// $bsonSize measures the whole stored document before any projection.
+const matchWithSize = ({ clientRef, code }) => [
+  { $match: { clientRef, code } },
+  { $set: { storedBytes: { $bsonSize: "$$ROOT" } } },
+];
+
+export const findStoredSummary = ({ clientRef, code }, projection) =>
+  readOne([
+    ...matchWithSize({ clientRef, code }),
+    { $project: { ...projection, storedBytes: 1 } },
+  ]);
+
+// A document over `maxBytes` is never sent: only its size is.
+export const findStoredDocument = ({ clientRef, code }, maxBytes) =>
+  readOne([
+    ...matchWithSize({ clientRef, code }),
+    {
+      $project: {
+        _id: 0,
+        storedBytes: 1,
+        document: {
+          $cond: [{ $lte: ["$storedBytes", maxBytes] }, "$$ROOT", "$$REMOVE"],
+        },
+      },
+    },
+  ]);
+
+export const findStoredIdentifiers = ({ clientRef, code }) =>
+  db
+    .collection(collection)
+    .findOne(
+      { clientRef, code },
+      { ...adminReadOptions(), projection: { identifiers: 1 } },
+    );
