@@ -14,8 +14,8 @@ const deepFreeze = (value) => {
  * An immutable record of a Claim submitted against one Entitlement.
  *
  * `metadata` and `claim` are the submitted request bodies, kept as sent. The
- * Claim owns their presence, not their contents: the request schema is the only
- * thing that constrains what a caller may put inside them.
+ * Claim validates the baseline claim fields while retaining grant-specific
+ * fields and metadata.
  *
  * `clientClaimRef` is the callers key and is unique only within
  * `code` and `clientRef`, so the three together are the Claim's identity.
@@ -28,7 +28,13 @@ export class Claim {
     clientClaimRef: Joi.string().required(),
     entitlementId: Joi.string().required(),
     metadata: Joi.object().unknown(true).required(),
-    claim: Joi.object().unknown(true).required(),
+    claim: Joi.object({
+      entitlementId: Joi.string().required(),
+      totalClaimAmountPence: Joi.number().integer().min(0).required(),
+      quantity: Joi.number().min(0).optional(),
+    })
+      .unknown(true)
+      .required(),
     createdAt: Joi.string().required(),
     updatedAt: Joi.string().required(),
   });
@@ -55,6 +61,12 @@ export class Claim {
     this.updatedAt = value.updatedAt;
 
     deepFreeze(this);
+  }
+
+  static fromDocument(doc) {
+    // Mongo's identity is not part of the Claim; validate the persisted state.
+    const { _id, ...props } = doc;
+    return new Claim(props);
   }
 
   static create({ createdAt = new Date().toISOString(), ...props }) {

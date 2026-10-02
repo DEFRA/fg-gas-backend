@@ -8,7 +8,11 @@ const props = {
   clientClaimRef: "WMP-6HB-J8E-C0001",
   entitlementId: "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
   metadata: { grantCode: "woodland", sbi: "113593357" },
-  claim: { totalClaimAmountPence: 150000, unit: "ha" },
+  claim: {
+    entitlementId: "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
+    totalClaimAmountPence: 150000,
+    unit: "ha",
+  },
 };
 
 describe("Claim", () => {
@@ -29,8 +33,7 @@ describe("Claim", () => {
     expect(claim.updatedAt).toBe("2026-09-10T17:29:55.456Z");
   });
 
-  // The request schema is the only thing that constrains what a caller may put
-  // in these bodies, so the Claim must not strip or reshape what it is given.
+  // Grant-specific fields must survive baseline validation.
   it("keeps the submitted bodies as sent", () => {
     const submittedAt = new Date("2026-09-10T17:29:55.444Z");
     const claim = Claim.create({
@@ -46,8 +49,7 @@ describe("Claim", () => {
       nested: { deep: true },
     });
     expect(claim.claim).toEqual({
-      totalClaimAmountPence: 150000,
-      unit: "ha",
+      ...props.claim,
       claimNumber: "WMP-6HB-J8E-C0001",
     });
   });
@@ -106,6 +108,75 @@ describe("Claim", () => {
     } finally {
       Claim.validationSchema = strict;
     }
+  });
+
+  it("rehydrates a persisted document without its Mongo id", () => {
+    const document = {
+      ...props,
+      _id: "mongo-id",
+      createdAt: "2026-09-10T17:29:55.456Z",
+      updatedAt: "2026-09-11T17:29:55.456Z",
+    };
+
+    const claim = Claim.fromDocument(document);
+
+    expect(claim).toBeInstanceOf(Claim);
+    expect(claim).toEqual({
+      ...props,
+      createdAt: document.createdAt,
+      updatedAt: document.updatedAt,
+    });
+    expect(claim.claim).not.toBe(document.claim);
+    expect(Object.isFrozen(claim.claim)).toBe(true);
+  });
+
+  it.each([
+    ["entitlementId", undefined],
+    ["entitlementId", 123],
+    ["totalClaimAmountPence", undefined],
+    ["totalClaimAmountPence", -1],
+    ["totalClaimAmountPence", "invalid"],
+    ["totalClaimAmountPence", 1.5],
+    ["quantity", -1],
+    ["quantity", "invalid"],
+  ])("rejects claim.%s = %s when constructed directly", (field, value) => {
+    expect(
+      () =>
+        new Claim({
+          ...props,
+          claim: { ...props.claim, [field]: value },
+          createdAt: "2026-09-10T17:29:55.456Z",
+          updatedAt: "2026-09-10T17:29:55.456Z",
+        }),
+    ).toThrow(
+      expect.objectContaining({
+        output: expect.objectContaining({ statusCode: 400 }),
+      }),
+    );
+  });
+
+  it.each([undefined, 0, 1.5])(
+    "accepts quantity %s and a zero amount",
+    (quantity) => {
+      const claim = Claim.create({
+        ...props,
+        claim: { ...props.claim, totalClaimAmountPence: 0, quantity },
+      });
+
+      expect(claim.claim.totalClaimAmountPence).toBe(0);
+      expect(claim.claim.quantity).toBe(quantity);
+    },
+  );
+
+  it("rejects corrupt persisted claim data", () => {
+    expect(() =>
+      Claim.fromDocument({
+        ...props,
+        claim: { ...props.claim, quantity: -1 },
+        createdAt: "2026-09-10T17:29:55.456Z",
+        updatedAt: "2026-09-10T17:29:55.456Z",
+      }),
+    ).toThrow('"claim.quantity" must be greater than or equal to 0');
   });
 
   it("reports an invalid claim as a bad request", () => {
