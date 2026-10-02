@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
+import { claimBodySchema } from "./claim-body.schema.js";
 
 const deepFreeze = (value) => {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -28,13 +29,11 @@ export class Claim {
     clientClaimRef: Joi.string().required(),
     entitlementId: Joi.string().required(),
     metadata: Joi.object().unknown(true).required(),
-    claim: Joi.object({
-      entitlementId: Joi.string().required(),
-      totalClaimAmountPence: Joi.number().integer().min(0).required(),
-      quantity: Joi.number().min(0).optional(),
-    })
-      .unknown(true)
-      .required(),
+    claim: claimBodySchema.keys({
+      entitlementId: claimBodySchema
+        .extract("entitlementId")
+        .valid(Joi.ref("/entitlementId")),
+    }),
     createdAt: Joi.string().required(),
     updatedAt: Joi.string().required(),
   });
@@ -78,6 +77,11 @@ export class Claim {
   }
 
   static create({ createdAt = new Date().toISOString(), ...props }) {
-    return new Claim({ ...props, createdAt, updatedAt: createdAt });
+    return new Claim({
+      ...props,
+      entitlementId: props.claim?.entitlementId,
+      createdAt,
+      updatedAt: createdAt,
+    });
   }
 }

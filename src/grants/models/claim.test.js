@@ -16,6 +16,36 @@ const props = {
 };
 
 describe("Claim", () => {
+  it("derives the entitlement id from the submitted claim", () => {
+    const claim = Claim.create({ ...props, entitlementId: undefined });
+
+    expect(claim.entitlementId).toBe(props.claim.entitlementId);
+  });
+
+  it("uses the submitted entitlement id rather than a caller's duplicate", () => {
+    const claim = Claim.create({ ...props, entitlementId: "different-id" });
+
+    expect(claim.entitlementId).toBe(props.claim.entitlementId);
+  });
+
+  it.each([
+    ["direct construction", (document) => new Claim(document)],
+    ["rehydration", (document) => Claim.fromDocument(document)],
+  ])("rejects contradictory entitlement ids during %s", (_, construct) => {
+    expect(() =>
+      construct({
+        ...props,
+        entitlementId: "different-id",
+        createdAt: "2026-09-10T17:29:55.456Z",
+        updatedAt: "2026-09-10T17:29:55.456Z",
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        output: expect.objectContaining({ statusCode: 400 }),
+      }),
+    );
+  });
+
   it("stamps both timestamps with the same submission time", () => {
     const claim = Claim.create(props);
 

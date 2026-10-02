@@ -209,7 +209,6 @@ const insertClaim = async ({ command, claimCode }, session) => {
     clientRef: command.clientRef,
     claimCode,
     clientClaimRef: command.payload.metadata.clientClaimRef,
-    entitlementId: command.payload.claim.entitlementId,
     metadata: command.payload.metadata,
     claim: command.payload.claim,
   });
