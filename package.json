@@ -68,7 +68,7 @@
     "pino-pretty": "^13.1.1"
   },
   "devDependencies": {
-    "@pact-foundation/pact": "^17.0.1",
+    "@pact-foundation/pact": "^17.1.4",
     "@vitest/coverage-v8": "5.0.1",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
