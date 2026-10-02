@@ -1,5 +1,9 @@
 import Joi from "joi";
-import { eventSourceErrorSchema } from "./events-shared.schema.js";
+import {
+  eventRowSchema,
+  eventSourceErrorSchema,
+} from "./events-shared.schema.js";
+import { sectionErrorsSchema } from "./section-errors.schema.js";
 
 // Shared by Grant Admin's record lists and pages. Every fact may be null: a
 // legacy or odd document must not make the debugging tool answer 500.
@@ -35,3 +39,31 @@ export const listTotalSchema = Joi.object({
 export const sourceErrorsSchema = Joi.array()
   .items(eventSourceErrorSchema)
   .required();
+
+export const storedBytesSchema = Joi.number()
+  .integer()
+  .min(0)
+  .allow(null)
+  .required();
+
+export const recordEventsSchema = (label) =>
+  Joi.object({
+    rows: Joi.array().items(eventRowSchema).required(),
+    // More than one page matched: the admin links on to the events search.
+    more: Joi.boolean().required(),
+  })
+    .allow(null)
+    .required()
+    .label(label);
+
+// One tab of a record page: the header, that tab's keys, and what failed.
+export const recordPageSchema = (header, tab, keys, label) =>
+  Joi.object({
+    header,
+    ...keys,
+    sourceErrors: sourceErrorsSchema,
+    sectionErrors: sectionErrorsSchema(
+      [tab],
+      `${label}SectionError`,
+    ).required(),
+  }).label(label);

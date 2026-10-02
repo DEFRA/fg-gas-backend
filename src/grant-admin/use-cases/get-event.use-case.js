@@ -20,6 +20,7 @@ import {
 } from "../services/resolve-event-record-ref.js";
 import { CASEWORKING, GAS } from "../services/event-sources.js";
 import { toEventDetail } from "../services/map-event-detail.js";
+import { RECORD_KINDS } from "../services/record-kinds.js";
 
 const GAS_BOXES = {
   inbox: {
@@ -50,7 +51,7 @@ const gasRecordOf = async (detail) => {
   const found = recordRefOf(detail);
 
   return found && (await isApplication(found))
-    ? { kind: "application", ...found }
+    ? { kind: RECORD_KINDS.APPLICATION, ...found }
     : null;
 };
 
@@ -76,6 +77,17 @@ const getGasEvent = async (box, id) => {
   };
 };
 
+// Caseworking checks its own case: a row whose case is missing, or a
+// Caseworking that does not say, links to nothing.
+const cwRecordOf = (found) =>
+  found?.exists === true
+    ? {
+        kind: RECORD_KINDS.CASE,
+        code: found.workflowCode,
+        ref: found.caseRef,
+      }
+    : null;
+
 // No partial mode: half a detail view is not a view.
 const getCwEvent = async (box, id) => {
   const doc = await findCwEvent(box, id);
@@ -87,7 +99,11 @@ const getCwEvent = async (box, id) => {
     maxAttempts: doc.maxAttempts,
   });
 
-  return { ...detail, record: null, searchRef: searchRefOf(detail) };
+  return {
+    ...detail,
+    record: cwRecordOf(doc.case),
+    searchRef: searchRefOf(detail),
+  };
 };
 
 const getEvent = ({ service, box, id }) => {
