@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import { ApplicationSeries } from "../models/application-series.js";
 
@@ -38,3 +39,16 @@ export const update = async (series, session) => {
   }
   return result;
 };
+
+// Every series holding any of the refs, under the one grant when it is named.
+export const findStoredByClientRefs = (clientRefs, code) =>
+  db
+    .collection(collection)
+    .find(
+      { clientRefs: { $in: clientRefs }, ...(code ? { code } : {}) },
+      {
+        projection: { _id: 0, code: 1, clientRefs: 1, latestClientRef: 1 },
+        maxTimeMS: config.adminReadTimeoutMs,
+      },
+    )
+    .toArray();

@@ -30,6 +30,7 @@ export default defineConfig({
       AWS_REGION: "eu-west-2",
       AWS_ENDPOINT_URL: "http://localhost:4566",
       ENVIRONMENT: "local",
+      AWS_EMF_ENVIRONMENT: "Local",
       VIEW_AGREEMENT_URI: "http://localhost:3000",
       OUTBOX_MAX_RETRIES: 5,
       OUTBOX_CLAIM_MAX_RECORDS: 2,

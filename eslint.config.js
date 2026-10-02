@@ -200,6 +200,7 @@ export default [
               except: [
                 "**/grants/services/entitlement.service.js",
                 "**/grants/services/claims.service.js",
+                "**/grants/services/grant-admin.service.js",
               ],
               message:
                 "Grant Admin may only enter Grants through its reviewed application services. " +

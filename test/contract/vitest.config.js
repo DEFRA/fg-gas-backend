@@ -24,6 +24,7 @@ export default defineConfig({
       API_URL: `http://localhost:${GAS_PORT}`,
       MONGO_URI: `mongodb://localhost:${MONGO_PORT}/fg-gas-backend`,
       AWS_REGION: "eu-west-2",
+      AWS_EMF_ENVIRONMENT: "Local",
       AWS_ENDPOINT_URL: `http://localhost:${FLOCI_PORT}`,
       AWS_ACCESS_KEY_ID: "test",
       AWS_SECRET_ACCESS_KEY: "test",

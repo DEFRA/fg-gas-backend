@@ -4,6 +4,7 @@ import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { findById as findGasInboxById } from "../../events/repositories/inbox.repository.js";
 import { findById as findGasOutboxById } from "../../events/repositories/outbox.repository.js";
+import { applicationExists } from "../../grants/services/grant-admin.service.js";
 import { findCwEvent } from "../repositories/cw-actuators.repository.js";
 import { getEventAuditBuilder, getEventUseCase } from "./get-event.use-case.js";
 
@@ -12,6 +13,7 @@ vi.mock("../../events/write-audit-event.js");
 vi.mock("../../events/repositories/inbox.repository.js");
 vi.mock("../../events/repositories/outbox.repository.js");
 vi.mock("../repositories/cw-actuators.repository.js");
+vi.mock("../../grants/services/grant-admin.service.js");
 
 const ID = "665f1c2e9a1b2c3d4e5f6a7b";
 
@@ -223,5 +225,121 @@ describe("getEventAuditBuilder", () => {
       getEventAuditBuilder([{ service: "gas", box: "inbox", id: ID }])
         .segregationRef,
     ).toBe(`event-${ID}`);
+  });
+});
+
+describe("getEventUseCase record", () => {
+  const withData = (data, overrides = {}) =>
+    aGasInboxDoc({ event: { id: "evt-1", data }, ...overrides });
+
+  it("links a GAS row to the application its refs name, once it exists", async () => {
+    findGasInboxById.mockResolvedValue(
+      withData({ clientRef: "ref-1", code: "frps-private-beta" }),
+    );
+    applicationExists.mockResolvedValue({ exists: true, identifiers: {} });
+
+    const event = await call();
+
+    expect(applicationExists).toHaveBeenCalledWith({
+      clientRef: "ref-1",
+      code: "frps-private-beta",
+    });
+    expect(event.record).toEqual({
+      kind: "application",
+      code: "frps-private-beta",
+      ref: "ref-1",
+    });
+    expect(event.searchRef).toBe("GLD-9B2");
+  });
+
+  it("links a GAS-stored case status update to the application too", async () => {
+    findGasInboxById.mockResolvedValue(
+      withData({ caseRef: "ref-1", workflowCode: "frps-private-beta" }),
+    );
+    applicationExists.mockResolvedValue({ exists: true, identifiers: {} });
+
+    const event = await call();
+
+    expect(event.record).toEqual({
+      kind: "application",
+      code: "frps-private-beta",
+      ref: "ref-1",
+    });
+  });
+
+  it("gives no record, but still a searchRef, when the application is missing", async () => {
+    findGasInboxById.mockResolvedValue(
+      withData({ clientRef: "ref-1", code: "frps-private-beta" }),
+    );
+    applicationExists.mockResolvedValue({ exists: false, identifiers: null });
+
+    const event = await call();
+
+    expect(event.record).toBeNull();
+    expect(event.searchRef).toBe("GLD-9B2");
+  });
+
+  it("shows the event with no record when the application cannot be checked", async () => {
+    findGasInboxById.mockResolvedValue(
+      withData({ clientRef: "ref-1", code: "frps-private-beta" }),
+    );
+    applicationExists.mockRejectedValue(new Error("mongo down"));
+
+    const event = await call();
+
+    expect(event.record).toBeNull();
+    expect(event.searchRef).toBe("GLD-9B2");
+  });
+
+  it("checks nothing for a row with no refs", async () => {
+    findGasInboxById.mockResolvedValue(withData({ grantCode: "woodland" }));
+
+    const event = await call();
+
+    expect(applicationExists).not.toHaveBeenCalled();
+    expect(event.record).toBeNull();
+  });
+
+  it("gives an audit row neither a record nor a searchRef", async () => {
+    findGasOutboxById.mockResolvedValue({
+      _id: new ObjectId(ID),
+      target: "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn",
+      segregationRef: "admin-view-application",
+      status: "COMPLETED",
+      completionAttempts: 1,
+      publicationDate: new Date("2026-06-16T10:00:00.000Z"),
+      event: { audit: { entities: [] } },
+    });
+
+    const event = await call({ box: "outbox" });
+
+    expect(applicationExists).not.toHaveBeenCalled();
+    expect(event.record).toBeNull();
+    expect(event.searchRef).toBeNull();
+  });
+
+  it("leaves a Caseworking row unlinked, with its searchRef", async () => {
+    findCwEvent.mockResolvedValue(
+      aCwInboxDoc({
+        event: {
+          id: "evt-1",
+          data: { caseRef: "ref-1", workflowCode: "frps-private-beta" },
+        },
+      }),
+    );
+
+    const event = await call({ service: "caseworking" });
+
+    expect(applicationExists).not.toHaveBeenCalled();
+    expect(event.record).toBeNull();
+    expect(event.searchRef).toBe("GLD-9B2");
+  });
+
+  it("carries PMC 0706 on the view audit", () => {
+    const audit = getEventAuditBuilder([
+      { service: "gas", box: "inbox", id: ID, caller: "grants-ui" },
+    ]);
+
+    expect(audit.security).toEqual({ pmccode: "0706" });
   });
 });

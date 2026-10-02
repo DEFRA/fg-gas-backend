@@ -38,7 +38,14 @@ export const auditActions = {
   // Replacing one redrivable row's payload. The row keeps its status; only a
   // redrive retries it.
   EDIT_EVENT_PAYLOAD: "EDIT_EVENT_PAYLOAD",
+  // Grant Admin's Applications list: one row per page, browse or ref search.
+  SEARCH_APPLICATIONS: "SEARCH_APPLICATIONS",
+  // One tab of one application in Grant Admin.
+  VIEW_APPLICATION: "VIEW_APPLICATION",
 };
+
+// The protective-monitoring code on every Grant Admin read.
+export const ADMIN_READ_SECURITY = { pmccode: "0706" };
 
 export const auditStatus = {
   SUCCESS: "SUCCESS",
