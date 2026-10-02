@@ -18,12 +18,23 @@ const claimProps = {
   clientClaimRef: "WMP-6HB-J8E-C0001",
   entitlementId: "entitlement-1",
   metadata: { grantCode: "woodland" },
-  claim: { totalClaimAmountPence: 150000 },
+  claim: { entitlementId: "entitlement-1", totalClaimAmountPence: 150000 },
 };
 
 vi.mock("../../common/mongo-client.js");
 
 describe("claim.repository", () => {
+  it("returns an empty list when no claims have been submitted", async () => {
+    const toArray = vi.fn().mockResolvedValue([]);
+    db.collection.mockReturnValue({
+      find: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({ toArray }),
+      }),
+    });
+
+    await expect(findByApplication(claimProps, {})).resolves.toEqual([]);
+  });
+
   it("returns true when a claim with the clientClaimRef exists", async () => {
     const session = {};
     const findOne = vi.fn().mockResolvedValue({ _id: new ObjectId() });
@@ -173,7 +184,21 @@ describe("claim.repository", () => {
 
   it("returns an application's claims oldest first", async () => {
     const session = {};
-    const claims = [{ clientClaimRef: "WMP-6HB-J8E-C0001" }];
+    const claims = [
+      {
+        ...claimProps,
+        _id: new ObjectId(),
+        createdAt: "2026-09-10T17:29:55.456Z",
+        updatedAt: "2026-09-10T17:29:55.456Z",
+      },
+      {
+        ...claimProps,
+        _id: new ObjectId(),
+        clientClaimRef: "WMP-6HB-J8E-C0002",
+        createdAt: "2026-09-11T17:29:55.456Z",
+        updatedAt: "2026-09-11T17:29:55.456Z",
+      },
+    ];
     const toArray = vi.fn().mockResolvedValue(claims);
     const sort = vi.fn().mockReturnValue({ toArray });
     const find = vi.fn().mockReturnValue({ sort });
@@ -190,6 +215,17 @@ describe("claim.repository", () => {
       { session },
     );
     expect(sort).toHaveBeenCalledWith({ createdAt: 1 });
-    expect(result).toEqual(claims);
+    expect(result).toHaveLength(2);
+    result.forEach((claim, index) => {
+      expect(claim).toBeInstanceOf(Claim);
+      expect(claim.clientClaimRef).toBe(claims[index].clientClaimRef);
+      expect(claim._id).toBeUndefined();
+      expect(claim).toEqual({
+        ...claimProps,
+        clientClaimRef: claims[index].clientClaimRef,
+        createdAt: claims[index].createdAt,
+        updatedAt: claims[index].updatedAt,
+      });
+    });
   });
 });
