@@ -9,7 +9,7 @@ const request = () => ({
   clientRef: "WDL-100001",
   clientClaimRef: "claim-2026-001",
   entitlementId: "entitlement-1",
-  configVersion: "1.28.2",
+  configVersion: "1.39.1",
   agreement: {
     agreementNumber: "WDL100000001",
     agreementVersion: 3,
@@ -45,7 +45,7 @@ describe("ClaimPaymentRequestedEvent", () => {
           entitlementId: "entitlement-1",
         },
         agreement: sourceRequest.agreement,
-        configVersion: "1.28.2",
+        configVersion: "1.39.1",
         executedAt: "2026-09-14T13:11:01.000Z",
         snapshot: sourceRequest.claim,
       },

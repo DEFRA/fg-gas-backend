@@ -3,7 +3,7 @@
   "metadata": {
     "description": "Woodland Management Plan",
     "startDate": {
-      "$date": "2100-01-01T00:00:00Z"
+      "$date": "2100-01-02T00:00:00Z"
     }
   },
   "actions": [],
@@ -35,7 +35,7 @@
         },
         "actionVersion": {
           "input": false,
-          "value": "jsonata: $.agreement.actions[code='PA3'].version",
+          "value": "jsonata: $.agreement.items[code='PA3'].version",
           "unitType": "string",
           "minLength": 1,
           "maxLength": null

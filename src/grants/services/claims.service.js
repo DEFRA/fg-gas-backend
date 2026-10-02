@@ -13,9 +13,12 @@ import { lockForUpdate } from "../repositories/application.repository.js";
 import {
   countByEntitlement,
   existsByClientClaimRef,
+  findByApplication,
   insert,
 } from "../repositories/claim.repository.js";
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
+import { toClaimableDto } from "./map-claimable-entitlement.js";
+import { toSubmittedClaim } from "./map-submitted-claim.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import { hasRemainingApplicationClaimCapacityUseCase } from "../use-cases/has-remaining-application-claim-capacity.use-case.js";
 import {
@@ -106,61 +109,6 @@ const claimableFor = ({ grant, application, existing, entitlementId }) => {
   return ClaimableEntitlement.fromPersisted({ entitlement, template });
 };
 
-const dataValue = (field, value) => value ?? field.value ?? null;
-
-const unscaleDecimalAsText = (value, decimalPlaces) => {
-  const sign = value < 0 ? "-" : "";
-  const digits = String(Math.abs(value)).padStart(decimalPlaces + 1, "0");
-  const point = digits.length - decimalPlaces;
-
-  return Number(`${sign}${digits.slice(0, point)}.${digits.slice(point)}`);
-};
-
-const unscaled = (value, decimalPlaces) =>
-  typeof value === "number"
-    ? unscaleDecimalAsText(value, decimalPlaces)
-    : value;
-
-const decimalDataField = (field, value) => ({
-  value: unscaled(dataValue(field, value), field.decimalPlaces),
-  decimalPlaces: field.decimalPlaces,
-  minValue: field.minValue ?? null,
-  maxValue: field.maxValue ?? null,
-});
-
-const dataField = (field, value) => {
-  if (field.unitType === "decimal") {
-    return decimalDataField(field, value);
-  }
-  return { value: dataValue(field, value) };
-};
-
-const claimData = (claimable) =>
-  Object.fromEntries(
-    Object.entries(claimable.fields ?? {}).map(([name, field]) => [
-      name,
-      dataField(field, claimable.entitlement?.data?.[name]),
-    ]),
-  );
-
-const entitlementDetails = (entitlement) =>
-  entitlement
-    ? {
-        entitlementId: entitlement.id,
-        instanceNumber: entitlement.instanceNumber,
-      }
-    : { entitlementId: null, instanceNumber: null };
-
-const toClaimableDto = (claimable) => ({
-  source: claimable.type,
-  claimCode: claimable.claimCode,
-  name: claimable.name,
-  description: claimable.description ?? null,
-  data: claimData(claimable),
-  ...entitlementDetails(claimable.entitlement),
-  claim: structuredClone(claimable.claim),
-});
-
 const countClaimsFor = (claimable) =>
   countByEntitlement({
     code: claimable.code,
@@ -177,7 +125,7 @@ const isClaimableNow = async (claimable, application) =>
 const hasRemainingClaimCapacity = async (claimable) =>
   claimable.hasRemainingCapacity(await countClaimsFor(claimable));
 
-const candidatesForApplication = async ({ code, clientRef }) => {
+const applicationAndGrant = async ({ code, clientRef }) => {
   const application = await findApplicationByClientRefAndCodeUseCase(
     clientRef,
     code,
@@ -186,6 +134,12 @@ const candidatesForApplication = async ({ code, clientRef }) => {
     code,
     pinnedVersion: pinnedVersionOf(application),
   });
+
+  return { application, grant };
+};
+
+const candidatesForApplication = async ({ code, clientRef }) => {
+  const { application, grant } = await applicationAndGrant({ code, clientRef });
   const existing = await findExistingEntitlements(clientRef, code);
 
   return { application, candidates: candidatesFor({ grant, existing }) };
@@ -204,6 +158,21 @@ const listEntitlementsMatching = async ({ code, clientRef }, isEligible) => {
   );
 
   return matched.filter(Boolean).map(toClaimableDto);
+};
+
+// Every Claim submitted against one application, resolved against the template
+// it was made under. Whether a Payment exists for it belongs to Payments, so
+// the adapter that can read both joins it on.
+export const listSubmittedClaims = async ({ code, clientRef }) => {
+  const claims = await findByApplication({ code, clientRef });
+
+  if (claims.length === 0) {
+    return [];
+  }
+
+  const { grant } = await applicationAndGrant({ code, clientRef });
+
+  return claims.map((claim) => toSubmittedClaim({ claim, grant }));
 };
 
 export const listClaimableEntitlements = ({ code, clientRef }) =>
