@@ -64,9 +64,17 @@ export class Claim {
   }
 
   static fromDocument(doc) {
-    // Mongo's identity is not part of the Claim; validate the persisted state.
-    const { _id, ...props } = doc;
-    return new Claim(props);
+    return new Claim({
+      code: doc.code,
+      clientRef: doc.clientRef,
+      claimCode: doc.claimCode,
+      clientClaimRef: doc.clientClaimRef,
+      entitlementId: doc.entitlementId,
+      metadata: doc.metadata,
+      claim: doc.claim,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    });
   }
 
   static create({ createdAt = new Date().toISOString(), ...props }) {
