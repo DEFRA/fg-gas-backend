@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { claimBodySchema } from "../../models/claim-body.schema.js";
+import { claimDetailsSchema } from "../../models/claim-details.schema.js";
 import { clientRef } from "../application/metadata/client-ref.js";
 import { configVersion } from "../application/metadata/config-version.js";
 import { crn } from "../application/metadata/crn.js";
@@ -29,7 +29,7 @@ export const submitClaimRequestSchema = Joi.object({
       .message("Config version must be a valid config string (e.g. 1.0.3)")
       .required(),
   }).unknown(true),
-  claim: claimBodySchema,
+  claim: claimDetailsSchema,
 })
   .options({
     presence: "required",

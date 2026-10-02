@@ -30,7 +30,7 @@ const createClaim = (claim) =>
     claim,
   });
 
-describe("shared claim body validation", () => {
+describe("shared claim details validation", () => {
   it.each([
     ["entitlementId", undefined],
     ["entitlementId", 123],

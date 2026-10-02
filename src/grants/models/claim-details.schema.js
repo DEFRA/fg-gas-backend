@@ -1,6 +1,6 @@
 import Joi from "joi";
 
-export const claimBodySchema = Joi.object({
+export const claimDetailsSchema = Joi.object({
   entitlementId: Joi.string().required(),
   totalClaimAmountPence: Joi.number().integer().min(0).required(),
   // Optional only until grants-ui posts it; make it required then.
