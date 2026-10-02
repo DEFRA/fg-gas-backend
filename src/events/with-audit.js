@@ -112,7 +112,7 @@ export const withAudit = (f, dataBuilder) =>
         session = null;
         throw error;
       } finally {
-        logger.debug(result, "withAudit: Use case result within proxy.");
+        logger.debug("withAudit: Use case finished within proxy.");
         auditFailure = await writeAudit(
           dataBuilder,
           { args, result, error: failure, status },

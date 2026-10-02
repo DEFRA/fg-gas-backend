@@ -32,6 +32,9 @@ export const productionRedactPaths = [
   'req.headers["x-agreement-code"]',
   'req.headers["x-agreement-client-ref"]',
   'req.headers["x-agreement-sbi"]',
+  // The Grant Admin operator's name and Entra object id.
+  'req.headers["x-actor"]',
+  'req.headers["x-actor-id"]',
   "res.headers",
 ];
 
