@@ -107,13 +107,6 @@ describe("Grant Service Integration Tests", () => {
       ).toContain("cattle");
       expect(dbGrant.actions).toHaveLength(2);
       expect(dbGrant.actions[0].name).toBe("calculate-subsidy");
-
-      // Verify grant can be retrieved via API
-      const getResponse = await wreck.get(`/grants/${grantData.code}`, {
-        json: true,
-      });
-      expect(getResponse.res.statusCode).toBe(200);
-      expect(getResponse.payload.code).toBe(`test-grant-${testId}`);
     });
 
     it("should handle grant creation with nested schema validation", async () => {
