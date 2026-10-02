@@ -291,3 +291,98 @@ export const editCwPayload = (box, id, { by, payload, note, revision }) =>
     labelFor(box, id),
     { body: { payload, note, revision }, expected: EDITABLE_DESCRIPTION },
   );
+
+export const CASE_NOT_FOUND = "CASE_NOT_FOUND";
+
+const BAD_REQUEST = 400;
+const CASE_MAX_BYTES = 4 * 1024 * 1024;
+
+const caseNotFound = () => {
+  const error = Boom.notFound("case not found");
+
+  error.output.payload.reason = CASE_NOT_FOUND;
+
+  return error;
+};
+
+// A 404 without Caseworking's reason is a route it does not have yet.
+const notFoundOrMissingRoute = (error) =>
+  bodyOf(error)?.reason === CASE_NOT_FOUND
+    ? caseNotFound()
+    : Boom.badGateway("CW-BE has no cases route");
+
+const caseQueryRefused = () => Boom.badRequest("CW-BE refused the case query");
+
+const caseUnavailable = (error) =>
+  Boom.badGateway(`CW-BE cases unavailable: ${describeError(error)}`);
+
+const caseTimedOut = () =>
+  Boom.gatewayTimeout("CW-BE cases did not answer in time");
+
+const CASE_FAILURES = {
+  [BAD_REQUEST]: caseQueryRefused,
+  [NOT_FOUND]: notFoundOrMissingRoute,
+  [GATEWAY_TIMEOUT]: caseTimedOut,
+  [CLIENT_TIMEOUT]: caseTimedOut,
+};
+
+const toCaseFailure = (error) =>
+  (CASE_FAILURES[statusOf(error)] ?? caseUnavailable)(error);
+
+// `actor` is sent as the admin encoded it; Caseworking decodes it.
+const operatorHeaders = ({ actor, repeat }) => ({
+  ...actorIdHeader(),
+  ...(actor ? { "x-actor": actor } : {}),
+  ...(repeat ? { "x-search-repeat": "1" } : {}),
+});
+
+const caseRequestOptions = (operator, body) => ({
+  json: true,
+  timeout: config.cwBackend.timeoutMs,
+  maxBytes: CASE_MAX_BYTES,
+  headers: {
+    authorization: `Bearer ${config.cwBackend.token}`,
+    ...(operator ? operatorHeaders(operator) : {}),
+  },
+  ...(body === undefined ? {} : { payload: body }),
+});
+
+const casesRequest = async (method, path, { operator, body }) => {
+  if (!isCwConfigured()) {
+    throw Boom.badGateway("CW-BE is not configured");
+  }
+
+  try {
+    const { payload } = await wreck[method](
+      new URL(path, config.cwBackend.url).toString(),
+      caseRequestOptions(operator, body),
+    );
+
+    return payload;
+  } catch (error) {
+    throw toCaseFailure(error);
+  }
+};
+
+const casePath = ({ workflowCode, caseRef }) =>
+  `/actuators/cases/${encodeURIComponent(workflowCode)}/${encodeURIComponent(caseRef)}`;
+
+export const searchCwCases = (query, operator) =>
+  casesRequest("post", "/actuators/cases/search", {
+    operator,
+    body: query,
+  });
+
+export const findCwCase = (
+  { workflowCode, caseRef },
+  { document, ...operator },
+) =>
+  casesRequest(
+    "get",
+    `${casePath({ workflowCode, caseRef })}${document ? "?include=document" : ""}`,
+    { operator },
+  );
+
+// Only yes or no, so it names no operator and Caseworking writes no audit.
+export const findCwCaseExistence = ({ workflowCode, caseRef }) =>
+  casesRequest("get", `${casePath({ workflowCode, caseRef })}/existence`, {});

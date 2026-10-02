@@ -8,6 +8,12 @@ const BOX_LABELS = {
   outbox: "Outbox",
 };
 
+// The records a detail page checks for its counterpart link.
+const RECORD_LABELS = {
+  cases: "Cases",
+  applications: "Applications",
+};
+
 const STATUS_BADGES = {
   PUBLISHED: { role: "neutral", retrying: false },
   PROCESSING: { role: "info", retrying: false },
@@ -49,7 +55,7 @@ const DECISECOND = 10;
 const serviceName = (service) => SERVICE_LABELS[service] ?? service;
 
 export const hopLabel = ({ service, box }) =>
-  `${serviceName(service)} ${BOX_LABELS[box] ?? box}`;
+  `${serviceName(service)} ${BOX_LABELS[box] ?? RECORD_LABELS[box] ?? box}`;
 
 // What an absent operator is called when shown; the row keeps storing null.
 export const SYSTEM_ACTOR = "System";

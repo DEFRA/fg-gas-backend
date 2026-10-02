@@ -10,9 +10,14 @@ import {
 } from "vitest";
 import { applicationNotFound } from "../services/application-page.js";
 import { viewApplicationPageUseCase } from "../use-cases/view-application-page.use-case.js";
-import { applicationPageRoutes } from "./record-page.routes.js";
+import { viewCasePageUseCase } from "../use-cases/view-case-page.use-case.js";
+import { applicationPageRoutes, casePageRoutes } from "./record-page.routes.js";
 
 vi.mock("../../common/logger.js");
+vi.mock("../use-cases/view-case-page.use-case.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  viewCasePageUseCase: vi.fn(),
+}));
 vi.mock(
   "../use-cases/view-application-page.use-case.js",
   async (importOriginal) => ({
@@ -149,5 +154,85 @@ describe("applicationPageRoutes", () => {
     });
 
     expect((await get("raw")).statusCode).toBe(500);
+  });
+});
+
+describe("casePageRoutes", () => {
+  let server;
+
+  const CASE_HEADER = {
+    caseRef: "ref-1",
+    workflowCode: "frps-private-beta",
+    position: { phase: null, stage: null, status: null },
+    closed: false,
+    closedAt: null,
+    counterpart: { exists: true },
+    fetchedAt: "2026-06-16T10:00:00.000Z",
+  };
+
+  const RAW_PAGE = {
+    header: CASE_HEADER,
+    raw: { caseRef: "ref-1", payload: { anything: true } },
+    storedBytes: 10,
+    sourceErrors: [],
+    sectionErrors: [],
+  };
+
+  beforeAll(async () => {
+    server = hapi.server();
+    server.ext("onRequest", (request, h) => {
+      request.auth.credentials = { service: "fg-grants-platform-admin" };
+      return h.continue;
+    });
+    server.route(casePageRoutes);
+    await server.initialize();
+  });
+
+  afterAll(async () => {
+    await server.stop();
+  });
+
+  const get = (tab, headers = HEADERS) =>
+    server.inject({
+      method: "GET",
+      url: `/grant-admin/workflows/frps-private-beta/cases/ref-1/${tab}`,
+      headers,
+    });
+
+  it("generates one GET per case tab", () => {
+    expect(casePageRoutes.map(({ path }) => path)).toEqual([
+      "/grant-admin/workflows/{workflowCode}/cases/{caseRef}/overview",
+      "/grant-admin/workflows/{workflowCode}/cases/{caseRef}/events",
+      "/grant-admin/workflows/{workflowCode}/cases/{caseRef}/raw",
+    ]);
+  });
+
+  it("answers the raw page, passing the encoded operator name to Caseworking's read", async () => {
+    viewCasePageUseCase.mockResolvedValue(RAW_PAGE);
+
+    const response = await get("raw");
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(viewCasePageUseCase).toHaveBeenCalledWith({
+      workflowCode: "frps-private-beta",
+      caseRef: "ref-1",
+      tab: "raw",
+      caller: "fg-grants-platform-admin",
+      actor: "Jo Operator",
+    });
+  });
+
+  it("refuses to answer a case document carrying its notes", async () => {
+    viewCasePageUseCase.mockResolvedValue({
+      ...RAW_PAGE,
+      raw: { ...RAW_PAGE.raw, comments: [{ text: "note" }] },
+    });
+
+    expect((await get("raw")).statusCode).toBe(500);
+  });
+
+  it("refuses a request with no x-actor-id", async () => {
+    expect((await get("raw", { "x-actor": "Jo" })).statusCode).toBe(400);
   });
 });

@@ -4,7 +4,6 @@ import {
   auditActions,
   auditEntities,
 } from "../../events/audit-constants.js";
-import { AUDIT_EXCLUDE } from "../../events/event-audit.js";
 import { withJsonNumbers } from "../../events/plain-json.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import {
@@ -16,9 +15,8 @@ import {
   readApplicationHeader,
   readApplicationSummary,
 } from "../services/application-page.js";
-import { readCaseworkingPage } from "../services/event-sources.js";
 import { SECTION_CAP_BYTES, viewRecordPage } from "../services/record-page.js";
-import { findEventsUseCase } from "./find-events.use-case.js";
+import { readRecordEventsUseCase } from "./read-record-events.use-case.js";
 
 const readSeries = async ({ clientRef, code }) => {
   const [series] = await findApplicationSeries({
@@ -52,22 +50,7 @@ const readOverview = async ({ clientRef, code }) => {
   };
 };
 
-// The same rows as the events page searched for the ref, GAS's and
-// Caseworking's merged, audit records left out.
-const readEvents = async ({ clientRef }) => {
-  const filters = { q: clientRef, audit: AUDIT_EXCLUDE };
-  const list = await findEventsUseCase({
-    ...filters,
-    caseworking: readCaseworkingPage({ ...filters, sections: ["list"] }),
-  });
-
-  return {
-    content: {
-      events: { rows: list.events, more: list.pagination.hasNextPage },
-    },
-    sourceErrors: list.sourceErrors,
-  };
-};
+const readEvents = ({ clientRef }) => readRecordEventsUseCase(clientRef);
 
 // Too large to show is known from the stored size, so an oversized document
 // is never fetched.

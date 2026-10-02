@@ -68,6 +68,13 @@ const getGasEvent = async (box, id) => {
   };
 };
 
+// Caseworking checks its own case: a row whose case is missing, or a
+// Caseworking that does not say, links to nothing.
+const cwRecordOf = (found) =>
+  found?.exists === true
+    ? { kind: "case", code: found.workflowCode, ref: found.caseRef }
+    : null;
+
 // No partial mode: half a detail view is not a view.
 const getCwEvent = async (box, id) => {
   const doc = await findCwEvent(box, id);
@@ -79,8 +86,11 @@ const getCwEvent = async (box, id) => {
     maxAttempts: doc.maxAttempts,
   });
 
-  // A case link needs Caseworking to say the case exists.
-  return { ...detail, record: null, searchRef: searchRefOf(detail) };
+  return {
+    ...detail,
+    record: cwRecordOf(doc.case),
+    searchRef: searchRefOf(detail),
+  };
 };
 
 const getEvent = ({ service, box, id }) => {
