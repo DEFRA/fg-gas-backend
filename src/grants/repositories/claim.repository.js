@@ -1,4 +1,5 @@
 import { db } from "../../common/mongo-client.js";
+import { Claim } from "../models/claim.js";
 
 export const collection = "claims";
 
@@ -42,7 +43,8 @@ export const findByApplication = async ({ code, clientRef }, session) =>
     .collection(collection)
     .find({ code, clientRef }, { session })
     .sort({ createdAt: 1 })
-    .toArray();
+    .toArray()
+    .then((docs) => docs.map(Claim.fromDocument));
 
 // Mongo assigns _id, which is the id the Claim is audited and reported under.
 // The model owns every other field.

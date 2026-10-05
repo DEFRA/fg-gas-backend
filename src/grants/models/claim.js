@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
+import { claimDetailsSchema } from "./claim-details.schema.js";
 
 const deepFreeze = (value) => {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -14,8 +15,8 @@ const deepFreeze = (value) => {
  * An immutable record of a Claim submitted against one Entitlement.
  *
  * `metadata` and `claim` are the submitted request bodies, kept as sent. The
- * Claim owns their presence, not their contents: the request schema is the only
- * thing that constrains what a caller may put inside them.
+ * Claim validates the baseline claim fields while retaining grant-specific
+ * fields and metadata.
  *
  * `clientClaimRef` is the callers key and is unique only within
  * `code` and `clientRef`, so the three together are the Claim's identity.
@@ -28,7 +29,11 @@ export class Claim {
     clientClaimRef: Joi.string().required(),
     entitlementId: Joi.string().required(),
     metadata: Joi.object().unknown(true).required(),
-    claim: Joi.object().unknown(true).required(),
+    claim: claimDetailsSchema.keys({
+      entitlementId: claimDetailsSchema
+        .extract("entitlementId")
+        .valid(Joi.ref("/entitlementId")),
+    }),
     createdAt: Joi.string().required(),
     updatedAt: Joi.string().required(),
   });
@@ -57,7 +62,26 @@ export class Claim {
     deepFreeze(this);
   }
 
+  static fromDocument(doc) {
+    return new Claim({
+      code: doc.code,
+      clientRef: doc.clientRef,
+      claimCode: doc.claimCode,
+      clientClaimRef: doc.clientClaimRef,
+      entitlementId: doc.entitlementId,
+      metadata: doc.metadata,
+      claim: doc.claim,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    });
+  }
+
   static create({ createdAt = new Date().toISOString(), ...props }) {
-    return new Claim({ ...props, createdAt, updatedAt: createdAt });
+    return new Claim({
+      ...props,
+      entitlementId: props.claim?.entitlementId,
+      createdAt,
+      updatedAt: createdAt,
+    });
   }
 }
