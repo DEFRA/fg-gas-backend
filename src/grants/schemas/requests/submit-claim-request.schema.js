@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { claimDetailsSchema } from "../../models/claim-details.schema.js";
 import { clientRef } from "../application/metadata/client-ref.js";
 import { configVersion } from "../application/metadata/config-version.js";
 import { crn } from "../application/metadata/crn.js";
@@ -28,12 +29,7 @@ export const submitClaimRequestSchema = Joi.object({
       .message("Config version must be a valid config string (e.g. 1.0.3)")
       .required(),
   }).unknown(true),
-  claim: Joi.object({
-    entitlementId: Joi.string().required(),
-    totalClaimAmountPence: Joi.number().integer().min(0).required(),
-    // Optional only until grants-ui posts it; make it required then.
-    quantity: Joi.number().min(0).optional(),
-  }).unknown(),
+  claim: claimDetailsSchema,
 })
   .options({
     presence: "required",
