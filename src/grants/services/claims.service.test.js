@@ -261,12 +261,20 @@ describe("claims.service", () => {
     );
   });
 
-  it("refuses to change an entitlement with a claim against it", async () => {
+  it("refuses to change an entitlement with a claim against it, naming it", async () => {
     countByEntitlement.mockResolvedValue(1);
 
     await expect(
       getChangeableEntitlement({ code, clientRef, entitlementId }),
-    ).rejects.toMatchObject({ output: { statusCode: 409 } });
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 409,
+        payload: {
+          message:
+            "Claimable entitlement has a claim against it and cannot be changed.",
+        },
+      },
+    });
   });
 
   it("returns not found for an entitlement the application does not have", async () => {

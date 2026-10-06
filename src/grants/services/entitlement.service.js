@@ -527,11 +527,9 @@ const entitlementNotFound = ({ clientRef, entitlementId }) =>
     errorCodes.ENTITLEMENT_NOT_FOUND,
   );
 
-const entitlementClaimed = ({ entitlementId }) =>
+const entitlementClaimed = ({ name }) =>
   withErrorCode(
-    Boom.conflict(
-      `Entitlement '${entitlementId}' has a claim against it and cannot be changed.`,
-    ),
+    Boom.conflict(`${name} has a claim against it and cannot be changed.`),
     errorCodes.ENTITLEMENT_CLAIMED,
   );
 
@@ -586,7 +584,7 @@ const refuseOnceClaimed = async ({ command, claimable }, session) => {
   );
 
   if (!claimable.canBeChanged(claimCount)) {
-    throw entitlementClaimed(command);
+    throw entitlementClaimed(claimable);
   }
 };
 

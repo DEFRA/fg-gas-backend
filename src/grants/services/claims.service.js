@@ -217,7 +217,7 @@ export const getChangeableEntitlement = async ({
 
   if (!claimable.canBeChanged(await countClaimsFor(claimable))) {
     throw Boom.conflict(
-      `Entitlement "${entitlementId}" has a claim against it and cannot be changed`,
+      `${claimable.name} has a claim against it and cannot be changed.`,
     );
   }
 

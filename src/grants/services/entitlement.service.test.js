@@ -611,7 +611,11 @@ describe("EntitlementService", () => {
       await expect(updateEntitlement(update)).rejects.toMatchObject({
         output: {
           statusCode: 409,
-          payload: { errorCode: "ENTITLEMENT_CLAIMED" },
+          payload: {
+            errorCode: "ENTITLEMENT_CLAIMED",
+            message:
+              "Tree planting has a claim against it and cannot be changed.",
+          },
         },
       });
       expect(updateEntitlementData).not.toHaveBeenCalled();
@@ -628,6 +632,39 @@ describe("EntitlementService", () => {
         },
       });
       expect(updateEntitlementData).not.toHaveBeenCalled();
+    });
+
+    it("refuses when the grant no longer has the entitlement's template", async () => {
+      grant.findEntitlementTemplate.mockReturnValueOnce(undefined);
+
+      await expect(updateEntitlement(update)).rejects.toMatchObject({
+        output: {
+          statusCode: 422,
+          payload: { errorCode: "INVALID_CLAIM_CODE" },
+        },
+      });
+      expect(updateEntitlementData).not.toHaveBeenCalled();
+    });
+
+    it("passes on a failure that is not about the data", async () => {
+      grant.findEntitlementTemplate.mockReturnValueOnce({
+        ...template,
+        claimCode: "ANOTHER",
+      });
+
+      await expect(updateEntitlement(update)).rejects.toThrow(
+        /is not the template of entitlement/,
+      );
+      expect(updateEntitlementData).not.toHaveBeenCalled();
+    });
+
+    it("audits nothing when the write fails", async () => {
+      updateEntitlementData.mockRejectedValueOnce(new Error("write failed"));
+
+      await expect(updateEntitlement(update)).rejects.toThrow("write failed");
+      expect(buildAuditEvent).not.toHaveBeenCalledWith(
+        expect.objectContaining({ action: "UPDATE" }),
+      );
     });
 
     it("returns not found for an entitlement the application does not have", async () => {
