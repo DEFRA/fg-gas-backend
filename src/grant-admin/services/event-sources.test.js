@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   CASEWORKING,
+  CW_CASES_SOURCE,
   GAS,
+  GAS_APPLICATIONS_SOURCE,
   sectionOfCwPage,
   serviceScope,
   toPublicSourceErrors,
@@ -116,5 +118,21 @@ describe("serviceScope", () => {
   it("names the chosen service, or every service when none was chosen", () => {
     expect(serviceScope("gas")).toBe("gas");
     expect(serviceScope(undefined)).toBe("every service");
+  });
+});
+
+describe("toPublicSourceErrors with counterpart checks", () => {
+  it("names the event sources first, then the counterpart checks", () => {
+    expect(
+      toPublicSourceErrors(
+        [CW_CASES_SOURCE],
+        [GAS_APPLICATIONS_SOURCE],
+        [{ key: "cwOutbox", service: CASEWORKING, box: "outbox" }],
+      ),
+    ).toEqual([
+      { hop: "CW-BE Outbox" },
+      { hop: "GAS Applications" },
+      { hop: "CW-BE Cases" },
+    ]);
   });
 });

@@ -8,6 +8,8 @@ export const auditEntities = {
   // detail views are audited because the detail view returns event payloads
   // and redrive, purge and payload edits change state.
   EVENT: "EVENT",
+  // A Caseworking case, as Grant Admin shows it. GAS holds none.
+  CASE: "CASE",
 };
 
 export const auditActions = {
@@ -42,6 +44,10 @@ export const auditActions = {
   SEARCH_APPLICATIONS: "SEARCH_APPLICATIONS",
   // One tab of one application in Grant Admin.
   VIEW_APPLICATION: "VIEW_APPLICATION",
+  // Grant Admin's Cases list, read from Caseworking: one row per page.
+  SEARCH_CASES: "SEARCH_CASES",
+  // One tab of one case in Grant Admin.
+  VIEW_CASE_DATA: "VIEW_CASE_DATA",
 };
 
 // The protective-monitoring code on every Grant Admin read.

@@ -16,6 +16,7 @@ import {
   SECTION_CAP_BYTES,
   composeRecordPage,
 } from "../services/compose-record-page.js";
+import { RECORD_KINDS } from "../services/record-kinds.js";
 import {
   readApplicationHeader,
   readApplicationSummary,
@@ -46,7 +47,11 @@ const readOverview = async ({ clientRef, code }) => {
 };
 
 const readEvents = ({ clientRef, code }) =>
-  readRecordEventsUseCase({ kind: "application", code, ref: clientRef });
+  readRecordEventsUseCase({
+    kind: RECORD_KINDS.APPLICATION,
+    code,
+    ref: clientRef,
+  });
 
 // Too large to show is known from the stored size, so an oversized document
 // is never fetched.

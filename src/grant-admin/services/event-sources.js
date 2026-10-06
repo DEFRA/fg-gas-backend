@@ -10,6 +10,26 @@ import { hopLabel } from "./event-display.js";
 export const GAS = "gas";
 export const CASEWORKING = "caseworking";
 
+// The record each detail page checks beside its own, for its counterpart link.
+export const GAS_APPLICATIONS_SOURCE = {
+  key: "gasApplications",
+  service: GAS,
+  label: "GAS Applications",
+};
+
+export const CW_CASES_SOURCE = {
+  key: "cwCases",
+  service: CASEWORKING,
+  label: "CW-BE Cases",
+};
+
+// Event sources first, in their own order, then the counterpart checks.
+const SOURCE_ORDER = [
+  ...SOURCE_KEYS,
+  GAS_APPLICATIONS_SOURCE.key,
+  CW_CASES_SOURCE.key,
+];
+
 // How a log line names the service filter when none was chosen.
 export const serviceScope = (service) => service ?? "every service";
 
@@ -26,7 +46,7 @@ export const sectionOfCwPage = async (page, box, section) => {
   return answer ?? Promise.reject(unavailable(box, section));
 };
 
-const sourceOrder = ({ key }) => SOURCE_KEYS.indexOf(key);
+const sourceOrder = ({ key }) => SOURCE_ORDER.indexOf(key);
 
 // Each section can lose a different source: name each once, in the fixed order.
 export const toPublicSourceErrors = (...groups) => {
@@ -38,7 +58,9 @@ export const toPublicSourceErrors = (...groups) => {
 
   return [...bySource.values()]
     .sort((a, b) => sourceOrder(a) - sourceOrder(b))
-    .map(({ service, box }) => ({ hop: hopLabel({ service, box }) }));
+    .map(({ service, box, label }) => ({
+      hop: label ?? hopLabel({ service, box }),
+    }));
 };
 
 export const sourcesFor = (items, service) =>

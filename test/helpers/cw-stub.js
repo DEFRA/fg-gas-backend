@@ -48,7 +48,24 @@ const emptyBox = () => ({
   groups: [],
 });
 
-const defaultState = () => ({ inbox: emptyBox(), outbox: emptyBox() });
+// The case actuators: `search` is C1's answer, `records` the cases C2 and C3
+// know by "workflowCode/caseRef". `mode` fails every case route the way a
+// box's does; `missingRoute` answers a bare 404, as a Caseworking without them.
+const emptyCases = () => ({
+  mode: "ok",
+  missingRoute: false,
+  search: {
+    cases: [],
+    pagination: { endCursor: null, hasNextPage: false },
+  },
+  records: {},
+});
+
+const defaultState = () => ({
+  inbox: emptyBox(),
+  outbox: emptyBox(),
+  cases: emptyCases(),
+});
 
 let server;
 let token;
@@ -77,6 +94,7 @@ const handleControl = async (request, response) => {
   state = {
     inbox: { ...state.inbox, ...(patch.inbox ?? {}) },
     outbox: { ...state.outbox, ...(patch.outbox ?? {}) },
+    cases: { ...state.cases, ...(patch.cases ?? {}) },
   };
 
   send(response, OK, { ok: true });
@@ -119,6 +137,8 @@ const record = async (name, request) => {
     query: Object.fromEntries(url.searchParams),
     authorization: request.headers.authorization ?? null,
     actorId: request.headers["x-actor-id"] ?? null,
+    actor: request.headers["x-actor"] ?? null,
+    searchRepeat: request.headers["x-search-repeat"] ?? null,
     body: request.method === "POST" ? await readBody(request) : null,
   });
 };
@@ -323,6 +343,63 @@ const routeEvent = (pathname, request, response) => {
   return handleDetail(name, id, request, response);
 };
 
+const CASE_PATH = /^\/actuators\/cases\/([^/]+)\/([^/]+?)(\/existence)?$/;
+
+const caseNotFound = (response) =>
+  send(response, NOT_FOUND, {
+    statusCode: NOT_FOUND,
+    error: "Not Found",
+    message: "Case not found",
+    reason: "CASE_NOT_FOUND",
+  });
+
+const withDocument = (found, url) =>
+  url.searchParams.get("include") === "document"
+    ? found
+    : { case: found.case, storedBytes: found.storedBytes };
+
+// POST /actuators/cases/search, GET /actuators/cases/{workflowCode}/{caseRef}
+// and its /existence.
+const handleCases = async (pathname, request, response) => {
+  await record("cases", request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const { cases } = state;
+
+  if (cases.mode !== "ok") {
+    return respondForMode(cases, response);
+  }
+
+  if (cases.missingRoute) {
+    return send(response, NOT_FOUND, { message: "Not Found" });
+  }
+
+  if (pathname === "/actuators/cases/search") {
+    return send(response, OK, cases.search);
+  }
+
+  const [, workflowCode, caseRef, existence] = CASE_PATH.exec(pathname);
+  const found = cases.records[`${workflowCode}/${caseRef}`];
+
+  if (existence) {
+    return send(response, OK, { exists: Boolean(found) });
+  }
+
+  return found
+    ? send(
+        response,
+        OK,
+        withDocument(found, new URL(request.url, "http://stub.local")),
+      )
+    : caseNotFound(response);
+};
+
+const isCasePath = (pathname) =>
+  pathname === "/actuators/cases/search" || CASE_PATH.test(pathname);
+
 const route = async (request, response) => {
   const { pathname } = new URL(request.url, "http://stub.local");
 
@@ -340,6 +417,10 @@ const route = async (request, response) => {
 
   if (pathname === "/actuators/events") {
     return handlePage(request, response);
+  }
+
+  if (isCasePath(pathname)) {
+    return handleCases(pathname, request, response);
   }
 
   if (EVENT_PATH.test(pathname)) {

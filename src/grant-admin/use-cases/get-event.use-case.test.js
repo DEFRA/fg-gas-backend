@@ -346,6 +346,47 @@ describe("getEventUseCase record", () => {
     expect(event.searchRef).toBe("GLD-9B2");
   });
 
+  it("links a Caseworking row to its case only when Caseworking says it exists", async () => {
+    const withCase = (found) =>
+      aCwInboxDoc({
+        event: {
+          id: "evt-1",
+          data: { caseRef: "ref-1", workflowCode: "frps-private-beta" },
+        },
+        case: found,
+      });
+
+    findCwEvent.mockResolvedValueOnce(
+      withCase({
+        workflowCode: "frps-private-beta",
+        caseRef: "ref-1",
+        exists: true,
+      }),
+    );
+    findCwEvent.mockResolvedValueOnce(
+      withCase({
+        workflowCode: "frps-private-beta",
+        caseRef: "ref-1",
+        exists: false,
+      }),
+    );
+    findCwEvent.mockResolvedValueOnce(withCase(null));
+
+    const linked = await call({ service: "caseworking" });
+    const missing = await call({ service: "caseworking" });
+    const unsaid = await call({ service: "caseworking" });
+
+    expect(linked.record).toEqual({
+      kind: "case",
+      code: "frps-private-beta",
+      ref: "ref-1",
+    });
+    expect(missing.record).toBeNull();
+    expect(missing.searchRef).toBe("GLD-9B2");
+    expect(unsaid.record).toBeNull();
+    expect(linked).not.toHaveProperty("case");
+  });
+
   it("carries PMC 0706 on the view audit", () => {
     const audit = getEventAuditBuilder([
       { service: "gas", box: "inbox", id: ID, caller: "grants-ui" },

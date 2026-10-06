@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { RECORD_KINDS } from "../services/record-kinds.js";
 import { nullableIso } from "./admin-record.schema.js";
 import {
   eventLastEditSchema,
@@ -44,7 +45,9 @@ export const eventDetailResponseSchema = eventRowWithAttemptsSchema
     purgeDeletionDate: nullableIso,
     // The one record this event belongs to, where its owning service has it.
     record: Joi.object({
-      kind: Joi.string().valid("application", "case").required(),
+      kind: Joi.string()
+        .valid(...Object.values(RECORD_KINDS))
+        .required(),
       code: Joi.string().required(),
       ref: Joi.string().required(),
     })

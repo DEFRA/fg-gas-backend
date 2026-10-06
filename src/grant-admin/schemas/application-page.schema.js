@@ -4,11 +4,11 @@ import {
   nullableIso,
   nullableString,
   positionSchema,
+  recordEventsSchema,
+  recordPageSchema,
   seriesSchema,
-  sourceErrorsSchema,
+  storedBytesSchema as storedBytes,
 } from "./admin-record.schema.js";
-import { eventRowSchema } from "./events-shared.schema.js";
-import { sectionErrorsSchema } from "./section-errors.schema.js";
 
 import { code } from "./code.js";
 
@@ -16,8 +16,6 @@ export const applicationParamsSchema = Joi.object({
   code,
   clientRef,
 }).label("ApplicationParams");
-
-const storedBytes = Joi.number().integer().min(0).allow(null).required();
 
 // Shown as stored when not an instant, so an odd legacy value never fails the page.
 const storedTimestamp = Joi.string().allow(null, "").required();
@@ -54,28 +52,13 @@ const overviewSchema = Joi.object({
   .required()
   .label("ApplicationOverview");
 
-const eventsSchema = Joi.object({
-  rows: Joi.array().items(eventRowSchema).required(),
-  // More than one page matched: the admin links on to the events search.
-  more: Joi.boolean().required(),
-})
-  .allow(null)
-  .required()
-  .label("ApplicationEvents");
+const eventsSchema = recordEventsSchema("ApplicationEvents");
 
 // The stored document as stored: answers and metadata are never validated.
 const rawSchema = Joi.object().unknown(true).allow(null).required();
 
 const pageSchema = (tab, keys, label) =>
-  Joi.object({
-    header: applicationHeaderSchema,
-    ...keys,
-    sourceErrors: sourceErrorsSchema,
-    sectionErrors: sectionErrorsSchema(
-      [tab],
-      `${label}SectionError`,
-    ).required(),
-  }).label(label);
+  recordPageSchema(applicationHeaderSchema, tab, keys, label);
 
 export const applicationPageSchemas = {
   overview: pageSchema(

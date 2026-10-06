@@ -10,7 +10,7 @@ describe("grant-admin", () => {
     expect(server.registrations["grant-admin"]).toBeDefined();
   });
 
-  it("registers the admin claims, events and applications endpoints", async () => {
+  it("registers the admin claims, events, applications and cases endpoints", async () => {
     const server = hapi.server();
     await server.register(grantAdmin);
 
@@ -27,7 +27,11 @@ describe("grant-admin", () => {
       "get /grant-admin/grants/{code}/applications/{clientRef}/events",
       "get /grant-admin/grants/{code}/applications/{clientRef}/overview",
       "get /grant-admin/grants/{code}/applications/{clientRef}/raw",
+      "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/events",
+      "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/overview",
+      "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/raw",
       "post /grant-admin/applications/search",
+      "post /grant-admin/cases/search",
       "post /grant-admin/events/{service}/{box}/{id}/payload",
       "post /grant-admin/events/{service}/{box}/{id}/purge",
       "post /grant-admin/events/{service}/{box}/{id}/redrive",

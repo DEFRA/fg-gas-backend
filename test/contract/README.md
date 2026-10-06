@@ -79,6 +79,9 @@ npm run test:contract -- test/contract/consumer.agreements-api.test.js
 
 # CaseStatusUpdatedEvent consumer
 npm run test:contract -- test/contract/consumer.cw-backend.test.js
+
+# Caseworking case actuators consumer (HTTP)
+npm run test:contract -- test/contract/consumer.cw-backend-actuators.test.js
 ```
 
 ### Run Provider Tests
@@ -172,7 +175,14 @@ Corrected to reflect actual architecture:
    - Test: `consumer.cw-backend.test.js`
    - Messages: CaseStatusUpdatedEvent (FRPS + WMG)
 
-3. **grants-ui → fg-gas-backend** (HTTP API)
+3. **fg-gas-backend → fg-cw-backend-actuators** (HTTP API)
+   - Consumer: fg-gas-backend
+   - Provider: fg-cw-backend-actuators
+   - Type: HTTP contract
+   - Test: `consumer.cw-backend-actuators.test.js`
+   - Calls: the case list or search, one case (with or without its document), case existence, and an event's case on the event detail. Case payloads and documents are matched only as objects.
+
+4. **grants-ui → fg-gas-backend** (HTTP API)
    - Consumer: grants-ui
    - Provider: fg-gas-backend
    - Type: HTTP contract

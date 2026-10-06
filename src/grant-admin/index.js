@@ -11,6 +11,10 @@ import { viewApplicationOverviewRoute } from "./routes/view-application-overview
 import { viewApplicationRawRoute } from "./routes/view-application-raw.route.js";
 import { redriveEventRoute } from "./routes/redrive-event.route.js";
 import { searchApplicationsRoute } from "./routes/search-applications.route.js";
+import { searchCasesRoute } from "./routes/search-cases.route.js";
+import { viewCaseEventsRoute } from "./routes/view-case-events.route.js";
+import { viewCaseOverviewRoute } from "./routes/view-case-overview.route.js";
+import { viewCaseRawRoute } from "./routes/view-case-raw.route.js";
 import { setAuditActor } from "./set-audit-actor.js";
 
 export const grantAdmin = {
@@ -33,6 +37,10 @@ export const grantAdmin = {
       viewApplicationOverviewRoute,
       viewApplicationEventsRoute,
       viewApplicationRawRoute,
+      searchCasesRoute,
+      viewCaseOverviewRoute,
+      viewCaseEventsRoute,
+      viewCaseRawRoute,
     ]);
   },
 };
