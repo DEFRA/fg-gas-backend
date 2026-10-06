@@ -1,10 +1,9 @@
+import { PAGE_SIZE } from "./admin-list.js";
 import {
   SOURCE_KEYS,
   encodeCompositeCursor,
   encodeSourceCursor,
 } from "./event-cursor.js";
-
-export const PAGE_SIZE = 20;
 
 const SERVICE_RANK = { gas: 0, caseworking: 1 };
 const BOX_RANK = { inbox: 0, outbox: 1 };

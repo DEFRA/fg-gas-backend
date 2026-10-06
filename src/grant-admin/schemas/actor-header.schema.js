@@ -34,3 +34,24 @@ export const requiredActorHeaderSchema = Joi.object({
 })
   .unknown(true)
   .label("RequiredActorHeaders");
+
+// The operator's Entra object id, which every Grant Admin audit records as its user.
+export const ACTOR_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const actorIdHeader = Joi.string().pattern(ACTOR_ID_PATTERN).messages({
+  "string.pattern.base": '"x-actor-id" must be an Entra object id',
+});
+
+// A read releases data, so it must name who it was released to.
+export const adminReadHeadersSchema = Joi.object({
+  "x-actor": actorHeader.required(),
+  "x-actor-id": actorIdHeader.required(),
+})
+  .unknown(true)
+  .label("AdminReadHeaders");
+
+// Sent when Back or a refresh re-runs a list page the operator already saw.
+export const adminSearchHeadersSchema = adminReadHeadersSchema
+  .keys({ "x-search-repeat": Joi.string().valid("1").optional() })
+  .label("AdminSearchHeaders");

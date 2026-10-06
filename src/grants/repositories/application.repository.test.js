@@ -2,6 +2,7 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
+import { paginate } from "../../common/paginate.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -14,15 +15,23 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
+import { ApplicationSeries } from "../models/application-series.js";
 import {
+  countApplicationRows,
+  findApplicationIdentifiers,
+  findApplicationRowsInSeries,
+  findApplicationRowsPage,
+  findApplicationSummaryRow,
   findByClientRef,
   findByClientRefAndCode,
+  findStoredApplicationDocument,
   lockForUpdate,
   save,
   update,
 } from "./application.repository.js";
 
 vi.mock("../../common/mongo-client.js");
+vi.mock("../../common/paginate.js");
 
 describe("update", () => {
   it("should update application", async () => {
@@ -473,4 +482,301 @@ describe("lockForUpdate", () => {
 
     expect(result).toBeNull();
   });
+});
+
+// Opacity: nothing Grant Admin reads, filters or counts names a path inside
+// the grant-shaped answers.
+const namesAnswers = (value) => /answers|phases/.test(JSON.stringify(value));
+
+const aStoredRow = (clientRef) => ({
+  _id: "id",
+  clientRef,
+  code: "woodland",
+  currentPhase: "PRE_AWARD",
+  currentStage: "REVIEW",
+  currentStatus: "RECEIVED",
+  createdAt: "2026-06-16T10:00:00.000Z",
+});
+
+const ROW = (clientRef) => ({
+  clientRef,
+  code: "woodland",
+  position: { phase: "PRE_AWARD", stage: "REVIEW", status: "RECEIVED" },
+  createdAt: "2026-06-16T10:00:00.000Z",
+});
+
+describe("findApplicationRowsPage", () => {
+  it("pages newest first over the grant and the created range, bounds in UTC", async () => {
+    db.collection.mockReturnValue("applications");
+    paginate.mockResolvedValue({
+      data: [aStoredRow("ref-1")],
+      pagination: { endCursor: "c", hasNextPage: true },
+    });
+
+    const page = await findApplicationRowsPage({
+      code: "woodland",
+      from: "2026-06-16T00:00:00+01:00",
+      to: "2026-06-16T23:59:59.999Z",
+      cursor: "abc",
+      pageSize: 20,
+    });
+
+    const [, options] = paginate.mock.calls[0];
+    expect(options).toMatchObject({
+      filter: {
+        code: "woodland",
+        createdAt: {
+          $gte: "2026-06-15T23:00:00.000Z",
+          $lte: "2026-06-16T23:59:59.999Z",
+        },
+      },
+      sort: { createdAt: -1, _id: -1 },
+      cursor: "abc",
+      pageSize: 20,
+    });
+    expect(namesAnswers(options)).toBe(false);
+    expect(page).toEqual({
+      rows: [ROW("ref-1")],
+      pagination: { endCursor: "c", hasNextPage: true },
+    });
+  });
+
+  it("filters nothing with no filters", async () => {
+    paginate.mockResolvedValue({ data: [], pagination: {} });
+
+    await findApplicationRowsPage({ pageSize: 20 });
+
+    expect(paginate.mock.calls[0][1].filter).toEqual({});
+  });
+});
+
+describe("findApplicationRowsInSeries", () => {
+  it("reads each series member and the bare ref, newest first, hinted onto {clientRef, code}", async () => {
+    const toArray = vi.fn().mockResolvedValue([aStoredRow("ref-2")]);
+    const find = vi.fn().mockReturnValue({ toArray });
+    db.collection.mockReturnValue({ find });
+    const series = [
+      ApplicationSeries.fromDocument({
+        code: "woodland",
+        clientRefs: ["ref-1", "ref-2"],
+        latestClientRef: "ref-2",
+        latestClientId: "client-id",
+        createdAt: "2026-06-16T10:00:00.000Z",
+        updatedAt: "2026-06-16T10:00:00.000Z",
+      }),
+    ];
+
+    const rows = await findApplicationRowsInSeries({
+      ref: "ref-1",
+      series,
+      from: "2026-06-16T00:00:00.000Z",
+      limit: 201,
+    });
+
+    const [filter, options] = find.mock.calls[0];
+    expect(filter).toEqual({
+      $or: [
+        { code: "woodland", clientRef: { $in: ["ref-1", "ref-2"] } },
+        { clientRef: "ref-1" },
+      ],
+      createdAt: { $gte: "2026-06-16T00:00:00.000Z" },
+    });
+    expect(options).toMatchObject({
+      sort: { createdAt: -1, _id: -1 },
+      limit: 201,
+      hint: { clientRef: 1, code: 1 },
+    });
+    expect(namesAnswers(options)).toBe(false);
+    expect(rows).toEqual([ROW("ref-2")]);
+  });
+});
+
+describe("countApplicationRows", () => {
+  it("counts the browse filter up to the limit", async () => {
+    const countDocuments = vi.fn().mockResolvedValue(42);
+    db.collection.mockReturnValue({ countDocuments });
+
+    expect(
+      await countApplicationRows({ code: "woodland" }, { limit: 10_001 }),
+    ).toBe(42);
+    expect(countDocuments).toHaveBeenCalledWith(
+      { code: "woodland" },
+      expect.objectContaining({ limit: 10_001 }),
+    );
+  });
+});
+
+describe("findApplicationSummaryRow", () => {
+  const aggregating = (docs) => {
+    const aggregate = vi.fn().mockReturnValue({ toArray: async () => docs });
+    db.collection.mockReturnValue({ aggregate });
+    return aggregate;
+  };
+
+  it("projects the summary fields and the stored size only, none inside answers or metadata", async () => {
+    const aggregate = aggregating([
+      { ...aStoredRow("ref-1"), storedBytes: 512 },
+    ]);
+
+    const found = await findApplicationSummaryRow({
+      clientRef: "ref-1",
+      code: "woodland",
+    });
+
+    const [pipeline] = aggregate.mock.calls[0];
+    expect(pipeline[0]).toEqual({
+      $match: { clientRef: "ref-1", code: "woodland" },
+    });
+    expect(namesAnswers(pipeline)).toBe(false);
+    expect(pipeline[1].$project).not.toHaveProperty("metadata");
+    expect(found.storedBytes).toBe(512);
+    expect(found.summary.clientRef).toBe("ref-1");
+    expect(found.summary).not.toHaveProperty("storedBytes");
+  });
+
+  it("answers null for no such application", async () => {
+    aggregating([]);
+
+    expect(
+      await findApplicationSummaryRow({ clientRef: "x", code: "y" }),
+    ).toBeNull();
+  });
+});
+
+describe("findStoredApplicationDocument", () => {
+  const aggregating = (docs) => {
+    const aggregate = vi.fn().mockReturnValue({ toArray: async () => docs });
+    db.collection.mockReturnValue({ aggregate });
+    return aggregate;
+  };
+
+  it("answers the document as stored beside its size, never setting a field on it", async () => {
+    const document = { clientRef: "ref-1", storedBytes: "the document's own" };
+    const aggregate = aggregating([{ storedBytes: 512, document }]);
+
+    expect(
+      await findStoredApplicationDocument(
+        { clientRef: "ref-1", code: "woodland" },
+        { maxBytes: 1024 },
+      ),
+    ).toEqual({ storedBytes: 512, document });
+    expect(JSON.stringify(aggregate.mock.calls[0][0])).not.toContain("$set");
+  });
+
+  it("answers only the size of a document over the bound", async () => {
+    aggregating([{ storedBytes: 2048 }]);
+
+    expect(
+      await findStoredApplicationDocument(
+        { clientRef: "ref-1", code: "woodland" },
+        { maxBytes: 1024 },
+      ),
+    ).toEqual({ storedBytes: 2048, document: null });
+  });
+
+  it("answers null for no such application", async () => {
+    aggregating([]);
+
+    expect(
+      await findStoredApplicationDocument(
+        { clientRef: "x", code: "y" },
+        { maxBytes: 1 },
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("findApplicationIdentifiers", () => {
+  it("answers the identifiers, or null for no such application", async () => {
+    const findOne = vi
+      .fn()
+      .mockResolvedValueOnce({ identifiers: { sbi: "1" } })
+      .mockResolvedValueOnce(null);
+    db.collection.mockReturnValue({ findOne });
+
+    expect(
+      await findApplicationIdentifiers({ clientRef: "a", code: "b" }),
+    ).toEqual({ sbi: "1", frn: null, crn: null });
+    expect(
+      await findApplicationIdentifiers({ clientRef: "a", code: "b" }),
+    ).toBeNull();
+  });
+});
+
+describe("the application summary read model", () => {
+  const summaryOf = async (doc) => {
+    const aggregate = vi.fn().mockReturnValue({
+      toArray: async () => [{ ...doc, storedBytes: 1 }],
+    });
+    db.collection.mockReturnValue({ aggregate });
+
+    return (await findApplicationSummaryRow({ clientRef: "ref-1", code: "c" }))
+      .summary;
+  };
+
+  const DOC = {
+    clientRef: "ref-1",
+    code: "woodland",
+    currentPhase: "PRE_AWARD",
+    createdAt: "2026-06-16T10:00:00.000Z",
+    identifiers: { sbi: "123456789" },
+  };
+
+  it("maps a legacy document's facts, falling back to its single config version", async () => {
+    expect(
+      await summaryOf({
+        ...DOC,
+        configVersion: "0.9.0",
+        submittedAt: new Date("2026-06-16T09:00:00.000Z"),
+      }),
+    ).toEqual({
+      clientRef: "ref-1",
+      code: "woodland",
+      position: { phase: "PRE_AWARD", stage: null, status: null },
+      originalConfigVersion: "0.9.0",
+      currentConfigVersion: "0.9.0",
+      submittedAt: "2026-06-16T09:00:00.000Z",
+      createdAt: "2026-06-16T10:00:00.000Z",
+      updatedAt: null,
+      identifiers: { sbi: "123456789", frn: null, crn: null },
+    });
+  });
+
+  it("prefers the split config versions over the legacy one", async () => {
+    expect(
+      await summaryOf({
+        ...DOC,
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.2.0",
+        configVersion: "0.9.0",
+      }),
+    ).toMatchObject({
+      originalConfigVersion: "1.0.0",
+      currentConfigVersion: "1.2.0",
+    });
+  });
+
+  it.each([
+    ["an unparsable string", "not-an-instant", "not-an-instant"],
+    [
+      "a string with an offset",
+      "2026-06-16T10:00:00+01:00",
+      "2026-06-16T10:00:00+01:00",
+    ],
+    ["an empty string", "", ""],
+    ["a number", 1_750_000_000_000, "1750000000000"],
+    ["an invalid Date", new Date(Number.NaN), "Invalid Date"],
+  ])(
+    "shows %s submitted or updated time as stored",
+    async (_name, value, shown) => {
+      const summary = await summaryOf({
+        ...DOC,
+        submittedAt: value,
+        updatedAt: value,
+      });
+
+      expect(summary.submittedAt).toBe(shown);
+      expect(summary.updatedAt).toBe(shown);
+    },
+  );
 });

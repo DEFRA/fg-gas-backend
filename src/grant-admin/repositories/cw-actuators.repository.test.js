@@ -1,14 +1,20 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withRequestContext } from "../../common/get-request-context.js";
+import { logger } from "../../common/logger.js";
 import { wreck } from "../../common/wreck.js";
 import {
+  CASE_NOT_FOUND,
   describeError,
   editCwPayload,
+  findCwCase,
+  findCwCaseExistence,
   findCwEvent,
   findCwPage,
   isCwConfigured,
   purgeCwEvent,
   redriveCwEvent,
+  searchCwCases,
 } from "./cw-actuators.repository.js";
 
 const { cwBackend } = vi.hoisted(() => ({
@@ -16,6 +22,7 @@ const { cwBackend } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../common/config.js", () => ({ config: { cwBackend } }));
+vi.mock("../../common/logger.js");
 vi.mock("../../common/wreck.js", () => ({
   wreck: { get: vi.fn(), post: vi.fn() },
 }));
@@ -977,5 +984,301 @@ describe("editCwPayload", () => {
 
     expect(error.output.statusCode).toBe(502);
     expect(error.message).not.toContain("SECRET-BODY");
+  });
+});
+
+describe("operator forwarding", () => {
+  const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+
+  it("sends the request's operator id on each call Caseworking audits", async () => {
+    wreck.post.mockResolvedValue({ payload: {} });
+
+    await withRequestContext({ user: OID }, () =>
+      redriveCwEvent("inbox", ID, { by: "donatas" }),
+    );
+
+    expect(wreck.post.mock.calls[0][1].headers).toEqual({
+      authorization: `Bearer ${TOKEN}`,
+      "x-actor-id": OID,
+    });
+  });
+
+  it("sends it on the events list read too", async () => {
+    wreck.get.mockResolvedValue(composite());
+
+    await withRequestContext({ user: OID }, () => findCwPage(aPage()));
+
+    expect(wreck.get.mock.calls[0][1].headers).toEqual({
+      authorization: `Bearer ${TOKEN}`,
+      "x-actor-id": OID,
+    });
+  });
+
+  it("sends none when the request named no operator", async () => {
+    wreck.get.mockResolvedValue({ payload: {} });
+
+    await withRequestContext({}, () => findCwEvent("inbox", ID));
+
+    expect(wreck.get.mock.calls[0][1].headers).not.toHaveProperty("x-actor-id");
+  });
+});
+
+describe("Caseworking cases", () => {
+  const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+  const ACTOR = "UTF-8''%C5%81ukasz";
+  const KEY = { workflowCode: "frps-private-beta", caseRef: "ref-1" };
+  const POSITION = { phase: "PRE_AWARD", stage: "REVIEW", status: "RECEIVED" };
+
+  const aCase = (caseRef) => ({
+    ref: { caseRef, workflowCode: "frps-private-beta" },
+    position: POSITION,
+    closed: false,
+    closedAt: null,
+    createdAt: "2026-06-16T10:00:00.000Z",
+  });
+
+  const aCaseAnswer = (document) => ({
+    payload: {
+      case: {
+        ...aCase("ref-1"),
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.1.0",
+        series: { latestRef: "ref-1", refs: ["ref-1"] },
+      },
+      storedBytes: 4096,
+      ...(document ? { document } : {}),
+    },
+  });
+
+  const inRequest = (call) => withRequestContext({ user: OID }, call);
+
+  it("searches with a POST carrying the query, the operator and the repeat flag", async () => {
+    wreck.post.mockResolvedValue({ payload: { cases: [] } });
+
+    await inRequest(() =>
+      searchCwCases(
+        { ref: "ref-1", workflowCode: "frps-private-beta" },
+        { actor: ACTOR, repeat: true },
+      ),
+    );
+
+    const [url, options] = wreck.post.mock.calls[0];
+    expect(new URL(url).pathname).toBe("/actuators/cases/search");
+    expect(options.payload).toEqual({
+      ref: "ref-1",
+      workflowCode: "frps-private-beta",
+    });
+    expect(options.headers).toEqual({
+      authorization: `Bearer ${TOKEN}`,
+      "x-actor-id": OID,
+      "x-actor": ACTOR,
+      "x-search-repeat": "1",
+    });
+    expect(options.maxBytes).toBe(4 * 1024 * 1024);
+    expect(options.timeout).toBe(TIMEOUT_MS);
+  });
+
+  it("sends no repeat flag on a fresh search", async () => {
+    wreck.post.mockResolvedValue({ payload: { cases: [] } });
+
+    await inRequest(() => searchCwCases({}, { actor: ACTOR, repeat: false }));
+
+    expect(wreck.post.mock.calls[0][1].headers).not.toHaveProperty(
+      "x-search-repeat",
+    );
+  });
+
+  it("answers rows, with the total and workflow codes only where Caseworking gave them", async () => {
+    wreck.post.mockResolvedValueOnce({
+      payload: {
+        cases: [aCase("ref-1")],
+        pagination: { endCursor: "c", hasNextPage: true },
+        total: { count: 1, capped: false },
+        workflowCodes: ["frps-private-beta"],
+      },
+    });
+    wreck.post.mockResolvedValueOnce({
+      payload: {
+        cases: [],
+        pagination: { endCursor: null, hasNextPage: false },
+      },
+    });
+
+    expect(await searchCwCases({}, {})).toEqual({
+      rows: [aCase("ref-1")],
+      pagination: { endCursor: "c", hasNextPage: true },
+      total: { count: 1, capped: false },
+      workflowCodes: ["frps-private-beta"],
+    });
+    expect(await searchCwCases({ cursor: "c" }, {})).toEqual({
+      rows: [],
+      pagination: { endCursor: null, hasNextPage: false },
+    });
+  });
+
+  it("reads one case, with its document only when asked", async () => {
+    wreck.get.mockResolvedValue(aCaseAnswer());
+
+    await inRequest(() => findCwCase(KEY, { actor: ACTOR }));
+    await inRequest(() =>
+      findCwCase(KEY, { actor: ACTOR, include: "document" }),
+    );
+
+    const [summaryUrl, wholeUrl] = wreck.get.mock.calls.map(
+      ([url]) => new URL(url),
+    );
+    expect(summaryUrl.pathname).toBe(
+      "/actuators/cases/frps-private-beta/ref-1",
+    );
+    expect(summaryUrl.search).toBe("");
+    expect(wholeUrl.searchParams.get("include")).toBe("document");
+    expect(wreck.get.mock.calls[0][1].headers).toEqual({
+      authorization: `Bearer ${TOKEN}`,
+      "x-actor-id": OID,
+      "x-actor": ACTOR,
+    });
+  });
+
+  it("answers the case as a flat summary, its stored size and its document", async () => {
+    wreck.get.mockResolvedValue(aCaseAnswer({ caseRef: "ref-1" }));
+
+    expect(await findCwCase(KEY, { include: "document" })).toEqual({
+      summary: {
+        caseRef: "ref-1",
+        workflowCode: "frps-private-beta",
+        position: POSITION,
+        closed: false,
+        closedAt: null,
+        createdAt: "2026-06-16T10:00:00.000Z",
+        originalConfigVersion: "1.0.0",
+        currentConfigVersion: "1.1.0",
+        series: { latestRef: "ref-1", refs: ["ref-1"] },
+      },
+      storedBytes: 4096,
+      document: { caseRef: "ref-1" },
+    });
+  });
+
+  it("answers no document when none was asked for", async () => {
+    wreck.get.mockResolvedValue(aCaseAnswer());
+
+    expect((await findCwCase(KEY, {})).document).toBeNull();
+  });
+
+  it("reads a case whose document is over the read limit again without it, as too large", async () => {
+    wreck.get.mockRejectedValueOnce(
+      Boom.entityTooLarge(
+        "Payload content length greater than maximum allowed",
+      ),
+    );
+    wreck.get.mockResolvedValueOnce(aCaseAnswer());
+
+    const found = await findCwCase(KEY, { include: "document" });
+
+    expect(found).toMatchObject({
+      summary: { caseRef: "ref-1" },
+      storedBytes: 4096,
+      document: null,
+      tooLarge: true,
+    });
+    const [first, second] = wreck.get.mock.calls.map(([url]) => new URL(url));
+    expect(first.searchParams.get("include")).toBe("document");
+    expect(second.search).toBe("");
+  });
+
+  it("asks whether a case exists with the operator's id but no operator name", async () => {
+    wreck.get.mockResolvedValue({ payload: { exists: true } });
+
+    expect(await inRequest(() => findCwCaseExistence(KEY))).toEqual({
+      exists: true,
+    });
+    expect(new URL(wreck.get.mock.calls[0][0]).pathname).toBe(
+      "/actuators/cases/frps-private-beta/ref-1/existence",
+    );
+    expect(wreck.get.mock.calls[0][1].headers).toEqual({
+      authorization: `Bearer ${TOKEN}`,
+      "x-actor-id": OID,
+    });
+  });
+
+  it("answers a query Caseworking refused, such as a stale cursor, as a 400", async () => {
+    wreck.post.mockRejectedValue(
+      httpError(400, { message: "Cannot decode cursor" }),
+    );
+
+    const error = await searchCwCases({ cursor: "x" }, {}).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(400);
+    expect(error.message).toBe("CW-BE refused the case query");
+  });
+
+  it.each([
+    ["down", httpError(500, { message: "SECRET-BODY" })],
+    ["slow", httpError(504)],
+    ["without the route", httpError(404, { message: "Not Found" })],
+  ])(
+    "answers a search as a 502 when Caseworking is %s, logging no body",
+    async (_name, failure) => {
+      wreck.post.mockRejectedValue(failure);
+
+      const error = await searchCwCases({}, {}).catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+      expect(error.message).toBe("Cases could not be loaded from Caseworking");
+      expect(JSON.stringify(logger.warn.mock.calls)).not.toContain(
+        "SECRET-BODY",
+      );
+    },
+  );
+
+  it("answers a missing case 404 with its reason, naming no ref", async () => {
+    wreck.get.mockRejectedValue(
+      httpError(404, { statusCode: 404, reason: CASE_NOT_FOUND }),
+    );
+
+    const error = await findCwCase(KEY, {}).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(404);
+    expect(error.output.payload).toMatchObject({
+      message: "case not found",
+      reason: CASE_NOT_FOUND,
+    });
+  });
+
+  it("answers a 404 without a reason - a route this Caseworking lacks - as a 502", async () => {
+    wreck.get.mockRejectedValue(httpError(404, { message: "Not Found" }));
+
+    const error = await findCwCaseExistence(KEY).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(502);
+  });
+
+  it("answers a timeout as a 504 and anything else as a 502", async () => {
+    wreck.get.mockRejectedValueOnce(httpError(504));
+    wreck.get.mockRejectedValueOnce(httpError(500, { message: "boom" }));
+
+    expect((await findCwCase(KEY, {}).catch((e) => e)).output.statusCode).toBe(
+      504,
+    );
+    expect((await findCwCase(KEY, {}).catch((e) => e)).output.statusCode).toBe(
+      502,
+    );
+  });
+
+  it("answers 502 when Caseworking is not configured", async () => {
+    cwBackend.url = undefined;
+
+    const error = await searchCwCases({}, {}).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(502);
+    expect(wreck.post).not.toHaveBeenCalled();
+  });
+
+  it("leaves an event 404 a 404, reason or not", async () => {
+    wreck.get.mockRejectedValue(httpError(404));
+
+    const error = await findCwEvent("inbox", ID).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(404);
   });
 });

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../common/logger.js";
 import { auditStatus } from "./audit-constants.js";
 import { buildAuditEvent, withAudit } from "./with-audit.js";
 import { writeAuditEvent } from "./write-audit-event.js";
@@ -327,5 +328,18 @@ describe("withAudit", () => {
         withAudit(fn, dataBuilder)("arg0", "my-session"),
       ).rejects.toThrow("use case failed");
     });
+  });
+});
+
+describe("withAudit logging", () => {
+  it("never logs the use case's result", async () => {
+    const audited = withAudit(
+      async () => ({ sbi: "123456789" }),
+      () => null,
+    );
+
+    await audited();
+
+    expect(JSON.stringify(logger.debug.mock.calls)).not.toContain("123456789");
   });
 });

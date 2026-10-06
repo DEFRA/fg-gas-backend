@@ -1,22 +1,16 @@
 import { logger } from "../../common/logger.js";
 import { DEAD_LETTER } from "../../events/event-redrive.js";
 import {
-  findCwPage,
-  isCwConfigured,
-} from "../repositories/cw-actuators.repository.js";
-import { decodeCompositeCursor } from "../services/event-cursor.js";
-import {
   serviceVocabulary,
   statusVocabulary,
 } from "../services/event-display.js";
 import {
-  selectsCaseworking,
   serviceScope,
   toPublicSourceErrors,
 } from "../services/event-sources.js";
-import { PAGE_SIZE } from "../services/merge-event-pages.js";
 import { sectionOf } from "../services/page-sections.js";
 import { breakdownEventsUseCase } from "./breakdown-events.use-case.js";
+import { readCaseworkingPage } from "./caseworking-page.helpers.js";
 import { countEventsUseCase } from "./count-events.use-case.js";
 import { findEventsUseCase } from "./find-events.use-case.js";
 
@@ -31,25 +25,6 @@ const cwSections = (sections) => [
   ...(sections.counts ? ["counts"] : []),
   ...(sections.breakdown ? ["breakdown"] : []),
 ];
-
-// Shared by all three sections, so they read the same Caseworking rows.
-const readCaseworkingPage = ({ service, cursor, sections, ...filters }) => {
-  if (!selectsCaseworking(service) || !isCwConfigured()) {
-    return undefined;
-  }
-
-  const page = findCwPage({
-    ...filters,
-    slices: decodeCompositeCursor(cursor),
-    pageSize: PAGE_SIZE,
-    sections: cwSections(sections),
-  });
-
-  // Unawaited if a section throws early; the no-op stops an unhandled rejection.
-  page.catch(() => {});
-
-  return page;
-};
 
 const sectionSourceErrors = (section) => section?.sourceErrors ?? [];
 
@@ -73,9 +48,10 @@ export const eventsPageUseCase = async ({
 
   const sections = sectionsFor({ cursor, status });
 
+  // Shared by all three sections, so they read the same Caseworking rows.
   const caseworking = readCaseworkingPage({
     cursor,
-    sections,
+    sections: cwSections(sections),
     status,
     service,
     q,

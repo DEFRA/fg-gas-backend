@@ -67,6 +67,26 @@ describe("ApplicationSeries", () => {
     });
   });
 
+  describe("isReplaced", () => {
+    const series = new ApplicationSeries({
+      clientRefs: ["ref-1", "ref-2"],
+      code: "test-code",
+      latestClientRef: "ref-2",
+      latestClientId: "client-id-2",
+      createdAt: "2024-01-01T00:00:00.000Z",
+      updatedAt: "2024-01-01T00:00:00.000Z",
+    });
+
+    it("is true for an earlier ref in the series", () => {
+      expect(series.isReplaced("ref-1")).toBe(true);
+    });
+
+    it("is false for the latest ref, and for a ref not in the series", () => {
+      expect(series.isReplaced("ref-2")).toBe(false);
+      expect(series.isReplaced("ref-3")).toBe(false);
+    });
+  });
+
   describe("addClientRef", () => {
     it("adds a new clientRef to the set", () => {
       const series = new ApplicationSeries({

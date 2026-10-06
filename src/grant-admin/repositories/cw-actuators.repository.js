@@ -1,5 +1,7 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
+import { getRequestContext } from "../../common/get-request-context.js";
+import { logger } from "../../common/logger.js";
 import { wreck } from "../../common/wreck.js";
 import {
   EDITABLE_DESCRIPTION,
@@ -97,13 +99,27 @@ const toBoxSection = (section = {}) => ({
   groups: toGroups(section),
 });
 
+// Caseworking records the same operator on the audit events it writes.
+const actorIdHeader = () => {
+  const user = getRequestContext()?.user;
+
+  return user ? { "x-actor-id": user } : {};
+};
+
+const requestOptions = ({ headers, ...options } = {}) => ({
+  json: true,
+  timeout: config.cwBackend.timeoutMs,
+  ...options,
+  headers: {
+    authorization: `Bearer ${config.cwBackend.token}`,
+    ...actorIdHeader(),
+    ...headers,
+  },
+});
+
 // A shorter timeout, so a slow Caseworking degrades the page rather than stalls it.
 export const findCwPage = async (options) => {
-  const { payload } = await wreck.get(buildPageUrl(options), {
-    json: true,
-    timeout: config.cwBackend.timeoutMs,
-    headers: { authorization: `Bearer ${config.cwBackend.token}` },
-  });
+  const { payload } = await wreck.get(buildPageUrl(options), requestOptions());
 
   const body = payload ?? {};
 
@@ -194,42 +210,47 @@ const FAILURES = {
   [CLIENT_TIMEOUT]: timedOut,
 };
 
-const toFailure = (error, label, expected) => {
-  const failure = FAILURES[statusOf(error)];
+const unavailable = (error) =>
+  Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
 
-  return failure
-    ? failure(error, label, expected)
-    : Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
-};
+const toFailure = (error, label, expected, failures) =>
+  (failures[statusOf(error)] ?? failures.otherwise ?? unavailable)(
+    error,
+    label,
+    expected,
+  );
 
-const requestOptions = () => ({
-  json: true,
-  timeout: config.cwBackend.timeoutMs,
-  headers: { authorization: `Bearer ${config.cwBackend.token}` },
-});
-
-// `wreck` serialises an object payload as JSON and sets the content type.
-const optionsWith = (body) =>
-  body === undefined
-    ? requestOptions()
-    : { ...requestOptions(), payload: body };
-
-// `expected` is what Caseworking's 409 says the row was not, and it differs
-// per route.
-const cwRequest = async (method, path, label, { body, expected } = {}) => {
+const assertCwConfigured = () => {
   if (!isCwConfigured()) {
     throw Boom.badGateway("CW-BE is not configured");
   }
+};
+
+// `wreck` serialises an object payload as JSON and sets the content type.
+const optionsWith = (body, options) =>
+  body === undefined
+    ? requestOptions(options)
+    : { ...requestOptions(options), payload: body };
+
+// `expected` is what Caseworking's 409 says the row was not, and it differs
+// per route.
+const cwRequest = async (
+  method,
+  path,
+  label,
+  { body, expected, failures = FAILURES, ...options } = {},
+) => {
+  assertCwConfigured();
 
   try {
     const { payload } = await wreck[method](
       new URL(path, config.cwBackend.url).toString(),
-      optionsWith(body),
+      optionsWith(body, options),
     );
 
     return payload;
   } catch (error) {
-    throw toFailure(error, label, expected);
+    throw toFailure(error, label, expected, failures);
   }
 };
 
@@ -279,4 +300,150 @@ export const editCwPayload = (box, id, { by, payload, note, revision }) =>
     `${eventPath(box, id)}/payload?by=${encodeURIComponent(by)}`,
     labelFor(box, id),
     { body: { payload, note, revision }, expected: EDITABLE_DESCRIPTION },
+  );
+
+export const CASE_NOT_FOUND = "CASE_NOT_FOUND";
+
+const BAD_REQUEST = 400;
+const PAYLOAD_TOO_LARGE = 413;
+const CASE_MAX_BYTES = 4 * 1024 * 1024;
+const CASES_LABEL = "cases";
+
+const caseNotFound = () => {
+  const error = Boom.notFound("case not found");
+
+  error.output.payload.reason = CASE_NOT_FOUND;
+
+  return error;
+};
+
+// A 404 without Caseworking's reason is a route it does not have yet.
+const notFoundOrMissingRoute = (error) =>
+  bodyOf(error)?.reason === CASE_NOT_FOUND
+    ? caseNotFound()
+    : Boom.badGateway("CW-BE has no cases route");
+
+const caseTooLarge = () =>
+  Boom.entityTooLarge("CW-BE case is over the read limit");
+
+const caseUnavailable = (error) =>
+  Boom.badGateway(`CW-BE cases unavailable: ${describeError(error)}`);
+
+const caseTimedOut = () =>
+  Boom.gatewayTimeout("CW-BE cases did not answer in time");
+
+const CASE_FAILURES = {
+  [NOT_FOUND]: notFoundOrMissingRoute,
+  [PAYLOAD_TOO_LARGE]: caseTooLarge,
+  [GATEWAY_TIMEOUT]: caseTimedOut,
+  [CLIENT_TIMEOUT]: caseTimedOut,
+  otherwise: caseUnavailable,
+};
+
+const caseQueryRefused = () => Boom.badRequest("CW-BE refused the case query");
+
+const casesNotLoaded = (error) => {
+  logger.warn(
+    `Search cases: caseworking unavailable (${describeError(error)})`,
+  );
+
+  return Boom.badGateway("Cases could not be loaded from Caseworking");
+};
+
+// The list has no other source, so Caseworking being down is the call
+// failing. A query it refused, such as a stale cursor, is still a 400.
+const SEARCH_FAILURES = {
+  [BAD_REQUEST]: caseQueryRefused,
+  otherwise: casesNotLoaded,
+};
+
+// `actor` is sent as the admin encoded it; Caseworking decodes it.
+const caseRequestOptions = ({ actor, repeat } = {}) => ({
+  failures: CASE_FAILURES,
+  maxBytes: CASE_MAX_BYTES,
+  headers: {
+    ...(actor ? { "x-actor": actor } : {}),
+    ...(repeat ? { "x-search-repeat": "1" } : {}),
+  },
+});
+
+const casePath = ({ workflowCode, caseRef }) =>
+  `/actuators/cases/${encodeURIComponent(workflowCode)}/${encodeURIComponent(caseRef)}`;
+
+const toCaseRow = ({ ref, position, closed, closedAt, createdAt }) => ({
+  ref: { caseRef: ref.caseRef, workflowCode: ref.workflowCode },
+  position,
+  closed,
+  closedAt,
+  createdAt,
+});
+
+const toCasePage = ({ cases, pagination, total, workflowCodes }) => ({
+  rows: cases.map(toCaseRow),
+  pagination,
+  ...(total ? { total } : {}),
+  ...(workflowCodes ? { workflowCodes } : {}),
+});
+
+export const searchCwCases = async (query, { actor, repeat } = {}) =>
+  toCasePage(
+    await cwRequest("post", "/actuators/cases/search", CASES_LABEL, {
+      ...caseRequestOptions({ actor, repeat }),
+      failures: SEARCH_FAILURES,
+      body: query,
+    }),
+  );
+
+const toCaseSummary = (found) => ({
+  caseRef: found.ref.caseRef,
+  workflowCode: found.ref.workflowCode,
+  position: found.position,
+  closed: found.closed,
+  closedAt: found.closedAt,
+  createdAt: found.createdAt,
+  originalConfigVersion: found.originalConfigVersion,
+  currentConfigVersion: found.currentConfigVersion,
+  series: found.series,
+});
+
+const readCase = async (ref, { include, actor }) => {
+  const query = include ? `?include=${encodeURIComponent(include)}` : "";
+  const answer = await cwRequest(
+    "get",
+    `${casePath(ref)}${query}`,
+    CASES_LABEL,
+    caseRequestOptions({ actor }),
+  );
+
+  return {
+    summary: toCaseSummary(answer.case),
+    storedBytes: answer.storedBytes,
+    document: answer.document ?? null,
+  };
+};
+
+const isDocumentTooLarge = (include, error) =>
+  Boolean(include) && statusOf(error) === PAYLOAD_TOO_LARGE;
+
+// A document over the read limit is read again without it, so the page still
+// shows the case and says the document is too large.
+export const findCwCase = async (ref, { include, actor }) => {
+  try {
+    return await readCase(ref, { include, actor });
+  } catch (error) {
+    if (!isDocumentTooLarge(include, error)) {
+      throw error;
+    }
+
+    return { ...(await readCase(ref, { actor })), tooLarge: true };
+  }
+};
+
+// Only yes or no, so it names no `x-actor` and Caseworking writes no audit.
+export const findCwCaseExistence = (ref) =>
+  cwRequest(
+    "get",
+    `${casePath(ref)}/existence`,
+    CASES_LABEL,
+    caseRequestOptions(),
   );

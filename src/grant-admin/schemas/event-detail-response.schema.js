@@ -1,4 +1,6 @@
 import Joi from "joi";
+import { RECORD_KINDS } from "../services/record-kinds.js";
+import { nullableIso } from "./admin-record.schema.js";
 import {
   eventLastEditSchema,
   eventLastPurgeSchema,
@@ -6,10 +8,8 @@ import {
   eventRowWithAttemptsSchema,
 } from "./events-shared.schema.js";
 
-const isoOrNull = Joi.string().isoDate().allow(null).required();
-
 const eventAttemptSchema = Joi.object({
-  at: Joi.string().isoDate().allow(null).required(),
+  at: nullableIso,
   name: Joi.string().required().example("ClaimExpired"),
   message: Joi.string().allow("").required(),
   stack: Joi.string().allow(null).required(),
@@ -33,15 +33,28 @@ export const eventDetailResponseSchema = eventRowWithAttemptsSchema
       .allow(null)
       .required()
       .example("4bf92f3577b34da6a3ce929d0e0e4736"),
-    completionDate: isoOrNull,
-    expiresAt: isoOrNull,
-    lastResubmissionDate: isoOrNull,
+    completionDate: nullableIso,
+    expiresAt: nullableIso,
+    lastResubmissionDate: nullableIso,
     claimedBy: Joi.any().forbidden(),
     attemptHistory: Joi.array().items(eventAttemptSchema).required(),
     lastRedrive: eventLastRedriveSchema.allow(null).required(),
     lastPurge: eventLastPurgeSchema.allow(null).required(),
     // Present only where a purge is possible: the admin gates its button on
     // it. Null on anything but a dead letter.
-    purgeDeletionDate: isoOrNull,
+    purgeDeletionDate: nullableIso,
+    // The one record this event belongs to, where its owning service has it.
+    record: Joi.object({
+      kind: Joi.string()
+        .valid(...Object.values(RECORD_KINDS))
+        .required(),
+      code: Joi.string().required(),
+      ref: Joi.string().required(),
+    })
+      .allow(null)
+      .required()
+      .label("EventRecord"),
+    // What "Related" searches the events for; null on an audit row.
+    searchRef: Joi.string().allow(null).required(),
   })
   .label("EventDetail");
