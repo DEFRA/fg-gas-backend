@@ -392,6 +392,7 @@ describe("EntitlementService", () => {
           clientRef: "client-1",
           claimCode: "TREE",
           actor: null,
+          values: [{ field: "hectares" }],
         },
       }),
     );
@@ -601,6 +602,7 @@ describe("EntitlementService", () => {
           clientRef: "client-1",
           claimCode: "TREE",
           actor: "Ada Lovelace",
+          values: [{ field: "hectares" }],
         },
       });
     });

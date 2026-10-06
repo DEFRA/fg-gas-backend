@@ -23,6 +23,7 @@ import {
   invalidClaimCode,
   invalidUpdateData,
 } from "./entitlement-errors.js";
+import { toChangedValues } from "./entitlement-audit-values.js";
 import { toEntitlementDto } from "./map-entitlement.js";
 
 const templateForUpdate = ({ command, grant, entitlement }) => {
@@ -93,7 +94,7 @@ const updateAuditDataBuilder = (args, entitlement) => {
     return null;
   }
 
-  const { code, clientRef, actor } = args[0];
+  const { code, clientRef, actor, template, previous } = args[0];
 
   return buildAuditEvent({
     entity: auditEntities.ENTITLEMENT,
@@ -104,6 +105,7 @@ const updateAuditDataBuilder = (args, entitlement) => {
       clientRef,
       claimCode: entitlement.claimCode,
       actor: actor ?? null,
+      ...toChangedValues(template, previous, entitlement),
     },
   });
 };
@@ -140,6 +142,8 @@ const updateInTransaction = async (
   const updated = await writeEntitlementUpdateWithAudit(
     {
       ...command,
+      template,
+      previous: entitlement,
       entitlement: changeEntitlement({ command, entitlement, template }),
     },
     session,

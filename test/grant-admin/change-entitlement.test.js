@@ -219,11 +219,12 @@ describe("PUT /grant-admin/grants/{code}/applications/{clientRef}/claims/entitle
       action: "UPDATE",
       entityid: entitlementId,
     });
-    expect(audit.event.audit.details).toMatchObject({
+    expect(audit.event.audit.details).toEqual({
       code,
       clientRef,
       claimCode,
       actor: "Ada Lovelace",
+      values: [{ field: "totalHectares", from: 45.5, to: 30, unit: "HA" }],
     });
     expect(audit.event.audit.status).toBe("SUCCESS");
   });

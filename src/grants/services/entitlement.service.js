@@ -29,6 +29,7 @@ import {
   invalidDataMessage,
   withErrorCode,
 } from "./entitlement-errors.js";
+import { toCreatedValues } from "./entitlement-audit-values.js";
 import { toEntitlementDto } from "./map-entitlement.js";
 
 export { updateEntitlement } from "./update-entitlement.js";
@@ -288,13 +289,19 @@ const auditDataBuilder = (args, entitlement) => {
     return null;
   }
 
-  const { code, clientRef, claimCode, actor } = args[0];
+  const { code, clientRef, claimCode, actor, template } = args[0];
 
   return buildAuditEvent({
     entity: auditEntities.ENTITLEMENT,
     action: auditActions.CREATE,
     entityid: entitlement.id,
-    details: { code, clientRef, claimCode, actor: actor ?? null },
+    details: {
+      code,
+      clientRef,
+      claimCode,
+      actor: actor ?? null,
+      ...toCreatedValues(template, entitlement),
+    },
   });
 };
 
@@ -368,7 +375,10 @@ const createInTransaction = async (
     },
   });
 
-  return writeEntitlementWithAudit({ entitlement, ...command }, session);
+  return writeEntitlementWithAudit(
+    { entitlement, template, ...command },
+    session,
+  );
 };
 
 const createAttempt = async (command) => {
