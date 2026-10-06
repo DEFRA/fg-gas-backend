@@ -2,7 +2,7 @@ import Joi from "joi";
 import { clientRef } from "../../common/schemas/client-ref.js";
 import { code } from "./code.js";
 
-const fieldValue = Joi.object({
+export const fieldValue = Joi.object({
   value: Joi.alternatives()
     .try(Joi.string(), Joi.number(), Joi.boolean())
     .required(),

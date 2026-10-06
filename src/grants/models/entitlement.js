@@ -11,6 +11,13 @@ const deepFreeze = (value) => {
   return value;
 };
 
+export class InvalidEntitlementData extends Error {}
+
+const toStoredValues = (submittedData) =>
+  Object.fromEntries(
+    Object.entries(submittedData).map(([name, field]) => [name, field.value]),
+  );
+
 export class Entitlement {
   static validationSchema = Joi.object({
     id: Joi.string().required(),
@@ -27,6 +34,7 @@ export class Entitlement {
       .min(1)
       .required(),
     createdAt: Joi.string().required(),
+    updatedAt: Joi.string(),
   });
 
   constructor(props) {
@@ -51,6 +59,32 @@ export class Entitlement {
     ...props
   }) {
     return new Entitlement({ ...props, id, createdAt });
+  }
+
+  static fromDocument(document) {
+    return new Entitlement(document);
+  }
+
+  // Only the fields a case officer supplies change; the fixed ones keep the
+  // values they were resolved to on creation.
+  withInputData(template, submittedData, updatedAt = new Date().toISOString()) {
+    if (template.claimCode !== this.claimCode) {
+      throw new Error(
+        `Template '${template.claimCode}' is not the template of entitlement '${this.id}'`,
+      );
+    }
+
+    if (!template.hasValidInputData(submittedData)) {
+      throw new InvalidEntitlementData(
+        `Entitlement '${this.id}' cannot take the data submitted`,
+      );
+    }
+
+    return new Entitlement({
+      ...this,
+      data: { ...this.data, ...toStoredValues(submittedData) },
+      updatedAt,
+    });
   }
 
   static nextInstanceNumber(existing) {

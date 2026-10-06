@@ -8,12 +8,15 @@ import {
 } from "../../common/resolve-refs.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { ClaimableEntitlement } from "../models/claimable-entitlement.js";
 import { EntitlementCreationRejection } from "../models/entitlement-template.js";
-import { Entitlement } from "../models/entitlement.js";
+import { Entitlement, InvalidEntitlementData } from "../models/entitlement.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
+import { countByEntitlement } from "../repositories/claim.repository.js";
 import {
   findExistingEntitlements,
   insertEntitlement,
+  updateEntitlementData,
 } from "../repositories/entitlement.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import {
@@ -27,6 +30,20 @@ const httpNotFound = 404;
 const retryReasons = {
   SLOT_TAKEN: "SLOT_TAKEN",
   CONFIG_CHANGED: "CONFIG_CHANGED",
+};
+
+// The errorCodes callers read. Kept apart from domain reasons such as
+// "EntitlementCreationRejection" even where the spelling matches so a domain
+// rename cannot change the contract unexpectedly.
+const errorCodes = {
+  APPLICATION_NOT_FOUND: "APPLICATION_NOT_FOUND",
+  CONFIGURATION_CHANGED: "CONFIGURATION_CHANGED",
+  ENTITLEMENT_CLAIMED: "ENTITLEMENT_CLAIMED",
+  ENTITLEMENT_DATA_UNRESOLVED: "ENTITLEMENT_DATA_UNRESOLVED",
+  ENTITLEMENT_LIMIT_EXCEEDED: "ENTITLEMENT_LIMIT_EXCEEDED",
+  ENTITLEMENT_NOT_FOUND: "ENTITLEMENT_NOT_FOUND",
+  INVALID_CLAIM_CODE: "INVALID_CLAIM_CODE",
+  INVALID_ENTITLEMENT_DATA: "INVALID_ENTITLEMENT_DATA",
 };
 
 class RetryCreation extends Error {
@@ -46,7 +63,7 @@ const applicationNotFound = ({ code, clientRef }) =>
     Boom.notFound(
       `No matching application found for clientRef '${clientRef}' and grantCode '${code}'.`,
     ),
-    "APPLICATION_NOT_FOUND",
+    errorCodes.APPLICATION_NOT_FOUND,
   );
 
 const mapApplicationNotFound = async (command) => {
@@ -73,6 +90,7 @@ const toEntitlementDto = (entitlement) => ({
   configVersion: entitlement.configVersion,
   data: structuredClone(entitlement.data),
   createdAt: entitlement.createdAt,
+  updatedAt: entitlement.updatedAt,
 });
 
 const toCreationOption = (template, existing) => {
@@ -172,6 +190,31 @@ export const getEntitlementCreationDetails = async ({
   return option;
 };
 
+export const getEntitlementTemplateDetails = async ({
+  code,
+  clientRef,
+  entitlementId,
+}) => {
+  const { grant, existing } = await resolveEntitlements({ code, clientRef });
+  const entitlement = existing.find((each) => each.id === entitlementId);
+
+  if (!entitlement) {
+    throw Boom.notFound(
+      `No entitlement "${entitlementId}" on application "${clientRef}"`,
+    );
+  }
+
+  const template = grant.findEntitlementTemplate(entitlement.claimCode);
+
+  if (!template) {
+    throw Boom.notFound(
+      `Entitlement template with claimCode "${entitlement.claimCode}" not found for grant "${code}"`,
+    );
+  }
+
+  return toCreationOption(template, existing);
+};
+
 const flattenData = (data) =>
   Object.fromEntries(
     Object.entries(data).map(([name, field]) => [name, field.value]),
@@ -194,7 +237,7 @@ const unresolvedField = (name, claimCode, reference) => {
     Boom.badData(
       `Entitlement data for claim code '${claimCode}' could not be resolved: field '${name}' requests data the application does not provide.`,
     ),
-    "ENTITLEMENT_DATA_UNRESOLVED",
+    errorCodes.ENTITLEMENT_DATA_UNRESOLVED,
   );
 };
 
@@ -258,7 +301,7 @@ const invalidClaimCode = ({ code, clientRef, claimCode, grant }) => {
       Boom.badData(
         `Claim code '${claimCode}' is not defined for grant code '${code}'.`,
       ),
-      "INVALID_CLAIM_CODE",
+      errorCodes.INVALID_CLAIM_CODE,
     );
   }
 
@@ -266,7 +309,7 @@ const invalidClaimCode = ({ code, clientRef, claimCode, grant }) => {
     Boom.badData(
       `Claim code '${claimCode}' is not available for application '${clientRef}'.`,
     ),
-    "INVALID_CLAIM_CODE",
+    errorCodes.INVALID_CLAIM_CODE,
   );
 };
 
@@ -302,11 +345,7 @@ const rejectedCreation = ({ reason, template, command }) => {
           claimCode: command.claimCode,
         }),
       ),
-      // Hard-coded, not EntitlementCreationRejection: this is the published
-      // HTTP errorCode, and it only happens to share its spelling with the
-      // domain reason. Pointing it at the enum would let a domain rename
-      // silently change the contract callers depend on.
-      "INVALID_ENTITLEMENT_DATA",
+      errorCodes.INVALID_ENTITLEMENT_DATA,
     );
   }
 
@@ -315,7 +354,7 @@ const rejectedCreation = ({ reason, template, command }) => {
       Boom.conflict(
         `Cannot create entitlement '${command.claimCode}'. Maximum instance limit of ${template.maxEntitlements} has been reached.`,
       ),
-      "ENTITLEMENT_LIMIT_EXCEEDED",
+      errorCodes.ENTITLEMENT_LIMIT_EXCEEDED,
     );
   }
 
@@ -335,13 +374,13 @@ const auditDataBuilder = (args, entitlement) => {
     return null;
   }
 
-  const { code, clientRef, claimCode } = args[0];
+  const { code, clientRef, claimCode, actor } = args[0];
 
   return buildAuditEvent({
     entity: auditEntities.ENTITLEMENT,
     action: auditActions.CREATE,
     entityid: entitlement.id,
-    details: { code, clientRef, claimCode },
+    details: { code, clientRef, claimCode, actor: actor ?? null },
   });
 };
 
@@ -450,7 +489,7 @@ const exhausted = (error, command) => {
       Boom.conflict(
         `Cannot create entitlement '${command.claimCode}'. Maximum instance limit has been reached.`,
       ),
-      "ENTITLEMENT_LIMIT_EXCEEDED",
+      errorCodes.ENTITLEMENT_LIMIT_EXCEEDED,
     );
   }
 
@@ -458,7 +497,7 @@ const exhausted = (error, command) => {
     Boom.conflict(
       `Grant configuration for '${command.code}' changed while creating entitlement '${command.claimCode}'. Try again.`,
     ),
-    "CONFIGURATION_CHANGED",
+    errorCodes.CONFIGURATION_CHANGED,
   );
 };
 
@@ -479,3 +518,169 @@ const retryCreation = async (command, remaining) => {
 };
 
 export const createEntitlement = (command) => retryCreation(command, retries);
+
+const entitlementNotFound = ({ clientRef, entitlementId }) =>
+  withErrorCode(
+    Boom.notFound(
+      `No entitlement '${entitlementId}' found for application '${clientRef}'.`,
+    ),
+    errorCodes.ENTITLEMENT_NOT_FOUND,
+  );
+
+const entitlementClaimed = ({ entitlementId }) =>
+  withErrorCode(
+    Boom.conflict(
+      `Entitlement '${entitlementId}' has a claim against it and cannot be changed.`,
+    ),
+    errorCodes.ENTITLEMENT_CLAIMED,
+  );
+
+const configurationChanged = ({ code }) =>
+  withErrorCode(
+    Boom.conflict(
+      `Grant configuration for '${code}' changed while updating the entitlement. Try again.`,
+    ),
+    errorCodes.CONFIGURATION_CHANGED,
+  );
+
+const invalidUpdateData = ({ template, data, claimCode }) =>
+  withErrorCode(
+    Boom.badData(invalidDataMessage({ template, data, claimCode })),
+    errorCodes.INVALID_ENTITLEMENT_DATA,
+  );
+
+const templateForUpdate = ({ command, grant, entitlement }) => {
+  const template = grant.findEntitlementTemplate(entitlement.claimCode);
+
+  if (!template) {
+    throw invalidClaimCode({
+      ...command,
+      claimCode: entitlement.claimCode,
+      grant,
+    });
+  }
+
+  return template;
+};
+
+const entitlementToUpdate = ({ command, existing }) => {
+  const document = existing.find((each) => each.id === command.entitlementId);
+
+  if (!document) {
+    throw entitlementNotFound(command);
+  }
+
+  return Entitlement.fromDocument(document);
+};
+
+// Claim submission takes the same application lock before it counts, so a
+// Claim cannot land between this count and the write.
+const refuseOnceClaimed = async ({ command, claimable }, session) => {
+  const claimCount = await countByEntitlement(
+    {
+      code: command.code,
+      clientRef: command.clientRef,
+      entitlementId: command.entitlementId,
+    },
+    session,
+  );
+
+  if (!claimable.canBeChanged(claimCount)) {
+    throw entitlementClaimed(command);
+  }
+};
+
+const changeEntitlement = ({ command, entitlement, template }) => {
+  try {
+    return entitlement.withInputData(template, command.data);
+  } catch (error) {
+    if (error instanceof InvalidEntitlementData) {
+      throw invalidUpdateData({
+        template,
+        data: command.data,
+        claimCode: template.claimCode,
+      });
+    }
+
+    throw error;
+  }
+};
+
+const writeEntitlementUpdate = async ({ entitlement }, session) => {
+  await updateEntitlementData(entitlement, session);
+
+  return entitlement;
+};
+
+const updateAuditDataBuilder = (args, entitlement) => {
+  if (!entitlement) {
+    return null;
+  }
+
+  const { code, clientRef, actor } = args[0];
+
+  return buildAuditEvent({
+    entity: auditEntities.ENTITLEMENT,
+    action: auditActions.UPDATE,
+    entityid: entitlement.id,
+    details: {
+      code,
+      clientRef,
+      claimCode: entitlement.claimCode,
+      actor: actor ?? null,
+    },
+  });
+};
+
+const writeEntitlementUpdateWithAudit = withAudit(
+  writeEntitlementUpdate,
+  updateAuditDataBuilder,
+);
+
+const updateInTransaction = async (
+  { command, grant, pinnedVersion },
+  session,
+) => {
+  const application = await lockApplication(command, session);
+
+  if (pinnedVersionOf(application) !== pinnedVersion) {
+    throw configurationChanged(command);
+  }
+
+  const existing = await findExistingEntitlements(
+    command.clientRef,
+    command.code,
+    session,
+  );
+  const entitlement = entitlementToUpdate({ command, existing });
+  const template = templateForUpdate({ command, grant, entitlement });
+  const claimable = ClaimableEntitlement.fromPersisted({
+    entitlement,
+    template,
+  });
+
+  await refuseOnceClaimed({ command, claimable }, session);
+
+  const updated = await writeEntitlementUpdateWithAudit(
+    {
+      ...command,
+      entitlement: changeEntitlement({ command, entitlement, template }),
+    },
+    session,
+  );
+
+  return toEntitlementDto(updated);
+};
+
+export const updateEntitlement = async (command) => {
+  const application = await mapApplicationNotFound(command);
+  const pinnedVersion = pinnedVersionOf(application);
+  const { grant } = await resolveCurrentGrantUseCase(
+    command.code,
+    pinnedVersion,
+  );
+
+  return withTransaction((session) =>
+    updateInTransaction({ command, grant, pinnedVersion }, session),
+  );
+};

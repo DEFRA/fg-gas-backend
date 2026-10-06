@@ -49,7 +49,7 @@ event module directly:
 
 | Caller        | Entry point                                          | Responsibility                                                           |
 | ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
-| `grant-admin` | `grants/services/entitlement.service.js`             | Entitlement overview and creation operations                             |
+| `grant-admin` | `grants/services/entitlement.service.js`             | Entitlement overview, creation and update operations                     |
 | `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup, Claim submission and submitted-Claim reads |
 | `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                   |
 | `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: list, inspect, redrive, purge and edit GAS inbound events   |

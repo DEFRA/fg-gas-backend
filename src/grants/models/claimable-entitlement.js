@@ -64,6 +64,10 @@ export class ClaimableEntitlement {
     return { allowed: true };
   }
 
+  canBeChanged(count) {
+    return count === 0;
+  }
+
   hasRemainingCapacity(count) {
     return count < this.maximumClaims;
   }

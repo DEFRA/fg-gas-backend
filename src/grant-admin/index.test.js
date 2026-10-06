@@ -34,6 +34,10 @@ describe("grant-admin", () => {
         path: "/grant-admin/grants/{code}/applications/{clientRef}/claims/{claimCode}",
       },
       {
+        method: "get",
+        path: "/grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
+      },
+      {
         method: "post",
         path: "/grant-admin/events/{service}/{box}/{id}/payload",
       },
@@ -48,6 +52,10 @@ describe("grant-admin", () => {
       {
         method: "post",
         path: "/grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
+      },
+      {
+        method: "put",
+        path: "/grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
       },
     ]);
   });

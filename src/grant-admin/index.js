@@ -4,9 +4,11 @@ import { editPayloadRoute } from "./routes/edit-payload.route.js";
 import { eventsPageRoute } from "./routes/events-page.route.js";
 import { getClaimRoute } from "./routes/get-claim.route.js";
 import { getClaimsRoute } from "./routes/get-claims.route.js";
+import { getEntitlementRoute } from "./routes/get-entitlement.route.js";
 import { getEventRoute } from "./routes/get-event.route.js";
 import { purgeEventRoute } from "./routes/purge-event.route.js";
 import { redriveEventRoute } from "./routes/redrive-event.route.js";
+import { updateEntitlementRoute } from "./routes/update-entitlement.route.js";
 
 export const grantAdmin = {
   name: "grant-admin",
@@ -17,7 +19,9 @@ export const grantAdmin = {
     server.route([
       getClaimsRoute,
       getClaimRoute,
+      getEntitlementRoute,
       createEntitlementRoute,
+      updateEntitlementRoute,
       eventsPageRoute,
       getEventRoute,
       redriveEventRoute,

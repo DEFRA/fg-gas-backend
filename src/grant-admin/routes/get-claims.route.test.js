@@ -102,7 +102,9 @@ describe("getClaimsRoute", () => {
       applicationContext: {},
       creationOptions: [template],
     });
-    listEntitlementsWithClaimCapacity.mockResolvedValue([claimableEntitlement]);
+    listEntitlementsWithClaimCapacity.mockResolvedValue([
+      { ...claimableEntitlement, canEdit: true },
+    ]);
     listSubmittedClaims.mockResolvedValue([]);
     listClaimPaymentsUseCase.mockResolvedValue(new Set());
 
@@ -123,7 +125,7 @@ describe("getClaimsRoute", () => {
     expect(result.result).toEqual({
       banner,
       availableEntitlements: [template],
-      claimableEntitlements: [claimableEntitlement],
+      claimableEntitlements: [{ ...claimableEntitlement, canEdit: true }],
       claims: [],
     });
   });

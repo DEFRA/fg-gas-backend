@@ -20,6 +20,7 @@ import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-appl
 import { resolveCurrentGrantUseCase } from "../use-cases/resolve-current-grant.use-case.js";
 import {
   listClaimableEntitlements,
+  getChangeableEntitlement,
   listEntitlementsWithClaimCapacity,
   listSubmittedClaims,
   submitClaim,
@@ -85,7 +86,7 @@ const payload = {
   claim: { entitlementId, totalClaimAmountPence: 100 },
 };
 
-const grant = (materialised = true) =>
+const grant = (materialised = true, maximumClaims = 1) =>
   createTestGrant({
     entitlementTemplates: [
       {
@@ -103,7 +104,7 @@ const grant = (materialised = true) =>
           },
         },
         availableAt: [position],
-        claim: { claimableAt: [position], limits: { maximumClaims: 1 } },
+        claim: { claimableAt: [position], limits: { maximumClaims } },
       },
     ],
   });
@@ -235,6 +236,47 @@ describe("claims.service", () => {
     await expect(
       listEntitlementsWithClaimCapacity({ code, clientRef }),
     ).resolves.toEqual([]);
+  });
+
+  it("says an entitlement with no claim against it can be edited", async () => {
+    await expect(
+      listEntitlementsWithClaimCapacity({ code, clientRef }),
+    ).resolves.toEqual([expect.objectContaining({ canEdit: true })]);
+  });
+
+  it("says an entitlement with a claim against it cannot be edited", async () => {
+    resolveCurrentGrantUseCase.mockResolvedValue({ grant: grant(false, 2) });
+    countByEntitlement.mockResolvedValue(1);
+
+    await expect(
+      listEntitlementsWithClaimCapacity({ code, clientRef }),
+    ).resolves.toEqual([expect.objectContaining({ canEdit: false })]);
+  });
+
+  it("returns the entitlement a case officer is about to change", async () => {
+    await expect(
+      getChangeableEntitlement({ code, clientRef, entitlementId }),
+    ).resolves.toEqual(
+      expect.objectContaining({ entitlementId, canEdit: true }),
+    );
+  });
+
+  it("refuses to change an entitlement with a claim against it", async () => {
+    countByEntitlement.mockResolvedValue(1);
+
+    await expect(
+      getChangeableEntitlement({ code, clientRef, entitlementId }),
+    ).rejects.toMatchObject({ output: { statusCode: 409 } });
+  });
+
+  it("returns not found for an entitlement the application does not have", async () => {
+    await expect(
+      getChangeableEntitlement({
+        code,
+        clientRef,
+        entitlementId: "entitlement-unknown",
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 404 } });
   });
 
   it("lists a persisted entitlement from any application position", async () => {
