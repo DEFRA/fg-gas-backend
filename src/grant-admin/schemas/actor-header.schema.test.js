@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   actorHeaderSchema,
+  adminReadHeadersSchema,
+  adminSearchHeadersSchema,
   requiredActorHeaderSchema,
 } from "./actor-header.schema.js";
 
@@ -88,5 +90,40 @@ describe("requiredActorHeaderSchema", () => {
         authorization: "Bearer token",
       }).error,
     ).toBeUndefined();
+  });
+});
+
+describe("adminReadHeadersSchema", () => {
+  const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+
+  it("takes a name and an Entra object id", () => {
+    expect(
+      adminReadHeadersSchema.validate({ "x-actor": "Jo", "x-actor-id": OID })
+        .error,
+    ).toBeUndefined();
+  });
+
+  it.each([
+    ["no name", { "x-actor-id": OID }],
+    ["no object id", { "x-actor": "Jo" }],
+    [
+      "an object id that is not a GUID",
+      { "x-actor": "Jo", "x-actor-id": "jo" },
+    ],
+  ])("refuses %s", (_name, headers) => {
+    expect(adminReadHeadersSchema.validate(headers).error).toBeDefined();
+  });
+
+  it("takes a repeat flag of 1 on a search, and nothing else", () => {
+    const headers = { "x-actor": "Jo", "x-actor-id": OID };
+
+    expect(
+      adminSearchHeadersSchema.validate({ ...headers, "x-search-repeat": "1" })
+        .error,
+    ).toBeUndefined();
+    expect(
+      adminSearchHeadersSchema.validate({ ...headers, "x-search-repeat": "0" })
+        .error,
+    ).toBeDefined();
   });
 });

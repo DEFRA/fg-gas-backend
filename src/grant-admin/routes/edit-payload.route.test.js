@@ -57,7 +57,7 @@ describe("editPayloadRoute", () => {
     );
   });
 
-  it("logs a refused body by its message alone, and answers 400 with it", () => {
+  it("logs a refused body by its paths and types alone, and answers 400 with them", () => {
     const warn = vi.spyOn(logger, "warn");
     const { error } = editPayloadRequestSchema.validate({
       payload: { email: "old@example.com" },
@@ -73,7 +73,7 @@ describe("editPayloadRoute", () => {
     }
 
     expect(thrown.output.statusCode).toBe(400);
-    expect(thrown.message).toBe(error.message);
+    expect(thrown.message).toBe("Invalid request: note:string.max");
     expect(JSON.stringify(thrown)).not.toContain("example.com");
     expect(JSON.stringify(warn.mock.calls)).not.toContain("example.com");
     expect(JSON.stringify(warn.mock.calls)).not.toContain("nnnn");

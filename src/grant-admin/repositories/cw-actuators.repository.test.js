@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withRequestContext } from "../../common/get-request-context.js";
 import { wreck } from "../../common/wreck.js";
 import {
   describeError,
@@ -977,5 +978,41 @@ describe("editCwPayload", () => {
 
     expect(error.output.statusCode).toBe(502);
     expect(error.message).not.toContain("SECRET-BODY");
+  });
+});
+
+describe("operator forwarding", () => {
+  const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+
+  it("sends the request's operator id on each call Caseworking audits", async () => {
+    wreck.post.mockResolvedValue({ payload: {} });
+
+    await withRequestContext({ user: OID }, () =>
+      redriveCwEvent("inbox", ID, { by: "donatas" }),
+    );
+
+    expect(wreck.post.mock.calls[0][1].headers).toEqual({
+      authorization: `Bearer ${TOKEN}`,
+      "x-actor-id": OID,
+    });
+  });
+
+  it("sends it on the events list read too", async () => {
+    wreck.get.mockResolvedValue(composite());
+
+    await withRequestContext({ user: OID }, () => findCwPage(aPage()));
+
+    expect(wreck.get.mock.calls[0][1].headers).toEqual({
+      authorization: `Bearer ${TOKEN}`,
+      "x-actor-id": OID,
+    });
+  });
+
+  it("sends none when the request named no operator", async () => {
+    wreck.get.mockResolvedValue({ payload: {} });
+
+    await withRequestContext({}, () => findCwEvent("inbox", ID));
+
+    expect(wreck.get.mock.calls[0][1].headers).not.toHaveProperty("x-actor-id");
   });
 });

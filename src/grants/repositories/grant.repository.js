@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
+import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
@@ -66,3 +67,8 @@ export const saveFromDefinition = async (grantDefinition, version) => {
   await save(grant);
   return grant;
 };
+
+export const findCodes = () =>
+  db
+    .collection(collection)
+    .distinct("code", {}, { maxTimeMS: config.adminReadTimeoutMs });

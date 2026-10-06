@@ -83,12 +83,6 @@ export const serviceFilterSchema = Joi.object({
   label: Joi.string().required().example("CW-BE"),
 }).label("EventServiceFilter");
 
-// One keyset position per source, at the page's oldest row; forward only.
-export const eventPaginationSchema = Joi.object({
-  endCursor: Joi.string().allow(null).required(),
-  hasNextPage: Joi.boolean().required(),
-}).label("EventPagination");
-
 export const eventSourceErrorSchema = Joi.object({
   hop: Joi.string().required().example("CW Inbox"),
 }).label("EventSourceError");

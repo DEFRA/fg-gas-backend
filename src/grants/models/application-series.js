@@ -51,6 +51,10 @@ export class ApplicationSeries {
     this.updatedAt = new Date(Date.now()).toISOString();
   }
 
+  isReplaced(clientRef) {
+    return this.clientRefs.has(clientRef) && this.latestClientRef !== clientRef;
+  }
+
   static new({ code, latestClientId, latestClientRef }) {
     const date = new Date(Date.now()).toISOString();
     return new ApplicationSeries({

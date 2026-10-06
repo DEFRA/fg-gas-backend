@@ -1,6 +1,4 @@
-import Boom from "@hapi/boom";
 import { constants } from "node:http2";
-import { logger } from "../../common/logger.js";
 import { requiredActorHeaderSchema } from "../schemas/actor-header.schema.js";
 import {
   EDIT_PAYLOAD_BODY_MAX_BYTES,
@@ -10,17 +8,10 @@ import {
 import { eventParamsSchema } from "../schemas/event-params.schema.js";
 import { decodeActor } from "../services/actor-header.js";
 import { callerOf } from "../services/request-caller.js";
+import { safeFailAction } from "../services/safe-fail-action.js";
 import { editPayloadUseCase } from "../use-cases/edit-payload.use-case.js";
 
 const actorOf = (request) => decodeActor(request.headers["x-actor"]);
-
-// The server-wide failAction logs the whole Joi error, which carries the body
-// it refused. Only the message goes out here: it names fields, never values.
-const refuseInvalid = (_request, _h, error) => {
-  logger.warn(`Edit payload request refused: ${error.message}`);
-
-  throw Boom.badRequest(error.message);
-};
 
 export const editPayloadRoute = {
   method: "POST",
@@ -33,7 +24,7 @@ export const editPayloadRoute = {
       params: eventParamsSchema,
       headers: requiredActorHeaderSchema,
       payload: editPayloadRequestSchema,
-      failAction: refuseInvalid,
+      failAction: safeFailAction("Edit payload"),
     },
     payload: { maxBytes: EDIT_PAYLOAD_BODY_MAX_BYTES },
     response: { schema: editPayloadResponseSchema },

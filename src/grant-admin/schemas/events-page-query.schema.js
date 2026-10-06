@@ -1,22 +1,14 @@
 import Joi from "joi";
 import { AUDIT_EXCLUDE, AUDIT_MODES } from "../../events/event-audit.js";
 import { EVENT_STATUSES } from "../../events/status-counts.js";
+import { assertRange, rangeBound } from "./admin-list.schema.js";
 import { EVENT_SERVICES } from "./events-shared.schema.js";
 
 const Q_MAX = 200;
 // Matches the stored `lastError.message` cap, so a filter can name any stored message.
 const ERROR_MAX = 1024;
 
-// A string, not a Date: each box coerces the bound to its own stored type.
-const rangeBound = () => Joi.string().isoDate();
-
 const term = (max) => Joi.string().trim().min(1).max(max).empty("");
-
-// Compared as instants: offset-bearing strings order differently lexically.
-const assertRange = (value, helpers) =>
-  value.from && value.to && Date.parse(value.from) > Date.parse(value.to)
-    ? helpers.error("any.invalid")
-    : value;
 
 export const eventsPageQuerySchema = Joi.object({
   cursor: Joi.string().optional(),

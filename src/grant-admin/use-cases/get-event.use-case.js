@@ -1,11 +1,23 @@
 import Boom from "@hapi/boom";
-import { auditActions, auditEntities } from "../../events/audit-constants.js";
+import {
+  PMC_0706_SECURITY,
+  auditActions,
+  auditEntities,
+} from "../../events/audit-constants.js";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { findById as findGasInboxById } from "../../events/repositories/inbox.repository.js";
 import { findById as findGasOutboxById } from "../../events/repositories/outbox.repository.js";
-import { findCwEvent } from "../repositories/cw-actuators.repository.js";
+import { applicationExists } from "../../grants/services/application-read.service.js";
+import {
+  describeError,
+  findCwEvent,
+} from "../repositories/cw-actuators.repository.js";
+import {
+  recordRefOf,
+  searchRefOf,
+} from "../services/resolve-event-record-ref.js";
 import { CASEWORKING, GAS } from "../services/event-sources.js";
 import { toEventDetail } from "../services/map-event-detail.js";
 
@@ -20,6 +32,28 @@ const GAS_BOXES = {
   },
 };
 
+const isApplication = async ({ ref, code }) => {
+  try {
+    return (await applicationExists({ clientRef: ref, code })).exists;
+  } catch (error) {
+    logger.error(
+      `Get event: application link unknown: ${describeError(error)}`,
+    );
+
+    return false;
+  }
+};
+
+// A GAS row links to the application its refs name, once GAS has it. The
+// event is still shown when that cannot be checked.
+const gasRecordOf = async (detail) => {
+  const found = recordRefOf(detail);
+
+  return found && (await isApplication(found))
+    ? { kind: "application", ...found }
+    : null;
+};
+
 const getGasEvent = async (box, id) => {
   const doc = await GAS_BOXES[box].find(id);
 
@@ -27,25 +61,33 @@ const getGasEvent = async (box, id) => {
     throw Boom.notFound(`gas ${box} event "${id}" not found`);
   }
 
-  return toEventDetail({
+  const detail = toEventDetail({
     service: GAS,
     box,
     doc,
     maxAttempts: GAS_BOXES[box].maxAttempts(),
     retentionDays: config.events.retentionDays,
   });
+
+  return {
+    ...detail,
+    record: await gasRecordOf(detail),
+    searchRef: searchRefOf(detail),
+  };
 };
 
 // No partial mode: half a detail view is not a view.
 const getCwEvent = async (box, id) => {
   const doc = await findCwEvent(box, id);
 
-  return toEventDetail({
+  const detail = toEventDetail({
     service: CASEWORKING,
     box,
     doc,
     maxAttempts: doc.maxAttempts,
   });
+
+  return { ...detail, record: null, searchRef: searchRefOf(detail) };
 };
 
 const getEvent = ({ service, box, id }) => {
@@ -61,6 +103,7 @@ export const getEventAuditBuilder = ([{ service, box, id, caller }]) =>
     action: auditActions.VIEW_EVENT,
     entityid: id,
     details: { service, box, caller },
+    security: PMC_0706_SECURITY,
     segregationRef: `event-${id}`,
   });
 

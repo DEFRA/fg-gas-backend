@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
+import { getRequestContext } from "../../common/get-request-context.js";
 import { wreck } from "../../common/wreck.js";
 import {
   EDITABLE_DESCRIPTION,
@@ -97,13 +98,25 @@ const toBoxSection = (section = {}) => ({
   groups: toGroups(section),
 });
 
+// Caseworking records the same operator on the audit events it writes.
+const actorIdHeader = () => {
+  const user = getRequestContext()?.user;
+
+  return user ? { "x-actor-id": user } : {};
+};
+
+const requestOptions = () => ({
+  json: true,
+  timeout: config.cwBackend.timeoutMs,
+  headers: {
+    authorization: `Bearer ${config.cwBackend.token}`,
+    ...actorIdHeader(),
+  },
+});
+
 // A shorter timeout, so a slow Caseworking degrades the page rather than stalls it.
 export const findCwPage = async (options) => {
-  const { payload } = await wreck.get(buildPageUrl(options), {
-    json: true,
-    timeout: config.cwBackend.timeoutMs,
-    headers: { authorization: `Bearer ${config.cwBackend.token}` },
-  });
+  const { payload } = await wreck.get(buildPageUrl(options), requestOptions());
 
   const body = payload ?? {};
 
@@ -201,12 +214,6 @@ const toFailure = (error, label, expected) => {
     ? failure(error, label, expected)
     : Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
 };
-
-const requestOptions = () => ({
-  json: true,
-  timeout: config.cwBackend.timeoutMs,
-  headers: { authorization: `Bearer ${config.cwBackend.token}` },
-});
 
 // `wreck` serialises an object payload as JSON and sets the content type.
 const optionsWith = (body) =>

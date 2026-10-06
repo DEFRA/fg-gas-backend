@@ -18,11 +18,8 @@ import {
   normaliseGasOutbox,
   toEventTuple,
 } from "../services/map-event-row.js";
-import {
-  PAGE_SIZE,
-  buildPagination,
-  mergePages,
-} from "../services/merge-event-pages.js";
+import { PAGE_SIZE } from "../services/admin-list.js";
+import { buildPagination, mergePages } from "../services/merge-event-pages.js";
 
 const SOURCES = [
   {

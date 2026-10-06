@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { PAGE_SIZE } from "./admin-list.js";
 import { SOURCE_KEYS, CURSOR_SORT_FIELD } from "./event-cursor.js";
 import {
-  PAGE_SIZE,
   buildPagination,
   compareDesc,
   mergePages,

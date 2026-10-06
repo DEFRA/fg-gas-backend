@@ -124,6 +124,8 @@ describe("getEventRoute over HTTP", () => {
     payloadIsPlainJson: true,
     lastEdit: null,
     originalPayload: null,
+    record: null,
+    searchRef: "GLD-9B2",
   };
 
   const url = `/grant-admin/events/gas/outbox/${ID}`;

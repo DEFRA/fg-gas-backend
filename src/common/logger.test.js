@@ -85,4 +85,18 @@ describe("logger redaction (FGP-1307)", () => {
     expect(output).not.toContain("CLIENT-REF-123");
     expect(output).not.toContain("123456789");
   });
+
+  it("never serializes the Grant Admin operator's name or Entra object id to logs", () => {
+    const output = captureLog({
+      req: {
+        headers: {
+          "x-actor": "Jo Operator",
+          "x-actor-id": "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+        },
+      },
+    });
+
+    expect(output).not.toContain("Jo Operator");
+    expect(output).not.toContain("3f2504e0-4f89-41d3-9a0c-0305e82c3301");
+  });
 });

@@ -4,6 +4,7 @@ import { db } from "../../common/mongo-client.js";
 import { ApplicationSeries } from "../models/application-series.js";
 import {
   findByClientRefAndCode,
+  findSeriesByClientRefs,
   save,
   update,
 } from "./application-series.repository.js";
@@ -116,5 +117,44 @@ describe("update", () => {
         `Failed to update application_series with _id "missing-id"`,
       ),
     );
+  });
+});
+
+describe("findSeriesByClientRefs", () => {
+  const doc = {
+    _id: "doc-id",
+    clientRefs: ["ref-1", "ref-2"],
+    latestClientRef: "ref-2",
+    latestClientId: "client-id-1",
+    code: "grant-1",
+    createdAt: "2024-01-01T00:00:00.000Z",
+    updatedAt: "2024-01-01T00:00:00.000Z",
+  };
+
+  it("answers every series holding any of the refs as ApplicationSeries", async () => {
+    const toArray = vi.fn().mockResolvedValueOnce([doc]);
+    const find = vi.fn().mockReturnValue({ toArray });
+    db.collection.mockReturnValue({ find });
+
+    const [series] = await findSeriesByClientRefs(["ref-1"]);
+
+    expect(find).toHaveBeenCalledWith(
+      { clientRefs: { $in: ["ref-1"] } },
+      { maxTimeMS: expect.any(Number) },
+    );
+    expect(series).toBeInstanceOf(ApplicationSeries);
+    expect(series.isReplaced("ref-1")).toBe(true);
+  });
+
+  it("narrows to the grant when it is named", async () => {
+    const find = vi.fn().mockReturnValue({ toArray: async () => [] });
+    db.collection.mockReturnValue({ find });
+
+    await findSeriesByClientRefs(["ref-1"], "grant-1");
+
+    expect(find.mock.calls[0][0]).toEqual({
+      clientRefs: { $in: ["ref-1"] },
+      code: "grant-1",
+    });
   });
 });

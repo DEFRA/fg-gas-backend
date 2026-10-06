@@ -1,0 +1,44 @@
+import { adminSearchHeadersSchema } from "../schemas/actor-header.schema.js";
+import {
+  searchApplicationsRequestSchema,
+  searchApplicationsResponseSchema,
+} from "../schemas/search-applications.schema.js";
+import { callerOf } from "../services/request-caller.js";
+import {
+  safeFailAction,
+  safeResponseFailAction,
+} from "../services/safe-fail-action.js";
+import { searchApplicationsUseCase } from "../use-cases/search-applications.use-case.js";
+
+const LABEL = "Search applications";
+
+// A POST, so a searched ref travels in the body and never in a logged URL.
+export const searchApplicationsRoute = {
+  method: "POST",
+  path: "/grant-admin/applications/search",
+  options: {
+    description:
+      "Admin: one page of applications, newest first, or every application in a ref's series",
+    tags: ["api"],
+    cache: { otherwise: "no-store" },
+    validate: {
+      headers: adminSearchHeadersSchema,
+      payload: searchApplicationsRequestSchema,
+      failAction: safeFailAction(LABEL),
+    },
+    response: {
+      schema: searchApplicationsResponseSchema,
+      failAction: safeResponseFailAction(LABEL),
+    },
+  },
+  handler(request) {
+    const query = request.payload ?? {};
+
+    return searchApplicationsUseCase({
+      ...query,
+      caller: callerOf(request),
+      // Only a first page can be a repeated search.
+      repeat: !query.cursor && request.headers["x-search-repeat"] === "1",
+    });
+  },
+};
