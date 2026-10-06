@@ -79,6 +79,7 @@ jobs:
           npm ci --ignore-scripts
           npm run test:contract -- test/contract/consumer.agreements-api.test.js
           npm run test:contract -- test/contract/consumer.cw-backend.test.js
+          npm run test:contract -- test/contract/consumer.cw-backend-actuators.test.js
           npm run test:contract -- test/contract/provider.verification.test.js
 
       - name: Setup Pact CLI

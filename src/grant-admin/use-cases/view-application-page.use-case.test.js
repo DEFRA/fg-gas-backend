@@ -6,6 +6,7 @@ import {
   findApplicationSeries,
   findApplicationSummary,
 } from "../../grants/services/application-read.service.js";
+import { findCwCaseExistence } from "../repositories/cw-actuators.repository.js";
 import { readCaseworkingPage } from "./caseworking-page.helpers.js";
 import { findEventsUseCase } from "./find-events.use-case.js";
 import {
@@ -24,6 +25,7 @@ vi.mock("../../events/audited-read.js", () => ({
 vi.mock("../../grants/services/application-read.service.js");
 vi.mock("./find-events.use-case.js");
 vi.mock("./caseworking-page.helpers.js");
+vi.mock("../repositories/cw-actuators.repository.js");
 
 const REF = { clientRef: "ref-1", code: "woodland" };
 
@@ -48,6 +50,7 @@ describe("viewApplicationPageUseCase", () => {
       storedBytes: 2048,
     });
     findApplicationSeries.mockResolvedValue(null);
+    findCwCaseExistence.mockResolvedValue({ exists: true });
   });
 
   it("is audited as a read that releases data", () => {
@@ -101,7 +104,7 @@ describe("viewApplicationPageUseCase", () => {
     expect((await view("overview")).overview.series).toBeNull();
   });
 
-  it("every tab draws the header with the case link unknown", async () => {
+  it("every tab draws the header with its case link", async () => {
     for (const tab of ["overview", "events", "raw"]) {
       findEventsUseCase.mockResolvedValue({
         events: [],
@@ -112,7 +115,7 @@ describe("viewApplicationPageUseCase", () => {
       expect((await view(tab)).header).toMatchObject({
         ...REF,
         position: SUMMARY.position,
-        counterpart: null,
+        counterpart: { exists: true },
       });
     }
   });
