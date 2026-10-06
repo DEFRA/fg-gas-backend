@@ -7,7 +7,7 @@
 | `grants`         | `src/grants/`         | Grants and Application sub-domain (grant lifecycle, applications) |
 | `agreements`     | `src/agreements/`     | Agreements domain (separate bounded context)                      |
 | `payments`       | `src/payments/`       | Payments domain (Payments, claim IDs, invoice numbering)          |
-| `grant-admin`    | `src/grant-admin/`    | Inbound admin adapter for Entitlement and Claim operations        |
+| `grant-admin`    | `src/grant-admin/`    | Inbound admin adapter for Entitlement, Claim and Application work |
 | `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes     |
 | `auth`           | `src/auth/`           | Authentication and authorisation                                  |
 | `common`         | `src/common/`         | Shared infrastructure and context-neutral mapping utilities       |
@@ -17,7 +17,7 @@
 
 `agreements`, `grants` and `payments` must not directly import each other's internals (models, repositories, use-cases, services, routes, schemas, etc.). The boundary is enforced in both directions, except for explicitly documented reviewed seams below. Direct cross-module imports create hidden coupling that prevents either context from evolving independently.
 
-`grant-admin` is an inbound adapter, not a peer domain module. It validates and maps HTTP/UI concerns but does not access Grants models, repositories, schemas, use cases, or general services. Its only Grants entry points for entitlement and claim work are `grants/services/entitlement.service.js` and `grants/services/claims.service.js`. `grants` never imports from `grant-admin`, and `grant-admin` does not import from `agreements`.
+`grant-admin` is an inbound adapter, not a peer domain module. It validates and maps HTTP/UI concerns but does not access Grants models, repositories, schemas, use cases, or general services. Its only Grants entry points are `grants/services/entitlement.service.js` and `grants/services/claims.service.js` for entitlement and claim work, and `grants/services/application-read.service.js` for reading applications. `grants` never imports from `grant-admin`, and `grant-admin` does not import from `agreements`.
 
 `payments` knows nothing about the modules that source a Payment: it never imports `agreements` or `grants`, and it takes the identifiers it needs as plain values.
 
@@ -43,7 +43,7 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 
 ### Grant Admin entry points
 
-Grant Admin enters the Grants application layer through two named services, and
+Grant Admin enters the Grants application layer through three named services, and
 Payments through one named use case. Event administration enters the shared
 event module directly:
 
@@ -51,6 +51,7 @@ event module directly:
 | ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
 | `grant-admin` | `grants/services/entitlement.service.js`             | Entitlement overview and creation operations                             |
 | `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup, Claim submission and submitted-Claim reads |
+| `grant-admin` | `grants/services/application-read.service.js`        | Read-only Applications list, application documents, series and codes     |
 | `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                   |
 | `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: list, inspect, redrive, purge and edit GAS inbound events   |
 | `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: list, inspect, redrive, purge and edit GAS outbound events  |

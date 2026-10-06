@@ -1,8 +1,8 @@
 import Joi from "joi";
 import { ObjectId } from "mongodb";
 import { describe, expect, it } from "vitest";
+import { listPaginationSchema } from "../schemas/admin-list.schema.js";
 import {
-  eventPaginationSchema,
   eventRowSchema,
   eventSourceErrorSchema,
 } from "../schemas/events-shared.schema.js";
@@ -18,7 +18,7 @@ import {
 // The list slice of the events page answer.
 const listResponseSchema = Joi.object({
   events: Joi.array().items(eventRowSchema).required(),
-  pagination: eventPaginationSchema.required(),
+  pagination: listPaginationSchema.required(),
   sourceErrors: Joi.array().items(eventSourceErrorSchema).required(),
 });
 

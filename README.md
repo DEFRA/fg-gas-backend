@@ -487,7 +487,7 @@ Use cases can access repositories, http clients, domain classes and other use ca
 Use cases should export a single function.
 Repositories can access db.
 
-`src/grants/services/` contains both stateless helpers and transactional application services. The application services coordinate repositories and domain objects for a complete operation, own their Mongo transaction, and pass its session to every participating repository call. `entitlement.service.js` and `claims.service.js` are the Grants entry points for the Grant Admin inbound adapter. Services may import domain models when coordinating those operations; domain models must not import services.
+`src/grants/services/` contains stateless helpers, transactional application services and read-model query services. The application services coordinate repositories and domain objects for a complete operation, own their Mongo transaction, and pass its session to every participating repository call. Read-model query services are non-transactional and return plain data, never domain objects. `entitlement.service.js`, `claims.service.js` and `application-read.service.js` are the Grants entry points for the Grant Admin inbound adapter. Services may import domain models when coordinating those operations; domain models must not import services.
 
 Cross-module data is obtained through a documented integration seam. In particular, Grants can use the reviewed Agreements reference-context query, which returns a plain context using the active Mongo session. It must not import an Agreements repository or domain model.
 

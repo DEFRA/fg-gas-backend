@@ -47,6 +47,8 @@ const aDetail = (overrides = {}) => ({
   lastEdit: null,
   originalPayload: null,
   segregationRef: "GLD-9B2",
+  record: { kind: "application", code: "frps-private-beta", ref: "ref-1" },
+  searchRef: "GLD-9B2",
   ...overrides,
 });
 
@@ -511,5 +513,34 @@ describe("eventDetailResponseSchema payload edits", () => {
         },
       }).error,
     ).toBeDefined();
+  });
+});
+
+describe("eventDetailResponseSchema record", () => {
+  it("accepts a case record, and none", () => {
+    for (const record of [
+      { kind: "case", code: "frps-private-beta", ref: "ref-1" },
+      null,
+    ]) {
+      expect(
+        eventDetailResponseSchema.validate(aDetail({ record })).error,
+      ).toBeUndefined();
+    }
+  });
+
+  it("refuses a record of another kind", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ record: { kind: "agreement", code: "c", ref: "r" } }),
+      ).error,
+    ).toBeDefined();
+  });
+
+  it("accepts a null searchRef, as on an audit row", () => {
+    expect(
+      eventDetailResponseSchema.validate(
+        aDetail({ record: null, searchRef: null }),
+      ).error,
+    ).toBeUndefined();
   });
 });

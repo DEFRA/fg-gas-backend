@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  eventPaginationSchema,
   eventRowSchema,
   eventRowWithAttemptsSchema,
   eventSourceErrorSchema,
@@ -85,21 +84,6 @@ describe("eventRowSchema", () => {
 
       expect(eventRowSchema.validate(event).error).toBeDefined();
     }
-  });
-});
-
-describe("eventPaginationSchema", () => {
-  it("accepts a next page and a last page with no cursor", () => {
-    expect(
-      eventPaginationSchema.validate({
-        endCursor: "eyJ2IjoxfQ",
-        hasNextPage: true,
-      }).error,
-    ).toBeUndefined();
-    expect(
-      eventPaginationSchema.validate({ endCursor: null, hasNextPage: false })
-        .error,
-    ).toBeUndefined();
   });
 });
 

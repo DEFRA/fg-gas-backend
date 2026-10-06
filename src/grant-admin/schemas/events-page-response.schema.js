@@ -1,8 +1,8 @@
 import Joi from "joi";
 import { breakdownEventsResponseSchema } from "./breakdown-events-response.schema.js";
+import { listPaginationSchema } from "./admin-list.schema.js";
 import { eventStatusCountsSchema } from "./event-status-counts.schema.js";
 import {
-  eventPaginationSchema,
   eventRowSchema,
   eventSourceErrorSchema,
   serviceFilterSchema,
@@ -15,7 +15,8 @@ export const EVENTS_PAGE_SECTIONS = ["counts", "breakdown"];
 // The list is the page, so it cannot be null; counts and breakdown can, named in sectionErrors.
 export const eventsPageResponseSchema = Joi.object({
   events: Joi.array().items(eventRowSchema).required(),
-  pagination: eventPaginationSchema.required(),
+  // One keyset position per source, at the page's oldest row; forward only.
+  pagination: listPaginationSchema.required(),
   // In lifecycle order, not alphabetical: the toolbar reads left to right.
   statuses: Joi.array().items(statusFilterSchema).required(),
   services: Joi.array().items(serviceFilterSchema).required(),
