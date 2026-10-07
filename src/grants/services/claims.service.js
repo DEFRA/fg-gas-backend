@@ -19,6 +19,10 @@ import {
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
 import { toClaimableDto } from "./map-claimable-entitlement.js";
 import { toSubmittedClaim } from "./map-submitted-claim.js";
+import {
+  entitlementClaimed,
+  entitlementNotFound,
+} from "./entitlement-errors.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import { hasRemainingApplicationClaimCapacityUseCase } from "../use-cases/has-remaining-application-claim-capacity.use-case.js";
 import {
@@ -210,15 +214,11 @@ export const getChangeableEntitlement = async ({
   );
 
   if (!claimable) {
-    throw Boom.notFound(
-      `Entitlement "${entitlementId}" not found for application "${clientRef}"`,
-    );
+    throw entitlementNotFound({ clientRef, entitlementId });
   }
 
   if (!claimable.canBeChanged(await countClaimsFor(claimable))) {
-    throw Boom.conflict(
-      `${claimable.name} has a claim against it and cannot be changed.`,
-    );
+    throw entitlementClaimed(claimable);
   }
 
   return { ...toClaimableDto(claimable), canEdit: true };

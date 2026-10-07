@@ -270,6 +270,7 @@ describe("claims.service", () => {
       output: {
         statusCode: 409,
         payload: {
+          errorCode: "ENTITLEMENT_CLAIMED",
           message:
             "Claimable entitlement has a claim against it and cannot be changed.",
         },
@@ -284,7 +285,12 @@ describe("claims.service", () => {
         clientRef,
         entitlementId: "entitlement-unknown",
       }),
-    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 404,
+        payload: { errorCode: "ENTITLEMENT_NOT_FOUND" },
+      },
+    });
   });
 
   it("lists a persisted entitlement from any application position", async () => {

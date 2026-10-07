@@ -24,6 +24,7 @@ import {
   mapApplicationNotFound,
 } from "./entitlement-application.js";
 import {
+  entitlementNotFound,
   errorCodes,
   invalidClaimCode,
   invalidDataMessage,
@@ -154,17 +155,18 @@ export const getEntitlementTemplateDetails = async ({
   const entitlement = existing.find((each) => each.id === entitlementId);
 
   if (!entitlement) {
-    throw Boom.notFound(
-      `No entitlement "${entitlementId}" on application "${clientRef}"`,
-    );
+    throw entitlementNotFound({ clientRef, entitlementId });
   }
 
   const template = grant.findEntitlementTemplate(entitlement.claimCode);
 
   if (!template) {
-    throw Boom.notFound(
-      `Entitlement template with claimCode "${entitlement.claimCode}" not found for grant "${code}"`,
-    );
+    throw invalidClaimCode({
+      code,
+      clientRef,
+      claimCode: entitlement.claimCode,
+      grant,
+    });
   }
 
   return toCreationOption(template, existing);
@@ -299,6 +301,7 @@ const auditDataBuilder = (args, entitlement) => {
       code,
       clientRef,
       claimCode,
+      name: template.name,
       actor: actor ?? null,
       ...toCreatedValues(template, entitlement),
     },

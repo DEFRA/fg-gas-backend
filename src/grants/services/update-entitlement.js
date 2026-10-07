@@ -104,6 +104,7 @@ const updateAuditDataBuilder = (args, entitlement) => {
       code,
       clientRef,
       claimCode: entitlement.claimCode,
+      name: template.name,
       actor: actor ?? null,
       ...toChangedValues(template, previous, entitlement),
     },

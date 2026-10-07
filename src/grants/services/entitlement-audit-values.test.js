@@ -31,13 +31,13 @@ const entitlement = (data) => ({
 });
 
 describe("toCreatedValues", () => {
-  it("records every input field, numbers in the units they were entered in", () => {
+  it("records every input field, decimals in the units they were entered in", () => {
     expect(toCreatedValues(template, entitlement({}))).toEqual({
       values: [
         { field: "totalHectares", to: 109, unit: "HA" },
         { field: "trees", to: 40, unit: "TREES" },
         { field: "plots", to: 2 },
-        { field: "reference" },
+        { field: "reference", to: "WMP-1" },
       ],
     });
   });
@@ -62,7 +62,7 @@ describe("toCreatedValues", () => {
 });
 
 describe("toChangedValues", () => {
-  it("records each changed number before and after, and names a changed text field", () => {
+  it("records each changed field before and after, text included", () => {
     expect(
       toChangedValues(
         template,
@@ -73,7 +73,7 @@ describe("toChangedValues", () => {
       values: [
         { field: "totalHectares", from: 109, to: 100, unit: "HA" },
         { field: "trees", from: 40, to: 45, unit: "TREES" },
-        { field: "reference" },
+        { field: "reference", from: "WMP-1", to: "WMP-2" },
       ],
     });
   });

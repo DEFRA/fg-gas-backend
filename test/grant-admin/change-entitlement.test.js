@@ -176,14 +176,16 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims/entitle
     await seed();
     await submitClaim();
 
-    await expect(getEntitlement()).rejects.toMatchObject(refusal(409));
+    await expect(getEntitlement()).rejects.toMatchObject(
+      refusal(409, "ENTITLEMENT_CLAIMED"),
+    );
   });
 
   it("returns 404 for an entitlement the application does not have", async () => {
     await seed();
 
     await expect(getEntitlement("entitlement-unknown")).rejects.toMatchObject(
-      refusal(404),
+      refusal(404, "ENTITLEMENT_NOT_FOUND"),
     );
   });
 });
@@ -223,6 +225,7 @@ describe("PUT /grant-admin/grants/{code}/applications/{clientRef}/claims/entitle
       code,
       clientRef,
       claimCode,
+      name: "PA3 Woodland Management Plan entitlement",
       actor: "Ada Lovelace",
       values: [{ field: "totalHectares", from: 45.5, to: 30, unit: "HA" }],
     });

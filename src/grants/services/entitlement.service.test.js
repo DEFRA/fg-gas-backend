@@ -345,10 +345,15 @@ describe("EntitlementService", () => {
         clientRef: command.clientRef,
         entitlementId: "entitlement-unknown",
       }),
-    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 404,
+        payload: { errorCode: "ENTITLEMENT_NOT_FOUND" },
+      },
+    });
   });
 
-  it("returns not found when the grant no longer has the entitlement's template", async () => {
+  it("refuses with INVALID_CLAIM_CODE when the grant no longer has the entitlement's template", async () => {
     findExistingEntitlements.mockResolvedValue([
       { id: "entitlement-1", claimCode: "RETIRED" },
     ]);
@@ -359,7 +364,12 @@ describe("EntitlementService", () => {
         clientRef: command.clientRef,
         entitlementId: "entitlement-1",
       }),
-    ).rejects.toMatchObject({ output: { statusCode: 404 } });
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 422,
+        payload: { errorCode: "INVALID_CLAIM_CODE" },
+      },
+    });
   });
 
   it("creates under the application lock and audits the inserted entitlement", async () => {
@@ -391,8 +401,9 @@ describe("EntitlementService", () => {
           code: "GAS",
           clientRef: "client-1",
           claimCode: "TREE",
+          name: "Tree planting",
           actor: null,
-          values: [{ field: "hectares" }],
+          values: [{ field: "hectares", to: 3 }],
         },
       }),
     );
@@ -601,8 +612,9 @@ describe("EntitlementService", () => {
           code: "GAS",
           clientRef: "client-1",
           claimCode: "TREE",
+          name: "Tree planting",
           actor: "Ada Lovelace",
-          values: [{ field: "hectares" }],
+          values: [{ field: "hectares", from: 30000, to: 45000 }],
         },
       });
     });
