@@ -24,7 +24,7 @@ const applicationHeaderSchema = Joi.object({
   clientRef: Joi.string().required(),
   code: Joi.string().required(),
   position: positionSchema,
-  // Null while the case link is unknown.
+  // Null while the case link is unknown, and on a tab that does not show it.
   counterpart: Joi.object({ exists: Joi.boolean().required() })
     .allow(null)
     .required(),
@@ -32,6 +32,12 @@ const applicationHeaderSchema = Joi.object({
 })
   .required()
   .label("ApplicationHeader");
+
+const seriesMemberSchema = Joi.object({
+  clientRef: Joi.string().required(),
+  position: positionSchema,
+  createdAt: nullableIso,
+}).label("ApplicationSeriesMember");
 
 const overviewSchema = Joi.object({
   code: Joi.string().required(),
@@ -45,7 +51,7 @@ const overviewSchema = Joi.object({
     frn: nullableString,
     crn: nullableString,
   }).required(),
-  series: seriesSchema,
+  series: seriesSchema(seriesMemberSchema, "ApplicationSeries"),
   storedBytes,
 })
   .allow(null)

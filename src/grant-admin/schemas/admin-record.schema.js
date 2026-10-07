@@ -20,13 +20,23 @@ export const positionSchema = Joi.object({
   .required()
   .label("Position");
 
-export const seriesSchema = Joi.object({
-  latestRef: nullableString,
-  refs: Joi.array().items(Joi.string()).required(),
-})
-  .allow(null)
-  .required()
-  .label("Series");
+// `members` are oldest first.
+export const seriesSchema = (
+  memberSchema,
+  label,
+  { membersOptional = false } = {},
+) => {
+  const members = Joi.array().items(memberSchema);
+
+  return Joi.object({
+    latestRef: nullableString,
+    refs: Joi.array().items(Joi.string()).required(),
+    members: membersOptional ? members.optional() : members.required(),
+  })
+    .allow(null)
+    .required()
+    .label(label);
+};
 
 // Present on a first page only; a later page keeps the first page's.
 export const listTotalSchema = Joi.object({
