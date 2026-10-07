@@ -19,6 +19,10 @@ import {
 import { findExistingEntitlements } from "../repositories/entitlement.repository.js";
 import { toClaimableDto } from "./map-claimable-entitlement.js";
 import { toSubmittedClaim } from "./map-submitted-claim.js";
+import {
+  entitlementClaimed,
+  entitlementNotFound,
+} from "./entitlement-errors.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import { hasRemainingApplicationClaimCapacityUseCase } from "../use-cases/has-remaining-application-claim-capacity.use-case.js";
 import {
@@ -122,9 +126,6 @@ const isClaimableNow = async (claimable, application) =>
     await countClaimsFor(claimable),
   ).allowed;
 
-const hasRemainingClaimCapacity = async (claimable) =>
-  claimable.hasRemainingCapacity(await countClaimsFor(claimable));
-
 const applicationAndGrant = async ({ code, clientRef }) => {
   const application = await findApplicationByClientRefAndCodeUseCase(
     clientRef,
@@ -178,8 +179,50 @@ export const listSubmittedClaims = async ({ code, clientRef }) => {
 export const listClaimableEntitlements = ({ code, clientRef }) =>
   listEntitlementsMatching({ code, clientRef }, isClaimableNow);
 
-export const listEntitlementsWithClaimCapacity = ({ code, clientRef }) =>
-  listEntitlementsMatching({ code, clientRef }, hasRemainingClaimCapacity);
+const withClaimCount = async (claimable) => ({
+  claimable,
+  claimCount: await countClaimsFor(claimable),
+});
+
+export const listEntitlementsWithClaimCapacity = async ({
+  code,
+  clientRef,
+}) => {
+  const { candidates } = await candidatesForApplication({ code, clientRef });
+  const counted = await Promise.all(candidates.map(withClaimCount));
+
+  return counted
+    .filter(({ claimable, claimCount }) =>
+      claimable.hasRemainingCapacity(claimCount),
+    )
+    .map(({ claimable, claimCount }) => ({
+      ...toClaimableDto(claimable),
+      canEdit: claimable.canBeChanged(claimCount),
+    }));
+};
+
+// The entitlement a case officer is about to change, refused once a Claim has
+// been made against it.
+export const getChangeableEntitlement = async ({
+  code,
+  clientRef,
+  entitlementId,
+}) => {
+  const { candidates } = await candidatesForApplication({ code, clientRef });
+  const claimable = candidates.find(
+    (candidate) => candidate.entitlement.id === entitlementId,
+  );
+
+  if (!claimable) {
+    throw entitlementNotFound({ clientRef, entitlementId });
+  }
+
+  if (!claimable.canBeChanged(await countClaimsFor(claimable))) {
+    throw entitlementClaimed(claimable);
+  }
+
+  return { ...toClaimableDto(claimable), canEdit: true };
+};
 
 const existingReplay = ({ code, clientRef, clientClaimRef }, session) =>
   existsByClientClaimRef({ code, clientRef, clientClaimRef }, session).then(

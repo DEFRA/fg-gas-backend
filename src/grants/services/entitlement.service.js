@@ -10,7 +10,6 @@ import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { EntitlementCreationRejection } from "../models/entitlement-template.js";
 import { Entitlement } from "../models/entitlement.js";
-import { lockForUpdate } from "../repositories/application.repository.js";
 import {
   findExistingEntitlements,
   insertEntitlement,
@@ -20,9 +19,23 @@ import {
   pinnedVersionOf,
   resolveCurrentGrantUseCase,
 } from "../use-cases/resolve-current-grant.use-case.js";
+import {
+  lockApplication,
+  mapApplicationNotFound,
+} from "./entitlement-application.js";
+import {
+  entitlementNotFound,
+  errorCodes,
+  invalidClaimCode,
+  invalidDataMessage,
+  withErrorCode,
+} from "./entitlement-errors.js";
+import { toCreatedValues } from "./entitlement-audit-values.js";
+import { toEntitlementDto } from "./map-entitlement.js";
+
+export { updateEntitlement } from "./update-entitlement.js";
 
 const retries = 1;
-const httpNotFound = 404;
 
 const retryReasons = {
   SLOT_TAKEN: "SLOT_TAKEN",
@@ -35,45 +48,6 @@ class RetryCreation extends Error {
     this.reason = reason;
   }
 }
-
-const withErrorCode = (boom, errorCode) => {
-  boom.output.payload.errorCode = errorCode;
-  return boom;
-};
-
-const applicationNotFound = ({ code, clientRef }) =>
-  withErrorCode(
-    Boom.notFound(
-      `No matching application found for clientRef '${clientRef}' and grantCode '${code}'.`,
-    ),
-    "APPLICATION_NOT_FOUND",
-  );
-
-const mapApplicationNotFound = async (command) => {
-  try {
-    return await findApplicationByClientRefAndCodeUseCase(
-      command.clientRef,
-      command.code,
-    );
-  } catch (error) {
-    if (error.isBoom && error.output.statusCode === httpNotFound) {
-      throw applicationNotFound(command);
-    }
-
-    throw error;
-  }
-};
-
-const toEntitlementDto = (entitlement) => ({
-  id: entitlement.id,
-  clientRef: entitlement.clientRef,
-  code: entitlement.code,
-  claimCode: entitlement.claimCode,
-  instanceNumber: entitlement.instanceNumber,
-  configVersion: entitlement.configVersion,
-  data: structuredClone(entitlement.data),
-  createdAt: entitlement.createdAt,
-});
 
 const toCreationOption = (template, existing) => {
   const createdCount = existing.filter(
@@ -172,6 +146,32 @@ export const getEntitlementCreationDetails = async ({
   return option;
 };
 
+export const getEntitlementTemplateDetails = async ({
+  code,
+  clientRef,
+  entitlementId,
+}) => {
+  const { grant, existing } = await resolveEntitlements({ code, clientRef });
+  const entitlement = existing.find((each) => each.id === entitlementId);
+
+  if (!entitlement) {
+    throw entitlementNotFound({ clientRef, entitlementId });
+  }
+
+  const template = grant.findEntitlementTemplate(entitlement.claimCode);
+
+  if (!template) {
+    throw invalidClaimCode({
+      code,
+      clientRef,
+      claimCode: entitlement.claimCode,
+      grant,
+    });
+  }
+
+  return toCreationOption(template, existing);
+};
+
 const flattenData = (data) =>
   Object.fromEntries(
     Object.entries(data).map(([name, field]) => [name, field.value]),
@@ -194,7 +194,7 @@ const unresolvedField = (name, claimCode, reference) => {
     Boom.badData(
       `Entitlement data for claim code '${claimCode}' could not be resolved: field '${name}' requests data the application does not provide.`,
     ),
-    "ENTITLEMENT_DATA_UNRESOLVED",
+    errorCodes.ENTITLEMENT_DATA_UNRESOLVED,
   );
 };
 
@@ -252,46 +252,6 @@ const resolveFixedData = async ({
   );
 };
 
-const invalidClaimCode = ({ code, clientRef, claimCode, grant }) => {
-  if (!grant.findEntitlementTemplate(claimCode)) {
-    return withErrorCode(
-      Boom.badData(
-        `Claim code '${claimCode}' is not defined for grant code '${code}'.`,
-      ),
-      "INVALID_CLAIM_CODE",
-    );
-  }
-
-  return withErrorCode(
-    Boom.badData(
-      `Claim code '${claimCode}' is not available for application '${clientRef}'.`,
-    ),
-    "INVALID_CLAIM_CODE",
-  );
-};
-
-const byName = (a, b) => a.localeCompare(b);
-
-const invalidValuesMessage = (fieldNames) =>
-  fieldNames.length === 1
-    ? `Field '${fieldNames[0]}' has an invalid value`
-    : `Fields '${fieldNames.join("', '")}' have invalid values`;
-
-const invalidDataMessage = ({ template, data, claimCode }) => {
-  const expected = template.inputFieldNames().sort(byName);
-  const submitted = Object.keys(data).sort(byName);
-  const missing = expected.filter((name) => !submitted.includes(name));
-  const unexpected = submitted.filter((name) => !expected.includes(name));
-  const problems = [
-    missing.length > 0 && `missing fields: ${missing.join(", ")}`,
-    unexpected.length > 0 && `unexpected fields: ${unexpected.join(", ")}`,
-  ].filter(Boolean);
-  const invalidFields = template.invalidInputFieldNames(data);
-  const detail = problems.join("; ") || invalidValuesMessage(invalidFields);
-
-  return `Entitlement data for claim code '${claimCode}' does not match the template: ${detail}.`;
-};
-
 const rejectedCreation = ({ reason, template, command }) => {
   if (reason === EntitlementCreationRejection.INVALID_ENTITLEMENT_DATA) {
     return withErrorCode(
@@ -302,11 +262,7 @@ const rejectedCreation = ({ reason, template, command }) => {
           claimCode: command.claimCode,
         }),
       ),
-      // Hard-coded, not EntitlementCreationRejection: this is the published
-      // HTTP errorCode, and it only happens to share its spelling with the
-      // domain reason. Pointing it at the enum would let a domain rename
-      // silently change the contract callers depend on.
-      "INVALID_ENTITLEMENT_DATA",
+      errorCodes.INVALID_ENTITLEMENT_DATA,
     );
   }
 
@@ -315,7 +271,7 @@ const rejectedCreation = ({ reason, template, command }) => {
       Boom.conflict(
         `Cannot create entitlement '${command.claimCode}'. Maximum instance limit of ${template.maxEntitlements} has been reached.`,
       ),
-      "ENTITLEMENT_LIMIT_EXCEEDED",
+      errorCodes.ENTITLEMENT_LIMIT_EXCEEDED,
     );
   }
 
@@ -335,30 +291,24 @@ const auditDataBuilder = (args, entitlement) => {
     return null;
   }
 
-  const { code, clientRef, claimCode } = args[0];
+  const { code, clientRef, claimCode, actor, template } = args[0];
 
   return buildAuditEvent({
     entity: auditEntities.ENTITLEMENT,
     action: auditActions.CREATE,
     entityid: entitlement.id,
-    details: { code, clientRef, claimCode },
+    details: {
+      code,
+      clientRef,
+      claimCode,
+      name: template.name,
+      actor: actor ?? null,
+      ...toCreatedValues(template, entitlement),
+    },
   });
 };
 
 const writeEntitlementWithAudit = withAudit(writeEntitlement, auditDataBuilder);
-
-const lockApplication = async (command, session) => {
-  const application = await lockForUpdate(
-    { clientRef: command.clientRef, code: command.code },
-    session,
-  );
-
-  if (application === null) {
-    throw applicationNotFound(command);
-  }
-
-  return application;
-};
 
 const entitlementCreationDecision = ({
   command,
@@ -428,7 +378,10 @@ const createInTransaction = async (
     },
   });
 
-  return writeEntitlementWithAudit({ entitlement, ...command }, session);
+  return writeEntitlementWithAudit(
+    { entitlement, template, ...command },
+    session,
+  );
 };
 
 const createAttempt = async (command) => {
@@ -450,7 +403,7 @@ const exhausted = (error, command) => {
       Boom.conflict(
         `Cannot create entitlement '${command.claimCode}'. Maximum instance limit has been reached.`,
       ),
-      "ENTITLEMENT_LIMIT_EXCEEDED",
+      errorCodes.ENTITLEMENT_LIMIT_EXCEEDED,
     );
   }
 
@@ -458,7 +411,7 @@ const exhausted = (error, command) => {
     Boom.conflict(
       `Grant configuration for '${command.code}' changed while creating entitlement '${command.claimCode}'. Try again.`,
     ),
-    "CONFIGURATION_CHANGED",
+    errorCodes.CONFIGURATION_CHANGED,
   );
 };
 

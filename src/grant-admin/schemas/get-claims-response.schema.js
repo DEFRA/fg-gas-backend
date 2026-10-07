@@ -52,7 +52,7 @@ const availableEntitlements = Joi.array()
   .required()
   .label("AvailableEntitlements");
 
-const claimableEntitlement = Joi.object({
+export const claimableEntitlement = Joi.object({
   source: Joi.string().valid("persisted").required(),
   claimCode: Joi.string().required(),
   name: Joi.string().required(),
@@ -61,6 +61,7 @@ const claimableEntitlement = Joi.object({
   entitlementId: Joi.string().required(),
   instanceNumber: Joi.number().integer().min(1).required(),
   claim: Joi.object().unknown().required(),
+  canEdit: Joi.boolean().required(),
 }).label("ClaimableEntitlement");
 
 // A Claim the applicant has submitted, resolved against the template it was

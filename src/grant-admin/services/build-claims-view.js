@@ -31,6 +31,18 @@ export const buildClaimView = async ({ creationDetails, ...overview }) => ({
   entitlementTemplate: toEntitlementTemplate(creationDetails),
 });
 
+// The change-claimable-item view: the claims page, the entitlement being
+// changed and the template it was made under.
+export const buildEntitlementView = async ({
+  claimableEntitlement,
+  entitlementTemplate,
+  ...overview
+}) => ({
+  ...(await buildClaimsView(overview)),
+  claimableEntitlement: toEntitlement(claimableEntitlement),
+  entitlementTemplate: toEntitlementTemplate(entitlementTemplate),
+});
+
 // No Payment means none has been raised, never that one failed.
 export const toSubmittedClaim = (claim, claimPayments) => ({
   ...structuredClone(claim),
