@@ -4,7 +4,6 @@ import {
   describeError,
   findCwCase,
 } from "../repositories/cw-actuators.repository.js";
-import { GAS_APPLICATIONS_SOURCE } from "../services/event-sources.js";
 
 // One Caseworking read per page, started before the page's own reads so the
 // header and the tab share it. Its failure surfaces through them.
@@ -25,17 +24,13 @@ const readApplicationLink = async ({ workflowCode, caseRef }) => {
       code: workflowCode,
     });
 
-    return {
-      counterpart: { exists },
-      accounts: identifiers,
-      sourceErrors: [],
-    };
+    return { counterpart: { exists }, accounts: identifiers };
   } catch (error) {
     logger.warn(
       `Case page: application link unknown (${describeError(error)})`,
     );
 
-    return { counterpart: null, sourceErrors: [GAS_APPLICATIONS_SOURCE] };
+    return { counterpart: null };
   }
 };
 
@@ -56,6 +51,5 @@ export const readCaseHeader = async (args) => {
       fetchedAt: new Date().toISOString(),
     },
     accounts: link.accounts,
-    sourceErrors: link.sourceErrors,
   };
 };

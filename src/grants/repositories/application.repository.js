@@ -276,30 +276,36 @@ const seriesBranches = (ref, series) => [
   { clientRef: ref },
 ];
 
-export const findApplicationRowsInSeries = async ({
+// Only for a filter that names {clientRef, code} in every branch.
+const findRowsByRefAndCode = async (filter, options = {}) => {
+  const docs = await db
+    .collection(collection)
+    .find(filter, {
+      maxTimeMS: config.adminReadTimeoutMs,
+      projection: ROW_PROJECTION,
+      hint: { clientRef: 1, code: 1 },
+      ...options,
+    })
+    .toArray();
+
+  return docs.map(toApplicationRow);
+};
+
+export const findApplicationRowsInSeries = ({
   ref,
   series,
   code,
   from,
   to,
   limit,
-}) => {
-  const docs = await db
-    .collection(collection)
-    .find(
-      { $or: seriesBranches(ref, series), ...listFilter({ code, from, to }) },
-      {
-        maxTimeMS: config.adminReadTimeoutMs,
-        projection: ROW_PROJECTION,
-        sort: listSort,
-        limit,
-        hint: { clientRef: 1, code: 1 },
-      },
-    )
-    .toArray();
+}) =>
+  findRowsByRefAndCode(
+    { $or: seriesBranches(ref, series), ...listFilter({ code, from, to }) },
+    { sort: listSort, limit },
+  );
 
-  return docs.map(toApplicationRow);
-};
+export const findApplicationRowsByClientRefs = ({ clientRefs, code }) =>
+  findRowsByRefAndCode({ clientRef: { $in: clientRefs }, code });
 
 export const countApplicationRows = ({ code, from, to }, { limit }) =>
   db.collection(collection).countDocuments(listFilter({ code, from, to }), {

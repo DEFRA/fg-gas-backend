@@ -370,12 +370,20 @@ const caseRequestOptions = ({ actor, repeat } = {}) => ({
 const casePath = ({ workflowCode, caseRef }) =>
   `/actuators/cases/${encodeURIComponent(workflowCode)}/${encodeURIComponent(caseRef)}`;
 
-const toCaseRow = ({ ref, position, closed, closedAt, createdAt }) => ({
+const toCaseRow = ({
+  ref,
+  position,
+  closed,
+  closedAt,
+  createdAt,
+  replaced,
+}) => ({
   ref: { caseRef: ref.caseRef, workflowCode: ref.workflowCode },
   position,
   closed,
   closedAt,
   createdAt,
+  ...(replaced === undefined ? {} : { replaced }),
 });
 
 const toCasePage = ({ cases, pagination, total, workflowCodes }) => ({
@@ -394,6 +402,20 @@ export const searchCwCases = async (query, { actor, repeat } = {}) =>
     }),
   );
 
+const toSeriesMember = ({ caseRef, position, createdAt, closedAt }) => ({
+  caseRef,
+  position,
+  createdAt,
+  closedAt,
+});
+
+// A Caseworking that predates series members sends none.
+const toCaseSeries = ({ latestRef, refs, members }) => ({
+  latestRef,
+  refs,
+  ...(members === undefined ? {} : { members: members.map(toSeriesMember) }),
+});
+
 const toCaseSummary = (found) => ({
   caseRef: found.ref.caseRef,
   workflowCode: found.ref.workflowCode,
@@ -403,7 +425,7 @@ const toCaseSummary = (found) => ({
   createdAt: found.createdAt,
   originalConfigVersion: found.originalConfigVersion,
   currentConfigVersion: found.currentConfigVersion,
-  series: found.series,
+  series: found.series && toCaseSeries(found.series),
 });
 
 const readCase = async (ref, { include, actor }) => {

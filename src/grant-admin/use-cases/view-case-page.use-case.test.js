@@ -21,16 +21,35 @@ vi.mock("./caseworking-page.helpers.js");
 
 const KEY = { workflowCode: "frps-private-beta", caseRef: "ref-1" };
 
+const POSITION = { phase: "PRE_AWARD", stage: "REVIEW", status: "RECEIVED" };
+
 const SUMMARY = {
   caseRef: "ref-1",
   workflowCode: "frps-private-beta",
-  position: { phase: "PRE_AWARD", stage: "REVIEW", status: "RECEIVED" },
+  position: POSITION,
   closed: true,
   closedAt: "2026-06-18T10:00:00.000Z",
   createdAt: "2026-06-16T10:00:00.000Z",
   originalConfigVersion: "1.0.0",
   currentConfigVersion: "1.1.0",
-  series: { latestRef: "ref-1", refs: ["ref-0", "ref-1"] },
+  series: {
+    latestRef: "ref-1",
+    refs: ["ref-0", "ref-1"],
+    members: [
+      {
+        caseRef: "ref-0",
+        position: POSITION,
+        createdAt: "2026-06-15T10:00:00.000Z",
+        closedAt: "2026-06-15T12:00:00.000Z",
+      },
+      {
+        caseRef: "ref-1",
+        position: POSITION,
+        createdAt: "2026-06-16T10:00:00.000Z",
+        closedAt: "2026-06-18T10:00:00.000Z",
+      },
+    ],
+  },
 };
 
 const DOCUMENT = { caseRef: "ref-1", payload: { anything: [1] } };
@@ -70,7 +89,7 @@ describe("viewCasePageUseCase", () => {
     expect(findCwCase).toHaveBeenCalledWith(KEY, { actor: "Jo", include });
   });
 
-  it("overview: the trimmed facts, the series and the stored size", async () => {
+  it("overview: the trimmed facts, the series with its members as Caseworking gave them, and the stored size", async () => {
     expect((await view("overview")).overview).toEqual({
       workflowCode: "frps-private-beta",
       originalConfigVersion: "1.0.0",

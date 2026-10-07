@@ -16,7 +16,8 @@ import {
   searchCwCases,
 } from "../../src/grant-admin/repositories/cw-actuators.repository.js";
 
-const { boolean, eachLike, integer, like, regex, string } = MatchersV3;
+const { atLeastLike, boolean, eachLike, integer, like, regex, string } =
+  MatchersV3;
 
 const { cwBackend } = vi.hoisted(() => ({
   cwBackend: { url: undefined, token: "gas-token", timeoutMs: 5000 },
@@ -58,13 +59,20 @@ const position = {
   status: like("RECEIVED"),
 };
 
+const createdAt = regex(ISO, "2026-06-16T10:00:00.000Z");
+
 // An open case, as the provider seeds them.
-const caseRow = (caseRef) => ({
+const caseFacts = (caseRef) => ({
   ref: { caseRef: like(caseRef), workflowCode: like(WORKFLOW) },
   position,
   closed: false,
   closedAt: null,
-  createdAt: regex(ISO, "2026-06-16T10:00:00.000Z"),
+  createdAt,
+});
+
+const caseRow = (caseRef) => ({
+  ...caseFacts(caseRef),
+  replaced: boolean(false),
 });
 
 // A real keyset cursor: {createdAt, _id}, base64url.
@@ -116,6 +124,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           );
 
           expect(answer.rows[0].ref.caseRef).toBe("ref-1");
+          expect(answer.rows[0].replaced).toBe(false);
           expect(answer.total.capped).toBe(false);
         },
       ));
@@ -281,11 +290,20 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
   });
 
   describe("C2: GET /actuators/cases/{workflowCode}/{caseRef}", () => {
+    // The seeded case is a series of one, which lists no members.
     const summary = {
-      ...caseRow("ref-1"),
+      ...caseFacts("ref-1"),
       originalConfigVersion: like("1.0.0"),
       currentConfigVersion: like("1.1.0"),
-      series: { latestRef: like("ref-1"), refs: eachLike("ref-1") },
+      series: {
+        latestRef: like("ref-1"),
+        refs: eachLike("ref-1"),
+        members: atLeastLike(
+          { caseRef: like("ref-1"), position, createdAt, closedAt: null },
+          0,
+          0,
+        ),
+      },
     };
 
     it("answers the case and its stored size", () =>
@@ -317,6 +335,7 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           );
 
           expect(answer.summary.caseRef).toBe("ref-1");
+          expect(answer.summary.series.members).toBeInstanceOf(Array);
           expect(answer.document).toBeNull();
         },
       ));

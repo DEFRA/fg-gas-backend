@@ -1,6 +1,7 @@
 import {
   countApplicationRows,
   findApplicationIdentifiers,
+  findApplicationRowsByClientRefs,
   findApplicationRowsInSeries,
   findApplicationRowsPage,
   findApplicationSummaryRow,
@@ -85,12 +86,51 @@ export const findApplicationSummary = ({ clientRef, code }) =>
 export const findApplicationDocument = ({ clientRef, code }, { maxBytes }) =>
   findStoredApplicationDocument({ clientRef, code }, { maxBytes });
 
+const toMember = ({ clientRef, position, createdAt }) => ({
+  clientRef,
+  position,
+  createdAt: createdAt ?? null,
+});
+
+// A ref the series names but no application holds keeps its slot, with no facts.
+const noApplication = (clientRef) => ({
+  clientRef,
+  position: { phase: null, stage: null, status: null },
+  createdAt: null,
+});
+
+// Oldest first, the order the series added them. A series of one has no
+// other member to show.
+const membersOf = async (series) => {
+  const refs = [...series.clientRefs];
+
+  if (refs.length < 2) {
+    return [];
+  }
+
+  const rows = await findApplicationRowsByClientRefs({
+    clientRefs: refs,
+    code: series.code,
+  });
+  const byRef = new Map(rows.map((row) => [row.clientRef, row]));
+
+  return refs.map((ref) =>
+    byRef.has(ref) ? toMember(byRef.get(ref)) : noApplication(ref),
+  );
+};
+
 export const findApplicationSeries = async ({ clientRef, code }) => {
   const [series] = await findSeriesByClientRefs([clientRef], code);
 
-  return series
-    ? { latestRef: series.latestClientRef, refs: [...series.clientRefs] }
-    : null;
+  if (!series) {
+    return null;
+  }
+
+  return {
+    latestRef: series.latestClientRef,
+    refs: [...series.clientRefs],
+    members: await membersOf(series),
+  };
 };
 
 export const applicationExists = async ({ clientRef, code }) => {

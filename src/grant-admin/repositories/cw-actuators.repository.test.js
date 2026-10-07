@@ -1029,13 +1029,33 @@ describe("Caseworking cases", () => {
   const KEY = { workflowCode: "frps-private-beta", caseRef: "ref-1" };
   const POSITION = { phase: "PRE_AWARD", stage: "REVIEW", status: "RECEIVED" };
 
-  const aCase = (caseRef) => ({
+  const aCase = (caseRef, replaced = false) => ({
     ref: { caseRef, workflowCode: "frps-private-beta" },
     position: POSITION,
     closed: false,
     closedAt: null,
     createdAt: "2026-06-16T10:00:00.000Z",
+    replaced,
   });
+
+  const SERIES = {
+    latestRef: "ref-1",
+    refs: ["ref-0", "ref-1"],
+    members: [
+      {
+        caseRef: "ref-0",
+        position: POSITION,
+        createdAt: "2026-06-15T10:00:00.000Z",
+        closedAt: "2026-06-16T09:00:00.000Z",
+      },
+      {
+        caseRef: "ref-1",
+        position: POSITION,
+        createdAt: "2026-06-16T10:00:00.000Z",
+        closedAt: null,
+      },
+    ],
+  };
 
   const aCaseAnswer = (document) => ({
     payload: {
@@ -1043,7 +1063,7 @@ describe("Caseworking cases", () => {
         ...aCase("ref-1"),
         originalConfigVersion: "1.0.0",
         currentConfigVersion: "1.1.0",
-        series: { latestRef: "ref-1", refs: ["ref-1"] },
+        series: SERIES,
       },
       storedBytes: 4096,
       ...(document ? { document } : {}),
@@ -1088,10 +1108,10 @@ describe("Caseworking cases", () => {
     );
   });
 
-  it("answers rows, with the total and workflow codes only where Caseworking gave them", async () => {
+  it("answers rows, each marked replaced or not, with the total and workflow codes only where Caseworking gave them", async () => {
     wreck.post.mockResolvedValueOnce({
       payload: {
-        cases: [aCase("ref-1")],
+        cases: [aCase("ref-1"), aCase("ref-0", true)],
         pagination: { endCursor: "c", hasNextPage: true },
         total: { count: 1, capped: false },
         workflowCodes: ["frps-private-beta"],
@@ -1105,7 +1125,7 @@ describe("Caseworking cases", () => {
     });
 
     expect(await searchCwCases({}, {})).toEqual({
-      rows: [aCase("ref-1")],
+      rows: [aCase("ref-1"), aCase("ref-0", true)],
       pagination: { endCursor: "c", hasNextPage: true },
       total: { count: 1, capped: false },
       workflowCodes: ["frps-private-beta"],
@@ -1139,7 +1159,7 @@ describe("Caseworking cases", () => {
     });
   });
 
-  it("answers the case as a flat summary, its stored size and its document", async () => {
+  it("answers the case as a flat summary with its series members, its stored size and its document", async () => {
     wreck.get.mockResolvedValue(aCaseAnswer({ caseRef: "ref-1" }));
 
     expect(await findCwCase(KEY, { include: "document" })).toEqual({
@@ -1152,11 +1172,52 @@ describe("Caseworking cases", () => {
         createdAt: "2026-06-16T10:00:00.000Z",
         originalConfigVersion: "1.0.0",
         currentConfigVersion: "1.1.0",
-        series: { latestRef: "ref-1", refs: ["ref-1"] },
+        series: SERIES,
       },
       storedBytes: 4096,
       document: { caseRef: "ref-1" },
     });
+  });
+
+  it("leaves replaced off a row from a Caseworking that predates it", async () => {
+    wreck.post.mockResolvedValue({
+      payload: { cases: [{ ...aCase("ref-1"), replaced: undefined }] },
+    });
+
+    const { rows } = await searchCwCases({}, {});
+
+    expect(rows[0]).not.toHaveProperty("replaced");
+  });
+
+  it("leaves members off a series from a Caseworking that predates them", async () => {
+    const answer = aCaseAnswer();
+    answer.payload.case.series = { latestRef: "ref-1", refs: ["ref-1"] };
+    wreck.get.mockResolvedValue(answer);
+
+    expect((await findCwCase(KEY, {})).summary.series).toEqual({
+      latestRef: "ref-1",
+      refs: ["ref-1"],
+    });
+  });
+
+  it("maps away anything else Caseworking adds to a series or its members", async () => {
+    const answer = aCaseAnswer();
+    answer.payload.case.series = {
+      ...SERIES,
+      anything: true,
+      members: SERIES.members.map((member) => ({ ...member, anything: 1 })),
+    };
+    wreck.get.mockResolvedValue(answer);
+
+    expect((await findCwCase(KEY, {})).summary.series).toEqual(SERIES);
+  });
+
+  it("answers a null series as null", async () => {
+    const answer = aCaseAnswer();
+    answer.payload.case.series = null;
+    wreck.get.mockResolvedValue(answer);
+
+    expect((await findCwCase(KEY, {})).summary.series).toBeNull();
   });
 
   it("answers no document when none was asked for", async () => {
