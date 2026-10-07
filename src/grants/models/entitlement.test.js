@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Entitlement } from "./entitlement.js";
+import { Entitlement, InvalidEntitlementData } from "./entitlement.js";
 
 const props = {
   clientRef: "wmp-abc-123",
@@ -77,6 +77,69 @@ describe("Entitlement", () => {
           {},
         ]),
       ).toBe(1);
+    });
+  });
+
+  it("loads a stored record", () => {
+    const stored = {
+      ...props,
+      _id: "mongo-id",
+      id: "entitlement-1",
+      createdAt: "2026-09-02T00:00:00.000Z",
+    };
+
+    expect(Entitlement.fromDocument(stored)).toEqual({
+      ...props,
+      id: "entitlement-1",
+      createdAt: "2026-09-02T00:00:00.000Z",
+    });
+  });
+
+  describe("withInputData", () => {
+    const template = {
+      claimCode: "ENT_CS_CAPITAL_PA3",
+      hasValidInputData: (submitted) =>
+        Object.keys(submitted).join() === "totalHectares",
+    };
+
+    it("changes the input data and keeps the rest", () => {
+      const entitlement = Entitlement.create(props);
+
+      const changed = entitlement.withInputData(
+        template,
+        { totalHectares: { value: 300000 } },
+        "2026-10-05T00:00:00.000Z",
+      );
+
+      expect(changed).toEqual({
+        ...entitlement,
+        data: { totalHectares: 300000, actionCode: "PA3" },
+        updatedAt: "2026-10-05T00:00:00.000Z",
+      });
+      expect(entitlement.data.totalHectares).toBe(455000);
+      expect(Object.isFrozen(changed)).toBe(true);
+    });
+
+    it("refuses data its template does not accept, such as a fixed field", () => {
+      const entitlement = Entitlement.create(props);
+
+      expect(() =>
+        entitlement.withInputData(template, {
+          totalHectares: { value: 300000 },
+          actionCode: { value: "PA4" },
+        }),
+      ).toThrow(InvalidEntitlementData);
+    });
+
+    it("refuses the template of another entitlement", () => {
+      const entitlement = Entitlement.create(props);
+
+      expect(() =>
+        entitlement.withInputData(
+          { ...template, claimCode: "ENT_OTHER" },
+          { totalHectares: { value: 300000 } },
+        ),
+      ).toThrow(/is not the template of entitlement/);
     });
   });
 });
