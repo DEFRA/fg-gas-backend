@@ -76,10 +76,23 @@ describe("viewApplicationPageUseCase", () => {
   });
 
   it("overview: the trimmed facts, the series with this code and the stored size", async () => {
-    findApplicationSeries.mockResolvedValue({
+    const series = {
       latestRef: "ref-2",
       refs: ["ref-1", "ref-2"],
-    });
+      members: [
+        {
+          clientRef: "ref-1",
+          position: SUMMARY.position,
+          createdAt: "2026-06-16T10:00:01.000Z",
+        },
+        {
+          clientRef: "ref-2",
+          position: SUMMARY.position,
+          createdAt: "2026-06-17T10:00:00.000Z",
+        },
+      ],
+    };
+    findApplicationSeries.mockResolvedValue(series);
 
     const page = await view("overview");
 
@@ -95,7 +108,7 @@ describe("viewApplicationPageUseCase", () => {
       createdAt: "2026-06-16T10:00:01.000Z",
       updatedAt: "2026-06-16T10:05:00.000Z",
       identifiers: SUMMARY.identifiers,
-      series: { latestRef: "ref-2", refs: ["ref-1", "ref-2"] },
+      series,
       storedBytes: 2048,
     });
   });
@@ -104,21 +117,35 @@ describe("viewApplicationPageUseCase", () => {
     expect((await view("overview")).overview.series).toBeNull();
   });
 
-  it("every tab draws the header with its case link", async () => {
-    for (const tab of ["overview", "events", "raw"]) {
+  it("overview draws the header with its case link", async () => {
+    expect((await view("overview")).header).toMatchObject({
+      ...REF,
+      position: SUMMARY.position,
+      counterpart: { exists: true },
+    });
+  });
+
+  it.each(["events", "raw"])(
+    "%s draws the header without asking Caseworking for the case link",
+    async (tab) => {
       findEventsUseCase.mockResolvedValue({
         events: [],
         pagination: { hasNextPage: false },
         sourceErrors: [],
       });
+      findApplicationDocument.mockResolvedValue({
+        document: { ...REF },
+        storedBytes: 100,
+      });
 
       expect((await view(tab)).header).toMatchObject({
         ...REF,
         position: SUMMARY.position,
-        counterpart: { exists: true },
+        counterpart: null,
       });
-    }
-  });
+      expect(findCwCaseExistence).not.toHaveBeenCalled();
+    },
+  );
 
   it("events: GAS and Caseworking rows for the ref, audit rows left out, through one Caseworking read", async () => {
     const caseworking = Promise.resolve({});

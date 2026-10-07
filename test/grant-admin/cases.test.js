@@ -43,15 +43,35 @@ const aCaseRow = (caseRef, overrides = {}) => ({
   closed: true,
   closedAt: "2026-06-18T10:00:00.000Z",
   createdAt: "2026-06-16T10:00:00.000Z",
+  replaced: false,
   ...overrides,
 });
+
+const SERIES = {
+  latestRef: "ref-1",
+  refs: ["ref-0", "ref-1"],
+  members: [
+    {
+      caseRef: "ref-0",
+      position: POSITION,
+      createdAt: "2026-06-15T10:00:00.000Z",
+      closedAt: "2026-06-15T12:00:00.000Z",
+    },
+    {
+      caseRef: "ref-1",
+      position: POSITION,
+      createdAt: "2026-06-16T10:00:00.000Z",
+      closedAt: "2026-06-18T10:00:00.000Z",
+    },
+  ],
+};
 
 const aCaseRead = (caseRef) => ({
   case: {
     ...aCaseRow(caseRef),
     originalConfigVersion: "1.0.0",
     currentConfigVersion: "1.1.0",
-    series: { latestRef: caseRef, refs: [caseRef] },
+    series: SERIES,
   },
   storedBytes: 4096,
   document: {
@@ -106,11 +126,14 @@ const statusOf = (promise) =>
   );
 
 describe("POST /grant-admin/cases/search", () => {
-  it("answers Caseworking's page of cases, with closed-at, the total and the workflow codes", async () => {
+  it("answers Caseworking's page of cases, with closed-at, replaced, the total and the workflow codes", async () => {
     await setCwStub({
       cases: {
         search: {
-          cases: [aCaseRow("ref-2"), aCaseRow("ref-1", { closedAt: null })],
+          cases: [
+            aCaseRow("ref-2"),
+            aCaseRow("ref-1", { closedAt: null, replaced: true }),
+          ],
           pagination: { endCursor: "next", hasNextPage: true },
           total: { count: 2, capped: false },
           workflowCodes: [WORKFLOW, "woodland"],
@@ -124,8 +147,26 @@ describe("POST /grant-admin/cases/search", () => {
     expect(searchCasesResponseSchema.validate(page).error).toBeUndefined();
     expect(page.rows.map((row) => row.ref.caseRef)).toEqual(["ref-2", "ref-1"]);
     expect(page.rows[0].closedAt).toBe("2026-06-18T10:00:00.000Z");
+    expect(page.rows.map((row) => row.replaced)).toEqual([false, true]);
     expect(page.total).toEqual({ count: 2, capped: false });
     expect(page.workflowCodes).toEqual([WORKFLOW, "woodland"]);
+  });
+
+  it("answers a row from a Caseworking that predates replaced without it", async () => {
+    const { replaced: _replaced, ...oldRow } = aCaseRow("ref-1");
+    await setCwStub({
+      cases: {
+        search: {
+          cases: [oldRow],
+          pagination: { endCursor: null, hasNextPage: false },
+        },
+      },
+    });
+
+    const { payload: page } = await search({});
+
+    expect(searchCasesResponseSchema.validate(page).error).toBeUndefined();
+    expect(page.rows[0]).not.toHaveProperty("replaced");
   });
 
   it("sends Caseworking the query in the body, with the operator and the repeat flag", async () => {
@@ -202,7 +243,7 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
     });
   });
 
-  it("overview: Caseworking's facts, with the application link from GAS", async () => {
+  it("overview: Caseworking's facts and series members, with the application link from GAS", async () => {
     await applications.insertOne(anApplication("ref-1"));
 
     const { payload: page, res } = await getTab("overview");
@@ -224,9 +265,31 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
       createdAt: "2026-06-16T10:00:00.000Z",
       closed: true,
       closedAt: "2026-06-18T10:00:00.000Z",
-      series: { latestRef: "ref-1", refs: ["ref-1"] },
+      series: SERIES,
       storedBytes: 4096,
     });
+  });
+
+  it.each([
+    [
+      "a series with no members, from a Caseworking that predates them",
+      { latestRef: "ref-1", refs: ["ref-1"] },
+      { latestRef: "ref-1", refs: ["ref-1"] },
+    ],
+    [
+      "a series with a field GAS does not know, mapped away",
+      { ...SERIES, anything: true },
+      SERIES,
+    ],
+  ])("overview: answers %s", async (_name, sent, answered) => {
+    const read = aCaseRead("ref-1");
+    read.case.series = sent;
+    await setCwStub({ cases: { records: { [`${WORKFLOW}/ref-1`]: read } } });
+
+    const { payload: page } = await getTab("overview");
+
+    expect(casePageSchemas.overview.validate(page).error).toBeUndefined();
+    expect(page.overview.series).toEqual(answered);
   });
 
   it.each([
@@ -340,8 +403,8 @@ describe("the case link on application pages", () => {
     await applications.insertOne(anApplication("ref-1"));
   });
 
-  const appTab = () =>
-    wreck.get(`/grant-admin/grants/${WORKFLOW}/applications/ref-1/overview`, {
+  const appTab = (tab = "overview") =>
+    wreck.get(`/grant-admin/grants/${WORKFLOW}/applications/ref-1/${tab}`, {
       headers: OPERATOR,
       timeout: CLIENT_TIMEOUT_MS,
     });
@@ -365,7 +428,7 @@ describe("the case link on application pages", () => {
   });
 
   it(
-    "answers 200 with the link unknown and a CW error when Caseworking times out",
+    "answers 200 with the link unknown, and no source error, when Caseworking times out",
     SLOW,
     async () => {
       await setCwStub({ cases: { mode: "timeout" } });
@@ -373,8 +436,18 @@ describe("the case link on application pages", () => {
       const { payload: page } = await appTab();
 
       expect(page.header.counterpart).toBeNull();
-      expect(page.sourceErrors).toEqual([{ hop: "CW-BE Cases" }]);
+      expect(page.sourceErrors).toEqual([]);
       expect(page.overview).not.toBeNull();
+    },
+  );
+
+  it.each(["events", "raw"])(
+    "never asks Caseworking about the case on the %s tab",
+    async (tab) => {
+      const { payload: page } = await appTab(tab);
+
+      expect(page.header.counterpart).toBeNull();
+      expect(await caseRequests()).toEqual([]);
     },
   );
 });
