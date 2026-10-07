@@ -12,16 +12,14 @@ import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-a
 import { handleUpdateAgreementStatusCommandUseCase } from "./use-cases/handle-update-agreement-status-command.use-case.js";
 
 describe("agreements", () => {
-  const originalMigrationConfig = { ...config.woodlandMigration };
   const originalLegacyCodes = config.legacyAgreementGrantCodes;
 
   beforeEach(() => {
-    config.legacyAgreementGrantCodes = ["woodland"];
+    config.legacyAgreementGrantCodes = ["legacy-test-code"];
   });
 
   afterEach(() => {
     clearInternalCommandHandlers();
-    Object.assign(config.woodlandMigration, originalMigrationConfig);
     config.legacyAgreementGrantCodes = originalLegacyCodes;
     vi.resetAllMocks();
   });
@@ -59,39 +57,25 @@ describe("agreements", () => {
       method: "get",
       path: "/agreements/render",
     });
-    expect(routes).not.toContainEqual({
-      method: "post",
-      path: "/admin/migrations/woodland/dry-run",
-    });
-    expect(routes).not.toContainEqual({
-      method: "post",
-      path: "/admin/migrations/woodland/apply",
-    });
+    expect(
+      routes.filter(({ path }) => path.startsWith("/admin/migrations/woodland")),
+    ).toEqual([]);
   });
 
-  it("registers the temporary Woodland dry-run route when configured", async () => {
-    Object.assign(config.woodlandMigration, {
-      sourceUrl: "https://agreements.example.test",
-      token: "migration-token",
-      configVersion: "1.0.0",
-    });
-    const server = hapi.server();
+  it.each(["dry-run", "apply", "catch-up"])(
+    "does not expose the former Woodland %s migration endpoint",
+    async (operation) => {
+      const server = hapi.server();
+      await server.register(agreements);
 
-    await server.register(agreements);
+      const response = await server.inject({
+        method: "POST",
+        url: `/admin/migrations/woodland/${operation}`,
+      });
 
-    expect(server.table()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          method: "post",
-          path: "/admin/migrations/woodland/dry-run",
-        }),
-        expect.objectContaining({
-          method: "post",
-          path: "/admin/migrations/woodland/apply",
-        }),
-      ]),
-    );
-  });
+      expect(response.statusCode).toBe(404);
+    },
+  );
 
   it("registers the internal handler for agreement.create commands", async () => {
     const server = hapi.server();
@@ -136,11 +120,25 @@ describe("agreements", () => {
 
       await expect(
         canHandleInternalCommand(type, {
-          data: { code: "woodland", currentConfigVersion: "1.0.0" },
+          data: { code: "legacy-test-code", currentConfigVersion: "1.0.0" },
         }),
       ).resolves.toBe(false);
     },
   );
+
+  it.each([
+    internalCommandTypes.AGREEMENT_CREATE,
+    internalCommandTypes.AGREEMENT_STATUS_UPDATE,
+  ])("handles Woodland %s commands internally", async (type) => {
+    const server = hapi.server();
+    await server.register(agreements);
+
+    await expect(
+      canHandleInternalCommand(type, {
+        data: { code: "woodland", currentConfigVersion: "1.0.0" },
+      }),
+    ).resolves.toBe(true);
+  });
 
   it("treats an explicitly empty legacy list as GAS owning every grant", async () => {
     config.legacyAgreementGrantCodes = [];
