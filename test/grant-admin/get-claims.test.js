@@ -237,6 +237,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
           },
         },
         claim: expect.objectContaining({ claimableAt: [position] }),
+        canEdit: true,
       },
     ]);
   });

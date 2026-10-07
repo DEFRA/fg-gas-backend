@@ -498,6 +498,31 @@ describe("EntitlementTemplate", () => {
     });
   });
 
+  describe("hasValidInputData", () => {
+    it("accepts every input field with a valid value, wherever the application stands", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(
+        template.hasValidInputData({ totalHectares: { value: 12.5 } }),
+      ).toBe(true);
+    });
+
+    it("refuses a missing, unexpected or invalid field", () => {
+      const template = new EntitlementTemplate(validProps);
+
+      expect(template.hasValidInputData({})).toBe(false);
+      expect(
+        template.hasValidInputData({
+          totalHectares: { value: 12.5 },
+          actionCode: { value: "PA4" },
+        }),
+      ).toBe(false);
+      expect(
+        template.hasValidInputData({ totalHectares: { value: 0.1 } }),
+      ).toBe(false);
+    });
+  });
+
   describe("assessEntitlementCreation", () => {
     const submittedData = { totalHectares: { value: 10 } };
 

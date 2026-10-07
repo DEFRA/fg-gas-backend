@@ -151,4 +151,15 @@ describe("ClaimableEntitlement", () => {
     expect(claimable.hasRemainingCapacity(1)).toBe(true);
     expect(claimable.hasRemainingCapacity(2)).toBe(false);
   });
+
+  it("can be changed only until a claim is made against it", () => {
+    const claimable = ClaimableEntitlement.fromMaterialised({
+      template,
+      code: "woodland",
+      clientRef: "wmp-123",
+    });
+
+    expect(claimable.canBeChanged(0)).toBe(true);
+    expect(claimable.canBeChanged(1)).toBe(false);
+  });
 });

@@ -114,6 +114,10 @@ export class EntitlementTemplate {
     );
   }
 
+  hasValidInputData(submittedData) {
+    return this.#submittedDataMatches(submittedData);
+  }
+
   #submittedDataMatches(submittedData) {
     const expected = this.inputFieldNames();
     const submitted = Object.keys(submittedData ?? {});

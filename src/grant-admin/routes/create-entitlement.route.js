@@ -3,10 +3,15 @@ import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
 import { createEntitlement } from "../../grants/services/entitlement.service.js";
+import { actorHeaderSchema } from "../schemas/actor-header.schema.js";
 import { code as grantCode } from "../schemas/code.js";
 import { createEntitlementRequestSchema } from "../schemas/create-entitlement-request.schema.js";
+import { decodeActor } from "../services/actor-header.js";
 
 const HTTP_STATUS_CREATED = 201;
+
+// Encoded by the caller when the name has characters a header cannot carry.
+const readActor = (request) => decodeActor(request.headers["x-actor"]) ?? null;
 
 export const createEntitlementRoute = {
   method: "POST",
@@ -20,6 +25,7 @@ export const createEntitlementRoute = {
         clientRef: applicationClientRef,
       }),
       payload: createEntitlementRequestSchema,
+      headers: actorHeaderSchema,
     },
   },
   async handler(request, h) {
@@ -41,6 +47,7 @@ export const createEntitlementRoute = {
       clientRef,
       claimCode: payload.claimCode,
       data: payload.data,
+      actor: readActor(request),
     });
 
     return h.response(entitlement).code(HTTP_STATUS_CREATED);

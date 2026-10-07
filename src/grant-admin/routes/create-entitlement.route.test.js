@@ -73,8 +73,24 @@ describe("createEntitlementRoute", () => {
       clientRef,
       claimCode,
       data: payload.data,
+      actor: null,
     });
     expect(result.result).toEqual(entitlement);
+  });
+
+  it("passes on the person who asked, decoding a name a header cannot carry", async () => {
+    createEntitlement.mockResolvedValue(entitlement);
+
+    await server.inject({
+      method: "POST",
+      url,
+      payload,
+      headers: { "x-actor": "UTF-8''%C5%81ukasz%20Nowak" },
+    });
+
+    expect(createEntitlement).toHaveBeenCalledWith(
+      expect.objectContaining({ actor: "Łukasz Nowak" }),
+    );
   });
 
   it("refuses a payload carrying a field the request does not define", async () => {

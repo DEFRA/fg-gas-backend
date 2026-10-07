@@ -4,6 +4,7 @@ import { editPayloadRoute } from "./routes/edit-payload.route.js";
 import { eventsPageRoute } from "./routes/events-page.route.js";
 import { getClaimRoute } from "./routes/get-claim.route.js";
 import { getClaimsRoute } from "./routes/get-claims.route.js";
+import { getEntitlementRoute } from "./routes/get-entitlement.route.js";
 import { getEventRoute } from "./routes/get-event.route.js";
 import { purgeEventRoute } from "./routes/purge-event.route.js";
 import { viewApplicationEventsRoute } from "./routes/view-application-events.route.js";
@@ -15,6 +16,7 @@ import { searchCasesRoute } from "./routes/search-cases.route.js";
 import { viewCaseEventsRoute } from "./routes/view-case-events.route.js";
 import { viewCaseOverviewRoute } from "./routes/view-case-overview.route.js";
 import { viewCaseRawRoute } from "./routes/view-case-raw.route.js";
+import { updateEntitlementRoute } from "./routes/update-entitlement.route.js";
 import { setAuditActor } from "./set-audit-actor.js";
 
 export const grantAdmin = {
@@ -27,7 +29,9 @@ export const grantAdmin = {
     server.route([
       getClaimsRoute,
       getClaimRoute,
+      getEntitlementRoute,
       createEntitlementRoute,
+      updateEntitlementRoute,
       eventsPageRoute,
       getEventRoute,
       redriveEventRoute,

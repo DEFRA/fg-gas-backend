@@ -5,9 +5,11 @@ import { buildAuditEvent } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { Entitlement } from "../models/entitlement.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
+import { countByEntitlement } from "../repositories/claim.repository.js";
 import {
   findExistingEntitlements,
   insertEntitlement,
+  updateEntitlementData,
 } from "../repositories/entitlement.repository.js";
 import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import {
@@ -18,12 +20,18 @@ import {
   createEntitlement,
   getEntitlementCreationDetails,
   getEntitlementOverview,
+  getEntitlementTemplateDetails,
+  updateEntitlement,
 } from "./entitlement.service.js";
 
 vi.mock("../../agreements/use-cases/load-entitlement-reference-context.js");
 vi.mock("../../common/with-transaction.js");
-vi.mock("../models/entitlement.js");
+vi.mock("../models/entitlement.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  Entitlement: { create: vi.fn(), fromDocument: vi.fn() },
+}));
 vi.mock("../repositories/application.repository.js");
+vi.mock("../repositories/claim.repository.js");
 vi.mock("../repositories/entitlement.repository.js");
 vi.mock("../use-cases/find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../use-cases/resolve-current-grant.use-case.js");
@@ -72,6 +80,7 @@ const template = {
   isAvailableAt: vi.fn(() => true),
   inputFieldNames: vi.fn(() => ["hectares"]),
   invalidInputFieldNames: vi.fn(() => []),
+  hasValidInputData: vi.fn(() => true),
   assessEntitlementCreation: vi.fn(() => ({
     allowed: true,
     nextInstanceNumber: 1,
@@ -112,6 +121,8 @@ describe("EntitlementService", () => {
     template.isAvailableAt.mockReturnValue(true);
     template.inputFieldNames.mockReturnValue(["hectares"]);
     template.invalidInputFieldNames.mockReturnValue([]);
+    template.hasValidInputData.mockReturnValue(true);
+    countByEntitlement.mockResolvedValue(0);
   });
 
   it("returns a plain overview DTO", async () => {
@@ -308,6 +319,59 @@ describe("EntitlementService", () => {
     });
   });
 
+  it("returns the template an existing entitlement was made under", async () => {
+    findExistingEntitlements.mockResolvedValue([
+      { id: "entitlement-1", claimCode: command.claimCode },
+    ]);
+    template.isAvailableAt.mockReturnValue(false);
+
+    await expect(
+      getEntitlementTemplateDetails({
+        code: command.code,
+        clientRef: command.clientRef,
+        entitlementId: "entitlement-1",
+      }),
+    ).resolves.toMatchObject({
+      claimCode: command.claimCode,
+      fields: template.fields,
+      createdCount: 1,
+    });
+  });
+
+  it("returns not found for an entitlement the application does not have", async () => {
+    await expect(
+      getEntitlementTemplateDetails({
+        code: command.code,
+        clientRef: command.clientRef,
+        entitlementId: "entitlement-unknown",
+      }),
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 404,
+        payload: { errorCode: "ENTITLEMENT_NOT_FOUND" },
+      },
+    });
+  });
+
+  it("refuses with INVALID_CLAIM_CODE when the grant no longer has the entitlement's template", async () => {
+    findExistingEntitlements.mockResolvedValue([
+      { id: "entitlement-1", claimCode: "RETIRED" },
+    ]);
+
+    await expect(
+      getEntitlementTemplateDetails({
+        code: command.code,
+        clientRef: command.clientRef,
+        entitlementId: "entitlement-1",
+      }),
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 422,
+        payload: { errorCode: "INVALID_CLAIM_CODE" },
+      },
+    });
+  });
+
   it("creates under the application lock and audits the inserted entitlement", async () => {
     const result = await createEntitlement(command);
 
@@ -333,9 +397,28 @@ describe("EntitlementService", () => {
         entity: "ENTITLEMENT",
         action: "CREATE",
         entityid: "entitlement-1",
+        details: {
+          code: "GAS",
+          clientRef: "client-1",
+          claimCode: "TREE",
+          name: "Tree planting",
+          actor: null,
+          values: [{ field: "hectares", to: 3 }],
+        },
       }),
     );
     expect(result).toMatchObject({ id: "entitlement-1" });
+  });
+
+  it("names the person who created the entitlement in its audit event", async () => {
+    await createEntitlement({ ...command, actor: "Ada Lovelace" });
+
+    expect(buildAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "CREATE",
+        details: expect.objectContaining({ actor: "Ada Lovelace" }),
+      }),
+    );
   });
 
   it("retries the entire transaction when a competing slot wins", async () => {
@@ -448,6 +531,179 @@ describe("EntitlementService", () => {
         statusCode: 404,
         payload: { errorCode: "APPLICATION_NOT_FOUND" },
       },
+    });
+  });
+
+  describe("updateEntitlement", () => {
+    const stored = {
+      id: "entitlement-1",
+      clientRef: command.clientRef,
+      code: command.code,
+      claimCode: command.claimCode,
+      instanceNumber: 1,
+      configVersion: "1.0.0",
+      data: { hectares: 30000, fixed: "yes" },
+      createdAt: "2026-09-02T00:00:00.000Z",
+    };
+
+    const update = {
+      code: command.code,
+      clientRef: command.clientRef,
+      entitlementId: "entitlement-1",
+      data: { hectares: { value: 45000 } },
+    };
+
+    beforeEach(async () => {
+      const actual = await vi.importActual("../models/entitlement.js");
+
+      findExistingEntitlements.mockResolvedValue([stored]);
+      Entitlement.fromDocument.mockImplementation(
+        actual.Entitlement.fromDocument,
+      );
+    });
+
+    it("changes the input fields and keeps the fixed ones", async () => {
+      const result = await updateEntitlement(update);
+
+      expect(updateEntitlementData).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "entitlement-1",
+          data: { hectares: 45000, fixed: "yes" },
+          updatedAt: expect.any(String),
+        }),
+        "session",
+      );
+      expect(result).toEqual({
+        id: "entitlement-1",
+        clientRef: command.clientRef,
+        code: command.code,
+        claimCode: command.claimCode,
+        instanceNumber: 1,
+        configVersion: "1.0.0",
+        data: { hectares: 45000, fixed: "yes" },
+        createdAt: "2026-09-02T00:00:00.000Z",
+        updatedAt: expect.any(String),
+      });
+    });
+
+    it("updates under the application lock, wherever the application stands", async () => {
+      template.isAvailableAt.mockReturnValue(false);
+
+      await updateEntitlement(update);
+
+      expect(lockForUpdate).toHaveBeenCalledWith(
+        { clientRef: "client-1", code: "GAS" },
+        "session",
+      );
+      expect(countByEntitlement).toHaveBeenCalledWith(
+        { code: "GAS", clientRef: "client-1", entitlementId: "entitlement-1" },
+        "session",
+      );
+    });
+
+    it("audits the update, naming the person who made it", async () => {
+      await updateEntitlement({ ...update, actor: "Ada Lovelace" });
+
+      expect(buildAuditEvent).toHaveBeenCalledWith({
+        entity: "ENTITLEMENT",
+        action: "UPDATE",
+        entityid: "entitlement-1",
+        details: {
+          code: "GAS",
+          clientRef: "client-1",
+          claimCode: "TREE",
+          name: "Tree planting",
+          actor: "Ada Lovelace",
+          values: [{ field: "hectares", from: 30000, to: 45000 }],
+        },
+      });
+    });
+
+    it("refuses once a claim has been made against the entitlement", async () => {
+      countByEntitlement.mockResolvedValue(1);
+
+      await expect(updateEntitlement(update)).rejects.toMatchObject({
+        output: {
+          statusCode: 409,
+          payload: {
+            errorCode: "ENTITLEMENT_CLAIMED",
+            message:
+              "Tree planting has a claim against it and cannot be changed.",
+          },
+        },
+      });
+      expect(updateEntitlementData).not.toHaveBeenCalled();
+    });
+
+    it("refuses data that does not match the template", async () => {
+      template.hasValidInputData.mockReturnValue(false);
+      template.invalidInputFieldNames.mockReturnValue(["hectares"]);
+
+      await expect(updateEntitlement(update)).rejects.toMatchObject({
+        output: {
+          statusCode: 422,
+          payload: { errorCode: "INVALID_ENTITLEMENT_DATA" },
+        },
+      });
+      expect(updateEntitlementData).not.toHaveBeenCalled();
+    });
+
+    it("refuses when the grant no longer has the entitlement's template", async () => {
+      grant.findEntitlementTemplate.mockReturnValueOnce(undefined);
+
+      await expect(updateEntitlement(update)).rejects.toMatchObject({
+        output: {
+          statusCode: 422,
+          payload: { errorCode: "INVALID_CLAIM_CODE" },
+        },
+      });
+      expect(updateEntitlementData).not.toHaveBeenCalled();
+    });
+
+    it("passes on a failure that is not about the data", async () => {
+      grant.findEntitlementTemplate.mockReturnValueOnce({
+        ...template,
+        claimCode: "ANOTHER",
+      });
+
+      await expect(updateEntitlement(update)).rejects.toThrow(
+        /is not the template of entitlement/,
+      );
+      expect(updateEntitlementData).not.toHaveBeenCalled();
+    });
+
+    it("audits nothing when the write fails", async () => {
+      updateEntitlementData.mockRejectedValueOnce(new Error("write failed"));
+
+      await expect(updateEntitlement(update)).rejects.toThrow("write failed");
+      expect(buildAuditEvent).not.toHaveBeenCalledWith(
+        expect.objectContaining({ action: "UPDATE" }),
+      );
+    });
+
+    it("returns not found for an entitlement the application does not have", async () => {
+      await expect(
+        updateEntitlement({ ...update, entitlementId: "entitlement-unknown" }),
+      ).rejects.toMatchObject({
+        output: {
+          statusCode: 404,
+          payload: { errorCode: "ENTITLEMENT_NOT_FOUND" },
+        },
+      });
+    });
+
+    it("refuses when the grant configuration changed before the lock", async () => {
+      lockForUpdate.mockResolvedValue({
+        ...application,
+        currentConfigVersion: "2.0.0",
+      });
+
+      await expect(updateEntitlement(update)).rejects.toMatchObject({
+        output: {
+          statusCode: 409,
+          payload: { errorCode: "CONFIGURATION_CHANGED" },
+        },
+      });
     });
   });
 });

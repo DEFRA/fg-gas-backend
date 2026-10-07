@@ -23,6 +23,7 @@ describe("grant-admin", () => {
       "get /grant-admin/events/page",
       "get /grant-admin/events/{service}/{box}/{id}",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims",
+      "get /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims/{claimCode}",
       "get /grant-admin/grants/{code}/applications/{clientRef}/events",
       "get /grant-admin/grants/{code}/applications/{clientRef}/overview",
@@ -36,6 +37,7 @@ describe("grant-admin", () => {
       "post /grant-admin/events/{service}/{box}/{id}/purge",
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
       "post /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
+      "put /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
     ]);
   });
 

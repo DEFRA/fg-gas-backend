@@ -11,7 +11,7 @@ const unscaleDecimalAsText = (value, decimalPlaces) => {
   return Number(`${sign}${digits.slice(0, point)}.${digits.slice(point)}`);
 };
 
-const unscaled = (value, decimalPlaces) =>
+export const unscaled = (value, decimalPlaces) =>
   typeof value === "number"
     ? unscaleDecimalAsText(value, decimalPlaces)
     : value;

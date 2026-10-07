@@ -1,7 +1,11 @@
 import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
-import { collection, insertEntitlement } from "./entitlement.repository.js";
+import {
+  collection,
+  insertEntitlement,
+  updateEntitlementData,
+} from "./entitlement.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -81,6 +85,38 @@ describe("insertEntitlement", () => {
 
     await expect(insertEntitlement(entitlement)).rejects.toThrow(
       "connection lost",
+    );
+  });
+});
+
+describe("updateEntitlementData", () => {
+  it("sets the data and updatedAt on the application's entitlement, in the session", async () => {
+    const updateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 });
+    db.collection.mockReturnValue({ updateOne });
+
+    await updateEntitlementData(
+      {
+        ...entitlement,
+        data: { totalHectares: 300000 },
+        updatedAt: "2026-10-06T10:00:00.000Z",
+      },
+      "session",
+    );
+
+    expect(db.collection).toHaveBeenCalledWith(collection);
+    expect(updateOne).toHaveBeenCalledWith(
+      {
+        id: entitlement.id,
+        clientRef: entitlement.clientRef,
+        code: entitlement.code,
+      },
+      {
+        $set: {
+          data: { totalHectares: 300000 },
+          updatedAt: "2026-10-06T10:00:00.000Z",
+        },
+      },
+      { session: "session" },
     );
   });
 });

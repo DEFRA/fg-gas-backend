@@ -51,3 +51,15 @@ export const findExistingEntitlements = async (clientRef, code, session) =>
     .collection(collection)
     .find({ clientRef, code }, { session, readPreference: "primary" })
     .toArray();
+
+export const updateEntitlementData = async (
+  { id, clientRef, code, data, updatedAt },
+  session,
+) =>
+  db
+    .collection(collection)
+    .updateOne(
+      { id, clientRef, code },
+      { $set: { data: structuredClone(data), updatedAt } },
+      { session },
+    );
