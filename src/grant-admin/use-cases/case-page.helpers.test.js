@@ -43,11 +43,9 @@ describe("readCaseHeader", () => {
       identifiers: IDENTIFIERS,
     });
 
-    const {
-      header: drawn,
-      accounts,
-      sourceErrors,
-    } = await header(Promise.resolve({ summary: SUMMARY, storedBytes: 10 }));
+    const { header: drawn, accounts } = await header(
+      Promise.resolve({ summary: SUMMARY, storedBytes: 10 }),
+    );
 
     expect(applicationExists).toHaveBeenCalledWith({
       clientRef: "ref-1",
@@ -63,7 +61,6 @@ describe("readCaseHeader", () => {
       fetchedAt: expect.any(String),
     });
     expect(accounts).toEqual(IDENTIFIERS);
-    expect(sourceErrors).toEqual([]);
   });
 
   it("draws an orphan case, with no accounts", async () => {
@@ -77,20 +74,14 @@ describe("readCaseHeader", () => {
     expect(accounts).toBeNull();
   });
 
-  it("leaves the application link unknown when GAS cannot read it", async () => {
+  it("leaves the application link unknown, with no source error, when GAS cannot read it", async () => {
     applicationExists.mockRejectedValue(new Error("mongo down"));
 
-    const {
-      header: drawn,
-      accounts,
-      sourceErrors,
-    } = await header(Promise.resolve({ summary: SUMMARY }));
+    const drawn = await header(Promise.resolve({ summary: SUMMARY }));
 
-    expect(drawn.counterpart).toBeNull();
-    expect(accounts).toBeUndefined();
-    expect(sourceErrors).toEqual([
-      { key: "gasApplications", service: "gas", label: "GAS Applications" },
-    ]);
+    expect(drawn.header.counterpart).toBeNull();
+    expect(drawn.accounts).toBeUndefined();
+    expect(drawn).not.toHaveProperty("sourceErrors");
   });
 
   it("fails with Caseworking's own failure", async () => {

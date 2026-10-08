@@ -24,9 +24,10 @@ describe("readApplicationHeader", () => {
     });
     findCwCaseExistence.mockResolvedValue({ exists: true });
 
-    const { header, accounts, sourceErrors } = await readApplicationHeader({
+    const { header, accounts } = await readApplicationHeader({
       clientRef: "ref-1",
       code: "woodland",
+      withCounterpart: true,
     });
 
     expect(findApplicationSummary).toHaveBeenCalledWith({
@@ -45,7 +46,18 @@ describe("readApplicationHeader", () => {
       caseRef: "ref-1",
     });
     expect(accounts).toEqual(SUMMARY.identifiers);
-    expect(sourceErrors).toEqual([]);
+  });
+
+  it("leaves the case link out, without asking Caseworking, when the tab does not show it", async () => {
+    findApplicationSummary.mockResolvedValue({ summary: SUMMARY });
+
+    const { header } = await readApplicationHeader({
+      clientRef: "ref-1",
+      code: "woodland",
+    });
+
+    expect(header.counterpart).toBeNull();
+    expect(findCwCaseExistence).not.toHaveBeenCalled();
   });
 
   it("answers 404 APPLICATION_NOT_FOUND, naming no ref, for an unknown application", async () => {
@@ -67,29 +79,28 @@ describe("readApplicationHeader", () => {
     findApplicationSummary.mockResolvedValue({ summary: SUMMARY });
     findCwCaseExistence.mockResolvedValue({ exists: false });
 
-    const { header, sourceErrors } = await readApplicationHeader({
+    const { header } = await readApplicationHeader({
       clientRef: "ref-1",
       code: "woodland",
+      withCounterpart: true,
     });
 
     expect(header.counterpart).toEqual({ exists: false });
-    expect(sourceErrors).toEqual([]);
   });
 
-  it("leaves the case link unknown, naming Caseworking's cases, when it cannot answer", async () => {
+  it("leaves the case link unknown, and the page without a source error, when Caseworking cannot answer", async () => {
     findApplicationSummary.mockResolvedValue({ summary: SUMMARY });
     findCwCaseExistence.mockRejectedValue(
       Boom.gatewayTimeout("CW-BE cases did not answer in time"),
     );
 
-    const { header, sourceErrors } = await readApplicationHeader({
+    const drawn = await readApplicationHeader({
       clientRef: "ref-1",
       code: "woodland",
+      withCounterpart: true,
     });
 
-    expect(header.counterpart).toBeNull();
-    expect(sourceErrors).toEqual([
-      { key: "cwCases", service: "caseworking", label: "CW-BE Cases" },
-    ]);
+    expect(drawn.header.counterpart).toBeNull();
+    expect(drawn).not.toHaveProperty("sourceErrors");
   });
 });

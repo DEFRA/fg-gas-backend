@@ -24,6 +24,9 @@ const caseRowSchema = Joi.object({
   closed: Joi.boolean().allow(null).required(),
   closedAt: nullableIso,
   createdAt: nullableIso,
+  // A later case in the same workflow's series replaced this one. Absent
+  // from a Caseworking that predates it.
+  replaced: Joi.boolean().optional(),
 }).label("CaseRow");
 
 export const searchCasesResponseSchema = Joi.object({

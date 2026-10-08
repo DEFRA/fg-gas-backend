@@ -72,7 +72,11 @@ const readRaw = async ({ clientRef, code }) => {
 };
 
 const APPLICATION_TABS = {
-  overview: { readTab: readOverview, empty: { overview: null } },
+  overview: {
+    readTab: readOverview,
+    empty: { overview: null },
+    withCounterpart: true,
+  },
   events: { readTab: readEvents, empty: { events: null } },
   raw: {
     readTab: readRaw,
@@ -94,12 +98,15 @@ export const buildViewApplicationAudit = (
     segregationRef: "admin-view-application",
   });
 
-const viewApplicationPage = (args) =>
-  composeRecordPage({
+const viewApplicationPage = (args) => {
+  const tab = APPLICATION_TABS[args.tab];
+
+  return composeRecordPage({
     readHeader: readApplicationHeader,
-    tab: APPLICATION_TABS[args.tab],
-    args,
+    tab,
+    args: { ...args, withCounterpart: tab.withCounterpart === true },
   });
+};
 
 const auditedViewApplicationPage = auditedRead(
   viewApplicationPage,

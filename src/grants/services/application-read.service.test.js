@@ -4,6 +4,7 @@ import { findSeriesByClientRefs } from "../repositories/application-series.repos
 import {
   countApplicationRows,
   findApplicationIdentifiers,
+  findApplicationRowsByClientRefs,
   findApplicationRowsInSeries,
   findApplicationRowsPage,
   findApplicationSummaryRow,
@@ -193,13 +194,64 @@ describe("findApplicationSummary and findApplicationDocument", () => {
 });
 
 describe("findApplicationSeries, applicationExists and listGrantCodes", () => {
-  it("answers the application's own series under its grant", async () => {
-    findSeriesByClientRefs.mockResolvedValue([aSeries("woodland", ["a", "b"])]);
+  it("answers the application's own series under its grant, its members oldest first", async () => {
+    findSeriesByClientRefs.mockResolvedValue([
+      aSeries("woodland", ["a", "b", "c"]),
+    ]);
+    findApplicationRowsByClientRefs.mockResolvedValue([
+      aRow("c"),
+      aRow("a"),
+      aRow("b"),
+    ]);
 
     expect(
       await findApplicationSeries({ clientRef: "a", code: "woodland" }),
-    ).toEqual({ latestRef: "b", refs: ["a", "b"] });
+    ).toEqual({
+      latestRef: "c",
+      refs: ["a", "b", "c"],
+      members: ["a", "b", "c"].map((clientRef) => ({
+        clientRef,
+        position: POSITION,
+        createdAt: "2026-06-16T10:00:00.000Z",
+      })),
+    });
     expect(findSeriesByClientRefs).toHaveBeenCalledWith(["a"], "woodland");
+    expect(findApplicationRowsByClientRefs).toHaveBeenCalledWith({
+      clientRefs: ["a", "b", "c"],
+      code: "woodland",
+    });
+  });
+
+  it("keeps the slot of a member with no application, with no facts", async () => {
+    findSeriesByClientRefs.mockResolvedValue([aSeries("woodland", ["a", "b"])]);
+    findApplicationRowsByClientRefs.mockResolvedValue([aRow("b")]);
+
+    const { members } = await findApplicationSeries({
+      clientRef: "b",
+      code: "woodland",
+    });
+
+    expect(members).toEqual([
+      {
+        clientRef: "a",
+        position: { phase: null, stage: null, status: null },
+        createdAt: null,
+      },
+      {
+        clientRef: "b",
+        position: POSITION,
+        createdAt: "2026-06-16T10:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("lists no members for a series of one, without reading them", async () => {
+    findSeriesByClientRefs.mockResolvedValue([aSeries("woodland", ["a"])]);
+
+    expect(
+      await findApplicationSeries({ clientRef: "a", code: "woodland" }),
+    ).toEqual({ latestRef: "a", refs: ["a"], members: [] });
+    expect(findApplicationRowsByClientRefs).not.toHaveBeenCalled();
   });
 
   it("answers null where the application has no series", async () => {

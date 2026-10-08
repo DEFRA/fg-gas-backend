@@ -19,6 +19,7 @@ import { ApplicationSeries } from "../models/application-series.js";
 import {
   countApplicationRows,
   findApplicationIdentifiers,
+  findApplicationRowsByClientRefs,
   findApplicationRowsInSeries,
   findApplicationRowsPage,
   findApplicationSummaryRow,
@@ -588,6 +589,30 @@ describe("findApplicationRowsInSeries", () => {
     });
     expect(namesAnswers(options)).toBe(false);
     expect(rows).toEqual([ROW("ref-2")]);
+  });
+});
+
+describe("findApplicationRowsByClientRefs", () => {
+  it("reads the named applications of one grant by {clientRef, code}", async () => {
+    const toArray = vi
+      .fn()
+      .mockResolvedValue([aStoredRow("ref-2"), aStoredRow("ref-1")]);
+    const find = vi.fn().mockReturnValue({ toArray });
+    db.collection.mockReturnValue({ find });
+
+    const rows = await findApplicationRowsByClientRefs({
+      clientRefs: ["ref-1", "ref-2"],
+      code: "woodland",
+    });
+
+    const [filter, options] = find.mock.calls[0];
+    expect(filter).toEqual({
+      clientRef: { $in: ["ref-1", "ref-2"] },
+      code: "woodland",
+    });
+    expect(options.hint).toEqual({ clientRef: 1, code: 1 });
+    expect(namesAnswers(options)).toBe(false);
+    expect(rows).toEqual([ROW("ref-2"), ROW("ref-1")]);
   });
 });
 

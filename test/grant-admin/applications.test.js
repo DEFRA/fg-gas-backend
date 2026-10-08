@@ -336,8 +336,15 @@ describe("POST /grant-admin/applications/search", () => {
 });
 
 describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => {
-  it("overview: the trimmed facts, the series and the stored size", async () => {
-    await applications.insertOne(anApplication("ref-1"));
+  it("overview: the trimmed facts, the series with its members oldest first, and the stored size", async () => {
+    await applications.insertMany([
+      anApplication("ref-2", {
+        createdAt: minute(2),
+        currentStatus: "AWAITING_AMENDMENT",
+      }),
+      anApplication("ref-1"),
+      anApplication("ref-2", { code: "frps", createdAt: minute(3) }),
+    ]);
     await series.insertOne(aSeries("woodland", ["ref-1", "ref-2"]));
 
     const { payload: page, res } = await getTab("overview");
@@ -359,10 +366,66 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
       createdAt: minute(0),
       updatedAt: minute(5),
       identifiers: { sbi: "106284736", frn: "1102658375", crn: "1100014934" },
-      series: { latestRef: "ref-2", refs: ["ref-1", "ref-2"] },
+      series: {
+        latestRef: "ref-2",
+        refs: ["ref-1", "ref-2"],
+        members: [
+          {
+            clientRef: "ref-1",
+            position: {
+              phase: "PRE_AWARD",
+              stage: "REVIEW",
+              status: "RECEIVED",
+            },
+            createdAt: minute(0),
+          },
+          {
+            clientRef: "ref-2",
+            position: {
+              phase: "PRE_AWARD",
+              stage: "REVIEW",
+              status: "AWAITING_AMENDMENT",
+            },
+            createdAt: minute(2),
+          },
+        ],
+      },
     });
     expect(page.overview.storedBytes).toBeGreaterThan(0);
     expect(page.overview).not.toHaveProperty("metadata");
+  });
+
+  it("overview: a series member with no application keeps its slot, with no facts", async () => {
+    await applications.insertOne(anApplication("ref-2"));
+    await series.insertOne(aSeries("woodland", ["ref-1", "ref-2"]));
+
+    const { payload: page } = await getTab("overview", "ref-2");
+
+    expect(
+      applicationPageSchemas.overview.validate(page).error,
+    ).toBeUndefined();
+    expect(page.overview.series.members.map((m) => m.clientRef)).toEqual([
+      "ref-1",
+      "ref-2",
+    ]);
+    expect(page.overview.series.members[0]).toEqual({
+      clientRef: "ref-1",
+      position: { phase: null, stage: null, status: null },
+      createdAt: null,
+    });
+  });
+
+  it("overview: a series of one lists no members", async () => {
+    await applications.insertOne(anApplication("ref-1"));
+    await series.insertOne(aSeries("woodland", ["ref-1"]));
+
+    const { payload: page } = await getTab("overview");
+
+    expect(page.overview.series).toEqual({
+      latestRef: "ref-1",
+      refs: ["ref-1"],
+      members: [],
+    });
   });
 
   it("overview: reads a legacy document with only a config version and no submitted time", async () => {

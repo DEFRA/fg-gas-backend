@@ -20,6 +20,7 @@ const aCase = (caseRef) => ({
   closed: true,
   closedAt: "2026-06-17T10:00:00.000Z",
   createdAt: "2026-06-16T10:00:00.000Z",
+  replaced: false,
 });
 
 describe("searchCasesUseCase", () => {

@@ -32,6 +32,13 @@ const caseHeaderSchema = Joi.object({
   .required()
   .label("CaseHeader");
 
+const seriesMemberSchema = Joi.object({
+  caseRef: Joi.string().required(),
+  position: positionSchema,
+  createdAt: nullableIso,
+  closedAt: nullableIso,
+}).label("CaseSeriesMember");
+
 const overviewSchema = Joi.object({
   workflowCode: Joi.string().required(),
   originalConfigVersion: nullableString,
@@ -39,7 +46,10 @@ const overviewSchema = Joi.object({
   createdAt: nullableIso,
   closed: Joi.boolean().allow(null).required(),
   closedAt: nullableIso,
-  series: seriesSchema,
+  // Members are absent from a Caseworking that predates them.
+  series: seriesSchema(seriesMemberSchema, "CaseSeries", {
+    membersOptional: true,
+  }),
   storedBytes,
 })
   .allow(null)
