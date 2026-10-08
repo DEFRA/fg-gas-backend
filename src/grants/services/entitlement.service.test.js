@@ -154,6 +154,7 @@ describe("EntitlementService", () => {
       ],
       applicationContext: { answers: { hectares: 3 } },
       claimsPage: grant.pages.claims,
+      claimsRequiredRoles: null,
     });
   });
 

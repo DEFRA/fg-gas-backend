@@ -104,6 +104,7 @@ describe("getEntitlementRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
+      claimsRequiredRoles: null,
     });
     getEntitlementTemplateDetails.mockResolvedValue(template);
     listEntitlementsWithClaimCapacity.mockResolvedValue([
@@ -141,6 +142,7 @@ describe("getEntitlementRoute", () => {
       banner,
       availableEntitlements: [],
       claimableEntitlements: [{ ...claimableEntitlement, canEdit: true }],
+      claimsRequiredRoles: null,
       claims: [{ ...submittedClaim, paymentScheduled: true }],
       claimableEntitlement: { ...claimableEntitlement, canEdit: true },
       entitlementTemplate: answeredTemplate,
