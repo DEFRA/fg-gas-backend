@@ -21,7 +21,9 @@ const toReqs = (req) => ({ ...defaults, ...req });
  * present, and if `anyOf` is non-empty at least one must be.
  */
 export const satisfies = (heldRoles, requirements) => {
-  if (!hasRoles(heldRoles)) return false;
+  if (!hasRoles(heldRoles)) {
+    return false;
+  }
 
   const { allOf, anyOf } = toReqs(requirements);
   const held = new Set(heldRoles);
@@ -39,9 +41,15 @@ export const satisfies = (heldRoles, requirements) => {
  * - `hidden` when the user has no CW roles at all (unknown user or no roles).
  */
 export const resolveClaimsAccess = (heldRoles, claimsRequiredRoles) => {
-  if (!claimsRequiredRoles) return ACCESS_FULL;
-  if (!hasRoles(heldRoles)) return ACCESS_HIDDEN;
-  if (satisfies(heldRoles, claimsRequiredRoles)) return ACCESS_FULL;
+  if (!claimsRequiredRoles) {
+    return ACCESS_FULL;
+  }
+  if (!hasRoles(heldRoles)) {
+    return ACCESS_HIDDEN;
+  }
+  if (satisfies(heldRoles, claimsRequiredRoles)) {
+    return ACCESS_FULL;
+  }
 
   return ACCESS_VIEW_ONLY;
 };
