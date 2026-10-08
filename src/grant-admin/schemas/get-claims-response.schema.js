@@ -82,12 +82,18 @@ const submittedClaim = Joi.object({
   submittedAt: Joi.string().required(),
 }).label("SubmittedClaim");
 
+const requiredRolesSchema = Joi.object({
+  allOf: Joi.array().items(Joi.string()).required(),
+  anyOf: Joi.array().items(Joi.string()).required(),
+}).allow(null);
+
 // What every Claims-page read answers with. The submitted Claims belong to the
 // list page alone; the entitlement-creation view does not show them.
 export const applicationClaimsSchema = Joi.object({
   banner: banner.required(),
   availableEntitlements,
   claimableEntitlements: Joi.array().items(claimableEntitlement).required(),
+  claimsRequiredRoles: requiredRolesSchema.required(),
 });
 
 export const getClaimsResponseSchema = applicationClaimsSchema.keys({

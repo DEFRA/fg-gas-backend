@@ -1,13 +1,13 @@
 import Boom from "@hapi/boom";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
-import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { logger } from "../../common/logger.js";
 import {
   resolveRefs,
   UnresolvedReferenceError,
 } from "../../common/resolve-refs.js";
-import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { auditActions, auditEntities } from "../../events/audit-constants.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { EntitlementCreationRejection } from "../models/entitlement-template.js";
 import { Entitlement } from "../models/entitlement.js";
 import {
@@ -23,6 +23,7 @@ import {
   lockApplication,
   mapApplicationNotFound,
 } from "./entitlement-application.js";
+import { toCreatedValues } from "./entitlement-audit-values.js";
 import {
   entitlementNotFound,
   errorCodes,
@@ -30,7 +31,6 @@ import {
   invalidDataMessage,
   withErrorCode,
 } from "./entitlement-errors.js";
-import { toCreatedValues } from "./entitlement-audit-values.js";
 import { toEntitlementDto } from "./map-entitlement.js";
 
 export { updateEntitlement } from "./update-entitlement.js";
@@ -93,6 +93,7 @@ const overviewDto = ({ application, grant, offerable, existing }) => ({
   ),
   applicationContext: application.referenceContext(),
   claimsPage: structuredClone(grant.pages?.claims),
+  claimsRequiredRoles: grant.claims?.requiredRoles ?? null,
 });
 
 const availableCreationTemplate = ({
