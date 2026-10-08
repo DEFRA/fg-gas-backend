@@ -14,7 +14,6 @@ import {
   findExistingEntitlements,
   insertEntitlement,
 } from "../repositories/entitlement.repository.js";
-import { findApplicationByClientRefAndCodeUseCase } from "../use-cases/find-application-by-client-ref-and-code.use-case.js";
 import {
   pinnedVersionOf,
   resolveCurrentGrantUseCase,
@@ -70,10 +69,7 @@ const toCreationOption = (template, existing) => {
 };
 
 const resolveEntitlements = async ({ code, clientRef }) => {
-  const application = await findApplicationByClientRefAndCodeUseCase(
-    clientRef,
-    code,
-  );
+  const application = await mapApplicationNotFound({ code, clientRef });
   const { grant } = await resolveCurrentGrantUseCase(
     code,
     pinnedVersionOf(application),
