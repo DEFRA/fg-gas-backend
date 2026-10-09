@@ -9,7 +9,10 @@ import {
   it,
   vi,
 } from "vitest";
-import { createEntitlement } from "../../grants/services/entitlement.service.js";
+import {
+  createEntitlement,
+  getEntitlementOverview,
+} from "../../grants/services/entitlement.service.js";
 import { createEntitlementRoute } from "./create-entitlement.route.js";
 
 vi.mock("../../grants/services/entitlement.service.js");
@@ -56,6 +59,7 @@ describe("createEntitlementRoute", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    getEntitlementOverview.mockResolvedValue({ claimsRequiredRoles: null });
   });
 
   afterAll(async () => {

@@ -101,6 +101,7 @@ describe("getClaimsRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [template],
+      claimsRequiredRoles: null,
     });
     listEntitlementsWithClaimCapacity.mockResolvedValue([
       { ...claimableEntitlement, canEdit: true },
@@ -126,6 +127,7 @@ describe("getClaimsRoute", () => {
       banner,
       availableEntitlements: [template],
       claimableEntitlements: [{ ...claimableEntitlement, canEdit: true }],
+      claimsRequiredRoles: null,
       claims: [],
     });
   });
@@ -135,6 +137,7 @@ describe("getClaimsRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
+      claimsRequiredRoles: null,
     });
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
     listSubmittedClaims.mockResolvedValue([]);
@@ -150,6 +153,7 @@ describe("getClaimsRoute", () => {
       banner,
       availableEntitlements: [],
       claimableEntitlements: [],
+      claimsRequiredRoles: null,
       claims: [],
     });
   });
@@ -159,6 +163,7 @@ describe("getClaimsRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
+      claimsRequiredRoles: null,
     });
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
     listSubmittedClaims.mockResolvedValue([submittedClaim]);
@@ -184,6 +189,7 @@ describe("getClaimsRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
+      claimsRequiredRoles: null,
     });
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
     listSubmittedClaims.mockResolvedValue([

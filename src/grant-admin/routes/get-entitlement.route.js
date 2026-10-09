@@ -11,9 +11,15 @@ import {
   getEntitlementTemplateDetails,
 } from "../../grants/services/entitlement.service.js";
 import { listClaimPaymentsUseCase } from "../../payments/use-cases/list-claim-payments.use-case.js";
+import { claimsHeadersSchema } from "../schemas/actor-header.schema.js";
 import { code as grantCode } from "../schemas/code.js";
 import { getEntitlementResponseSchema } from "../schemas/get-entitlement-response.schema.js";
 import { buildEntitlementView } from "../services/build-claims-view.js";
+import {
+  assertNotHidden,
+  resolveClaimsAccess,
+  userRolesOf,
+} from "../services/claims-access.js";
 
 export const getEntitlementRoute = {
   method: "GET",
@@ -28,6 +34,7 @@ export const getEntitlementRoute = {
         clientRef: applicationClientRef,
         entitlementId: Joi.string().required(),
       }),
+      headers: claimsHeadersSchema,
     },
     response: {
       schema: getEntitlementResponseSchema,
@@ -54,6 +61,10 @@ export const getEntitlementRoute = {
       listSubmittedClaims({ code, clientRef }),
       listClaimPaymentsUseCase({ code, clientRef }),
     ]);
+
+    const heldRoles = userRolesOf(request);
+    const access = resolveClaimsAccess(heldRoles, overview.claimsRequiredRoles);
+    assertNotHidden(access);
 
     return buildEntitlementView({
       ...overview,

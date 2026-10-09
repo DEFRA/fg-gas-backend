@@ -9,7 +9,10 @@ import {
   it,
   vi,
 } from "vitest";
-import { updateEntitlement } from "../../grants/services/entitlement.service.js";
+import {
+  getEntitlementOverview,
+  updateEntitlement,
+} from "../../grants/services/entitlement.service.js";
 import { updateEntitlementRoute } from "./update-entitlement.route.js";
 
 vi.mock("../../grants/services/entitlement.service.js");
@@ -38,6 +41,7 @@ describe("updateEntitlementRoute", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    getEntitlementOverview.mockResolvedValue({ claimsRequiredRoles: null });
     updateEntitlement.mockResolvedValue({ id: "entitlement-1" });
   });
 

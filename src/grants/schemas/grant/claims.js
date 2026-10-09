@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { requiredRoles } from "./required-roles.js";
 
 // entitlement-template.js's templatePosition allows a phase-only or
 // phase+stage-only position, matching by prefix - right for "available
@@ -23,6 +24,7 @@ const onClaimApproval = Joi.object({
 
 export const claims = Joi.object({
   onClaimApproval: onClaimApproval.optional(),
+  requiredRoles: requiredRoles.optional(),
 })
   .unknown(false)
   .label("Claims");
