@@ -16,8 +16,6 @@ vi.mock("../../events/write-audit-event.js");
 vi.mock("../services/resolve-config-version.service.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/application-series.repository.js");
-vi.mock("../publishers/application-event.publisher.js");
-vi.mock("../publishers/case-event.publisher.js");
 vi.mock("../../common/with-transaction.js");
 
 describe("submitApplicationUseCase", () => {
