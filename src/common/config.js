@@ -122,9 +122,6 @@ const schema = Joi.object({
   CALLER_TOKEN_ENFORCE: Joi.boolean().optional(),
   // QA-only /api/test endpoints; must never be enabled in production.
   ENABLE_TEST_ENDPOINTS: Joi.boolean().optional(),
-  WOODLAND_MIGRATION_SOURCE_URL: Joi.string().uri().optional(),
-  WOODLAND_MIGRATION_TOKEN: Joi.string().allow("").optional(),
-  WOODLAND_MIGRATION_CONFIG_VERSION: Joi.string().trim().allow("").optional(),
   // `client:sha256hex`, validated by seed-access-token.js so a bad value warns, not stops boot.
   SERVICE_ACCESS_TOKEN_HASH: Joi.string()
     .trim()
@@ -243,11 +240,6 @@ export const config = {
     url: vars.CW_BACKEND_URL,
     token: vars.CW_BACKEND_TOKEN,
     timeoutMs: vars.CW_BACKEND_TIMEOUT_MS,
-  },
-  woodlandMigration: {
-    sourceUrl: vars.WOODLAND_MIGRATION_SOURCE_URL,
-    token: vars.WOODLAND_MIGRATION_TOKEN,
-    configVersion: vars.WOODLAND_MIGRATION_CONFIG_VERSION,
   },
   enableTestEndpoints: vars.ENABLE_TEST_ENDPOINTS ?? false,
 };
