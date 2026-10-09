@@ -36,8 +36,6 @@ vi.mock("../../common/internal-command-handlers.js", async () => {
   return { ...actual, canHandleInternalCommand: vi.fn() };
 });
 vi.mock("../repositories/application.repository.js");
-vi.mock("../publishers/application-event.publisher.js");
-vi.mock("../publishers/case-event.publisher.js");
 vi.mock("../../events/index.js");
 vi.mock("../../events/write-audit-event.js");
 
