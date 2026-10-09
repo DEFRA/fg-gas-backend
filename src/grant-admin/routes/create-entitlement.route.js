@@ -2,11 +2,22 @@ import Boom from "@hapi/boom";
 import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
-import { createEntitlement } from "../../grants/services/entitlement.service.js";
-import { actorHeaderSchema } from "../schemas/actor-header.schema.js";
+import {
+  createEntitlement,
+  getEntitlementOverview,
+} from "../../grants/services/entitlement.service.js";
+import {
+  actorHeaderSchema,
+  claimsHeadersSchema,
+} from "../schemas/actor-header.schema.js";
 import { code as grantCode } from "../schemas/code.js";
 import { createEntitlementRequestSchema } from "../schemas/create-entitlement-request.schema.js";
 import { decodeActor } from "../services/actor-header.js";
+import {
+  assertFullAccess,
+  resolveClaimsAccess,
+  userRolesOf,
+} from "../services/claims-access.js";
 
 const HTTP_STATUS_CREATED = 201;
 
@@ -24,8 +35,8 @@ export const createEntitlementRoute = {
         code: grantCode,
         clientRef: applicationClientRef,
       }),
+      headers: claimsHeadersSchema.concat(actorHeaderSchema),
       payload: createEntitlementRequestSchema,
-      headers: actorHeaderSchema,
     },
   },
   async handler(request, h) {
@@ -37,6 +48,11 @@ export const createEntitlementRoute = {
         "Payload clientRef and grantCode must match the URL",
       );
     }
+
+    const overview = await getEntitlementOverview({ code, clientRef });
+    const heldRoles = userRolesOf(request);
+    const access = resolveClaimsAccess(heldRoles, overview.claimsRequiredRoles);
+    assertFullAccess(access);
 
     logger.info(
       `Create entitlement for application with code ${code}, claimCode ${payload.claimCode} and clientRef ${clientRef}`,

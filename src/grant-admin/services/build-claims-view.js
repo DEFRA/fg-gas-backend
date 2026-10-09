@@ -5,6 +5,7 @@ const buildApplicationClaimsView = async ({
   applicationContext,
   creationOptions,
   claimableEntitlements,
+  claimsRequiredRoles,
 }) => {
   const banner = await buildBanner({ claimsPage, applicationContext });
 
@@ -12,6 +13,7 @@ const buildApplicationClaimsView = async ({
     banner,
     availableEntitlements: creationOptions.map(toAvailableEntitlement),
     claimableEntitlements: claimableEntitlements.map(toEntitlement),
+    claimsRequiredRoles,
   };
 };
 
