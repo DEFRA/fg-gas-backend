@@ -120,6 +120,14 @@ const waitFor = async (collection, id, done) => {
   return { doc: await collection.findOne({ _id: id }), seen };
 };
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
   describe("validation", () => {
     it("rejects an unknown service with 400", async () => {
@@ -230,8 +238,8 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       const doc = aCompletedInboxDoc();
       await inbox.insertOne(doc);
 
-      const error = await redrive("gas", "inbox", doc._id.toHexString()).catch(
-        (e) => e,
+      const error = await rejectionOf(
+        redrive("gas", "inbox", doc._id.toHexString()),
       );
 
       expect(error.output.statusCode).toBe(409);
@@ -243,7 +251,9 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       const doc = aCompletedInboxDoc();
       await inbox.insertOne(doc);
 
-      await redrive("gas", "inbox", doc._id.toHexString()).catch(() => {});
+      await expect(
+        redrive("gas", "inbox", doc._id.toHexString()),
+      ).rejects.toThrow();
 
       const stored = await inbox.findOne({ _id: doc._id });
 
@@ -288,7 +298,9 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       const doc = aCompletedInboxDoc();
       await inbox.insertOne(doc);
 
-      await redrive("gas", "inbox", doc._id.toHexString()).catch(() => {});
+      await expect(
+        redrive("gas", "inbox", doc._id.toHexString()),
+      ).rejects.toThrow();
 
       const audit = await outbox.findOne({
         "event.audit.entities.action": "REDRIVE_EVENT",
@@ -331,8 +343,8 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
     it("passes a caseworking 409 through with the status in the body", async () => {
       await setCwStub({ inbox: { redriveConflictStatus: "PUBLISHED" } });
 
-      const error = await redrive("caseworking", "inbox", UNKNOWN_ID).catch(
-        (e) => e,
+      const error = await rejectionOf(
+        redrive("caseworking", "inbox", UNKNOWN_ID),
       );
 
       expect(error.output.statusCode).toBe(409);
@@ -347,11 +359,9 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
       async () => {
         await setCwStub({ inbox: { mode: "timeout" } });
 
-        const error = await redrive("caseworking", "inbox", UNKNOWN_ID).catch(
-          (e) => e,
-        );
-
-        expect(error.output.statusCode).toBe(504);
+        await expect(
+          redrive("caseworking", "inbox", UNKNOWN_ID),
+        ).rejects.toMatchObject({ output: { statusCode: 504 } });
       },
     );
 

@@ -17,7 +17,7 @@ export const eventsPageRoute = {
     const { cursor, status, service, q, error, from, to, audit } =
       request.query;
 
-    return eventsPageUseCase({
+    return await eventsPageUseCase({
       cursor,
       status,
       service,

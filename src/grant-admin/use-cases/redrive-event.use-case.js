@@ -44,7 +44,11 @@ const redriveGasEvent = async (box, id, actor, session) => {
 };
 
 const redriveCaseworkingEvent = async (box, id, actor) => {
-  await redriveCwEvent(box, id, { by: actor }).catch(withStatusLabel);
+  try {
+    await redriveCwEvent(box, id, { by: actor });
+  } catch (error) {
+    withStatusLabel(error);
+  }
 };
 
 const redriveEvent = async ({ service, box, id, actor }, session) => {
@@ -77,5 +81,5 @@ const redriveEventWithAudit = withAudit(redriveEvent, redriveEventAuditBuilder);
 // Mongo transaction, so its redrive stays best-effort.
 export const redriveEventUseCase = async (params) =>
   params.service === GAS
-    ? withTransaction((session) => redriveEventWithAudit(params, session))
-    : redriveEventWithAudit(params);
+    ? await withTransaction((session) => redriveEventWithAudit(params, session))
+    : await redriveEventWithAudit(params);

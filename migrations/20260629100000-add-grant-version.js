@@ -7,5 +7,7 @@ export const up = async (db) => {
   );
 
   await grants.createIndex({ code: 1, version: 1 }, { unique: true });
-  await grants.dropIndex("code_1").catch(() => {});
+  try {
+    await grants.dropIndex("code_1");
+  } catch {}
 };

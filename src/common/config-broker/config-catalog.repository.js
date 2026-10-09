@@ -81,7 +81,7 @@ export const updateDefinitionLocation = async ({
   };
 
   // Do not upsert an incomplete config version. $literal preserves leading "$".
-  return db.collection(collection).updateOne({ grantCode, version }, [
+  return await db.collection(collection).updateOne({ grantCode, version }, [
     {
       $set: {
         [path]: {
@@ -115,7 +115,7 @@ export const updateDefinitionFetchStatus = async ({
     mongoUpdate.$inc = inc;
   }
 
-  return db
+  return await db
     .collection(collection)
     .updateOne({ grantCode, version }, mongoUpdate);
 };

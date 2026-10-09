@@ -4,7 +4,7 @@ import { processConfigVersionUseCase } from "../use-cases/process-config-version
 export const handleConfigVersionMessage = async ({ event, traceparent }) => {
   const { data } = event;
 
-  await withTraceParent(traceparent, async () =>
+  await withTraceParent(traceparent, () =>
     processConfigVersionUseCase({
       grantCode: data.grantCode,
       version: data.version,

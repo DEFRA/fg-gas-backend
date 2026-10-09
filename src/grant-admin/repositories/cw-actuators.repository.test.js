@@ -498,6 +498,14 @@ const httpError = (statusCode, body) =>
     },
   });
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("findCwEvent", () => {
   it("GETs /actuators/events/{box}/{id} with the bearer token", async () => {
     wreck.get.mockResolvedValue({ payload: { _id: ID, event: { id: "e" } } });
@@ -524,7 +532,7 @@ describe("findCwEvent", () => {
   it("turns a caseworking 404 into a 404", async () => {
     wreck.get.mockRejectedValue(httpError(404, { message: "SECRET-BODY" }));
 
-    const error = await findCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(findCwEvent("inbox", ID));
 
     expect(error.output.statusCode).toBe(404);
     expect(error.message).not.toContain("SECRET-BODY");
@@ -533,7 +541,7 @@ describe("findCwEvent", () => {
   it("turns any other caseworking failure into a 502", async () => {
     wreck.get.mockRejectedValue(httpError(500, { message: "SECRET-BODY" }));
 
-    const error = await findCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(findCwEvent("inbox", ID));
 
     expect(error.output.statusCode).toBe(502);
     expect(error.message).toContain("HTTP 500");
@@ -543,7 +551,7 @@ describe("findCwEvent", () => {
   it("turns a transport failure into a 502", async () => {
     wreck.get.mockRejectedValue(new Error("socket hang up"));
 
-    const error = await findCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(findCwEvent("inbox", ID));
 
     expect(error.output.statusCode).toBe(502);
     expect(error.message).toContain("read failed");
@@ -552,7 +560,7 @@ describe("findCwEvent", () => {
   it("502s without calling caseworking at all when it is not configured", async () => {
     cwBackend.url = undefined;
 
-    const error = await findCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(findCwEvent("inbox", ID));
 
     expect(error.output.statusCode).toBe(502);
     expect(error.message).toContain("not configured");
@@ -588,7 +596,7 @@ describe("redriveCwEvent", () => {
       httpError(409, { statusCode: 409, status: "COMPLETED" }),
     );
 
-    const error = await redriveCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(redriveCwEvent("inbox", ID));
 
     expect(error.output.statusCode).toBe(409);
     expect(error.output.payload.status).toBe("COMPLETED");
@@ -599,7 +607,7 @@ describe("redriveCwEvent", () => {
       httpError(409, { statusCode: 409, status: "COMPLETED" }),
     );
 
-    const error = await redriveCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(redriveCwEvent("inbox", ID));
 
     expect(error.message).toBe(
       `CW-BE inbox event "${ID}" is COMPLETED, not redrivable (DEAD_LETTER or PURGED)`,
@@ -617,7 +625,7 @@ describe("redriveCwEvent", () => {
   it("ignores a status that is not one of the known ones", async () => {
     wreck.post.mockRejectedValue(httpError(409, { status: "SECRET" }));
 
-    const error = await redriveCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(redriveCwEvent("inbox", ID));
 
     expect(error.output.statusCode).toBe(409);
     expect(error.output.payload.status).toBeUndefined();
@@ -632,7 +640,7 @@ describe("redriveCwEvent", () => {
       }),
     );
 
-    const error = await redriveCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(redriveCwEvent("inbox", ID));
 
     expect(error.output.statusCode).toBe(409);
     expect(error.output.payload.status).toBeUndefined();
@@ -646,7 +654,7 @@ describe("redriveCwEvent", () => {
       }),
     );
 
-    const error = await redriveCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(redriveCwEvent("inbox", ID));
 
     expect(error.output.payload.status).toBe("PROCESSING");
   });
@@ -662,7 +670,7 @@ describe("redriveCwEvent", () => {
   it("turns any other caseworking failure into a 502", async () => {
     wreck.post.mockRejectedValue(httpError(503, { message: "SECRET-BODY" }));
 
-    const error = await redriveCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(redriveCwEvent("inbox", ID));
 
     expect(error.output.statusCode).toBe(502);
     expect(error.message).not.toContain("SECRET-BODY");
@@ -672,7 +680,7 @@ describe("redriveCwEvent", () => {
   it("turns a caseworking timeout into a 504 rather than a failure", async () => {
     wreck.post.mockRejectedValue(Boom.gatewayTimeout("Client request timeout"));
 
-    const error = await redriveCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(redriveCwEvent("inbox", ID));
 
     expect(error.output.statusCode).toBe(504);
     expect(error.message).toBe(
@@ -802,7 +810,7 @@ describe("purgeCwEvent", () => {
       httpError(409, { statusCode: 409, status: "PURGED" }),
     );
 
-    const error = await purgeCwEvent("inbox", ID, aPurge()).catch((e) => e);
+    const error = await rejectionOf(purgeCwEvent("inbox", ID, aPurge()));
 
     expect(error.output.statusCode).toBe(409);
     expect(error.output.payload.status).toBe("PURGED");
@@ -814,7 +822,7 @@ describe("purgeCwEvent", () => {
   it("ignores a status that is not one it knows", async () => {
     wreck.post.mockRejectedValue(httpError(409, { status: "SECRET" }));
 
-    const error = await purgeCwEvent("inbox", ID, aPurge()).catch((e) => e);
+    const error = await rejectionOf(purgeCwEvent("inbox", ID, aPurge()));
 
     expect(error.output.statusCode).toBe(409);
     expect(error.output.payload.status).toBeUndefined();
@@ -825,7 +833,7 @@ describe("purgeCwEvent", () => {
   it("turns a caseworking timeout into a 504 rather than a failure", async () => {
     wreck.post.mockRejectedValue(Boom.gatewayTimeout("Client request timeout"));
 
-    const error = await purgeCwEvent("inbox", ID, aPurge()).catch((e) => e);
+    const error = await rejectionOf(purgeCwEvent("inbox", ID, aPurge()));
 
     expect(error.output.statusCode).toBe(504);
     expect(error.message).toBe(
@@ -836,7 +844,7 @@ describe("purgeCwEvent", () => {
   it("turns any other caseworking failure into a 502", async () => {
     wreck.post.mockRejectedValue(httpError(503, { message: "SECRET-BODY" }));
 
-    const error = await purgeCwEvent("inbox", ID, aPurge()).catch((e) => e);
+    const error = await rejectionOf(purgeCwEvent("inbox", ID, aPurge()));
 
     expect(error.output.statusCode).toBe(502);
     expect(error.message).not.toContain("SECRET-BODY");
@@ -923,7 +931,7 @@ describe("editCwPayload", () => {
       httpError(409, { statusCode: 409, status: "COMPLETED" }),
     );
 
-    const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+    const error = await rejectionOf(editCwPayload("inbox", ID, anEdit()));
 
     expect(error.output.statusCode).toBe(409);
     expect(error.output.payload.status).toBe("COMPLETED");
@@ -938,7 +946,7 @@ describe("editCwPayload", () => {
       httpError(412, { statusCode: 412, message: "SECRET-BODY" }),
     );
 
-    const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+    const error = await rejectionOf(editCwPayload("inbox", ID, anEdit()));
 
     expect(error.output.statusCode).toBe(412);
     expect(error.message).not.toContain("SECRET-BODY");
@@ -951,7 +959,7 @@ describe("editCwPayload", () => {
         httpError(422, { statusCode: 422, reason, message: "SECRET-BODY" }),
       );
 
-      const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+      const error = await rejectionOf(editCwPayload("inbox", ID, anEdit()));
 
       expect(error.output.statusCode).toBe(422);
       expect(error.output.payload.reason).toBe(reason);
@@ -962,7 +970,7 @@ describe("editCwPayload", () => {
   it("drops a 422 reason it does not know", async () => {
     wreck.post.mockRejectedValue(httpError(422, { reason: "SECRET-REASON" }));
 
-    const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+    const error = await rejectionOf(editCwPayload("inbox", ID, anEdit()));
 
     expect(error.output.statusCode).toBe(422);
     expect(error.output.payload.reason).toBeNull();
@@ -972,7 +980,7 @@ describe("editCwPayload", () => {
   it("turns a caseworking timeout into a 504", async () => {
     wreck.post.mockRejectedValue(Boom.gatewayTimeout("Client request timeout"));
 
-    const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+    const error = await rejectionOf(editCwPayload("inbox", ID, anEdit()));
 
     expect(error.output.statusCode).toBe(504);
   });
@@ -980,7 +988,7 @@ describe("editCwPayload", () => {
   it("turns any other caseworking failure into a 502", async () => {
     wreck.post.mockRejectedValue(httpError(500, { message: "SECRET-BODY" }));
 
-    const error = await editCwPayload("inbox", ID, anEdit()).catch((e) => e);
+    const error = await rejectionOf(editCwPayload("inbox", ID, anEdit()));
 
     expect(error.output.statusCode).toBe(502);
     expect(error.message).not.toContain("SECRET-BODY");
@@ -1267,7 +1275,7 @@ describe("Caseworking cases", () => {
       httpError(400, { message: "Cannot decode cursor" }),
     );
 
-    const error = await searchCwCases({ cursor: "x" }, {}).catch((e) => e);
+    const error = await rejectionOf(searchCwCases({ cursor: "x" }, {}));
 
     expect(error.output.statusCode).toBe(400);
     expect(error.message).toBe("CW-BE refused the case query");
@@ -1282,7 +1290,7 @@ describe("Caseworking cases", () => {
     async (_name, failure) => {
       wreck.post.mockRejectedValue(failure);
 
-      const error = await searchCwCases({}, {}).catch((e) => e);
+      const error = await rejectionOf(searchCwCases({}, {}));
 
       expect(error.output.statusCode).toBe(502);
       expect(error.message).toBe("Cases could not be loaded from Caseworking");
@@ -1297,7 +1305,7 @@ describe("Caseworking cases", () => {
       httpError(404, { statusCode: 404, reason: CASE_NOT_FOUND }),
     );
 
-    const error = await findCwCase(KEY, {}).catch((e) => e);
+    const error = await rejectionOf(findCwCase(KEY, {}));
 
     expect(error.output.statusCode).toBe(404);
     expect(error.output.payload).toMatchObject({
@@ -1309,7 +1317,7 @@ describe("Caseworking cases", () => {
   it("answers a 404 without a reason - a route this Caseworking lacks - as a 502", async () => {
     wreck.get.mockRejectedValue(httpError(404, { message: "Not Found" }));
 
-    const error = await findCwCaseExistence(KEY).catch((e) => e);
+    const error = await rejectionOf(findCwCaseExistence(KEY));
 
     expect(error.output.statusCode).toBe(502);
   });
@@ -1318,10 +1326,10 @@ describe("Caseworking cases", () => {
     wreck.get.mockRejectedValueOnce(httpError(504));
     wreck.get.mockRejectedValueOnce(httpError(500, { message: "boom" }));
 
-    expect((await findCwCase(KEY, {}).catch((e) => e)).output.statusCode).toBe(
+    expect((await rejectionOf(findCwCase(KEY, {}))).output.statusCode).toBe(
       504,
     );
-    expect((await findCwCase(KEY, {}).catch((e) => e)).output.statusCode).toBe(
+    expect((await rejectionOf(findCwCase(KEY, {}))).output.statusCode).toBe(
       502,
     );
   });
@@ -1329,7 +1337,7 @@ describe("Caseworking cases", () => {
   it("answers 502 when Caseworking is not configured", async () => {
     cwBackend.url = undefined;
 
-    const error = await searchCwCases({}, {}).catch((e) => e);
+    const error = await rejectionOf(searchCwCases({}, {}));
 
     expect(error.output.statusCode).toBe(502);
     expect(wreck.post).not.toHaveBeenCalled();
@@ -1338,7 +1346,7 @@ describe("Caseworking cases", () => {
   it("leaves an event 404 a 404, reason or not", async () => {
     wreck.get.mockRejectedValue(httpError(404));
 
-    const error = await findCwEvent("inbox", ID).catch((e) => e);
+    const error = await rejectionOf(findCwEvent("inbox", ID));
 
     expect(error.output.statusCode).toBe(404);
   });

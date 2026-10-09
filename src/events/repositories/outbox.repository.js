@@ -159,13 +159,13 @@ export const update = async (event, claimedBy) => {
   const document = event.toDocument();
   const { _id, ...updateDoc } = document;
 
-  return db
+  return await db
     .collection(collection)
     .updateOne({ _id, claimedBy }, { $set: updateDoc });
 };
 
 export const insertMany = async (events, session) => {
-  return db.collection(collection).insertMany(
+  return await db.collection(collection).insertMany(
     events.map((event) => event.toDocument()),
     { session },
   );
@@ -275,7 +275,7 @@ export const findPage = async ({
   to,
   audit,
 } = {}) =>
-  paginate(db.collection(collection), {
+  await paginate(db.collection(collection), {
     filter: listFilter({ status, q, error, from, to, audit }),
     sort: listSort,
     codecs: listCodecs,

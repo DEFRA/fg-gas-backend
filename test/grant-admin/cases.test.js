@@ -119,11 +119,15 @@ const auditRows = (action) =>
     .find({ target: AUDIT_TOPIC, "event.audit.entities.action": action })
     .toArray();
 
-const statusOf = (promise) =>
-  promise.then(
-    () => 200,
-    (error) => error.output.statusCode,
-  );
+const statusOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error.output.statusCode;
+  }
+
+  return 200;
+};
 
 describe("POST /grant-admin/cases/search", () => {
   it("answers Caseworking's page of cases, with closed-at, replaced, the total and the workflow codes", async () => {
@@ -370,10 +374,10 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
   });
 
   it("answers 404 CASE_NOT_FOUND for a case Caseworking does not have, audited as a FAILURE", async () => {
-    const error = await getTab("overview", "nobody").catch((e) => e);
-
-    expect(error.output.statusCode).toBe(404);
-    expect(error.data.payload.reason).toBe("CASE_NOT_FOUND");
+    await expect(getTab("overview", "nobody")).rejects.toMatchObject({
+      output: { statusCode: 404 },
+      data: { payload: { reason: "CASE_NOT_FOUND" } },
+    });
 
     const [row] = await auditRows("VIEW_CASE_DATA");
     expect(row.event.audit.status).toBe("FAILURE");

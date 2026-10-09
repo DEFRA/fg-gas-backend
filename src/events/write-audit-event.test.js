@@ -61,6 +61,14 @@ const auditEntities = [
   { entity: "APPLICATION", action: "SUBMIT", entityid: "app-1" },
 ];
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("createAuditPayload", () => {
   it("should omit accounts if sbi, crn and frn are undefined", () => {
     const result = createAuditPayload({
@@ -438,7 +446,7 @@ describe("writeAuditEvent", () => {
   // The validation detail can quote the payload it rejected, so it stays in
   // the log and out of the error that travels back to the caller.
   it("keeps the validation detail out of the thrown error", async () => {
-    const error = await writeAuditEvent(invalid(), { id: "s" }).catch((e) => e);
+    const error = await rejectionOf(writeAuditEvent(invalid(), { id: "s" }));
 
     expect(error.message).toBe("Audit event failed validation");
     expect(JSON.stringify(error.message)).not.toContain("not-an-array");

@@ -124,6 +124,7 @@ const find = (options = {}, caseworking = Promise.resolve(cwPage())) =>
 const cwDown = (error) => {
   const rejected = Promise.reject(error);
 
+  // eslint-disable-next-line promise/prefer-await-to-then -- marks a promise that is rejected on purpose as handled
   rejected.catch(() => {});
 
   return rejected;

@@ -34,11 +34,11 @@ const isExpired = (record, now = new Date()) =>
 const setupAccessTokens = () => {
   const col = db.collection("access_tokens");
   return {
-    findById: async (id) => col.findOne({ id }),
+    findById: (id) => col.findOne({ id }),
   };
 };
 
-const registerServiceAuth = async (server) => {
+const registerServiceAuth = (server) => {
   const tokens = setupAccessTokens();
 
   server.auth.scheme("service-bearer", () => ({
@@ -185,8 +185,8 @@ const registerCallerTokenVerification = (server) => {
 export const auth = {
   plugin: {
     name: "auth",
-    register: async (server) => {
-      await registerServiceAuth(server);
+    register: (server) => {
+      registerServiceAuth(server);
       registerCallerTokenVerification(server);
     },
   },

@@ -69,11 +69,13 @@ const call = (overrides = {}) =>
     ...overrides,
   });
 
-const reasonOf = (promise) =>
-  promise.catch((error) => [
-    error.output.statusCode,
-    error.output.payload.reason,
-  ]);
+const reasonOf = async (promise) => {
+  try {
+    return await promise;
+  } catch (error) {
+    return [error.output.statusCode, error.output.payload.reason];
+  }
+};
 
 describe("editPayloadUseCase gas", () => {
   it("reads the row and writes the edit fenced on the revision it was made from", async () => {
@@ -409,7 +411,7 @@ describe("editPayloadUseCase audit", () => {
   ])("names the reason %s on a FAILURE", async (reason, stored) => {
     findEditableGasInbox.mockResolvedValue(stored);
 
-    await call().catch(() => {});
+    await expect(call()).rejects.toThrow();
 
     expect(writeAuditEvent.mock.calls[0][0].details.reason).toBe(reason);
   });
@@ -437,7 +439,7 @@ describe("editPayloadUseCase audit", () => {
         Object.assign(new Error("no"), { output: { statusCode, payload } }),
       );
 
-      await call({ service: "caseworking" }).catch(() => {});
+      await expect(call({ service: "caseworking" })).rejects.toThrow();
 
       expect(writeAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({

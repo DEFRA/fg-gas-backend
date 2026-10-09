@@ -51,12 +51,12 @@ export const findAgreementBySourceIdentity = async (
 };
 
 export const insertCurrentAgreement = async (agreement, session) =>
-  db
+  await db
     .collection(agreementsCollection)
     .insertOne(toCurrentDocument(agreement), { session });
 
 export const insertAgreementVersion = async (agreementVersion, session) =>
-  db
+  await db
     .collection(versionsCollection)
     .insertOne(toVersionDocument(agreementVersion), { session });
 
@@ -65,7 +65,7 @@ export const replaceCurrentAgreement = async (
   expectedVersion,
   session,
 ) =>
-  db
+  await db
     .collection(agreementsCollection)
     .replaceOne(
       { _id: agreement.agreementNumber, version: expectedVersion },

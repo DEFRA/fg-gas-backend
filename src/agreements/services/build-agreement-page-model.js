@@ -233,7 +233,7 @@ export const buildAgreementPageModel = async ({
   assertSupportedAgreementPageMode(mode);
   agreementDefinition.assertPageAllowed({ page, state: agreement.state });
 
-  return buildPageWithProcesses({
+  return await buildPageWithProcesses({
     agreement,
     agreementDefinition,
     page,
@@ -245,7 +245,7 @@ export const buildAgreementDocumentPageModel = async ({
   agreement,
   agreementDefinition,
 }) =>
-  buildPageWithProcesses({
+  await buildPageWithProcesses({
     agreement,
     agreementDefinition,
     includeSections: true,

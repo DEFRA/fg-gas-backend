@@ -79,7 +79,7 @@ const persistAgreement = async (agreement) => {
     createAgreementStatusChangedReportingPublication(agreement),
   ];
 
-  return withTransaction(async (session) => {
+  return await withTransaction(async (session) => {
     await insertCurrentAgreement(agreement, session);
     await insertAgreementVersion(agreementVersion, session);
     await saveEvents(outboundEvents, session);

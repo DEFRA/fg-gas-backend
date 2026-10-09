@@ -65,7 +65,7 @@ export class InboxSubscriber {
     }
     try {
       const events = await claimEvents(claimToken, segregationRef);
-      await this.asyncLocalStorage.run(claimToken, async () =>
+      await this.asyncLocalStorage.run(claimToken, () =>
         this.processEvents(events),
       );
     } finally {

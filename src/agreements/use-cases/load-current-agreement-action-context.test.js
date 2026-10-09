@@ -5,6 +5,14 @@ import { loadCurrentAgreementContext } from "./load-current-agreement-context.js
 
 vi.mock("./load-current-agreement-context.js");
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("loadCurrentAgreementActionContext", () => {
   it("resolves an action from the Agreement lifecycle state", async () => {
     const agreement = { agreementNumber: "PMF123", state: "offered" };
@@ -40,11 +48,13 @@ describe("loadCurrentAgreementActionContext", () => {
       etag: '"PMF123:2:1.0.1"',
     });
 
-    const error = await loadCurrentAgreementActionContext({
-      agreement,
-      actionName: "accept",
-      ifMatch: '"PMF123:1:1.0.1"',
-    }).catch((caught) => caught);
+    const error = await rejectionOf(
+      loadCurrentAgreementActionContext({
+        agreement,
+        actionName: "accept",
+        ifMatch: '"PMF123:1:1.0.1"',
+      }),
+    );
 
     expect(error.output.statusCode).toBe(412);
     expect(error.output.headers).toEqual({
@@ -71,12 +81,12 @@ describe("loadCurrentAgreementActionContext", () => {
       etag: '"PMF123:2:1.0.1"',
     });
 
-    const error = await loadCurrentAgreementActionContext({
-      agreement,
-      actionName: "accept",
-      ifMatch: '"PMF123:2:1.0.1"',
-    }).catch((caught) => caught);
-
-    expect(error.output.statusCode).toBe(409);
+    await expect(
+      loadCurrentAgreementActionContext({
+        agreement,
+        actionName: "accept",
+        ifMatch: '"PMF123:2:1.0.1"',
+      }),
+    ).rejects.toMatchObject({ output: { statusCode: 409 } });
   });
 });

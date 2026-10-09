@@ -191,7 +191,7 @@ const findCurrentDocuments = async (preparedAgreements, session) => {
     (preparedAgreement) =>
       preparedAgreement.versions.at(-1).agreementVersion.snapshot.clientRef,
   );
-  return db
+  return await db
     .collection(agreementsCollection)
     .find(
       {

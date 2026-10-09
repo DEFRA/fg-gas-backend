@@ -124,6 +124,14 @@ const aboutDaysFromNow = (value, days) => {
   return Math.abs(new Date(value).getTime() - expected) < A_MINUTE;
 };
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
   describe("validation", () => {
     it("rejects an unknown service with 400", async () => {
@@ -331,8 +339,8 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
       const doc = aDeadInboxDoc({ status: "COMPLETED" });
       await inbox.insertOne(doc);
 
-      const error = await purge("gas", "inbox", doc._id.toHexString()).catch(
-        (e) => e,
+      const error = await rejectionOf(
+        purge("gas", "inbox", doc._id.toHexString()),
       );
 
       expect(error.output.statusCode).toBe(409);
@@ -344,7 +352,9 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
       const doc = aDeadInboxDoc({ status: "COMPLETED" });
       await inbox.insertOne(doc);
 
-      await purge("gas", "inbox", doc._id.toHexString()).catch(() => {});
+      await expect(
+        purge("gas", "inbox", doc._id.toHexString()),
+      ).rejects.toThrow();
 
       const stored = await inbox.findOne({ _id: doc._id });
 
@@ -396,7 +406,9 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
       const doc = aDeadInboxDoc({ status: "COMPLETED" });
       await inbox.insertOne(doc);
 
-      await purge("gas", "inbox", doc._id.toHexString()).catch(() => {});
+      await expect(
+        purge("gas", "inbox", doc._id.toHexString()),
+      ).rejects.toThrow();
 
       const audit = await outbox.findOne({
         "event.audit.entities.action": "PURGE_EVENT",
@@ -412,8 +424,8 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
 
       await purge("gas", "inbox", doc._id.toHexString());
 
-      const error = await purge("gas", "inbox", doc._id.toHexString()).catch(
-        (e) => e,
+      const error = await rejectionOf(
+        purge("gas", "inbox", doc._id.toHexString()),
       );
 
       expect(error.output.statusCode).toBe(409);
@@ -528,8 +540,8 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
     it("passes a caseworking 409 through with the status in the body", async () => {
       await setCwStub({ inbox: { purgeConflictStatus: "COMPLETED" } });
 
-      const error = await purge("caseworking", "inbox", UNKNOWN_ID).catch(
-        (e) => e,
+      const error = await rejectionOf(
+        purge("caseworking", "inbox", UNKNOWN_ID),
       );
 
       expect(error.output.statusCode).toBe(409);
@@ -544,11 +556,9 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
       async () => {
         await setCwStub({ inbox: { mode: "timeout" } });
 
-        const error = await purge("caseworking", "inbox", UNKNOWN_ID).catch(
-          (e) => e,
-        );
-
-        expect(error.output.statusCode).toBe(504);
+        await expect(
+          purge("caseworking", "inbox", UNKNOWN_ID),
+        ).rejects.toMatchObject({ output: { statusCode: 504 } });
       },
     );
 
@@ -593,8 +603,8 @@ describe("redriving a purged event", () => {
     const doc = aDeadInboxDoc({ status: "COMPLETED" });
     await inbox.insertOne(doc);
 
-    const error = await redrive("gas", "inbox", doc._id.toHexString()).catch(
-      (e) => e,
+    const error = await rejectionOf(
+      redrive("gas", "inbox", doc._id.toHexString()),
     );
 
     expect(error.output.statusCode).toBe(409);

@@ -89,11 +89,11 @@ export const resolveCurrentGrantUseCase = async (
   memo,
 ) => {
   if (!pinnedVersion) {
-    return legacyResolution(grantCode);
+    return await legacyResolution(grantCode);
   }
 
   const major = parseMajor(pinnedVersion);
-  return memoResolve(memo, cacheKey(grantCode, major), () =>
+  return await memoResolve(memo, cacheKey(grantCode, major), () =>
     resolveRolledForward(grantCode, major),
   );
 };

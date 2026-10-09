@@ -233,7 +233,7 @@ describe("withAudit", () => {
         .fn()
         .mockReturnValue({ entities: [], details: {} });
 
-      await withAudit(fn, dataBuilder)("arg0").catch(() => {});
+      await expect(withAudit(fn, dataBuilder)("arg0")).rejects.toThrow();
 
       expect(writeAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({ status: auditStatus.FAILURE }),
@@ -247,7 +247,9 @@ describe("withAudit", () => {
         .fn()
         .mockReturnValue({ entities: [], details: {} });
 
-      await withAudit(fn, dataBuilder)("arg0", "my-session").catch(() => {});
+      await expect(
+        withAudit(fn, dataBuilder)("arg0", "my-session"),
+      ).rejects.toThrow();
 
       expect(writeAuditEvent).toHaveBeenCalledWith(expect.anything(), null);
     });
@@ -259,7 +261,7 @@ describe("withAudit", () => {
         .fn()
         .mockReturnValue({ entities: [], details: {} });
 
-      await withAudit(fn, dataBuilder)("arg0").catch(() => {});
+      await expect(withAudit(fn, dataBuilder)("arg0")).rejects.toThrow();
 
       expect(dataBuilder).toHaveBeenCalledWith(["arg0"], undefined, failure);
     });

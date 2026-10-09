@@ -52,7 +52,9 @@ async function seedAccessToken() {
   } catch (err) {
     console.warn("[auth-setup] Failed to seed access_tokens:", err?.message);
   } finally {
-    await client.close().catch(() => {});
+    try {
+      await client.close();
+    } catch {}
   }
 }
 

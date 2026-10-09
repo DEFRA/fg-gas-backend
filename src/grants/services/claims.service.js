@@ -224,10 +224,14 @@ export const getChangeableEntitlement = async ({
   return { ...toClaimableDto(claimable), canEdit: true };
 };
 
-const existingReplay = ({ code, clientRef, clientClaimRef }, session) =>
-  existsByClientClaimRef({ code, clientRef, clientClaimRef }, session).then(
-    (exists) => (exists ? { created: false } : null),
+const existingReplay = async ({ code, clientRef, clientClaimRef }, session) => {
+  const exists = await existsByClientClaimRef(
+    { code, clientRef, clientClaimRef },
+    session,
   );
+
+  return exists ? { created: false } : null;
+};
 
 const auditDataBuilder = (args, result) => {
   if (!result?.created) {
@@ -507,7 +511,7 @@ const replayAfterDuplicate = async (error, command) => {
   if (!isMongoDuplicateKeyError(error)) {
     return null;
   }
-  return existingReplay({
+  return await existingReplay({
     code: command.code,
     clientRef: command.clientRef,
     clientClaimRef: command.payload.metadata.clientClaimRef,

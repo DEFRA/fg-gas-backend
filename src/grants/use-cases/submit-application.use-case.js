@@ -49,7 +49,7 @@ const submitApplicationWithAudit = withAudit(
 export const submitApplicationUseCase = async (code, submission) => {
   logger.info(`Start: Application submitted for code ${code}`);
 
-  await withTransaction(async (session) =>
+  await withTransaction((session) =>
     submitApplicationWithAudit({ code, submission }, session),
   );
 

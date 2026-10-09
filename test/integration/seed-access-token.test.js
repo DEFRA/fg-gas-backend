@@ -168,7 +168,9 @@ describe("seedAccessToken", () => {
   });
 
   it("seeds into a database bootstrapped from empty", async () => {
-    await accessTokens.drop().catch(() => {});
+    try {
+      await accessTokens.drop();
+    } catch {}
     await accessTokens.createIndex({ id: 1 }, { unique: true });
     await accessTokens.createIndex({ client: 1 });
     await accessTokens.createIndex({ expiresAt: 1 });

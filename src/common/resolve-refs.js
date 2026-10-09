@@ -34,7 +34,7 @@ const evaluate = async (expression, { context, row }) => {
     compiled.assign("row", row);
   }
 
-  return compiled.evaluate(context);
+  return await compiled.evaluate(context);
 };
 
 // Distinguishable so a caller can tell a reference the data does not answer
@@ -120,15 +120,15 @@ const resolveObject = async (value, scope) => {
 
 export const resolveRefs = async (value, scope) => {
   if (typeof value === "string") {
-    return resolveString(value, scope);
+    return await resolveString(value, scope);
   }
 
   if (Array.isArray(value)) {
-    return Promise.all(value.map((item) => resolveRefs(item, scope)));
+    return await Promise.all(value.map((item) => resolveRefs(item, scope)));
   }
 
   if (isObject(value)) {
-    return resolveObject(value, scope);
+    return await resolveObject(value, scope);
   }
 
   return value;

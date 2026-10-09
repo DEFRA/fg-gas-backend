@@ -46,7 +46,7 @@ export const createServer = async () => {
         options: {
           abortEarly: false,
         },
-        failAction: async (_request, _h, error) => {
+        failAction: (_request, _h, error) => {
           logger.warn(error, error?.message);
           throw error;
         },

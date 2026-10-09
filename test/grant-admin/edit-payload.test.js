@@ -134,8 +134,16 @@ const bodyOf = (error) => {
   return Buffer.isBuffer(payload) ? JSON.parse(payload.toString()) : payload;
 };
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 const failureOf = async (promise) => {
-  const error = await promise.catch((e) => e);
+  const error = await rejectionOf(promise);
 
   return { statusCode: error.output?.statusCode, body: bodyOf(error) };
 };
@@ -227,8 +235,8 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
       const doc = aDeadInboxDoc();
       await inbox.insertOne(doc);
 
-      const error = await wreck
-        .post(
+      await expect(
+        wreck.post(
           `/grant-admin/events/gas/inbox/${doc._id.toHexString()}/payload`,
           {
             payload: `{"payload": {"__proto__": {"x": 1}}, "note": "n", "revision": 0}`,
@@ -237,10 +245,8 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
               "content-type": "application/json",
             },
           },
-        )
-        .catch((e) => e);
-
-      expect(error.output.statusCode).toBe(400);
+        ),
+      ).rejects.toMatchObject({ output: { statusCode: 400 } });
     });
 
     it("takes a 500-character note", async () => {
@@ -611,9 +617,9 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
       await inbox.insertOne(doc);
       const id = doc._id.toHexString();
 
-      await edit("gas", "inbox", id, anEdit(withSheetId(doc.event))).catch(
-        () => {},
-      );
+      await expect(
+        edit("gas", "inbox", id, anEdit(withSheetId(doc.event))),
+      ).rejects.toThrow();
 
       const audit = await auditOf(id);
 
@@ -628,7 +634,9 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
       await inbox.insertOne(doc);
       const id = doc._id.toHexString();
 
-      await edit("gas", "inbox", id, anEdit(doc.event)).catch(() => {});
+      await expect(
+        edit("gas", "inbox", id, anEdit(doc.event)),
+      ).rejects.toThrow();
 
       expect((await failureAuditOf(id)).event.audit.details.reason).toBe(
         "UNCHANGED",

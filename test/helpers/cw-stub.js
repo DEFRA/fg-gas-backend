@@ -434,10 +434,12 @@ export const startCwStub = (port, bearerToken) =>
   new Promise((resolve, reject) => {
     token = bearerToken;
 
-    server = createServer((request, response) => {
-      route(request, response).catch(() =>
-        send(response, SERVER_ERROR, { message: "stub failure" }),
-      );
+    server = createServer(async (request, response) => {
+      try {
+        await route(request, response);
+      } catch {
+        send(response, SERVER_ERROR, { message: "stub failure" });
+      }
     });
     server.once("error", reject);
     server.listen(port, "0.0.0.0", () => {

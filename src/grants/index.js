@@ -48,11 +48,11 @@ export const grants = {
     migrated.forEach((fileName) => logger.info(`Migrated: ${fileName}`));
     logger.info("Finished running migrations");
 
-    server.events.on("start", async () => {
+    server.events.on("start", () => {
       configVersionUpdatedSubscriber.start();
     });
 
-    server.events.on("stop", async () => {
+    server.events.on("stop", () => {
       configVersionUpdatedSubscriber.stop();
     });
 

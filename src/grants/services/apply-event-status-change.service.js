@@ -129,7 +129,7 @@ const checkForExternalStatusMapping = (
  * 3. Processes the state transition (mapping, validation, state update)
  * 4. Saves application and runs any side-effects atomically
  */
-export const applyExternalStateChange = async (command) => {
+export const applyExternalStateChange = (command) => {
   // eslint-disable-next-line complexity
   return withTransaction(async (session) => {
     logger.info("applyExternalStateChange");

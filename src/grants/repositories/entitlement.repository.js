@@ -43,7 +43,7 @@ export const insertEntitlement = async (entitlement, session) => {
   }
 };
 
-export const findExistingEntitlements = async (clientRef, code, session) =>
+export const findExistingEntitlements = (clientRef, code, session) =>
   // enitlement slots are indexed (instanceNumber) so,
   // allocation must observe a write that has just won a competing
   // slot, rather than waiting for one to catch up.
@@ -56,7 +56,7 @@ export const updateEntitlementData = async (
   { id, clientRef, code, data, updatedAt },
   session,
 ) =>
-  db
+  await db
     .collection(collection)
     .updateOne(
       { id, clientRef, code },

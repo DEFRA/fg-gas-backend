@@ -9,7 +9,9 @@ const toDocument = (payment) => ({
 });
 
 export const insertPayment = async (payment, session) =>
-  db.collection(paymentsCollection).insertOne(toDocument(payment), { session });
+  await db
+    .collection(paymentsCollection)
+    .insertOne(toDocument(payment), { session });
 
 const sourceFilter = (source) => {
   if (source.type === PaymentSourceType.CLAIM) {

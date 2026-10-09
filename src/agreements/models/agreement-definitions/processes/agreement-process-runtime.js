@@ -337,7 +337,7 @@ const toSequenceResult = (outputs, commitOperations, agreementValues) => ({
 // first staged handler so it sees them, or after the last Process when the
 // sequence stages none.
 const resolveWhenPending = async (candidate, pending, resolve) =>
-  candidate ?? (pending ? resolve() : undefined);
+  candidate ?? (pending ? await resolve() : undefined);
 
 const recordProcessResult = (outputs, commitOperations, processKey, result) => {
   Object.defineProperty(outputs, processKey, {
@@ -417,7 +417,7 @@ export const compileAgreementProcesses = (definition, dependencies = {}) => {
       resolvedLocation.executionLocation,
     );
 
-    return runSequence(
+    return await runSequence(
       resolvedLocation,
       executableMap,
       processDefinitions,

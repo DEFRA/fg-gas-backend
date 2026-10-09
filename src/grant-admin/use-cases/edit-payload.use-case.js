@@ -121,15 +121,19 @@ const editCaseworkingEvent = async (
   id,
   { actor, payload, note, revision },
 ) => {
-  const { payloadRevision, changedPaths, changedPathsTruncated } =
-    await editCwPayload(box, id, {
-      by: actor,
-      payload,
-      note,
-      revision,
-    }).catch(withStatusLabel);
+  try {
+    const { payloadRevision, changedPaths, changedPathsTruncated } =
+      await editCwPayload(box, id, {
+        by: actor,
+        payload,
+        note,
+        revision,
+      });
 
-  return { payloadRevision, changedPaths, changedPathsTruncated };
+    return { payloadRevision, changedPaths, changedPathsTruncated };
+  } catch (error) {
+    return withStatusLabel(error);
+  }
 };
 
 const editPayload = async ({ service, box, id, ...edit }, session) => {
@@ -193,5 +197,5 @@ const editPayloadWithAudit = withAudit(editPayload, editPayloadAuditBuilder);
 // Mongo transaction, and audits the change it makes itself.
 export const editPayloadUseCase = async (params) =>
   params.service === GAS
-    ? withTransaction((session) => editPayloadWithAudit(params, session))
-    : editPayloadWithAudit(params);
+    ? await withTransaction((session) => editPayloadWithAudit(params, session))
+    : await editPayloadWithAudit(params);

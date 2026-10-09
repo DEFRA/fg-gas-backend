@@ -109,6 +109,14 @@ const load = async (target, code, cacheKey) => {
   }
 };
 
+const loadAndRelease = async (target, code, cacheKey) => {
+  try {
+    return await load(target, code, cacheKey);
+  } finally {
+    loadsInFlight.delete(cacheKey);
+  }
+};
+
 const loadCompiled = (target, code, cacheKey) => {
   const cached = compiledDefinitions.get(cacheKey);
   if (cached) {
@@ -120,9 +128,7 @@ const loadCompiled = (target, code, cacheKey) => {
     return existing;
   }
 
-  const loading = load(target, code, cacheKey).finally(() =>
-    loadsInFlight.delete(cacheKey),
-  );
+  const loading = loadAndRelease(target, code, cacheKey);
   loadsInFlight.set(cacheKey, loading);
   return loading;
 };

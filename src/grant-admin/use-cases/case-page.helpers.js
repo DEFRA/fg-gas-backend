@@ -10,6 +10,7 @@ import {
 export const startCaseRead = ({ workflowCode, caseRef }, options) => {
   const read = findCwCase({ workflowCode, caseRef }, options);
 
+  // eslint-disable-next-line promise/prefer-await-to-then -- the promise is returned un-awaited, so its rejection can only be marked handled here
   read.catch(() => {});
 
   return read;

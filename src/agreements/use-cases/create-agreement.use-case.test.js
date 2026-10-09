@@ -174,6 +174,14 @@ const withInvoiceLines = (invoiceLines, totalAmountPence) => ({
   },
 });
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("createAgreementUseCase", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -588,9 +596,7 @@ describe("createAgreementUseCase", () => {
       withTransaction.mockRejectedValueOnce(conflict),
     );
 
-    const error = await createAgreementUseCase(command.data).catch(
-      (caught) => caught,
-    );
+    const error = await rejectionOf(createAgreementUseCase(command.data));
 
     expect(error).toBe(conflicts.at(-1));
     expect(error.message).toContain(

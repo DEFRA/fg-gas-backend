@@ -148,9 +148,9 @@ describe("viewCasePageUseCase", () => {
   ])("answers %i with Caseworking's failure", async (status, error) => {
     findCwCase.mockRejectedValue(error);
 
-    const failure = await view("overview").catch((e) => e);
-
-    expect(failure.output.statusCode).toBe(status);
+    await expect(view("overview")).rejects.toMatchObject({
+      output: { statusCode: status },
+    });
   });
 });
 

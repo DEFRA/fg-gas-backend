@@ -14,7 +14,7 @@ export const handleGrantStatusMessage = async (message) => {
     throw new Error(`Unable to handle inbox message ${message.messageId}`);
   }
 
-  await withTraceParent(traceparent, async () =>
+  await withTraceParent(traceparent, () =>
     applyExternalStateChange({
       sourceSystem: source,
       clientRef,

@@ -308,7 +308,7 @@ describe("purgeEventUseCase transaction", () => {
     purgeGasInbox.mockResolvedValue(false);
     gasInboxStatus.mockResolvedValue("COMPLETED");
 
-    await call().catch(() => {});
+    await expect(call()).rejects.toThrow();
 
     expect(gasInboxStatus).toHaveBeenCalledWith(ID, SESSION);
   });

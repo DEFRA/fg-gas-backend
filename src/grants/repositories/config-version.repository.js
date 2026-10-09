@@ -37,7 +37,7 @@ export const upsert = async (
   };
 
   // $literal preserves leading "$" in broker values.
-  return db.collection(collection).updateOne(
+  return await db.collection(collection).updateOne(
     { grantCode: doc.grantCode, version: doc.version },
     [
       {
@@ -84,7 +84,7 @@ export const findLatestForMajor = async (grantCode, major) => {
   return ConfigVersion.fromDocument(doc);
 };
 
-export const updateFetchStatus = async (
+export const updateFetchStatus = (
   grantCode,
   version,
   fetchStatus,

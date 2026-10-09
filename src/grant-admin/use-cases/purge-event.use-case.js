@@ -46,9 +46,11 @@ const purgeGasEvent = async (box, id, { actor, reasonCode, note }, session) => {
 };
 
 const purgeCaseworkingEvent = async (box, id, { actor, reasonCode, note }) => {
-  await purgeCwEvent(box, id, { by: actor, reasonCode, note }).catch(
-    withStatusLabel,
-  );
+  try {
+    await purgeCwEvent(box, id, { by: actor, reasonCode, note });
+  } catch (error) {
+    withStatusLabel(error);
+  }
 };
 
 const purgeEvent = async (
@@ -87,5 +89,5 @@ const purgeEventWithAudit = withAudit(purgeEvent, purgeEventAuditBuilder);
 // audits the change it makes itself.
 export const purgeEventUseCase = async (params) =>
   params.service === GAS
-    ? withTransaction((session) => purgeEventWithAudit(params, session))
-    : purgeEventWithAudit(params);
+    ? await withTransaction((session) => purgeEventWithAudit(params, session))
+    : await purgeEventWithAudit(params);

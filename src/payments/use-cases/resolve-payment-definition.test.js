@@ -52,6 +52,14 @@ const expectResolveLogged = (error) => {
   );
 };
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("resolvePaymentDefinition", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -90,10 +98,12 @@ describe("resolvePaymentDefinition", () => {
       new PaymentDefinition({ ...rawDefinition, totalAmountPence: 3799 }),
     );
 
-    const error = await resolvePaymentDefinition({
-      ...options,
-      context: {},
-    }).catch((caught) => caught);
+    const error = await rejectionOf(
+      resolvePaymentDefinition({
+        ...options,
+        context: {},
+      }),
+    );
 
     expect(error).toMatchObject({ isBoom: true });
     expectResolveLogged(error);

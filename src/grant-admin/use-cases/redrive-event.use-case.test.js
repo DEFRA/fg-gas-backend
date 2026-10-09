@@ -323,7 +323,7 @@ describe("redriveEventUseCase transaction", () => {
     redriveGasInbox.mockResolvedValue(false);
     gasInboxStatus.mockResolvedValue("COMPLETED");
 
-    await call().catch(() => {});
+    await expect(call()).rejects.toThrow();
 
     expect(gasInboxStatus).toHaveBeenCalledWith(ID, SESSION);
   });

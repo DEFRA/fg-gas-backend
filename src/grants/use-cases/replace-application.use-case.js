@@ -77,7 +77,7 @@ const replaceApplicationWithAudit = withAudit(
   auditDataBuilder,
 );
 
-export const replaceApplicationUseCase = async (code, application) => {
+export const replaceApplicationUseCase = (code, application) => {
   return withTransaction(async (session) => {
     logger.info(`Replacing application`);
     await replaceApplicationWithAudit({ code, application }, session);

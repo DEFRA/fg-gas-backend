@@ -91,6 +91,14 @@ const auditRows = (action) =>
     .find({ target: AUDIT_TOPIC, "event.audit.entities.action": action })
     .toArray();
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("POST /grant-admin/applications/search", () => {
   it("browses the 20 newest applications, ties broken by id, with a cursor", async () => {
     await applications.insertMany(
@@ -163,9 +171,9 @@ describe("POST /grant-admin/applications/search", () => {
           ? data
           : Buffer.from(JSON.stringify(data)).toString("base64url");
 
-      const error = await search({ cursor }).catch((e) => e);
-
-      expect(error.output.statusCode).toBe(400);
+      await expect(search({ cursor })).rejects.toMatchObject({
+        output: { statusCode: 400 },
+      });
       const [row] = await auditRows("SEARCH_APPLICATIONS");
       expect(row.event.audit.status).toBe("FAILURE");
       expect(row.event.audit.details.page).toBe("next");
@@ -583,10 +591,10 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
   });
 
   it("answers 404 APPLICATION_NOT_FOUND for an unknown application, audited as a FAILURE", async () => {
-    const error = await getTab("overview", "nobody").catch((e) => e);
-
-    expect(error.output.statusCode).toBe(404);
-    expect(error.data.payload.reason).toBe("APPLICATION_NOT_FOUND");
+    await expect(getTab("overview", "nobody")).rejects.toMatchObject({
+      output: { statusCode: 404 },
+      data: { payload: { reason: "APPLICATION_NOT_FOUND" } },
+    });
 
     const [row] = await auditRows("VIEW_APPLICATION");
     expect(row.event.audit.status).toBe("FAILURE");
@@ -626,7 +634,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     const clientRef = "r".repeat(121);
     await applications.insertOne(anApplication(clientRef));
 
-    const error = await getTab("raw", clientRef).catch((e) => e);
+    const error = await rejectionOf(getTab("raw", clientRef));
 
     expect(error.output.statusCode).toBe(500);
     expect(JSON.stringify(error.data.payload)).not.toContain("SX0679-9238");
@@ -692,12 +700,12 @@ describe("the operator on the existing event routes", () => {
   });
 
   it("forwards the operator's id to Caseworking on a redrive", async () => {
-    await wreck
-      .post(
+    await expect(
+      wreck.post(
         "/grant-admin/events/caseworking/inbox/665f1c2e9a1b2c3d4e5f6aaa/redrive",
         { headers: OPERATOR },
-      )
-      .catch(() => {});
+      ),
+    ).rejects.toThrow();
 
     const [request] = await cwStubRequests();
     expect(request.actorId).toBe(OID);

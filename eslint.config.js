@@ -16,6 +16,7 @@ export default [
       "func-style": ["error", "expression"],
       "no-console": "error",
       complexity: ["error", { max: 4 }],
+      "require-await": "error",
       "import-x/extensions": ["error", { js: "always", json: "always" }],
       "import-x/no-unresolved": "error",
       "import-x/named": "error",
@@ -238,6 +239,17 @@ export default [
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["src/**/*.test.js"],
+    rules: {
+      "require-await": "off",
+    },
+  },
+  {
+    rules: {
+      "promise/prefer-await-to-then": ["error", { strict: true }],
     },
   },
 ];

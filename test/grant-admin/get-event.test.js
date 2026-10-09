@@ -108,6 +108,14 @@ const getEvent = (service, box, id, options) =>
 const detailOf = async (service, box, id) =>
   (await getEvent(service, box, id)).payload;
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("GET /grant-admin/events/{service}/{box}/{id}", () => {
   describe("validation", () => {
     it("rejects an unknown service with 400", async () => {
@@ -298,7 +306,7 @@ describe("GET /grant-admin/events/{service}/{box}/{id}", () => {
     });
 
     it("audits a refused access as a FAILURE", async () => {
-      await getEvent("gas", "inbox", UNKNOWN_ID).catch(() => {});
+      await expect(getEvent("gas", "inbox", UNKNOWN_ID)).rejects.toThrow();
 
       const audit = await outbox.findOne({
         "event.audit.entities.action": "VIEW_EVENT",
@@ -361,8 +369,8 @@ describe("GET /grant-admin/events/{service}/{box}/{id}", () => {
     it("never leaks a caseworking response body into the 502", async () => {
       await setCwStub({ outbox: { mode: "error" } });
 
-      const error = await getEvent("caseworking", "outbox", UNKNOWN_ID).catch(
-        (e) => e,
+      const error = await rejectionOf(
+        getEvent("caseworking", "outbox", UNKNOWN_ID),
       );
 
       expect(error.output.statusCode).toBe(502);

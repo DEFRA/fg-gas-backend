@@ -176,6 +176,14 @@ const seedConfigVersion = async (version) => {
   });
 };
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("Payment definition ingestion (real S3)", () => {
   it("loads and resolves the real PMF payment.json from S3", async () => {
     const version = "9.9.1";
@@ -221,11 +229,13 @@ describe("Payment definition ingestion (real S3)", () => {
     await upload(s3Keys[version], paymentDefinitionJson);
     await seedConfigVersion(version);
 
-    const failure = await resolvePaymentDefinition({
-      code: grantCode,
-      configVersion: version,
-      context: {},
-    }).catch((error) => error);
+    const failure = await rejectionOf(
+      resolvePaymentDefinition({
+        code: grantCode,
+        configVersion: version,
+        context: {},
+      }),
+    );
     expect(failure).toMatchObject({
       isBoom: true,
       output: { statusCode: 500 },

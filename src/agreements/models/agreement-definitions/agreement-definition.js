@@ -48,11 +48,11 @@ export class AgreementDefinition {
     return this.#definition.configVersion;
   }
 
-  async createAgreement(options) {
+  createAgreement(options) {
     return this.#createAgreement(options);
   }
 
-  async executeAction(options) {
+  executeAction(options) {
     return this.#executeAction(options);
   }
 

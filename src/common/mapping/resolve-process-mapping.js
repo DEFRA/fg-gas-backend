@@ -151,14 +151,14 @@ const resolveObject = (mapping, scope) =>
 
 const resolveMapping = async (mapping, scope) => {
   if (typeof mapping === "string") {
-    return resolveString(mapping, scope);
+    return await resolveString(mapping, scope);
   }
 
   if (Array.isArray(mapping)) {
-    return resolveArray(mapping, scope);
+    return await resolveArray(mapping, scope);
   }
 
-  return isObject(mapping) ? resolveObject(mapping, scope) : mapping;
+  return isObject(mapping) ? await resolveObject(mapping, scope) : mapping;
 };
 
 const validateStringMapping = (mapping) => {
@@ -217,4 +217,4 @@ export const resolveProcessMapping = async (
   mapping,
   context,
   { allowUnresolved = false } = {},
-) => resolveMapping(mapping, { allowUnresolved, context });
+) => await resolveMapping(mapping, { allowUnresolved, context });

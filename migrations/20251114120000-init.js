@@ -1,20 +1,28 @@
 export const up = async (db) => {
   const accessTokens = db.collection("access_tokens");
-  await accessTokens.drop().catch(() => {});
+  try {
+    await accessTokens.drop();
+  } catch {}
   await accessTokens.createIndex({ id: 1 }, { unique: true });
   await accessTokens.createIndex({ client: 1 });
   await accessTokens.createIndex({ expiresAt: 1 });
 
   const grants = db.collection("grants");
-  await grants.drop().catch(() => {});
+  try {
+    await grants.drop();
+  } catch {}
   await grants.createIndex({ code: 1 }, { unique: true });
 
   const applications = db.collection("applications");
-  await applications.drop().catch(() => {});
+  try {
+    await applications.drop();
+  } catch {}
   await applications.createIndex({ clientRef: 1, code: 1 }, { unique: true });
 
   const outbox = db.collection("outbox");
-  await outbox.drop().catch(() => {});
+  try {
+    await outbox.drop();
+  } catch {}
   await outbox.createIndex({
     status: 1,
     claimedBy: 1,
@@ -25,7 +33,9 @@ export const up = async (db) => {
   await outbox.createIndex({ status: 1, completionAttempts: 1 });
 
   const inbox = db.collection("inbox");
-  await inbox.drop().catch(() => {});
+  try {
+    await inbox.drop();
+  } catch {}
   await inbox.createIndex({
     status: 1,
     claimedBy: 1,

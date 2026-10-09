@@ -1,6 +1,8 @@
 export const up = async (db) => {
   const agreements = db.collection("agreements__agreements");
-  await agreements.drop().catch(() => {});
+  try {
+    await agreements.drop();
+  } catch {}
   await agreements.createIndex({ agreementNumber: 1 }, { unique: true });
   await agreements.createIndex(
     { "items.agreementCode": 1, "items.clientRef": 1 },
@@ -10,7 +12,9 @@ export const up = async (db) => {
   await agreements.createIndex({ "items.agreementItemId": 1 });
 
   const versions = db.collection("agreements__versions");
-  await versions.drop().catch(() => {});
+  try {
+    await versions.drop();
+  } catch {}
   await versions.createIndex({ agreementId: 1, version: 1 }, { unique: true });
   await versions.createIndex({ agreementId: 1, version: -1 });
   await versions.createIndex({ agreementNumber: 1, version: -1 });

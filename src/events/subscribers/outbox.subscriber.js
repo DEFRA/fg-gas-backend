@@ -102,7 +102,7 @@ export class OutboxSubscriber {
       const events = await claimEvents(claimToken, segregationRef);
 
       if (events?.length > 0) {
-        await this.asyncLocalStorage.run(claimToken, async () =>
+        await this.asyncLocalStorage.run(claimToken, () =>
           this.processEvents(events),
         );
       }
@@ -175,15 +175,15 @@ export class OutboxSubscriber {
   async deliver(target, message, segregationRef) {
     if (target === internalEventTarget) {
       logger.info("Deliver outbox event internally");
-      return dispatchEvent(toEventMessage(message));
+      return await dispatchEvent(toEventMessage(message));
     }
 
     if (target === internalCommandTarget) {
       logger.info("Deliver outbox command internally");
-      return dispatchCommand(message);
+      return await dispatchCommand(message);
     }
 
-    return this.sendExternally(target, message, segregationRef);
+    return await this.sendExternally(target, message, segregationRef);
   }
 
   async sendEvent(outboxEvent) {
@@ -208,7 +208,7 @@ export class OutboxSubscriber {
     return getMessageGroupId(id, data) ?? segregationRef;
   }
 
-  async start() {
+  start() {
     logger.info("Starting outbox subscriber");
     this.running = true;
     this.poll();

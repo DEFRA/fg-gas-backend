@@ -231,6 +231,14 @@ const offeredValues = {
   },
 };
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 describe("buildAgreementPageModel", () => {
   it.each([
     {
@@ -905,12 +913,14 @@ describe("buildAgreementPageModel", () => {
       }),
     );
 
-    const error = await buildAgreementPageModel({
-      agreement,
-      agreementDefinition: unresolvableDefinition,
-      page: "offer",
-      mode: "view",
-    }).catch((thrown) => thrown);
+    const error = await rejectionOf(
+      buildAgreementPageModel({
+        agreement,
+        agreementDefinition: unresolvableDefinition,
+        page: "offer",
+        mode: "view",
+      }),
+    );
 
     expect(error.isBoom).toBe(true);
     expect(error.output.statusCode).toBe(500);

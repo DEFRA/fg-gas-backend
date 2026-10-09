@@ -34,15 +34,15 @@ const resolveRef = async (ref, context) => {
 
 export const resolveEffectParams = async (value, context) => {
   if (isRef(value)) {
-    return resolveRef(value, context);
+    return await resolveRef(value, context);
   }
 
   if (Array.isArray(value)) {
-    return resolveArray(value, context);
+    return await resolveArray(value, context);
   }
 
   if (isPlainObject(value)) {
-    return resolveObject(value, context);
+    return await resolveObject(value, context);
   }
 
   return value;

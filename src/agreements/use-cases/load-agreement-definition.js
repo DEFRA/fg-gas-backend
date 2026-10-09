@@ -82,7 +82,7 @@ const findTarget = async (options) => {
     );
   }
 
-  return resolution.resolve(options);
+  return await resolution.resolve(options);
 };
 
 const resolveTarget = async (options) => {
@@ -193,6 +193,14 @@ const load = async (target, cacheKey) => {
   }
 };
 
+const loadAndRelease = async (target, cacheKey) => {
+  try {
+    return await load(target, cacheKey);
+  } finally {
+    loadsInFlight.delete(cacheKey);
+  }
+};
+
 const loadCompiled = (target) => {
   const cacheKey = `${target.grantCode}@${target.version}`;
   const cached = compiledDefinitions.get(cacheKey);
@@ -206,9 +214,7 @@ const loadCompiled = (target) => {
     return existing;
   }
 
-  const loading = load(target, cacheKey).finally(() =>
-    loadsInFlight.delete(cacheKey),
-  );
+  const loading = loadAndRelease(target, cacheKey);
   loadsInFlight.set(cacheKey, loading);
   return loading;
 };

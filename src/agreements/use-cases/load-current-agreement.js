@@ -56,8 +56,8 @@ const loadAgreementWithAccess = async ({
     access,
   );
 
-export const loadAgreementDocument = async (options) =>
+export const loadAgreementDocument = (options) =>
   loadAgreementWithAccess({ ...options, assertAccess: assertDocumentAccess });
 
-export const loadAgreementForAction = async (options) =>
+export const loadAgreementForAction = (options) =>
   loadAgreementWithAccess({ ...options, assertAccess: assertActionAccess });

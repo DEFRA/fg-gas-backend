@@ -64,5 +64,5 @@ export const callAgreementEndpoint = async (endpoint, params = {}) => {
   const baseUrl = resolveEndpointServiceUrl(endpoint.service);
   const url = buildUrl(baseUrl, endpoint.path);
 
-  return performRequest(endpoint, url, params.BODY ?? {});
+  return await performRequest(endpoint, url, params.BODY ?? {});
 };

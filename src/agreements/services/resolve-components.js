@@ -196,7 +196,7 @@ const resolveDisplayObject = async (value, scope) => {
   return Object.fromEntries(entries);
 };
 
-const resolveDisplayValue = async (value, scope) => {
+const resolveDisplayValue = (value, scope) => {
   if (Array.isArray(value)) {
     return Promise.all(value.map((item) => resolveDisplayValue(item, scope)));
   }

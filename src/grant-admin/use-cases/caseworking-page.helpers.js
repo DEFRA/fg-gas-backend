@@ -26,6 +26,7 @@ export const readCaseworkingPage = ({
   });
 
   // Unawaited if a section throws early; the no-op stops an unhandled rejection.
+  // eslint-disable-next-line promise/prefer-await-to-then -- the promise is returned un-awaited, so its rejection can only be marked handled here
   page.catch(() => {});
 
   return page;

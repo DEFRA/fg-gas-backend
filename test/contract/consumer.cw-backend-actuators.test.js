@@ -88,6 +88,14 @@ const browsePagination = (hasNextPage) => ({
 // Every call carries the operator's id from the request, as the routes set it.
 const asOperator = (call) => withRequestContext({ user: OID }, call);
 
+const rejectionOf = async (promise) => {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+};
+
 const run = (interaction, test) =>
   pact.addInteraction(interaction).executeTest(async (mockServer) => {
     cwBackend.url = mockServer.url;
@@ -280,9 +288,9 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           willRespondWith: { status: 403 },
         },
         async () => {
-          const error = await asOperator(() =>
-            searchCwCases({}, { actor: ACTOR }),
-          ).catch((e) => e);
+          const error = await rejectionOf(
+            asOperator(() => searchCwCases({}, { actor: ACTOR })),
+          );
 
           expect(error.output.statusCode).toBe(502);
         },
@@ -398,12 +406,14 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           },
         },
         async () => {
-          const error = await asOperator(() =>
-            findCwCase(
-              { workflowCode: WORKFLOW, caseRef: "ref-9" },
-              { actor: ACTOR },
+          const error = await rejectionOf(
+            asOperator(() =>
+              findCwCase(
+                { workflowCode: WORKFLOW, caseRef: "ref-9" },
+                { actor: ACTOR },
+              ),
             ),
-          ).catch((e) => e);
+          );
 
           expect(error.output.payload.reason).toBe(CASE_NOT_FOUND);
         },

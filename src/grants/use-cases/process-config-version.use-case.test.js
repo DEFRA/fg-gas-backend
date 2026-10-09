@@ -349,10 +349,22 @@ describe("processConfigVersionUseCase", () => {
         manifest: ["woodland/1.2.3/gas/gas.json"],
       });
 
+    const rejectionOf = async (promise) => {
+      try {
+        await promise;
+      } catch (error) {
+        return error;
+      }
+    };
+
     const rejectionFrom = async (error) => {
       mockValidateConfigDefinitions.mockRejectedValueOnce(error);
 
-      return process().catch((thrown) => thrown);
+      try {
+        return await process();
+      } catch (thrown) {
+        return thrown;
+      }
     };
 
     it("gives up on a definition that will not build", async () => {
@@ -366,28 +378,32 @@ describe("processConfigVersionUseCase", () => {
     // The published version is immutable, so a manifest missing the file it must have will
     // be missing it every time.
     it("gives up on a manifest with no gas.json", async () => {
-      const thrown = await processConfigVersionUseCase({
-        grantCode: "woodland",
-        version: "1.2.3",
-        status: "active",
-        s3Bucket: "configs-bucket",
-        manifest: ["woodland/1.2.3/metadata.json"],
-      }).catch((error) => error);
-
-      expect(thrown.message).toContain("does not contain required config file");
-      expect(thrown.retryable).toBe(false);
+      await expect(
+        processConfigVersionUseCase({
+          grantCode: "woodland",
+          version: "1.2.3",
+          status: "active",
+          s3Bucket: "configs-bucket",
+          manifest: ["woodland/1.2.3/metadata.json"],
+        }),
+      ).rejects.toMatchObject({
+        message: expect.stringContaining(
+          "does not contain required config file",
+        ),
+        retryable: false,
+      });
       expect(mockUpsert).not.toHaveBeenCalled();
     });
 
     it("gives up on a message it cannot read", async () => {
-      const thrown = await processConfigVersionUseCase({
-        grantCode: "woodland",
-        version: "1.2.3",
-        status: "active",
-        manifest: ["woodland/1.2.3/gas/gas.json"],
-      }).catch((error) => error);
-
-      expect(thrown.retryable).toBe(false);
+      await expect(
+        processConfigVersionUseCase({
+          grantCode: "woodland",
+          version: "1.2.3",
+          status: "active",
+          manifest: ["woodland/1.2.3/gas/gas.json"],
+        }),
+      ).rejects.toMatchObject({ retryable: false });
     });
 
     it("gives up on a definition that is missing from S3", async () => {
@@ -409,7 +425,7 @@ describe("processConfigVersionUseCase", () => {
     it("keeps retrying when the database fails", async () => {
       mockUpsert.mockRejectedValueOnce(new Error("mongo is down"));
 
-      const thrown = await process().catch((error) => error);
+      const thrown = await rejectionOf(process());
 
       expect(thrown.retryable).toBeUndefined();
     });

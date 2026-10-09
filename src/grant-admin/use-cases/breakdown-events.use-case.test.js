@@ -61,6 +61,7 @@ const cwPage = ({ inbox = [], outbox = [] } = {}) =>
 // Handled up front, as the page does, so a rejection the test expects is not unhandled.
 const cwFailure = (error) => {
   const page = Promise.reject(error);
+  // eslint-disable-next-line promise/prefer-await-to-then -- marks a promise that is rejected on purpose as handled
   page.catch(() => {});
   return page;
 };

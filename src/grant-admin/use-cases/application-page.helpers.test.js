@@ -63,15 +63,16 @@ describe("readApplicationHeader", () => {
   it("answers 404 APPLICATION_NOT_FOUND, naming no ref, for an unknown application", async () => {
     findApplicationSummary.mockResolvedValue(null);
 
-    const error = await readApplicationHeader({
-      clientRef: "ref-1",
-      code: "woodland",
-    }).catch((e) => e);
-
-    expect(error.output.statusCode).toBe(404);
-    expect(error.output.payload).toMatchObject({
-      message: "application not found",
-      reason: APPLICATION_NOT_FOUND,
+    await expect(
+      readApplicationHeader({ clientRef: "ref-1", code: "woodland" }),
+    ).rejects.toMatchObject({
+      output: {
+        statusCode: 404,
+        payload: {
+          message: "application not found",
+          reason: APPLICATION_NOT_FOUND,
+        },
+      },
     });
   });
 
