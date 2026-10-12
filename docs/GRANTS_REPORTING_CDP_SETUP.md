@@ -31,13 +31,13 @@ topic request first and request the subscription after the topic is provisioned.
 
 Set `GAS__SNS__REPORTING_EVENTS_TOPIC_ARN` for GAS in each environment:
 
-| Environment | Value |
-| --- | --- |
-| `dev` | `arn:aws:sns:eu-west-2:332499610595:gfr__sns___reporting_events` |
-| `test` | `arn:aws:sns:eu-west-2:756547862786:gfr__sns___reporting_events` |
+| Environment | Value                                                            |
+| ----------- | ---------------------------------------------------------------- |
+| `dev`       | `arn:aws:sns:eu-west-2:332499610595:gfr__sns___reporting_events` |
+| `test`      | `arn:aws:sns:eu-west-2:756547862786:gfr__sns___reporting_events` |
 | `perf-test` | `arn:aws:sns:eu-west-2:120185944470:gfr__sns___reporting_events` |
-| `ext-test` | `arn:aws:sns:eu-west-2:711387132227:gfr__sns___reporting_events` |
-| `prod` | `arn:aws:sns:eu-west-2:409408189387:gfr__sns___reporting_events` |
+| `ext-test`  | `arn:aws:sns:eu-west-2:711387132227:gfr__sns___reporting_events` |
+| `prod`      | `arn:aws:sns:eu-west-2:409408189387:gfr__sns___reporting_events` |
 
 The application configuration is proposed in
 [`DEFRA/cdp-app-config#4449`](https://github.com/DEFRA/cdp-app-config/pull/4449).

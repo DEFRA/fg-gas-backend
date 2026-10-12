@@ -42,7 +42,9 @@ const getCurrentAgreementPageModel = async ({
 };
 
 const auditCurrentView = (_args, result) =>
-  result?.agreement ? buildAgreementViewAudit(result.agreement, "current") : null;
+  result?.agreement
+    ? buildAgreementViewAudit(result.agreement, "current")
+    : null;
 
 export const getCurrentAgreementPageModelUseCase = withAudit(
   getCurrentAgreementPageModel,

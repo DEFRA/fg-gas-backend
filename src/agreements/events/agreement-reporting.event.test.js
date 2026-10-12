@@ -107,10 +107,12 @@ describe("Agreement reporting events", () => {
       ...agreement,
       parcels: undefined,
     };
-    const created =
-      createAgreementCreatedReportingPublication(agreementWithoutParcels);
-    const statusChanged =
-      createAgreementStatusChangedReportingPublication(agreementWithoutParcels);
+    const created = createAgreementCreatedReportingPublication(
+      agreementWithoutParcels,
+    );
+    const statusChanged = createAgreementStatusChangedReportingPublication(
+      agreementWithoutParcels,
+    );
 
     expect(created.event.eventData.parcels).toEqual([]);
     expect(statusChanged.event.eventData.parcels).toEqual([]);

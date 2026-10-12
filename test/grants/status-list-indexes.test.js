@@ -80,9 +80,8 @@ describe("status-filtered list indexes", () => {
   // there is no `down` to test, and re-running `up` is the only recovery it
   // offers.
   it("exports up and nothing else", async () => {
-    const migration = await import(
-      "../../migrations/20260908120000-add-status-filtered-list-indexes.js"
-    );
+    const migration =
+      await import("../../migrations/20260908120000-add-status-filtered-list-indexes.js");
 
     expect(Object.keys(migration)).toEqual(["up"]);
   });

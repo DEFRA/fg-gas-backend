@@ -85,10 +85,7 @@ const toReportingOption = (entry, agreement, parcelsById) => {
       inclusiveWholeYears(optionStartDate, optionEndDate),
     ),
     ...optional("optionStartDate", reportingStartDateTime(optionStartDate)),
-    ...optional(
-      "optionEndDate",
-      reportingInclusiveEndDateTime(optionEndDate),
-    ),
+    ...optional("optionEndDate", reportingInclusiveEndDateTime(optionEndDate)),
     optionQuantity: entry.quantity,
     optionValue: optionalPounds(entry.totalAmountPence),
   };
