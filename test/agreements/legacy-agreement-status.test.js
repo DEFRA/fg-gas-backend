@@ -14,9 +14,9 @@ import {
 import { createAgreementPublications } from "../../src/agreements/services/integrations/create-publications.js";
 import { receiveMessages, sendMessage } from "../helpers/sqs.js";
 
-const code = "woodland";
+const code = "legacy-test-code";
 const clientRef = "legacy-agreement-status-client";
-const agreementNumber = "WMP123456789";
+const agreementNumber = "LEG123456789";
 const agreementDate = "2026-07-21T12:00:00.000Z";
 const caseworkingUpdateTarget =
   "arn:aws:sns:eu-west-2:000000000000:gas__sns__update_case_status_fifo.fifo";
@@ -27,6 +27,7 @@ const legacyGrantDefinition = {
       "utf8",
     ),
   ),
+  code,
   version: "0.0.0",
 };
 
