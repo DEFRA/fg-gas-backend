@@ -5,10 +5,7 @@ import { buildAgreementDocumentPageModel } from "../services/build-agreement-pag
 import { loadCurrentAgreementContext } from "./load-current-agreement-context.js";
 import { loadAgreementDocument } from "./load-current-agreement.js";
 
-const getAgreementDocumentPageModel = async ({
-  agreementNumber,
-  access,
-}) => {
+const getAgreementDocumentPageModel = async ({ agreementNumber, access }) => {
   logger.info({ agreementNumber }, "Getting read-only agreement document");
   const agreement = await loadAgreementDocument({ agreementNumber, access });
   const { agreementDefinition, etag } = await loadCurrentAgreementContext({

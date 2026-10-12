@@ -16,17 +16,20 @@ const { mockValidateEndpointServiceUrls } = vi.hoisted(() => ({
 
 // Only the URL check is mocked: it is the one thing that fails because of our deployment
 // rather than the definition, which is the distinction this module exists to make.
-vi.mock("../services/integrations/resolve-endpoint-service-url.js", async () => {
-  const actual = await vi.importActual(
-    "../services/integrations/resolve-endpoint-service-url.js",
-  );
+vi.mock(
+  "../services/integrations/resolve-endpoint-service-url.js",
+  async () => {
+    const actual = await vi.importActual(
+      "../services/integrations/resolve-endpoint-service-url.js",
+    );
 
-  return {
-    ...actual,
-    validateEndpointServiceUrls: (...args) =>
-      mockValidateEndpointServiceUrls(...args),
-  };
-});
+    return {
+      ...actual,
+      validateEndpointServiceUrls: (...args) =>
+        mockValidateEndpointServiceUrls(...args),
+    };
+  },
+);
 
 const CODE = "pigs-might-fly";
 

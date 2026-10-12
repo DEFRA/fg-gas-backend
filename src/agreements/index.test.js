@@ -58,7 +58,9 @@ describe("agreements", () => {
       path: "/agreements/render",
     });
     expect(
-      routes.filter(({ path }) => path.startsWith("/admin/migrations/woodland")),
+      routes.filter(({ path }) =>
+        path.startsWith("/admin/migrations/woodland"),
+      ),
     ).toEqual([]);
   });
 

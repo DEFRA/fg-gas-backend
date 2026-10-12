@@ -11,18 +11,18 @@ involved.
 
 ## Feature flag
 
-| Variable | Default | Effect |
-| --- | --- | --- |
+| Variable                | Default | Effect                                                                                                                                                                            |
+| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ENABLE_TEST_ENDPOINTS` | `false` | When true, the `/api/test` routes are registered and a warning is logged at startup. When false or absent, the routes are never added to the router, so requests get a plain 404. |
 
 Environment values live in `cdp-app-config/services/fg-gas-backend`:
 
-| Environment | Value |
-| --- | --- |
-| `defaults.env` | `false` |
-| `dev`, `test`, `ext-test`, `perf-test` | `true` |
-| `infra-dev`, `management` | inherits `false` |
-| `prod` | inherits `false` — **must never be enabled** |
+| Environment                            | Value                                        |
+| -------------------------------------- | -------------------------------------------- |
+| `defaults.env`                         | `false`                                      |
+| `dev`, `test`, `ext-test`, `perf-test` | `true`                                       |
+| `infra-dev`, `management`              | inherits `false`                             |
+| `prod`                                 | inherits `false` — **must never be enabled** |
 
 ## `POST /api/test/agreements`
 
@@ -44,22 +44,22 @@ Agreement, version history) and outbox side effects are all representative.
 }
 ```
 
-| Field | Required | Notes |
-| --- | --- | --- |
-| `code` | yes | Must not be listed in `LEGACY_AGREEMENT_GRANT_CODES`, otherwise 400. |
-| `clientRef` | yes | Creation is idempotent on `(code, clientRef)`: repeating a request returns the existing Agreement rather than creating a second one. Use a fresh value per scenario. |
-| `currentConfigVersion` | yes | Semver of the grant config to create from. |
-| `identifiers` | yes | Must contain `sbi`. Additional identifiers such as `frn` are allowed. |
-| `answers` | no (defaults `{}`) | Grant-specific. Each grant's agreement definition decides what it reads via a JSONata path (PMF uses `$.input.answers`), so the shape is not validated centrally. |
-| `metadata` | no (defaults `{}`) | Passed through to creation. |
+| Field                  | Required           | Notes                                                                                                                                                                |
+| ---------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `code`                 | yes                | Must not be listed in `LEGACY_AGREEMENT_GRANT_CODES`, otherwise 400.                                                                                                 |
+| `clientRef`            | yes                | Creation is idempotent on `(code, clientRef)`: repeating a request returns the existing Agreement rather than creating a second one. Use a fresh value per scenario. |
+| `currentConfigVersion` | yes                | Semver of the grant config to create from.                                                                                                                           |
+| `identifiers`          | yes                | Must contain `sbi`. Additional identifiers such as `frn` are allowed.                                                                                                |
+| `answers`              | no (defaults `{}`) | Grant-specific. Each grant's agreement definition decides what it reads via a JSONata path (PMF uses `$.input.answers`), so the shape is not validated centrally.    |
+| `metadata`             | no (defaults `{}`) | Passed through to creation.                                                                                                                                          |
 
 ### Responses
 
-| Status | When |
-| --- | --- |
-| `201` | Created. Body is `{ "message": "Test agreement created", "agreementData": { ... } }`, where `agreementData.agreementNumber` is the generated number and `agreementData.state` is the initial state (`offered` for PMF). |
-| `400` | Payload failed validation, the grant code is not GAS-managed, or the supplied data could not satisfy the grant's agreement definition. |
-| `404` | Requested when the flag is disabled. |
+| Status | When                                                                                                                                                                                                                    |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `201`  | Created. Body is `{ "message": "Test agreement created", "agreementData": { ... } }`, where `agreementData.agreementNumber` is the generated number and `agreementData.state` is the initial state (`offered` for PMF). |
+| `400`  | Payload failed validation, the grant code is not GAS-managed, or the supplied data could not satisfy the grant's agreement definition.                                                                                  |
+| `404`  | Requested when the flag is disabled.                                                                                                                                                                                    |
 
 ### Response body (`agreementData`)
 
@@ -93,23 +93,23 @@ the same handler the SQS consumer uses.
 
 ### Responses
 
-| Status | When |
-| --- | --- |
-| `200` | Transition applied. Body is `{ "message": "Test agreement status updated", "agreementData": { ... } }` with the updated `state` and incremented `version`. |
-| `400` | `status` is missing or not one of the three supported values, or the Agreement's grant code is not GAS-managed. The Agreement is unchanged. |
-| `404` | No Agreement exists with that agreement number. |
-| `409` | The transition is not valid from the Agreement's current state. The body's `data` reports `currentState` and `requestedStatus`, and the Agreement is left in its previous state. |
+| Status | When                                                                                                                                                                             |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `200`  | Transition applied. Body is `{ "message": "Test agreement status updated", "agreementData": { ... } }` with the updated `state` and incremented `version`.                       |
+| `400`  | `status` is missing or not one of the three supported values, or the Agreement's grant code is not GAS-managed. The Agreement is unchanged.                                      |
+| `404`  | No Agreement exists with that agreement number.                                                                                                                                  |
+| `409`  | The transition is not valid from the Agreement's current state. The body's `data` reports `currentState` and `requestedStatus`, and the Agreement is left in its previous state. |
 
 ### Reaching `terminated`
 
 The lifecycle (both the `defaultAgreementLifecycle` fallback and the PMF grant
 config) allows:
 
-| From | Target states |
-| --- | --- |
-| `offered` | `accepted`, `withdrawn`, `cancelled` |
-| `accepted` | `terminated` |
-| `withdrawn`, `cancelled`, `terminated` | terminal, no transitions |
+| From                                   | Target states                        |
+| -------------------------------------- | ------------------------------------ |
+| `offered`                              | `accepted`, `withdrawn`, `cancelled` |
+| `accepted`                             | `terminated`                         |
+| `withdrawn`, `cancelled`, `terminated` | terminal, no transitions             |
 
 Agreements are created in `offered`, so **a newly created Agreement cannot be
 terminated directly** — that request is correctly rejected with a 409. To test
