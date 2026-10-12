@@ -2,7 +2,7 @@ import { Grant } from "../../src/grants/models/grant.js";
 import { wreck } from "./wreck.js";
 
 export const createTestGrant = (overrides = {}) => {
-  return new Grant({
+  const definition = {
     code: "test-grant",
     version: "0.0.0",
     metadata: {
@@ -54,7 +54,9 @@ export const createTestGrant = (overrides = {}) => {
       },
     ],
     ...overrides,
-  });
+  };
+
+  return Grant.fromDefinition(definition, definition.version);
 };
 
 export const createGrant = async (code = "test-code-1") => {

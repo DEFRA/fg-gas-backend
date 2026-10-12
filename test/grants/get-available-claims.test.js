@@ -7,7 +7,9 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../../src/grants/models/application.js";
+import { ApplicationDocument } from "../../src/grants/models/application-document.js";
 import { GrantDocument } from "../../src/grants/models/grant-document.js";
+import { Position } from "../../src/grants/models/position.js";
 import { createTestGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -83,15 +85,19 @@ const seed = async ({ entitlementTemplates, currentPhase } = {}) => {
   );
 
   await applications.insertOne(
-    Application.new({
-      clientRef,
-      code,
-      currentPhase: currentPhase ?? position.phase,
-      currentStage: position.stage,
-      currentStatus: position.status,
-      phases: [{ code: position.phase, questions: {} }],
-      identifiers: { sbi: "123", frn: "456", crn: "789", defraId: "abc" },
-    }),
+    new ApplicationDocument(
+      Application.new({
+        clientRef,
+        code,
+        position: new Position({
+          phase: currentPhase ?? position.phase,
+          stage: position.stage,
+          status: position.status,
+        }),
+        phases: [{ code: position.phase, questions: {} }],
+        identifiers: { sbi: "123", frn: "456", crn: "789", defraId: "abc" },
+      }),
+    ),
   );
 };
 

@@ -1,3 +1,6 @@
+import Boom from "@hapi/boom";
+import { PositionScope } from "./position-scope.js";
+
 export class ClaimableEntitlement {
   constructor({
     type,
@@ -19,6 +22,12 @@ export class ClaimableEntitlement {
     this.fields = fields;
     this.claim = claim;
     this.entitlement = entitlement;
+
+    if (!PositionScope.areAll(claim?.claimableAt)) {
+      throw Boom.badImplementation(
+        `Invalid claimable entitlement "${claimCode}": "claim.claimableAt" must contain only PositionScopes`,
+      );
+    }
   }
 
   static fromMaterialised({ template, code, clientRef }) {
@@ -77,19 +86,6 @@ export class ClaimableEntitlement {
   }
 
   #isClaimableAt(position) {
-    if (!position) {
-      return false;
-    }
-
-    return (this.claim?.claimableAt ?? []).some((declared) => {
-      const matches = (declaredPart, actualPart) =>
-        declaredPart == null || declaredPart === actualPart;
-
-      return (
-        declared.phase === position.phase &&
-        matches(declared.stage, position.stage) &&
-        matches(declared.status, position.status)
-      );
-    });
+    return PositionScope.anyCovers(this.claim?.claimableAt ?? [], position);
   }
 }

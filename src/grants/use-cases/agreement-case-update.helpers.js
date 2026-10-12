@@ -12,17 +12,13 @@ export const createAgreementCaseUpdateCommand = ({
   application,
   agreementNumber,
 }) => {
-  const { currentStage, currentPhase } = application;
-  const currentStatus = application.getFullyQualifiedStatus();
   const agreementData = getAgreementData(application, agreementNumber);
 
-  return new UpdateCaseStatusCommand({
+  return UpdateCaseStatusCommand.forPosition({
     caseRef: clientRef,
     workflowCode: code,
     configVersion: application.currentConfigVersion,
-    newStatus: currentStatus,
-    phase: currentPhase,
-    stage: currentStage,
+    position: application.position,
     dataType: "ARRAY",
     key: "agreementRef",
     targetNode: "agreements",

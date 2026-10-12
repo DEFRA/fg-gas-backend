@@ -31,12 +31,10 @@ export const createApplicationUseCase = async (
     requestedVersion: configVersion,
   });
 
-  const { phase, stage, status } = grant.getInitialState();
+  const { phase } = grant.getInitialState();
 
   const application = Application.new({
-    currentPhase: phase.code,
-    currentStage: stage.code,
-    currentStatus: status.code,
+    position: grant.getInitialPosition(),
     code,
     configVersion: resolvedVersion, // Application.new maps this to originalConfigVersion + currentConfigVersion
     clientRef,
@@ -69,7 +67,7 @@ export const createApplicationUseCase = async (
     clientRef: application.clientRef,
     code: application.code,
     originalConfigVersion: application.originalConfigVersion,
-    status: application.getFullyQualifiedStatus(),
+    position: application.position,
   });
 
   const createNewCaseCommand = new CreateNewCaseCommand(application);

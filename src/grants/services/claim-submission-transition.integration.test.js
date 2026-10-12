@@ -34,6 +34,7 @@ let saveApplication;
 let saveGrant;
 let createTestApplication;
 let createTestGrant;
+let Position;
 let config;
 let fixtureNumber = 0;
 
@@ -158,9 +159,7 @@ const seedFixture = async (options = {}) => {
       code,
       clientRef,
       configVersion,
-      currentPhase: position.phase,
-      currentStage: position.stage,
-      currentStatus: position.status,
+      position: new Position(position),
     }),
   );
   await db.collection("entitlements").insertMany(entitlements);
@@ -207,6 +206,7 @@ beforeAll(async () => {
   ({ createTestApplication } =
     await import("../../../test/helpers/applications.js"));
   ({ createTestGrant } = await import("../../../test/helpers/grants.js"));
+  ({ Position } = await import("../models/position.js"));
 
   await mongoClient.connect();
 }, 120_000);

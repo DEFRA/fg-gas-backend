@@ -15,12 +15,8 @@ export const getApplicationStatusUseCase = async ({ code, clientRef }) => {
     code,
   );
 
-  const {
-    currentPhase: phase,
-    currentStage: stage,
-    currentStatus: status,
-    originalConfigVersion,
-  } = application;
+  const { originalConfigVersion } = application;
+  const { phase, stage, status } = application.position;
 
   const { resolvedVersion } = await resolveGrantForApplication(application);
   await persistResolvedVersion(application, resolvedVersion);

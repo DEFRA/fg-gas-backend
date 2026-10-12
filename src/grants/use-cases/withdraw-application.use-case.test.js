@@ -20,6 +20,7 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
+import { Position } from "../models/position.js";
 import {
   findByClientRefAndCode,
   update,
@@ -68,9 +69,11 @@ describe("withdrawApplicationUseCase", () => {
 
   it("requests agreement withdrawal if an agreement is found", async () => {
     const application = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.WithdrawRequested,
+      position: new Position({
+        phase: ApplicationPhase.PreAward,
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.WithdrawRequested,
+      }),
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {
@@ -123,9 +126,11 @@ describe("withdrawApplicationUseCase", () => {
   it("routes unmanaged agreement withdrawal to the legacy topic", async () => {
     canHandleInternalCommand.mockResolvedValue(false);
     const application = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.WithdrawRequested,
+      position: new Position({
+        phase: ApplicationPhase.PreAward,
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.WithdrawRequested,
+      }),
       clientRef: "test-client-ref",
       code: "legacy-code",
       agreements: { "agreement-123": agreement },
@@ -145,9 +150,11 @@ describe("withdrawApplicationUseCase", () => {
 
   it("withdraws an application and publishes the final status transition", async () => {
     const application = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.WithdrawRequested,
+      position: new Position({
+        phase: ApplicationPhase.PreAward,
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.WithdrawRequested,
+      }),
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {},
@@ -185,7 +192,7 @@ describe("withdrawApplicationUseCase", () => {
         }),
       }),
     );
-    expect(application.getFullyQualifiedStatus().toString()).toBe(
+    expect(application.position.toString()).toBe(
       "PRE_AWARD:ASSESSMENT:APPLICATION_WITHDRAWN",
     );
   });

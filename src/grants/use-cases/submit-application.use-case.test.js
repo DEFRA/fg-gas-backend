@@ -55,7 +55,7 @@ describe("submitApplicationUseCase", () => {
 
     const application = save.mock.calls[0][0];
     expect(application).toBeInstanceOf(Application);
-    expect(application.currentPhase).toBe(ApplicationPhase.PreAward);
+    expect(application.position.phase).toBe(ApplicationPhase.PreAward);
     expect(application.clientRef).toBe("test-client-ref");
     expect(application.originalConfigVersion).toBe("1.0.0");
   });

@@ -7,7 +7,9 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../../src/grants/models/application.js";
+import { ApplicationDocument } from "../../src/grants/models/application-document.js";
 import { GrantDocument } from "../../src/grants/models/grant-document.js";
+import { Position } from "../../src/grants/models/position.js";
 import { createTestGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -35,31 +37,35 @@ describe("GET /grants/{code}/applications/{clientRef}/status", () => {
     await grants.insertOne(new GrantDocument(createTestGrant({ code })));
 
     await applications.insertOne(
-      Application.new({
-        clientRef,
-        code,
-        currentPhase: ApplicationPhase.PreAward,
-        currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStage.Assessment,
-        phases: [
-          {
-            code: ApplicationPhase.PreAward,
-            questions: {},
-            stages: [
-              {
-                code: ApplicationStage.Assessment,
-                statuses: [{ code: ApplicationStatus.Received }],
-              },
-            ],
+      new ApplicationDocument(
+        Application.new({
+          clientRef,
+          code,
+          position: new Position({
+            phase: ApplicationPhase.PreAward,
+            stage: ApplicationStage.Assessment,
+            status: ApplicationStage.Assessment,
+          }),
+          phases: [
+            {
+              code: ApplicationPhase.PreAward,
+              questions: {},
+              stages: [
+                {
+                  code: ApplicationStage.Assessment,
+                  statuses: [{ code: ApplicationStatus.Received }],
+                },
+              ],
+            },
+          ],
+          identifiers: {
+            sbi: "123",
+            frn: "456",
+            crn: "789",
+            defraId: "abc",
           },
-        ],
-        identifiers: {
-          sbi: "123",
-          frn: "456",
-          crn: "789",
-          defraId: "abc",
-        },
-      }),
+        }),
+      ),
     );
 
     const response = await wreck.get(

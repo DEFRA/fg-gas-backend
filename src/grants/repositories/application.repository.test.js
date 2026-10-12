@@ -15,6 +15,7 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
+import { Position } from "../models/position.js";
 import { ApplicationSeries } from "../models/application-series.js";
 import {
   countApplicationRows,
@@ -36,7 +37,8 @@ vi.mock("../../common/paginate.js");
 
 describe("update", () => {
   it("should update application", async () => {
-    const application = new ApplicationDocument({
+    const application = new Application({
+      position: new Position({}),
       clientRef: "application-1",
       code: "grant-1",
       createdAt: "2021-01-02T00:00:00.000Z",
@@ -53,6 +55,7 @@ describe("update", () => {
         anything: "test",
       },
       agreements: {},
+      phases: [],
     });
 
     const replaceOne = vi.fn().mockResolvedValueOnce({
@@ -69,7 +72,8 @@ describe("update", () => {
   });
 
   it("should throw if record not modified", async () => {
-    const application = new ApplicationDocument({
+    const application = new Application({
+      position: new Position({}),
       clientRef: "application-1",
       code: "grant-1",
       createdAt: "2021-01-02T00:00:00.000Z",
@@ -85,6 +89,7 @@ describe("update", () => {
       answers: {
         anything: "test",
       },
+      phases: [],
     });
 
     const replaceOne = vi.fn().mockResolvedValueOnce({
@@ -101,6 +106,74 @@ describe("update", () => {
 });
 
 describe("save", () => {
+  it("stores the position as flat fields ahead of the rest of the document", async () => {
+    const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
+    db.collection.mockReturnValue({ insertOne });
+
+    await save(
+      new Application({
+        position: new Position({
+          phase: ApplicationPhase.PreAward,
+          stage: ApplicationStage.Assessment,
+          status: ApplicationStatus.Received,
+        }),
+        clientRef: "application-1",
+        code: "grant-1",
+        phases: [],
+      }),
+    );
+
+    const [document] = insertOne.mock.calls[0];
+
+    expect(Object.keys(document)).toEqual([
+      "currentPhase",
+      "currentStage",
+      "currentStatus",
+      "clientRef",
+      "code",
+      "originalConfigVersion",
+      "currentConfigVersion",
+      "createdAt",
+      "updatedAt",
+      "submittedAt",
+      "identifiers",
+      "metadata",
+      "phases",
+      "agreements",
+    ]);
+    expect(document).toMatchObject({
+      currentPhase: "PRE_AWARD",
+      currentStage: "ASSESSMENT",
+      currentStatus: "APPLICATION_RECEIVED",
+    });
+    expect(document).not.toHaveProperty("position");
+  });
+
+  it.each([undefined, null])(
+    "stores a missing stage and status as it read them (%s)",
+    async (missing) => {
+      const findOne = vi.fn().mockResolvedValueOnce({
+        clientRef: "application-1",
+        code: "grant-1",
+        currentPhase: "PRE_AWARD",
+        currentStage: missing,
+        currentStatus: missing,
+        phases: [],
+      });
+      const replaceOne = vi.fn().mockResolvedValueOnce({ modifiedCount: 1 });
+      db.collection.mockReturnValue({ findOne, replaceOne });
+
+      const application = await findByClientRef("application-1");
+      await update(application);
+
+      expect(application.position).toBeInstanceOf(Position);
+      expect(application.position.toString()).toBe("PRE_AWARD");
+      expect(replaceOne.mock.calls[0][1].currentPhase).toBe("PRE_AWARD");
+      expect(replaceOne.mock.calls[0][1].currentStage).toBe(missing);
+      expect(replaceOne.mock.calls[0][1].currentStatus).toBe(missing);
+    },
+  );
+
   it("stores an application", async () => {
     const insertOne = vi.fn().mockResolvedValueOnce({
       insertedId: "1",
@@ -114,9 +187,11 @@ describe("save", () => {
 
     await save(
       new Application({
-        currentPhase: ApplicationPhase.PreAward,
-        currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Received,
+        position: new Position({
+          phase: ApplicationPhase.PreAward,
+          stage: ApplicationStage.Assessment,
+          status: ApplicationStatus.Received,
+        }),
         clientRef: "application-1",
         code: "grant-1",
         configVersion: "1.0.0",
@@ -143,9 +218,11 @@ describe("save", () => {
 
     expect(insertOne).toHaveBeenCalledWith(
       new ApplicationDocument({
-        currentPhase: ApplicationPhase.PreAward,
-        currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Received,
+        position: new Position({
+          phase: ApplicationPhase.PreAward,
+          stage: ApplicationStage.Assessment,
+          status: ApplicationStatus.Received,
+        }),
         clientRef: "application-1",
         code: "grant-1",
         originalConfigVersion: "1.0.0",
@@ -182,6 +259,7 @@ describe("save", () => {
     await expect(
       save(
         new Application({
+          position: new Position({}),
           clientRef: "application-1",
           code: "grant-1",
           createdAt: "2021-01-01T00:00:00.000Z",
@@ -215,8 +293,7 @@ describe("save", () => {
         new Application({
           clientRef: "application-1",
           code: "grant-1",
-          currentPhase: "PRE_AWARD",
-          currentStage: "application",
+          position: new Position({ phase: "PRE_AWARD", stage: "application" }),
           status: "PENDING",
           createdAt: "2021-01-01T00:00:00.000Z",
           submittedAt: "2021-01-01T00:00:00.000Z",
@@ -240,6 +317,7 @@ describe("findByClientRef", () => {
   it("finds an application by clientRef", async () => {
     const findOne = vi.fn().mockResolvedValueOnce(
       new ApplicationDocument({
+        position: new Position({}),
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-02T00:00:00.000Z",
@@ -268,6 +346,7 @@ describe("findByClientRef", () => {
 
     expect(result).toStrictEqual(
       new Application({
+        position: new Position({}),
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-02T00:00:00.000Z",
@@ -310,9 +389,11 @@ describe("findByClientRefAndCode", () => {
   it("finds an application by clientRef and code", async () => {
     const findOne = vi.fn().mockResolvedValueOnce(
       new ApplicationDocument({
-        currentPhase: ApplicationPhase.PreAward,
-        currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Received,
+        position: new Position({
+          phase: ApplicationPhase.PreAward,
+          stage: ApplicationStage.Assessment,
+          status: ApplicationStatus.Received,
+        }),
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-02T00:00:00.000Z",
@@ -356,9 +437,11 @@ describe("findByClientRefAndCode", () => {
 
     expect(result).toStrictEqual(
       new Application({
-        currentPhase: ApplicationPhase.PreAward,
-        currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Received,
+        position: new Position({
+          phase: ApplicationPhase.PreAward,
+          stage: ApplicationStage.Assessment,
+          status: ApplicationStatus.Received,
+        }),
         clientRef: "application-1",
         code: "grant-1",
         createdAt: "2021-01-02T00:00:00.000Z",

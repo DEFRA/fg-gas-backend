@@ -41,7 +41,6 @@ const addAgreement = async (command, session) => {
     { clientRef, code },
     session,
   );
-  const { currentPhase, currentStage } = application;
 
   const agreement = Agreement.new({
     agreementRef: agreementNumber,
@@ -60,13 +59,11 @@ const addAgreement = async (command, session) => {
     .getAgreementsData()
     .find((a) => a.agreementRef === agreementNumber);
 
-  const statusCommand = new UpdateCaseStatusCommand({
+  const statusCommand = UpdateCaseStatusCommand.forPosition({
     caseRef: clientRef,
     workflowCode: code,
     configVersion: application.currentConfigVersion,
-    newStatus: application.getFullyQualifiedStatus(),
-    phase: currentPhase,
-    stage: currentStage,
+    position: application.position,
     targetNode: "agreements",
     dataType: "ARRAY",
     key: "agreementRef",

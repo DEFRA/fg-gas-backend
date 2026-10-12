@@ -10,6 +10,7 @@ import { internalCommandTypes } from "../../common/internal-command-types.js";
 import { saveEvents } from "../../events/index.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { Application } from "../models/application.js";
+import { Position } from "../models/position.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import {
   auditDataBuilder,
@@ -49,9 +50,11 @@ describe("create agreement use case", () => {
   ])("targets the %s", async (_description, code, target) => {
     const session = {};
     const application = Application.new({
-      currentPhase: "PRE_AWARD",
-      currentStage: "AWARD",
-      currentStatus: "REVIEW",
+      position: new Position({
+        phase: "PRE_AWARD",
+        stage: "AWARD",
+        status: "REVIEW",
+      }),
       clientRef: "1234",
       code,
       phases: [],
@@ -73,9 +76,11 @@ describe("create agreement use case", () => {
   it("writes a CREATE_AGREEMENT audit event", async () => {
     const session = {};
     const application = Application.new({
-      currentPhase: "PRE_AWARD",
-      currentStage: "AWARD",
-      currentStatus: "REVIEW",
+      position: new Position({
+        phase: "PRE_AWARD",
+        stage: "AWARD",
+        status: "REVIEW",
+      }),
       clientRef: "1234",
       code: "frps-beta",
       phases: [],

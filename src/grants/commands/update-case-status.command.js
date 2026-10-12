@@ -43,4 +43,13 @@ export class UpdateCaseStatusCommand extends CloudEvent {
       `${caseRef}-${workflowCode}`,
     );
   }
+
+  static forPosition({ position, previousPosition = position, ...props }) {
+    return new UpdateCaseStatusCommand({
+      ...props,
+      newStatus: position.toString(),
+      phase: previousPosition.phase,
+      stage: previousPosition.stage,
+    });
+  }
 }

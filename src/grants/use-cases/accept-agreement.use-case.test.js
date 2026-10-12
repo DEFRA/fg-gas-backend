@@ -14,6 +14,7 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
+import { Position } from "../models/position.js";
 import {
   findByClientRefAndCode,
   update,
@@ -64,9 +65,11 @@ describe("acceptAgreementUseCase", () => {
 
     findByClientRefAndCode.mockResolvedValue(
       new Application({
-        currentPhase: ApplicationPhase.PreAward,
-        currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Review,
+        position: new Position({
+          phase: ApplicationPhase.PreAward,
+          stage: ApplicationStage.Assessment,
+          status: ApplicationStatus.Review,
+        }),
         clientRef: "test-client-ref",
         code: "test-code",
         agreements: {

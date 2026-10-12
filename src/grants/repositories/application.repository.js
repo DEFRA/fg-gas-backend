@@ -6,6 +6,7 @@ import { paginate } from "../../common/paginate.js";
 import { Agreement, AgreementHistoryEntry } from "../models/agreement.js";
 import { ApplicationDocument } from "../models/application-document.js";
 import { Application } from "../models/application.js";
+import { Position } from "../models/position.js";
 
 const orNull = (value) => value ?? null;
 
@@ -75,11 +76,16 @@ const toAgreements = (agreements) =>
     return acc;
   }, {});
 
+const toApplicationPosition = (doc) =>
+  new Position({
+    phase: doc.currentPhase,
+    stage: doc.currentStage,
+    status: doc.currentStatus,
+  });
+
 const toApplication = (doc) =>
   new Application({
-    currentPhase: doc.currentPhase,
-    currentStage: doc.currentStage,
-    currentStatus: doc.currentStatus,
+    position: toApplicationPosition(doc),
     clientRef: doc.clientRef,
     code: doc.code,
     ...configVersionsFromDoc(doc),

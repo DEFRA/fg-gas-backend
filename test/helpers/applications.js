@@ -5,6 +5,7 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../../src/grants/models/application.js";
+import { Position } from "../../src/grants/models/position.js";
 import {
   ConfigVersion,
   FetchStatus,
@@ -13,9 +14,11 @@ import { wreck } from "./wreck.js";
 
 export const createTestApplication = (overrides = {}) => {
   return Application.new({
-    currentPhase: ApplicationPhase.PreAward,
-    currentStage: ApplicationStage.Assessment,
-    currentStatus: ApplicationStatus.Received,
+    position: new Position({
+      phase: ApplicationPhase.PreAward,
+      stage: ApplicationStage.Assessment,
+      status: ApplicationStatus.Received,
+    }),
     clientRef: "application-1",
     code: "grant-1",
     configVersion: "1.0.0",

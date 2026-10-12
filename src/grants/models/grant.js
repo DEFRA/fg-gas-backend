@@ -1,15 +1,35 @@
 import Boom from "@hapi/boom";
 import { EntitlementTemplate } from "./entitlement-template.js";
+import { Position } from "./position.js";
 
-// Constants for fully qualified status path format: "PHASE:STAGE:STATUS"
-const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
+const toEntitlementTemplates = (entitlementTemplates = []) =>
+  entitlementTemplates.map((template) =>
+    EntitlementTemplate.fromDefinition(template),
+  );
 
-const formatPosition = ({ phase, stage, status }) =>
-  [phase, stage, status].filter((part) => part != null).join(":");
+const toPosition = (position) => new Position(position ?? {});
 
-const positionParts = ["phase", "stage", "status"];
-const isNonEmptyString = (value) =>
-  typeof value === "string" && value.trim().length > 0;
+const toAmendablePosition = (code) =>
+  typeof code === "string" ? Position.parse(code) : code;
+
+const toAmendablePositions = (codes) =>
+  Array.isArray(codes) ? codes.map(toAmendablePosition) : codes;
+
+const withClaimApprovalPositions = (claims) => {
+  const config = claims?.onClaimApproval;
+  if (!config) {
+    return claims;
+  }
+
+  return {
+    ...claims,
+    onClaimApproval: {
+      ...config,
+      currentPosition: toPosition(config.currentPosition),
+      targetPosition: toPosition(config.targetPosition),
+    },
+  };
+};
 
 export class Grant {
   constructor({
@@ -41,9 +61,7 @@ export class Grant {
     this.phases = phases;
     this.externalStatusMap = externalStatusMap;
     this.amendablePositions = amendablePositions;
-    this.entitlementTemplates = entitlementTemplates.map(
-      (template) => new EntitlementTemplate(template),
-    );
+    this.entitlementTemplates = entitlementTemplates;
     this.pages = pages;
     this.claims = claims;
     this.admin = admin;
@@ -56,7 +74,17 @@ export class Grant {
   // Builds a Grant from a published grant definition, so a definition can be checked
   // without saving it.
   static fromDefinition(grantDefinition, version) {
-    return new Grant({ ...grantDefinition, version });
+    return new Grant({
+      ...grantDefinition,
+      version,
+      amendablePositions: toAmendablePositions(
+        grantDefinition?.amendablePositions,
+      ),
+      entitlementTemplates: toEntitlementTemplates(
+        grantDefinition?.entitlementTemplates,
+      ),
+      claims: withClaimApprovalPositions(grantDefinition?.claims),
+    });
   }
 
   findEntitlementTemplate(claimCode) {
@@ -82,13 +110,7 @@ export class Grant {
 
     const { currentPosition, targetPosition } = config;
 
-    return this.#isSamePosition(currentPosition, position)
-      ? targetPosition
-      : null;
-  }
-
-  #isSamePosition(a, b) {
-    return a.phase === b.phase && a.stage === b.stage && a.status === b.status;
+    return position.equals(currentPosition) ? targetPosition : null;
   }
 
   // findEntitlementTemplate returns the first match, so a duplicated claim code
@@ -144,7 +166,7 @@ export class Grant {
   #assertPositionExists(claimCode, relation, position) {
     if (!this.#positionExists(position)) {
       throw Boom.badImplementation(
-        `Entitlement template "${claimCode}" is ${relation} position "${formatPosition(position)}" which does not match any position in "phases"`,
+        `Entitlement template "${claimCode}" is ${relation} position "${position}" which does not match any position in "phases"`,
       );
     }
   }
@@ -167,61 +189,59 @@ export class Grant {
   }
 
   #assertClaimApprovalTransitionValid({ currentPosition, targetPosition }) {
-    const current = formatPosition(currentPosition);
-    const target = formatPosition(targetPosition);
-    if (current === target) {
+    if (currentPosition.equals(targetPosition)) {
       return;
     }
 
-    const transition = this.isValidTransition(
-      targetPosition.phase,
-      targetPosition.stage,
-      targetPosition.status,
-      current,
-    );
+    const transition = this.isValidTransition(targetPosition, currentPosition);
     if (!transition.valid) {
       throw Boom.badImplementation(
-        `Grant "${this.code}" claims.onClaimApproval target position "${target}" is not a valid transition from "${current}"`,
+        `Grant "${this.code}" claims.onClaimApproval target position "${targetPosition}" is not a valid transition from "${currentPosition}"`,
       );
     }
   }
 
   #assertClaimApprovalPositionComplete(label, position) {
-    for (const part of positionParts) {
-      if (!isNonEmptyString(position?.[part])) {
-        throw Boom.badImplementation(
-          `Grant "${this.code}" claims.onClaimApproval.${label}.${part} must be a non-empty string`,
-        );
-      }
+    const part = position.incompletePart();
+
+    if (part) {
+      throw Boom.badImplementation(
+        `Grant "${this.code}" claims.onClaimApproval.${label}.${part} must be a non-empty string`,
+      );
+    }
+  }
+
+  #assertClaimApprovalPositionIsPosition(label, position) {
+    if (!(position instanceof Position)) {
+      throw Boom.badImplementation(
+        `Grant "${this.code}" claims.onClaimApproval.${label} must be a Position`,
+      );
     }
   }
 
   #assertClaimApprovalPositionExists(label, position) {
+    this.#assertClaimApprovalPositionIsPosition(label, position);
     this.#assertClaimApprovalPositionComplete(label, position);
 
     if (!this.#positionExists(position)) {
       throw Boom.badImplementation(
-        `Grant "${this.code}" claims.onClaimApproval.${label} "${formatPosition(position)}" does not match any position in "phases"`,
+        `Grant "${this.code}" claims.onClaimApproval.${label} "${position}" does not match any position in "phases"`,
       );
     }
   }
 
   // Only the parts the template declares are checked: a phase-only position is
   // valid as long as the phase exists.
-  #positionExists({ phase, stage, status }) {
-    const foundPhase = this.#findPhase(this.phases, phase);
-    const foundStage = this.#findStage(foundPhase, stage);
-    const foundStatus = this.#findStatus(foundStage, status);
-
-    if (status != null) {
-      return Boolean(foundStatus);
+  #positionExists(position) {
+    if (position.status != null) {
+      return Boolean(this.findStatusDefinition(position));
     }
 
-    if (stage != null) {
-      return Boolean(foundStage);
+    if (position.stage != null) {
+      return Boolean(this.#findStage(this.phases, position));
     }
 
-    return Boolean(foundPhase);
+    return Boolean(this.#findPhase(this.phases, position));
   }
 
   get hasPhases() {
@@ -244,40 +264,34 @@ export class Grant {
     };
   }
 
+  getInitialPosition() {
+    const { phase, stage, status } = this.getInitialState();
+
+    return new Position({
+      phase: phase.code,
+      stage: stage.code,
+      status: status.code,
+    });
+  }
+
   // Helper methods to navigate the hierarchy
-  #findPhase(phases, phaseCode) {
-    return phases?.find((p) => p.code === phaseCode);
+  #findPhase(phases, position) {
+    return phases?.find((p) => p.code === position.phase);
   }
 
-  #findStage(phase, stageCode) {
-    return phase?.stages?.find((s) => s.code === stageCode);
-  }
-
-  #findStatus(stage, statusCode) {
-    return stage?.statuses?.find((s) => s.code === statusCode);
-  }
-
-  #findPhaseStage(phases, phaseCode, stageCode) {
-    const phase = this.#findPhase(phases, phaseCode);
-    const stage = this.#findStage(phase, stageCode);
-    return { phase, stage };
-  }
-
-  #findPhaseStageStatus(phases, phaseCode, stageCode, statusCode) {
-    const { phase, stage } = this.#findPhaseStage(phases, phaseCode, stageCode);
-    const status = this.#findStatus(stage, statusCode);
-    return { phase, stage, status };
+  #findStage(phases, position) {
+    return this.#findPhase(phases, position)?.stages?.find(
+      (s) => s.code === position.stage,
+    );
   }
 
   mapExternalStateToInternalState(
-    currentPhase,
-    currentStage,
+    currentPosition,
     externalRequestedState,
     sourceSystem,
   ) {
     const statusMapping = this.#findExternalStatusMapping(
-      currentPhase,
-      currentStage,
+      currentPosition,
       externalRequestedState,
       sourceSystem,
     );
@@ -286,11 +300,9 @@ export class Grant {
       return { valid: false };
     }
 
-    return this.#parseMappedToField(
-      statusMapping.mappedTo,
-      currentPhase,
-      currentStage,
-    );
+    const targetPosition = currentPosition.resolve(statusMapping.mappedTo);
+
+    return targetPosition ? { valid: true, targetPosition } : { valid: false };
   }
 
   #matchesExternalStatus(status, externalRequestedState, sourceSystem) {
@@ -299,15 +311,9 @@ export class Grant {
     );
   }
 
-  hasExternalStatusMapping(
-    externalRequestedState,
-    source,
-    currentPhase,
-    currentStage,
-  ) {
+  hasExternalStatusMapping(currentPosition, externalRequestedState, source) {
     return this.#findExternalStatusMapping(
-      currentPhase,
-      currentStage,
+      currentPosition,
       externalRequestedState,
       source,
     );
@@ -315,15 +321,13 @@ export class Grant {
 
   // eslint-disable-next-line complexity
   #findExternalStatusMapping(
-    currentPhase,
-    currentStage,
+    currentPosition,
     externalRequestedState,
     sourceSystem,
   ) {
-    const { stage: stageMap } = this.#findPhaseStage(
+    const stageMap = this.#findStage(
       this.externalStatusMap?.phases,
-      currentPhase,
-      currentStage,
+      currentPosition,
     );
 
     const statusMapping = stageMap?.statuses?.find((status) =>
@@ -337,47 +341,9 @@ export class Grant {
     return statusMapping;
   }
 
-  #parseMappedToField(mappedTo, currentPhase, currentStage) {
-    if (mappedTo.startsWith("::")) {
-      // Format: "::STATUS" - keep current phase and stage, only change status
-      return {
-        valid: true,
-        targetPhase: currentPhase,
-        targetStage: currentStage,
-        targetStatus: mappedTo.substring(2),
-      };
-    }
-
-    if (mappedTo.includes(":")) {
-      // Format: "PHASE:STAGE:STATUS" - full path specification
-      const parts = mappedTo.split(":");
-      if (parts.length === FULLY_QUALIFIED_STATUS_PARTS_COUNT) {
-        return {
-          valid: true,
-          targetPhase: parts[0],
-          targetStage: parts[1],
-          targetStatus: parts[2],
-        };
-      }
-      return { valid: false };
-    }
-
-    // Format: "STATUS" - just status code, keep current phase and stage
-    return {
-      valid: true,
-      targetPhase: currentPhase,
-      targetStage: currentStage,
-      targetStatus: mappedTo,
-    };
-  }
-
   // eslint-disable-next-line complexity
-  isValidTransition(targetPhase, targetStage, targetStatus, currentStatus) {
-    const statusDef = this.findStatusDefinition(
-      targetPhase,
-      targetStage,
-      targetStatus,
-    );
+  isValidTransition(targetPosition, currentPosition) {
+    const statusDef = this.findStatusDefinition(targetPosition);
 
     if (!statusDef) {
       return { valid: false, processes: [] };
@@ -390,7 +356,10 @@ export class Grant {
       };
     }
 
-    const isValid = this.#isValidFromMatch(statusDef.validFrom, currentStatus);
+    const isValid = this.#isValidFromMatch(
+      statusDef.validFrom,
+      currentPosition,
+    );
 
     return {
       valid: !!isValid,
@@ -398,35 +367,18 @@ export class Grant {
     };
   }
 
-  findStatusDefinition(targetPhase, targetStage, targetStatus) {
-    const { status } = this.#findPhaseStageStatus(
-      this.phases,
-      targetPhase,
-      targetStage,
-      targetStatus,
+  findStatusDefinition(position) {
+    return this.#findStage(this.phases, position)?.statuses?.find(
+      (s) => s.code === position.status,
     );
-    return status;
   }
 
-  #isValidFromMatch(validFrom, currentStatus) {
-    return validFrom.find((entry) => {
-      if (entry.code.includes(":")) {
-        // Fully qualified status like "PRE_AWARD:REVIEW_APPLICATION:APPROVED"
-        return entry.code === currentStatus;
-      }
-
-      // Simple status code - extract just the status part from currentStatus
-      const currentStatusCode = currentStatus.split(":").pop();
-      return entry.code === currentStatusCode;
-    });
+  #isValidFromMatch(validFrom, currentPosition) {
+    return validFrom.find((entry) => currentPosition.matchesCode(entry.code));
   }
 
   findStatuses(position) {
-    const { stage } = this.#findPhaseStage(
-      this.phases,
-      position.phase,
-      position.stage,
-    );
+    const stage = this.#findStage(this.phases, position);
 
     const statuses = stage?.statuses || [];
 

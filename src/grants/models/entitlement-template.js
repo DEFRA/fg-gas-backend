@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import { entitlementTemplate } from "../schemas/grant/entitlement-template.js";
 import { Entitlement } from "./entitlement.js";
+import { PositionScope } from "./position-scope.js";
 
 export const EntitlementCreationRejection = {
   WRONG_POSITION: "WRONG_POSITION",
@@ -9,33 +10,28 @@ export const EntitlementCreationRejection = {
   CAPACITY_REACHED: "CAPACITY_REACHED",
 };
 
+const toPositionScopes = (positions) =>
+  positions.map((position) => new PositionScope(position));
+
+const withClaimablePositions = (claim) =>
+  claim?.claimableAt
+    ? { ...claim, claimableAt: toPositionScopes(claim.claimableAt) }
+    : claim;
+
 export class EntitlementTemplate {
   static validationSchema = entitlementTemplate;
 
-  constructor(props) {
-    const { error, value } = EntitlementTemplate.validationSchema.validate(
-      props,
-      { stripUnknown: true, abortEarly: false },
-    );
-
-    if (error) {
-      throw Boom.badImplementation(
-        `Invalid entitlement template "${props?.claimCode}": ${error.details.map((d) => d.message).join(", ")}`,
-      );
-    }
-
-    const {
-      claimCode,
-      name,
-      description,
-      materialised,
-      fields,
-      maxEntitlements,
-      availableAt,
-      help,
-      claim,
-    } = value;
-
+  constructor({
+    claimCode,
+    name,
+    description,
+    materialised,
+    fields,
+    maxEntitlements,
+    availableAt,
+    help,
+    claim,
+  }) {
     this.claimCode = claimCode;
     this.name = name;
     this.description = description;
@@ -45,14 +41,44 @@ export class EntitlementTemplate {
     this.availableAt = availableAt;
     this.help = help;
     this.claim = claim;
+
+    this.#assertPositionScopes("availableAt", availableAt);
+    this.#assertPositionScopes("claim.claimableAt", claim?.claimableAt);
+  }
+
+  #assertPositionScopes(field, scopes) {
+    if (!PositionScope.areAll(scopes)) {
+      throw Boom.badImplementation(
+        `Invalid entitlement template "${this.claimCode}": "${field}" must contain only PositionScopes`,
+      );
+    }
+  }
+
+  static fromDefinition(definition) {
+    const { error, value } = EntitlementTemplate.validationSchema.validate(
+      definition,
+      { stripUnknown: true, abortEarly: false },
+    );
+
+    if (error) {
+      throw Boom.badImplementation(
+        `Invalid entitlement template "${definition?.claimCode}": ${error.details.map((d) => d.message).join(", ")}`,
+      );
+    }
+
+    return new EntitlementTemplate({
+      ...value,
+      availableAt: toPositionScopes(value.availableAt),
+      claim: withClaimablePositions(value.claim),
+    });
   }
 
   isAvailableAt(position) {
-    return this.#matchesAnyPosition(this.availableAt, position);
+    return PositionScope.anyCovers(this.availableAt, position);
   }
 
   isClaimableAt(position) {
-    return this.#matchesAnyPosition(this.claim?.claimableAt ?? [], position);
+    return PositionScope.anyCovers(this.claim?.claimableAt ?? [], position);
   }
 
   assessEntitlementCreation(position, existing, submittedData) {
@@ -69,27 +95,6 @@ export class EntitlementTemplate {
       allowed: true,
       nextInstanceNumber: Entitlement.nextInstanceNumber(instances),
     };
-  }
-
-  #matchesAnyPosition(positions, position) {
-    if (!position) {
-      return false;
-    }
-
-    return positions.some((declared) =>
-      this.#positionMatches(declared, position),
-    );
-  }
-
-  #positionMatches(declared, actual) {
-    const matches = (declaredPart, actualPart) =>
-      declaredPart == null || declaredPart === actualPart;
-
-    return (
-      declared.phase === actual.phase &&
-      matches(declared.stage, actual.stage) &&
-      matches(declared.status, actual.status)
-    );
   }
 
   // The fields whoever creates the entitlement has to supply. The rest are

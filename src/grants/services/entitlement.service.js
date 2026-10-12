@@ -76,7 +76,7 @@ const resolveEntitlements = async ({ code, clientRef }) => {
   );
   const existing = await findExistingEntitlements(clientRef, code);
   const offerable = grant
-    .findEntitlementTemplatesAvailableAt(application.currentPosition())
+    .findEntitlementTemplatesAvailableAt(application.position)
     .filter((template) => !template.materialised);
 
   return { application, grant, offerable, existing };
@@ -103,7 +103,7 @@ const availableCreationTemplate = ({
   if (
     !template ||
     template.materialised ||
-    !template.isAvailableAt(application.currentPosition())
+    !template.isAvailableAt(application.position)
   ) {
     throw Boom.notFound(
       `No entitlement available for claim code "${claimCode}" on application "${clientRef}"`,
@@ -320,7 +320,7 @@ const entitlementCreationDecision = ({
   }
 
   const decision = template.assessEntitlementCreation(
-    application.currentPosition(),
+    application.position,
     existing,
     command.data,
   );

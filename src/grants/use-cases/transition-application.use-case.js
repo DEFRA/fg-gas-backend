@@ -46,16 +46,15 @@ const getHandlersForAllProcesses = (processes) => {
 };
 
 const enqueueCaseWorkingStatusUpdate = async (
-  { application, previousPosition, newStatus },
+  { application, move },
   session,
 ) => {
-  const statusCommand = new UpdateCaseStatusCommand({
+  const statusCommand = UpdateCaseStatusCommand.forPosition({
     caseRef: application.clientRef,
     workflowCode: application.code,
     configVersion: application.currentConfigVersion,
-    newStatus,
-    phase: previousPosition.phase,
-    stage: previousPosition.stage,
+    position: move.new,
+    previousPosition: move.previous,
   });
 
   await saveEvents(
@@ -96,7 +95,6 @@ export const transitionApplicationUseCase = async (
   session,
 ) => {
   const { clientRef, code, currentConfigVersion } = application;
-  const previousPosition = application.currentPosition();
   const move = application.moveTo(targetPosition, grant);
 
   if (!move.changed) {
@@ -109,14 +107,14 @@ export const transitionApplicationUseCase = async (
     clientRef,
     code,
     configVersion: currentConfigVersion,
-    originalFullyQualifiedStatus: move.previous,
-    newFullyQualifiedStatus: move.new,
+    previousPosition: move.previous,
+    currentPosition: move.new,
   });
   await publishStatusTransition(session);
 
   await publishCaseWorkingUpdateIfRequested(
     publishCaseWorkingStatusUpdate,
-    { application, previousPosition, newStatus: move.new },
+    { application, move },
     session,
   );
 

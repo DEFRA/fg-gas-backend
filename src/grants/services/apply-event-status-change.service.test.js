@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
 import { saveEvents } from "../../events/index.js";
 import { Application } from "../models/application.js";
+import { Position } from "../models/position.js";
 import { Grant } from "../models/grant.js";
 import {
   findByClientRefAndCode,
@@ -43,9 +44,11 @@ describe("applyExternalStateChange", () => {
   const mockApplication = new Application({
     clientRef: "APP-123",
     code: "test-grant",
-    currentPhase: "PRE_AWARD",
-    currentStage: "REVIEW_APPLICATION",
-    currentStatus: "RECEIVED",
+    position: new Position({
+      phase: "PRE_AWARD",
+      stage: "REVIEW_APPLICATION",
+      status: "RECEIVED",
+    }),
     createdAt: "2024-01-01T00:00:00.000Z",
     updatedAt: "2024-01-01T00:00:00.000Z",
     submittedAt: "2024-01-01T00:00:00.000Z",
@@ -178,7 +181,7 @@ describe("applyExternalStateChange", () => {
     it("should update application state and persist changes", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
       findByClientRefAndCode.mockResolvedValue(application);
       resolveGrantForApplication.mockResolvedValue({
@@ -197,9 +200,11 @@ describe("applyExternalStateChange", () => {
       expect(update).toHaveBeenCalledWith(
         expect.objectContaining({
           clientRef: "APP-123",
-          currentPhase: "PRE_AWARD",
-          currentStage: "REVIEW_APPLICATION",
-          currentStatus: "IN_PROGRESS",
+          position: new Position({
+            phase: "PRE_AWARD",
+            stage: "REVIEW_APPLICATION",
+            status: "IN_PROGRESS",
+          }),
           updatedAt: expect.any(String),
         }),
         {}, // session
@@ -213,7 +218,7 @@ describe("applyExternalStateChange", () => {
       );
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
       createAgreementCommandUseCase.mockResolvedValue(true);
       findByClientRefAndCode.mockResolvedValue(application);
@@ -233,8 +238,12 @@ describe("applyExternalStateChange", () => {
         clientRef: "APP-123",
         code: "test-grant",
         configVersion: null,
-        originalFullyQualifiedStatus: "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
-        newFullyQualifiedStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+        previousPosition: Position.parse(
+          "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
+        ),
+        currentPosition: Position.parse(
+          "PRE_AWARD:REVIEW_APPLICATION:IN_PROGRESS",
+        ),
       });
       expect(publishStatusTransition).toHaveBeenCalledWith({});
     });
@@ -242,7 +251,7 @@ describe("applyExternalStateChange", () => {
     it("should not publish status update event when status remains the same", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "IN_PROGRESS",
+        position: mockApplication.position.withStatus("IN_PROGRESS"),
       });
 
       // Grant with no validFrom on IN_PROGRESS (always valid)
@@ -282,7 +291,7 @@ describe("applyExternalStateChange", () => {
     it("should treat a mapped current position as a no-op when validFrom rejects itself", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "IN_PROGRESS",
+        position: mockApplication.position.withStatus("IN_PROGRESS"),
       });
       findByClientRefAndCode.mockResolvedValue(application);
       resolveGrantForApplication.mockResolvedValue({
@@ -331,7 +340,7 @@ describe("applyExternalStateChange", () => {
     it("should not update application", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
       findByClientRefAndCode.mockResolvedValue(application);
       resolveGrantForApplication.mockResolvedValue({
@@ -386,7 +395,7 @@ describe("applyExternalStateChange", () => {
     it("should allow transition from any status", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       const grantWithEmptyValidFrom = new Grant({
@@ -426,7 +435,7 @@ describe("applyExternalStateChange", () => {
 
       expect(update).toHaveBeenCalledWith(
         expect.objectContaining({
-          currentStatus: "IN_PROGRESS",
+          position: expect.objectContaining({ status: "IN_PROGRESS" }),
         }),
         {}, // session
       );
@@ -437,7 +446,7 @@ describe("applyExternalStateChange", () => {
     it("should allow transition from any status", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       const grantWithNoValidFrom = new Grant({
@@ -471,7 +480,7 @@ describe("applyExternalStateChange", () => {
 
       expect(update).toHaveBeenCalledWith(
         expect.objectContaining({
-          currentStatus: "IN_PROGRESS",
+          position: expect.objectContaining({ status: "IN_PROGRESS" }),
         }),
         {}, // session
       );
@@ -482,7 +491,7 @@ describe("applyExternalStateChange", () => {
     it("should update phase, stage, and status", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       const grantWithFullyQualifiedMapping = new Grant({
@@ -554,9 +563,11 @@ describe("applyExternalStateChange", () => {
 
       expect(update).toHaveBeenCalledWith(
         expect.objectContaining({
-          currentPhase: "PRE_AWARD",
-          currentStage: "REVIEW_OFFER",
-          currentStatus: "OFFERED",
+          position: new Position({
+            phase: "PRE_AWARD",
+            stage: "REVIEW_OFFER",
+            status: "OFFERED",
+          }),
         }),
         {}, // session
       );
@@ -567,7 +578,7 @@ describe("applyExternalStateChange", () => {
     it("should update only status, keeping phase and stage", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       const grantWithSimpleMapping = new Grant({
@@ -609,9 +620,11 @@ describe("applyExternalStateChange", () => {
 
       expect(update).toHaveBeenCalledWith(
         expect.objectContaining({
-          currentPhase: "PRE_AWARD",
-          currentStage: "REVIEW_APPLICATION",
-          currentStatus: "IN_PROGRESS",
+          position: new Position({
+            phase: "PRE_AWARD",
+            stage: "REVIEW_APPLICATION",
+            status: "IN_PROGRESS",
+          }),
         }),
         {}, // session
       );
@@ -628,7 +641,7 @@ describe("applyExternalStateChange", () => {
       );
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       const grantWithMultipleProcesses = new Grant({
@@ -688,7 +701,7 @@ describe("applyExternalStateChange", () => {
     it("should ignore the unknown process and run known processes", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
       const grantWithUnknownProcess = new Grant({
         ...mockGrant,
@@ -739,7 +752,7 @@ describe("applyExternalStateChange", () => {
     it("should persist the transition without running a process", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
       const grantWithStringProcess = new Grant({
         ...mockGrant,
@@ -787,7 +800,7 @@ describe("applyExternalStateChange", () => {
     it("should not execute any processes", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       const grantWithNoProcesses = new Grant({
@@ -833,7 +846,7 @@ describe("applyExternalStateChange", () => {
     it("should handle status with no validFrom constraint", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       addAgreementUseCase.mockReturnValue(true);
@@ -882,9 +895,11 @@ describe("applyExternalStateChange", () => {
     it("should validate against fully qualified current status", async () => {
       const application = new Application({
         ...mockApplication,
-        currentPhase: "PRE_AWARD",
-        currentStage: "REVIEW_APPLICATION",
-        currentStatus: "APPROVED",
+        position: new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "APPROVED",
+        }),
       });
 
       const grantWithFQValidFrom = new Grant({
@@ -956,9 +971,11 @@ describe("applyExternalStateChange", () => {
 
       expect(update).toHaveBeenCalledWith(
         expect.objectContaining({
-          currentPhase: "PRE_AWARD",
-          currentStage: "REVIEW_OFFER",
-          currentStatus: "OFFERED",
+          position: new Position({
+            phase: "PRE_AWARD",
+            stage: "REVIEW_OFFER",
+            status: "OFFERED",
+          }),
         }),
         {}, // session
       );
@@ -969,7 +986,7 @@ describe("applyExternalStateChange", () => {
     it("should validate against just the status part of current status", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       const grantWithSimpleValidFrom = new Grant({
@@ -1009,7 +1026,7 @@ describe("applyExternalStateChange", () => {
 
       expect(update).toHaveBeenCalledWith(
         expect.objectContaining({
-          currentStatus: "IN_PROGRESS",
+          position: expect.objectContaining({ status: "IN_PROGRESS" }),
         }),
         {}, // session
       );
@@ -1020,7 +1037,7 @@ describe("applyExternalStateChange", () => {
     it("should not update application", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       const spy = vi.spyOn(logger, "info");
@@ -1056,7 +1073,7 @@ describe("applyExternalStateChange", () => {
       const spy = vi.spyOn(logger, "info");
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       const grantWithNoPhases = new Grant({
@@ -1089,7 +1106,7 @@ describe("applyExternalStateChange", () => {
     it("should not update application", async () => {
       const application = new Application({
         ...mockApplication,
-        currentStatus: "RECEIVED",
+        position: mockApplication.position.withStatus("RECEIVED"),
       });
 
       const grantWithMissingTargetStatus = new Grant({

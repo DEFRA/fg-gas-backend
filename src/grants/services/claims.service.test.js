@@ -8,6 +8,7 @@ import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load
 import { saveEvents } from "../../events/index.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
+import { Position } from "../models/position.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
 import {
   countByEntitlement,
@@ -197,7 +198,13 @@ describe("claims.service", () => {
 
   it("refuses a claim at a position the entitlement is not claimable at", async () => {
     lockForUpdate.mockResolvedValue(
-      application({ currentStage: "AWARD", currentStatus: "OFFER_ACCEPTED" }),
+      application({
+        position: new Position({
+          phase: "PRE_AWARD",
+          stage: "AWARD",
+          status: "OFFER_ACCEPTED",
+        }),
+      }),
     );
 
     await expect(
@@ -296,9 +303,11 @@ describe("claims.service", () => {
   it("lists a persisted entitlement from any application position", async () => {
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
       application({
-        currentPhase: "POST_AWARD",
-        currentStage: "AGREEMENT",
-        currentStatus: "ACTIVE",
+        position: new Position({
+          phase: "POST_AWARD",
+          stage: "AGREEMENT",
+          status: "ACTIVE",
+        }),
       }),
     );
 

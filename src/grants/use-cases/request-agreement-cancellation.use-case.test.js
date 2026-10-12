@@ -13,6 +13,7 @@ import {
   AgreementStatus,
 } from "../models/agreement.js";
 import { Application } from "../models/application.js";
+import { Position } from "../models/position.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import { saveEvents } from "../../events/index.js";
 import {
@@ -44,9 +45,11 @@ const offeredApplication = () => {
   });
 
   return new Application({
-    currentPhase: "PRE_AWARD",
-    currentStage: "REVIEW_OFFER",
-    currentStatus: "AMENDMENT_REQUESTED",
+    position: new Position({
+      phase: "PRE_AWARD",
+      stage: "REVIEW_OFFER",
+      status: "AMENDMENT_REQUESTED",
+    }),
     clientRef: "test-client-ref",
     code: "test-code",
     agreements: { "agreement-123": agreement },
@@ -89,9 +92,11 @@ describe("requestAgreementCancellationUseCase", () => {
     });
 
     const application = new Application({
-      currentPhase: "PRE_AWARD",
-      currentStage: "REVIEW_OFFER",
-      currentStatus: "AMENDMENT_REQUESTED",
+      position: new Position({
+        phase: "PRE_AWARD",
+        stage: "REVIEW_OFFER",
+        status: "AMENDMENT_REQUESTED",
+      }),
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: { "agreement-123": agreement },
@@ -149,9 +154,11 @@ describe("requestAgreementCancellationUseCase", () => {
 
   it("does nothing when there is no active agreement", async () => {
     const application = new Application({
-      currentPhase: "PRE_AWARD",
-      currentStage: "REVIEW_OFFER",
-      currentStatus: "AMENDMENT_REQUESTED",
+      position: new Position({
+        phase: "PRE_AWARD",
+        stage: "REVIEW_OFFER",
+        status: "AMENDMENT_REQUESTED",
+      }),
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {},

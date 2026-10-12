@@ -36,7 +36,7 @@ const acceptAgreement = async (command, session) => {
     session,
   );
 
-  const previousStatus = application.getFullyQualifiedStatus();
+  const previousPosition = application.position;
 
   const agreementDates = {
     acceptedDate,
@@ -49,7 +49,7 @@ const acceptAgreement = async (command, session) => {
   await update(application, session);
 
   logger.debug(
-    `Application ${clientRef} status updated from ${previousStatus} to ${application.getFullyQualifiedStatus()}`,
+    `Application ${clientRef} status updated from ${previousPosition} to ${application.position}`,
   );
 
   await saveEvents(

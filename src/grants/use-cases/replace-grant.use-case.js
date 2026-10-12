@@ -25,7 +25,7 @@ export const replaceGrant = async ({ code, command }) => {
     );
   }
 
-  const grant = new Grant({
+  const definition = {
     code,
     version,
     metadata: {
@@ -39,7 +39,8 @@ export const replaceGrant = async ({ code, command }) => {
     entitlementTemplates: command.entitlementTemplates,
     pages: command.pages,
     claims: command.claims,
-  });
+  };
+  const grant = Grant.fromDefinition(definition, version);
 
   await replace(grant);
 

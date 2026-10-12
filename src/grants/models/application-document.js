@@ -1,8 +1,8 @@
 export class ApplicationDocument {
   constructor(application) {
-    this.currentPhase = application.currentPhase;
-    this.currentStage = application.currentStage;
-    this.currentStatus = application.currentStatus;
+    this.currentPhase = application.position.phase;
+    this.currentStage = application.position.stage;
+    this.currentStatus = application.position.status;
     this.clientRef = application.clientRef;
     this.code = application.code;
     this.originalConfigVersion = application.originalConfigVersion;

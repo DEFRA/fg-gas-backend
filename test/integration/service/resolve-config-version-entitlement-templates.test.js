@@ -6,6 +6,7 @@ import {
   FetchStatus,
 } from "../../../src/grants/models/config-version.js";
 import { EntitlementTemplate } from "../../../src/grants/models/entitlement-template.js";
+import { Position } from "../../../src/grants/models/position.js";
 import { upsert } from "../../../src/grants/repositories/config-version.repository.js";
 import { resolveAndFetchGrant } from "../../../src/grants/services/resolve-config-version.service.js";
 
@@ -165,7 +166,7 @@ describe("config broker entitlementTemplates ingestion", () => {
     expect(
       secondResult.grant
         .findEntitlementTemplate("ENT_CS_CAPITAL_PA3")
-        .isAvailableAt(availableAt),
+        .isAvailableAt(new Position(availableAt)),
     ).toBe(true);
   });
 
@@ -214,7 +215,7 @@ describe("config broker entitlementTemplates ingestion", () => {
     expect(template.description).toBeUndefined();
     expect(template.fields).toBeUndefined();
     expect(template.claim).toBeUndefined();
-    expect(template.isAvailableAt(availableAt)).toBe(true);
+    expect(template.isAvailableAt(new Position(availableAt))).toBe(true);
   });
 
   it("rejects and persists nothing when an entitlement template references a position missing from phases", async () => {

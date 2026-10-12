@@ -4,7 +4,7 @@ import { save } from "../repositories/grant.repository.js";
 
 export const createGrantUseCase = async (createGrantCommand) => {
   logger.info(`Creating grant with code ${createGrantCommand.code}`);
-  const grant = new Grant({
+  const definition = {
     code: createGrantCommand.code,
     version: createGrantCommand.version,
     metadata: {
@@ -22,7 +22,8 @@ export const createGrantUseCase = async (createGrantCommand) => {
     entitlementTemplates: createGrantCommand.entitlementTemplates,
     pages: createGrantCommand.pages,
     claims: createGrantCommand.claims,
-  });
+  };
+  const grant = Grant.fromDefinition(definition, definition.version);
 
   await save(grant);
 

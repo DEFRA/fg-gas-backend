@@ -26,8 +26,7 @@ import { transitionApplicationUseCase } from "../use-cases/transition-applicatio
 
 const getValidatedMapping = (grant, application, command) => {
   const mapping = grant.mapExternalStateToInternalState(
-    application.currentPhase,
-    application.currentStage,
+    application.position,
     command.externalRequestedState,
     command.sourceSystem,
   );
@@ -53,9 +52,9 @@ const getValidatedMapping = (grant, application, command) => {
  * Returns null if the transition is invalid (no mapping or not allowed by grant rules).
  */
 const processStateTransition = async (application, grant, command, session) => {
-  const originalFullyQualifiedStatus = application.getFullyQualifiedStatus();
+  const currentPosition = application.position;
 
-  logger.info(`process state transition: ${originalFullyQualifiedStatus}`);
+  logger.info(`process state transition: ${currentPosition}`);
 
   const validMapping = getValidatedMapping(grant, application, command);
 
@@ -63,11 +62,7 @@ const processStateTransition = async (application, grant, command, session) => {
     return null;
   }
 
-  const targetPosition = {
-    phase: validMapping.targetPhase,
-    stage: validMapping.targetStage,
-    status: validMapping.targetStatus,
-  };
+  const { targetPosition } = validMapping;
   const transition = {
     application,
     grant,
@@ -75,23 +70,9 @@ const processStateTransition = async (application, grant, command, session) => {
     sideEffectContext: command,
   };
 
-  if (
-    originalFullyQualifiedStatus === Object.values(targetPosition).join(":")
-  ) {
-    await transitionApplicationUseCase(transition, session);
-    return application;
-  }
-
-  const transitionValidation = grant.isValidTransition(
-    validMapping.targetPhase,
-    validMapping.targetStage,
-    validMapping.targetStatus,
-    originalFullyQualifiedStatus,
-  );
-
-  if (!transitionValidation.valid) {
+  if (!application.canMoveTo(targetPosition, grant)) {
     logger.warn(
-      `Invalid state transition: ${originalFullyQualifiedStatus} to ${validMapping.targetStatus}`,
+      `Invalid state transition: ${currentPosition} to ${targetPosition.status}`,
     );
     return null;
   }
@@ -99,21 +80,6 @@ const processStateTransition = async (application, grant, command, session) => {
   await transitionApplicationUseCase(transition, session);
 
   return application;
-};
-
-const checkForExternalStatusMapping = (
-  grant,
-  requestedStatus,
-  sourceSystem,
-  currentPhase,
-  currentStage,
-) => {
-  return grant.hasExternalStatusMapping(
-    requestedStatus,
-    sourceSystem,
-    currentPhase,
-    currentStage,
-  );
 };
 
 /**
@@ -152,16 +118,14 @@ export const applyExternalStateChange = async (command) => {
     }
 
     if (
-      !checkForExternalStatusMapping(
-        grant,
+      !grant.hasExternalStatusMapping(
+        application.position,
         command.externalRequestedState,
         command.sourceSystem,
-        application.currentPhase,
-        application.currentStage,
       )
     ) {
       logger.info(
-        `Acknowledged unknown transition for grantCode ${code} from current position ${application.getFullyQualifiedStatus()} to target position ${command.externalRequestedState} for clientRef ${application.clientRef}`,
+        `Acknowledged unknown transition for grantCode ${code} from current position ${application.position} to target position ${command.externalRequestedState} for clientRef ${application.clientRef}`,
       );
       return;
     }
@@ -175,7 +139,7 @@ export const applyExternalStateChange = async (command) => {
     if (!result) {
       // must throw if we're to retry any inbox events
       throw new Error(
-        `Unable to process state change from ${application.getFullyQualifiedStatus()} to ${command.externalRequestedState}`,
+        `Unable to process state change from ${application.position} to ${command.externalRequestedState}`,
       );
     }
   });

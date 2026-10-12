@@ -3,6 +3,7 @@ import { createTestApplication } from "../../../test/helpers/applications.js";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import { config } from "../../common/config.js";
 import { saveEvents } from "../../events/index.js";
+import { Position } from "../models/position.js";
 import { update } from "../repositories/application.repository.js";
 import { createStatusTransitionUpdateUseCase } from "./create-status-transition-update.use-case.js";
 import { transitionApplicationUseCase } from "./transition-application.use-case.js";
@@ -11,16 +12,16 @@ vi.mock("../../events/index.js");
 vi.mock("../repositories/application.repository.js");
 vi.mock("./create-status-transition-update.use-case.js");
 
-const currentPosition = {
+const currentPosition = new Position({
   phase: "PRE_AWARD",
   stage: "ASSESSMENT",
   status: "APPLICATION_RECEIVED",
-};
-const targetPosition = {
+});
+const targetPosition = new Position({
   phase: "PRE_AWARD",
   stage: "ASSESSMENT",
   status: "IN_REVIEW",
-};
+});
 const phases = [
   {
     code: "PRE_AWARD",
@@ -43,9 +44,7 @@ const transitionFixture = () => ({
   application: createTestApplication({
     code: "test-grant",
     configVersion: "1.2.3",
-    currentPhase: currentPosition.phase,
-    currentStage: currentPosition.stage,
-    currentStatus: currentPosition.status,
+    position: currentPosition,
   }),
   grant: createTestGrant({ phases }),
   targetPosition,
@@ -74,8 +73,8 @@ describe("transitionApplicationUseCase", () => {
       clientRef: "application-1",
       code: "test-grant",
       configVersion: "1.2.3",
-      originalFullyQualifiedStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
-      newFullyQualifiedStatus: "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+      previousPosition: currentPosition,
+      currentPosition: targetPosition,
     });
     expect(publishStatusTransition).toHaveBeenCalledWith(session);
     expect(saveEvents).not.toHaveBeenCalled();
