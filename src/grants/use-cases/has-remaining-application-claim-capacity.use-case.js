@@ -15,9 +15,7 @@ export const hasRemainingApplicationClaimCapacityUseCase = async (
   session,
 ) => {
   const counts = await Promise.all(
-    claimables.map((claimable) =>
-      countClaims(application, claimable, session),
-    ),
+    claimables.map((claimable) => countClaims(application, claimable, session)),
   );
 
   return claimables.some((claimable, index) =>

@@ -134,12 +134,7 @@ export class Application {
       return { changed: false, previous, new: previous, processes: [] };
     }
 
-    const transition = grant.isValidTransition(
-      phase,
-      stage,
-      status,
-      previous,
-    );
+    const transition = grant.isValidTransition(phase, stage, status, previous);
     if (!transition.valid) {
       throw Boom.badRequest(
         `Invalid transition from "${previous}" to "${next}"`,

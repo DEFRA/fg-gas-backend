@@ -158,8 +158,7 @@ const mapLifecycle = (sourceVersion, targetState) => {
     endDate: toDate(sourceVersion.payment?.agreementEndDate),
     updatedAt: toIsoString(sourceVersion.updatedAt),
     acceptedAt,
-    versionedAt:
-      state === "accepted" ? acceptedAt : sourceVersionCreatedAt,
+    versionedAt: state === "accepted" ? acceptedAt : sourceVersionCreatedAt,
   };
 };
 

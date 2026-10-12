@@ -234,7 +234,12 @@ export const commitAgreementAction = commitAgreementActionAttempt;
 const validationFailure = () =>
   Boom.badRequest("Agreement action validation failed");
 
-const recordAttemptFailure = async ({ options, agreement, attempted, error }) => {
+const recordAttemptFailure = async ({
+  options,
+  agreement,
+  attempted,
+  error,
+}) => {
   if (isAgreementActionConcurrencyLoss(error)) {
     return;
   }

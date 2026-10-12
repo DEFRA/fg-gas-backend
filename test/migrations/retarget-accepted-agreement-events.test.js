@@ -16,8 +16,7 @@ const ACCOUNT = "111122223333";
 const LEGACY_TOPIC = `arn:aws:sns:eu-west-2:${ACCOUNT}:agreement_status_updated_fifo.fifo`;
 const GAS_TOPIC = `arn:aws:sns:eu-west-2:${ACCOUNT}:gas__sns__agreement_status_updated_fifo.fifo`;
 
-const originalTopic =
-  process.env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN;
+const originalTopic = process.env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN;
 
 afterEach(() => {
   if (originalTopic === undefined) {
@@ -63,8 +62,7 @@ describe("retarget accepted Agreement events migration", () => {
   });
 
   it("refuses to derive a target from an unexpected configured topic", async () => {
-    process.env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN =
-      `arn:aws:sns:eu-west-2:${ACCOUNT}:unexpected.fifo`;
+    process.env.GAS__SNS__AGREEMENT_STATUS_UPDATED_TOPIC_ARN = `arn:aws:sns:eu-west-2:${ACCOUNT}:unexpected.fifo`;
     const db = { collection: vi.fn() };
 
     await expect(up(db)).rejects.toThrow(
