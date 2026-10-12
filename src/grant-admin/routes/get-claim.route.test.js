@@ -94,6 +94,7 @@ describe("getClaimRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [template],
+      claimsRequiredRoles: null,
     });
     getEntitlementCreationDetails.mockResolvedValue(template);
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
@@ -116,6 +117,7 @@ describe("getClaimRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [template],
+      claimsRequiredRoles: null,
     });
     getEntitlementCreationDetails.mockResolvedValue(template);
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
@@ -143,6 +145,7 @@ describe("getClaimRoute", () => {
       banner,
       availableEntitlements: [template],
       claimableEntitlements: [],
+      claimsRequiredRoles: null,
       entitlementTemplate: template,
     });
   });
@@ -152,6 +155,7 @@ describe("getClaimRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
+      claimsRequiredRoles: null,
     });
     getEntitlementCreationDetails.mockRejectedValue(
       Boom.conflict("already exists"),
@@ -171,6 +175,7 @@ describe("getClaimRoute", () => {
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
+      claimsRequiredRoles: null,
     });
     getEntitlementCreationDetails.mockRejectedValue(
       Boom.notFound("not available"),

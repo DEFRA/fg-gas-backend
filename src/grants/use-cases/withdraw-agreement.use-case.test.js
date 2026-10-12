@@ -24,8 +24,6 @@ import {
 
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("../repositories/application.repository.js");
-vi.mock("../publishers/application-event.publisher.js");
-vi.mock("../publishers/case-event.publisher.js");
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../events/index.js");
 vi.mock("../../events/write-audit-event.js");
