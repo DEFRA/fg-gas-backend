@@ -72,7 +72,6 @@ export class Grant {
     );
   }
 
-  // eslint-disable-next-line complexity
   claimApprovalTransitionFor(position) {
     const config = this.claims?.onClaimApproval;
     if (!config) {
@@ -80,12 +79,14 @@ export class Grant {
     }
 
     const { currentPosition, targetPosition } = config;
-    const matches =
-      currentPosition.phase === position.phase &&
-      currentPosition.stage === position.stage &&
-      currentPosition.status === position.status;
 
-    return matches ? targetPosition : null;
+    return this.#isSamePosition(currentPosition, position)
+      ? targetPosition
+      : null;
+  }
+
+  #isSamePosition(a, b) {
+    return a.phase === b.phase && a.stage === b.stage && a.status === b.status;
   }
 
   // findEntitlementTemplate returns the first match, so a duplicated claim code
