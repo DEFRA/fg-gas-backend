@@ -2,22 +2,22 @@
 
 ## Bounded Contexts
 
-| Module           | Path                  | Description                                                       |
-| ---------------- | --------------------- | ----------------------------------------------------------------- |
-| `grants`         | `src/grants/`         | Grants and Application sub-domain (grant lifecycle, applications) |
-| `agreements`     | `src/agreements/`     | Agreements domain (separate bounded context)                      |
-| `payments`       | `src/payments/`       | Payments domain (Payments, claim IDs, invoice numbering)          |
-| `grant-admin`    | `src/grant-admin/`    | Inbound admin adapter for Entitlement, Claim and Application work |
-| `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes     |
-| `auth`           | `src/auth/`           | Authentication and authorisation                                  |
-| `common`         | `src/common/`         | Shared infrastructure and context-neutral mapping utilities       |
-| `events`         | `src/events/`         | Shared event domain: what an inbox/outbox event IS and means      |
+| Module           | Path                  | Description                                                                                     |
+| ---------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
+| `grants`         | `src/grants/`         | Grants and Application sub-domain (grant lifecycle, applications)                               |
+| `agreements`     | `src/agreements/`     | Agreements domain (separate bounded context)                                                    |
+| `payments`       | `src/payments/`       | Payments domain (Payments, claim IDs, invoice numbering)                                        |
+| `grant-admin`    | `src/grant-admin/`    | Backend-for-frontend (BFF) for `fg-grants-platform-admin`'s admin screens - not a domain module |
+| `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes                                   |
+| `auth`           | `src/auth/`           | Authentication and authorisation                                                                |
+| `common`         | `src/common/`         | Shared infrastructure and context-neutral mapping utilities                                     |
+| `events`         | `src/events/`         | Shared event domain: what an inbox/outbox event IS and means                                    |
 
 ## Forbidden Imports
 
 `agreements`, `grants` and `payments` must not directly import each other's internals (models, repositories, use-cases, services, routes, schemas, etc.). The boundary is enforced in both directions, except for explicitly documented reviewed seams below. Direct cross-module imports create hidden coupling that prevents either context from evolving independently.
 
-`grant-admin` is an inbound adapter, not a peer domain module. It validates and maps HTTP/UI concerns but does not access Grants models, repositories, schemas, use cases, or general services. Its only Grants entry points are `grants/services/entitlement.service.js` and `grants/services/claims.service.js` for entitlement and claim work, `grants/services/application-read.service.js` for reading applications, and `grants/services/allow-list.service.js` for reading and replacing grant allow lists. `grants` never imports from `grant-admin`, and `grant-admin` does not import from `agreements`.
+`grant-admin` is a backend-for-frontend (BFF) for `fg-grants-platform-admin`, not a peer domain module. The distinction is load-bearing: a domain module (`grants`, `agreements`, `payments`) models business rules that outlive any one screen; a BFF models what one specific frontend's screens need, and nothing it does should outlive those screens either. `grant-admin` validates and maps HTTP/UI concerns but does not access Grants models, repositories, schemas, use cases, or general services. Its only Grants entry points are `grants/services/entitlement.service.js` and `grants/services/claims.service.js` for entitlement and claim work, `grants/services/application-read.service.js` for reading applications, and `grants/services/allow-list.service.js` for reading and replacing grant allow lists. `grants` never imports from `grant-admin`, and `grant-admin` does not import from `agreements`. See [View models vs. services](#view-models-vs-services) for how that same distinction is kept honest _inside_ `grant-admin` itself, between its domain-facing calls and its screen-shaping.
 
 `payments` knows nothing about the modules that source a Payment: it never imports `agreements` or `grants`, and it takes the identifiers it needs as plain values.
 
@@ -63,6 +63,12 @@ raised a Payment, and `grant-admin` puts the two together. Neither context
 imports the other.
 
 ### View models vs. services
+
+`grant-admin` is a BFF, not a domain module (see [Bounded Contexts](#bounded-contexts)
+and [Forbidden Imports](#forbidden-imports) above) - but that distinction only holds
+if `grant-admin`'s own code can't quietly become a second domain layer. This section
+is about keeping that true inside `grant-admin` itself, not just at its edge with
+`grants`.
 
 `grant-admin/services/` is a flat layer for anything a route needs that isn't a route
 or a domain entry point. Some of it is pure view-shaping (`build-claims-view.js`,
