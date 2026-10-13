@@ -64,6 +64,8 @@ const errorsFor = (key, lines, problems) => {
         line: line.number,
         message: `${name} "${line.value}" on line ${line.number} is a duplicate of line ${firstLine}`,
       });
+    } else {
+      // Seen before, but GAS didn't flag this value as a duplicate - nothing to report.
     }
 
     return errors;

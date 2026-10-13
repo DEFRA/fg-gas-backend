@@ -19,6 +19,7 @@ import {
 } from "../view-models/build-allow-list-view.js";
 
 const LABEL = "Replace allow list";
+const BAD_REQUEST_STATUS_CODE = 400;
 
 const isAllowListValidationFailure = (error) =>
   Boom.isBoom(error) &&
@@ -64,7 +65,7 @@ export const replaceAllowListRoute = {
         details: error.output.payload.details,
       });
 
-      return h.response(view).code(400);
+      return h.response(view).code(BAD_REQUEST_STATUS_CODE);
     }
   },
 };
