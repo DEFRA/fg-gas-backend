@@ -11,6 +11,7 @@ import {
   CONFIG_VERSION_UPDATED_EVENT_TYPE,
 } from "./events/inbound-event-types.js";
 import { applicationStatusRoute } from "./routes/application-status.route.js";
+import { checkAllowListRoutes } from "./routes/check-allow-list.route.js";
 import { createGrantRoute } from "./routes/create-grant.route.js";
 import { getAvailableClaimsRoute } from "./routes/get-available-claims.route.js";
 import {
@@ -57,6 +58,7 @@ export const grants = {
     });
 
     server.route([
+      ...checkAllowListRoutes,
       createGrantRoute,
       replaceGrantRoute,
       invokeGetActionRoute,
