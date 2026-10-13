@@ -26,6 +26,16 @@ const args = {
 };
 
 describe("replaceGrantAllowListUseCase", () => {
+  beforeEach(() => {
+    withTransaction.mockImplementation((callback) => callback(session));
+    resolveGrantAdministration.mockResolvedValue({
+      admin: { role: "ROLE_WOODLAND_ADMIN" },
+    });
+    findByGrantCode.mockResolvedValue(null);
+    replace.mockResolvedValue();
+    writeAuditEvent.mockResolvedValue();
+  });
+
   it("does not read or replace identifiers when grant administration is denied", async () => {
     resolveGrantAdministration.mockRejectedValue(Boom.forbidden());
     await expect(
@@ -37,15 +47,6 @@ describe("replaceGrantAllowListUseCase", () => {
       status: "FAILURE",
       details: { errorCode: "GRANT_ADMIN_ACCESS_DENIED" },
     });
-  });
-  beforeEach(() => {
-    withTransaction.mockImplementation((callback) => callback(session));
-    resolveGrantAdministration.mockResolvedValue({
-      admin: { role: "ROLE_WOODLAND_ADMIN" },
-    });
-    findByGrantCode.mockResolvedValue(null);
-    replace.mockResolvedValue();
-    writeAuditEvent.mockResolvedValue();
   });
 
   it("checks the grant before opening or saving its allow list", async () => {

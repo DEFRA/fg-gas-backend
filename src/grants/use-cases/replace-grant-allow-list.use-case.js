@@ -94,5 +94,5 @@ export const replaceGrantAllowListUseCase = async (args) => {
     replaceGrantAllowListWithAudit(args, session),
   );
 
-  return result.representation;
+  return result?.representation;
 };

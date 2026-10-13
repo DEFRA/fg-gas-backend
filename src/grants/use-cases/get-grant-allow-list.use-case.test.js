@@ -25,14 +25,6 @@ const stored = new GrantAllowList({
 });
 
 describe("getGrantAllowListUseCase", () => {
-  it("does not read identifiers when grant administration is denied", async () => {
-    resolveGrantAdministration.mockRejectedValue(Boom.forbidden());
-    await expect(
-      getGrantAllowListUseCase({ ...args, userRoles: [] }),
-    ).rejects.toMatchObject({ output: { statusCode: 403 } });
-    expect(findByGrantCode).not.toHaveBeenCalled();
-    expect(writeAuditEvent.mock.calls[0][0].status).toBe("FAILURE");
-  });
   beforeEach(() => {
     vi.clearAllMocks();
     withTransaction.mockImplementation((callback) => callback(session));
@@ -41,6 +33,15 @@ describe("getGrantAllowListUseCase", () => {
       admin: { role: "ROLE_WOODLAND_ADMIN" },
     });
     findByGrantCode.mockResolvedValue(stored);
+  });
+
+  it("does not read identifiers when grant administration is denied", async () => {
+    resolveGrantAdministration.mockRejectedValue(Boom.forbidden());
+    await expect(
+      getGrantAllowListUseCase({ ...args, userRoles: [] }),
+    ).rejects.toMatchObject({ output: { statusCode: 403 } });
+    expect(findByGrantCode).not.toHaveBeenCalled();
+    expect(writeAuditEvent.mock.calls[0][0].status).toBe("FAILURE");
   });
 
   it("asserts grant existence before reading and returns stored data", async () => {
