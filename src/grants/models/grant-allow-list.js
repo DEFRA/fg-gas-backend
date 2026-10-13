@@ -5,6 +5,14 @@ const patterns = {
   crn: /^\d{10}$/,
 };
 
+const satisfiesRestriction = (identifiers, identifier) =>
+  identifiers.length === 0 ||
+  (identifier !== "" && identifiers.includes(identifier));
+
+const hasWrongGrantOwner = (grantCode, grantIdentity, storedList) =>
+  grantIdentity.grantCode !== grantCode ||
+  (storedList && storedList.grantCode !== grantCode);
+
 const malformedStoredState = () => {
   const error = Boom.badImplementation("Stored grant allow list is malformed");
   error.output.payload.errorCode = "MALFORMED_ALLOW_LIST";
@@ -133,10 +141,7 @@ export class GrantAllowList {
       throw Boom.notFound(`Grant with code "${grantCode}" not found`);
     }
 
-    if (
-      grantIdentity.grantCode !== grantCode ||
-      (storedList && storedList.grantCode !== grantCode)
-    ) {
+    if (hasWrongGrantOwner(grantCode, grantIdentity, storedList)) {
       throw malformedStoredState();
     }
 
@@ -171,12 +176,8 @@ export class GrantAllowList {
   }
 
   allows({ sbi, crn }) {
-    const sbiOk =
-      this.global.sbi.length === 0 ||
-      (sbi !== "" && this.global.sbi.includes(sbi));
-    const crnOk =
-      this.global.crn.length === 0 ||
-      (crn !== "" && this.global.crn.includes(crn));
+    const sbiOk = satisfiesRestriction(this.global.sbi, sbi);
+    const crnOk = satisfiesRestriction(this.global.crn, crn);
     return sbiOk && crnOk;
   }
 
