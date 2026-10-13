@@ -4,10 +4,8 @@ import {
   claimsHeadersSchema,
 } from "../schemas/actor-header.schema.js";
 import { userRolesOf } from "../services/claims-access.js";
-import {
-  allowListParamsSchema,
-  allowListResponseSchema,
-} from "../schemas/allow-list.schema.js";
+import { allowListParamsSchema } from "../schemas/allow-list-params.schema.js";
+import { allowListResponseSchema } from "../schemas/allow-list-response.schema.js";
 import { callerOf } from "../services/request-caller.js";
 import {
   safeFailAction,
