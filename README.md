@@ -326,6 +326,42 @@ first.
 
 Locally, set `SERVICE_ACCESS_TOKEN_HASH` in `.env` instead of the portal.
 
+#### Single Front Door allow-list access
+
+Grants UI uses its existing application-submission bearer token for
+`GET /api/allow-list/grants/{grantCode}/sbi/{sbi}/crn/{crn}`.
+Both identifiers are required: SBI must be nine digits and CRN ten digits.
+Each populated allow list must match; an empty list imposes no restriction.
+The response is `{ "allowed": true }` or `{ "allowed": false }`.
+A server error means eligibility could not be checked, not permission to proceed.
+
+Single Front Door must have its own credential. Generate it offline once per
+environment, in a trusted terminal whose output is not shared or logged:
+
+```bash
+npm run token:new -- single-front-door
+```
+
+The client name is an example; the configured pair determines its identity.
+Install the printed `client:hash` pair as GAS's `SFD_ACCESS_TOKEN_HASH`
+secret and the raw bearer token in SFD's secure secret store. Redeploy GAS,
+then SFD, and verify authenticated access in that environment. Locally, the
+hashed pair can be set in GAS's `.env`.
+
+The optional SFD setting is seeded alongside `SERVICE_ACCESS_TOKEN_HASH`.
+Each setting replaces only its named client's seeded record. Rotating SFD
+does not rotate Grants UI or GPA; clearing either setting revokes nobody.
+Identical pairs are seeded once. A conflicting SFD pair (the same client
+with another hash, or another client with the same hash) is skipped with a
+warning, preserving the primary setting. Malformed entries and database
+failures are logged without hashes and do not prevent independent seeding
+of the other entry.
+
+Live provisioning is a separate deployment step: identify the target
+environment and secure secret destinations before generating a token.
+Passing tests with synthetic SFD credentials does not mean a live credential
+has been installed.
+
 #### Revoke
 
 There is no revoke-by-omission - clearing the secret deliberately does nothing.

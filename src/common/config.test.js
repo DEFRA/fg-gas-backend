@@ -12,6 +12,36 @@ const CALLER_TOKEN_ENV_KEYS = [
 
 const VARIANT_ENV_KEYS = ["CONFIGURATION_VARIANT", "ENVIRONMENT"];
 
+describe("config independent SFD access token", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("maps the optional SFD pair independently of the primary pair", async () => {
+    vi.stubEnv("SERVICE_ACCESS_TOKEN_HASH", `grants-ui:${"a".repeat(64)}`);
+    vi.stubEnv(
+      "SFD_ACCESS_TOKEN_HASH",
+      `  SINGLE-FRONT-DOOR:${"B".repeat(64)}  `,
+    );
+    vi.resetModules();
+    const { config } = await import("./config.js");
+    expect(config.sfdAccessTokenHash).toBe(
+      `single-front-door:${"b".repeat(64)}`,
+    );
+    expect(config.serviceAccessTokenHash).toBe(`grants-ui:${"a".repeat(64)}`);
+  });
+
+  it.each([undefined, ""])(
+    "allows SFD configuration to be absent: %s",
+    async (value) => {
+      vi.stubEnv("SFD_ACCESS_TOKEN_HASH", value);
+      vi.resetModules();
+      const { config } = await import("./config.js");
+      expect(config.sfdAccessTokenHash).toBe(value);
+    },
+  );
+});
+
 const loadCallerTokenConfig = async () => {
   vi.resetModules();
   const { config } = await import("./config.js");
