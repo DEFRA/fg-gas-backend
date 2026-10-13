@@ -128,7 +128,6 @@ const schema = Joi.object({
     .lowercase()
     .allow("")
     .optional(),
-  SFD_ACCESS_TOKEN_HASH: Joi.string().trim().lowercase().allow("").optional(),
 }).options({
   stripUnknown: true,
   allowUnknown: true,
@@ -236,7 +235,6 @@ export const config = {
     allowedIssuers: CALLER_TOKEN_ALLOWED_ISSUERS,
   },
   serviceAccessTokenHash: vars.SERVICE_ACCESS_TOKEN_HASH,
-  sfdAccessTokenHash: vars.SFD_ACCESS_TOKEN_HASH,
   adminReadTimeoutMs: vars.ADMIN_READ_TIMEOUT_MS,
   cwBackend: {
     url: vars.CW_BACKEND_URL,

@@ -343,19 +343,15 @@ npm run token:new -- single-front-door
 ```
 
 The client name is an example; the configured pair determines its identity.
-Install the printed `client:hash` pair as GAS's `SFD_ACCESS_TOKEN_HASH`
+Install the printed `client:hash` pair using GAS's existing `SERVICE_ACCESS_TOKEN_HASH`
 secret and the raw bearer token in SFD's secure secret store. Redeploy GAS,
 then SFD, and verify authenticated access in that environment. Locally, the
 hashed pair can be set in GAS's `.env`.
 
-The optional SFD setting is seeded alongside `SERVICE_ACCESS_TOKEN_HASH`.
-Each setting replaces only its named client's seeded record. Rotating SFD
-does not rotate Grants UI or GPA; clearing either setting revokes nobody.
-Identical pairs are seeded once. A conflicting SFD pair (the same client
-with another hash, or another client with the same hash) is skipped with a
-warning, preserving the primary setting. Malformed entries and database
-failures are logged without hashes and do not prevent independent seeding
-of the other entry.
+Use the existing per-client provisioning process above: set the pair for SFD
+and redeploy GAS. The seeder writes SFD's record to `access_tokens` without
+changing other clients' records. Issuing or rotating SFD's credential does
+not require a new configuration setting or authentication mechanism.
 
 Live provisioning is a separate deployment step: identify the target
 environment and secure secret destinations before generating a token.

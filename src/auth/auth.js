@@ -54,8 +54,6 @@ const registerServiceAuth = async (server) => {
 
       return h.authenticated({
         credentials: {
-          // The maintained mint script predates clientId; seeded records carry
-          // both. Preserve the modern identity when supplied.
           service: record.clientId ?? record.client,
           tokenId: record.id,
         },

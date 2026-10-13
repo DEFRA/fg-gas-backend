@@ -6,13 +6,10 @@ import { db } from "../common/mongo-client.js";
 // scripts/mint-access-token.js are never removed.
 const seeded = true;
 
-// Both configured credentials use the same client:sha256hex shape.
+// The shape config validates SERVICE_ACCESS_TOKEN_HASH against.
 const PAIR_PATTERN = /^([a-z0-9-]+):([0-9a-f]{64})$/;
 
-const invalidPairMessage = (setting = "SERVICE_ACCESS_TOKEN_HASH") =>
-  `${setting} is not a client:sha256hex pair - nothing seeded`;
-
-export const parseTokenHash = (value, setting) => {
+export const parseTokenHash = (value) => {
   const trimmed = (value ?? "").trim();
 
   if (!trimmed) {
@@ -24,7 +21,9 @@ export const parseTokenHash = (value, setting) => {
   if (!match) {
     // Left unguarded, a missing hash upserts `{ id: null }` and the reconcile
     // below then deletes the client's real token.
-    logger.warn(invalidPairMessage(setting));
+    logger.warn(
+      "SERVICE_ACCESS_TOKEN_HASH is not a client:sha256hex pair - nothing seeded",
+    );
     return null;
   }
 
@@ -46,7 +45,13 @@ const withoutHashes = (message) =>
 // Issues the configured client's access token, since nobody can insert one by
 // hand in a deployed environment. Must run after migrations: the initial
 // migration drops access_tokens.
-const seedEntry = async (entry) => {
+export const seedAccessToken = async () => {
+  const entry = parseTokenHash(config.serviceAccessTokenHash);
+
+  if (!entry) {
+    return;
+  }
+
   const { client, id } = entry;
 
   // Serving traffic matters more than issuing a credential. Concurrent boots
@@ -75,43 +80,5 @@ const seedEntry = async (entry) => {
       { code: error.code },
       `Failed to seed access token for ${client}: ${withoutHashes(error.message)}`,
     );
-  }
-};
-
-const sameEntry = (primary, secondary) =>
-  primary.client === secondary.client && primary.id === secondary.id;
-
-const conflictsWithPrimary = (primary, secondary) =>
-  primary.client === secondary.client || primary.id === secondary.id;
-
-const distinctSfdEntry = (primary, secondary) => {
-  if (sameEntry(primary, secondary)) {
-    return null;
-  }
-  if (conflictsWithPrimary(primary, secondary)) {
-    logger.warn(
-      "SFD_ACCESS_TOKEN_HASH conflicts with SERVICE_ACCESS_TOKEN_HASH - SFD entry skipped",
-    );
-    return null;
-  }
-  return secondary;
-};
-
-const selectSfdEntry = (primary, secondary) => {
-  if (!primary || !secondary) {
-    return secondary;
-  }
-  return distinctSfdEntry(primary, secondary);
-};
-
-export const seedAccessToken = async () => {
-  const primary = parseTokenHash(config.serviceAccessTokenHash);
-  const secondary = selectSfdEntry(
-    primary,
-    parseTokenHash(config.sfdAccessTokenHash, "SFD_ACCESS_TOKEN_HASH"),
-  );
-
-  for (const entry of [primary, secondary].filter(Boolean)) {
-    await seedEntry(entry);
   }
 };
