@@ -33,8 +33,35 @@ describe("assertGrantAdminAccess", () => {
     await expect(assertGrantAdminAccess(args)).rejects.toMatchObject({
       output: { statusCode: 403 },
     });
-    expect(resolveAndFetchGrant).toHaveBeenCalledWith("woodland", "2.3.0");
+    expect(resolveAndFetchGrant).toHaveBeenCalledWith(
+      "woodland",
+      "2.3.0",
+      undefined,
+    );
     expect(findByCode).not.toHaveBeenCalled();
+  });
+
+  it("joins the caller's transaction for every definition read", async () => {
+    const session = { id: "active-session" };
+    findLatestActive.mockResolvedValue({ version: "2.3.0" });
+    resolveAndFetchGrant.mockResolvedValue({ grant });
+
+    await assertGrantAdminAccess(args, session);
+
+    expect(findLatestActive).toHaveBeenCalledWith("woodland", session);
+    expect(resolveAndFetchGrant).toHaveBeenCalledWith(
+      "woodland",
+      "2.3.0",
+      session,
+    );
+  });
+
+  it("joins the caller's transaction for the legacy fallback read", async () => {
+    const session = { id: "active-session" };
+
+    await assertGrantAdminAccess(args, session);
+
+    expect(findByCode).toHaveBeenCalledWith("woodland", "0.0.0", session);
   });
 
   it("denies entry until the grant has an admin role", async () => {

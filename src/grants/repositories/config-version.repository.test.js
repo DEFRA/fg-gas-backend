@@ -21,16 +21,31 @@ vi.mock("../../common/mongo-client.js", () => ({
 }));
 
 describe("config-version.repository", () => {
-  it("resolves admin permissions from the highest active semantic version", async () => {
-    mockCollection.findOne.mockResolvedValue(null);
-    expect(await findLatestActive("woodland")).toBeNull();
-    expect(mockCollection.findOne).toHaveBeenCalledWith(
-      { grantCode: "woodland", status: "active" },
-      { sort: { major: -1, minor: -1, patch: -1 } },
-    );
-  });
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe("findLatestActive", () => {
+    it("resolves admin permissions from the highest active semantic version", async () => {
+      mockCollection.findOne.mockResolvedValue(null);
+      expect(await findLatestActive("woodland")).toBeNull();
+      expect(mockCollection.findOne).toHaveBeenCalledWith(
+        { grantCode: "woodland", status: "active" },
+        { sort: { major: -1, minor: -1, patch: -1 } },
+      );
+    });
+
+    it("resolves within the active session when given one", async () => {
+      const session = {};
+      mockCollection.findOne.mockResolvedValue(null);
+
+      await findLatestActive("woodland", session);
+
+      expect(mockCollection.findOne).toHaveBeenCalledWith(
+        { grantCode: "woodland", status: "active" },
+        { sort: { major: -1, minor: -1, patch: -1 }, session },
+      );
+    });
   });
 
   describe("upsert", () => {
@@ -212,6 +227,25 @@ describe("config-version.repository", () => {
 
       const result = await findLatestForMajor("woodland", 9);
       expect(result).toBeNull();
+    });
+
+    it("resolves within the active session when given one", async () => {
+      const session = {};
+      mockCollection.findOne.mockResolvedValue(null);
+
+      await findLatestForMajor("woodland", 1, session);
+
+      expect(mockCollection.findOne).toHaveBeenCalledWith(
+        {
+          grantCode: "woodland",
+          major: 1,
+          status: "active",
+          "definitions.grant.fetchStatus": {
+            $ne: FetchStatus.PermanentError,
+          },
+        },
+        { sort: { minor: -1, patch: -1 }, session },
+      );
     });
   });
 

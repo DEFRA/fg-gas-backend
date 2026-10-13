@@ -168,26 +168,35 @@ const fetchAndStoreGrant = async (
   return grant;
 };
 
-const findStoredGrant = async (configVersion, grantCode, resolvedVersion) => {
+const findStoredGrant = async (
+  configVersion,
+  grantCode,
+  resolvedVersion,
+  session,
+) => {
   if (configVersion.fetchStatus !== FetchStatus.Fetched) {
     return null;
   }
 
-  const existingGrant = await findByCode(grantCode, resolvedVersion);
+  const existingGrant = await findByCode(grantCode, resolvedVersion, session);
   if (existingGrant) {
     logger.info(`Resolved ${grantCode}@${resolvedVersion} from cache`);
   }
   return existingGrant;
 };
 
-const resolveConfigVersion = async (grantCode, requestedVersion) => {
+const resolveConfigVersion = async (grantCode, requestedVersion, session) => {
   const parsed = parseSemver(requestedVersion);
   if (!parsed) {
     throw Boom.badRequest(`Invalid semver version: ${requestedVersion}`);
   }
 
   // Roll forward to the latest active version within the same major.
-  const configVersion = await findLatestForMajor(grantCode, parsed.major);
+  const configVersion = await findLatestForMajor(
+    grantCode,
+    parsed.major,
+    session,
+  );
 
   if (!configVersion) {
     throw Boom.notFound(
@@ -198,10 +207,22 @@ const resolveConfigVersion = async (grantCode, requestedVersion) => {
   return configVersion;
 };
 
-export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
+// `session`, when given, only scopes the reads that decide which already-cached
+// definition is current - it never extends to the S3 fetch-and-cache path below,
+// which is its own eventually-consistent operation (idempotent via the grants
+// unique index) and must not hold a caller's transaction open across network I/O.
+export const resolveAndFetchGrant = async (
+  grantCode,
+  requestedVersion,
+  session,
+) => {
   logger.info(`Resolving config version for ${grantCode}@${requestedVersion}`);
 
-  const configVersion = await resolveConfigVersion(grantCode, requestedVersion);
+  const configVersion = await resolveConfigVersion(
+    grantCode,
+    requestedVersion,
+    session,
+  );
   const resolvedVersion = configVersion.version;
 
   await guardFetchStatus(configVersion, grantCode, resolvedVersion);
@@ -210,6 +231,7 @@ export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
     configVersion,
     grantCode,
     resolvedVersion,
+    session,
   );
   if (cached) {
     return {

@@ -100,6 +100,27 @@ describe("resolveAndFetchGrant", () => {
     expect(fetchConfigFile).not.toHaveBeenCalled();
   });
 
+  it("joins the caller's transaction when reading an already-cached grant", async () => {
+    const session = { id: "active-session" };
+    const cv = mockConfigVersion({ fetchStatus: FetchStatus.Fetched });
+    findLatestForMajor.mockResolvedValue(cv);
+
+    const existingGrant = new Grant({
+      ...mockGrantDefinition,
+      version: VERSION,
+    });
+    findByCode.mockResolvedValue(existingGrant);
+
+    await resolveAndFetchGrant(GRANT_CODE, VERSION, session);
+
+    expect(findLatestForMajor).toHaveBeenCalledWith(
+      GRANT_CODE,
+      expect.any(Number),
+      session,
+    );
+    expect(findByCode).toHaveBeenCalledWith(GRANT_CODE, VERSION, session);
+  });
+
   it("returns cached grant when fetched even if fetchAttempts reached max", async () => {
     const cv = mockConfigVersion({
       fetchStatus: FetchStatus.Fetched,
