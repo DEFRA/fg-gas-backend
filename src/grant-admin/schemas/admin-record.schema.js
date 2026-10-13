@@ -5,7 +5,7 @@ import {
 } from "./events-shared.schema.js";
 import { sectionErrorsSchema } from "./section-errors.schema.js";
 
-// Shared by Grant Admin's record lists and pages. Every fact may be null: a
+// Shared by Grant Admin's record pages. Every fact may be null: a
 // legacy or odd document must not make the debugging tool answer 500.
 
 export const nullableString = Joi.string().allow(null).required();
@@ -38,14 +38,6 @@ export const seriesSchema = (
     .label(label);
 };
 
-// Present on a first page only; a later page keeps the first page's.
-export const listTotalSchema = Joi.object({
-  count: Joi.number().integer().min(0).required(),
-  capped: Joi.boolean().required(),
-})
-  .optional()
-  .label("ListTotal");
-
 export const sourceErrorsSchema = Joi.array()
   .items(eventSourceErrorSchema)
   .required();
@@ -59,7 +51,7 @@ export const storedBytesSchema = Joi.number()
 export const recordEventsSchema = (label) =>
   Joi.object({
     rows: Joi.array().items(eventRowSchema).required(),
-    // More than one page matched: the admin links on to the events search.
+    // A queue held more than the tab reads from it.
     more: Joi.boolean().required(),
   })
     .allow(null)

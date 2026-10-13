@@ -70,19 +70,6 @@ export const eventRowSchema = eventRowBaseSchema
   })
   .label("Event");
 
-export const statusFilterSchema = Joi.object({
-  value: Joi.string().required().example("DEAD_LETTER"),
-  label: Joi.string().required().example("Dead letter"),
-  explainer: Joi.string()
-    .required()
-    .example("Failed all retry attempts; needs a redrive"),
-}).label("EventStatusFilter");
-
-export const serviceFilterSchema = Joi.object({
-  value: Joi.string().required().example("caseworking"),
-  label: Joi.string().required().example("CW-BE"),
-}).label("EventServiceFilter");
-
 export const eventSourceErrorSchema = Joi.object({
   hop: Joi.string().required().example("CW Inbox"),
 }).label("EventSourceError");

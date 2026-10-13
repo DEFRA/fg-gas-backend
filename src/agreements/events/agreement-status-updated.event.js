@@ -1,8 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { config } from "../../common/config.js";
+import { INBOX, OUTBOX, defineEventType } from "../../events/event-types.js";
+
+export const agreementStatusUpdated = defineEventType({
+  name: "AgreementStatusUpdated",
+  sentAs: "io.onsite.agreement.status.updated",
+  boxes: [OUTBOX, INBOX],
+  refs: ({ data }) => [["ref", data?.clientRef]],
+});
 
 export const AGREEMENT_STATUS_UPDATED_EVENT_TYPE =
-  "io.onsite.agreement.status.updated";
+  agreementStatusUpdated.sentAs;
 export const AGREEMENT_STATUS_UPDATED_EVENT_SOURCE = "urn:service:agreement";
 
 const acceptedLifecycleData = (agreement) => ({

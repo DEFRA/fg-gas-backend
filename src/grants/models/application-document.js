@@ -1,3 +1,20 @@
+import { toRefs } from "../../common/buckets/refs.js";
+
+export const applicationRefs = ({ clientRef, identifiers, agreements }) => {
+  const { sbi, frn, crn } = { ...identifiers };
+
+  return toRefs([
+    ["ref", clientRef],
+    ["sbi", sbi],
+    ["frn", frn],
+    ["crn", crn],
+    ...Object.keys({ ...agreements }).map((number) => ["agreement", number]),
+  ]);
+};
+
+export const seriesRefs = (clientRefs) =>
+  toRefs(clientRefs.map((clientRef) => ["ref", clientRef]));
+
 export class ApplicationDocument {
   constructor(application) {
     this.currentPhase = application.currentPhase;
@@ -14,5 +31,6 @@ export class ApplicationDocument {
     this.metadata = application.metadata;
     this.phases = application.phases;
     this.agreements = application.agreements;
+    this.refs = applicationRefs(application);
   }
 }

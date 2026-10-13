@@ -3,12 +3,9 @@ import {
   actorName,
   attemptsLabel,
   duration,
-  hopLabel,
   latency,
   latencyTitle,
-  serviceVocabulary,
   statusDisplay,
-  statusVocabulary,
 } from "./event-display.js";
 
 describe("statusDisplay", () => {
@@ -77,50 +74,6 @@ describe("statusDisplay", () => {
   });
 });
 
-describe("statusVocabulary", () => {
-  it("lists the seven states in the order a message travels them", () => {
-    expect(statusVocabulary().map(({ value }) => value)).toEqual([
-      "PUBLISHED",
-      "PROCESSING",
-      "FAILED",
-      "RESUBMITTED",
-      "COMPLETED",
-      "DEAD_LETTER",
-      "PURGED",
-    ]);
-  });
-
-  it("spells each chip the way the badge beside it is spelled", () => {
-    const labels = Object.fromEntries(
-      statusVocabulary().map(({ value, label }) => [value, label]),
-    );
-
-    for (const [value, label] of Object.entries(labels)) {
-      expect(statusDisplay(value).statusLabel).toBe(label);
-    }
-  });
-
-  it("explains every state in a line", () => {
-    for (const { explainer } of statusVocabulary()) {
-      expect(explainer).toEqual(expect.any(String));
-      expect(explainer).not.toBe("");
-    }
-
-    expect(
-      statusVocabulary().find(({ value }) => value === "DEAD_LETTER").explainer,
-    ).toBe("Failed all retry attempts; needs a redrive");
-  });
-});
-
-describe("serviceVocabulary", () => {
-  it("names both services in full, not in the codes the topics use", () => {
-    expect(serviceVocabulary()).toEqual([
-      { value: "gas", label: "GAS" },
-      { value: "caseworking", label: "CW-BE" },
-    ]);
-  });
-});
-
 describe("actorName", () => {
   it("keeps a named operator verbatim", () => {
     expect(actorName("Ada Lovelace")).toBe("Ada Lovelace");
@@ -135,23 +88,6 @@ describe("actorName", () => {
 
   it("does not mistake an operator whose name contains spaces", () => {
     expect(actorName(" Ada ")).toBe(" Ada ");
-  });
-});
-
-describe("hopLabel", () => {
-  it.each([
-    [{ service: "gas", box: "inbox" }, "GAS Inbox"],
-    [{ service: "gas", box: "outbox" }, "GAS Outbox"],
-    [{ service: "caseworking", box: "inbox" }, "CW-BE Inbox"],
-    [{ service: "caseworking", box: "outbox" }, "CW-BE Outbox"],
-  ])("names %o as %s", (hop, label) => {
-    expect(hopLabel(hop)).toBe(label);
-  });
-
-  it("falls back to the raw service and box it was given", () => {
-    expect(hopLabel({ service: "payments", box: "deadletter" })).toBe(
-      "payments deadletter",
-    );
   });
 });
 

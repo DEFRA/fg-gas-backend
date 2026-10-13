@@ -8,6 +8,7 @@ import {
   pushAttemptUpdate,
   toAttemptEntry,
   toLastError,
+  withErrorKey,
 } from "./last-error.js";
 
 describe("toLastError", () => {
@@ -257,5 +258,20 @@ describe("pushAttemptUpdate", () => {
 
   it("slices to exactly ten", () => {
     expect(pushAttemptUpdate({}).attemptHistory.$slice).toBe(-10);
+  });
+});
+
+describe("withErrorKey", () => {
+  it("writes the error with the key Top errors groups it by", () => {
+    const lastError = toLastError(new TypeError('cannot read "abc-123"'));
+
+    expect(withErrorKey(lastError)).toEqual({
+      lastError,
+      errorKey: "TypeError: cannot read <v>",
+    });
+  });
+
+  it("writes no key with no error", () => {
+    expect(withErrorKey(null)).toEqual({ lastError: null, errorKey: null });
   });
 });

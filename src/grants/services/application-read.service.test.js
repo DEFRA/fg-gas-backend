@@ -2,29 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 import { ApplicationSeries } from "../models/application-series.js";
 import { findSeriesByClientRefs } from "../repositories/application-series.repository.js";
 import {
-  countApplicationRows,
   findApplicationIdentifiers,
   findApplicationRowsByClientRefs,
-  findApplicationRowsInSeries,
-  findApplicationRowsPage,
   findApplicationSummaryRow,
   findStoredApplicationDocument,
 } from "../repositories/application.repository.js";
-import { findCodes } from "../repositories/grant.repository.js";
 import {
   applicationExists,
-  browseApplications,
-  countApplications,
   findApplicationDocument,
   findApplicationSeries,
   findApplicationSummary,
-  findApplicationsInSeriesOf,
-  listGrantCodes,
 } from "./application-read.service.js";
 
 vi.mock("../repositories/application.repository.js");
 vi.mock("../repositories/application-series.repository.js");
-vi.mock("../repositories/grant.repository.js");
 
 const POSITION = { phase: "PRE_AWARD", stage: "REVIEW", status: "RECEIVED" };
 
@@ -44,123 +35,6 @@ const aSeries = (code, clientRefs) =>
     createdAt: "2026-06-16T10:00:00.000Z",
     updatedAt: "2026-06-16T10:00:00.000Z",
   });
-
-describe("browseApplications", () => {
-  it("answers one page of rows with the filters, each marked replaced or not", async () => {
-    findApplicationRowsPage.mockResolvedValue({
-      rows: [aRow("ref-2"), aRow("ref-1"), aRow("ref-1", "frps")],
-      pagination: { endCursor: "c", hasNextPage: true },
-    });
-    findSeriesByClientRefs.mockResolvedValue([
-      aSeries("woodland", ["ref-1", "ref-2"]),
-    ]);
-
-    const page = await browseApplications({
-      code: "woodland",
-      from: "2026-06-16T00:00:00.000Z",
-      cursor: "abc",
-      pageSize: 20,
-    });
-
-    expect(findApplicationRowsPage).toHaveBeenCalledWith({
-      code: "woodland",
-      from: "2026-06-16T00:00:00.000Z",
-      to: undefined,
-      cursor: "abc",
-      pageSize: 20,
-    });
-    // A ref reused under another grant is a different application.
-    expect(findSeriesByClientRefs).toHaveBeenCalledWith(["ref-2", "ref-1"]);
-    expect(page).toEqual({
-      rows: [
-        { ...aRow("ref-2"), replaced: false },
-        { ...aRow("ref-1"), replaced: true },
-        { ...aRow("ref-1", "frps"), replaced: false },
-      ],
-      pagination: { endCursor: "c", hasNextPage: true },
-    });
-  });
-
-  it("reads no series for an empty page", async () => {
-    findApplicationRowsPage.mockResolvedValue({
-      rows: [],
-      pagination: { endCursor: null, hasNextPage: false },
-    });
-
-    expect((await browseApplications({ pageSize: 20 })).rows).toEqual([]);
-    expect(findSeriesByClientRefs).not.toHaveBeenCalled();
-  });
-});
-
-describe("findApplicationsInSeriesOf", () => {
-  it("reads every member of the ref's series, under the grant when named, bounded one past 200", async () => {
-    const series = [aSeries("woodland", ["ref-1", "ref-2"])];
-    findSeriesByClientRefs.mockResolvedValue(series);
-    findApplicationRowsInSeries.mockResolvedValue([
-      aRow("ref-2"),
-      aRow("ref-1"),
-    ]);
-
-    const page = await findApplicationsInSeriesOf({
-      ref: "ref-1",
-      code: "woodland",
-      from: "2026-06-16T00:00:00.000Z",
-    });
-
-    expect(findSeriesByClientRefs).toHaveBeenCalledWith(["ref-1"], "woodland");
-    expect(findApplicationRowsInSeries).toHaveBeenCalledWith({
-      ref: "ref-1",
-      series,
-      code: "woodland",
-      from: "2026-06-16T00:00:00.000Z",
-      to: undefined,
-      limit: 201,
-    });
-    expect(page).toEqual({
-      rows: [
-        { ...aRow("ref-2"), replaced: false },
-        { ...aRow("ref-1"), replaced: true },
-      ],
-      total: { count: 2, capped: false },
-    });
-  });
-
-  it("returns at most 200, capped, past the bound", async () => {
-    findSeriesByClientRefs.mockResolvedValue([]);
-    findApplicationRowsInSeries.mockResolvedValue(
-      Array.from({ length: 201 }, (_, n) => aRow(`ref-${n}`)),
-    );
-
-    const page = await findApplicationsInSeriesOf({ ref: "ref-1" });
-
-    expect(page.rows).toHaveLength(200);
-    expect(page.total).toEqual({ count: 200, capped: true });
-  });
-});
-
-describe("countApplications", () => {
-  it("counts the browse filter up to one past 10,000", async () => {
-    countApplicationRows.mockResolvedValue(42);
-
-    expect(await countApplications({ code: "woodland" })).toEqual({
-      count: 42,
-      capped: false,
-    });
-    expect(countApplicationRows).toHaveBeenCalledWith(
-      { code: "woodland", from: undefined, to: undefined },
-      { limit: 10_001 },
-    );
-  });
-
-  it("caps at 10,000", async () => {
-    countApplicationRows.mockResolvedValue(10_001);
-
-    expect(await countApplications({})).toEqual({
-      count: 10_000,
-      capped: true,
-    });
-  });
-});
 
 describe("findApplicationSummary and findApplicationDocument", () => {
   it("answers the summary row and its stored size", async () => {
@@ -193,7 +67,7 @@ describe("findApplicationSummary and findApplicationDocument", () => {
   });
 });
 
-describe("findApplicationSeries, applicationExists and listGrantCodes", () => {
+describe("findApplicationSeries and applicationExists", () => {
   it("answers the application's own series under its grant, its members oldest first", async () => {
     findSeriesByClientRefs.mockResolvedValue([
       aSeries("woodland", ["a", "b", "c"]),
@@ -275,11 +149,5 @@ describe("findApplicationSeries, applicationExists and listGrantCodes", () => {
       exists: false,
       identifiers: null,
     });
-  });
-
-  it("lists the grant codes in order", async () => {
-    findCodes.mockResolvedValue(["woodland", "frps"]);
-
-    expect(await listGrantCodes()).toEqual(["frps", "woodland"]);
   });
 });

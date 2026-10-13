@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { config } from "../../common/config.js";
+import { OUTBOX, defineEventType } from "../../events/event-types.js";
 import { PaymentSourceType } from "../models/payment.js";
 
 // The Payment Service consumes the envelope the legacy Agreements API published,
@@ -8,6 +9,20 @@ import { PaymentSourceType } from "../models/payment.js";
 // Changing either changes the Payment Service contract.
 const CREATE_PAYMENT_TYPE = "io.onsite.agreement.create-payment";
 const CREATE_PAYMENT_SOURCE = "urn:service:agreement";
+
+// The envelope carries the agreement number but not a claim's client
+// reference, which is the row's ordering key instead.
+const clientRefOf = (segregationRef, agreementNumber) =>
+  segregationRef === agreementNumber ? null : segregationRef;
+
+export const agreementCreatePayment = defineEventType({
+  name: "CreateAgreementPayment",
+  sentAs: CREATE_PAYMENT_TYPE,
+  boxes: [OUTBOX],
+  refs: ({ data }, { segregationRef }) => [
+    ["ref", clientRefOf(segregationRef, data?.grants?.[0]?.agreementNumber)],
+  ],
+});
 
 // The legacy message sends every monetary value as a string. Pence stay numeric
 // on the Payment and are stringified here, at the boundary, and nowhere else.

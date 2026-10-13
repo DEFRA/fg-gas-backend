@@ -2,7 +2,6 @@ import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
-import { paginate } from "../../common/paginate.js";
 import {
   Agreement,
   AgreementHistoryEntry,
@@ -15,24 +14,20 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
-import { ApplicationSeries } from "../models/application-series.js";
 import {
-  countApplicationRows,
   findApplicationIdentifiers,
   findApplicationRowsByClientRefs,
-  findApplicationRowsInSeries,
-  findApplicationRowsPage,
   findApplicationSummaryRow,
   findByClientRef,
   findByClientRefAndCode,
   findStoredApplicationDocument,
+  linkSeries,
   lockForUpdate,
   save,
   update,
 } from "./application.repository.js";
 
 vi.mock("../../common/mongo-client.js");
-vi.mock("../../common/paginate.js");
 
 describe("update", () => {
   it("should update application", async () => {
@@ -55,17 +50,52 @@ describe("update", () => {
       agreements: {},
     });
 
-    const replaceOne = vi.fn().mockResolvedValueOnce({
+    const updateOne = vi.fn().mockResolvedValueOnce({
       modifiedCount: 1,
     });
+    const session = {};
     db.collection.mockReturnValue({
-      replaceOne,
+      updateOne,
     });
 
-    await update(application);
+    await update(application, session);
 
-    expect(replaceOne).toHaveBeenCalled();
-    expect(replaceOne.mock.calls[0][1]).toBeInstanceOf(ApplicationDocument);
+    const { refs, ...document } = application;
+
+    expect(updateOne).toHaveBeenCalledWith(
+      { clientRef: "application-1", code: "grant-1" },
+      {
+        $set: document,
+        $addToSet: {
+          refs: {
+            $each: ["ref:application-1", "sbi:sbi-1", "frn:frn-1", "crn:crn-1"],
+          },
+        },
+      },
+      { session },
+    );
+  });
+
+  it("sends only the fields a save owns, so series refs survive", async () => {
+    const updateOne = vi.fn().mockResolvedValueOnce({ modifiedCount: 1 });
+    db.collection.mockReturnValue({ updateOne });
+
+    await update(
+      new ApplicationDocument({
+        clientRef: "application-1",
+        code: "grant-1",
+        identifiers: {},
+        agreements: { FPTT000000001: {} },
+      }),
+    );
+
+    const [, { $set, $addToSet }] = updateOne.mock.calls[0];
+
+    expect($set).not.toHaveProperty("refs");
+    expect($addToSet.refs.$each).toEqual([
+      "ref:application-1",
+      "agreement:fptt000000001",
+    ]);
   });
 
   it("should throw if record not modified", async () => {
@@ -87,16 +117,45 @@ describe("update", () => {
       },
     });
 
-    const replaceOne = vi.fn().mockResolvedValueOnce({
+    const updateOne = vi.fn().mockResolvedValueOnce({
       modifiedCount: 0,
     });
     db.collection.mockReturnValue({
-      replaceOne,
+      updateOne,
     });
 
     await expect(() => update(application)).rejects.toThrow(
       'Failed to update application with clientRef "application-1" and code "grant-1"',
     );
+  });
+});
+
+describe("linkSeries", () => {
+  it("gives every member every member's ref, in one write", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ modifiedCount: 1 });
+    const session = {};
+    db.collection.mockReturnValue({ updateMany });
+
+    await linkSeries(
+      {
+        code: "grant-1",
+        clientRefs: ["REF-1", "ref-2", "ref-3"],
+      },
+      session,
+    );
+
+    expect(db.collection).toHaveBeenCalledWith("applications");
+    expect(updateMany.mock.calls).toEqual([
+      [
+        { code: "grant-1", clientRef: { $in: ["REF-1", "ref-2", "ref-3"] } },
+        {
+          $addToSet: {
+            refs: { $each: ["ref:ref-1", "ref:ref-2", "ref:ref-3"] },
+          },
+        },
+        { session },
+      ],
+    ]);
   });
 });
 
@@ -142,33 +201,40 @@ describe("save", () => {
     expect(db.collection).toHaveBeenCalledWith("applications");
 
     expect(insertOne).toHaveBeenCalledWith(
-      new ApplicationDocument({
-        currentPhase: ApplicationPhase.PreAward,
-        currentStage: ApplicationStage.Assessment,
-        currentStatus: ApplicationStatus.Received,
-        clientRef: "application-1",
-        code: "grant-1",
-        originalConfigVersion: "1.0.0",
-        currentConfigVersion: "1.0.0",
-        createdAt: "2021-01-01T00:00:00.000Z",
-        updatedAt: "2021-01-01T01:00:00.000Z",
-        submittedAt: "2021-01-01T00:00:00.000Z",
-        identifiers: {
-          sbi: "sbi-1",
-          frn: "frn-1",
-          crn: "crn-1",
-        },
-        metadata: {
-          defraId: "defraId-1",
-        },
-        answers: {
-          anything: "test",
-        },
-        phases: [],
-      }),
-
+      {
+        ...new ApplicationDocument({
+          currentPhase: ApplicationPhase.PreAward,
+          currentStage: ApplicationStage.Assessment,
+          currentStatus: ApplicationStatus.Received,
+          clientRef: "application-1",
+          code: "grant-1",
+          originalConfigVersion: "1.0.0",
+          currentConfigVersion: "1.0.0",
+          createdAt: "2021-01-01T00:00:00.000Z",
+          updatedAt: "2021-01-01T01:00:00.000Z",
+          submittedAt: "2021-01-01T00:00:00.000Z",
+          identifiers: {
+            sbi: "sbi-1",
+            frn: "frn-1",
+            crn: "crn-1",
+          },
+          metadata: {
+            defraId: "defraId-1",
+          },
+          answers: {
+            anything: "test",
+          },
+          phases: [],
+        }),
+      },
       { session },
     );
+    expect(insertOne.mock.calls[0][0].refs).toEqual([
+      "ref:application-1",
+      "sbi:sbi-1",
+      "frn:frn-1",
+      "crn:crn-1",
+    ]);
   });
 
   it("throws Boom.conflict when an application with same clientRef exists", async () => {
@@ -506,92 +572,6 @@ const ROW = (clientRef) => ({
   createdAt: "2026-06-16T10:00:00.000Z",
 });
 
-describe("findApplicationRowsPage", () => {
-  it("pages newest first over the grant and the created range, bounds in UTC", async () => {
-    db.collection.mockReturnValue("applications");
-    paginate.mockResolvedValue({
-      data: [aStoredRow("ref-1")],
-      pagination: { endCursor: "c", hasNextPage: true },
-    });
-
-    const page = await findApplicationRowsPage({
-      code: "woodland",
-      from: "2026-06-16T00:00:00+01:00",
-      to: "2026-06-16T23:59:59.999Z",
-      cursor: "abc",
-      pageSize: 20,
-    });
-
-    const [, options] = paginate.mock.calls[0];
-    expect(options).toMatchObject({
-      filter: {
-        code: "woodland",
-        createdAt: {
-          $gte: "2026-06-15T23:00:00.000Z",
-          $lte: "2026-06-16T23:59:59.999Z",
-        },
-      },
-      sort: { createdAt: -1, _id: -1 },
-      cursor: "abc",
-      pageSize: 20,
-    });
-    expect(namesAnswers(options)).toBe(false);
-    expect(page).toEqual({
-      rows: [ROW("ref-1")],
-      pagination: { endCursor: "c", hasNextPage: true },
-    });
-  });
-
-  it("filters nothing with no filters", async () => {
-    paginate.mockResolvedValue({ data: [], pagination: {} });
-
-    await findApplicationRowsPage({ pageSize: 20 });
-
-    expect(paginate.mock.calls[0][1].filter).toEqual({});
-  });
-});
-
-describe("findApplicationRowsInSeries", () => {
-  it("reads each series member and the bare ref, newest first, hinted onto {clientRef, code}", async () => {
-    const toArray = vi.fn().mockResolvedValue([aStoredRow("ref-2")]);
-    const find = vi.fn().mockReturnValue({ toArray });
-    db.collection.mockReturnValue({ find });
-    const series = [
-      ApplicationSeries.fromDocument({
-        code: "woodland",
-        clientRefs: ["ref-1", "ref-2"],
-        latestClientRef: "ref-2",
-        latestClientId: "client-id",
-        createdAt: "2026-06-16T10:00:00.000Z",
-        updatedAt: "2026-06-16T10:00:00.000Z",
-      }),
-    ];
-
-    const rows = await findApplicationRowsInSeries({
-      ref: "ref-1",
-      series,
-      from: "2026-06-16T00:00:00.000Z",
-      limit: 201,
-    });
-
-    const [filter, options] = find.mock.calls[0];
-    expect(filter).toEqual({
-      $or: [
-        { code: "woodland", clientRef: { $in: ["ref-1", "ref-2"] } },
-        { clientRef: "ref-1" },
-      ],
-      createdAt: { $gte: "2026-06-16T00:00:00.000Z" },
-    });
-    expect(options).toMatchObject({
-      sort: { createdAt: -1, _id: -1 },
-      limit: 201,
-      hint: { clientRef: 1, code: 1 },
-    });
-    expect(namesAnswers(options)).toBe(false);
-    expect(rows).toEqual([ROW("ref-2")]);
-  });
-});
-
 describe("findApplicationRowsByClientRefs", () => {
   it("reads the named applications of one grant by {clientRef, code}", async () => {
     const toArray = vi
@@ -613,21 +593,6 @@ describe("findApplicationRowsByClientRefs", () => {
     expect(options.hint).toEqual({ clientRef: 1, code: 1 });
     expect(namesAnswers(options)).toBe(false);
     expect(rows).toEqual([ROW("ref-2"), ROW("ref-1")]);
-  });
-});
-
-describe("countApplicationRows", () => {
-  it("counts the browse filter up to the limit", async () => {
-    const countDocuments = vi.fn().mockResolvedValue(42);
-    db.collection.mockReturnValue({ countDocuments });
-
-    expect(
-      await countApplicationRows({ code: "woodland" }, { limit: 10_001 }),
-    ).toBe(42);
-    expect(countDocuments).toHaveBeenCalledWith(
-      { code: "woodland" },
-      expect.objectContaining({ limit: 10_001 }),
-    );
   });
 });
 

@@ -1,18 +1,8 @@
-import Boom from "@hapi/boom";
 import { ObjectId } from "mongodb";
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { db } from "../../common/mongo-client.js";
-import { paginate } from "../../common/paginate.js";
-import {
-  AUDIT_TARGET_FIELDS,
-  EVENT_TYPE_FIELDS,
-  auditGroupExpression,
-} from "../event-audit.js";
-import { breakdownStages, toBreakdownGroups } from "../event-breakdown.js";
 import { editUpdate, revisionFilter } from "../event-edit.js";
-import { toSourceFacets } from "../event-facets.js";
-import { buildEventListFilter } from "../event-list-filter.js";
 import { purgeUpdate } from "../event-purge.js";
 import {
   DEAD_LETTER,
@@ -22,9 +12,10 @@ import {
 import {
   claimExpiredAttempt,
   claimExpiredError,
+  withErrorKey,
   pushAttemptUpdate,
 } from "../last-error.js";
-import { statusGroupStage } from "../status-counts.js";
+import { withoutStamps } from "../stamps.js";
 import { Outbox, OutboxStatus } from "../models/outbox.js";
 
 const collection = "outbox";
@@ -33,56 +24,6 @@ const MAX_RETRIES = config.outbox.outboxMaxRetries;
 const EXPIRES_IN_MS = config.outbox.outboxExpiresMs;
 const NUMBER_OF_RECORDS = config.outbox.outboxClaimMaxRecords;
 const RETENTION_DAYS = config.events.retentionDays;
-
-// `target` decides whether a type-less row is an audit record.
-const listProjection = {
-  _id: 1,
-  target: 1,
-  "event.id": 1,
-  "event.type": 1,
-  status: 1,
-  publicationDate: 1,
-  completionDate: 1,
-};
-
-// A BSON Date on every outbox row; the cursor carries it as ISO.
-const listCodecs = {
-  publicationDate: {
-    encode: (value) => (value instanceof Date ? value.toISOString() : value),
-    // `new Date(null)` is the epoch, so a null position is refused.
-    decode: (value) => {
-      const date = new Date(value);
-
-      if (typeof value !== "string" || Number.isNaN(date.getTime())) {
-        throw Boom.badRequest("Cursor publicationDate is not an instant");
-      }
-
-      return date;
-    },
-  },
-  _id: {
-    encode: (id) => id.toString(),
-    decode: (hex) => ObjectId.createFromHexString(hex),
-  },
-};
-
-// A BSON Date field: a string bound would silently match nothing.
-const listFilter = ({ status, q, error, from, to, audit }) =>
-  buildEventListFilter({
-    status,
-    q,
-    error,
-    from,
-    to,
-    audit,
-    targetField: AUDIT_TARGET_FIELDS.outbox,
-    eventIdField: "event.id",
-    traceparentField: "event.traceparent",
-    rangeField: "publicationDate",
-    rangeIsDate: true,
-  });
-
-const listSort = { publicationDate: -1, _id: -1 };
 
 export const deadLetterEvent = async (event) => {
   const results = await db.collection(collection).updateOne(
@@ -156,8 +97,7 @@ export const claimEvents = async (claimedBy, segregationRef) => {
 };
 
 export const update = async (event, claimedBy) => {
-  const document = event.toDocument();
-  const { _id, ...updateDoc } = document;
+  const { _id, ...updateDoc } = withoutStamps(event.toDocument());
 
   return db
     .collection(collection)
@@ -187,7 +127,7 @@ export const updateExpiredEvents = async () => {
     {
       $set: {
         status: OutboxStatus.FAILED,
-        lastError: claimExpiredError(),
+        ...withErrorKey(claimExpiredError()),
         claimedAt: null,
         claimExpiresAt: null,
         claimedBy: null,
@@ -264,36 +204,6 @@ export const updateDeadEvents = async () => {
   );
   return results;
 };
-
-export const findPage = async ({
-  cursor,
-  pageSize = 20,
-  status,
-  q,
-  error,
-  from,
-  to,
-  audit,
-} = {}) =>
-  paginate(db.collection(collection), {
-    filter: listFilter({ status, q, error, from, to, audit }),
-    sort: listSort,
-    codecs: listCodecs,
-    maxTimeMS: config.adminReadTimeoutMs,
-    cursor,
-    pageSize,
-    project: listProjection,
-  });
-
-export const countFacets = async (filter = {}) =>
-  toSourceFacets(
-    await db
-      .collection(collection)
-      .aggregate([{ $match: listFilter(filter) }, statusGroupStage()], {
-        maxTimeMS: config.adminReadTimeoutMs,
-      })
-      .toArray(),
-  );
 
 const toId = (id) => ObjectId.createFromHexString(id);
 
@@ -381,20 +291,3 @@ export const editPayloadById = async (
 
   return matchedCount > 0;
 };
-
-// Scoped to DEAD_LETTER here so it can never count a still-retrying row.
-export const breakdown = async (filter = {}) =>
-  toBreakdownGroups(
-    await db
-      .collection(collection)
-      .aggregate(
-        breakdownStages({
-          filter: listFilter({ ...filter, status: OutboxStatus.DEAD_LETTER }),
-          typeField: EVENT_TYPE_FIELDS.outbox,
-          auditExpression: auditGroupExpression(AUDIT_TARGET_FIELDS.outbox),
-          sortKey: "publicationDate",
-        }),
-        { maxTimeMS: config.adminReadTimeoutMs },
-      )
-      .toArray(),
-  );

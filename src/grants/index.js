@@ -1,9 +1,11 @@
 import { up } from "migrate-mongo";
+import { registerBucket } from "../common/buckets/registry.js";
 import { AGREEMENT_STATUS_UPDATED_EVENT_TYPE } from "../agreements/events/agreement-status-updated.event.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
 import { registerEventHandler } from "../events/index.js";
 import { messageSource } from "../events/services/message-source.js";
+import { applicationsBucket } from "./buckets/applications.bucket.js";
 import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
 import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import {
@@ -51,6 +53,8 @@ export const grants = {
     const migrated = await up(db, mongoClient);
     migrated.forEach((fileName) => logger.info(`Migrated: ${fileName}`));
     logger.info("Finished running migrations");
+
+    registerBucket(applicationsBucket());
 
     server.events.on("start", async () => {
       configVersionUpdatedSubscriber.start();

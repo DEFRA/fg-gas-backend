@@ -1,4 +1,13 @@
 import { CloudEvent } from "../../common/cloud-event.js";
+import { config } from "../../common/config.js";
+import { OUTBOX, defineEventType } from "../../events/event-types.js";
+
+export const agreementCreate = defineEventType({
+  name: "CreateAgreement",
+  sentAs: `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.agreement.create`,
+  boxes: [OUTBOX],
+  refs: ({ data }) => [["ref", data?.clientRef]],
+});
 
 export class CreateAgreementCommand extends CloudEvent {
   constructor(application) {

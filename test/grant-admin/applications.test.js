@@ -2,7 +2,6 @@ import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { applicationPageSchemas } from "../../src/grant-admin/schemas/application-page.schema.js";
-import { searchApplicationsResponseSchema } from "../../src/grant-admin/schemas/search-applications.schema.js";
 import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -14,7 +13,6 @@ const AUDIT_TOPIC =
 let client;
 let applications;
 let series;
-let grants;
 let inbox;
 let outbox;
 
@@ -23,7 +21,6 @@ beforeAll(async () => {
   const db = client.db();
   applications = db.collection("applications");
   series = db.collection("application_series");
-  grants = db.collection("grants");
   inbox = db.collection("inbox");
   outbox = db.collection("outbox");
 });
@@ -70,12 +67,6 @@ const aSeries = (code, clientRefs) => ({
   updatedAt: minute(0),
 });
 
-const search = (payload = {}, headers = OPERATOR) =>
-  wreck.post("/grant-admin/applications/search", { payload, headers });
-
-const pageOf = async (payload, headers) =>
-  (await search(payload, headers)).payload;
-
 const getTab = (
   tab,
   clientRef = "ref-1",
@@ -90,250 +81,6 @@ const auditRows = (action) =>
   outbox
     .find({ target: AUDIT_TOPIC, "event.audit.entities.action": action })
     .toArray();
-
-describe("POST /grant-admin/applications/search", () => {
-  it("browses the 20 newest applications, ties broken by id, with a cursor", async () => {
-    await applications.insertMany(
-      Array.from({ length: 25 }, (_, n) =>
-        anApplication(`ref-${n}`, { createdAt: minute(n) }),
-      ),
-    );
-
-    const page = await pageOf({});
-
-    expect(
-      searchApplicationsResponseSchema.validate(page).error,
-    ).toBeUndefined();
-    expect(page.rows).toHaveLength(20);
-    expect(page.rows[0].ref).toEqual({ clientRef: "ref-24", code: "woodland" });
-    expect(page.rows[0].position).toEqual({
-      phase: "PRE_AWARD",
-      stage: "REVIEW",
-      status: "RECEIVED",
-    });
-    expect(page.pagination.hasNextPage).toBe(true);
-    expect(page.total).toEqual({ count: 25, capped: false });
-    expect(page.sourceErrors).toEqual([]);
-  });
-
-  it("continues from the cursor with no gap or duplicate, and no total or codes", async () => {
-    const createdAt = minute(1);
-    await applications.insertMany(
-      Array.from({ length: 25 }, (_, n) =>
-        anApplication(`ref-${n}`, { createdAt }),
-      ),
-    );
-
-    const first = await pageOf({});
-    const next = await pageOf({ cursor: first.pagination.endCursor });
-
-    const refs = [...first.rows, ...next.rows].map((row) => row.ref.clientRef);
-    expect(new Set(refs).size).toBe(25);
-
-    // Every createdAt ties, so the id alone orders them, newest first.
-    const ids = Object.fromEntries(
-      (await applications.find({}).toArray()).map((doc) => [
-        doc.clientRef,
-        doc._id.toHexString(),
-      ]),
-    );
-    const order = refs.map((ref) => ids[ref]);
-    expect(order).toEqual([...order].sort().reverse());
-    expect(next.pagination.hasNextPage).toBe(false);
-    expect(next).not.toHaveProperty("total");
-    expect(next).not.toHaveProperty("codes");
-  });
-
-  it.each([
-    [
-      "an operator in place of a created time",
-      { createdAt: { $gt: "" }, _id: "665f1c2e9a1b2c3d4e5f6a7b" },
-    ],
-    [
-      "a number for a created time",
-      { createdAt: 5, _id: "665f1c2e9a1b2c3d4e5f6a7b" },
-    ],
-    ["a malformed id", { createdAt: minute(1), _id: "nope" }],
-    ["not JSON at all", "%%%not-a-cursor"],
-  ])(
-    "refuses a cursor carrying %s with 400, audited as a FAILURE",
-    async (_name, data) => {
-      const cursor =
-        typeof data === "string"
-          ? data
-          : Buffer.from(JSON.stringify(data)).toString("base64url");
-
-      const error = await search({ cursor }).catch((e) => e);
-
-      expect(error.output.statusCode).toBe(400);
-      const [row] = await auditRows("SEARCH_APPLICATIONS");
-      expect(row.event.audit.status).toBe("FAILURE");
-      expect(row.event.audit.details.page).toBe("next");
-    },
-  );
-
-  it("narrows by grant and by created time together", async () => {
-    await applications.insertMany([
-      anApplication("in", { createdAt: minute(10) }),
-      anApplication("too-early", { createdAt: minute(1) }),
-      anApplication("other-grant", { code: "frps", createdAt: minute(10) }),
-    ]);
-
-    const page = await pageOf({
-      code: "woodland",
-      from: minute(5),
-      to: minute(15),
-    });
-
-    expect(page.rows.map((row) => row.ref.clientRef)).toEqual(["in"]);
-    expect(page.total).toEqual({ count: 1, capped: false });
-  });
-
-  it("finds every member of a searched ref's series, the earlier ones replaced", async () => {
-    await applications.insertMany([
-      anApplication("ref-1", { createdAt: minute(1) }),
-      anApplication("ref-2", { createdAt: minute(2) }),
-      anApplication("ref-3", { createdAt: minute(3) }),
-      anApplication("ref-1", { code: "frps", createdAt: minute(4) }),
-      anApplication("unrelated", { createdAt: minute(5) }),
-    ]);
-    await series.insertOne(aSeries("woodland", ["ref-1", "ref-2", "ref-3"]));
-
-    const page = await pageOf({ ref: "REF-1" });
-
-    // ref-1 was reused under another grant: shown, but nothing replaced it.
-    expect(
-      page.rows.map((row) => [row.ref.clientRef, row.ref.code, row.replaced]),
-    ).toEqual([
-      ["ref-1", "frps", false],
-      ["ref-3", "woodland", false],
-      ["ref-2", "woodland", true],
-      ["ref-1", "woodland", true],
-    ]);
-    expect(page.pagination).toEqual({ endCursor: null, hasNextPage: false });
-    expect(page.total).toEqual({ count: 4, capped: false });
-  });
-
-  it("narrows a ref search to the grant and the time range", async () => {
-    await applications.insertMany([
-      anApplication("ref-1", { createdAt: minute(1) }),
-      anApplication("ref-2", { createdAt: minute(2) }),
-      anApplication("ref-1", { code: "frps", createdAt: minute(4) }),
-    ]);
-    await series.insertOne(aSeries("woodland", ["ref-1", "ref-2"]));
-
-    const page = await pageOf({
-      ref: "ref-1",
-      code: "woodland",
-      from: minute(2),
-    });
-
-    expect(page.rows.map((row) => row.ref.clientRef)).toEqual(["ref-2"]);
-  });
-
-  it("caps the first page's total at 10,000", async () => {
-    await applications.insertMany(
-      Array.from({ length: 10_001 }, (_, n) => ({
-        clientRef: `bulk-${n}`,
-        code: "woodland",
-        createdAt: minute(n % 60),
-      })),
-    );
-
-    expect((await pageOf({})).total).toEqual({ count: 10_000, capped: true });
-  });
-
-  it("offers the grant codes on the first page", async () => {
-    await grants.insertMany([
-      { code: "woodland", version: "1.0.0" },
-      { code: "frps", version: "1.0.0" },
-    ]);
-
-    expect((await pageOf({})).codes).toEqual(["frps", "woodland"]);
-  });
-
-  it("is never stored by a cache", async () => {
-    const { res } = await search({});
-
-    expect(res.headers["cache-control"]).toBe("no-store");
-  });
-
-  it("writes one audit row per page, with the operator, PMC 0706 and how the list was narrowed", async () => {
-    await applications.insertOne(anApplication("ref-1"));
-
-    await search({ code: "woodland" });
-    await search({ ref: "ref-1" }, { ...OPERATOR, "x-search-repeat": "1" });
-
-    const rows = await auditRows("SEARCH_APPLICATIONS");
-    expect(rows).toHaveLength(2);
-
-    const byMode = Object.fromEntries(
-      rows.map((row) => [row.event.audit.details.mode, row]),
-    );
-    expect(byMode.browse.event.user).toBe(OID);
-    expect(byMode.browse.event.security.pmccode).toBe("0706");
-    expect(byMode.browse.segregationRef).toBe("admin-search-applications");
-    expect(byMode.browse.event.audit.details).toMatchObject({
-      mode: "browse",
-      code: "woodland",
-      page: "first",
-      resultCount: 1,
-      total: { count: 1, capped: false },
-    });
-    expect(byMode.browse.event.audit.details).not.toHaveProperty("repeat");
-    expect(byMode.search.event.audit.details).toMatchObject({
-      mode: "search",
-      repeat: true,
-    });
-    expect(JSON.stringify(byMode.search.event)).not.toContain("ref-1");
-  });
-
-  it("records no repeat on a later page, whatever the header says", async () => {
-    await applications.insertMany(
-      Array.from({ length: 21 }, (_, n) =>
-        anApplication(`ref-${n}`, { createdAt: minute(n) }),
-      ),
-    );
-    const first = await pageOf({});
-
-    await search(
-      { cursor: first.pagination.endCursor },
-      { ...OPERATOR, "x-search-repeat": "1" },
-    );
-
-    const next = (await auditRows("SEARCH_APPLICATIONS")).find(
-      (row) => row.event.audit.details.page === "next",
-    );
-    expect(next.event.audit.details).not.toHaveProperty("repeat");
-  });
-
-  it.each([
-    ["no x-actor-id", { "x-actor": "Jo Operator" }],
-    ["no x-actor", { "x-actor-id": OID }],
-  ])("refuses a request with %s", async (_name, headers) => {
-    await expect(search({}, headers)).rejects.toThrow(
-      "Response Error: 400 Bad Request",
-    );
-  });
-
-  it("refuses another client with 403", async () => {
-    await expect(
-      wreck.post("/grant-admin/applications/search", {
-        payload: {},
-        headers: {
-          ...OPERATOR,
-          authorization: "Bearer 22222222-2222-2222-2222-222222222222",
-        },
-      }),
-    ).rejects.toThrow("Response Error: 403 Forbidden");
-  });
-
-  it("never calls Caseworking", async () => {
-    await search({});
-
-    expect(await cwStubRequests()).toEqual([]);
-  });
-});
 
 describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => {
   it("overview: the trimmed facts, the series with its members oldest first, and the stored size", async () => {
@@ -480,51 +227,34 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     publicationDate: minute(1),
     claimExpiresAt: new Date("2099-01-01T00:00:00.000Z"),
     event: { id: `evt-${clientRef}`, data: { caseRef: clientRef } },
+    eventType: "CaseStatusUpdated",
+    refs: [`ref:${clientRef}`, `id:evt-${clientRef}`],
   });
 
-  const aCwRow = {
-    _id: "665f1c2e9a1b2c3d4e5f0001",
-    eventId: "cw-evt-ref-1",
-    type: "cloud.defra.local.fg-gas-backend.case.create",
-    status: "COMPLETED",
-    publicationDate: minute(2),
-    completedAt: minute(2),
-  };
-
-  it("events: the GAS and Caseworking rows for the ref merged, audit rows left out", async () => {
+  it("events: the GAS rows for the ref alone, with no request to Caseworking", async () => {
     await applications.insertOne(anApplication("ref-1"));
     await inbox.insertOne(anInboxRow("ref-1"));
-    await setCwStub({ inbox: { data: [aCwRow] } });
 
     const { payload: page } = await getTab("events");
 
     expect(applicationPageSchemas.events.validate(page).error).toBeUndefined();
     expect(page.events.rows.map((row) => [row.service, row.eventId])).toEqual([
-      ["caseworking", "cw-evt-ref-1"],
       ["gas", "msg-ref-1"],
     ]);
     expect(page.events.more).toBe(false);
     expect(page.sourceErrors).toEqual([]);
-
-    const pages = (await cwStubRequests()).filter(
-      (request) => request.box === "page",
-    );
-    expect(pages.map((request) => request.query.q)).toEqual(["ref-1"]);
-    expect(pages[0].query.audit).toBe("exclude");
+    expect(await cwStubRequests()).toEqual([]);
   });
 
-  it("events: GAS's rows still, and a source error, when Caseworking is down", async () => {
+  it("events: the same rows, and no source error, when Caseworking is down", async () => {
     await applications.insertOne(anApplication("ref-1"));
     await inbox.insertOne(anInboxRow("ref-1"));
-    await setCwStub({ inbox: { mode: "down" }, outbox: { mode: "down" } });
+    await setCwStub({ buckets: { mode: "down" } });
 
     const { payload: page } = await getTab("events");
 
     expect(page.events.rows.map((row) => row.eventId)).toEqual(["msg-ref-1"]);
-    expect(page.sourceErrors).toEqual([
-      { hop: "CW-BE Inbox" },
-      { hop: "CW-BE Outbox" },
-    ]);
+    expect(page.sourceErrors).toEqual([]);
     expect(page.sectionErrors).toEqual([]);
   });
 
