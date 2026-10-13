@@ -177,23 +177,23 @@ describe("replaceGrantAllowListUseCase", () => {
   it.each([
     ["duplicate", { sbi: ["106000033", "106000033"], crn: [] }],
     ["invalid", { sbi: ["not-an-sbi"], crn: [] }],
-  ])("audits a safe refusal without the submitted values (%s)", async (
-    _,
-    global,
-  ) => {
-    await replaceGrantAllowListUseCase({ ...args, global }).catch(() => {});
+  ])(
+    "audits a safe refusal without the submitted values (%s)",
+    async (_, global) => {
+      await replaceGrantAllowListUseCase({ ...args, global }).catch(() => {});
 
-    const [event, auditSession] = writeAuditEvent.mock.calls[0];
-    expect(event).toMatchObject({
-      details: {
-        caller: "fg-grants-platform-admin",
-        errorCode: "ALLOW_LIST_VALIDATION_FAILED",
-      },
-      status: "FAILURE",
-    });
-    expect(auditSession).toBeNull();
-    expect(JSON.stringify(event)).not.toMatch(/106000033|not-an-sbi/);
-  });
+      const [event, auditSession] = writeAuditEvent.mock.calls[0];
+      expect(event).toMatchObject({
+        details: {
+          caller: "fg-grants-platform-admin",
+          errorCode: "ALLOW_LIST_VALIDATION_FAILED",
+        },
+        status: "FAILURE",
+      });
+      expect(auditSession).toBeNull();
+      expect(JSON.stringify(event)).not.toMatch(/106000033|not-an-sbi/);
+    },
+  );
 
   it("audits a missing grant with a categorical reason", async () => {
     resolveGrantAdministration.mockRejectedValue(Boom.notFound("missing"));
