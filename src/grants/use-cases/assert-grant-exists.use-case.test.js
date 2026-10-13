@@ -22,6 +22,17 @@ describe("assertGrantExists", () => {
     expect(existsByGrantCode).toHaveBeenCalledWith("woodland");
   });
 
+  it("uses the active session for both existence sources", async () => {
+    const session = {};
+    findByCode.mockResolvedValue(null);
+    existsByGrantCode.mockResolvedValue(true);
+
+    await assertGrantExists("woodland", session);
+
+    expect(findByCode).toHaveBeenCalledWith("woodland", "0.0.0", session);
+    expect(existsByGrantCode).toHaveBeenCalledWith("woodland", session);
+  });
+
   it("accepts a grant present in both stores", async () => {
     findByCode.mockResolvedValue({ code: "woodland" });
     existsByGrantCode.mockResolvedValue(true);

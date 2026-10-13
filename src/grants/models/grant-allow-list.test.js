@@ -19,6 +19,19 @@ const expectRefusal = (run, errorCode) => {
 };
 
 describe("GrantAllowList", () => {
+  it("refuses missing stored state instead of treating it as unrestricted", () => {
+    expect(() => new GrantAllowList({ grantCode: "woodland" })).toThrow(
+      expect.objectContaining({
+        output: expect.objectContaining({
+          statusCode: 500,
+          payload: expect.objectContaining({
+            errorCode: "MALFORMED_ALLOW_LIST",
+          }),
+        }),
+      }),
+    );
+  });
+
   it("creates an unrestricted allow list with ordered empty collections", () => {
     const allowList = GrantAllowList.unrestricted("woodland");
 

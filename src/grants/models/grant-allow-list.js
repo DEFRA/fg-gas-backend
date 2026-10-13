@@ -21,6 +21,12 @@ const refusal = (message, errorCode) => {
   return error;
 };
 
+const malformedStoredState = () => {
+  const error = Boom.badImplementation("Stored grant allow list is malformed");
+  error.output.payload.errorCode = "MALFORMED_ALLOW_LIST";
+  return error;
+};
+
 const normalize = (values) =>
   Array.isArray(values)
     ? values
@@ -54,9 +60,13 @@ const validate = (kind, values) => {
 
 export class GrantAllowList {
   constructor({ grantCode, global }) {
+    if (!global || !Array.isArray(global.sbi) || !Array.isArray(global.crn)) {
+      throw malformedStoredState();
+    }
+
     this.grantCode = grantCode;
     this.global = { sbi: [], crn: [] };
-    this.replaceGlobal(global ?? this.global);
+    this.replaceGlobal(global);
   }
 
   static unrestricted(grantCode) {

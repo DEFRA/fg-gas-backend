@@ -46,6 +46,18 @@ describe("grant-allow-list.repository", () => {
     await expect(findByGrantCode("woodland")).resolves.toBeNull();
   });
 
+  it("refuses to rehydrate malformed stored state as unrestricted", async () => {
+    const findOne = vi.fn().mockResolvedValue({ grantCode: "woodland" });
+    db.collection.mockReturnValue({ findOne });
+
+    await expect(findByGrantCode("woodland")).rejects.toMatchObject({
+      output: {
+        statusCode: 500,
+        payload: { errorCode: "MALFORMED_ALLOW_LIST" },
+      },
+    });
+  });
+
   it("replaces the complete allow-list document within a session", async () => {
     const session = {};
     const replaceOne = vi.fn().mockResolvedValue({ acknowledged: true });

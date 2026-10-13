@@ -284,6 +284,19 @@ describe("findByCode", () => {
     const result = await findByCode("woodland", "9.9.9");
     expect(result).toBeNull();
   });
+
+  it("finds a grant within the active session", async () => {
+    const session = {};
+    const findOne = vi.fn().mockResolvedValue(null);
+    db.collection.mockReturnValue({ findOne });
+
+    await findByCode("woodland", "0.0.0", session);
+
+    expect(findOne).toHaveBeenCalledWith(
+      { code: "woodland", version: "0.0.0" },
+      { session },
+    );
+  });
 });
 
 describe("entitlementTemplates", () => {

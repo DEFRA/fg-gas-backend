@@ -19,6 +19,15 @@ describe("allow-list schemas", () => {
     expect(result.error).toBeUndefined();
   });
 
+  it("passes exact empty strings to the domain normalizer", () => {
+    const result = allowListGlobalSchema.validate({
+      sbi: ["", "   "],
+      crn: [""],
+    });
+
+    expect(result.error).toBeUndefined();
+  });
+
   it("requires both identifier collections", () => {
     expect(
       allowListGlobalSchema.validate({ sbi: validGlobal.sbi }).error,

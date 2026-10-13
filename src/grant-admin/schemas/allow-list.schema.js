@@ -1,7 +1,7 @@
 import Joi from "joi";
 import { code } from "./code.js";
 
-const identifiers = Joi.array().items(Joi.string()).required();
+const identifiers = Joi.array().items(Joi.string().allow("")).required();
 
 export const allowListParamsSchema = Joi.object({
   code: code.required(),

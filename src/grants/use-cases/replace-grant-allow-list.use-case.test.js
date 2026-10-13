@@ -37,7 +37,7 @@ describe("replaceGrantAllowListUseCase", () => {
   it("checks the grant before opening or saving its allow list", async () => {
     await replaceGrantAllowListUseCase(args);
 
-    expect(assertGrantExists).toHaveBeenCalledWith("woodland");
+    expect(assertGrantExists).toHaveBeenCalledWith("woodland", session);
     expect(assertGrantExists.mock.invocationCallOrder[0]).toBeLessThan(
       findByGrantCode.mock.invocationCallOrder[0],
     );

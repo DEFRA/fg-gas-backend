@@ -78,6 +78,24 @@ describe("replaceAllowListRoute", () => {
     },
   );
 
+  it("passes exact and whitespace-only blanks to domain normalization", async () => {
+    const payload = { global: { sbi: ["", "   "], crn: [""] } };
+    replaceGrantAllowList.mockResolvedValue({
+      grantCode: "woodland",
+      global: { sbi: [], crn: [] },
+    });
+
+    const response = await put(payload);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.result.global).toEqual({ sbi: [], crn: [] });
+    expect(replaceGrantAllowList).toHaveBeenCalledWith({
+      grantCode: "woodland",
+      global: payload.global,
+      caller: "fg-grants-platform-admin",
+    });
+  });
+
   it.each([
     ["top-level windows", { ...POPULATED, windows: [] }],
     ["global windows", { global: { ...POPULATED.global, windows: [] } }],

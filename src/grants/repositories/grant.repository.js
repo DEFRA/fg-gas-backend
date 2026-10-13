@@ -53,11 +53,12 @@ export const replace = async (grant) => {
     .replaceOne({ code: grant.code, version: grant.version }, document);
 };
 
-export const findByCode = async (code, version = "0.0.0") => {
-  const result = await db.collection(collection).findOne({
-    code,
-    version,
-  });
+export const findByCode = async (code, version = "0.0.0", session) => {
+  const grants = db.collection(collection);
+  const filter = { code, version };
+  const result = session
+    ? await grants.findOne(filter, { session })
+    : await grants.findOne(filter);
 
   return result && toGrant(result);
 };

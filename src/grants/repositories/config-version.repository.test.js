@@ -314,5 +314,17 @@ describe("config-version.repository", () => {
 
       await expect(existsByGrantCode("missing")).resolves.toBe(false);
     });
+
+    it("checks existence within the active session", async () => {
+      const session = {};
+      mockCollection.findOne.mockResolvedValue({ _id: "config-version-id" });
+
+      await existsByGrantCode("woodland", session);
+
+      expect(mockCollection.findOne).toHaveBeenCalledWith(
+        { grantCode: "woodland" },
+        { projection: { _id: 1 }, session },
+      );
+    });
   });
 });

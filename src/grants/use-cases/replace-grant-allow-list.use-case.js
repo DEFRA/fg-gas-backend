@@ -19,7 +19,7 @@ const countsOf = ({ global }) => ({
 });
 
 const replaceGrantAllowList = async ({ grantCode, global }, session) => {
-  await assertGrantExists(grantCode);
+  await assertGrantExists(grantCode, session);
 
   const allowList =
     (await findByGrantCode(grantCode, session)) ??
@@ -56,7 +56,7 @@ const errorCodeOf = (error) => {
     : "UNEXPECTED_FAILURE";
 };
 
-export const buildReplaceGrantAllowListAudit = (
+const buildReplaceGrantAllowListAudit = (
   [{ grantCode, caller }],
   result,
   error,

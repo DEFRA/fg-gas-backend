@@ -1,22 +1,18 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withTransaction } from "../../common/with-transaction.js";
+import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { GrantAllowList } from "../models/grant-allow-list.js";
 import { findByGrantCode } from "../repositories/grant-allow-list.repository.js";
 import { assertGrantExists } from "./assert-grant-exists.use-case.js";
-import {
-  buildGetGrantAllowListAudit,
-  getGrantAllowListUseCase,
-} from "./get-grant-allow-list.use-case.js";
+import { getGrantAllowListUseCase } from "./get-grant-allow-list.use-case.js";
 
-const audit = vi.hoisted(() => ({ builder: null }));
-vi.mock("../../events/audited-read.js", () => ({
-  auditedRead: (read, builder) => {
-    audit.builder = builder;
-    return read;
-  },
-}));
+vi.mock("../../common/with-transaction.js");
+vi.mock("../../events/write-audit-event.js");
 vi.mock("../repositories/grant-allow-list.repository.js");
 vi.mock("./assert-grant-exists.use-case.js");
+
+const session = { id: "audit-session" };
 
 const args = {
   grantCode: "woodland",
@@ -30,12 +26,11 @@ const stored = new GrantAllowList({
 
 describe("getGrantAllowListUseCase", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    withTransaction.mockImplementation((callback) => callback(session));
+    writeAuditEvent.mockResolvedValue();
     assertGrantExists.mockResolvedValue();
     findByGrantCode.mockResolvedValue(stored);
-  });
-
-  it("is wrapped as an audited read", () => {
-    expect(audit.builder).toBe(buildGetGrantAllowListAudit);
   });
 
   it("asserts grant existence before reading and returns stored data", async () => {
@@ -70,9 +65,19 @@ describe("getGrantAllowListUseCase", () => {
   });
 });
 
-describe("buildGetGrantAllowListAudit", () => {
-  it("records safe success counts and protective monitoring metadata", () => {
-    const event = buildGetGrantAllowListAudit(args, stored.toJSON());
+describe("allow-list read auditing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    withTransaction.mockImplementation((callback) => callback(session));
+    writeAuditEvent.mockResolvedValue();
+    assertGrantExists.mockResolvedValue();
+    findByGrantCode.mockResolvedValue(stored);
+  });
+
+  it("records safe success counts and protective monitoring metadata", async () => {
+    await getGrantAllowListUseCase(args);
+
+    const [event, auditSession] = writeAuditEvent.mock.calls[0];
 
     expect(event).toEqual({
       entities: [
@@ -90,19 +95,23 @@ describe("buildGetGrantAllowListAudit", () => {
       accounts: { sbi: undefined, frn: undefined, crn: undefined },
       security: { pmccode: "0706" },
       segregationRef: "woodland",
+      status: "SUCCESS",
     });
+    expect(auditSession).toBe(session);
     expect(JSON.stringify(event)).not.toMatch(/106000033|1042000000/);
   });
 
-  it("records a safe failed attempt without submitted identifiers", () => {
-    const event = buildGetGrantAllowListAudit(
-      args,
-      null,
-      Boom.notFound("missing"),
-    );
+  it("records a safe failed attempt without submitted identifiers", async () => {
+    assertGrantExists.mockRejectedValue(Boom.notFound("missing"));
+
+    await getGrantAllowListUseCase(args).catch(() => {});
+
+    const [event, auditSession] = writeAuditEvent.mock.calls[0];
 
     expect(event.details).toEqual({ caller: "fg-grants-platform-admin" });
     expect(event.entities[0].action).toBe("VIEW_ALLOW_LIST");
+    expect(event.status).toBe("FAILURE");
+    expect(auditSession).toBeUndefined();
     expect(JSON.stringify(event)).not.toMatch(/106000033|1042000000/);
   });
 });

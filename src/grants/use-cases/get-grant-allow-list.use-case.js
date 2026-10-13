@@ -19,7 +19,7 @@ const getGrantAllowList = async ({ grantCode }) => {
   return allowList.toJSON();
 };
 
-export const buildGetGrantAllowListAudit = ({ grantCode, caller }, result) =>
+const buildGetGrantAllowListAudit = ({ grantCode, caller }, result) =>
   buildAuditEvent({
     entity: auditEntities.GRANT,
     action: auditActions.VIEW_ALLOW_LIST,
