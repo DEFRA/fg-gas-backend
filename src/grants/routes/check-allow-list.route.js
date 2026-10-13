@@ -15,41 +15,40 @@ const isOmittedIdentifier = (remainder = "") =>
   /^sbi(?:\/[^/]*)?(?:\/crn(?:\/[^/]*)?)?$/.test(remainder) ||
   /^crn(?:\/[^/]*)?$/.test(remainder);
 
-export const checkAllowListRoutes = [
-  {
-    method: "GET",
-    path: `${base}/sbi/{sbi}/crn/{crn}`,
-    options: {
-      description:
-        "Check whether applicant identifiers satisfy a grant allow list",
-      tags: ["api"],
-      validate: {
-        params: checkAllowListRequestSchema,
-        query: checkAllowListQuerySchema,
-      },
-      response: { schema: checkAllowListResponseSchema },
+export const checkAllowListRoute = {
+  method: "GET",
+  path: `${base}/sbi/{sbi}/crn/{crn}`,
+  options: {
+    description:
+      "Check whether applicant identifiers satisfy a grant allow list",
+    tags: ["api"],
+    validate: {
+      params: checkAllowListRequestSchema,
+      query: checkAllowListQuerySchema,
     },
-    async handler(request, h) {
-      const caller = request.auth.credentials.service;
-      if (typeof caller !== "string" || caller.trim() === "") {
-        throw Boom.unauthorized("Service identity required");
-      }
-      const result = await checkGrantAllowListUseCase({
-        ...request.params,
-        configVersion: request.query.configVersion,
-        caller,
-      });
-      return h.response(result).header("Cache-Control", "no-store");
-    },
+    response: { schema: checkAllowListResponseSchema },
   },
-  {
-    method: "GET",
-    path: `${base}/{remainder*}`,
-    handler(request) {
-      if (isOmittedIdentifier(request.params.remainder)) {
-        throw Boom.badRequest("Both SBI and CRN are required");
-      }
-      throw Boom.notFound();
-    },
+  async handler(request, h) {
+    const caller = request.auth.credentials.service;
+    if (typeof caller !== "string" || caller.trim() === "") {
+      throw Boom.unauthorized("Service identity required");
+    }
+    const result = await checkGrantAllowListUseCase({
+      ...request.params,
+      configVersion: request.query.configVersion,
+      caller,
+    });
+    return h.response(result).header("Cache-Control", "no-store");
   },
-];
+};
+
+export const missingAllowListIdentifiersRoute = {
+  method: "GET",
+  path: `${base}/{remainder*}`,
+  handler(request) {
+    if (isOmittedIdentifier(request.params.remainder)) {
+      throw Boom.badRequest("Both SBI and CRN are required");
+    }
+    throw Boom.notFound();
+  },
+};

@@ -13,7 +13,10 @@ import {
 import { auth } from "../../auth/auth.js";
 import { db } from "../../common/mongo-client.js";
 import { checkGrantAllowListUseCase } from "../use-cases/check-grant-allow-list.use-case.js";
-import { checkAllowListRoutes } from "./check-allow-list.route.js";
+import {
+  checkAllowListRoute,
+  missingAllowListIdentifiersRoute,
+} from "./check-allow-list.route.js";
 
 vi.mock("../../common/mongo-client.js", () => ({
   db: { collection: vi.fn() },
@@ -43,7 +46,7 @@ const uri = `${base}/sbi/106000033/crn/1042000000`;
 const withVersion = (url) => `${url}?configVersion=1.2.3`;
 const headers = { authorization: "Bearer test-grants-ui-token" };
 
-describe("checkAllowListRoutes", () => {
+describe("allow-list routes", () => {
   let server;
   beforeAll(async () => {
     db.collection.mockReturnValue({
@@ -51,7 +54,7 @@ describe("checkAllowListRoutes", () => {
     });
     server = hapi.server({ router: { stripTrailingSlash: true } });
     await server.register(auth);
-    server.route(checkAllowListRoutes);
+    server.route([checkAllowListRoute, missingAllowListIdentifiersRoute]);
     await server.initialize();
   });
   afterAll(async () => {
