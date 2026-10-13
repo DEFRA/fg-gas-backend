@@ -71,9 +71,10 @@ export default [
                 "**/services/**",
                 "**/schemas/**",
                 "**/common/logger.js",
+                "**/view-models/**",
               ],
               message:
-                "Routes should only import use cases, services and schemas",
+                "Routes should only import use cases, services, schemas and view models",
             },
             {
               target: "**/subscribers/**/!(*.test).js",
@@ -119,6 +120,13 @@ export default [
               from: ["src/**/**"],
               except: ["**/common/**", "**/events/**", "**/commands/**"],
               message: "Publishers should only import common and events",
+            },
+            {
+              target: "**/view-models/**/!(*.test).js",
+              from: ["src/**/**"],
+              except: ["**/view-models/**"],
+              message:
+                "View models should only import other view models",
             },
             {
               target: "**/services/**/!(*.test).js",

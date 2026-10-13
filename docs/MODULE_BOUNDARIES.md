@@ -62,6 +62,33 @@ Claim against the template it was made under, Payments answers whether it has
 raised a Payment, and `grant-admin` puts the two together. Neither context
 imports the other.
 
+### View models vs. services
+
+`grant-admin/services/` is a flat layer for anything a route needs that isn't a route
+or a domain entry point. Some of it is pure view-shaping (`build-claims-view.js`,
+`build-banner.js`); some of it is not (`claims-access.js` reads request headers and
+throws Boom; `event-cursor.js` does pagination bookkeeping). Nothing stops a
+`services/` file from reaching into a repository or a domain service directly - the
+separation between "shapes a view" and "does something else" is a naming convention,
+not a rule.
+
+`grant-admin/view-models/` is a narrower, lint-enforced zone for code that only ever
+transforms data already in hand into the shape one screen needs.
+`import-x/no-restricted-paths` enforces it: a file under `view-models/` may import
+only another file under `view-models/` - nothing from `common/`, `repositories/`,
+`use-cases/`, `services/`, or a domain module. A route calls both layers directly,
+the same way `get-claims.route.js` calls a domain service and
+`services/build-claims-view.js` side by side: resolve data through `services/`
+(or the domain entry point directly), then pass it to a `view-models/` function to
+shape the response.
+
+This is introduced one screen at a time rather than as a blanket migration:
+`grant-admin/view-models/build-allow-list-view.js` is the first. `build-claims-view.js`
+and the rest of `services/` have not moved, and do not need to before their own
+view-shaping is trusted to the same rule. See
+[LDR-005](./decision-records/ldr-005-grant-admin-view-models.md) for why this zone
+exists rather than extending `services/`.
+
 ### Events domain
 
 `src/events/` owns the durable inbox/outbox mechanism shared by every context:

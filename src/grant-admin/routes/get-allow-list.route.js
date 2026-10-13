@@ -5,12 +5,13 @@ import {
 } from "../schemas/actor-header.schema.js";
 import { userRolesOf } from "../services/claims-access.js";
 import { allowListParamsSchema } from "../schemas/allow-list-params.schema.js";
-import { allowListResponseSchema } from "../schemas/allow-list-response.schema.js";
+import { allowListViewSchema } from "../schemas/allow-list-view.schema.js";
 import { callerOf } from "../services/request-caller.js";
 import {
   safeFailAction,
   safeResponseFailAction,
 } from "../services/safe-fail-action.js";
+import { buildAllowListView } from "../view-models/build-allow-list-view.js";
 
 const LABEL = "View allow list";
 
@@ -27,14 +28,17 @@ export const getAllowListRoute = {
       failAction: safeFailAction(LABEL),
     },
     response: {
-      schema: allowListResponseSchema,
+      schema: allowListViewSchema,
       failAction: safeResponseFailAction(LABEL),
     },
   },
-  handler: (request) =>
-    getGrantAllowList({
+  async handler(request) {
+    const allowList = await getGrantAllowList({
       grantCode: request.params.code,
       caller: callerOf(request),
       userRoles: userRolesOf(request),
-    }),
+    });
+
+    return buildAllowListView({ allowList });
+  },
 };

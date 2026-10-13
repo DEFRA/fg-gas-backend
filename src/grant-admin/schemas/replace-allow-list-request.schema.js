@@ -1,8 +1,8 @@
 import Joi from "joi";
-import { allowListGlobalSchema } from "./allow-list-global.schema.js";
 
 export const replaceAllowListRequestSchema = Joi.object({
-  global: allowListGlobalSchema,
+  sbi: Joi.string().allow("").required(),
+  crn: Joi.string().allow("").required(),
 })
   .unknown(false)
   .required()

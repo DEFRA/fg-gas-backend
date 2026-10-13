@@ -1,25 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { replaceAllowListRequestSchema } from "./replace-allow-list-request.schema.js";
 
-const validGlobal = {
-  sbi: ["106000033"],
-  crn: ["1042000000"],
-};
-
 describe("replaceAllowListRequestSchema", () => {
-  it("accepts empty identifier collections", () => {
+  it("accepts raw submitted text for both fields", () => {
     const result = replaceAllowListRequestSchema.validate({
-      global: { sbi: [], crn: [] },
+      sbi: "106000033\n106000044",
+      crn: "1042000000",
+    });
+
+    expect(result.error).toBeUndefined();
+  });
+
+  it("accepts empty fields", () => {
+    const result = replaceAllowListRequestSchema.validate({
+      sbi: "",
+      crn: "",
     });
 
     expect(result.error).toBeUndefined();
   });
 
   it.each([
-    [{ global: validGlobal, windows: [] }],
-    [{ global: { ...validGlobal, windows: [] } }],
-    [{ global: validGlobal, extra: true }],
-  ])("refuses unknown request fields", (payload) => {
+    [{ sbi: "106000033", crn: "1042000000", extra: true }],
+    [{ crn: "1042000000" }],
+    [{ sbi: "106000033" }],
+    [{ sbi: 106000033, crn: "1042000000" }],
+    [{ global: { sbi: ["106000033"], crn: ["1042000000"] } }],
+  ])("refuses %j", (payload) => {
     expect(replaceAllowListRequestSchema.validate(payload).error).toBeDefined();
   });
 });
