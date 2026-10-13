@@ -24,9 +24,13 @@ export const checkAllowListRoutes = [
       response: { schema: checkAllowListResponseSchema },
     },
     async handler(request, h) {
+      const caller = request.auth.credentials.service;
+      if (typeof caller !== "string" || caller.trim() === "") {
+        throw Boom.unauthorized("Service identity required");
+      }
       const result = await checkGrantAllowListUseCase({
         ...request.params,
-        caller: request.auth.credentials.service,
+        caller,
       });
       return h.response(result).header("Cache-Control", "no-store");
     },

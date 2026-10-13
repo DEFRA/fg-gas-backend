@@ -75,6 +75,30 @@ describe("auth plugin", () => {
     expect(res.statusCode).toBe(200);
   });
 
+  it.each([
+    [{ client: "grants-ui" }, "grants-ui"],
+    [{ clientId: null, client: "grants-ui" }, "grants-ui"],
+    [{ clientId: "http-client", client: "legacy-name" }, "http-client"],
+  ])(
+    "derives the service identity from persisted token fields %j",
+    async (identity, expected) => {
+      tokensById[validId] = { id: validId, ...identity };
+      const server = await createServer();
+      server.route({
+        method: "GET",
+        path: "/secure",
+        handler: (request) => ({ service: request.auth.credentials.service }),
+      });
+      await server.initialize();
+      const response = await server.inject({
+        url: "/secure",
+        headers: { authorization: "Bearer good", "x-actor": "spoofed" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.result).toEqual({ service: expected });
+    },
+  );
+
   it("rejects requests with an invalid token", async () => {
     const server = await createServer();
     server.route({ method: "GET", path: "/secure", handler: () => "ok" });
