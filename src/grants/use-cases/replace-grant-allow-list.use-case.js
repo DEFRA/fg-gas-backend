@@ -1,0 +1,93 @@
+import Boom from "@hapi/boom";
+import { withTransaction } from "../../common/with-transaction.js";
+import {
+  PMC_0706_SECURITY,
+  auditActions,
+  auditEntities,
+} from "../../events/audit-constants.js";
+import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
+import { GrantAllowList } from "../models/grant-allow-list.js";
+import {
+  findByGrantCode,
+  replace,
+} from "../repositories/grant-allow-list.repository.js";
+import { assertGrantExists } from "./assert-grant-exists.use-case.js";
+
+const countsOf = ({ global }) => ({
+  sbiCount: global.sbi.length,
+  crnCount: global.crn.length,
+});
+
+const replaceGrantAllowList = async ({ grantCode, global }, session) => {
+  await assertGrantExists(grantCode);
+
+  const allowList =
+    (await findByGrantCode(grantCode, session)) ??
+    GrantAllowList.unrestricted(grantCode);
+  const previousCounts = countsOf(allowList.toJSON());
+
+  allowList.replaceGlobal(global);
+  await replace(allowList, session);
+
+  return {
+    representation: allowList.toJSON(),
+    previousCounts,
+  };
+};
+
+const DOMAIN_ERROR_CODES = new Set([
+  "INVALID_ALLOW_LIST_IDENTIFIER",
+  "DUPLICATE_ALLOW_LIST_IDENTIFIER",
+]);
+
+const errorCodeOf = (error) => {
+  if (!Boom.isBoom(error)) {
+    return "UNEXPECTED_FAILURE";
+  }
+
+  const domainErrorCode = error.output.payload.errorCode;
+
+  if (DOMAIN_ERROR_CODES.has(domainErrorCode)) {
+    return domainErrorCode;
+  }
+
+  return error.output.statusCode === 404
+    ? "GRANT_NOT_FOUND"
+    : "UNEXPECTED_FAILURE";
+};
+
+export const buildReplaceGrantAllowListAudit = (
+  [{ grantCode, caller }],
+  result,
+  error,
+) =>
+  buildAuditEvent({
+    entity: auditEntities.GRANT,
+    action: auditActions.REPLACE_ALLOW_LIST,
+    entityid: grantCode,
+    details: {
+      caller,
+      ...(error
+        ? { errorCode: errorCodeOf(error) }
+        : {
+            oldSbiCount: result.previousCounts.sbiCount,
+            oldCrnCount: result.previousCounts.crnCount,
+            newSbiCount: result.representation.global.sbi.length,
+            newCrnCount: result.representation.global.crn.length,
+          }),
+    },
+    security: PMC_0706_SECURITY,
+  });
+
+const replaceGrantAllowListWithAudit = withAudit(
+  replaceGrantAllowList,
+  buildReplaceGrantAllowListAudit,
+);
+
+export const replaceGrantAllowListUseCase = async (args) => {
+  const result = await withTransaction((session) =>
+    replaceGrantAllowListWithAudit(args, session),
+  );
+
+  return result.representation;
+};
