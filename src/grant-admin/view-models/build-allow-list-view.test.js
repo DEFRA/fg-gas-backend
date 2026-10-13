@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { buildAllowListView, parseAllowListForm } from "./build-allow-list-view.js";
+import {
+  buildAllowListView,
+  parseAllowListForm,
+} from "./build-allow-list-view.js";
 
 const persisted = {
   grantCode: "woodland",
@@ -32,9 +35,7 @@ describe("parseAllowListForm", () => {
   });
 
   test("never refuses input itself - GAS's domain model is the sole judge of validity", () => {
-    expect(
-      parseAllowListForm({ sbi: "bad", crn: "also bad" }).global,
-    ).toEqual({
+    expect(parseAllowListForm({ sbi: "bad", crn: "also bad" }).global).toEqual({
       sbi: ["bad"],
       crn: ["also bad"],
     });
@@ -73,16 +74,8 @@ describe("buildAllowListView", () => {
 
   test.each([
     ["sbi", "10600003", 'SBI "10600003" on line 1 must be exactly 9 digits'],
-    [
-      "sbi",
-      "10600003x",
-      'SBI "10600003x" on line 1 must be exactly 9 digits',
-    ],
-    [
-      "crn",
-      "104200000",
-      'CRN "104200000" on line 1 must be exactly 10 digits',
-    ],
+    ["sbi", "10600003x", 'SBI "10600003x" on line 1 must be exactly 9 digits'],
+    ["crn", "104200000", 'CRN "104200000" on line 1 must be exactly 10 digits'],
     [
       "crn",
       "104200000x",
@@ -96,7 +89,11 @@ describe("buildAllowListView", () => {
       [key]: { invalid: [value], duplicate: [] },
     };
 
-    const view = buildAllowListView({ allowList: persisted, submitted, details });
+    const view = buildAllowListView({
+      allowList: persisted,
+      submitted,
+      details,
+    });
 
     expect(view[key].error).toBe(message);
     expect(view.errorSummary).toEqual([
@@ -143,7 +140,11 @@ describe("buildAllowListView", () => {
       crn: clean,
     };
 
-    const view = buildAllowListView({ allowList: persisted, submitted, details });
+    const view = buildAllowListView({
+      allowList: persisted,
+      submitted,
+      details,
+    });
 
     expect(view.errorSummary).toEqual([
       {
@@ -161,7 +162,11 @@ describe("buildAllowListView", () => {
       crn: { invalid: ["also bad"], duplicate: [] },
     };
 
-    const view = buildAllowListView({ allowList: persisted, submitted, details });
+    const view = buildAllowListView({
+      allowList: persisted,
+      submitted,
+      details,
+    });
 
     expect(view.errorSummary.map(({ text }) => text)).toEqual([
       'SBI "bad" on line 1 must be exactly 9 digits',
@@ -179,7 +184,11 @@ describe("buildAllowListView", () => {
       crn: { invalid: ["bad", "value"], duplicate: [] },
     };
 
-    const view = buildAllowListView({ allowList: persisted, submitted, details });
+    const view = buildAllowListView({
+      allowList: persisted,
+      submitted,
+      details,
+    });
 
     expect(view.sbi.value).toBe(submitted.sbi);
     expect(view.sbi.hint).toBe("One per line. 2 listed.");

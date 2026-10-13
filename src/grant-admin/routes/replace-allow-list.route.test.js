@@ -164,7 +164,9 @@ describe("replaceAllowListRoute", () => {
   });
 
   it("propagates a validation failure with no details as a plain Boom, not an emptily-shaped view", async () => {
-    const error = Boom.badRequest("Both SBI and CRN collections must be arrays");
+    const error = Boom.badRequest(
+      "Both SBI and CRN collections must be arrays",
+    );
     error.output.payload.errorCode = "ALLOW_LIST_VALIDATION_FAILED";
     replaceGrantAllowList.mockRejectedValue(error);
 

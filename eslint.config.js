@@ -125,8 +125,7 @@ export default [
               target: "**/view-models/**/!(*.test).js",
               from: ["src/**/**"],
               except: ["**/view-models/**"],
-              message:
-                "View models should only import other view models",
+              message: "View models should only import other view models",
             },
             {
               target: "**/services/**/!(*.test).js",
