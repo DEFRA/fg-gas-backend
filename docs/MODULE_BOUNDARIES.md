@@ -82,12 +82,19 @@ the same way `get-claims.route.js` calls a domain service and
 (or the domain entry point directly), then pass it to a `view-models/` function to
 shape the response.
 
-This is introduced one screen at a time rather than as a blanket migration:
-`grant-admin/view-models/build-allow-list-view.js` is the first. `build-claims-view.js`
-and the rest of `services/` have not moved, and do not need to before their own
-view-shaping is trusted to the same rule. See
-[LDR-005](./decision-records/ldr-005-grant-admin-view-models.md) for why this zone
-exists rather than extending `services/`.
+This is the direction we want `grant-admin`'s screen-shaping to move in generally,
+not just for one screen: a view-model that structurally cannot reach a repository or
+a domain service, rather than a `services/` file that merely happens not to today.
+`build-allow-list-view.js` is the first screen on this convention, chosen because it
+was new work rather than a migration. The clearest sign the rest of `services/` needs
+the same treatment is `claims-access.js`: its full/view-only/hidden role decision is
+duplicated verbatim in GPA's own view-model layer, because `grant-admin` computes it
+for an authorization check but never returns it, leaving GPA to re-derive the same
+decision to decide button visibility. Moving `build-claims-view.js` and
+`claims-access.js` onto `view-models/` - and returning the decision it already makes,
+instead of making GPA recompute it - is the next candidate, as its own follow-up PR;
+`events`, `cases` and `applications` would follow the same path after that, each as
+its own change rather than one large migration.
 
 ### Events domain
 
