@@ -223,6 +223,12 @@ export const resolveAndFetchGrant = async (
     requestedVersion,
     session,
   );
+  return fetchGrantDefinition(configVersion, session);
+};
+
+// Loads the exact published definition selected by the caller's policy.
+export const fetchGrantDefinition = async (configVersion, session) => {
+  const grantCode = configVersion.grantCode;
   const resolvedVersion = configVersion.version;
 
   await guardFetchStatus(configVersion, grantCode, resolvedVersion);

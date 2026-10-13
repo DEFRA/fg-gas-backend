@@ -7,17 +7,17 @@ import { auditedRead } from "../../events/audited-read.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import { GrantAllowList } from "../models/grant-allow-list.js";
 import { findByGrantCode } from "../repositories/grant-allow-list.repository.js";
-import { assertGrantAdminAccess } from "./assert-grant-admin-access.use-case.js";
+import { resolveGrantAdministration } from "./resolve-grant-administration.use-case.js";
 
 const getGrantAllowList = async (args) => {
-  await assertGrantAdminAccess(args);
+  const grant = await resolveGrantAdministration(args);
   const { grantCode } = args;
 
   const allowList =
     (await findByGrantCode(grantCode)) ??
     GrantAllowList.unrestricted(grantCode);
 
-  return allowList.toJSON();
+  return { ...allowList.toJSON(), adminRole: grant.admin.role };
 };
 
 const buildGetGrantAllowListAudit = ({ grantCode, caller }, result) =>

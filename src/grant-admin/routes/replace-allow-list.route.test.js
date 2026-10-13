@@ -41,7 +41,7 @@ describe("replaceAllowListRoute", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     replaceGrantAllowList.mockImplementation(({ grantCode, global }) =>
-      Promise.resolve({ grantCode, global }),
+      Promise.resolve({ grantCode, global, adminRole: "ROLE_WOODLAND_ADMIN" }),
     );
   });
 
@@ -67,6 +67,7 @@ describe("replaceAllowListRoute", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.result).toEqual({
+        adminRole: "ROLE_WOODLAND_ADMIN",
         grantCode: "woodland",
         global: payload.global,
       });
@@ -82,6 +83,7 @@ describe("replaceAllowListRoute", () => {
   it("passes exact and whitespace-only blanks to domain normalization", async () => {
     const payload = { global: { sbi: ["", "   "], crn: [""] } };
     replaceGrantAllowList.mockResolvedValue({
+      adminRole: "ROLE_WOODLAND_ADMIN",
       grantCode: "woodland",
       global: { sbi: [], crn: [] },
     });

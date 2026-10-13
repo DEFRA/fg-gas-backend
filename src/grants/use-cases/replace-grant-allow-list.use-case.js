@@ -11,7 +11,7 @@ import {
   findByGrantCode,
   replace,
 } from "../repositories/grant-allow-list.repository.js";
-import { assertGrantAdminAccess } from "./assert-grant-admin-access.use-case.js";
+import { resolveGrantAdministration } from "./resolve-grant-administration.use-case.js";
 
 const countsOf = ({ global }) => ({
   sbiCount: global.sbi.length,
@@ -19,7 +19,7 @@ const countsOf = ({ global }) => ({
 });
 
 const replaceGrantAllowList = async (args, session) => {
-  await assertGrantAdminAccess(args, session);
+  const grant = await resolveGrantAdministration(args, session);
   const { grantCode, global } = args;
 
   const allowList =
@@ -32,7 +32,7 @@ const replaceGrantAllowList = async (args, session) => {
   await replace(allowList, session);
 
   return {
-    representation: allowList.toJSON(),
+    representation: { ...allowList.toJSON(), adminRole: grant.admin.role },
     previousCounts,
     previousGlobal,
   };

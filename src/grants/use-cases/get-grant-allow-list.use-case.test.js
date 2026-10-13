@@ -4,15 +4,13 @@ import { withTransaction } from "../../common/with-transaction.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { GrantAllowList } from "../models/grant-allow-list.js";
 import { findByGrantCode } from "../repositories/grant-allow-list.repository.js";
-import { assertGrantExists } from "./assert-grant-exists.use-case.js";
-import { assertGrantAdminAccess } from "./assert-grant-admin-access.use-case.js";
+import { resolveGrantAdministration } from "./resolve-grant-administration.use-case.js";
 import { getGrantAllowListUseCase } from "./get-grant-allow-list.use-case.js";
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../events/write-audit-event.js");
 vi.mock("../repositories/grant-allow-list.repository.js");
-vi.mock("./assert-grant-exists.use-case.js");
-vi.mock("./assert-grant-admin-access.use-case.js");
+vi.mock("./resolve-grant-administration.use-case.js");
 
 const session = { id: "audit-session" };
 
@@ -28,7 +26,7 @@ const stored = new GrantAllowList({
 
 describe("getGrantAllowListUseCase", () => {
   it("does not read identifiers when grant administration is denied", async () => {
-    assertGrantAdminAccess.mockRejectedValue(Boom.forbidden());
+    resolveGrantAdministration.mockRejectedValue(Boom.forbidden());
     await expect(
       getGrantAllowListUseCase({ ...args, userRoles: [] }),
     ).rejects.toMatchObject({ output: { statusCode: 403 } });
@@ -39,21 +37,21 @@ describe("getGrantAllowListUseCase", () => {
     vi.clearAllMocks();
     withTransaction.mockImplementation((callback) => callback(session));
     writeAuditEvent.mockResolvedValue();
-    assertGrantExists.mockResolvedValue();
-    assertGrantAdminAccess.mockImplementation(({ grantCode }) =>
-      assertGrantExists(grantCode),
-    );
+    resolveGrantAdministration.mockResolvedValue({
+      admin: { role: "ROLE_WOODLAND_ADMIN" },
+    });
     findByGrantCode.mockResolvedValue(stored);
   });
 
   it("asserts grant existence before reading and returns stored data", async () => {
-    await expect(getGrantAllowListUseCase(args)).resolves.toEqual(
-      stored.toJSON(),
-    );
+    await expect(getGrantAllowListUseCase(args)).resolves.toEqual({
+      ...stored.toJSON(),
+      adminRole: "ROLE_WOODLAND_ADMIN",
+    });
 
-    expect(assertGrantExists).toHaveBeenCalledWith("woodland");
+    expect(resolveGrantAdministration).toHaveBeenCalledWith(args);
     expect(findByGrantCode).toHaveBeenCalledWith("woodland");
-    expect(assertGrantExists.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(resolveGrantAdministration.mock.invocationCallOrder[0]).toBeLessThan(
       findByGrantCode.mock.invocationCallOrder[0],
     );
   });
@@ -63,13 +61,14 @@ describe("getGrantAllowListUseCase", () => {
 
     await expect(getGrantAllowListUseCase(args)).resolves.toEqual({
       grantCode: "woodland",
+      adminRole: "ROLE_WOODLAND_ADMIN",
       global: { sbi: [], crn: [] },
     });
   });
 
   it("propagates the grant-not-found response without reading an allow list", async () => {
     const notFound = Boom.notFound('Grant with code "missing" not found');
-    assertGrantExists.mockRejectedValue(notFound);
+    resolveGrantAdministration.mockRejectedValue(notFound);
 
     await expect(
       getGrantAllowListUseCase({ ...args, grantCode: "missing" }),
@@ -83,10 +82,9 @@ describe("allow-list read auditing", () => {
     vi.clearAllMocks();
     withTransaction.mockImplementation((callback) => callback(session));
     writeAuditEvent.mockResolvedValue();
-    assertGrantExists.mockResolvedValue();
-    assertGrantAdminAccess.mockImplementation(({ grantCode }) =>
-      assertGrantExists(grantCode),
-    );
+    resolveGrantAdministration.mockResolvedValue({
+      admin: { role: "ROLE_WOODLAND_ADMIN" },
+    });
     findByGrantCode.mockResolvedValue(stored);
   });
 
@@ -118,7 +116,7 @@ describe("allow-list read auditing", () => {
   });
 
   it("records a safe failed attempt without submitted identifiers", async () => {
-    assertGrantExists.mockRejectedValue(Boom.notFound("missing"));
+    resolveGrantAdministration.mockRejectedValue(Boom.notFound("missing"));
 
     await getGrantAllowListUseCase(args).catch(() => {});
 

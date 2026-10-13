@@ -7,15 +7,13 @@ import {
   findByGrantCode,
   replace,
 } from "../repositories/grant-allow-list.repository.js";
-import { assertGrantExists } from "./assert-grant-exists.use-case.js";
-import { assertGrantAdminAccess } from "./assert-grant-admin-access.use-case.js";
+import { resolveGrantAdministration } from "./resolve-grant-administration.use-case.js";
 import { replaceGrantAllowListUseCase } from "./replace-grant-allow-list.use-case.js";
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../events/write-audit-event.js");
 vi.mock("../repositories/grant-allow-list.repository.js");
-vi.mock("./assert-grant-exists.use-case.js");
-vi.mock("./assert-grant-admin-access.use-case.js");
+vi.mock("./resolve-grant-administration.use-case.js");
 
 const session = { id: "active-session" };
 const args = {
@@ -29,7 +27,7 @@ const args = {
 
 describe("replaceGrantAllowListUseCase", () => {
   it("does not read or replace identifiers when grant administration is denied", async () => {
-    assertGrantAdminAccess.mockRejectedValue(Boom.forbidden());
+    resolveGrantAdministration.mockRejectedValue(Boom.forbidden());
     await expect(
       replaceGrantAllowListUseCase({ ...args, userRoles: [] }),
     ).rejects.toMatchObject({ output: { statusCode: 403 } });
@@ -42,10 +40,9 @@ describe("replaceGrantAllowListUseCase", () => {
   });
   beforeEach(() => {
     withTransaction.mockImplementation((callback) => callback(session));
-    assertGrantExists.mockResolvedValue();
-    assertGrantAdminAccess.mockImplementation(({ grantCode }, activeSession) =>
-      assertGrantExists(grantCode, activeSession),
-    );
+    resolveGrantAdministration.mockResolvedValue({
+      admin: { role: "ROLE_WOODLAND_ADMIN" },
+    });
     findByGrantCode.mockResolvedValue(null);
     replace.mockResolvedValue();
     writeAuditEvent.mockResolvedValue();
@@ -54,8 +51,8 @@ describe("replaceGrantAllowListUseCase", () => {
   it("checks the grant before opening or saving its allow list", async () => {
     await replaceGrantAllowListUseCase(args);
 
-    expect(assertGrantExists).toHaveBeenCalledWith("woodland", session);
-    expect(assertGrantExists.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(resolveGrantAdministration).toHaveBeenCalledWith(args, session);
+    expect(resolveGrantAdministration.mock.invocationCallOrder[0]).toBeLessThan(
       findByGrantCode.mock.invocationCallOrder[0],
     );
     expect(findByGrantCode.mock.invocationCallOrder[0]).toBeLessThan(
@@ -75,6 +72,7 @@ describe("replaceGrantAllowListUseCase", () => {
     expect(findByGrantCode).toHaveBeenCalledWith("woodland", session);
     expect(replace).toHaveBeenCalledWith(expect.any(GrantAllowList), session);
     expect(result).toEqual({
+      adminRole: "ROLE_WOODLAND_ADMIN",
       grantCode: "woodland",
       global: args.global,
     });
@@ -195,7 +193,7 @@ describe("replaceGrantAllowListUseCase", () => {
   });
 
   it("audits a missing grant with a categorical reason", async () => {
-    assertGrantExists.mockRejectedValue(Boom.notFound("missing"));
+    resolveGrantAdministration.mockRejectedValue(Boom.notFound("missing"));
 
     await replaceGrantAllowListUseCase(args).catch(() => {});
 

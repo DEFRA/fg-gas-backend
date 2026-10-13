@@ -65,6 +65,7 @@ describe("allow-list schemas", () => {
 
   it("accepts the canonical response", () => {
     const response = {
+      adminRole: "ROLE_WOODLAND_ADMIN",
       grantCode: "woodland",
       global: validGlobal,
     };

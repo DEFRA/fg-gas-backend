@@ -9,15 +9,13 @@ const collection = "config_versions";
 // come from the highest active published definition across all major versions.
 export const findLatestActive = async (grantCode, session) =>
   ConfigVersion.fromDocument(
-    await db
-      .collection(collection)
-      .findOne(
-        { grantCode, status: "active" },
-        {
-          sort: { major: -1, minor: -1, patch: -1 },
-          ...(session ? { session } : {}),
-        },
-      ),
+    await db.collection(collection).findOne(
+      { grantCode, status: "active" },
+      {
+        sort: { major: -1, minor: -1, patch: -1 },
+        ...(session ? { session } : {}),
+      },
+    ),
   );
 
 const definitionLocationUpdate = (definitionType, s3Key) => ({

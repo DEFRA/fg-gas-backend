@@ -24,6 +24,7 @@ export const replaceAllowListRequestSchema = Joi.object({
 
 export const allowListResponseSchema = Joi.object({
   grantCode: code.required(),
+  adminRole: Joi.string().required(),
   global: allowListGlobalSchema,
 })
   .unknown(false)

@@ -11,7 +11,10 @@ import {
   findByCode,
   saveFromDefinition,
 } from "../repositories/grant.repository.js";
-import { resolveAndFetchGrant } from "./resolve-config-version.service.js";
+import {
+  fetchGrantDefinition,
+  resolveAndFetchGrant,
+} from "./resolve-config-version.service.js";
 
 vi.mock("../../common/s3-client.js", async (importOriginal) => {
   const original = await importOriginal();
@@ -64,6 +67,18 @@ const mockGrantDefinition = {
 describe("resolveAndFetchGrant", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  it("loads the exact admin-selected version without resolving another version", async () => {
+    const session = {};
+    const selected = mockConfigVersion({ fetchStatus: FetchStatus.Fetched });
+    const grant = new Grant({ ...mockGrantDefinition, version: VERSION });
+    findByCode.mockResolvedValue(grant);
+    await expect(
+      fetchGrantDefinition(selected, session),
+    ).resolves.toMatchObject({ grant, resolvedVersion: VERSION });
+    expect(findByCode).toHaveBeenCalledWith(GRANT_CODE, VERSION, session);
+    expect(findLatestForMajor).not.toHaveBeenCalled();
   });
 
   it("rejects invalid semver version", async () => {
