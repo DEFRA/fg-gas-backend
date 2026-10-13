@@ -76,6 +76,14 @@ export class GrantAllowList {
     });
   }
 
+  static fromDocument(document) {
+    try {
+      return new GrantAllowList(document);
+    } catch {
+      throw malformedStoredState();
+    }
+  }
+
   replaceGlobal({ sbi, crn }) {
     const replacement = {
       sbi: validate("sbi", normalize(sbi)),

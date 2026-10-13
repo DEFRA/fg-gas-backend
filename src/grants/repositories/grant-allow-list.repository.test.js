@@ -58,6 +58,26 @@ describe("grant-allow-list.repository", () => {
     });
   });
 
+  it.each([
+    ["invalid", { sbi: ["not-an-sbi"], crn: [] }],
+    ["duplicate", { sbi: ["106000033", "106000033"], crn: [] }],
+  ])(
+    "reports %s stored identifiers as malformed persistence",
+    async (_, global) => {
+      const findOne = vi
+        .fn()
+        .mockResolvedValue({ grantCode: "woodland", global });
+      db.collection.mockReturnValue({ findOne });
+
+      await expect(findByGrantCode("woodland")).rejects.toMatchObject({
+        output: {
+          statusCode: 500,
+          payload: { errorCode: "MALFORMED_ALLOW_LIST" },
+        },
+      });
+    },
+  );
+
   it("replaces the complete allow-list document within a session", async () => {
     const session = {};
     const replaceOne = vi.fn().mockResolvedValue({ acknowledged: true });

@@ -12,7 +12,7 @@ export const findByGrantCode = async (grantCode, session) => {
     ? await allowLists.findOne({ grantCode }, options)
     : await allowLists.findOne({ grantCode });
 
-  return document ? new GrantAllowList(document) : null;
+  return document ? GrantAllowList.fromDocument(document) : null;
 };
 
 export const replace = async (allowList, session) => {
