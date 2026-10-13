@@ -163,6 +163,18 @@ describe("replaceAllowListRoute", () => {
     expect(response.result.errorCode).toBe("SOME_OTHER_ERROR");
   });
 
+  it("propagates a validation failure with no details as a plain Boom, not an emptily-shaped view", async () => {
+    const error = Boom.badRequest("Both SBI and CRN collections must be arrays");
+    error.output.payload.errorCode = "ALLOW_LIST_VALIDATION_FAILED";
+    replaceGrantAllowList.mockRejectedValue(error);
+
+    const response = await put();
+
+    expect(response.statusCode).toBe(400);
+    expect(response.result.errorCode).toBe("ALLOW_LIST_VALIDATION_FAILED");
+    expect(response.result.sbi).toBeUndefined();
+  });
+
   it("propagates an unknown grant as 404", async () => {
     replaceGrantAllowList.mockRejectedValue(Boom.notFound("missing"));
 

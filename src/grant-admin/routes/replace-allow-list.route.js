@@ -22,7 +22,8 @@ const LABEL = "Replace allow list";
 
 const isAllowListValidationFailure = (error) =>
   Boom.isBoom(error) &&
-  error.output.payload.errorCode === "ALLOW_LIST_VALIDATION_FAILED";
+  error.output.payload.errorCode === "ALLOW_LIST_VALIDATION_FAILED" &&
+  error.output.payload.details !== undefined;
 
 export const replaceAllowListRoute = {
   method: "PUT",
