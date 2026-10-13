@@ -17,7 +17,7 @@
 
 `agreements`, `grants` and `payments` must not directly import each other's internals (models, repositories, use-cases, services, routes, schemas, etc.). The boundary is enforced in both directions, except for explicitly documented reviewed seams below. Direct cross-module imports create hidden coupling that prevents either context from evolving independently.
 
-`grant-admin` is a backend-for-frontend (BFF) for `fg-grants-platform-admin`, not a peer domain module. The distinction is load-bearing: a domain module (`grants`, `agreements`, `payments`) models business rules that outlive any one screen; a BFF models what one specific frontend's screens need, and nothing it does should outlive those screens either. `grant-admin` validates and maps HTTP/UI concerns but does not access Grants models, repositories, schemas, use cases, or general services. Its only Grants entry points are `grants/services/entitlement.service.js` and `grants/services/claims.service.js` for entitlement and claim work, `grants/services/application-read.service.js` for reading applications, and `grants/services/allow-list.service.js` for reading and replacing grant allow lists. `grants` never imports from `grant-admin`, and `grant-admin` does not import from `agreements`. See [View models vs. services](#view-models-vs-services) for how that same distinction is kept honest _inside_ `grant-admin` itself, between its domain-facing calls and its screen-shaping.
+`grant-admin` is a backend-for-frontend (BFF) for `fg-grants-platform-admin`, not a peer domain module - it shapes screens, `grants` owns the rules. It validates and maps HTTP/UI concerns only: no access to Grants models, repositories, schemas, use cases or general services. Its only way into Grants is four reviewed services - `entitlement.service.js`, `claims.service.js`, `application-read.service.js`, `allow-list.service.js`. `grants` never imports from `grant-admin`, and `grant-admin` never imports from `agreements`. See [View models vs. services](#view-models-vs-services) for the same split enforced inside `grant-admin` itself.
 
 `payments` knows nothing about the modules that source a Payment: it never imports `agreements` or `grants`, and it takes the identifiers it needs as plain values.
 
@@ -64,43 +64,29 @@ imports the other.
 
 ### View models vs. services
 
-`grant-admin` is a BFF, not a domain module (see [Bounded Contexts](#bounded-contexts)
-and [Forbidden Imports](#forbidden-imports) above) - but that distinction only holds
-if `grant-admin`'s own code can't quietly become a second domain layer. This section
-is about keeping that true inside `grant-admin` itself, not just at its edge with
-`grants`.
+`grant-admin` is a BFF (see above) - so its own code has to stay a BFF too, not
+quietly grow a second domain layer.
 
-`grant-admin/services/` is a flat layer for anything a route needs that isn't a route
-or a domain entry point. Some of it is pure view-shaping (`build-claims-view.js`,
-`build-banner.js`); some of it is not (`claims-access.js` reads request headers and
-throws Boom; `event-cursor.js` does pagination bookkeeping). Nothing stops a
-`services/` file from reaching into a repository or a domain service directly - the
-separation between "shapes a view" and "does something else" is a naming convention,
-not a rule.
+`services/` is a flat catch-all. Some of it just shapes a view
+(`build-claims-view.js`, `build-banner.js`); some of it does more
+(`claims-access.js` reads request headers and throws Boom). Nothing stops a
+`services/` file reaching into a repository or a domain service directly -
+that split is a naming convention, not a rule.
 
-`grant-admin/view-models/` is a narrower, lint-enforced zone for code that only ever
-transforms data already in hand into the shape one screen needs.
-`import-x/no-restricted-paths` enforces it: a file under `view-models/` may import
-only another file under `view-models/` - nothing from `common/`, `repositories/`,
-`use-cases/`, `services/`, or a domain module. A route calls both layers directly,
-the same way `get-claims.route.js` calls a domain service and
-`services/build-claims-view.js` side by side: resolve data through `services/`
-(or the domain entry point directly), then pass it to a `view-models/` function to
-shape the response.
+`view-models/` is the enforced version: `import-x/no-restricted-paths` lets a
+file there import only another view-model, nothing else. A route still does
+both steps - resolve data via `services/` or a domain entry point, then shape
+it via `view-models/` - the same two steps `get-claims.route.js` already
+takes with `build-claims-view.js`.
 
-This is the direction we want `grant-admin`'s screen-shaping to move in generally,
-not just for one screen: a view-model that structurally cannot reach a repository or
-a domain service, rather than a `services/` file that merely happens not to today.
-`build-allow-list-view.js` is the first screen on this convention, chosen because it
-was new work rather than a migration. The clearest sign the rest of `services/` needs
-the same treatment is `claims-access.js`: its full/view-only/hidden role decision is
-duplicated verbatim in GPA's own view-model layer, because `grant-admin` computes it
-for an authorization check but never returns it, leaving GPA to re-derive the same
-decision to decide button visibility. Moving `build-claims-view.js` and
-`claims-access.js` onto `view-models/` - and returning the decision it already makes,
-instead of making GPA recompute it - is the next candidate, as its own follow-up PR;
-`events`, `cases` and `applications` would follow the same path after that, each as
-its own change rather than one large migration.
+This is where we want all of `grant-admin`'s screen-shaping to land, one
+screen at a time. `build-allow-list-view.js` is the first, since it was new
+work rather than a migration. Claims is next: `claims-access.js`'s
+full/view-only/hidden decision is already duplicated verbatim in GPA,
+because `grant-admin` computes it for its own check but never returns it.
+Moving `build-claims-view.js` and `claims-access.js` onto `view-models/` -
+and actually returning that decision - is the next follow-up PR. Events,
+cases and applications follow the same path after that, each its own change.
 
 ### Events domain
 
