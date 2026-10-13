@@ -40,6 +40,22 @@ const isInvalidIdentifier = (kind) => (value) =>
 const hasInvalidIdentifier = (kind, values) =>
   !Array.isArray(values) || values.some(isInvalidIdentifier(kind));
 
+const hasDuplicateIdentifier = (values) =>
+  Array.isArray(values) && new Set(values).size !== values.length;
+
+const hasMalformedStoredIdentifiers = (kind, values) =>
+  hasInvalidIdentifier(kind, values) || hasDuplicateIdentifier(values);
+
+const hasMalformedStoredGlobal = (global) =>
+  !global ||
+  hasMalformedStoredIdentifiers("sbi", global.sbi) ||
+  hasMalformedStoredIdentifiers("crn", global.crn);
+
+const hasMalformedStoredDocument = (document) =>
+  typeof document?.grantCode !== "string" ||
+  document.grantCode.length === 0 ||
+  hasMalformedStoredGlobal(document.global);
+
 const validate = (kind, values) => {
   if (hasInvalidIdentifier(kind, values)) {
     throw refusal(
@@ -48,7 +64,7 @@ const validate = (kind, values) => {
     );
   }
 
-  if (new Set(values).size !== values.length) {
+  if (hasDuplicateIdentifier(values)) {
     throw refusal(
       `Each ${labels[kind]} must be listed only once`,
       "DUPLICATE_ALLOW_LIST_IDENTIFIER",
@@ -78,6 +94,10 @@ export class GrantAllowList {
 
   static fromDocument(document) {
     try {
+      if (hasMalformedStoredDocument(document)) {
+        throw malformedStoredState();
+      }
+
       return new GrantAllowList(document);
     } catch {
       throw malformedStoredState();

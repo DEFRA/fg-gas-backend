@@ -61,6 +61,8 @@ describe("grant-allow-list.repository", () => {
   it.each([
     ["invalid", { sbi: ["not-an-sbi"], crn: [] }],
     ["duplicate", { sbi: ["106000033", "106000033"], crn: [] }],
+    ["blank", { sbi: [""], crn: [] }],
+    ["padded", { sbi: [" 106000033 "], crn: [] }],
   ])(
     "reports %s stored identifiers as malformed persistence",
     async (_, global) => {
