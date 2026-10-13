@@ -103,3 +103,11 @@ export const findByGrantCodeAndVersion = async (grantCode, version) => {
 
   return ConfigVersion.fromDocument(doc);
 };
+
+export const existsByGrantCode = async (grantCode) => {
+  const doc = await db
+    .collection(collection)
+    .findOne({ grantCode }, { projection: { _id: 1 } });
+
+  return doc !== null;
+};
