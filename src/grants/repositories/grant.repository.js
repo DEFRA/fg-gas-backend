@@ -5,6 +5,8 @@ import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
 
+const optionalBlock = (value) => value ?? undefined;
+
 // Stored documents predate most of what the model now expects: a grant written
 // before entitlement templates existed has no such key, and one written without
 // any comes back as null, because the driver resolves ignoreUndefined to false.
@@ -23,8 +25,9 @@ export const toGrant = (doc) =>
     entitlementTemplates: doc.entitlementTemplates ?? [],
     // Stored as null by the driver when a grant carries none, which the model
     // reads as "absent" only if it arrives undefined.
-    pages: doc.pages ?? undefined,
-    claims: doc.claims ?? undefined,
+    pages: optionalBlock(doc.pages),
+    claims: optionalBlock(doc.claims),
+    admin: optionalBlock(doc.admin),
   });
 
 export const collection = "grants";

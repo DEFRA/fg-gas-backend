@@ -67,6 +67,20 @@ describe("getAllowListRoute", () => {
     expect(getGrantAllowList).toHaveBeenCalledWith({
       grantCode: "woodland",
       caller: "fg-grants-platform-admin",
+      userRoles: [],
+    });
+  });
+
+  it("forwards the operator's caseworking roles for grant admin enforcement", async () => {
+    const response = await get({
+      ...HEADERS,
+      "x-user-roles": "OTHER, ROLE_WOODLAND_ADMIN",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(getGrantAllowList).toHaveBeenCalledWith({
+      grantCode: "woodland",
+      caller: "fg-grants-platform-admin",
+      userRoles: ["OTHER", "ROLE_WOODLAND_ADMIN"],
     });
   });
 

@@ -1,5 +1,24 @@
 import { expect, it } from "vitest";
 import { createGrantRequestSchema } from "./create-grant-request.schema.js";
+import { grantRequestSchema } from "./grant-request.schema.js";
+
+it("preserves a configured admin role", () => {
+  const { value, error } = grantRequestSchema.validate({
+    phases: validPhases,
+    admin: { role: "ROLE_WOODLAND_ADMIN" },
+  });
+  expect(error).toBeUndefined();
+  expect(value.admin).toEqual({ role: "ROLE_WOODLAND_ADMIN" });
+});
+
+it.each([{}, { role: "" }, { role: [] }])(
+  "rejects an invalid admin setting %j",
+  (admin) => {
+    expect(
+      grantRequestSchema.validate({ phases: validPhases, admin }).error,
+    ).toBeDefined();
+  },
+);
 
 const validPhases = [
   {

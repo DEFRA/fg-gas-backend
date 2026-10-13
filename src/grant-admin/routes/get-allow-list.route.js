@@ -1,5 +1,9 @@
 import { getGrantAllowList } from "../../grants/services/allow-list.service.js";
-import { adminReadHeadersSchema } from "../schemas/actor-header.schema.js";
+import {
+  adminReadHeadersSchema,
+  claimsHeadersSchema,
+} from "../schemas/actor-header.schema.js";
+import { userRolesOf } from "../services/claims-access.js";
 import {
   allowListParamsSchema,
   allowListResponseSchema,
@@ -21,7 +25,7 @@ export const getAllowListRoute = {
     cache: { otherwise: "no-store" },
     validate: {
       params: allowListParamsSchema,
-      headers: adminReadHeadersSchema,
+      headers: adminReadHeadersSchema.concat(claimsHeadersSchema),
       failAction: safeFailAction(LABEL),
     },
     response: {
@@ -33,5 +37,6 @@ export const getAllowListRoute = {
     getGrantAllowList({
       grantCode: request.params.code,
       caller: callerOf(request),
+      userRoles: userRolesOf(request),
     }),
 };

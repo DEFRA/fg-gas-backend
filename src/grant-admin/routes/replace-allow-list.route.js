@@ -1,5 +1,9 @@
 import { replaceGrantAllowList } from "../../grants/services/allow-list.service.js";
-import { adminReadHeadersSchema } from "../schemas/actor-header.schema.js";
+import {
+  adminReadHeadersSchema,
+  claimsHeadersSchema,
+} from "../schemas/actor-header.schema.js";
+import { userRolesOf } from "../services/claims-access.js";
 import {
   allowListParamsSchema,
   allowListResponseSchema,
@@ -21,7 +25,7 @@ export const replaceAllowListRoute = {
     tags: ["api"],
     validate: {
       params: allowListParamsSchema,
-      headers: adminReadHeadersSchema,
+      headers: adminReadHeadersSchema.concat(claimsHeadersSchema),
       payload: replaceAllowListRequestSchema,
       failAction: safeFailAction(LABEL),
     },
@@ -35,5 +39,6 @@ export const replaceAllowListRoute = {
       grantCode: request.params.code,
       global: request.payload.global,
       caller: callerOf(request),
+      userRoles: userRolesOf(request),
     }),
 };

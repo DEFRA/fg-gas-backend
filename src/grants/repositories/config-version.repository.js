@@ -5,6 +5,18 @@ import { ConfigVersion } from "../models/config-version.js";
 
 const collection = "config_versions";
 
+// Grant administration has no application-pinned version. Its permissions
+// come from the highest active published definition across all major versions.
+export const findLatestActive = async (grantCode) =>
+  ConfigVersion.fromDocument(
+    await db
+      .collection(collection)
+      .findOne(
+        { grantCode, status: "active" },
+        { sort: { major: -1, minor: -1, patch: -1 } },
+      ),
+  );
+
 const definitionLocationUpdate = (definitionType, s3Key) => ({
   [`definitions.${definitionType}`]: {
     $mergeObjects: [

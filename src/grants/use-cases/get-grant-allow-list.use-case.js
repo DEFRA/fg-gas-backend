@@ -7,10 +7,11 @@ import { auditedRead } from "../../events/audited-read.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import { GrantAllowList } from "../models/grant-allow-list.js";
 import { findByGrantCode } from "../repositories/grant-allow-list.repository.js";
-import { assertGrantExists } from "./assert-grant-exists.use-case.js";
+import { assertGrantAdminAccess } from "./assert-grant-admin-access.use-case.js";
 
-const getGrantAllowList = async ({ grantCode }) => {
-  await assertGrantExists(grantCode);
+const getGrantAllowList = async (args) => {
+  await assertGrantAdminAccess(args);
+  const { grantCode } = args;
 
   const allowList =
     (await findByGrantCode(grantCode)) ??

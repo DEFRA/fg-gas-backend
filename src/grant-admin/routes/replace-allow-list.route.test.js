@@ -74,6 +74,7 @@ describe("replaceAllowListRoute", () => {
         grantCode: "woodland",
         global: payload.global,
         caller: "fg-grants-platform-admin",
+        userRoles: [],
       });
     },
   );
@@ -93,6 +94,7 @@ describe("replaceAllowListRoute", () => {
       grantCode: "woodland",
       global: payload.global,
       caller: "fg-grants-platform-admin",
+      userRoles: [],
     });
   });
 

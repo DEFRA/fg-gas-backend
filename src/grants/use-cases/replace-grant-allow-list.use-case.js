@@ -11,15 +11,16 @@ import {
   findByGrantCode,
   replace,
 } from "../repositories/grant-allow-list.repository.js";
-import { assertGrantExists } from "./assert-grant-exists.use-case.js";
+import { assertGrantAdminAccess } from "./assert-grant-admin-access.use-case.js";
 
 const countsOf = ({ global }) => ({
   sbiCount: global.sbi.length,
   crnCount: global.crn.length,
 });
 
-const replaceGrantAllowList = async ({ grantCode, global }, session) => {
-  await assertGrantExists(grantCode, session);
+const replaceGrantAllowList = async (args, session) => {
+  await assertGrantAdminAccess(args, session);
+  const { grantCode, global } = args;
 
   const allowList =
     (await findByGrantCode(grantCode, session)) ??
@@ -42,6 +43,11 @@ const DOMAIN_ERROR_CODES = new Set([
   "DUPLICATE_ALLOW_LIST_IDENTIFIER",
 ]);
 
+const statusErrorCodes = {
+  403: "GRANT_ADMIN_ACCESS_DENIED",
+  404: "GRANT_NOT_FOUND",
+};
+
 const errorCodeOf = (error) => {
   if (!Boom.isBoom(error)) {
     return "UNEXPECTED_FAILURE";
@@ -53,9 +59,7 @@ const errorCodeOf = (error) => {
     return domainErrorCode;
   }
 
-  return error.output.statusCode === 404
-    ? "GRANT_NOT_FOUND"
-    : "UNEXPECTED_FAILURE";
+  return statusErrorCodes[error.output.statusCode] ?? "UNEXPECTED_FAILURE";
 };
 
 const buildReplaceGrantAllowListAudit = (

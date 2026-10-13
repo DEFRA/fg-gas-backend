@@ -8,12 +8,14 @@ import {
   replace,
 } from "../repositories/grant-allow-list.repository.js";
 import { assertGrantExists } from "./assert-grant-exists.use-case.js";
+import { assertGrantAdminAccess } from "./assert-grant-admin-access.use-case.js";
 import { replaceGrantAllowListUseCase } from "./replace-grant-allow-list.use-case.js";
 
 vi.mock("../../common/with-transaction.js");
 vi.mock("../../events/write-audit-event.js");
 vi.mock("../repositories/grant-allow-list.repository.js");
 vi.mock("./assert-grant-exists.use-case.js");
+vi.mock("./assert-grant-admin-access.use-case.js");
 
 const session = { id: "active-session" };
 const args = {
@@ -26,9 +28,24 @@ const args = {
 };
 
 describe("replaceGrantAllowListUseCase", () => {
+  it("does not read or replace identifiers when grant administration is denied", async () => {
+    assertGrantAdminAccess.mockRejectedValue(Boom.forbidden());
+    await expect(
+      replaceGrantAllowListUseCase({ ...args, userRoles: [] }),
+    ).rejects.toMatchObject({ output: { statusCode: 403 } });
+    expect(findByGrantCode).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+    expect(writeAuditEvent.mock.calls[0][0]).toMatchObject({
+      status: "FAILURE",
+      details: { errorCode: "GRANT_ADMIN_ACCESS_DENIED" },
+    });
+  });
   beforeEach(() => {
     withTransaction.mockImplementation((callback) => callback(session));
     assertGrantExists.mockResolvedValue();
+    assertGrantAdminAccess.mockImplementation(({ grantCode }, activeSession) =>
+      assertGrantExists(grantCode, activeSession),
+    );
     findByGrantCode.mockResolvedValue(null);
     replace.mockResolvedValue();
     writeAuditEvent.mockResolvedValue();
