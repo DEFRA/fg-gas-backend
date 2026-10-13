@@ -9,8 +9,8 @@ const satisfiesRestriction = (identifiers, identifier) =>
   identifiers.length === 0 ||
   (identifier !== "" && identifiers.includes(identifier));
 
-const hasWrongGrantOwner = (grantCode, grantIdentity, storedList) =>
-  grantIdentity.grantCode !== grantCode ||
+const hasWrongGrantOwner = (grantCode, grant, storedList) =>
+  grant.code !== grantCode ||
   (storedList && storedList.grantCode !== grantCode);
 
 const malformedStoredState = () => {
@@ -136,12 +136,12 @@ export class GrantAllowList {
     });
   }
 
-  static forGrant({ grantCode, grantIdentity, storedList }) {
-    if (!grantIdentity) {
+  static forGrant({ grantCode, grant, storedList }) {
+    if (!grant) {
       throw Boom.notFound(`Grant with code "${grantCode}" not found`);
     }
 
-    if (hasWrongGrantOwner(grantCode, grantIdentity, storedList)) {
+    if (hasWrongGrantOwner(grantCode, grant, storedList)) {
       throw malformedStoredState();
     }
 

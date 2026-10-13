@@ -54,18 +54,18 @@ describe("GrantAllowList", () => {
     );
   });
 
-  describe("assembly for a known grant", () => {
-    const assemble = (grantIdentity, storedList = null) =>
+  describe("assembly for a resolved grant", () => {
+    const assemble = (grant, storedList = null) =>
       GrantAllowList.forGrant({
         grantCode: "woodland",
-        grantIdentity,
+        grant,
         storedList,
       });
 
     it("defaults only a known grant without a stored list to unrestricted", () => {
-      expect(
-        assemble({ grantCode: "woodland" }).allows({ sbi: "", crn: "" }),
-      ).toBe(true);
+      expect(assemble({ code: "woodland" }).allows({ sbi: "", crn: "" })).toBe(
+        true,
+      );
     });
 
     it("preserves an existing grant's restrictions", () => {
@@ -73,12 +73,12 @@ describe("GrantAllowList", () => {
         grantCode: "woodland",
         global: validGlobal,
       });
-      expect(assemble({ grantCode: "woodland" }, list).toJSON()).toEqual({
+      expect(assemble({ code: "woodland" }, list).toJSON()).toEqual({
         grantCode: "woodland",
         global: validGlobal,
       });
       expect(
-        assemble({ grantCode: "woodland" }, list).allows({
+        assemble({ code: "woodland" }, list).allows({
           sbi: "106000099",
           crn: "1042000000",
         }),
@@ -97,8 +97,8 @@ describe("GrantAllowList", () => {
     );
 
     it.each([
-      [{ grantCode: "other" }, null],
-      [{ grantCode: "woodland" }, GrantAllowList.unrestricted("other")],
+      [{ code: "other" }, null],
+      [{ code: "woodland" }, GrantAllowList.unrestricted("other")],
     ])("rejects mismatched grant ownership %j / %j", (identity, list) => {
       expect(() => assemble(identity, list)).toThrow(
         expect.objectContaining({
