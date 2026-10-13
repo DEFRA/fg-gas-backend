@@ -140,8 +140,19 @@ export class GrantAllowList {
     }
   }
 
-  replaceGlobal({ sbi, crn }) {
-    this.global = validate({ sbi: normalize(sbi), crn: normalize(crn) });
+  replaceGlobal(global) {
+    if (!global || !Array.isArray(global.sbi) || !Array.isArray(global.crn)) {
+      const error = Boom.badRequest(
+        "Both SBI and CRN collections must be arrays",
+      );
+      error.output.payload.errorCode = "ALLOW_LIST_VALIDATION_FAILED";
+      throw error;
+    }
+
+    this.global = validate({
+      sbi: normalize(global.sbi),
+      crn: normalize(global.crn),
+    });
   }
 
   toJSON() {

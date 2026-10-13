@@ -162,6 +162,60 @@ describe("GrantAllowList", () => {
     expect(allowList.toJSON().global).toEqual({ sbi: [], crn: [] });
   });
 
+  describe.each(["sbi", "crn"])("malformed %s collections", (kind) => {
+    it.each([undefined, null, "1042000000", {}])(
+      "refuses %j without changing the existing allow list",
+      (values) => {
+        const allowList = new GrantAllowList({
+          grantCode: "woodland",
+          global: validGlobal,
+        });
+
+        expect(() =>
+          allowList.replaceGlobal({ ...validGlobal, [kind]: values }),
+        ).toThrow(
+          expect.objectContaining({
+            output: expect.objectContaining({
+              statusCode: 400,
+              payload: expect.objectContaining({
+                errorCode: "ALLOW_LIST_VALIDATION_FAILED",
+              }),
+            }),
+          }),
+        );
+        expect(allowList.toJSON()).toEqual({
+          grantCode: "woodland",
+          global: validGlobal,
+        });
+      },
+    );
+  });
+
+  it.each([undefined, null, {}])(
+    "refuses missing global collections (%j) without changing the allow list",
+    (global) => {
+      const allowList = new GrantAllowList({
+        grantCode: "woodland",
+        global: validGlobal,
+      });
+
+      expect(() => allowList.replaceGlobal(global)).toThrow(
+        expect.objectContaining({
+          output: expect.objectContaining({
+            statusCode: 400,
+            payload: expect.objectContaining({
+              errorCode: "ALLOW_LIST_VALIDATION_FAILED",
+            }),
+          }),
+        }),
+      );
+      expect(allowList.toJSON()).toEqual({
+        grantCode: "woodland",
+        global: validGlobal,
+      });
+    },
+  );
+
   it("serialises only the grant code and global identifier collections", () => {
     const allowList = new GrantAllowList({
       grantCode: "woodland",
