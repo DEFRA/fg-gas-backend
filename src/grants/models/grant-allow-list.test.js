@@ -6,17 +6,22 @@ const validGlobal = {
   crn: ["1042000000", "1042000011"],
 };
 
-const expectRefusal = (run, errorCode) => {
+const expectValidationFailure = (run, details) => {
   expect(run).toThrow(
     expect.objectContaining({
       isBoom: true,
       output: expect.objectContaining({
         statusCode: 400,
-        payload: expect.objectContaining({ errorCode }),
+        payload: expect.objectContaining({
+          errorCode: "ALLOW_LIST_VALIDATION_FAILED",
+          details,
+        }),
       }),
     }),
   );
 };
+
+const clean = { invalid: [], duplicate: [] };
 
 describe("GrantAllowList", () => {
   it("refuses missing stored state instead of treating it as unrestricted", () => {
@@ -63,52 +68,69 @@ describe("GrantAllowList", () => {
   });
 
   it.each(["10600003", "1060000333", "10600A033"])(
-    "refuses an SBI that is not exactly 9 decimal digits: %s",
+    "reports an SBI that is not exactly 9 decimal digits: %s",
     (sbi) => {
-      expectRefusal(
+      expectValidationFailure(
         () =>
           new GrantAllowList({
             grantCode: "woodland",
             global: { sbi: [sbi], crn: [] },
           }),
-        "INVALID_ALLOW_LIST_IDENTIFIER",
+        { sbi: { invalid: [sbi], duplicate: [] }, crn: clean },
       );
     },
   );
 
   it.each(["104200000", "10420000000", "10420A0000"])(
-    "refuses a CRN that is not exactly 10 decimal digits: %s",
+    "reports a CRN that is not exactly 10 decimal digits: %s",
     (crn) => {
-      expectRefusal(
+      expectValidationFailure(
         () =>
           new GrantAllowList({
             grantCode: "woodland",
             global: { sbi: [], crn: [crn] },
           }),
-        "INVALID_ALLOW_LIST_IDENTIFIER",
+        { sbi: clean, crn: { invalid: [crn], duplicate: [] } },
       );
     },
   );
 
-  it("refuses duplicate SBIs after trimming", () => {
-    expectRefusal(
+  it("reports duplicate SBIs after trimming", () => {
+    expectValidationFailure(
       () =>
         new GrantAllowList({
           grantCode: "woodland",
           global: { sbi: ["106000033", " 106000033 "], crn: [] },
         }),
-      "DUPLICATE_ALLOW_LIST_IDENTIFIER",
+      { sbi: { invalid: [], duplicate: ["106000033"] }, crn: clean },
     );
   });
 
-  it("refuses duplicate CRNs after trimming", () => {
-    expectRefusal(
+  it("reports duplicate CRNs after trimming", () => {
+    expectValidationFailure(
       () =>
         new GrantAllowList({
           grantCode: "woodland",
           global: { sbi: [], crn: ["1042000000", " 1042000000 "] },
         }),
-      "DUPLICATE_ALLOW_LIST_IDENTIFIER",
+      { sbi: clean, crn: { invalid: [], duplicate: ["1042000000"] } },
+    );
+  });
+
+  it("reports every problem across both lists in one response", () => {
+    expectValidationFailure(
+      () =>
+        new GrantAllowList({
+          grantCode: "woodland",
+          global: {
+            sbi: ["bad", "bad", "106000033"],
+            crn: ["not-a-crn", "1042000000", "1042000000"],
+          },
+        }),
+      {
+        sbi: { invalid: ["bad"], duplicate: ["bad"] },
+        crn: { invalid: ["not-a-crn"], duplicate: ["1042000000"] },
+      },
     );
   });
 
@@ -118,13 +140,13 @@ describe("GrantAllowList", () => {
       global: validGlobal,
     });
 
-    expectRefusal(
+    expectValidationFailure(
       () =>
         allowList.replaceGlobal({
           sbi: ["106000099"],
           crn: ["not-a-crn"],
         }),
-      "INVALID_ALLOW_LIST_IDENTIFIER",
+      { sbi: clean, crn: { invalid: ["not-a-crn"], duplicate: [] } },
     );
     expect(allowList.toJSON().global).toEqual(validGlobal);
   });

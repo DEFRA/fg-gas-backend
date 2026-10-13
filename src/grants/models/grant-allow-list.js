@@ -5,22 +5,6 @@ const patterns = {
   crn: /^\d{10}$/,
 };
 
-const labels = {
-  sbi: "SBI",
-  crn: "CRN",
-};
-
-const lengths = {
-  sbi: 9,
-  crn: 10,
-};
-
-const refusal = (message, errorCode) => {
-  const error = Boom.badRequest(message);
-  error.output.payload.errorCode = errorCode;
-  return error;
-};
-
 const malformedStoredState = () => {
   const error = Boom.badImplementation("Stored grant allow list is malformed");
   error.output.payload.errorCode = "MALFORMED_ALLOW_LIST";
@@ -56,22 +40,74 @@ const hasMalformedStoredDocument = (document) =>
   document.grantCode.length === 0 ||
   hasMalformedStoredGlobal(document.global);
 
-const validate = (kind, values) => {
-  if (hasInvalidIdentifier(kind, values)) {
-    throw refusal(
-      `Each ${labels[kind]} must be exactly ${lengths[kind]} digits`,
-      "INVALID_ALLOW_LIST_IDENTIFIER",
-    );
+// Distinct values, in first-seen order, so detail reported to the caller is
+// deterministic rather than depending on Set iteration quirks.
+const distinct = (values) => [...new Set(values)];
+
+const invalidValuesIn = (kind, values) =>
+  Array.isArray(values)
+    ? distinct(values.filter(isInvalidIdentifier(kind)))
+    : [];
+
+const duplicateValuesIn = (values) => {
+  if (!Array.isArray(values)) {
+    return [];
   }
 
-  if (hasDuplicateIdentifier(values)) {
-    throw refusal(
-      `Each ${labels[kind]} must be listed only once`,
-      "DUPLICATE_ALLOW_LIST_IDENTIFIER",
-    );
+  const seen = new Set();
+  const duplicates = new Set();
+
+  for (const value of values) {
+    if (seen.has(value)) {
+      duplicates.add(value);
+    }
+    seen.add(value);
   }
 
-  return values;
+  return [...duplicates];
+};
+
+// Independent of validity: a value that is both the wrong shape and repeated
+// is reported as both, matching how each submitted line is judged on its own.
+// Internal only - never handed to a caller directly. toValidationFailureDetails
+// below is the seam that crosses the boundary, the same role toJSON plays for
+// GrantAllowList itself, so this can change shape without silently changing
+// the wire contract.
+const identifierProblemsIn = (kind, values) => ({
+  invalid: invalidValuesIn(kind, values),
+  duplicate: duplicateValuesIn(values),
+});
+
+const hasProblems = ({ invalid, duplicate }) =>
+  invalid.length > 0 || duplicate.length > 0;
+
+// The public error contract for a refused replacement.
+const toValidationFailureDetails = (problems) => ({
+  sbi: { invalid: problems.sbi.invalid, duplicate: problems.sbi.duplicate },
+  crn: { invalid: problems.crn.invalid, duplicate: problems.crn.duplicate },
+});
+
+const validationFailure = (problems) => {
+  const error = Boom.badRequest("The allow list contains invalid entries");
+  error.output.payload.errorCode = "ALLOW_LIST_VALIDATION_FAILED";
+  error.output.payload.details = toValidationFailureDetails(problems);
+  return error;
+};
+
+// Reports every problem across both lists in one response, rather than
+// stopping at the first kind that fails, so a BFF caller never has to probe
+// twice to learn what else is wrong with a submission.
+const validate = (global) => {
+  const problems = {
+    sbi: identifierProblemsIn("sbi", global.sbi),
+    crn: identifierProblemsIn("crn", global.crn),
+  };
+
+  if (hasProblems(problems.sbi) || hasProblems(problems.crn)) {
+    throw validationFailure(problems);
+  }
+
+  return global;
 };
 
 export class GrantAllowList {
@@ -105,12 +141,7 @@ export class GrantAllowList {
   }
 
   replaceGlobal({ sbi, crn }) {
-    const replacement = {
-      sbi: validate("sbi", normalize(sbi)),
-      crn: validate("crn", normalize(crn)),
-    };
-
-    this.global = replacement;
+    this.global = validate({ sbi: normalize(sbi), crn: normalize(crn) });
   }
 
   toJSON() {

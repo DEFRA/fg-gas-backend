@@ -106,7 +106,7 @@ describe("replaceGrantAllowListUseCase", () => {
       }),
     ).rejects.toMatchObject({
       output: {
-        payload: { errorCode: "DUPLICATE_ALLOW_LIST_IDENTIFIER" },
+        payload: { errorCode: "ALLOW_LIST_VALIDATION_FAILED" },
       },
     });
 
@@ -175,17 +175,20 @@ describe("replaceGrantAllowListUseCase", () => {
   });
 
   it.each([
-    [
-      "DUPLICATE_ALLOW_LIST_IDENTIFIER",
-      { sbi: ["106000033", "106000033"], crn: [] },
-    ],
-    ["INVALID_ALLOW_LIST_IDENTIFIER", { sbi: ["not-an-sbi"], crn: [] }],
-  ])("audits a safe %s refusal", async (errorCode, global) => {
+    ["duplicate", { sbi: ["106000033", "106000033"], crn: [] }],
+    ["invalid", { sbi: ["not-an-sbi"], crn: [] }],
+  ])("audits a safe refusal without the submitted values (%s)", async (
+    _,
+    global,
+  ) => {
     await replaceGrantAllowListUseCase({ ...args, global }).catch(() => {});
 
     const [event, auditSession] = writeAuditEvent.mock.calls[0];
     expect(event).toMatchObject({
-      details: { caller: "fg-grants-platform-admin", errorCode },
+      details: {
+        caller: "fg-grants-platform-admin",
+        errorCode: "ALLOW_LIST_VALIDATION_FAILED",
+      },
       status: "FAILURE",
     });
     expect(auditSession).toBeNull();

@@ -38,10 +38,7 @@ const replaceGrantAllowList = async (args, session) => {
   };
 };
 
-const DOMAIN_ERROR_CODES = new Set([
-  "INVALID_ALLOW_LIST_IDENTIFIER",
-  "DUPLICATE_ALLOW_LIST_IDENTIFIER",
-]);
+const DOMAIN_ERROR_CODES = new Set(["ALLOW_LIST_VALIDATION_FAILED"]);
 
 const statusErrorCodes = {
   403: "GRANT_ADMIN_ACCESS_DENIED",
