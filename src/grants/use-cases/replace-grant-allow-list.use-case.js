@@ -25,6 +25,7 @@ const replaceGrantAllowList = async ({ grantCode, global }, session) => {
     (await findByGrantCode(grantCode, session)) ??
     GrantAllowList.unrestricted(grantCode);
   const previousCounts = countsOf(allowList.toJSON());
+  const previousGlobal = allowList.toJSON().global;
 
   allowList.replaceGlobal(global);
   await replace(allowList, session);
@@ -32,6 +33,7 @@ const replaceGrantAllowList = async ({ grantCode, global }, session) => {
   return {
     representation: allowList.toJSON(),
     previousCounts,
+    previousGlobal,
   };
 };
 
@@ -74,6 +76,8 @@ const buildReplaceGrantAllowListAudit = (
             oldCrnCount: result.previousCounts.crnCount,
             newSbiCount: result.representation.global.sbi.length,
             newCrnCount: result.representation.global.crn.length,
+            oldGlobal: result.previousGlobal,
+            newGlobal: result.representation.global,
           }),
     },
     security: PMC_0706_SECURITY,

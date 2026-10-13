@@ -74,7 +74,7 @@ describe("allow-list read auditing", () => {
     findByGrantCode.mockResolvedValue(stored);
   });
 
-  it("records safe success counts and protective monitoring metadata", async () => {
+  it("records the returned lists and protective monitoring metadata", async () => {
     await getGrantAllowListUseCase(args);
 
     const [event, auditSession] = writeAuditEvent.mock.calls[0];
@@ -91,6 +91,7 @@ describe("allow-list read auditing", () => {
         caller: "fg-grants-platform-admin",
         sbiCount: 1,
         crnCount: 1,
+        global: { sbi: ["106000033"], crn: ["1042000000"] },
       },
       accounts: { sbi: undefined, frn: undefined, crn: undefined },
       security: { pmccode: "0706" },
@@ -98,7 +99,6 @@ describe("allow-list read auditing", () => {
       status: "SUCCESS",
     });
     expect(auditSession).toBe(session);
-    expect(JSON.stringify(event)).not.toMatch(/106000033|1042000000/);
   });
 
   it("records a safe failed attempt without submitted identifiers", async () => {

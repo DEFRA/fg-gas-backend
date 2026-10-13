@@ -108,7 +108,7 @@ describe("replaceGrantAllowListUseCase", () => {
     );
   });
 
-  it("audits old and new counts plus caller without raw identifiers", async () => {
+  it("audits the complete previous and replacement lists plus caller", async () => {
     findByGrantCode.mockResolvedValue(
       new GrantAllowList({
         grantCode: "woodland",
@@ -133,12 +133,30 @@ describe("replaceGrantAllowListUseCase", () => {
         oldCrnCount: 1,
         newSbiCount: 2,
         newCrnCount: 1,
+        oldGlobal: { sbi: ["106000099"], crn: ["1042000099"] },
+        newGlobal: args.global,
       },
       status: "SUCCESS",
     });
-    expect(JSON.stringify(event)).not.toMatch(
-      /106000033|106000041|1042000000|106000099|1042000099/,
+  });
+
+  it("audits the removed identifiers when clearing the list", async () => {
+    findByGrantCode.mockResolvedValue(
+      new GrantAllowList({
+        grantCode: "woodland",
+        global: args.global,
+      }),
     );
+
+    await replaceGrantAllowListUseCase({
+      ...args,
+      global: { sbi: [], crn: [] },
+    });
+
+    expect(writeAuditEvent.mock.calls[0][0].details).toMatchObject({
+      oldGlobal: args.global,
+      newGlobal: { sbi: [], crn: [] },
+    });
   });
 
   it.each([

@@ -29,6 +29,7 @@ const buildGetGrantAllowListAudit = ({ grantCode, caller }, result) =>
       ...(result && {
         sbiCount: result.global.sbi.length,
         crnCount: result.global.crn.length,
+        global: result.global,
       }),
     },
     security: PMC_0706_SECURITY,
