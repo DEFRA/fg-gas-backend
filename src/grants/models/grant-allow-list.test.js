@@ -24,6 +24,90 @@ const expectValidationFailure = (run, details) => {
 const clean = { invalid: [], duplicate: [] };
 
 describe("GrantAllowList", () => {
+  describe("eligibility", () => {
+    it.each([
+      [[], [], "106000099", "1042000099", true],
+      [[], [], "", "", true],
+      [["106000033"], [], "106000033", "", true],
+      [["106000033"], [], "106000099", "1042000000", false],
+      [["106000033"], [], "", "1042000000", false],
+      [[], ["1042000000"], "", "1042000000", true],
+      [[], ["1042000000"], "106000033", "1042000099", false],
+      [[], ["1042000000"], "106000033", "", false],
+      [["106000033"], ["1042000000"], "106000033", "1042000000", true],
+      [["106000033"], ["1042000000"], "106000099", "1042000000", false],
+      [["106000033"], ["1042000000"], "106000033", "1042000099", false],
+      [["106000033"], ["1042000000"], "106000099", "1042000099", false],
+      [["106000033"], ["1042000000"], "", "1042000000", false],
+      [["106000033"], ["1042000000"], "106000033", "", false],
+      [["106000033"], ["1042000000"], "", "", false],
+      [["000000001"], ["0000000001"], "000000001", "0000000001", true],
+    ])(
+      "applies both restrictions %j / %j to %s / %s: %s",
+      (sbis, crns, sbi, crn, allowed) => {
+        const list = new GrantAllowList({
+          grantCode: "woodland",
+          global: { sbi: sbis, crn: crns },
+        });
+        expect(list.allows({ sbi, crn })).toBe(allowed);
+      },
+    );
+  });
+
+  describe("assembly for a known grant", () => {
+    const assemble = (grantIdentity, storedList = null) =>
+      GrantAllowList.forGrant({
+        grantCode: "woodland",
+        grantIdentity,
+        storedList,
+      });
+
+    it("defaults only a known grant without a stored list to unrestricted", () => {
+      expect(
+        assemble({ grantCode: "woodland" }).allows({ sbi: "", crn: "" }),
+      ).toBe(true);
+    });
+
+    it("preserves an existing grant's restrictions", () => {
+      const list = new GrantAllowList({
+        grantCode: "woodland",
+        global: validGlobal,
+      });
+      expect(assemble({ grantCode: "woodland" }, list).toJSON()).toEqual({
+        grantCode: "woodland",
+        global: validGlobal,
+      });
+      expect(
+        assemble({ grantCode: "woodland" }, list).allows({
+          sbi: "106000099",
+          crn: "1042000000",
+        }),
+      ).toBe(false);
+    });
+
+    it.each([null, GrantAllowList.unrestricted("woodland")])(
+      "rejects an unknown grant even with orphan state %j",
+      (list) => {
+        expect(() => assemble(null, list)).toThrow(
+          expect.objectContaining({
+            output: expect.objectContaining({ statusCode: 404 }),
+          }),
+        );
+      },
+    );
+
+    it.each([
+      [{ grantCode: "other" }, null],
+      [{ grantCode: "woodland" }, GrantAllowList.unrestricted("other")],
+    ])("rejects mismatched grant ownership %j / %j", (identity, list) => {
+      expect(() => assemble(identity, list)).toThrow(
+        expect.objectContaining({
+          output: expect.objectContaining({ statusCode: 500 }),
+        }),
+      );
+    });
+  });
+
   it("refuses missing stored state instead of treating it as unrestricted", () => {
     expect(() => new GrantAllowList({ grantCode: "woodland" })).toThrow(
       expect.objectContaining({

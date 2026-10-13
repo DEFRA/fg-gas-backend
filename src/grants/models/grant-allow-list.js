@@ -128,6 +128,21 @@ export class GrantAllowList {
     });
   }
 
+  static forGrant({ grantCode, grantIdentity, storedList }) {
+    if (!grantIdentity) {
+      throw Boom.notFound(`Grant with code "${grantCode}" not found`);
+    }
+
+    if (
+      grantIdentity.grantCode !== grantCode ||
+      (storedList && storedList.grantCode !== grantCode)
+    ) {
+      throw malformedStoredState();
+    }
+
+    return storedList ?? GrantAllowList.unrestricted(grantCode);
+  }
+
   static fromDocument(document) {
     try {
       if (hasMalformedStoredDocument(document)) {
@@ -153,6 +168,16 @@ export class GrantAllowList {
       sbi: normalize(global.sbi),
       crn: normalize(global.crn),
     });
+  }
+
+  allows({ sbi, crn }) {
+    const sbiOk =
+      this.global.sbi.length === 0 ||
+      (sbi !== "" && this.global.sbi.includes(sbi));
+    const crnOk =
+      this.global.crn.length === 0 ||
+      (crn !== "" && this.global.crn.includes(crn));
+    return sbiOk && crnOk;
   }
 
   toJSON() {
