@@ -1,5 +1,8 @@
 import Boom from "@hapi/boom";
-import { checkAllowListRequestSchema } from "../schemas/requests/check-allow-list-request.schema.js";
+import {
+  checkAllowListQuerySchema,
+  checkAllowListRequestSchema,
+} from "../schemas/requests/check-allow-list-request.schema.js";
 import { checkAllowListResponseSchema } from "../schemas/responses/check-allow-list-response.schema.js";
 import { checkGrantAllowListUseCase } from "../use-cases/check-grant-allow-list.use-case.js";
 
@@ -20,7 +23,10 @@ export const checkAllowListRoutes = [
       description:
         "Check whether applicant identifiers satisfy a grant allow list",
       tags: ["api"],
-      validate: { params: checkAllowListRequestSchema },
+      validate: {
+        params: checkAllowListRequestSchema,
+        query: checkAllowListQuerySchema,
+      },
       response: { schema: checkAllowListResponseSchema },
     },
     async handler(request, h) {
@@ -30,6 +36,7 @@ export const checkAllowListRoutes = [
       }
       const result = await checkGrantAllowListUseCase({
         ...request.params,
+        configVersion: request.query.configVersion,
         caller,
       });
       return h.response(result).header("Cache-Control", "no-store");

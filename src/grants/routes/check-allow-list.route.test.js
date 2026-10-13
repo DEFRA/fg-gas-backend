@@ -40,6 +40,7 @@ const records = Object.fromEntries(
 );
 const base = "/api/allow-list/grants/woodland";
 const uri = `${base}/sbi/106000033/crn/1042000000`;
+const withVersion = (url) => `${url}?configVersion=1.2.3`;
 const headers = { authorization: "Bearer test-grants-ui-token" };
 
 describe("checkAllowListRoutes", () => {
@@ -60,6 +61,33 @@ describe("checkAllowListRoutes", () => {
     checkGrantAllowListUseCase.mockResolvedValue({ allowed: true });
   });
 
+  it("requires configVersion rather than assuming a major", async () => {
+    const response = await server.inject({ url: uri, headers });
+    expect(response.statusCode).toBe(400);
+    expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
+  });
+
+  it.each(["", "1", "1.2", "bad", "1.2.3-beta"])(
+    "rejects an empty or malformed version %s",
+    async (version) => {
+      const response = await server.inject({
+        url: `${uri}?configVersion=${version}`,
+        headers,
+      });
+      expect(response.statusCode).toBe(400);
+      expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects repeated version query parameters", async () => {
+    const response = await server.inject({
+      url: `${uri}?configVersion=1.2.3&configVersion=2.0.0`,
+      headers,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["test-grants-ui-token", "grants-ui", true],
     ["test-sfd-token", "single-front-door", false],
@@ -69,7 +97,7 @@ describe("checkAllowListRoutes", () => {
     async (token, caller, allowed) => {
       checkGrantAllowListUseCase.mockResolvedValue({ allowed });
       const response = await server.inject({
-        url: uri,
+        url: withVersion(uri),
         headers: { authorization: `Bearer ${token}`, "x-actor": "spoofed" },
       });
       expect(response.statusCode).toBe(200);
@@ -80,6 +108,7 @@ describe("checkAllowListRoutes", () => {
         sbi: "106000033",
         crn: "1042000000",
         caller,
+        configVersion: "1.2.3",
       });
     },
   );
@@ -92,7 +121,7 @@ describe("checkAllowListRoutes", () => {
     "rejects missing, invalid or expired authentication: %s",
     async (authorization) => {
       const response = await server.inject({
-        url: uri,
+        url: withVersion(uri),
         headers: authorization ? { authorization } : {},
       });
       expect(response.statusCode).toBe(401);
@@ -102,7 +131,7 @@ describe("checkAllowListRoutes", () => {
 
   it("preserves leading zeroes in both identifiers", async () => {
     const response = await server.inject({
-      url: `${base}/sbi/000000001/crn/0000000001`,
+      url: withVersion(`${base}/sbi/000000001/crn/0000000001`),
       headers,
     });
     expect(response.statusCode).toBe(200);
@@ -111,12 +140,13 @@ describe("checkAllowListRoutes", () => {
       sbi: "000000001",
       crn: "0000000001",
       caller: "grants-ui",
+      configVersion: "1.2.3",
     });
   });
 
   it("refuses to release a decision without an authenticated caller identity", async () => {
     const response = await server.inject({
-      url: uri,
+      url: withVersion(uri),
       headers: { authorization: "Bearer test-unidentified-token" },
     });
     expect(response.statusCode).toBe(401);
@@ -133,7 +163,7 @@ describe("checkAllowListRoutes", () => {
     `${base}/sbi/106000033/crn/10420A0000`,
     "/api/allow-list/grants/Bad_Code/sbi/106000033/crn/1042000000",
   ])("returns 400 for malformed input %s", async (url) => {
-    const response = await server.inject({ url, headers });
+    const response = await server.inject({ url: withVersion(url), headers });
     expect(response.statusCode).toBe(400);
     expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
   });
@@ -148,7 +178,7 @@ describe("checkAllowListRoutes", () => {
     `${base}/sbi//crn/1042000000`,
     `${base}/crn/1042000000`,
   ])("returns 400 for an omitted identifier %s", async (url) => {
-    const response = await server.inject({ url, headers });
+    const response = await server.inject({ url: withVersion(url), headers });
     expect(response.statusCode).toBe(400);
     expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
   });
@@ -156,7 +186,7 @@ describe("checkAllowListRoutes", () => {
   it.each(["/unrelated", `${base}/unrelated`, `${uri}/unrelated`])(
     "keeps unrelated URLs as 404: %s",
     async (url) => {
-      const response = await server.inject({ url, headers });
+      const response = await server.inject({ url: withVersion(url), headers });
       expect(response.statusCode).toBe(404);
       expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
     },
@@ -166,14 +196,16 @@ describe("checkAllowListRoutes", () => {
     checkGrantAllowListUseCase.mockRejectedValue(
       Boom.notFound("Unknown grant"),
     );
-    expect((await server.inject({ url: uri, headers })).statusCode).toBe(404);
+    expect(
+      (await server.inject({ url: withVersion(uri), headers })).statusCode,
+    ).toBe(404);
   });
 
   it.each(["storage failed", "audit failed"])(
     "propagates %s as a server error",
     async (message) => {
       checkGrantAllowListUseCase.mockRejectedValue(new Error(message));
-      const response = await server.inject({ url: uri, headers });
+      const response = await server.inject({ url: withVersion(uri), headers });
       expect(response.statusCode).toBe(500);
       expect(response.result).not.toHaveProperty("allowed");
     },
@@ -184,6 +216,8 @@ describe("checkAllowListRoutes", () => {
       allowed: true,
       global: { sbi: ["106000033"] },
     });
-    expect((await server.inject({ url: uri, headers })).statusCode).toBe(500);
+    expect(
+      (await server.inject({ url: withVersion(uri), headers })).statusCode,
+    ).toBe(500);
   });
 });
