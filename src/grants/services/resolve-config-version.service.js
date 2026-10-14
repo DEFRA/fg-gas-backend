@@ -218,8 +218,6 @@ export const resolveAndFetchGrant = async (
   requestedVersion,
   session,
 ) => {
-  logger.info(`Resolving config version for ${grantCode}@${requestedVersion}`);
-
   const configVersion =
     requestedVersion === undefined
       ? await findLatestActive(grantCode, session)
@@ -230,6 +228,7 @@ export const resolveAndFetchGrant = async (
   }
 
   const resolvedVersion = configVersion.version;
+  logger.info(`Loading grant definition for ${grantCode}@${resolvedVersion}`);
 
   await guardFetchStatus(configVersion, grantCode, resolvedVersion);
 

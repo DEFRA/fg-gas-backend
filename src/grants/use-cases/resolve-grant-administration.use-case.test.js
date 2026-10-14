@@ -14,17 +14,8 @@ describe("resolveGrantAdministration", () => {
   });
 
   it("uses the shared grant resolver before checking administration access", async () => {
-    const session = { id: "session" };
-    resolveAndFetchGrant.mockResolvedValue({ grant });
-
-    await expect(resolveGrantAdministration(args, session)).resolves.toEqual(
-      grant,
-    );
-    expect(resolveAndFetchGrant).toHaveBeenCalledWith(
-      "woodland",
-      undefined,
-      session,
-    );
+    await expect(resolveGrantAdministration(args)).resolves.toBeUndefined();
+    expect(resolveAndFetchGrant).toHaveBeenCalledWith("woodland");
   });
 
   it("denies entry when there is no active published definition", async () => {

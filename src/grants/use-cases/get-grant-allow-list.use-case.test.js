@@ -45,9 +45,9 @@ describe("getGrantAllowListUseCase", () => {
   });
 
   it("asserts grant existence before reading and returns stored data", async () => {
-    await expect(getGrantAllowListUseCase(args)).resolves.toEqual({
-      ...stored.toJSON(),
-    });
+    await expect(getGrantAllowListUseCase(args)).resolves.toEqual(
+      stored.toJSON(),
+    );
 
     expect(resolveGrantAdministration).toHaveBeenCalledWith(args);
     expect(findByGrantCode).toHaveBeenCalledWith("woodland");
