@@ -22,6 +22,7 @@ describe("grant-admin", () => {
     expect(routes).toEqual([
       "get /grant-admin/events/page",
       "get /grant-admin/events/{service}/{box}/{id}",
+      "get /grant-admin/grants/{code}/allow-list",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims/{claimCode}",
@@ -37,6 +38,7 @@ describe("grant-admin", () => {
       "post /grant-admin/events/{service}/{box}/{id}/purge",
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
       "post /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
+      "put /grant-admin/grants/{code}/allow-list",
       "put /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
     ]);
   });
@@ -72,6 +74,30 @@ describe("grant-admin", () => {
     expect(routes).toContain(
       "post /grant-admin/events/{service}/{box}/{id}/payload",
     );
+  });
+
+  it("protects the allow-list routes from other authenticated clients", async () => {
+    const server = hapi.server();
+    server.auth.scheme("stub", () => ({
+      authenticate: (_request, h) =>
+        h.authenticated({ credentials: { service: "some-other-service" } }),
+    }));
+    server.auth.strategy("service", "stub");
+    server.auth.default("service");
+    await server.register(grantAdmin);
+    await server.initialize();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/grant-admin/grants/woodland/allow-list",
+      headers: {
+        "x-actor": "Jo Operator",
+        "x-actor-id": "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    await server.stop();
   });
 });
 

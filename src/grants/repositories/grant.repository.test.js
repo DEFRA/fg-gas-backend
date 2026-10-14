@@ -568,6 +568,20 @@ describe("pages", () => {
     expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ pages }));
   });
 
+  it("persists and rehydrates the grant administration role", async () => {
+    const admin = { role: "ROLE_WOODLAND_ADMIN" };
+    const insertOne = vi.fn();
+    db.collection.mockReturnValue({ insertOne });
+    await saveFromDefinition({ ...definition, admin }, "1.1.0");
+    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ admin }));
+    db.collection.mockReturnValue({
+      findOne: vi
+        .fn()
+        .mockResolvedValue({ ...definition, admin, version: "1.1.0" }),
+    });
+    expect((await findByCode("woodland", "1.1.0")).admin).toEqual(admin);
+  });
+
   it("rehydrates pages from a stored document via findByCode", async () => {
     const findOne = vi
       .fn()

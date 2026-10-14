@@ -5,6 +5,19 @@ import { ConfigVersion } from "../models/config-version.js";
 
 const collection = "config_versions";
 
+// Resolves the highest active published version across all majors when the
+// caller has no pinned version. Keep failed definitions selectable so loading
+// refuses the current definition rather than silently falling back to an older one.
+export const findLatestActive = async (grantCode) =>
+  ConfigVersion.fromDocument(
+    await db.collection(collection).findOne(
+      { grantCode, status: "active" },
+      {
+        sort: { major: -1, minor: -1, patch: -1 },
+      },
+    ),
+  );
+
 const definitionLocationUpdate = (definitionType, s3Key) => ({
   [`definitions.${definitionType}`]: {
     $mergeObjects: [
