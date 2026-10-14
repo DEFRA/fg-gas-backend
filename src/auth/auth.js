@@ -53,10 +53,7 @@ const registerServiceAuth = async (server) => {
       }
 
       return h.authenticated({
-        credentials: {
-          service: record.clientId ?? record.client,
-          tokenId: record.id,
-        },
+        credentials: { service: record.clientId, tokenId: record.id },
       });
     },
   }));

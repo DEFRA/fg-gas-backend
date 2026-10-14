@@ -27,8 +27,7 @@ vi.mock("../use-cases/check-grant-allow-list.use-case.js");
 const tokens = {
   "test-grants-ui-token": { clientId: "grants-ui", expiresAt: null },
   "test-sfd-token": { clientId: "single-front-door", expiresAt: null },
-  "test-legacy-token": { client: "grants-ui", expiresAt: null },
-  "test-unidentified-token": { expiresAt: null },
+  "test-unidentified-token": { client: "grants-ui", expiresAt: null },
   "test-expired-token": {
     clientId: "expired",
     expiresAt: new Date("2000-01-01"),
@@ -90,7 +89,6 @@ describe("allow-list routes", () => {
   it.each([
     ["test-grants-ui-token", "grants-ui", true],
     ["test-sfd-token", "single-front-door", false],
-    ["test-legacy-token", "grants-ui", true],
   ])(
     "accepts %s and derives caller from authentication",
     async (token, caller, allowed) => {
