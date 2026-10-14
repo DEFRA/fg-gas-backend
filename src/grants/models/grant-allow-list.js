@@ -5,6 +5,14 @@ const patterns = {
   crn: /^\d{10}$/,
 };
 
+const satisfiesRestriction = (identifiers, identifier) =>
+  identifiers.length === 0 ||
+  (identifier !== "" && identifiers.includes(identifier));
+
+const hasWrongGrantOwner = (grantCode, grant, storedList) =>
+  grant.code !== grantCode ||
+  (storedList && storedList.grantCode !== grantCode);
+
 const malformedStoredState = () => {
   const error = Boom.badImplementation("Stored grant allow list is malformed");
   error.output.payload.errorCode = "MALFORMED_ALLOW_LIST";
@@ -128,6 +136,18 @@ export class GrantAllowList {
     });
   }
 
+  static forGrant({ grantCode, grant, storedList }) {
+    if (!grant) {
+      throw Boom.notFound(`Grant with code "${grantCode}" not found`);
+    }
+
+    if (hasWrongGrantOwner(grantCode, grant, storedList)) {
+      throw malformedStoredState();
+    }
+
+    return storedList ?? GrantAllowList.unrestricted(grantCode);
+  }
+
   static fromDocument(document) {
     try {
       if (hasMalformedStoredDocument(document)) {
@@ -153,6 +173,12 @@ export class GrantAllowList {
       sbi: normalize(global.sbi),
       crn: normalize(global.crn),
     });
+  }
+
+  allows({ sbi, crn }) {
+    const sbiOk = satisfiesRestriction(this.global.sbi, sbi);
+    const crnOk = satisfiesRestriction(this.global.crn, crn);
+    return sbiOk && crnOk;
   }
 
   toJSON() {

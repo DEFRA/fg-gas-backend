@@ -118,6 +118,14 @@ describe("grants", () => {
     expect(routePaths).toEqual(
       expect.arrayContaining([
         { method: "post", path: "/grants" },
+        {
+          method: "get",
+          path: "/api/allow-list/grants/{grantCode}/sbi/{sbi}/crn/{crn}",
+        },
+        {
+          method: "get",
+          path: "/api/allow-list/grants/{grantCode}/{remainder*}",
+        },
         { method: "post", path: "/grants/{code}/applications" },
         { method: "post", path: "/grants/{code}/actions/{name}/invoke" },
         { method: "put", path: "/tmp/grants/{code}" },
@@ -136,7 +144,7 @@ describe("grants", () => {
         },
       ]),
     );
-    expect(routePaths).toHaveLength(8);
+    expect(routePaths).toHaveLength(10);
   });
 
   it.each(["/grants", "/grants/woodland"])(
