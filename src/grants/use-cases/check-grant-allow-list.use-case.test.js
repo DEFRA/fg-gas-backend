@@ -22,7 +22,6 @@ const args = {
   sbi: "106000033",
   crn: "1042000000",
   caller: "grants-ui",
-  configVersion: "1.2.3",
 };
 const populated = {
   grantCode: "woodland",
@@ -147,15 +146,20 @@ describe("checkGrantAllowListUseCase", () => {
     },
   );
 
-  it("rolls forward within the caller's major before reading the list", async () => {
-    configDocuments.push(versionAt("1.3.0"), versionAt("2.0.0"));
-    grantDocuments.push(grantAt("1.3.0"), grantAt("2.0.0"));
+  it("loads the latest active definition across majors before reading the grant-wide list", async () => {
+    configDocuments.push(
+      versionAt("1.3.0"),
+      versionAt("2.0.0"),
+      versionAt("2.0.1"),
+      versionAt("3.0.0", "inactive"),
+    );
+    grantDocuments.push(grantAt("1.3.0"), grantAt("2.0.0"), grantAt("2.0.1"));
     await expect(checkGrantAllowListUseCase(args)).resolves.toEqual({
       allowed: true,
     });
     expect(grants.findOne).toHaveBeenCalledWith({
       code: "woodland",
-      version: "1.4.0",
+      version: "2.0.1",
     });
     expect(grants.findOne.mock.invocationCallOrder[0]).toBeLessThan(
       lists.findOne.mock.invocationCallOrder[0],
@@ -165,12 +169,7 @@ describe("checkGrantAllowListUseCase", () => {
 
   it.each([
     ["no catalogue", []],
-    ["inactive requested major", [versionAt("1.4.0", "inactive")]],
-    ["another active major", [versionAt("2.0.0")]],
-    [
-      "permanently failed requested major",
-      [versionAt("1.4.0", "active", FetchStatus.PermanentError)],
-    ],
+    ["only inactive definitions", [versionAt("1.4.0", "inactive")]],
   ])(
     "rejects historical grants with %s instead of accepting orphan lists",
     async (_, versions) => {
@@ -190,6 +189,18 @@ describe("checkGrantAllowListUseCase", () => {
       });
     },
   );
+
+  it("fails on a broken latest definition rather than falling back to an older active version", async () => {
+    configDocuments.push(
+      versionAt("2.0.0", "active", FetchStatus.PermanentError),
+    );
+    await expect(checkGrantAllowListUseCase(args)).rejects.toMatchObject({
+      output: { statusCode: 502 },
+    });
+    expect(lists.findOne).not.toHaveBeenCalled();
+    expect(grants.findOne).not.toHaveBeenCalled();
+    expect(writeAuditEvent.mock.calls[0][0].status).toBe("FAILURE");
+  });
 
   it("returns 404 for an unknown grant and never reads its list", async () => {
     grantDocuments = [];
@@ -220,10 +231,10 @@ describe("checkGrantAllowListUseCase", () => {
     });
   });
 
-  it("resolves a newly published minor on the next request", async () => {
+  it("resolves a newly published major on the next request", async () => {
     await checkGrantAllowListUseCase(args);
-    configDocuments.push(versionAt("1.5.0"));
-    grantDocuments.push(grantAt("1.5.0"));
+    configDocuments.push(versionAt("2.0.0"));
+    grantDocuments.push(grantAt("2.0.0"));
     await checkGrantAllowListUseCase(args);
     expect(grants.findOne).toHaveBeenNthCalledWith(1, {
       code: "woodland",
@@ -231,7 +242,7 @@ describe("checkGrantAllowListUseCase", () => {
     });
     expect(grants.findOne).toHaveBeenNthCalledWith(2, {
       code: "woodland",
-      version: "1.5.0",
+      version: "2.0.0",
     });
   });
 

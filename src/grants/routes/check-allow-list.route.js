@@ -35,7 +35,6 @@ export const checkAllowListRoute = {
     }
     const result = await checkGrantAllowListUseCase({
       ...request.params,
-      configVersion: request.query.configVersion,
       caller,
     });
     return h.response(result).header("Cache-Control", "no-store");

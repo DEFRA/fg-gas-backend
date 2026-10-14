@@ -9,8 +9,8 @@ import { GrantAllowList } from "../models/grant-allow-list.js";
 import { findByGrantCode } from "../repositories/grant-allow-list.repository.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
 
-const checkGrantAllowList = async ({ grantCode, sbi, crn, configVersion }) => {
-  const { grant } = await resolveAndFetchGrant(grantCode, configVersion);
+const checkGrantAllowList = async ({ grantCode, sbi, crn }) => {
+  const { grant } = await resolveAndFetchGrant(grantCode);
   const storedList = await findByGrantCode(grantCode);
   const allowList = GrantAllowList.forGrant({
     grantCode,

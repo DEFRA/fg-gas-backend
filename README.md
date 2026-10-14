@@ -329,14 +329,13 @@ Locally, set `SERVICE_ACCESS_TOKEN_HASH` in `.env` instead of the portal.
 #### Single Front Door allow-list access
 
 Grants UI uses its existing application-submission bearer token for
-`GET /api/allow-list/grants/{grantCode}/sbi/{sbi}/crn/{crn}?configVersion={version}`.
+`GET /api/allow-list/grants/{grantCode}/sbi/{sbi}/crn/{crn}`.
 Both identifiers are required: SBI must be nine digits and CRN ten digits.
-The caller must supply a full `configVersion`, such as `1.2.3`; a missing,
-empty or malformed version returns 400. GAS uses its existing resolver to
-select the latest active definition within the supplied major (for example,
-`1.2.3` can resolve to `1.4.0`, but not `2.0.0`). If no usable active
-version exists in that major, the check returns 404; historical definitions
-do not make the grant available for this check.
+No configuration version is required or accepted. GAS uses its shared grant
+resolver to select the latest active published definition across all major
+versions. If no active definition exists, the check returns 404; historical
+or inactive definitions do not make the grant available. A failure to load
+the latest definition produces an error rather than falling back to an older one.
 Each populated allow list must match; an empty list imposes no restriction.
 The allow list remains global to the grant, not specific to a definition version.
 The response is `{ "allowed": true }` or `{ "allowed": false }`.

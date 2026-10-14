@@ -1,5 +1,4 @@
 import Joi from "joi";
-import { configVersion } from "../application/metadata/config-version.js";
 import { code } from "../grant/code.js";
 
 export const checkAllowListRequestSchema = Joi.object({
@@ -12,6 +11,4 @@ export const checkAllowListRequestSchema = Joi.object({
     .required(),
 });
 
-export const checkAllowListQuerySchema = Joi.object({
-  configVersion: configVersion.required(),
-});
+export const checkAllowListQuerySchema = Joi.object({}).unknown(false);
