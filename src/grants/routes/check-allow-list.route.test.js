@@ -83,6 +83,7 @@ describe("allow-list routes", () => {
   ])("rejects unsupported query parameters: %s", async (query) => {
     const response = await server.inject({ url: `${uri}?${query}`, headers });
     expect(response.statusCode).toBe(400);
+    expect(response.headers["cache-control"]).toBe("no-store");
     expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
   });
 
@@ -122,9 +123,22 @@ describe("allow-list routes", () => {
         headers: authorization ? { authorization } : {},
       });
       expect(response.statusCode).toBe(401);
+      expect(response.headers["cache-control"]).toBe("no-store");
       expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
     },
   );
+
+  it("prevents caching authentication errors on the omitted-identifier route", async () => {
+    const response = await server.inject({ url: base });
+    expect(response.statusCode).toBe(401);
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("prevents caching unknown paths within the allow-list API", async () => {
+    const response = await server.inject({ url: `${base}/unrelated`, headers });
+    expect(response.statusCode).toBe(404);
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
 
   it("preserves leading zeroes in both identifiers", async () => {
     const response = await server.inject({
@@ -146,6 +160,7 @@ describe("allow-list routes", () => {
       headers: { authorization: "Bearer test-unidentified-token" },
     });
     expect(response.statusCode).toBe(401);
+    expect(response.headers["cache-control"]).toBe("no-store");
     expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
     expect(response.result).not.toHaveProperty("allowed");
   });
@@ -161,6 +176,7 @@ describe("allow-list routes", () => {
   ])("returns 400 for malformed input %s", async (url) => {
     const response = await server.inject({ url, headers });
     expect(response.statusCode).toBe(400);
+    expect(response.headers["cache-control"]).toBe("no-store");
     expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
   });
 
@@ -176,6 +192,7 @@ describe("allow-list routes", () => {
   ])("returns 400 for an omitted identifier %s", async (url) => {
     const response = await server.inject({ url, headers });
     expect(response.statusCode).toBe(400);
+    expect(response.headers["cache-control"]).toBe("no-store");
     expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
   });
 
@@ -192,7 +209,9 @@ describe("allow-list routes", () => {
     checkGrantAllowListUseCase.mockRejectedValue(
       Boom.notFound("Unknown grant"),
     );
-    expect((await server.inject({ url: uri, headers })).statusCode).toBe(404);
+    const response = await server.inject({ url: uri, headers });
+    expect(response.statusCode).toBe(404);
+    expect(response.headers["cache-control"]).toBe("no-store");
   });
 
   it.each(["storage failed", "audit failed"])(
@@ -201,6 +220,7 @@ describe("allow-list routes", () => {
       checkGrantAllowListUseCase.mockRejectedValue(new Error(message));
       const response = await server.inject({ url: uri, headers });
       expect(response.statusCode).toBe(500);
+      expect(response.headers["cache-control"]).toBe("no-store");
       expect(response.result).not.toHaveProperty("allowed");
     },
   );
@@ -210,6 +230,8 @@ describe("allow-list routes", () => {
       allowed: true,
       global: { sbi: ["106000033"] },
     });
-    expect((await server.inject({ url: uri, headers })).statusCode).toBe(500);
+    const response = await server.inject({ url: uri, headers });
+    expect(response.statusCode).toBe(500);
+    expect(response.headers["cache-control"]).toBe("no-store");
   });
 });

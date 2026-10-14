@@ -22,6 +22,7 @@ export const checkAllowListRoute = {
     description:
       "Check whether applicant identifiers satisfy a grant allow list",
     tags: ["api"],
+    cache: { otherwise: "no-store" },
     validate: {
       params: checkAllowListRequestSchema,
       query: checkAllowListQuerySchema,
@@ -37,13 +38,16 @@ export const checkAllowListRoute = {
       ...request.params,
       caller,
     });
-    return h.response(result).header("Cache-Control", "no-store");
+    return h.response(result);
   },
 };
 
 export const missingAllowListIdentifiersRoute = {
   method: "GET",
   path: `${base}/{remainder*}`,
+  options: {
+    cache: { otherwise: "no-store" },
+  },
   handler(request) {
     if (isOmittedIdentifier(request.params.remainder)) {
       throw Boom.badRequest("Both SBI and CRN are required");
