@@ -6,11 +6,13 @@ import { getClaimRoute } from "./routes/get-claim.route.js";
 import { getClaimsRoute } from "./routes/get-claims.route.js";
 import { getEntitlementRoute } from "./routes/get-entitlement.route.js";
 import { getEventRoute } from "./routes/get-event.route.js";
+import { getAllowListRoute } from "./routes/get-allow-list.route.js";
 import { purgeEventRoute } from "./routes/purge-event.route.js";
 import { viewApplicationEventsRoute } from "./routes/view-application-events.route.js";
 import { viewApplicationOverviewRoute } from "./routes/view-application-overview.route.js";
 import { viewApplicationRawRoute } from "./routes/view-application-raw.route.js";
 import { redriveEventRoute } from "./routes/redrive-event.route.js";
+import { replaceAllowListRoute } from "./routes/replace-allow-list.route.js";
 import { searchApplicationsRoute } from "./routes/search-applications.route.js";
 import { searchCasesRoute } from "./routes/search-cases.route.js";
 import { viewCaseEventsRoute } from "./routes/view-case-events.route.js";
@@ -34,6 +36,8 @@ export const grantAdmin = {
       updateEntitlementRoute,
       eventsPageRoute,
       getEventRoute,
+      getAllowListRoute,
+      replaceAllowListRoute,
       redriveEventRoute,
       purgeEventRoute,
       editPayloadRoute,

@@ -45,6 +45,9 @@ export const auditActions = {
   SEARCH_APPLICATIONS: "SEARCH_APPLICATIONS",
   // One tab of one application in Grant Admin.
   VIEW_APPLICATION: "VIEW_APPLICATION",
+  VIEW_ALLOW_LIST: "VIEW_ALLOW_LIST",
+  CHECK_ALLOW_LIST: "CHECK_ALLOW_LIST",
+  REPLACE_ALLOW_LIST: "REPLACE_ALLOW_LIST",
   // Grant Admin's Cases list, read from Caseworking: one row per page.
   SEARCH_CASES: "SEARCH_CASES",
   // One tab of one case in Grant Admin.

@@ -2,8 +2,7 @@ import jsonata from "jsonata";
 
 const isRef = (value) => typeof value === "string" && value.startsWith("$.");
 
-export const isPlainObject = (value) =>
-  value !== null && typeof value === "object";
+const isPlainObject = (value) => value !== null && typeof value === "object";
 
 const resolveArray = (value, context) =>
   Promise.all(value.map((item) => resolveEffectParams(item, context)));

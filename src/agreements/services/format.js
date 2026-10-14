@@ -2,22 +2,24 @@ const isNumeric = (value) =>
   typeof value === "number" ||
   (typeof value === "string" && value.trim() !== "");
 
-const poundsNoDecimals = (value) => {
+const toAmount = (value, formatName) => {
   const amount = isNumeric(value) ? Number(value) : Number.NaN;
 
   if (Number.isNaN(amount)) {
-    throw new TypeError(`Cannot format "${value}" as poundsNoDecimals`);
+    throw new TypeError(`Cannot format "${value}" as ${formatName}`);
   }
+
+  return amount;
+};
+
+const poundsNoDecimals = (value) => {
+  const amount = toAmount(value, "poundsNoDecimals");
 
   return `£${Math.round(amount).toLocaleString("en-GB")}`;
 };
 
 const poundsFromPence = (value) => {
-  const amount = isNumeric(value) ? Number(value) : Number.NaN;
-
-  if (Number.isNaN(amount)) {
-    throw new TypeError(`Cannot format "${value}" as poundsFromPence`);
-  }
+  const amount = toAmount(value, "poundsFromPence");
 
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
