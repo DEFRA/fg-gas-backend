@@ -6,7 +6,7 @@ This folder contains three kinds of modules:
 - Transactional application services that coordinate Grants repositories and domain objects for a complete operation.
 - Read-model query services: non-transactional, they return plain data and never domain objects. They are the seam for an adapter's read paths.
 
-`entitlement.service.js` and `claims.service.js` are the transactional application services for entitlement and claim work. They own their Mongo transactions and pass the active session to every repository operation that participates in the command. They are the only Grants entry points used by the `grant-admin` inbound adapter for this work.
+`entitlement.service.js`, `claims.service.js` and `allow-list.service.js` are the transactional application-service entry points used by the `grant-admin` inbound adapter. The owning operations keep domain models behind these service boundaries and pass the active Mongo session to every repository operation that participates in a command.
 
 Application services may import domain models to coordinate an operation. Domain models remain independent of application services, repositories, routes, and subscriptions. When an application service needs Agreement data for reference resolution, it uses the reviewed Agreements reference-context query, which returns plain data and accepts the active session.
 

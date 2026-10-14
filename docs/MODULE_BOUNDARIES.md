@@ -2,22 +2,22 @@
 
 ## Bounded Contexts
 
-| Module           | Path                  | Description                                                       |
-| ---------------- | --------------------- | ----------------------------------------------------------------- |
-| `grants`         | `src/grants/`         | Grants and Application sub-domain (grant lifecycle, applications) |
-| `agreements`     | `src/agreements/`     | Agreements domain (separate bounded context)                      |
-| `payments`       | `src/payments/`       | Payments domain (Payments, claim IDs, invoice numbering)          |
-| `grant-admin`    | `src/grant-admin/`    | Inbound admin adapter for Entitlement, Claim and Application work |
-| `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes     |
-| `auth`           | `src/auth/`           | Authentication and authorisation                                  |
-| `common`         | `src/common/`         | Shared infrastructure and context-neutral mapping utilities       |
-| `events`         | `src/events/`         | Shared event domain: what an inbox/outbox event IS and means      |
+| Module           | Path                  | Description                                                                                     |
+| ---------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
+| `grants`         | `src/grants/`         | Grants and Application sub-domain (grant lifecycle, applications)                               |
+| `agreements`     | `src/agreements/`     | Agreements domain (separate bounded context)                                                    |
+| `payments`       | `src/payments/`       | Payments domain (Payments, claim IDs, invoice numbering)                                        |
+| `grant-admin`    | `src/grant-admin/`    | Backend-for-frontend (BFF) for `fg-grants-platform-admin`'s admin screens - not a domain module |
+| `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes                                   |
+| `auth`           | `src/auth/`           | Authentication and authorisation                                                                |
+| `common`         | `src/common/`         | Shared infrastructure and context-neutral mapping utilities                                     |
+| `events`         | `src/events/`         | Shared event domain: what an inbox/outbox event IS and means                                    |
 
 ## Forbidden Imports
 
 `agreements`, `grants` and `payments` must not directly import each other's internals (models, repositories, use-cases, services, routes, schemas, etc.). The boundary is enforced in both directions, except for explicitly documented reviewed seams below. Direct cross-module imports create hidden coupling that prevents either context from evolving independently.
 
-`grant-admin` is an inbound adapter, not a peer domain module. It validates and maps HTTP/UI concerns but does not access Grants models, repositories, schemas, use cases, or general services. Its only Grants entry points are `grants/services/entitlement.service.js` and `grants/services/claims.service.js` for entitlement and claim work, and `grants/services/application-read.service.js` for reading applications. `grants` never imports from `grant-admin`, and `grant-admin` does not import from `agreements`.
+`grant-admin` is a backend-for-frontend (BFF) for `fg-grants-platform-admin`, not a peer domain module - it shapes screens, `grants` owns the rules. It validates and maps HTTP/UI concerns only: no access to Grants models, repositories, schemas, use cases or general services. Its only way into Grants is four reviewed services - `entitlement.service.js`, `claims.service.js`, `application-read.service.js`, `allow-list.service.js`. `grants` never imports from `grant-admin`, and `grant-admin` never imports from `agreements`. See [View models vs. services](#view-models-vs-services) for the same split enforced inside `grant-admin` itself.
 
 `payments` knows nothing about the modules that source a Payment: it never imports `agreements` or `grants`, and it takes the identifiers it needs as plain values.
 
@@ -52,6 +52,7 @@ event module directly:
 | `grant-admin` | `grants/services/entitlement.service.js`             | Entitlement overview, creation and update operations                     |
 | `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup, Claim submission and submitted-Claim reads |
 | `grant-admin` | `grants/services/application-read.service.js`        | Read-only Applications list, application documents, series and codes     |
+| `grant-admin` | `grants/services/allow-list.service.js`              | Audited grant allow-list reads and transactional whole-list replacement  |
 | `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                   |
 | `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: list, inspect, redrive, purge and edit GAS inbound events   |
 | `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: list, inspect, redrive, purge and edit GAS outbound events  |
@@ -60,6 +61,32 @@ The Claims page is a read-model join across two contexts: Grants resolves a
 Claim against the template it was made under, Payments answers whether it has
 raised a Payment, and `grant-admin` puts the two together. Neither context
 imports the other.
+
+### View models vs. services
+
+`grant-admin` is a BFF (see above) - so its own code has to stay a BFF too, not
+quietly grow a second domain layer.
+
+`services/` is a flat catch-all. Some of it just shapes a view
+(`build-claims-view.js`, `build-banner.js`); some of it does more
+(`claims-access.js` reads request headers and throws Boom). Nothing stops a
+`services/` file reaching into a repository or a domain service directly -
+that split is a naming convention, not a rule.
+
+`view-models/` is the enforced version: `import-x/no-restricted-paths` lets a
+file there import only another view-model, nothing else. A route still does
+both steps - resolve data via `services/` or a domain entry point, then shape
+it via `view-models/` - the same two steps `get-claims.route.js` already
+takes with `build-claims-view.js`.
+
+This is where we want all of `grant-admin`'s screen-shaping to land, one
+screen at a time. `build-allow-list-view.js` is the first, since it was new
+work rather than a migration. Claims is next: `claims-access.js`'s
+full/view-only/hidden decision is already duplicated verbatim in GPA,
+because `grant-admin` computes it for its own check but never returns it.
+Moving `build-claims-view.js` and `claims-access.js` onto `view-models/` -
+and actually returning that decision - is the next follow-up PR. Events,
+cases and applications follow the same path after that, each its own change.
 
 ### Events domain
 
