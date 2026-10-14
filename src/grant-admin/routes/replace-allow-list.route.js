@@ -1,13 +1,10 @@
 import Boom from "@hapi/boom";
 import { replaceGrantAllowList } from "../../grants/services/allow-list.service.js";
-import {
-  adminReadHeadersSchema,
-  claimsHeadersSchema,
-} from "../schemas/actor-header.schema.js";
-import { userRolesOf } from "../services/claims-access.js";
+import { adminReadHeadersSchema } from "../schemas/actor-header.schema.js";
 import { allowListParamsSchema } from "../schemas/allow-list-params.schema.js";
 import { allowListViewSchema } from "../schemas/allow-list-view.schema.js";
 import { replaceAllowListRequestSchema } from "../schemas/replace-allow-list-request.schema.js";
+import { findOperatorRoles } from "../services/operator-roles.js";
 import { callerOf } from "../services/request-caller.js";
 import {
   safeFailAction,
@@ -34,7 +31,7 @@ export const replaceAllowListRoute = {
     tags: ["api"],
     validate: {
       params: allowListParamsSchema,
-      headers: adminReadHeadersSchema.concat(claimsHeadersSchema),
+      headers: adminReadHeadersSchema,
       payload: replaceAllowListRequestSchema,
       failAction: safeFailAction(LABEL),
     },
@@ -51,7 +48,7 @@ export const replaceAllowListRoute = {
         grantCode: request.params.code,
         global,
         caller: callerOf(request),
-        userRoles: userRolesOf(request),
+        findUserRoles: findOperatorRoles,
       });
 
       return buildAllowListView({ allowList });

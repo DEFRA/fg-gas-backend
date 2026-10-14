@@ -31,19 +31,7 @@ export const satisfies = (heldRoles, requirements) => {
   return allHeld(held, allOf) && anyHeld(held, anyOf);
 };
 
-/**
- * Resolves the access tier a user gets for claims on a grant.
- *
- * - `full` when the user satisfies `claims.requiredRoles` (or when the grant
- *   has not configured any claims roles - opt-in model).
- * - `view-only` when the user exists in CW (has any roles) but does not
- *   satisfy `claims.requiredRoles`.
- * - `hidden` when the user has no CW roles at all (unknown user or no roles).
- */
-export const resolveClaimsAccess = (heldRoles, claimsRequiredRoles) => {
-  if (!claimsRequiredRoles) {
-    return ACCESS_FULL;
-  }
+const accessFor = (heldRoles, claimsRequiredRoles) => {
   if (!hasRoles(heldRoles)) {
     return ACCESS_HIDDEN;
   }
@@ -55,20 +43,25 @@ export const resolveClaimsAccess = (heldRoles, claimsRequiredRoles) => {
 };
 
 /**
- * Parse the comma-separated `x-user-roles` header into a role array.
- * An absent or blank header means "no roles known" (empty array). Trusted
- * because `requireAdminClient` already guarantees the caller is GPA.
+ * Resolves the access tier the operator gets for claims on a grant.
+ *
+ * - `full` when the grant has not configured any claims roles (opt-in model),
+ *   without reading the operator's roles, or when the operator satisfies them.
+ * - `view-only` when the operator has Caseworking roles but not these.
+ * - `hidden` when the operator has no Caseworking roles at all.
+ *
+ * `findHeldRoles` answers the operator's roles, or rejects when they cannot be
+ * determined.
  */
-export const userRolesOf = (request) => {
-  const header = request.headers["x-user-roles"];
-  if (!header || typeof header !== "string") {
-    return [];
+export const resolveClaimsAccess = async (
+  claimsRequiredRoles,
+  findHeldRoles,
+) => {
+  if (!claimsRequiredRoles) {
+    return ACCESS_FULL;
   }
 
-  return header
-    .split(",")
-    .map((role) => role.trim())
-    .filter(Boolean);
+  return accessFor(await findHeldRoles(), claimsRequiredRoles);
 };
 
 export const assertFullAccess = (access) => {

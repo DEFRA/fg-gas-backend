@@ -1,11 +1,8 @@
 import { getGrantAllowList } from "../../grants/services/allow-list.service.js";
-import {
-  adminReadHeadersSchema,
-  claimsHeadersSchema,
-} from "../schemas/actor-header.schema.js";
-import { userRolesOf } from "../services/claims-access.js";
+import { adminReadHeadersSchema } from "../schemas/actor-header.schema.js";
 import { allowListParamsSchema } from "../schemas/allow-list-params.schema.js";
 import { allowListViewSchema } from "../schemas/allow-list-view.schema.js";
+import { findOperatorRoles } from "../services/operator-roles.js";
 import { callerOf } from "../services/request-caller.js";
 import {
   safeFailAction,
@@ -24,7 +21,7 @@ export const getAllowListRoute = {
     cache: { otherwise: "no-store" },
     validate: {
       params: allowListParamsSchema,
-      headers: adminReadHeadersSchema.concat(claimsHeadersSchema),
+      headers: adminReadHeadersSchema,
       failAction: safeFailAction(LABEL),
     },
     response: {
@@ -36,7 +33,7 @@ export const getAllowListRoute = {
     const allowList = await getGrantAllowList({
       grantCode: request.params.code,
       caller: callerOf(request),
-      userRoles: userRolesOf(request),
+      findUserRoles: findOperatorRoles,
     });
 
     return buildAllowListView({ allowList });

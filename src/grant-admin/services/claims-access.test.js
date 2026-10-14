@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ACCESS_FULL,
   ACCESS_HIDDEN,
@@ -7,7 +7,6 @@ import {
   assertNotHidden,
   resolveClaimsAccess,
   satisfies,
-  userRolesOf,
 } from "./claims-access.js";
 
 describe("satisfies", () => {
@@ -33,52 +32,53 @@ describe("satisfies", () => {
 
 describe("resolveClaimsAccess", () => {
   const claimsRoles = { allOf: ["ROLE_WMP", "ROLE_WMP_CLAIMS"], anyOf: [] };
+  const findHeldRoles = vi.fn();
 
-  it("is full when no claims roles are configured (opt-in model)", () => {
-    expect(resolveClaimsAccess(["ANY"], null)).toBe(ACCESS_FULL);
-    expect(resolveClaimsAccess([], undefined)).toBe(ACCESS_FULL);
-  });
-
-  it("is full when user satisfies claimsRequiredRoles", () => {
-    expect(
-      resolveClaimsAccess(["ROLE_WMP", "ROLE_WMP_CLAIMS"], claimsRoles),
-    ).toBe(ACCESS_FULL);
-  });
-
-  it("is view-only when user has roles but not the claims roles", () => {
-    expect(resolveClaimsAccess(["ROLE_WMP"], claimsRoles)).toBe(
-      ACCESS_VIEW_ONLY,
+  it("is full without reading the operator's roles when no claims roles are configured", async () => {
+    await expect(resolveClaimsAccess(null, findHeldRoles)).resolves.toBe(
+      ACCESS_FULL,
     );
-    expect(resolveClaimsAccess(["ROLE_OTHER"], claimsRoles)).toBe(
-      ACCESS_VIEW_ONLY,
+    await expect(resolveClaimsAccess(undefined, findHeldRoles)).resolves.toBe(
+      ACCESS_FULL,
+    );
+    expect(findHeldRoles).not.toHaveBeenCalled();
+  });
+
+  it("is full when the operator satisfies claimsRequiredRoles", async () => {
+    findHeldRoles.mockResolvedValue(["ROLE_WMP", "ROLE_WMP_CLAIMS"]);
+
+    await expect(resolveClaimsAccess(claimsRoles, findHeldRoles)).resolves.toBe(
+      ACCESS_FULL,
+    );
+    expect(findHeldRoles).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([[["ROLE_WMP"]], [["ROLE_OTHER"]]])(
+    "is view-only when the operator holds %j but not the claims roles",
+    async (heldRoles) => {
+      findHeldRoles.mockResolvedValue(heldRoles);
+
+      await expect(
+        resolveClaimsAccess(claimsRoles, findHeldRoles),
+      ).resolves.toBe(ACCESS_VIEW_ONLY);
+    },
+  );
+
+  it("is hidden when the operator has no roles at all", async () => {
+    findHeldRoles.mockResolvedValue([]);
+
+    await expect(resolveClaimsAccess(claimsRoles, findHeldRoles)).resolves.toBe(
+      ACCESS_HIDDEN,
     );
   });
 
-  it("is hidden when user has no roles at all", () => {
-    expect(resolveClaimsAccess([], claimsRoles)).toBe(ACCESS_HIDDEN);
-    expect(resolveClaimsAccess(null, claimsRoles)).toBe(ACCESS_HIDDEN);
-  });
-});
+  it("passes on a failure to determine the operator's roles", async () => {
+    const failure = new Error("roles unknown");
+    findHeldRoles.mockRejectedValue(failure);
 
-describe("userRolesOf", () => {
-  it("parses comma-separated roles from x-user-roles header", () => {
-    expect(
-      userRolesOf({ headers: { "x-user-roles": "ROLE_A,ROLE_B" } }),
-    ).toEqual(["ROLE_A", "ROLE_B"]);
-  });
-
-  it("trims whitespace", () => {
-    expect(
-      userRolesOf({ headers: { "x-user-roles": " ROLE_A , ROLE_B " } }),
-    ).toEqual(["ROLE_A", "ROLE_B"]);
-  });
-
-  it("returns empty array when header is absent", () => {
-    expect(userRolesOf({ headers: {} })).toEqual([]);
-  });
-
-  it("returns empty array when header is empty string", () => {
-    expect(userRolesOf({ headers: { "x-user-roles": "" } })).toEqual([]);
+    await expect(resolveClaimsAccess(claimsRoles, findHeldRoles)).rejects.toBe(
+      failure,
+    );
   });
 });
 
