@@ -328,41 +328,16 @@ Locally, set `SERVICE_ACCESS_TOKEN_HASH` in `.env` instead of the portal.
 
 #### Single Front Door allow-list access
 
-Grants UI uses its existing application-submission bearer token for
-`GET /api/allow-list/grants/{grantCode}/sbi/{sbi}/crn/{crn}`.
-Both identifiers are required: SBI must be nine digits and CRN ten digits.
-No configuration version is required or accepted. GAS uses its shared grant
-resolver to select the latest active published definition across all major
-versions. If no active definition exists, the check returns 404; historical
-or inactive definitions do not make the grant available. A failure to load
-the latest definition produces an error rather than falling back to an older one.
-Each populated allow list must match; an empty list imposes no restriction.
-The allow list remains global to the grant, not specific to a definition version.
-The response is `{ "allowed": true }` or `{ "allowed": false }`.
-A server error means eligibility could not be checked, not permission to proceed.
+`GET /api/allow-list/grants/{grantCode}/sbi/{sbi}/crn/{crn}` requires a bearer
+token, a nine-digit SBI and a ten-digit CRN. Grants UI uses its existing
+application-submission token. No configuration version is accepted; GAS resolves
+the latest active published definition across all major versions and returns 404
+if none exists. Each populated allow list must match; an empty list imposes no
+restriction. The response is `{ "allowed": true }` or `{ "allowed": false }`.
+All responses use `Cache-Control: no-store`. A server error means eligibility
+could not be checked.
 
-Single Front Door must have its own credential. Generate it offline once per
-environment, in a trusted terminal whose output is not shared or logged:
-
-```bash
-npm run token:new -- single-front-door
-```
-
-The client name is an example; the configured pair determines its identity.
-Install the printed `client:hash` pair using GAS's existing `SERVICE_ACCESS_TOKEN_HASH`
-secret and the raw bearer token in SFD's secure secret store. Redeploy GAS,
-then SFD, and verify authenticated access in that environment. Locally, the
-hashed pair can be set in GAS's `.env`.
-
-Use the existing per-client provisioning process above: set the pair for SFD
-and redeploy GAS. The seeder writes SFD's record to `access_tokens` without
-changing other clients' records. Issuing or rotating SFD's credential does
-not require a new configuration setting or authentication mechanism.
-
-Live provisioning is a separate deployment step: identify the target
-environment and secure secret destinations before generating a token.
-Passing tests with synthetic SFD credentials does not mean a live credential
-has been installed.
+SFD gets its own client pair via the existing provisioning process above.
 
 #### Revoke
 
