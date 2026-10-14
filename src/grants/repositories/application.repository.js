@@ -135,10 +135,6 @@ export const findByClientRefAndCode = async ({ clientRef, code }, session) => {
     .collection(collection)
     .findOne({ clientRef, code }, { session });
 
-  if (doc === null) {
-    return null;
-  }
-
   return doc && toApplication(doc);
 };
 

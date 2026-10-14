@@ -207,7 +207,7 @@ const concurrencyLoss = (error) => {
 export const isAgreementActionConcurrencyLoss = (error) =>
   error.data?.agreementActionConcurrencyLoss === true;
 
-const commitAgreementActionAttempt = async (options) => {
+export const commitAgreementAction = async (options) => {
   const paymentRequested = hasPaymentCommitOperation(
     options.next.commitOperations,
   );
@@ -228,8 +228,6 @@ const commitAgreementActionAttempt = async (options) => {
     ? resolveConcurrentUpdate(toConcurrentOptions(options))
     : result;
 };
-
-export const commitAgreementAction = commitAgreementActionAttempt;
 
 const validationFailure = () =>
   Boom.badRequest("Agreement action validation failed");
