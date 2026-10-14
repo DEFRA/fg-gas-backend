@@ -10,14 +10,14 @@ import { findByGrantCode } from "../repositories/grant-allow-list.repository.js"
 import { resolveGrantAdministration } from "./resolve-grant-administration.use-case.js";
 
 const getGrantAllowList = async (args) => {
-  const grant = await resolveGrantAdministration(args);
+  await resolveGrantAdministration(args);
   const { grantCode } = args;
 
   const allowList =
     (await findByGrantCode(grantCode)) ??
     GrantAllowList.unrestricted(grantCode);
 
-  return { ...allowList.toJSON(), adminRole: grant.admin.role };
+  return allowList.toJSON();
 };
 
 const buildGetGrantAllowListAudit = ({ grantCode, caller }, result) =>

@@ -19,7 +19,6 @@ const countsOf = ({ global }) => ({
 });
 
 const replaceGrantAllowList = async (args, session) => {
-  const grant = await resolveGrantAdministration(args, session);
   const { grantCode, global } = args;
 
   const allowList =
@@ -32,7 +31,7 @@ const replaceGrantAllowList = async (args, session) => {
   await replace(allowList, session);
 
   return {
-    representation: { ...allowList.toJSON(), adminRole: grant.admin.role },
+    representation: allowList.toJSON(),
     previousCounts,
     previousGlobal,
   };
@@ -89,7 +88,18 @@ const replaceGrantAllowListWithAudit = withAudit(
   buildReplaceGrantAllowListAudit,
 );
 
+// Resolution can fetch and cache a definition from S3. Only failed resolution
+// attempts are audited here; successful replacements are audited in the write
+// transaction below.
+const resolveGrantAdministrationWithAudit = withAudit(
+  resolveGrantAdministration,
+  (args, result, error) =>
+    error ? buildReplaceGrantAllowListAudit(args, result, error) : null,
+);
+
 export const replaceGrantAllowListUseCase = async (args) => {
+  await resolveGrantAdministrationWithAudit(args);
+
   const result = await withTransaction((session) =>
     replaceGrantAllowListWithAudit(args, session),
   );

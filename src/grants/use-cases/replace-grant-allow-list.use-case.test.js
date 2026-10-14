@@ -41,6 +41,7 @@ describe("replaceGrantAllowListUseCase", () => {
     await expect(
       replaceGrantAllowListUseCase({ ...args, userRoles: [] }),
     ).rejects.toMatchObject({ output: { statusCode: 403 } });
+    expect(withTransaction).not.toHaveBeenCalled();
     expect(findByGrantCode).not.toHaveBeenCalled();
     expect(replace).not.toHaveBeenCalled();
     expect(writeAuditEvent.mock.calls[0][0]).toMatchObject({
@@ -52,12 +53,58 @@ describe("replaceGrantAllowListUseCase", () => {
   it("checks the grant before opening or saving its allow list", async () => {
     await replaceGrantAllowListUseCase(args);
 
-    expect(resolveGrantAdministration).toHaveBeenCalledWith(args, session);
+    expect(resolveGrantAdministration).toHaveBeenCalledWith(args);
     expect(resolveGrantAdministration.mock.invocationCallOrder[0]).toBeLessThan(
       findByGrantCode.mock.invocationCallOrder[0],
     );
     expect(findByGrantCode.mock.invocationCallOrder[0]).toBeLessThan(
       replace.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("waits for definition resolution before starting the replacement transaction", async () => {
+    let finishResolution;
+    resolveGrantAdministration.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishResolution = resolve;
+        }),
+    );
+
+    const pending = replaceGrantAllowListUseCase(args);
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(findByGrantCode).not.toHaveBeenCalled();
+
+    finishResolution({ admin: { role: "ROLE_WOODLAND_ADMIN" } });
+    await pending;
+
+    expect(withTransaction).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith(expect.any(GrantAllowList), session);
+    expect(writeAuditEvent).toHaveBeenCalledTimes(1);
+    expect(writeAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "SUCCESS" }),
+      session,
+    );
+  });
+
+  it("audits a definition fetch failure without starting a transaction", async () => {
+    const failure = Boom.serverUnavailable("S3 included 106000033");
+    resolveGrantAdministration.mockRejectedValue(failure);
+
+    await expect(replaceGrantAllowListUseCase(args)).rejects.toBe(failure);
+
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+    expect(writeAuditEvent).toHaveBeenCalledTimes(1);
+    expect(writeAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "FAILURE",
+        details: {
+          caller: "fg-grants-platform-admin",
+          errorCode: "UNEXPECTED_FAILURE",
+        },
+      }),
+      null,
     );
   });
 
@@ -73,7 +120,6 @@ describe("replaceGrantAllowListUseCase", () => {
     expect(findByGrantCode).toHaveBeenCalledWith("woodland", session);
     expect(replace).toHaveBeenCalledWith(expect.any(GrantAllowList), session);
     expect(result).toEqual({
-      adminRole: "ROLE_WOODLAND_ADMIN",
       grantCode: "woodland",
       global: args.global,
     });
@@ -205,6 +251,7 @@ describe("replaceGrantAllowListUseCase", () => {
       caller: "fg-grants-platform-admin",
       errorCode: "GRANT_NOT_FOUND",
     });
+    expect(withTransaction).not.toHaveBeenCalled();
     expect(findByGrantCode).not.toHaveBeenCalled();
     expect(replace).not.toHaveBeenCalled();
   });

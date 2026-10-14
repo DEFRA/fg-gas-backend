@@ -18,7 +18,6 @@ vi.mock("../../grants/services/allow-list.service.js");
 const ACTOR_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 const HEADERS = { "x-actor": "Jo Operator", "x-actor-id": ACTOR_ID };
 const ALLOW_LIST = {
-  adminRole: "ROLE_WOODLAND_ADMIN",
   grantCode: "woodland",
   global: { sbi: ["106000033"], crn: ["1042000000"] },
 };

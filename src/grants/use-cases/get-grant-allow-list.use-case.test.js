@@ -47,7 +47,6 @@ describe("getGrantAllowListUseCase", () => {
   it("asserts grant existence before reading and returns stored data", async () => {
     await expect(getGrantAllowListUseCase(args)).resolves.toEqual({
       ...stored.toJSON(),
-      adminRole: "ROLE_WOODLAND_ADMIN",
     });
 
     expect(resolveGrantAdministration).toHaveBeenCalledWith(args);
@@ -62,7 +61,6 @@ describe("getGrantAllowListUseCase", () => {
 
     await expect(getGrantAllowListUseCase(args)).resolves.toEqual({
       grantCode: "woodland",
-      adminRole: "ROLE_WOODLAND_ADMIN",
       global: { sbi: [], crn: [] },
     });
   });

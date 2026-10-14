@@ -46,7 +46,7 @@ describe("replaceAllowListRoute", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     replaceGrantAllowList.mockImplementation(({ grantCode, global }) =>
-      Promise.resolve({ grantCode, global, adminRole: "ROLE_WOODLAND_ADMIN" }),
+      Promise.resolve({ grantCode, global }),
     );
   });
 
