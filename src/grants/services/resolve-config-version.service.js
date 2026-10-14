@@ -169,35 +169,26 @@ const fetchAndStoreGrant = async (
   return grant;
 };
 
-const findStoredGrant = async (
-  configVersion,
-  grantCode,
-  resolvedVersion,
-  session,
-) => {
+const findStoredGrant = async (configVersion, grantCode, resolvedVersion) => {
   if (configVersion.fetchStatus !== FetchStatus.Fetched) {
     return null;
   }
 
-  const existingGrant = await findByCode(grantCode, resolvedVersion, session);
+  const existingGrant = await findByCode(grantCode, resolvedVersion);
   if (existingGrant) {
     logger.info(`Resolved ${grantCode}@${resolvedVersion} from cache`);
   }
   return existingGrant;
 };
 
-const resolveConfigVersion = async (grantCode, requestedVersion, session) => {
+const resolveConfigVersion = async (grantCode, requestedVersion) => {
   const parsed = parseSemver(requestedVersion);
   if (!parsed) {
     throw Boom.badRequest(`Invalid semver version: ${requestedVersion}`);
   }
 
   // Roll forward to the latest active version within the same major.
-  const configVersion = await findLatestForMajor(
-    grantCode,
-    parsed.major,
-    session,
-  );
+  const configVersion = await findLatestForMajor(grantCode, parsed.major);
 
   if (!configVersion) {
     throw Boom.notFound(
@@ -210,18 +201,11 @@ const resolveConfigVersion = async (grantCode, requestedVersion, session) => {
 
 // Without a requested version, resolve the highest active published definition
 // across all majors. A requested version keeps the existing major boundary.
-// `session` scopes database reads only. A cache miss can fetch from S3 and
-// write the cache outside that session, so callers must resolve the definition
-// before opening a write transaction.
-export const resolveAndFetchGrant = async (
-  grantCode,
-  requestedVersion,
-  session,
-) => {
+export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
   const configVersion =
     requestedVersion === undefined
-      ? await findLatestActive(grantCode, session)
-      : await resolveConfigVersion(grantCode, requestedVersion, session);
+      ? await findLatestActive(grantCode)
+      : await resolveConfigVersion(grantCode, requestedVersion);
 
   if (!configVersion) {
     throw Boom.notFound(`No active config version found for ${grantCode}`);
@@ -236,7 +220,6 @@ export const resolveAndFetchGrant = async (
     configVersion,
     grantCode,
     resolvedVersion,
-    session,
   );
   if (cached) {
     return {

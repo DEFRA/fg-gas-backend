@@ -8,13 +8,12 @@ const collection = "config_versions";
 // Resolves the highest active published version across all majors when the
 // caller has no pinned version. Keep failed definitions selectable so loading
 // refuses the current definition rather than silently falling back to an older one.
-export const findLatestActive = async (grantCode, session) =>
+export const findLatestActive = async (grantCode) =>
   ConfigVersion.fromDocument(
     await db.collection(collection).findOne(
       { grantCode, status: "active" },
       {
         sort: { major: -1, minor: -1, patch: -1 },
-        ...(session ? { session } : {}),
       },
     ),
   );
@@ -84,7 +83,7 @@ export const upsert = async (
 // Lazy filter: only excludes PermanentError so an uncached newer version is
 // still selectable and triggers an on-demand S3 fetch. Do not require s3Key:
 // seeded 0.0.0 rows have a null key and resolve their already-cached Grant.
-export const findLatestForMajor = async (grantCode, major, session) => {
+export const findLatestForMajor = async (grantCode, major) => {
   const doc = await db.collection(collection).findOne(
     {
       grantCode,
@@ -92,7 +91,7 @@ export const findLatestForMajor = async (grantCode, major, session) => {
       status: "active",
       "definitions.grant.fetchStatus": { $ne: FetchStatus.PermanentError },
     },
-    { sort: { minor: -1, patch: -1 }, ...(session ? { session } : {}) },
+    { sort: { minor: -1, patch: -1 } },
   );
 
   return ConfigVersion.fromDocument(doc);
@@ -116,15 +115,4 @@ export const findByGrantCodeAndVersion = async (grantCode, version) => {
   const doc = await db.collection(collection).findOne({ grantCode, version });
 
   return ConfigVersion.fromDocument(doc);
-};
-
-export const existsByGrantCode = async (grantCode, session) => {
-  const doc = await db
-    .collection(collection)
-    .findOne(
-      { grantCode },
-      { projection: { _id: 1 }, ...(session ? { session } : {}) },
-    );
-
-  return doc !== null;
 };

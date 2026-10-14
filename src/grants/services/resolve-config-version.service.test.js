@@ -69,7 +69,6 @@ describe("resolveAndFetchGrant", () => {
   });
 
   it("loads the latest active published grant when no version is requested", async () => {
-    const session = {};
     const selected = mockConfigVersion({
       version: "2.3.0",
       fetchStatus: FetchStatus.Fetched,
@@ -78,15 +77,13 @@ describe("resolveAndFetchGrant", () => {
     findLatestActive.mockResolvedValue(selected);
     findByCode.mockResolvedValue(grant);
 
-    await expect(
-      resolveAndFetchGrant(GRANT_CODE, undefined, session),
-    ).resolves.toMatchObject({
+    await expect(resolveAndFetchGrant(GRANT_CODE)).resolves.toMatchObject({
       grant,
       resolvedVersion: "2.3.0",
       definitionSource: "mongodb",
     });
-    expect(findLatestActive).toHaveBeenCalledWith(GRANT_CODE, session);
-    expect(findByCode).toHaveBeenCalledWith(GRANT_CODE, "2.3.0", session);
+    expect(findLatestActive).toHaveBeenCalledWith(GRANT_CODE);
+    expect(findByCode).toHaveBeenCalledWith(GRANT_CODE, "2.3.0");
     expect(findLatestForMajor).not.toHaveBeenCalled();
     expect(fetchConfigFile).not.toHaveBeenCalled();
   });
@@ -173,27 +170,6 @@ describe("resolveAndFetchGrant", () => {
     expect(result.resolvedVersion).toBe(VERSION);
     expect(result.definitionSource).toBe("mongodb");
     expect(fetchConfigFile).not.toHaveBeenCalled();
-  });
-
-  it("joins the caller's transaction when reading an already-cached grant", async () => {
-    const session = { id: "active-session" };
-    const cv = mockConfigVersion({ fetchStatus: FetchStatus.Fetched });
-    findLatestForMajor.mockResolvedValue(cv);
-
-    const existingGrant = new Grant({
-      ...mockGrantDefinition,
-      version: VERSION,
-    });
-    findByCode.mockResolvedValue(existingGrant);
-
-    await resolveAndFetchGrant(GRANT_CODE, VERSION, session);
-
-    expect(findLatestForMajor).toHaveBeenCalledWith(
-      GRANT_CODE,
-      expect.any(Number),
-      session,
-    );
-    expect(findByCode).toHaveBeenCalledWith(GRANT_CODE, VERSION, session);
   });
 
   it("returns cached grant when fetched even if fetchAttempts reached max", async () => {

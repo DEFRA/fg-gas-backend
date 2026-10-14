@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigVersion, FetchStatus } from "../models/config-version.js";
 import {
-  existsByGrantCode,
   findByGrantCodeAndVersion,
   findLatestForMajor,
   findLatestActive,
@@ -32,18 +31,6 @@ describe("config-version.repository", () => {
       expect(mockCollection.findOne).toHaveBeenCalledWith(
         { grantCode: "woodland", status: "active" },
         { sort: { major: -1, minor: -1, patch: -1 } },
-      );
-    });
-
-    it("resolves within the active session when given one", async () => {
-      const session = {};
-      mockCollection.findOne.mockResolvedValue(null);
-
-      await findLatestActive("woodland", session);
-
-      expect(mockCollection.findOne).toHaveBeenCalledWith(
-        { grantCode: "woodland", status: "active" },
-        { sort: { major: -1, minor: -1, patch: -1 }, session },
       );
     });
   });
@@ -228,25 +215,6 @@ describe("config-version.repository", () => {
       const result = await findLatestForMajor("woodland", 9);
       expect(result).toBeNull();
     });
-
-    it("resolves within the active session when given one", async () => {
-      const session = {};
-      mockCollection.findOne.mockResolvedValue(null);
-
-      await findLatestForMajor("woodland", 1, session);
-
-      expect(mockCollection.findOne).toHaveBeenCalledWith(
-        {
-          grantCode: "woodland",
-          major: 1,
-          status: "active",
-          "definitions.grant.fetchStatus": {
-            $ne: FetchStatus.PermanentError,
-          },
-        },
-        { sort: { minor: -1, patch: -1 }, session },
-      );
-    });
   });
 
   describe("updateFetchStatus", () => {
@@ -338,36 +306,6 @@ describe("config-version.repository", () => {
 
       const result = await findByGrantCodeAndVersion("woodland", "9.9.9");
       expect(result).toBeNull();
-    });
-  });
-
-  describe("existsByGrantCode", () => {
-    it("returns true when any configuration version exists", async () => {
-      mockCollection.findOne.mockResolvedValue({ _id: "config-version-id" });
-
-      await expect(existsByGrantCode("woodland")).resolves.toBe(true);
-      expect(mockCollection.findOne).toHaveBeenCalledWith(
-        { grantCode: "woodland" },
-        { projection: { _id: 1 } },
-      );
-    });
-
-    it("returns false when no configuration version exists", async () => {
-      mockCollection.findOne.mockResolvedValue(null);
-
-      await expect(existsByGrantCode("missing")).resolves.toBe(false);
-    });
-
-    it("checks existence within the active session", async () => {
-      const session = {};
-      mockCollection.findOne.mockResolvedValue({ _id: "config-version-id" });
-
-      await existsByGrantCode("woodland", session);
-
-      expect(mockCollection.findOne).toHaveBeenCalledWith(
-        { grantCode: "woodland" },
-        { projection: { _id: 1 }, session },
-      );
     });
   });
 });
