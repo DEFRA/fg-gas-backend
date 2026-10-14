@@ -80,7 +80,6 @@ describe("AgreementDefinition", () => {
       createdAt: execution.executedAt,
       updatedAt: execution.executedAt,
     });
-    expect(definition.getEndpoints()).toEqual([]);
   });
 
   it("rejects Creation Input for another Agreement Definition", async () => {

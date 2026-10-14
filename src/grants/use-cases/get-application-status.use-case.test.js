@@ -9,7 +9,7 @@ import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-
 import { getApplicationStatusUseCase } from "./get-application-status.use-case.js";
 import { resolveGrantForApplication } from "./resolve-current-grant.use-case.js";
 
-vi.mock("./find-application-by-client-ref-and-code.use-case");
+vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("./resolve-current-grant.use-case.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
