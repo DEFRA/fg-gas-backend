@@ -5,6 +5,7 @@ import { logger } from "../../common/logger.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
 import { parseSemver } from "../../common/semver.js";
 import {
+  findLatestActive,
   findLatestForMajor,
   updateFetchStatus,
 } from "../repositories/config-version.repository.js";
@@ -207,10 +208,11 @@ const resolveConfigVersion = async (grantCode, requestedVersion, session) => {
   return configVersion;
 };
 
-// `session`, when given, only scopes the reads that decide which already-cached
-// definition is current - it never extends to the S3 fetch-and-cache path below,
-// which is its own eventually-consistent operation (idempotent via the grants
-// unique index) and must not hold a caller's transaction open across network I/O.
+// Without a requested version, resolve the highest active published definition
+// across all majors. A requested version keeps the existing major boundary.
+// `session` scopes database reads only. A cache miss can fetch from S3 and
+// write the cache outside that session, so callers must resolve the definition
+// before opening a write transaction.
 export const resolveAndFetchGrant = async (
   grantCode,
   requestedVersion,
@@ -218,17 +220,15 @@ export const resolveAndFetchGrant = async (
 ) => {
   logger.info(`Resolving config version for ${grantCode}@${requestedVersion}`);
 
-  const configVersion = await resolveConfigVersion(
-    grantCode,
-    requestedVersion,
-    session,
-  );
-  return fetchGrantDefinition(configVersion, session);
-};
+  const configVersion =
+    requestedVersion === undefined
+      ? await findLatestActive(grantCode, session)
+      : await resolveConfigVersion(grantCode, requestedVersion, session);
 
-// Loads the exact published definition selected by the caller's policy.
-export const fetchGrantDefinition = async (configVersion, session) => {
-  const grantCode = configVersion.grantCode;
+  if (!configVersion) {
+    throw Boom.notFound(`No active config version found for ${grantCode}`);
+  }
+
   const resolvedVersion = configVersion.version;
 
   await guardFetchStatus(configVersion, grantCode, resolvedVersion);

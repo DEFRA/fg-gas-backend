@@ -5,8 +5,9 @@ import { ConfigVersion } from "../models/config-version.js";
 
 const collection = "config_versions";
 
-// Grant administration has no application-pinned version. Its permissions
-// come from the highest active published definition across all major versions.
+// Resolves the highest active published version across all majors when the
+// caller has no pinned version. Keep failed definitions selectable so loading
+// refuses the current definition rather than silently falling back to an older one.
 export const findLatestActive = async (grantCode, session) =>
   ConfigVersion.fromDocument(
     await db.collection(collection).findOne(

@@ -4,6 +4,7 @@ import { S3FetchError } from "../../common/s3-client.js";
 import { ConfigVersion, FetchStatus } from "../models/config-version.js";
 import { Grant } from "../models/grant.js";
 import {
+  findLatestActive,
   findLatestForMajor,
   updateFetchStatus,
 } from "../repositories/config-version.repository.js";
@@ -11,10 +12,7 @@ import {
   findByCode,
   saveFromDefinition,
 } from "../repositories/grant.repository.js";
-import {
-  fetchGrantDefinition,
-  resolveAndFetchGrant,
-} from "./resolve-config-version.service.js";
+import { resolveAndFetchGrant } from "./resolve-config-version.service.js";
 
 vi.mock("../../common/s3-client.js", async (importOriginal) => {
   const original = await importOriginal();
@@ -29,6 +27,7 @@ vi.mock(
     const original = await importOriginal();
     return {
       ...original,
+      findLatestActive: vi.fn(),
       findLatestForMajor: vi.fn(),
       updateFetchStatus: vi.fn(),
     };
@@ -69,16 +68,77 @@ describe("resolveAndFetchGrant", () => {
     vi.resetAllMocks();
   });
 
-  it("loads the exact admin-selected version without resolving another version", async () => {
+  it("loads the latest active published grant when no version is requested", async () => {
     const session = {};
-    const selected = mockConfigVersion({ fetchStatus: FetchStatus.Fetched });
-    const grant = new Grant({ ...mockGrantDefinition, version: VERSION });
+    const selected = mockConfigVersion({
+      version: "2.3.0",
+      fetchStatus: FetchStatus.Fetched,
+    });
+    const grant = new Grant({ ...mockGrantDefinition, version: "2.3.0" });
+    findLatestActive.mockResolvedValue(selected);
     findByCode.mockResolvedValue(grant);
+
     await expect(
-      fetchGrantDefinition(selected, session),
-    ).resolves.toMatchObject({ grant, resolvedVersion: VERSION });
-    expect(findByCode).toHaveBeenCalledWith(GRANT_CODE, VERSION, session);
+      resolveAndFetchGrant(GRANT_CODE, undefined, session),
+    ).resolves.toMatchObject({
+      grant,
+      resolvedVersion: "2.3.0",
+      definitionSource: "mongodb",
+    });
+    expect(findLatestActive).toHaveBeenCalledWith(GRANT_CODE, session);
+    expect(findByCode).toHaveBeenCalledWith(GRANT_CODE, "2.3.0", session);
     expect(findLatestForMajor).not.toHaveBeenCalled();
+    expect(fetchConfigFile).not.toHaveBeenCalled();
+  });
+
+  it("fetches and caches the latest active grant through the existing S3 path", async () => {
+    const selected = mockConfigVersion({ version: "2.3.0" });
+    const grant = new Grant({ ...mockGrantDefinition, version: "2.3.0" });
+    findLatestActive.mockResolvedValue(selected);
+    fetchConfigFile.mockResolvedValue(mockGrantDefinition);
+    saveFromDefinition.mockResolvedValue(grant);
+
+    await expect(resolveAndFetchGrant(GRANT_CODE)).resolves.toMatchObject({
+      grant,
+      resolvedVersion: "2.3.0",
+      definitionSource: "s3",
+    });
+    expect(fetchConfigFile).toHaveBeenCalledWith(
+      selected.s3Bucket,
+      selected.s3Key,
+    );
+    expect(saveFromDefinition).toHaveBeenCalledWith(
+      mockGrantDefinition,
+      "2.3.0",
+    );
+    expect(updateFetchStatus).toHaveBeenCalledWith(
+      GRANT_CODE,
+      "2.3.0",
+      FetchStatus.Fetched,
+    );
+  });
+
+  it("returns notFound without falling back to a legacy grant when no active version exists", async () => {
+    findLatestActive.mockResolvedValue(null);
+
+    await expect(resolveAndFetchGrant(GRANT_CODE)).rejects.toMatchObject({
+      output: { statusCode: 404 },
+    });
+    expect(findByCode).not.toHaveBeenCalled();
+    expect(fetchConfigFile).not.toHaveBeenCalled();
+  });
+
+  it("refuses a broken latest definition instead of using an older definition", async () => {
+    findLatestActive.mockResolvedValue(
+      mockConfigVersion({ fetchStatus: FetchStatus.PermanentError }),
+    );
+
+    await expect(resolveAndFetchGrant(GRANT_CODE)).rejects.toMatchObject({
+      output: { statusCode: 502 },
+    });
+    expect(findLatestForMajor).not.toHaveBeenCalled();
+    expect(findByCode).not.toHaveBeenCalled();
+    expect(fetchConfigFile).not.toHaveBeenCalled();
   });
 
   it("rejects invalid semver version", async () => {
