@@ -5,12 +5,14 @@ import { resolveGrantAdministration } from "./resolve-grant-administration.use-c
 
 vi.mock("../services/resolve-config-version.service.js");
 
-const args = { grantCode: "woodland", userRoles: ["ROLE_WOODLAND_ADMIN"] };
+const findUserRoles = vi.fn();
+const args = { grantCode: "woodland", findUserRoles };
 const grant = { admin: { role: "ROLE_WOODLAND_ADMIN" } };
 
 describe("resolveGrantAdministration", () => {
   beforeEach(() => {
     resolveAndFetchGrant.mockResolvedValue({ grant });
+    findUserRoles.mockResolvedValue(["ROLE_WOODLAND_ADMIN"]);
   });
 
   it("uses the shared grant resolver before checking administration access", async () => {
@@ -41,6 +43,27 @@ describe("resolveGrantAdministration", () => {
     await expect(resolveGrantAdministration(args)).rejects.toMatchObject({
       output: { statusCode: 403 },
     });
+  });
+
+  it("passes on a failure to determine the user's roles", async () => {
+    findUserRoles.mockRejectedValue(Boom.serverUnavailable("roles unknown"));
+
+    await expect(resolveGrantAdministration(args)).rejects.toMatchObject({
+      output: { statusCode: 503 },
+    });
+  });
+
+  it.each([
+    [
+      "an unknown grant",
+      () => Promise.reject(Boom.notFound("Grant not found")),
+    ],
+    ["a grant with no admin role", () => Promise.resolve({ grant: {} })],
+  ])("does not look up the user's roles for %s", async (_, resolveGrant) => {
+    resolveAndFetchGrant.mockImplementation(resolveGrant);
+
+    await expect(resolveGrantAdministration(args)).rejects.toThrow();
+    expect(findUserRoles).not.toHaveBeenCalled();
   });
 
   it("propagates a failure to load the selected definition", async () => {

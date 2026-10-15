@@ -1,15 +1,24 @@
 import Boom from "@hapi/boom";
 
+const forbidden = () =>
+  Boom.forbidden("You do not have access to administration for this grant");
+
 export class GrantAdminAccess {
   constructor(admin) {
     this.role = admin?.role;
   }
 
+  assertConfigured() {
+    if (!this.#hasConfiguredRole()) {
+      throw forbidden();
+    }
+  }
+
   assertAccess(heldRoles) {
-    if (!this.#hasConfiguredRole() || !this.#holdsRole(heldRoles)) {
-      throw Boom.forbidden(
-        "You do not have access to administration for this grant",
-      );
+    this.assertConfigured();
+
+    if (!this.#holdsRole(heldRoles)) {
+      throw forbidden();
     }
   }
 

@@ -1,6 +1,5 @@
 import Boom from "@hapi/boom";
 import { config } from "../../common/config.js";
-import { getRequestContext } from "../../common/get-request-context.js";
 import { logger } from "../../common/logger.js";
 import { wreck } from "../../common/wreck.js";
 import {
@@ -12,34 +11,17 @@ import {
   REDRIVABLE_DESCRIPTION,
 } from "../../events/event-redrive.js";
 import { EVENT_STATUSES } from "../../events/status-counts.js";
+import {
+  CLIENT_TIMEOUT,
+  GATEWAY_TIMEOUT,
+  cwUrl,
+  describeError,
+  isCwConfigured,
+  requestOptions,
+  statusOf,
+} from "./cw-http.js";
 
-const GATEWAY_TIMEOUT = 504;
-const CLIENT_TIMEOUT = 408;
-const TIMEOUT_STATUSES = new Set([GATEWAY_TIMEOUT, CLIENT_TIMEOUT]);
-
-const READ_FAILED = "read failed";
-const TIMED_OUT = "timeout";
-
-// `new URL(path, undefined)` throws, so callers check this first.
-export const isCwConfigured = () =>
-  Boolean(config.cwBackend.url && config.cwBackend.token);
-
-const statusOf = (error) => error?.output?.statusCode ?? null;
-
-// `wreck` attaches the CW response body to the error; read only the status.
-export const describeError = (error) => {
-  const statusCode = statusOf(error);
-
-  if (statusCode === null) {
-    return READ_FAILED;
-  }
-
-  if (TIMEOUT_STATUSES.has(statusCode)) {
-    return TIMED_OUT;
-  }
-
-  return `HTTP ${statusCode}`;
-};
+export { describeError, isCwConfigured };
 
 // `audit` is forwarded: only Caseworking recognises its own audit topic.
 const PAGE_PARAMS = ["status", "q", "error", "from", "to", "audit"];
@@ -97,24 +79,6 @@ const toBoxSection = (section = {}) => ({
   list: toList(section),
   facets: toFacets(section),
   groups: toGroups(section),
-});
-
-// Caseworking records the same operator on the audit events it writes.
-const actorIdHeader = () => {
-  const user = getRequestContext()?.user;
-
-  return user ? { "x-actor-id": user } : {};
-};
-
-const requestOptions = ({ headers, ...options } = {}) => ({
-  json: true,
-  timeout: config.cwBackend.timeoutMs,
-  ...options,
-  headers: {
-    authorization: `Bearer ${config.cwBackend.token}`,
-    ...actorIdHeader(),
-    ...headers,
-  },
 });
 
 // A shorter timeout, so a slow Caseworking degrades the page rather than stalls it.
@@ -244,7 +208,7 @@ const cwRequest = async (
 
   try {
     const { payload } = await wreck[method](
-      new URL(path, config.cwBackend.url).toString(),
+      cwUrl(path),
       optionsWith(body, options),
     );
 

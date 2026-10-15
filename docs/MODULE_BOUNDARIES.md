@@ -69,9 +69,11 @@ quietly grow a second domain layer.
 
 `services/` is a flat catch-all. Some of it just shapes a view
 (`build-claims-view.js`, `build-banner.js`); some of it does more
-(`claims-access.js` reads request headers and throws Boom). Nothing stops a
-`services/` file reaching into a repository or a domain service directly -
-that split is a naming convention, not a rule.
+(`operator-roles.js` asks Caseworking for the operator's roles and throws Boom
+when they cannot be determined; `claims-access.js` turns them into a decision
+and throws Boom on a refusal). Nothing stops a `services/` file reaching into a
+repository or a domain service directly - that split is a naming convention,
+not a rule.
 
 `view-models/` is the enforced version: `import-x/no-restricted-paths` lets a
 file there import only another view-model, nothing else. A route still does
@@ -81,12 +83,10 @@ takes with `build-claims-view.js`.
 
 This is where we want all of `grant-admin`'s screen-shaping to land, one
 screen at a time. `build-allow-list-view.js` is the first, since it was new
-work rather than a migration. Claims is next: `claims-access.js`'s
-full/view-only/hidden decision is already duplicated verbatim in GPA,
-because `grant-admin` computes it for its own check but never returns it.
-Moving `build-claims-view.js` and `claims-access.js` onto `view-models/` -
-and actually returning that decision - is the next follow-up PR. Events,
-cases and applications follow the same path after that, each its own change.
+work rather than a migration. Claims is next: the claims reads answer
+`claims-access.js`'s full/view-only decision as `access`, and moving
+`build-claims-view.js` onto `view-models/` is the follow-up. Events, cases and
+applications follow the same path after that, each its own change.
 
 ### Events domain
 
