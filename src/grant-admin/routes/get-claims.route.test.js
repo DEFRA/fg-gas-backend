@@ -1,17 +1,34 @@
+import Boom from "@hapi/boom";
 import hapi from "@hapi/hapi";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   listEntitlementsWithClaimCapacity,
   listSubmittedClaims,
 } from "../../grants/services/claims.service.js";
 import { getEntitlementOverview } from "../../grants/services/entitlement.service.js";
 import { listClaimPaymentsUseCase } from "../../payments/use-cases/list-claim-payments.use-case.js";
+import { prefetchOperatorRoles } from "../services/operator-roles.js";
 import { getClaimsRoute } from "./get-claims.route.js";
 
 vi.mock("../../grants/services/entitlement.service.js");
 vi.mock("../../grants/services/claims.service.js");
 vi.mock("../../payments/use-cases/list-claim-payments.use-case.js");
 vi.mock("../../common/logger.js");
+vi.mock("../services/operator-roles.js");
+
+const findHeldRoles = vi.fn();
+
+beforeEach(() => {
+  prefetchOperatorRoles.mockReturnValue(findHeldRoles);
+});
 
 const template = {
   claimCode: "ENT_CS_CAPITAL_PA3",
@@ -77,6 +94,8 @@ const submittedClaim = {
   submittedAt: "2026-09-15T12:50:08.932Z",
 };
 
+const CLAIMS_ROLES = { allOf: ["ROLE_WMP_CLAIMS"], anyOf: [] };
+
 const url = (code, clientRef) =>
   `/grant-admin/grants/${code}/applications/${clientRef}/claims`;
 
@@ -128,6 +147,7 @@ describe("getClaimsRoute", () => {
       availableEntitlements: [template],
       claimableEntitlements: [{ ...claimableEntitlement, canEdit: true }],
       claimsRequiredRoles: null,
+      access: "full",
       claims: [],
     });
   });
@@ -154,6 +174,7 @@ describe("getClaimsRoute", () => {
       availableEntitlements: [],
       claimableEntitlements: [],
       claimsRequiredRoles: null,
+      access: "full",
       claims: [],
     });
   });
@@ -211,5 +232,73 @@ describe("getClaimsRoute", () => {
         paymentScheduled: false,
       },
     ]);
+  });
+
+  describe("when the grant configures claims roles", () => {
+    const withClaimsRoles = () => {
+      getEntitlementOverview.mockResolvedValue({
+        claimsPage: { details: { banner } },
+        applicationContext: {},
+        creationOptions: [],
+        claimsRequiredRoles: CLAIMS_ROLES,
+      });
+      listEntitlementsWithClaimCapacity.mockResolvedValue([]);
+      listSubmittedClaims.mockResolvedValue([]);
+      listClaimPaymentsUseCase.mockResolvedValue(new Set());
+    };
+
+    const get = () =>
+      server.inject({ method: "GET", url: url("grant-1", "ref-1234") });
+
+    it("does not ask Caseworking when the grant configures none", async () => {
+      getEntitlementOverview.mockResolvedValue({
+        claimsPage: { details: { banner } },
+        applicationContext: {},
+        creationOptions: [],
+        claimsRequiredRoles: null,
+      });
+      listEntitlementsWithClaimCapacity.mockResolvedValue([]);
+      listSubmittedClaims.mockResolvedValue([]);
+      listClaimPaymentsUseCase.mockResolvedValue(new Set());
+
+      expect((await get()).statusCode).toEqual(200);
+      expect(findHeldRoles).not.toHaveBeenCalled();
+    });
+
+    it("answers full access to an operator holding them", async () => {
+      withClaimsRoles();
+      findHeldRoles.mockResolvedValue(["ROLE_WMP_CLAIMS"]);
+
+      const result = await get();
+
+      expect(result.statusCode).toEqual(200);
+      expect(result.result.access).toEqual("full");
+      expect(result.result.claimsRequiredRoles).toEqual(CLAIMS_ROLES);
+      expect(findHeldRoles).toHaveBeenCalledTimes(1);
+    });
+
+    it("answers view-only access to an operator with other roles", async () => {
+      withClaimsRoles();
+      findHeldRoles.mockResolvedValue(["ROLE_OTHER"]);
+
+      const result = await get();
+
+      expect(result.statusCode).toEqual(200);
+      expect(result.result.access).toEqual("view-only");
+    });
+
+    it("refuses an operator with no roles with a 403", async () => {
+      withClaimsRoles();
+      findHeldRoles.mockResolvedValue([]);
+
+      expect((await get()).statusCode).toEqual(403);
+    });
+
+    it("answers 503 when Caseworking cannot say which roles the operator holds", async () => {
+      withClaimsRoles();
+      findHeldRoles.mockRejectedValue(Boom.serverUnavailable());
+
+      expect((await get()).statusCode).toEqual(503);
+    });
   });
 });

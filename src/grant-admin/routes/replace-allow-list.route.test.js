@@ -10,10 +10,12 @@ import {
   vi,
 } from "vitest";
 import { replaceGrantAllowList } from "../../grants/services/allow-list.service.js";
+import { findOperatorRoles } from "../services/operator-roles.js";
 import { replaceAllowListRoute } from "./replace-allow-list.route.js";
 
 vi.mock("../../common/logger.js");
 vi.mock("../../grants/services/allow-list.service.js");
+vi.mock("../services/operator-roles.js");
 
 const ACTOR_ID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
 const HEADERS = { "x-actor": "Jo Operator", "x-actor-id": ACTOR_ID };
@@ -78,7 +80,7 @@ describe("replaceAllowListRoute", () => {
       grantCode: "woodland",
       global: { sbi: ["900000002"], crn: ["9000000001"] },
       caller: "fg-grants-platform-admin",
-      userRoles: [],
+      findUserRoles: findOperatorRoles,
     });
   });
 
@@ -91,7 +93,7 @@ describe("replaceAllowListRoute", () => {
       grantCode: "woodland",
       global: { sbi: [], crn: [] },
       caller: "fg-grants-platform-admin",
-      userRoles: [],
+      findUserRoles: findOperatorRoles,
     });
   });
 
@@ -104,8 +106,28 @@ describe("replaceAllowListRoute", () => {
       grantCode: "woodland",
       global: { sbi: ["900000002", "900000003"], crn: [] },
       caller: "fg-grants-platform-admin",
-      userRoles: [],
+      findUserRoles: findOperatorRoles,
     });
+  });
+
+  it("ignores roles a caller names in a header", async () => {
+    const response = await put(POPULATED, {
+      ...HEADERS,
+      "x-user-roles": "ROLE_WOODLAND_ADMIN",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(replaceGrantAllowList).toHaveBeenCalledWith(
+      expect.objectContaining({ findUserRoles: findOperatorRoles }),
+    );
+  });
+
+  it("answers 503 when the domain cannot determine the operator's roles", async () => {
+    replaceGrantAllowList.mockRejectedValue(
+      Boom.serverUnavailable("Caseworking roles could not be determined"),
+    );
+
+    expect((await put()).statusCode).toBe(503);
   });
 
   it.each([
@@ -175,6 +197,16 @@ describe("replaceAllowListRoute", () => {
     expect(response.statusCode).toBe(400);
     expect(response.result.errorCode).toBe("ALLOW_LIST_VALIDATION_FAILED");
     expect(response.result.sbi).toBeUndefined();
+  });
+
+  it("leaves the roles lookup to the domain, which needs it only for a grant with an admin role", async () => {
+    replaceGrantAllowList.mockRejectedValue(Boom.notFound("missing"));
+
+    expect((await put()).statusCode).toBe(404);
+    expect(replaceGrantAllowList).toHaveBeenCalledWith(
+      expect.objectContaining({ findUserRoles: findOperatorRoles }),
+    );
+    expect(findOperatorRoles).not.toHaveBeenCalled();
   });
 
   it("propagates an unknown grant as 404", async () => {

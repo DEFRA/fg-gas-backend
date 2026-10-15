@@ -5,18 +5,15 @@ import {
   getEntitlementOverview,
   updateEntitlement,
 } from "../../grants/services/entitlement.service.js";
-import {
-  actorHeaderSchema,
-  claimsHeadersSchema,
-} from "../schemas/actor-header.schema.js";
+import { actorHeaderSchema } from "../schemas/actor-header.schema.js";
 import { code as grantCode } from "../schemas/code.js";
 import { updateEntitlementRequestSchema } from "../schemas/update-entitlement-request.schema.js";
 import { decodeActor } from "../services/actor-header.js";
 import {
   assertFullAccess,
   resolveClaimsAccess,
-  userRolesOf,
 } from "../services/claims-access.js";
+import { prefetchOperatorRoles } from "../services/operator-roles.js";
 
 // Encoded by the caller when the name has characters a header cannot carry.
 const readActor = (request) => decodeActor(request.headers["x-actor"]) ?? null;
@@ -34,15 +31,18 @@ export const updateEntitlementRoute = {
         entitlementId: Joi.string().required(),
       }),
       payload: updateEntitlementRequestSchema,
-      headers: claimsHeadersSchema.concat(actorHeaderSchema),
+      headers: actorHeaderSchema,
     },
   },
   async handler(request) {
     const { code, clientRef, entitlementId } = request.params;
 
+    const findHeldRoles = prefetchOperatorRoles();
     const overview = await getEntitlementOverview({ code, clientRef });
-    const heldRoles = userRolesOf(request);
-    const access = resolveClaimsAccess(heldRoles, overview.claimsRequiredRoles);
+    const access = await resolveClaimsAccess(
+      overview.claimsRequiredRoles,
+      findHeldRoles,
+    );
     assertFullAccess(access);
 
     logger.info(

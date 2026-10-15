@@ -43,9 +43,6 @@ const actorIdHeader = Joi.string().pattern(ACTOR_ID_PATTERN).messages({
   "string.pattern.base": '"x-actor-id" must be an Entra object id',
 });
 
-// Comma-separated CW app roles forwarded by the platform admin BFF.
-const userRolesHeader = Joi.string().max(2048).empty("");
-
 // A read releases data, so it must name who it was released to.
 export const adminReadHeadersSchema = Joi.object({
   "x-actor": actorHeader.required(),
@@ -53,12 +50,6 @@ export const adminReadHeadersSchema = Joi.object({
 })
   .unknown(true)
   .label("AdminReadHeaders");
-
-export const claimsHeadersSchema = Joi.object({
-  "x-user-roles": userRolesHeader.optional(),
-})
-  .unknown(true)
-  .label("ClaimsHeaders");
 
 // Sent when Back or a refresh re-runs a list page the operator already saw.
 export const adminSearchHeadersSchema = adminReadHeadersSchema

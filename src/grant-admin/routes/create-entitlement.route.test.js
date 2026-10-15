@@ -13,9 +13,17 @@ import {
   createEntitlement,
   getEntitlementOverview,
 } from "../../grants/services/entitlement.service.js";
+import { prefetchOperatorRoles } from "../services/operator-roles.js";
 import { createEntitlementRoute } from "./create-entitlement.route.js";
 
 vi.mock("../../grants/services/entitlement.service.js");
+vi.mock("../services/operator-roles.js");
+
+const findHeldRoles = vi.fn();
+
+beforeEach(() => {
+  prefetchOperatorRoles.mockReturnValue(findHeldRoles);
+});
 vi.mock("../../common/logger.js", () => ({
   logger: {
     info: vi.fn(),
@@ -46,6 +54,8 @@ const entitlement = {
   createdAt: "2026-08-24T10:00:00.000Z",
 };
 
+const CLAIMS_ROLES = { allOf: ["ROLE_WMP_CLAIMS"], anyOf: [] };
+
 const url = `/grant-admin/grants/${code}/applications/${clientRef}/claims/entitlements`;
 
 describe("createEntitlementRoute", () => {
@@ -60,6 +70,7 @@ describe("createEntitlementRoute", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getEntitlementOverview.mockResolvedValue({ claimsRequiredRoles: null });
+    createEntitlement.mockResolvedValue(entitlement);
   });
 
   afterAll(async () => {
@@ -162,6 +173,48 @@ describe("createEntitlementRoute", () => {
       statusCode: 409,
       errorCode: "ENTITLEMENT_LIMIT_EXCEEDED",
       message: `Cannot create entitlement '${claimCode}'. Maximum instance limit of 1 has been reached.`,
+    });
+  });
+
+  describe("access by claims roles", () => {
+    const send = () => server.inject({ method: "POST", url, payload });
+
+    it("does not ask Caseworking when the grant configures none", async () => {
+      expect((await send()).statusCode).toEqual(201);
+      expect(findHeldRoles).not.toHaveBeenCalled();
+    });
+
+    it("lets an operator holding them through", async () => {
+      getEntitlementOverview.mockResolvedValue({
+        claimsRequiredRoles: CLAIMS_ROLES,
+      });
+      findHeldRoles.mockResolvedValue(["ROLE_WMP_CLAIMS"]);
+
+      expect((await send()).statusCode).toEqual(201);
+      expect(findHeldRoles).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["other roles", ["ROLE_OTHER"]],
+      ["no roles", []],
+    ])("refuses an operator with %s with a 403", async (_, roles) => {
+      getEntitlementOverview.mockResolvedValue({
+        claimsRequiredRoles: CLAIMS_ROLES,
+      });
+      findHeldRoles.mockResolvedValue(roles);
+
+      expect((await send()).statusCode).toEqual(403);
+      expect(createEntitlement).not.toHaveBeenCalled();
+    });
+
+    it("answers 503 when Caseworking cannot say which roles the operator holds", async () => {
+      getEntitlementOverview.mockResolvedValue({
+        claimsRequiredRoles: CLAIMS_ROLES,
+      });
+      findHeldRoles.mockRejectedValue(Boom.serverUnavailable());
+
+      expect((await send()).statusCode).toEqual(503);
+      expect(createEntitlement).not.toHaveBeenCalled();
     });
   });
 });

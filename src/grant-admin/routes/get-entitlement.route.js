@@ -11,15 +11,14 @@ import {
   getEntitlementTemplateDetails,
 } from "../../grants/services/entitlement.service.js";
 import { listClaimPaymentsUseCase } from "../../payments/use-cases/list-claim-payments.use-case.js";
-import { claimsHeadersSchema } from "../schemas/actor-header.schema.js";
 import { code as grantCode } from "../schemas/code.js";
 import { getEntitlementResponseSchema } from "../schemas/get-entitlement-response.schema.js";
 import { buildEntitlementView } from "../services/build-claims-view.js";
 import {
   assertNotHidden,
   resolveClaimsAccess,
-  userRolesOf,
 } from "../services/claims-access.js";
+import { prefetchOperatorRoles } from "../services/operator-roles.js";
 
 export const getEntitlementRoute = {
   method: "GET",
@@ -34,7 +33,6 @@ export const getEntitlementRoute = {
         clientRef: applicationClientRef,
         entitlementId: Joi.string().required(),
       }),
-      headers: claimsHeadersSchema,
     },
     response: {
       schema: getEntitlementResponseSchema,
@@ -46,6 +44,7 @@ export const getEntitlementRoute = {
       `Get entitlement ${entitlementId} for application with code ${code} and clientRef ${clientRef}`,
     );
 
+    const findHeldRoles = prefetchOperatorRoles();
     const [
       overview,
       entitlementTemplate,
@@ -62,12 +61,15 @@ export const getEntitlementRoute = {
       listClaimPaymentsUseCase({ code, clientRef }),
     ]);
 
-    const heldRoles = userRolesOf(request);
-    const access = resolveClaimsAccess(heldRoles, overview.claimsRequiredRoles);
+    const access = await resolveClaimsAccess(
+      overview.claimsRequiredRoles,
+      findHeldRoles,
+    );
     assertNotHidden(access);
 
     return buildEntitlementView({
       ...overview,
+      access,
       claimableEntitlements,
       claims,
       claimPayments,
