@@ -7,18 +7,15 @@ import {
   listSubmittedClaims,
 } from "../../grants/services/claims.service.js";
 import {
-  getEntitlementOverview,
+  getApplicationClaimsOverview,
   getEntitlementTemplateDetails,
 } from "../../grants/services/entitlement.service.js";
 import { listClaimPaymentsUseCase } from "../../payments/use-cases/list-claim-payments.use-case.js";
 import { code as grantCode } from "../schemas/code.js";
 import { getEntitlementResponseSchema } from "../schemas/get-entitlement-response.schema.js";
-import { buildEntitlementView } from "../services/build-claims-view.js";
-import {
-  assertNotHidden,
-  resolveClaimsAccess,
-} from "../services/claims-access.js";
+import { buildBanner } from "../services/build-banner.js";
 import { prefetchOperatorRoles } from "../services/operator-roles.js";
+import { buildEntitlementView } from "../view-models/build-claims-view.js";
 
 export const getEntitlementRoute = {
   method: "GET",
@@ -53,7 +50,7 @@ export const getEntitlementRoute = {
       claims,
       claimPayments,
     ] = await Promise.all([
-      getEntitlementOverview({ code, clientRef }),
+      getApplicationClaimsOverview({ code, clientRef, findHeldRoles }),
       getEntitlementTemplateDetails({ code, clientRef, entitlementId }),
       listEntitlementsWithClaimCapacity({ code, clientRef }),
       getChangeableEntitlement({ code, clientRef, entitlementId }),
@@ -61,15 +58,9 @@ export const getEntitlementRoute = {
       listClaimPaymentsUseCase({ code, clientRef }),
     ]);
 
-    const access = await resolveClaimsAccess(
-      overview.claimsRequiredRoles,
-      findHeldRoles,
-    );
-    assertNotHidden(access);
-
     return buildEntitlementView({
       ...overview,
-      access,
+      banner: await buildBanner(overview),
       claimableEntitlements,
       claims,
       claimPayments,

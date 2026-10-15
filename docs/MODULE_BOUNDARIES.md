@@ -47,15 +47,25 @@ Grant Admin enters the Grants application layer through three named services, an
 Payments through one named use case. Event administration enters the shared
 event module directly:
 
-| Caller        | Entry point                                          | Responsibility                                                           |
-| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
-| `grant-admin` | `grants/services/entitlement.service.js`             | Entitlement overview, creation and update operations                     |
-| `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup, Claim submission and submitted-Claim reads |
-| `grant-admin` | `grants/services/application-read.service.js`        | Read-only Applications list, application documents, series and codes     |
-| `grant-admin` | `grants/services/allow-list.service.js`              | Audited grant allow-list reads and transactional whole-list replacement  |
-| `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                   |
-| `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: list, inspect, redrive, purge and edit GAS inbound events   |
-| `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: list, inspect, redrive, purge and edit GAS outbound events  |
+| Caller        | Entry point                                          | Responsibility                                                          |
+| ------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| `grant-admin` | `grants/services/entitlement.service.js`             | Claims overview, entitlement creation and update, and who may do them   |
+| `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup and submitted-Claim reads                  |
+| `grant-admin` | `grants/services/application-read.service.js`        | Read-only Applications list, application documents, series and codes    |
+| `grant-admin` | `grants/services/allow-list.service.js`              | Audited grant allow-list reads and transactional whole-list replacement |
+| `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                  |
+| `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: list, inspect, redrive, purge and edit GAS inbound events  |
+| `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: list, inspect, redrive, purge and edit GAS outbound events |
+
+Who may see or change a grant's Claims is Grants' rule, not the BFF's. The grant
+configures the roles it requires; `grants/models/claims-access.js` turns them
+and the operator's roles into full, view-only or hidden access. Grant Admin
+holds only how to find the operator's roles (`operator-roles.js`) and hands that
+lookup to the Grants entry points, which ask for it only when the grant requires
+roles: the Claims overview refuses hidden access and reports the access it
+decided, and entitlement creation and update refuse anything short of full
+access. Claim submission is not one of these - the applicant-facing Grants UI
+calls it, for an applicant rather than a Caseworking operator.
 
 The Claims page is a read-model join across two contexts: Grants resolves a
 Claim against the template it was made under, Payments answers whether it has
@@ -67,26 +77,24 @@ imports the other.
 `grant-admin` is a BFF (see above) - so its own code has to stay a BFF too, not
 quietly grow a second domain layer.
 
-`services/` is a flat catch-all. Some of it just shapes a view
-(`build-claims-view.js`, `build-banner.js`); some of it does more
-(`operator-roles.js` asks Caseworking for the operator's roles and throws Boom
-when they cannot be determined; `claims-access.js` turns them into a decision
-and throws Boom on a refusal). Nothing stops a `services/` file reaching into a
-repository or a domain service directly - that split is a naming convention,
-not a rule.
+`services/` is a flat catch-all. Some of it prepares data for a view
+(`build-banner.js` resolves the banner's references and refuses a grant with
+none); some of it does more (`operator-roles.js` asks Caseworking for the
+operator's roles and throws Boom when they cannot be determined). Nothing stops
+a `services/` file reaching into a repository or a domain service directly -
+that split is a naming convention, not a rule.
 
 `view-models/` is the enforced version: `import-x/no-restricted-paths` lets a
 file there import only another view-model, nothing else. A route still does
 both steps - resolve data via `services/` or a domain entry point, then shape
-it via `view-models/` - the same two steps `get-claims.route.js` already
-takes with `build-claims-view.js`.
+it via `view-models/` - the same two steps `get-claims.route.js` takes with
+`build-banner.js` and `build-claims-view.js`.
 
 This is where we want all of `grant-admin`'s screen-shaping to land, one
 screen at a time. `build-allow-list-view.js` is the first, since it was new
-work rather than a migration. Claims is next: the claims reads answer
-`claims-access.js`'s full/view-only decision as `access`, and moving
-`build-claims-view.js` onto `view-models/` is the follow-up. Events, cases and
-applications follow the same path after that, each its own change.
+work rather than a migration. Claims is the second: `build-claims-view.js` now
+lives there and receives the banner already resolved by `build-banner.js`.
+Events, cases and applications follow the same path, each its own change.
 
 ### Events domain
 

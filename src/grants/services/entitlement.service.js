@@ -22,6 +22,11 @@ import {
   lockApplication,
   mapApplicationNotFound,
 } from "./entitlement-application.js";
+import {
+  requireClaimsChange,
+  requireClaimsView,
+  requiredClaimsRoles,
+} from "./claims-access.js";
 import { toCreatedValues } from "./entitlement-audit-values.js";
 import {
   entitlementNotFound,
@@ -89,7 +94,7 @@ const overviewDto = ({ application, grant, offerable, existing }) => ({
   ),
   applicationContext: application.referenceContext(),
   claimsPage: structuredClone(grant.pages?.claims),
-  claimsRequiredRoles: grant.claims?.requiredRoles ?? null,
+  claimsRequiredRoles: requiredClaimsRoles(grant),
 });
 
 const availableCreationTemplate = ({
@@ -113,18 +118,33 @@ const availableCreationTemplate = ({
   return template;
 };
 
-export const getEntitlementOverview = async ({ code, clientRef }) =>
-  overviewDto(await resolveEntitlements({ code, clientRef }));
+// What an operator may see of an application's Claims. Refused outright when
+// the grant's required roles leave them none; otherwise `access` says whether
+// they may also change anything.
+export const getApplicationClaimsOverview = async ({
+  code,
+  clientRef,
+  findHeldRoles,
+}) => {
+  const resolved = await resolveEntitlements({ code, clientRef });
+  const access = await requireClaimsView(resolved.grant, findHeldRoles);
 
+  return { ...overviewDto(resolved), access };
+};
+
+// Read to create an entitlement, so only an operator who may change Claims.
 export const getEntitlementCreationDetails = async ({
   code,
   clientRef,
   claimCode,
+  findHeldRoles,
 }) => {
   const { application, grant, existing } = await resolveEntitlements({
     code,
     clientRef,
   });
+  await requireClaimsChange(grant, findHeldRoles);
+
   const template = availableCreationTemplate({
     grant,
     application,
@@ -381,13 +401,16 @@ const createInTransaction = async (
   );
 };
 
-const createAttempt = async (command) => {
+// A retry may resolve a different grant, so each attempt is checked against the
+// one it is about to create under.
+const createAttempt = async (command, findHeldRoles) => {
   const application = await mapApplicationNotFound(command);
   const pinnedVersion = pinnedVersionOf(application);
   const { grant } = await resolveCurrentGrantUseCase(
     command.code,
     pinnedVersion,
   );
+  await requireClaimsChange(grant, findHeldRoles);
 
   return withTransaction((session) =>
     createInTransaction({ command, grant, pinnedVersion }, session),
@@ -412,9 +435,9 @@ const exhausted = (error, command) => {
   );
 };
 
-const retryCreation = async (command, remaining) => {
+const retryCreation = async (command, remaining, findHeldRoles) => {
   try {
-    return await createAttempt(command);
+    return await createAttempt(command, findHeldRoles);
   } catch (error) {
     if (!(error instanceof RetryCreation)) {
       throw error;
@@ -424,8 +447,9 @@ const retryCreation = async (command, remaining) => {
       throw exhausted(error, command);
     }
 
-    return retryCreation(command, remaining - 1);
+    return retryCreation(command, remaining - 1, findHeldRoles);
   }
 };
 
-export const createEntitlement = (command) => retryCreation(command, retries);
+export const createEntitlement = (command, findHeldRoles) =>
+  retryCreation(command, retries, findHeldRoles);
