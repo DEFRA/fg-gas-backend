@@ -32,7 +32,6 @@ const withdrawApplication = async (command, session) => {
     { clientRef, code },
     session,
   );
-  const { currentStage, currentPhase } = application;
   const agreement = application.getActiveAgreement();
 
   const publications = [];
@@ -54,18 +53,16 @@ const withdrawApplication = async (command, session) => {
     });
   } else {
     // if we have no agreement we withdraw the application and notify Case Working...
-    const statusBeforeUpdate = application.getFullyQualifiedStatus();
+    const previousPosition = application.position;
 
     application.withdraw();
     await update(application, session);
 
-    const statusCommand = new UpdateCaseStatusCommand({
+    const statusCommand = UpdateCaseStatusCommand.forPosition({
       caseRef: clientRef,
       workflowCode: code,
       configVersion: application.currentConfigVersion,
-      newStatus: application.getFullyQualifiedStatus(),
-      phase: currentPhase,
-      stage: currentStage,
+      position: application.position,
     });
 
     publications.push({
@@ -73,12 +70,12 @@ const withdrawApplication = async (command, session) => {
       target: config.sns.updateCaseStatusTopicArn,
     });
 
-    const statusEvent = new ApplicationStatusUpdatedEvent({
+    const statusEvent = ApplicationStatusUpdatedEvent.forPositions({
       clientRef,
       code,
       currentConfigVersion: application.currentConfigVersion,
-      previousStatus: statusBeforeUpdate,
-      currentStatus: application.getFullyQualifiedStatus(),
+      previousPosition,
+      currentPosition: application.position,
     });
 
     publications.push({

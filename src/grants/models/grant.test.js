@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
 import { Grant } from "./grant.js";
+import { Position } from "./position.js";
 
 describe("Grant", () => {
   it("can create a Grant model", () => {
@@ -241,11 +242,49 @@ describe("Grant", () => {
     const claims = {
       onClaimApproval: { currentPosition, targetPosition },
     };
+    const applicationPosition = new Position(currentPosition);
 
     it("keeps the configured claim approval transition", () => {
       const grant = createTestGrant({ claims });
 
       expect(grant.claims).toEqual(claims);
+    });
+
+    it("holds the claim approval positions as Positions", () => {
+      const { onClaimApproval } = createTestGrant({ claims }).claims;
+
+      expect(onClaimApproval.currentPosition).toBeInstanceOf(Position);
+      expect(onClaimApproval.targetPosition).toBeInstanceOf(Position);
+    });
+
+    it.each(["currentPosition", "targetPosition"])(
+      "rejects a plain object given straight to the constructor as %s",
+      (positionName) => {
+        const positions = {
+          currentPosition: new Position(currentPosition),
+          targetPosition: new Position(targetPosition),
+          [positionName]: { ...currentPosition },
+        };
+        const definition = createTestGrant();
+
+        expect(
+          () =>
+            new Grant({
+              ...definition,
+              claims: { onClaimApproval: positions },
+            }),
+        ).toThrow(
+          `Grant "test-grant" claims.onClaimApproval.${positionName} must be a Position`,
+        );
+      },
+    );
+
+    it("keeps claims that configure no claim approval transition", () => {
+      const withoutTransition = { requiredRoles: { allOf: ["ROLE_CLAIMS"] } };
+
+      expect(createTestGrant({ claims: withoutTransition }).claims).toBe(
+        withoutTransition,
+      );
     });
 
     it.each([
@@ -361,14 +400,14 @@ describe("Grant", () => {
     it("returns the target for an exact current-position match", () => {
       const grant = createTestGrant({ claims });
 
-      expect(grant.claimApprovalTransitionFor(currentPosition)).toEqual(
+      expect(grant.claimApprovalTransitionFor(applicationPosition)).toEqual(
         targetPosition,
       );
     });
 
     it("returns null when no claim approval transition is configured", () => {
       expect(
-        createTestGrant().claimApprovalTransitionFor(currentPosition),
+        createTestGrant().claimApprovalTransitionFor(applicationPosition),
       ).toBeNull();
     });
 
@@ -380,10 +419,12 @@ describe("Grant", () => {
       const grant = createTestGrant({ claims });
 
       expect(
-        grant.claimApprovalTransitionFor({
-          ...currentPosition,
-          [part]: value,
-        }),
+        grant.claimApprovalTransitionFor(
+          new Position({
+            ...currentPosition,
+            [part]: value,
+          }),
+        ),
       ).toBeNull();
     });
   });
@@ -587,11 +628,13 @@ describe("Grant", () => {
           entitlementTemplates: [...entitlementTemplates, inReview],
         });
 
-        const available = grant.findEntitlementTemplatesAvailableAt({
-          phase: "PRE_AWARD",
-          stage: "ASSESSMENT",
-          status: "IN_REVIEW",
-        });
+        const available = grant.findEntitlementTemplatesAvailableAt(
+          new Position({
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "IN_REVIEW",
+          }),
+        );
 
         expect(available.map((t) => t.claimCode)).toEqual(["ENT_TRACTOR"]);
       });
@@ -600,11 +643,13 @@ describe("Grant", () => {
         const grant = createTestGrant({ entitlementTemplates });
 
         expect(
-          grant.findEntitlementTemplatesAvailableAt({
-            phase: "PRE_AWARD",
-            stage: "ASSESSMENT",
-            status: "IN_REVIEW",
-          }),
+          grant.findEntitlementTemplatesAvailableAt(
+            new Position({
+              phase: "PRE_AWARD",
+              stage: "ASSESSMENT",
+              status: "IN_REVIEW",
+            }),
+          ),
         ).toEqual([]);
       });
 
@@ -612,11 +657,13 @@ describe("Grant", () => {
         const grant = createTestGrant({ entitlementTemplates: undefined });
 
         expect(
-          grant.findEntitlementTemplatesAvailableAt({
-            phase: "PRE_AWARD",
-            stage: "ASSESSMENT",
-            status: "APPLICATION_RECEIVED",
-          }),
+          grant.findEntitlementTemplatesAvailableAt(
+            new Position({
+              phase: "PRE_AWARD",
+              stage: "ASSESSMENT",
+              status: "APPLICATION_RECEIVED",
+            }),
+          ),
         ).toEqual([]);
       });
     });
@@ -693,6 +740,95 @@ describe("Grant", () => {
     });
   });
 
+  describe("claims.onClaimApproval without a position", () => {
+    it.each(["currentPosition", "targetPosition"])(
+      "rejects a grant whose %s is absent",
+      (positionName) => {
+        const position = {
+          phase: "PRE_AWARD",
+          stage: "ASSESSMENT",
+          status: "APPLICATION_RECEIVED",
+        };
+        const onClaimApproval = {
+          currentPosition: position,
+          targetPosition: position,
+          [positionName]: undefined,
+        };
+
+        expect(() => createTestGrant({ claims: { onClaimApproval } })).toThrow(
+          `Grant "test-grant" claims.onClaimApproval.${positionName}.phase must be a non-empty string`,
+        );
+      },
+    );
+  });
+
+  describe("getInitialPosition", () => {
+    it("returns the first status of the first stage of the first phase", () => {
+      const grant = createTestGrant({
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [{ code: "RECEIVED" }, { code: "REVIEW" }],
+              },
+            ],
+          },
+        ],
+      });
+
+      const position = grant.getInitialPosition();
+
+      expect(position).toBeInstanceOf(Position);
+      expect(position).toEqual({
+        phase: "PRE_AWARD",
+        stage: "ASSESSMENT",
+        status: "RECEIVED",
+      });
+    });
+
+    it("throws error when grant has no phases", () => {
+      const grant = createTestGrant({ phases: [] });
+
+      expect(() => grant.getInitialPosition()).toThrow(
+        'Grant "test-grant" has no phases defined',
+      );
+    });
+  });
+
+  describe("amendablePositions", () => {
+    it("holds the declared codes as Positions", () => {
+      const grant = createTestGrant({
+        amendablePositions: ["PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND"],
+      });
+
+      expect(grant.amendablePositions[0]).toBeInstanceOf(Position);
+      expect(grant.amendablePositions).toEqual([
+        {
+          phase: "PRE_AWARD",
+          stage: "REVIEW_OFFER",
+          status: "APPLICATION_AMEND",
+        },
+      ]);
+    });
+
+    it.each([undefined, null, "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND"])(
+      "leaves %j, which is not a list, as it is",
+      (amendablePositions) => {
+        const grant = createTestGrant({ amendablePositions });
+
+        expect(grant.amendablePositions).toBe(amendablePositions);
+      },
+    );
+
+    it("leaves an entry that is not a string as it is", () => {
+      const grant = createTestGrant({ amendablePositions: [null, 5] });
+
+      expect(grant.amendablePositions).toEqual([null, 5]);
+    });
+  });
+
   describe("mapExternalStateToInternalState", () => {
     const grantWithExternalMap = createTestGrant({
       code: "test-grant-with-mapping",
@@ -760,49 +896,52 @@ describe("Grant", () => {
     describe("when external status is mapped with :: prefix (keep phase and stage)", () => {
       it("should map CW IN_PROGRESS to same phase and stage", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "PRE_AWARD",
-          "REVIEW_APPLICATION",
+          new Position({ phase: "PRE_AWARD", stage: "REVIEW_APPLICATION" }),
           "IN_PROGRESS",
           "CW",
         );
 
         expect(result).toEqual({
           valid: true,
-          targetPhase: "PRE_AWARD",
-          targetStage: "REVIEW_APPLICATION",
-          targetStatus: "IN_PROGRESS",
+          targetPosition: new Position({
+            phase: "PRE_AWARD",
+            stage: "REVIEW_APPLICATION",
+            status: "IN_PROGRESS",
+          }),
         });
       });
 
       it("should map CW APPROVED to same phase and stage", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "PRE_AWARD",
-          "REVIEW_APPLICATION",
+          new Position({ phase: "PRE_AWARD", stage: "REVIEW_APPLICATION" }),
           "APPROVED",
           "CW",
         );
 
         expect(result).toEqual({
           valid: true,
-          targetPhase: "PRE_AWARD",
-          targetStage: "REVIEW_APPLICATION",
-          targetStatus: "APPROVED",
+          targetPosition: new Position({
+            phase: "PRE_AWARD",
+            stage: "REVIEW_APPLICATION",
+            status: "APPROVED",
+          }),
         });
       });
 
       it("should map CW WITHDRAWN to APPLICATION_WITHDRAWN status", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "PRE_AWARD",
-          "REVIEW_APPLICATION",
+          new Position({ phase: "PRE_AWARD", stage: "REVIEW_APPLICATION" }),
           "WITHDRAWN",
           "CW",
         );
 
         expect(result).toEqual({
           valid: true,
-          targetPhase: "PRE_AWARD",
-          targetStage: "REVIEW_APPLICATION",
-          targetStatus: "APPLICATION_WITHDRAWN",
+          targetPosition: new Position({
+            phase: "PRE_AWARD",
+            stage: "REVIEW_APPLICATION",
+            status: "APPLICATION_WITHDRAWN",
+          }),
         });
       });
     });
@@ -810,33 +949,35 @@ describe("Grant", () => {
     describe("when external status is mapped with full path (PHASE:STAGE:STATUS)", () => {
       it("should map AS offered to PRE_AWARD:REVIEW_OFFER:OFFERED", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "PRE_AWARD",
-          "REVIEW_APPLICATION",
+          new Position({ phase: "PRE_AWARD", stage: "REVIEW_APPLICATION" }),
           "offered",
           "AS",
         );
 
         expect(result).toEqual({
           valid: true,
-          targetPhase: "PRE_AWARD",
-          targetStage: "REVIEW_OFFER",
-          targetStatus: "OFFERED",
+          targetPosition: new Position({
+            phase: "PRE_AWARD",
+            stage: "REVIEW_OFFER",
+            status: "OFFERED",
+          }),
         });
       });
 
       it("should map AS accepted to PRE_AWARD:REVIEW_OFFER:OFFER_ACCEPTED", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "PRE_AWARD",
-          "REVIEW_APPLICATION",
+          new Position({ phase: "PRE_AWARD", stage: "REVIEW_APPLICATION" }),
           "accepted",
           "AS",
         );
 
         expect(result).toEqual({
           valid: true,
-          targetPhase: "PRE_AWARD",
-          targetStage: "REVIEW_OFFER",
-          targetStatus: "OFFER_ACCEPTED",
+          targetPosition: new Position({
+            phase: "PRE_AWARD",
+            stage: "REVIEW_OFFER",
+            status: "OFFER_ACCEPTED",
+          }),
         });
       });
     });
@@ -844,17 +985,18 @@ describe("Grant", () => {
     describe("when external status is mapped with simple status (no prefix, no colons)", () => {
       it("should map CW SIMPLE_STATUS to RECEIVED with same phase and stage", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "PRE_AWARD",
-          "REVIEW_APPLICATION",
+          new Position({ phase: "PRE_AWARD", stage: "REVIEW_APPLICATION" }),
           "SIMPLE_STATUS",
           "CW",
         );
 
         expect(result).toEqual({
           valid: true,
-          targetPhase: "PRE_AWARD",
-          targetStage: "REVIEW_APPLICATION",
-          targetStatus: "RECEIVED",
+          targetPosition: new Position({
+            phase: "PRE_AWARD",
+            stage: "REVIEW_APPLICATION",
+            status: "RECEIVED",
+          }),
         });
       });
     });
@@ -862,8 +1004,7 @@ describe("Grant", () => {
     describe("when external status is not mapped", () => {
       it("should return invalid when source system doesn't match", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "PRE_AWARD",
-          "REVIEW_APPLICATION",
+          new Position({ phase: "PRE_AWARD", stage: "REVIEW_APPLICATION" }),
           "IN_PROGRESS",
           "UNKNOWN_SYSTEM",
         );
@@ -873,8 +1014,7 @@ describe("Grant", () => {
 
       it("should return invalid when status code doesn't exist", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "PRE_AWARD",
-          "REVIEW_APPLICATION",
+          new Position({ phase: "PRE_AWARD", stage: "REVIEW_APPLICATION" }),
           "UNKNOWN_STATUS",
           "CW",
         );
@@ -884,8 +1024,7 @@ describe("Grant", () => {
 
       it("should return invalid when phase doesn't exist in map", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "UNKNOWN_PHASE",
-          "REVIEW_APPLICATION",
+          new Position({ phase: "UNKNOWN_PHASE", stage: "REVIEW_APPLICATION" }),
           "IN_PROGRESS",
           "CW",
         );
@@ -895,8 +1034,7 @@ describe("Grant", () => {
 
       it("should return invalid when stage doesn't exist in map", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "PRE_AWARD",
-          "UNKNOWN_STAGE",
+          new Position({ phase: "PRE_AWARD", stage: "UNKNOWN_STAGE" }),
           "IN_PROGRESS",
           "CW",
         );
@@ -912,8 +1050,7 @@ describe("Grant", () => {
         });
 
         const result = grantWithoutMap.mapExternalStateToInternalState(
-          "PRE_AWARD",
-          "REVIEW_APPLICATION",
+          new Position({ phase: "PRE_AWARD", stage: "REVIEW_APPLICATION" }),
           "IN_PROGRESS",
           "CW",
         );
@@ -925,17 +1062,18 @@ describe("Grant", () => {
     describe("different phase and stage scenarios", () => {
       it("should map status in different phase and stage", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
-          "AWARD_AND_MONITORING",
-          "MONITORING",
+          new Position({ phase: "AWARD_AND_MONITORING", stage: "MONITORING" }),
           "ACTIVE",
           "CW",
         );
 
         expect(result).toEqual({
           valid: true,
-          targetPhase: "AWARD_AND_MONITORING",
-          targetStage: "MONITORING",
-          targetStatus: "ACTIVE",
+          targetPosition: new Position({
+            phase: "AWARD_AND_MONITORING",
+            stage: "MONITORING",
+            status: "ACTIVE",
+          }),
         });
       });
     });
@@ -1019,10 +1157,16 @@ describe("Grant", () => {
 
     it("should allow transition when current status is in validFrom", () => {
       const result = grantWithValidFrom.isValidTransition(
-        "PRE_AWARD",
-        "REVIEW_APPLICATION",
-        "IN_PROGRESS",
-        "RECEIVED",
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "IN_PROGRESS",
+        }),
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "RECEIVED",
+        }),
       );
 
       expect(result).toEqual({
@@ -1033,10 +1177,16 @@ describe("Grant", () => {
 
     it("should deny transition when current status is not in validFrom", () => {
       const result = grantWithValidFrom.isValidTransition(
-        "PRE_AWARD",
-        "REVIEW_APPLICATION",
-        "APPROVED",
-        "RECEIVED",
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "APPROVED",
+        }),
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "RECEIVED",
+        }),
       );
 
       expect(result).toEqual({
@@ -1047,10 +1197,16 @@ describe("Grant", () => {
 
     it("should return processes when transition is valid", () => {
       const result = grantWithValidFrom.isValidTransition(
-        "PRE_AWARD",
-        "REVIEW_APPLICATION",
-        "APPROVED",
-        "IN_PROGRESS",
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "APPROVED",
+        }),
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "IN_PROGRESS",
+        }),
       );
 
       expect(result).toEqual({
@@ -1061,10 +1217,16 @@ describe("Grant", () => {
 
     it("should allow transition when validFrom contains multiple statuses", () => {
       const result = grantWithValidFrom.isValidTransition(
-        "PRE_AWARD",
-        "REVIEW_APPLICATION",
-        "WITHDRAWN",
-        "APPROVED",
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "WITHDRAWN",
+        }),
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "APPROVED",
+        }),
       );
 
       expect(result).toEqual({
@@ -1075,10 +1237,16 @@ describe("Grant", () => {
 
     it("should allow transition when validFrom is empty", () => {
       const result = grantWithValidFrom.isValidTransition(
-        "PRE_AWARD",
-        "REVIEW_APPLICATION",
-        "RECEIVED",
-        "ANY_STATUS",
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "RECEIVED",
+        }),
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "ANY_STATUS",
+        }),
       );
 
       expect(result).toEqual({
@@ -1089,10 +1257,16 @@ describe("Grant", () => {
 
     it("should handle fully qualified status in validFrom", () => {
       const result = grantWithValidFrom.isValidTransition(
-        "PRE_AWARD",
-        "REVIEW_OFFER",
-        "OFFERED",
-        "PRE_AWARD:REVIEW_APPLICATION:APPROVED",
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_OFFER",
+          status: "OFFERED",
+        }),
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "APPROVED",
+        }),
       );
 
       expect(result).toEqual({
@@ -1103,10 +1277,16 @@ describe("Grant", () => {
 
     it("should match simple status code from fully qualified current status", () => {
       const result = grantWithValidFrom.isValidTransition(
-        "PRE_AWARD",
-        "REVIEW_APPLICATION",
-        "IN_PROGRESS",
-        "PRE_AWARD:REVIEW_APPLICATION:RECEIVED",
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "IN_PROGRESS",
+        }),
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "RECEIVED",
+        }),
       );
 
       expect(result).toEqual({
@@ -1117,10 +1297,16 @@ describe("Grant", () => {
 
     it("should return invalid when phase does not exist", () => {
       const result = grantWithValidFrom.isValidTransition(
-        "UNKNOWN_PHASE",
-        "REVIEW_APPLICATION",
-        "IN_PROGRESS",
-        "RECEIVED",
+        new Position({
+          phase: "UNKNOWN_PHASE",
+          stage: "REVIEW_APPLICATION",
+          status: "IN_PROGRESS",
+        }),
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "RECEIVED",
+        }),
       );
 
       expect(result).toEqual({
@@ -1131,10 +1317,16 @@ describe("Grant", () => {
 
     it("should return invalid when stage does not exist", () => {
       const result = grantWithValidFrom.isValidTransition(
-        "PRE_AWARD",
-        "UNKNOWN_STAGE",
-        "IN_PROGRESS",
-        "RECEIVED",
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "UNKNOWN_STAGE",
+          status: "IN_PROGRESS",
+        }),
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "RECEIVED",
+        }),
       );
 
       expect(result).toEqual({
@@ -1145,10 +1337,16 @@ describe("Grant", () => {
 
     it("should return invalid when status does not exist", () => {
       const result = grantWithValidFrom.isValidTransition(
-        "PRE_AWARD",
-        "REVIEW_APPLICATION",
-        "UNKNOWN_STATUS",
-        "RECEIVED",
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "UNKNOWN_STATUS",
+        }),
+        new Position({
+          phase: "PRE_AWARD",
+          stage: "REVIEW_APPLICATION",
+          status: "RECEIVED",
+        }),
       );
 
       expect(result).toEqual({
@@ -1178,10 +1376,9 @@ describe("Grant", () => {
     });
 
     it("should return map of statuses for a given phase and stage", () => {
-      const result = grant.findStatuses({
-        phase: "PRE_AWARD",
-        stage: "ASSESSMENT",
-      });
+      const result = grant.findStatuses(
+        new Position({ phase: "PRE_AWARD", stage: "ASSESSMENT" }),
+      );
 
       expect(result).toEqual({
         RECEIVED: { code: "RECEIVED" },
@@ -1191,19 +1388,17 @@ describe("Grant", () => {
     });
 
     it("should return empty object when phase does not exist", () => {
-      const result = grant.findStatuses({
-        phase: "UNKNOWN_PHASE",
-        stage: "ASSESSMENT",
-      });
+      const result = grant.findStatuses(
+        new Position({ phase: "UNKNOWN_PHASE", stage: "ASSESSMENT" }),
+      );
 
       expect(result).toEqual({});
     });
 
     it("should return empty object when stage does not exist", () => {
-      const result = grant.findStatuses({
-        phase: "PRE_AWARD",
-        stage: "UNKNOWN_STAGE",
-      });
+      const result = grant.findStatuses(
+        new Position({ phase: "PRE_AWARD", stage: "UNKNOWN_STAGE" }),
+      );
 
       expect(result).toEqual({});
     });

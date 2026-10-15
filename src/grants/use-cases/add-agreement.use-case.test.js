@@ -20,7 +20,7 @@ import {
   auditDataBuilder,
 } from "./add-agreement.use-case.js";
 
-vi.mock("../commands/update-case-status.command.js");
+vi.mock("../commands/update-case-status.command.js", { spy: true });
 vi.mock("../services/apply-event-status-change.service.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../../events/index.js");
@@ -76,13 +76,11 @@ describe("addAgreementUseCase", () => {
       {},
     );
     expect(saveEvents.mock.calls[0][0][0].segregationRef).toBeUndefined();
-    expect(UpdateCaseStatusCommand).toHaveBeenCalledWith({
+    expect(UpdateCaseStatusCommand.forPosition).toHaveBeenCalledWith({
       caseRef: "test-client-ref",
       workflowCode: "test-code",
       configVersion: "1.0.0",
-      newStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
-      phase: "PRE_AWARD",
-      stage: "ASSESSMENT",
+      position: application.position,
       dataType: "ARRAY",
       key: "agreementRef",
       targetNode: "agreements",
@@ -91,6 +89,25 @@ describe("addAgreementUseCase", () => {
         agreementStatus: "OFFERED",
         createdAt: "2024-01-01T12:00:00Z",
         updatedAt: "2024-01-15T10:30:00.000Z",
+      },
+    });
+    expect(saveEvents.mock.calls[0][0][0].event.data).toEqual({
+      caseRef: "test-client-ref",
+      workflowCode: "test-code",
+      newStatus: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+      supplementaryData: {
+        currentConfigVersion: "1.0.0",
+        phase: "PRE_AWARD",
+        stage: "ASSESSMENT",
+        dataType: "ARRAY",
+        key: "agreementRef",
+        targetNode: "agreements",
+        data: {
+          agreementRef: "agreement-123",
+          agreementStatus: "OFFERED",
+          createdAt: "2024-01-01T12:00:00Z",
+          updatedAt: "2024-01-15T10:30:00.000Z",
+        },
       },
     });
   });

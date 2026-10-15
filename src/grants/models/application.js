@@ -1,6 +1,7 @@
 import Boom from "@hapi/boom";
 import Joi from "joi";
 import { AgreementStatus } from "./agreement.js";
+import { Position } from "./position.js";
 
 export const ApplicationPhase = {
   PreAward: "PRE_AWARD",
@@ -30,7 +31,8 @@ export class Application {
 
   // eslint-disable-next-line complexity
   constructor(props) {
-    const { error } = Application.validationSchema.validate(props, {
+    const { position, ...values } = props;
+    const { error } = Application.validationSchema.validate(values, {
       stripUnknown: true,
       abortEarly: false,
     });
@@ -41,10 +43,13 @@ export class Application {
       );
     }
 
+    if (!(position instanceof Position)) {
+      throw Boom.badRequest(
+        'Invalid Application: "position" must be a Position',
+      );
+    }
+
     const {
-      currentPhase,
-      currentStage,
-      currentStatus,
       clientRef,
       code,
       configVersion,
@@ -57,11 +62,9 @@ export class Application {
       metadata,
       phases,
       agreements,
-    } = props;
+    } = values;
 
-    this.currentPhase = currentPhase;
-    this.currentStage = currentStage;
-    this.currentStatus = currentStatus;
+    this.position = position;
     this.clientRef = clientRef;
     this.code = code;
     this.originalConfigVersion = originalConfigVersion ?? configVersion ?? null;
@@ -76,9 +79,7 @@ export class Application {
   }
 
   static new({
-    currentPhase,
-    currentStage,
-    currentStatus,
+    position,
     clientRef,
     code,
     configVersion,
@@ -90,9 +91,7 @@ export class Application {
     const createdAt = new Date().toISOString();
 
     return new Application({
-      currentPhase,
-      currentStage,
-      currentStatus,
+      position,
       clientRef,
       code,
       originalConfigVersion: configVersion,
@@ -108,58 +107,49 @@ export class Application {
   }
 
   isReplacementAllowed(positions) {
-    return positions.includes(this.getFullyQualifiedStatus());
+    return positions.some((position) => this.position.hasSameCode(position));
   }
 
   approve() {
-    if (this.currentStatus === ApplicationStatus.Approved) {
+    if (this.position.status === ApplicationStatus.Approved) {
       throw new Error(
         `Application with clientRef "${this.clientRef}" and code "${this.code}" is already approved`,
       );
     }
 
-    this.currentStatus = ApplicationStatus.Approved;
+    this.position = this.position.withStatus(ApplicationStatus.Approved);
     this.updatedAt = this.#getTimestamp();
   }
 
-  getFullyQualifiedStatus() {
-    return `${this.currentPhase}:${this.currentStage}:${this.currentStatus}`;
+  canMoveTo(targetPosition, grant) {
+    return (
+      this.position.equals(targetPosition) ||
+      grant.isValidTransition(targetPosition, this.position).valid
+    );
   }
 
-  moveTo({ phase, stage, status }, grant) {
-    const previous = this.getFullyQualifiedStatus();
-    const next = [phase, stage, status].join(":");
+  moveTo(targetPosition, grant) {
+    const previous = this.position;
 
-    if (previous === next) {
+    if (previous.equals(targetPosition)) {
       return { changed: false, previous, new: previous, processes: [] };
     }
 
-    const transition = grant.isValidTransition(phase, stage, status, previous);
+    const transition = grant.isValidTransition(targetPosition, previous);
     if (!transition.valid) {
       throw Boom.badRequest(
-        `Invalid transition from "${previous}" to "${next}"`,
+        `Invalid transition from "${previous}" to "${targetPosition}"`,
       );
     }
 
-    this.currentPhase = phase;
-    this.currentStage = stage;
-    this.currentStatus = status;
+    this.position = targetPosition;
     this.updatedAt = this.#getTimestamp();
 
     return {
       changed: true,
       previous,
-      new: next,
+      new: targetPosition,
       processes: transition.processes ?? [],
-    };
-  }
-
-  // The same position as getFullyQualifiedStatus, by part rather than joined,
-  currentPosition() {
-    return {
-      phase: this.currentPhase,
-      stage: this.currentStage,
-      status: this.currentStatus,
     };
   }
 
@@ -172,9 +162,9 @@ export class Application {
     return {
       clientRef: this.clientRef,
       code: this.code,
-      phase: this.currentPhase,
-      stage: this.currentStage,
-      status: this.currentStatus,
+      phase: this.position.phase,
+      stage: this.position.stage,
+      status: this.position.status,
       identifiers: this.identifiers ?? {},
       answers,
     };
@@ -234,7 +224,7 @@ export class Application {
   }
 
   withdraw() {
-    this.currentStatus = ApplicationStatus.Withdrawn;
+    this.position = this.position.withStatus(ApplicationStatus.Withdrawn);
     this.updatedAt = this.#getTimestamp();
   }
 
@@ -278,7 +268,7 @@ export class Application {
   }
 
   getAnswers() {
-    const phase = this.phases?.find((p) => p.code === this.currentPhase);
+    const phase = this.phases?.find((p) => p.code === this.position.phase);
     return phase?.answers ?? {};
   }
 

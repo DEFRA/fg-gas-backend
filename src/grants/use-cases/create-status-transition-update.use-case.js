@@ -6,15 +6,15 @@ import { ApplicationStatusUpdatedEvent } from "../events/application-status-upda
 import { saveEvents } from "../../events/index.js";
 
 const writeStatusTransition = async (
-  { clientRef, code, previousStatus, currentStatus, currentConfigVersion },
+  { clientRef, code, previousPosition, currentPosition, currentConfigVersion },
   session,
 ) => {
-  const statusEvent = new ApplicationStatusUpdatedEvent({
+  const statusEvent = ApplicationStatusUpdatedEvent.forPositions({
     clientRef,
     code,
     currentConfigVersion,
-    previousStatus,
-    currentStatus,
+    previousPosition,
+    currentPosition,
   });
 
   await saveEvents(
@@ -29,7 +29,7 @@ const writeStatusTransition = async (
 };
 
 export const auditDataBuilder = (args) => {
-  const { clientRef, code, previousStatus, currentStatus } = args[0];
+  const { clientRef, code, previousPosition, currentPosition } = args[0];
 
   return buildAuditEvent({
     entity: auditEntities.APPLICATION,
@@ -37,8 +37,8 @@ export const auditDataBuilder = (args) => {
     entityid: clientRef,
     details: {
       code,
-      fromStatus: previousStatus,
-      toStatus: currentStatus,
+      fromStatus: previousPosition.toString(),
+      toStatus: currentPosition.toString(),
       entityIdKey: "clientRef",
     },
     segregationRef: `status-transition-${clientRef}`,
@@ -52,8 +52,8 @@ const writeStatusTransitionWithAudit = withAudit(
 
 export const createStatusTransitionUpdateUseCase =
   ({
-    originalFullyQualifiedStatus,
-    newFullyQualifiedStatus,
+    previousPosition,
+    currentPosition,
     clientRef,
     code,
     configVersion: currentConfigVersion,
@@ -62,13 +62,13 @@ export const createStatusTransitionUpdateUseCase =
     logger.info(
       `Creating status transition update for application ${clientRef} with code ${code}`,
     );
-    if (originalFullyQualifiedStatus !== newFullyQualifiedStatus) {
+    if (!previousPosition.hasSameCode(currentPosition)) {
       await writeStatusTransitionWithAudit(
         {
           clientRef,
           code,
-          previousStatus: originalFullyQualifiedStatus,
-          currentStatus: newFullyQualifiedStatus,
+          previousPosition,
+          currentPosition,
           currentConfigVersion,
         },
         session,

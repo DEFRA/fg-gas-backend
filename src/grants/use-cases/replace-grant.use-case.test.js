@@ -2,7 +2,9 @@ import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
+import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
+import { Position } from "../models/position.js";
 import { findByCode, replace } from "../repositories/grant.repository.js";
 import {
   replaceGrantAuditBuilder,
@@ -90,6 +92,13 @@ describe("replaceGrantUseCase", () => {
 
     expect(replacedGrant.entitlementTemplates).toEqual(entitlementTemplates);
     expect(replacedGrant.amendablePositions).toEqual([
+      new Position({
+        phase: "PRE_AWARD",
+        stage: "ASSESSMENT",
+        status: "APPLICATION_RECEIVED",
+      }),
+    ]);
+    expect(new GrantDocument(replacedGrant).amendablePositions).toEqual([
       "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
     ]);
   });
@@ -112,29 +121,32 @@ describe("replaceGrantUseCase", () => {
     ];
 
     findByCode.mockResolvedValue(
-      new Grant({
-        code: "test-grant",
-        version: "0.0.0",
-        metadata: {
-          description: "Test Grant Description",
-          startDate: "2023-01-01T00:00:00Z",
-        },
-        actions: [],
-        phases,
-        entitlementTemplates: [
-          {
-            claimCode: "ENT_TRACTOR",
-            name: "Tractor entitlement",
-            availableAt: [
-              {
-                phase: "PRE_AWARD",
-                stage: "ASSESSMENT",
-                status: "APPLICATION_RECEIVED",
-              },
-            ],
+      Grant.fromDefinition(
+        {
+          code: "test-grant",
+          version: "0.0.0",
+          metadata: {
+            description: "Test Grant Description",
+            startDate: "2023-01-01T00:00:00Z",
           },
-        ],
-      }),
+          actions: [],
+          phases,
+          entitlementTemplates: [
+            {
+              claimCode: "ENT_TRACTOR",
+              name: "Tractor entitlement",
+              availableAt: [
+                {
+                  phase: "PRE_AWARD",
+                  stage: "ASSESSMENT",
+                  status: "APPLICATION_RECEIVED",
+                },
+              ],
+            },
+          ],
+        },
+        "0.0.0",
+      ),
     );
 
     await replaceGrantUseCase({
@@ -493,17 +505,20 @@ describe("replaceGrantUseCase", () => {
       },
     };
     findByCode.mockResolvedValue(
-      new Grant({
-        code: "test-grant",
-        version: "0.0.0",
-        metadata: {
-          description: "Test Grant Description",
-          startDate: "2023-01-01T00:00:00Z",
+      Grant.fromDefinition(
+        {
+          code: "test-grant",
+          version: "0.0.0",
+          metadata: {
+            description: "Test Grant Description",
+            startDate: "2023-01-01T00:00:00Z",
+          },
+          actions: [],
+          phases,
+          claims,
         },
-        actions: [],
-        phases,
-        claims,
-      }),
+        "0.0.0",
+      ),
     );
 
     await replaceGrantUseCase({
@@ -556,17 +571,20 @@ describe("replaceGrantUseCase", () => {
       },
     };
     findByCode.mockResolvedValue(
-      new Grant({
-        code: "test-grant",
-        version: "0.0.0",
-        metadata: {
-          description: "Test Grant Description",
-          startDate: "2023-01-01T00:00:00Z",
+      Grant.fromDefinition(
+        {
+          code: "test-grant",
+          version: "0.0.0",
+          metadata: {
+            description: "Test Grant Description",
+            startDate: "2023-01-01T00:00:00Z",
+          },
+          actions: [],
+          phases,
+          claims,
         },
-        actions: [],
-        phases,
-        claims,
-      }),
+        "0.0.0",
+      ),
     );
 
     await replaceGrantUseCase({

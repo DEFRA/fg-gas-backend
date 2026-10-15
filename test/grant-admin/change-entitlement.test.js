@@ -7,7 +7,9 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../../src/grants/models/application.js";
+import { ApplicationDocument } from "../../src/grants/models/application-document.js";
 import { GrantDocument } from "../../src/grants/models/grant-document.js";
+import { Position } from "../../src/grants/models/position.js";
 import { createTestGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -93,21 +95,25 @@ const seed = async () => {
     ),
   );
   await applications.insertOne(
-    Application.new({
-      clientRef,
-      code,
-      currentPhase: ApplicationPhase.PostAward,
-      currentStage: position.stage,
-      currentStatus: position.status,
-      phases: [
-        {
-          code: position.phase,
-          questions: {},
-          answers: { applicant: { business: { name: "Elmwood Land Co" } } },
-        },
-      ],
-      identifiers: { sbi: "123", frn: "456", crn: "789", defraId: "abc" },
-    }),
+    new ApplicationDocument(
+      Application.new({
+        clientRef,
+        code,
+        position: new Position({
+          phase: ApplicationPhase.PostAward,
+          stage: position.stage,
+          status: position.status,
+        }),
+        phases: [
+          {
+            code: position.phase,
+            questions: {},
+            answers: { applicant: { business: { name: "Elmwood Land Co" } } },
+          },
+        ],
+        identifiers: { sbi: "123", frn: "456", crn: "789", defraId: "abc" },
+      }),
+    ),
   );
   await entitlements.insertOne({
     id: entitlementId,

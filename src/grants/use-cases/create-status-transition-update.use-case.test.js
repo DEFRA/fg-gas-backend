@@ -3,6 +3,7 @@ import { config } from "../../common/config.js";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { saveEvents } from "../../events/index.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
+import { Position } from "../models/position.js";
 import {
   auditDataBuilder,
   createStatusTransitionUpdateUseCase,
@@ -14,8 +15,8 @@ vi.mock("../../events/write-audit-event.js");
 const transition = {
   clientRef: "some-client-ref",
   code: "some-code",
-  newFullyQualifiedStatus: "SOME:STATUS:FOO",
-  originalFullyQualifiedStatus: "SOME:STATUS:BARR",
+  currentPosition: Position.parse("SOME:STATUS:FOO"),
+  previousPosition: Position.parse("SOME:STATUS:BARR"),
   configVersion: "1.2.3",
 };
 
@@ -39,8 +40,8 @@ describe("create status transition update", () => {
             data: expect.objectContaining({
               clientRef: transition.clientRef,
               grantCode: transition.code,
-              previousStatus: transition.originalFullyQualifiedStatus,
-              currentStatus: transition.newFullyQualifiedStatus,
+              previousStatus: "SOME:STATUS:BARR",
+              currentStatus: "SOME:STATUS:FOO",
             }),
           }),
         },
@@ -61,13 +62,44 @@ describe("create status transition update", () => {
     const session = {};
     const handler = createStatusTransitionUpdateUseCase({
       ...transition,
-      originalFullyQualifiedStatus: transition.newFullyQualifiedStatus,
+      previousPosition: Position.parse("SOME:STATUS:FOO"),
     });
 
     await handler(session);
 
     expect(saveEvents).not.toHaveBeenCalled();
     expect(writeAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("should do nothing if positions missing different parts read as the same status", async () => {
+    const handler = createStatusTransitionUpdateUseCase({
+      ...transition,
+      previousPosition: new Position({
+        phase: "SOME",
+        stage: null,
+        status: "FOO",
+      }),
+      currentPosition: new Position({ phase: "SOME", status: "FOO" }),
+    });
+
+    await handler({});
+
+    expect(saveEvents).not.toHaveBeenCalled();
+    expect(writeAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("stores the event payload with plain string statuses", async () => {
+    const handler = createStatusTransitionUpdateUseCase(transition);
+
+    await handler({});
+
+    expect(saveEvents.mock.calls.at(-1)[0][0].event.data).toStrictEqual({
+      clientRef: "some-client-ref",
+      grantCode: "some-code",
+      currentConfigVersion: "1.2.3",
+      previousStatus: "SOME:STATUS:BARR",
+      currentStatus: "SOME:STATUS:FOO",
+    });
   });
 
   it("publishes the status event before writing the audit event", async () => {
@@ -124,8 +156,8 @@ describe("auditDataBuilder", () => {
     {
       clientRef: "some-client-ref",
       code: "some-code",
-      previousStatus: "SOME:STATUS:BARR",
-      currentStatus: "SOME:STATUS:FOO",
+      previousPosition: Position.parse("SOME:STATUS:BARR"),
+      currentPosition: Position.parse("SOME:STATUS:FOO"),
     },
   ];
 
@@ -140,7 +172,7 @@ describe("auditDataBuilder", () => {
 
   it("sets details from code, previousStatus, currentStatus and entityIdKey", () => {
     const event = auditDataBuilder(args);
-    expect(event.details).toEqual({
+    expect(event.details).toStrictEqual({
       code: "some-code",
       fromStatus: "SOME:STATUS:BARR",
       toStatus: "SOME:STATUS:FOO",

@@ -6,14 +6,17 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
+import { Position } from "../models/position.js";
 import { CreateAgreementCommand } from "./create-agreement.command.js";
 
 describe("CreateAgreementCommand", () => {
   it("should create event", () => {
     const application = Application.new({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Received,
+      position: new Position({
+        phase: ApplicationPhase.PreAward,
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.Received,
+      }),
       clientRef: "123",
       code: "grant-code",
       configVersion: "1.0.0",
@@ -58,9 +61,11 @@ describe("CreateAgreementCommand", () => {
 
   it("preserves defraId in metadata when present", () => {
     const application = Application.new({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Received,
+      position: new Position({
+        phase: ApplicationPhase.PreAward,
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.Received,
+      }),
       clientRef: "123",
       code: "grant-code",
       configVersion: "1.0.0",

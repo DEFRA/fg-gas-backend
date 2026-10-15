@@ -13,8 +13,8 @@ const optionalBlock = (value) => value ?? undefined;
 // Normalising here keeps that drift where it belongs - in the layer that owns
 // the stored shape - so the domain model can take a well-formed collection and
 // not accumulate a guard per field per schema change.
-export const toGrant = (doc) =>
-  new Grant({
+export const toGrant = (doc) => {
+  const definition = {
     code: doc.code,
     version: doc.version,
     metadata: doc.metadata,
@@ -28,7 +28,10 @@ export const toGrant = (doc) =>
     pages: optionalBlock(doc.pages),
     claims: optionalBlock(doc.claims),
     admin: optionalBlock(doc.admin),
-  });
+  };
+
+  return Grant.fromDefinition(definition, definition.version);
+};
 
 export const collection = "grants";
 

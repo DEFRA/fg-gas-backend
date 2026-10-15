@@ -12,6 +12,7 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
+import { Position } from "../models/position.js";
 import {
   findByClientRefAndCode,
   update,
@@ -43,9 +44,11 @@ describe("withdraw agreement use case", () => {
     });
 
     const application = new Application({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Withdrawn,
+      position: new Position({
+        phase: ApplicationPhase.PreAward,
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.Withdrawn,
+      }),
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {

@@ -49,7 +49,7 @@ describe("createApplicationUseCase", () => {
 
     expect(save).toHaveBeenCalledWith(expect.any(Application), session);
     const application = save.mock.calls[0][0];
-    expect(application.currentPhase).toBe(ApplicationPhase.PreAward);
+    expect(application.position.phase).toBe(ApplicationPhase.PreAward);
     expect(application.clientRef).toBe("test-client-ref");
     expect(result).toBe("1234");
   });

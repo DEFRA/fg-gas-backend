@@ -18,6 +18,7 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "../models/application.js";
+import { Position } from "../models/position.js";
 import { findByClientRefAndCode } from "../repositories/application.repository.js";
 import { saveEvents } from "../../events/index.js";
 import {
@@ -70,9 +71,11 @@ describe("requestAgreementTerminationUseCase", () => {
   it("routes GAS-managed agreement termination to the internal handler", async () => {
     canHandleInternalCommand.mockResolvedValue(true);
     const application = new Application({
-      currentPhase: ApplicationPhase.PostAgreementMonitoring,
-      currentStage: ApplicationStage.Monitoring,
-      currentStatus: ApplicationStatus.AgreementAccepted,
+      position: new Position({
+        phase: ApplicationPhase.PostAgreementMonitoring,
+        stage: ApplicationStage.Monitoring,
+        status: ApplicationStatus.AgreementAccepted,
+      }),
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {
@@ -92,9 +95,11 @@ describe("requestAgreementTerminationUseCase", () => {
 
   it("sends termination request to Agreement Service when agreement exists", async () => {
     const application = new Application({
-      currentPhase: ApplicationPhase.PostAgreementMonitoring,
-      currentStage: ApplicationStage.Monitoring,
-      currentStatus: ApplicationStatus.AgreementAccepted,
+      position: new Position({
+        phase: ApplicationPhase.PostAgreementMonitoring,
+        stage: ApplicationStage.Monitoring,
+        status: ApplicationStatus.AgreementAccepted,
+      }),
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {
@@ -151,9 +156,11 @@ describe("requestAgreementTerminationUseCase", () => {
 
   it("does not send request when no agreement exists", async () => {
     const application = new Application({
-      currentPhase: ApplicationPhase.PostAgreementMonitoring,
-      currentStage: ApplicationStage.Monitoring,
-      currentStatus: ApplicationStatus.AgreementAccepted,
+      position: new Position({
+        phase: ApplicationPhase.PostAgreementMonitoring,
+        stage: ApplicationStage.Monitoring,
+        status: ApplicationStatus.AgreementAccepted,
+      }),
       clientRef: "test-client-ref",
       code: "test-code",
       agreements: {},

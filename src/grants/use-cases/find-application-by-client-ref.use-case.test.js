@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Application } from "../models/application.js";
+import { Position } from "../models/position.js";
 import { findByClientRef } from "../repositories/application.repository.js";
 import { findApplicationByClientRefUseCase } from "./find-application-by-client-ref.use-case.js";
 
@@ -8,6 +9,7 @@ vi.mock("../repositories/application.repository.js");
 describe("findApplicationByClientRefUseCase", () => {
   it("finds an application by clientRef", async () => {
     const application = new Application({
+      position: new Position({}),
       clientRef: "test-client-ref",
       code: "test-code",
       sbi: "123456789",

@@ -8,6 +8,7 @@ import {
   ApplicationStage,
   ApplicationStatus,
 } from "./application.js";
+import { Position } from "./position.js";
 
 describe("Application", () => {
   beforeEach(() => {
@@ -26,23 +27,25 @@ describe("Application", () => {
       vi.setSystemTime(new Date("2021-02-02T13:00:00.000Z"));
 
       const result = application.moveTo(
-        {
+        new Position({
           phase: "PRE_AWARD",
           stage: "ASSESSMENT",
           status: "IN_REVIEW",
-        },
+        }),
         grant,
       );
 
       expect(result).toEqual({
         changed: true,
-        previous: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
-        new: "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+        previous: Position.parse("PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"),
+        new: Position.parse("PRE_AWARD:ASSESSMENT:IN_REVIEW"),
         processes: ["STORE_AGREEMENT_CASE"],
       });
-      expect(application.currentPhase).toBe("PRE_AWARD");
-      expect(application.currentStage).toBe("ASSESSMENT");
-      expect(application.currentStatus).toBe("IN_REVIEW");
+      expect(result.previous).toBeInstanceOf(Position);
+      expect(result.new).toBe(application.position);
+      expect(application.position.phase).toBe("PRE_AWARD");
+      expect(application.position.stage).toBe("ASSESSMENT");
+      expect(application.position.status).toBe("IN_REVIEW");
       expect(application.updatedAt).toBe("2021-02-02T13:00:00.000Z");
     });
 
@@ -52,12 +55,12 @@ describe("Application", () => {
       const grant = createTestGrant();
       vi.setSystemTime(new Date("2021-02-02T13:00:00.000Z"));
 
-      const result = application.moveTo(application.currentPosition(), grant);
+      const result = application.moveTo(application.position, grant);
 
       expect(result).toEqual({
         changed: false,
-        previous: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
-        new: "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED",
+        previous: Position.parse("PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"),
+        new: Position.parse("PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"),
         processes: [],
       });
       expect(application).toEqual(before);
@@ -71,11 +74,11 @@ describe("Application", () => {
 
       expect(() =>
         application.moveTo(
-          {
+          new Position({
             phase: "PRE_AWARD",
             stage: "ASSESSMENT",
             status: "APPLICATION_REJECTED",
-          },
+          }),
           grant,
         ),
       ).toThrow(
@@ -85,18 +88,87 @@ describe("Application", () => {
     });
   });
 
+  describe("canMoveTo", () => {
+    const target = (status) =>
+      new Position({ phase: "PRE_AWARD", stage: "ASSESSMENT", status });
+
+    it("returns true for a target the grant allows from the current position", () => {
+      const application = createTestApplication();
+
+      expect(
+        application.canMoveTo(target("IN_REVIEW"), createTestGrant()),
+      ).toBe(true);
+    });
+
+    it("returns true for the current position", () => {
+      const application = createTestApplication();
+
+      expect(
+        application.canMoveTo(application.position, createTestGrant()),
+      ).toBe(true);
+    });
+
+    it("returns false for a target the grant does not allow from the current position", () => {
+      const application = createTestApplication();
+
+      expect(
+        application.canMoveTo(
+          target("APPLICATION_REJECTED"),
+          createTestGrant(),
+        ),
+      ).toBe(false);
+    });
+  });
+
   describe("isReplacementAllowed", () => {
+    it("matches a position missing a part against a declared code that reads the same", () => {
+      const application = createTestApplication({
+        position: new Position({
+          phase: "PRE_AWARD",
+          status: "APPLICATION_AMEND",
+        }),
+      });
+
+      expect(
+        application.isReplacementAllowed([
+          Position.parse("PRE_AWARD:APPLICATION_AMEND"),
+        ]),
+      ).toBe(true);
+    });
+
+    it("does not match an entry that is not a position", () => {
+      const application = createTestApplication();
+
+      expect(application.isReplacementAllowed([null, undefined, 5])).toBe(
+        false,
+      );
+    });
+
+    it.each([undefined, null])(
+      "throws a TypeError when the grant declares %s",
+      (amendablePositions) => {
+        const application = createTestApplication();
+
+        expect(() =>
+          application.isReplacementAllowed(amendablePositions),
+        ).toThrow(TypeError);
+      },
+    );
+
     it("returns true when application fully qualified status is in amendablePositions", () => {
       const application = createTestApplication({
-        currentStatus: "APPLICATION_AMEND",
-        currentStage: "REVIEW_OFFER",
+        position: new Position({
+          phase: ApplicationPhase.PreAward,
+          stage: "REVIEW_OFFER",
+          status: "APPLICATION_AMEND",
+        }),
       });
 
       const amendablePositions = [
         "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
         "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND",
         "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND",
-      ];
+      ].map((code) => Position.parse(code));
 
       expect(application.isReplacementAllowed(amendablePositions)).toBeTruthy();
     });
@@ -108,7 +180,7 @@ describe("Application", () => {
         "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
         "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND",
         "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND",
-      ];
+      ].map((code) => Position.parse(code));
 
       expect(application.isReplacementAllowed(amendablePositions)).toBeFalsy();
     });
@@ -189,13 +261,17 @@ describe("Application", () => {
 
     application.approve();
 
-    expect(application.currentStatus).toBe(ApplicationStatus.Approved);
+    expect(application.position.status).toBe(ApplicationStatus.Approved);
     expect(application.updatedAt).toBe("2021-02-01T13:00:00.000Z");
   });
 
   it("throws an error when approving an already approved application", () => {
     const application = createTestApplication({
-      currentStatus: ApplicationStatus.Approved,
+      position: new Position({
+        phase: ApplicationPhase.PreAward,
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.Approved,
+      }),
     });
 
     expect(() => {
@@ -209,9 +285,11 @@ describe("Application", () => {
     const application = createTestApplication();
 
     expect(application).toEqual({
-      currentPhase: ApplicationPhase.PreAward,
-      currentStage: ApplicationStage.Assessment,
-      currentStatus: ApplicationStatus.Received,
+      position: new Position({
+        phase: ApplicationPhase.PreAward,
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.Received,
+      }),
       clientRef: "application-1",
       code: "grant-1",
       createdAt: "2021-02-01T13:00:00.000Z",
@@ -317,7 +395,7 @@ describe("Application", () => {
 
     application.addAgreement(agreement);
 
-    expect(application.currentStatus).toBe(ApplicationStatus.Received);
+    expect(application.position.status).toBe(ApplicationStatus.Received);
     expect(application.getAgreement("agreement-1").latestStatus).toBe(
       AgreementStatus.Offered,
     );
@@ -368,7 +446,13 @@ describe("Application", () => {
 
     application.withdraw();
 
-    expect(application.currentStatus).toBe(ApplicationStatus.Withdrawn);
+    expect(application.position).toEqual(
+      new Position({
+        phase: ApplicationPhase.PreAward,
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.Withdrawn,
+      }),
+    );
     expect(application.updatedAt).toBe("2021-02-01T13:00:00.000Z");
   });
 
@@ -423,7 +507,7 @@ describe("Application", () => {
   it("gets the fully qualified status", () => {
     const application = createTestApplication();
 
-    expect(application.getFullyQualifiedStatus()).toBe(
+    expect(application.position.toString()).toBe(
       `${ApplicationPhase.PreAward}:${ApplicationStage.Assessment}:${ApplicationStatus.Received}`,
     );
   });
@@ -431,7 +515,8 @@ describe("Application", () => {
   it("gets the current position by part", () => {
     const application = createTestApplication();
 
-    expect(application.currentPosition()).toEqual({
+    expect(application.position).toBeInstanceOf(Position);
+    expect(application.position).toEqual({
       phase: ApplicationPhase.PreAward,
       stage: ApplicationStage.Assessment,
       status: ApplicationStatus.Received,
@@ -601,7 +686,11 @@ describe("Application", () => {
 
   it("returns answers for specific phase when application has multiple phases", () => {
     const application = createTestApplication({
-      currentPhase: "POST_AWARD",
+      position: new Position({
+        phase: "POST_AWARD",
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.Received,
+      }),
       phases: [
         {
           code: ApplicationPhase.PreAward,
@@ -641,7 +730,11 @@ describe("Application", () => {
 
   it("returns empty object when current phase does not exist in phases array", () => {
     const application = createTestApplication({
-      currentPhase: "NON_EXISTENT_PHASE",
+      position: new Position({
+        phase: "NON_EXISTENT_PHASE",
+        stage: ApplicationStage.Assessment,
+        status: ApplicationStatus.Received,
+      }),
       phases: [
         {
           code: ApplicationPhase.PreAward,
@@ -660,9 +753,11 @@ describe("Application", () => {
   describe("referenceContext", () => {
     it("includes identity, position, identifiers, and answers from every phase", () => {
       const application = createTestApplication({
-        currentPhase: "CLAIM",
-        currentStage: "PREPARE_CLAIM",
-        currentStatus: "PREPARING_CLAIM",
+        position: new Position({
+          phase: "CLAIM",
+          stage: "PREPARE_CLAIM",
+          status: "PREPARING_CLAIM",
+        }),
         phases: [
           {
             code: ApplicationPhase.PreAward,
@@ -685,6 +780,7 @@ describe("Application", () => {
 
     it("uses empty objects when identifiers and phases are absent", () => {
       const application = new Application({
+        position: new Position({}),
         clientRef: "application-1",
         code: "grant-1",
         phases: [],
@@ -698,13 +794,49 @@ describe("Application", () => {
   });
 
   describe("validation", () => {
+    it.each([
+      ["a plain object", { phase: "PRE_AWARD", stage: "ASSESSMENT" }],
+      ["a string", "PRE_AWARD:ASSESSMENT:APPLICATION_RECEIVED"],
+      ["nothing", undefined],
+    ])("rejects %s given as the position", (_, position) => {
+      expect(
+        () =>
+          new Application({
+            position,
+            clientRef: "application-1",
+            code: "grant-1",
+            phases: [],
+          }),
+      ).toThrowError('Invalid Application: "position" must be a Position');
+    });
+
+    it("accepts a Position", () => {
+      const position = new Position({ phase: "PRE_AWARD" });
+      const application = new Application({
+        position,
+        clientRef: "application-1",
+        code: "grant-1",
+        phases: [],
+      });
+
+      expect(application.position).toBe(position);
+    });
+
+    it("reports missing fields ahead of a missing position", () => {
+      expect(() => new Application({})).toThrowError(
+        'Invalid Application: "clientRef" is required, "code" is required, "phases" is required',
+      );
+    });
+
     it("throws Boom.badRequest when required fields are missing", () => {
       expect(() => {
         // eslint-disable-next-line no-new
         new Application({
-          currentPhase: ApplicationPhase.PreAward,
-          currentStage: ApplicationStage.Assessment,
-          currentStatus: ApplicationStatus.Received,
+          position: new Position({
+            phase: ApplicationPhase.PreAward,
+            stage: ApplicationStage.Assessment,
+            status: ApplicationStatus.Received,
+          }),
           // clientRef missing
           // code missing
           // phases missing
@@ -716,7 +848,7 @@ describe("Application", () => {
       expect(() => {
         // eslint-disable-next-line no-new
         new Application({
-          currentPhase: ApplicationPhase.PreAward,
+          position: new Position({ phase: ApplicationPhase.PreAward }),
         });
       }).toThrowError(/Invalid Application:/);
     });

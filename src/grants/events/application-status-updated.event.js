@@ -14,4 +14,12 @@ export class ApplicationStatusUpdatedEvent extends CloudEvent {
       `${props.clientRef}-${props.code}`,
     );
   }
+
+  static forPositions({ previousPosition, currentPosition, ...props }) {
+    return new ApplicationStatusUpdatedEvent({
+      ...props,
+      previousStatus: previousPosition.toString(),
+      currentStatus: currentPosition.toString(),
+    });
+  }
 }

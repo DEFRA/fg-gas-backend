@@ -2,14 +2,16 @@ import { describe, expect, it } from "vitest";
 import { ClaimableEntitlement } from "./claimable-entitlement.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
 import { Entitlement } from "./entitlement.js";
+import { Position } from "./position.js";
 
 const position = {
   phase: "PRE_AWARD",
   stage: "ASSESSMENT",
   status: "APPLICATION_RECEIVED",
 };
+const current = new Position(position);
 
-const template = new EntitlementTemplate({
+const template = EntitlementTemplate.fromDefinition({
   claimCode: "ENT_PA3",
   name: "PA3 entitlement",
   availableAt: [position],
@@ -20,6 +22,28 @@ const template = new EntitlementTemplate({
 });
 
 describe("ClaimableEntitlement", () => {
+  it("rejects a plain object given as a claimableAt entry", () => {
+    expect(
+      () =>
+        new ClaimableEntitlement({
+          claimCode: "ENT_PA3",
+          claim: { claimableAt: [position] },
+        }),
+    ).toThrow(
+      'Invalid claimable entitlement "ENT_PA3": "claim.claimableAt" must contain only PositionScopes',
+    );
+  });
+
+  it("accepts a claim with PositionScopes and a claim with none", () => {
+    expect(
+      new ClaimableEntitlement({ claimCode: "ENT_PA3", claim: template.claim })
+        .claim,
+    ).toBe(template.claim);
+    expect(
+      new ClaimableEntitlement({ claimCode: "ENT_PA3" }).claim,
+    ).toBeUndefined();
+  });
+
   it("builds a materialised claim target", () => {
     const claimable = ClaimableEntitlement.fromMaterialised({
       template,
@@ -60,7 +84,7 @@ describe("ClaimableEntitlement", () => {
       clientRef: "wmp-123",
     });
 
-    expect(claimable.canAcceptClaim(position, 1)).toEqual({ allowed: true });
+    expect(claimable.canAcceptClaim(current, 1)).toEqual({ allowed: true });
   });
 
   it("rejects a claim outside its configured position", () => {
@@ -71,7 +95,10 @@ describe("ClaimableEntitlement", () => {
     });
 
     expect(
-      claimable.canAcceptClaim({ ...position, status: "IN_REVIEW" }, 0),
+      claimable.canAcceptClaim(
+        new Position({ ...position, status: "IN_REVIEW" }),
+        0,
+      ),
     ).toEqual({ allowed: false, reason: "WRONG_POSITION" });
   });
 
@@ -89,7 +116,7 @@ describe("ClaimableEntitlement", () => {
   });
 
   it("rejects a claim when the template configures no claimable position", () => {
-    const noClaimableAt = new EntitlementTemplate({
+    const noClaimableAt = EntitlementTemplate.fromDefinition({
       claimCode: "ENT_PA3",
       name: "PA3 entitlement",
       availableAt: [position],
@@ -101,14 +128,14 @@ describe("ClaimableEntitlement", () => {
       clientRef: "wmp-123",
     });
 
-    expect(claimable.canAcceptClaim(position, 0)).toEqual({
+    expect(claimable.canAcceptClaim(current, 0)).toEqual({
       allowed: false,
       reason: "WRONG_POSITION",
     });
   });
 
   it("allows a single claim when the template configures no limits", () => {
-    const noLimits = new EntitlementTemplate({
+    const noLimits = EntitlementTemplate.fromDefinition({
       claimCode: "ENT_PA3",
       name: "PA3 entitlement",
       availableAt: [position],
@@ -121,8 +148,8 @@ describe("ClaimableEntitlement", () => {
     });
 
     expect(claimable.maximumClaims).toBe(1);
-    expect(claimable.canAcceptClaim(position, 0)).toEqual({ allowed: true });
-    expect(claimable.canAcceptClaim(position, 1)).toEqual({
+    expect(claimable.canAcceptClaim(current, 0)).toEqual({ allowed: true });
+    expect(claimable.canAcceptClaim(current, 1)).toEqual({
       allowed: false,
       reason: "MAXIMUM_CLAIMS_REACHED",
     });
@@ -135,7 +162,7 @@ describe("ClaimableEntitlement", () => {
       clientRef: "wmp-123",
     });
 
-    expect(claimable.canAcceptClaim(position, 2)).toEqual({
+    expect(claimable.canAcceptClaim(current, 2)).toEqual({
       allowed: false,
       reason: "MAXIMUM_CLAIMS_REACHED",
     });

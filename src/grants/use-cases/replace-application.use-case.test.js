@@ -4,6 +4,7 @@ import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { Application } from "../models/application.js";
+import { Position } from "../models/position.js";
 import {
   findByClientRefAndCode,
   update,
@@ -49,7 +50,9 @@ describe("replaceApplicationUseCase", () => {
   beforeEach(() => {
     resolveGrantForApplication.mockResolvedValue({
       grant: {
-        amendablePositions: ["PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND"],
+        amendablePositions: [
+          Position.parse("PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND"),
+        ],
       },
       resolvedVersion: null,
     });
@@ -58,9 +61,11 @@ describe("replaceApplicationUseCase", () => {
 
   it("creates a new application and updates the series when replacement is allowed", async () => {
     const prevApplication = new Application({
-      currentPhase: "PRE_AWARD",
-      currentStage: "REVIEW_OFFER",
-      currentStatus: "APPLICATION_AMEND",
+      position: new Position({
+        phase: "PRE_AWARD",
+        stage: "REVIEW_OFFER",
+        status: "APPLICATION_AMEND",
+      }),
       code: "test-grant",
       clientRef: "ref-123",
       phases: [],
@@ -97,17 +102,21 @@ describe("replaceApplicationUseCase", () => {
 
   it("throws a conflict error when replacement is not allowed", async () => {
     const testApplication = new Application({
-      currentPhase: "PRE_AWARD",
-      currentStage: "REVIEW_OFFER",
-      currentStatus: "APPLICATION_AMEND",
+      position: new Position({
+        phase: "PRE_AWARD",
+        stage: "REVIEW_OFFER",
+        status: "APPLICATION_AMEND",
+      }),
       code: "test-grant",
       clientRef: "ref-123",
       phases: [],
     });
     const prevApplication = new Application({
-      currentPhase: "PRE_AWARD",
-      currentStage: "REVIEW_OFFER",
-      currentStatus: "NOT_ALLOWED",
+      position: new Position({
+        phase: "PRE_AWARD",
+        stage: "REVIEW_OFFER",
+        status: "NOT_ALLOWED",
+      }),
       code: "test-grant",
       clientRef: "ref-123",
       phases: [],
@@ -149,18 +158,22 @@ describe("replaceApplicationUseCase", () => {
 
   it("throws when createApplicationUseCase fails", async () => {
     const testApplication = new Application({
-      currentPhase: "PRE_AWARD",
-      currentStage: "REVIEW_OFFER",
-      currentStatus: "REVIEW_APPLICATION",
+      position: new Position({
+        phase: "PRE_AWARD",
+        stage: "REVIEW_OFFER",
+        status: "REVIEW_APPLICATION",
+      }),
       code: "test-grant",
       clientRef: "ref-123",
       phases: [],
     });
 
     const prevApplication = new Application({
-      currentPhase: "PRE_AWARD",
-      currentStage: "REVIEW_OFFER",
-      currentStatus: "APPLICATION_AMEND",
+      position: new Position({
+        phase: "PRE_AWARD",
+        stage: "REVIEW_OFFER",
+        status: "APPLICATION_AMEND",
+      }),
       code: "test-grant",
       clientRef: "ref-123",
       phases: [],
@@ -182,9 +195,11 @@ describe("replaceApplicationUseCase", () => {
 
   it("writes an audit event after a successful replace", async () => {
     const prevApplication = new Application({
-      currentPhase: "PRE_AWARD",
-      currentStage: "REVIEW_OFFER",
-      currentStatus: "APPLICATION_AMEND",
+      position: new Position({
+        phase: "PRE_AWARD",
+        stage: "REVIEW_OFFER",
+        status: "APPLICATION_AMEND",
+      }),
       code: "test-grant",
       clientRef: "ref-123",
       phases: [],

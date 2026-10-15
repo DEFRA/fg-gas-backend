@@ -1,9 +1,10 @@
 import Boom from "@hapi/boom";
-import { MongoServerError } from "mongodb";
+import { BSON, MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
+import { Position } from "../models/position.js";
 import {
   findByCode,
   replace,
@@ -369,17 +370,20 @@ describe("entitlementTemplates", () => {
     db.collection.mockReturnValue({ insertOne });
 
     await save(
-      new Grant({
-        code: "woodland",
-        version: "0.0.0",
-        metadata: {
-          description: "test",
-          startDate: "2021-01-01T00:00:00.000Z",
+      Grant.fromDefinition(
+        {
+          code: "woodland",
+          version: "0.0.0",
+          metadata: {
+            description: "test",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          actions: [],
+          phases,
+          entitlementTemplates,
         },
-        actions: [],
-        phases,
-        entitlementTemplates,
-      }),
+        "0.0.0",
+      ),
     );
 
     expect(insertOne).toHaveBeenCalledWith(
@@ -395,6 +399,93 @@ describe("entitlementTemplates", () => {
         entitlementTemplates,
       }),
     );
+  });
+
+  it("stores positions as plain objects without the parts they leave out", async () => {
+    const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
+    const currentPosition = {
+      phase: "PHASE_PRE_AWARD",
+      stage: "STAGE_PREPARE_CLAIM",
+      status: "STATUS_PREPARING_CLAIM",
+    };
+    const targetPosition = {
+      phase: "PHASE_CLAIM",
+      stage: "STAGE_AWAITING_CLAIM",
+      status: "STATUS_AWAITING_CLAIM",
+    };
+    const claimableAt = [
+      { phase: "PHASE_CLAIM", stage: "STAGE_AWAITING_CLAIM" },
+    ];
+
+    db.collection.mockReturnValue({ insertOne });
+
+    await saveFromDefinition(
+      {
+        code: "woodland",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases,
+        entitlementTemplates: [
+          {
+            ...entitlementTemplates[0],
+            availableAt: [{ phase: "PHASE_PRE_AWARD" }],
+            claim: { ...entitlementTemplates[0].claim, claimableAt },
+          },
+        ],
+        claims: { onClaimApproval: { currentPosition, targetPosition } },
+      },
+      "1.0.0",
+    );
+
+    const [[document]] = insertOne.mock.calls;
+    const stored = BSON.deserialize(
+      BSON.serialize(document, { ignoreUndefined: false }),
+    );
+
+    expect(stored.entitlementTemplates[0].availableAt).toStrictEqual([
+      { phase: "PHASE_PRE_AWARD" },
+    ]);
+    expect(stored.entitlementTemplates[0].claim).toStrictEqual({
+      ...entitlementTemplates[0].claim,
+      claimableAt,
+    });
+    expect(stored.claims).toStrictEqual({
+      onClaimApproval: { currentPosition, targetPosition },
+    });
+  });
+
+  it.each([
+    [["PHASE_PRE_AWARD:STAGE_AMENDMENT:STATUS_RETURNED", "PHASE_CLAIM", ""]],
+    [[]],
+    [undefined],
+    [null],
+    ["PHASE_PRE_AWARD:STAGE_AMENDMENT:STATUS_RETURNED"],
+    [[null, 5]],
+  ])("stores amendablePositions %j as given", async (amendablePositions) => {
+    const insertOne = vi.fn().mockResolvedValueOnce({ insertedId: "1" });
+
+    db.collection.mockReturnValue({ insertOne });
+
+    await saveFromDefinition(
+      {
+        code: "woodland",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases,
+        amendablePositions,
+      },
+      "1.0.0",
+    );
+
+    const [[document]] = insertOne.mock.calls;
+
+    expect(document.amendablePositions).toStrictEqual(amendablePositions);
   });
 
   it("rehydrates entitlementTemplates from a stored document via findByCode", async () => {
@@ -469,11 +560,13 @@ describe("entitlementTemplates", () => {
       expect(result.entitlementTemplates).toEqual([]);
       expect(result.findEntitlementTemplate("ANYTHING")).toBeUndefined();
       expect(
-        result.findEntitlementTemplatesAvailableAt({
-          phase: "PHASE_PRE_AWARD",
-          stage: "STAGE_PREPARE_CLAIM",
-          status: "STATUS_PREPARING_CLAIM",
-        }),
+        result.findEntitlementTemplatesAvailableAt(
+          new Position({
+            phase: "PHASE_PRE_AWARD",
+            stage: "STAGE_PREPARE_CLAIM",
+            status: "STATUS_PREPARING_CLAIM",
+          }),
+        ),
       ).toEqual([]);
     },
   );

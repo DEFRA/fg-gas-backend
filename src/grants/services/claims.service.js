@@ -122,7 +122,7 @@ const countClaimsFor = (claimable) =>
 
 const isClaimableNow = async (claimable, application) =>
   claimable.canAcceptClaim(
-    application.currentPosition(),
+    application.position,
     await countClaimsFor(claimable),
   ).allowed;
 
@@ -304,10 +304,7 @@ const claimableWithCapacity = async (
     },
     session,
   );
-  const decision = claimable.canAcceptClaim(
-    application.currentPosition(),
-    count,
-  );
+  const decision = claimable.canAcceptClaim(application.position, count);
   if (!decision.allowed) {
     throw decision.reason === "MAXIMUM_CLAIMS_REACHED"
       ? Boom.badData(maximumClaimsReached)
@@ -422,9 +419,7 @@ const transitionOnFinalClaim = async (
     return;
   }
 
-  const targetPosition = grant.claimApprovalTransitionFor(
-    application.currentPosition(),
-  );
+  const targetPosition = grant.claimApprovalTransitionFor(application.position);
   if (!targetPosition) {
     return;
   }
