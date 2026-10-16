@@ -5,6 +5,7 @@ import {
   findByMessageId,
   insertOne,
 } from "../repositories/inbox.repository.js";
+import { inboxStamps } from "../stamps.js";
 
 export const getSegregationRef = (event) => {
   const { data } = event;
@@ -26,15 +27,18 @@ export const saveInboxMessageUseCase = async (
 
   logger.info(`Storing message with id ${message.id}.`);
 
+  // Not a default argument: those evaluate before the body, so a redelivered message
+  // with no `data` would throw here rather than returning at the duplicate check.
+  const orderingKey = segregationRef ?? getSegregationRef(message);
+
   const inbox = new Inbox({
     traceparent: message.traceparent,
     event: message,
     messageId: message.id,
     type: message.type,
     source,
-    // Not a default argument: those evaluate before the body, so a redelivered message
-    // with no `data` would throw here rather than returning at the duplicate check.
-    segregationRef: segregationRef ?? getSegregationRef(message),
+    segregationRef: orderingKey,
+    ...inboxStamps(message, { segregationRef: orderingKey }),
   });
 
   await insertOne(inbox);

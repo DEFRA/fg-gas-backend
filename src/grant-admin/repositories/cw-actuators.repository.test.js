@@ -1,7 +1,6 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { withRequestContext } from "../../common/get-request-context.js";
-import { logger } from "../../common/logger.js";
 import { wreck } from "../../common/wreck.js";
 import {
   CASE_NOT_FOUND,
@@ -9,12 +8,14 @@ import {
   editCwPayload,
   findCwCase,
   findCwCaseExistence,
+  findCwBuckets,
   findCwEvent,
-  findCwPage,
   isCwConfigured,
   purgeCwEvent,
+  queryCwBucket,
+  readCwTimeline,
+  summariseCwBucket,
   redriveCwEvent,
-  searchCwCases,
 } from "./cw-actuators.repository.js";
 
 const { cwBackend } = vi.hoisted(() => ({
@@ -30,400 +31,12 @@ vi.mock("../../common/wreck.js", () => ({
 const URL_BASE = "http://cw.test";
 const TOKEN = "cw-token";
 
-const someCounts = () => ({
-  PUBLISHED: 1,
-  PROCESSING: 0,
-  FAILED: 2,
-  RESUBMITTED: 0,
-  COMPLETED: 3,
-  DEAD_LETTER: 4,
-});
-
-const someGroups = () => [
-  {
-    error: "No handler found",
-    type: "cloud.defra.local.fg-cw-backend.case.create",
-    count: 4,
-    firstAt: "2026-06-16T10:00:00.000Z",
-    lastAt: "2026-06-16T11:00:00.000Z",
-  },
-];
-
-const box = (overrides = {}) => ({
-  events: [{ _id: "665f1c2e9a1b2c3d4e5f6a7b" }],
-  pagination: { endCursor: "b", hasNextPage: false },
-  counts: someCounts(),
-  breakdown: { groups: someGroups() },
-  ...overrides,
-});
-
-const composite = (overrides = {}) => ({
-  payload: { inbox: box(), outbox: box(), ...overrides },
-});
-
-const aPage = (overrides = {}) => ({
-  pageSize: 20,
-  ...overrides,
-});
-
-const calledUrl = () => new URL(wreck.get.mock.calls[0][0]);
-
 const TIMEOUT_MS = 3000;
 
 beforeEach(() => {
   cwBackend.url = URL_BASE;
   cwBackend.token = TOKEN;
   cwBackend.timeoutMs = TIMEOUT_MS;
-});
-
-describe("findCwPage", () => {
-  it("calls /actuators/events with pageSize 20 and the bearer token", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage());
-
-    const url = calledUrl();
-
-    expect(url.pathname).toEqual("/actuators/events");
-    expect(url.searchParams.get("pageSize")).toEqual("20");
-    expect(wreck.get.mock.calls[0][1]).toEqual({
-      json: true,
-      timeout: TIMEOUT_MS,
-      headers: { authorization: `Bearer ${TOKEN}` },
-    });
-  });
-
-  it("carries a cursor per box, taken from the composite cursor's own slices", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(
-      aPage({
-        slices: {
-          gasInbox: "gas-slice",
-          cwInbox: "eyJldmVudFRpbWUiOm51bGx9",
-          cwOutbox: "eyJwdWJsaWNhdGlvbkRhdGUiOm51bGx9",
-        },
-      }),
-    );
-
-    const params = calledUrl().searchParams;
-
-    expect(params.get("inboxCursor")).toEqual("eyJldmVudFRpbWUiOm51bGx9");
-    expect(params.get("outboxCursor")).toEqual(
-      "eyJwdWJsaWNhdGlvbkRhdGUiOm51bGx9",
-    );
-    expect(params.has("cursor")).toBe(false);
-  });
-
-  it("omits the cursor of a box that has no position yet", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage({ slices: { cwInbox: "abc", cwOutbox: null } }));
-
-    expect(calledUrl().searchParams.get("inboxCursor")).toEqual("abc");
-    expect(calledUrl().searchParams.has("outboxCursor")).toBe(false);
-  });
-
-  it("omits both cursors and every filter on a first, unfiltered page", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage());
-
-    const params = calledUrl().searchParams;
-
-    for (const name of [
-      "inboxCursor",
-      "outboxCursor",
-      "status",
-      "q",
-      "error",
-      "from",
-      "to",
-      "audit",
-    ]) {
-      expect(params.has(name)).toBe(false);
-    }
-  });
-
-  it("passes status through verbatim", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage({ status: "DEAD_LETTER" }));
-
-    expect(calledUrl().searchParams.get("status")).toEqual("DEAD_LETTER");
-  });
-
-  it("forwards q verbatim", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage({ q: "GLD-9B2-BWS" }));
-
-    expect(calledUrl().searchParams.get("q")).toEqual("GLD-9B2-BWS");
-  });
-
-  it("url-encodes a q with regex metacharacters and spaces", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage({ q: "a b+c*" }));
-
-    expect(calledUrl().searchParams.get("q")).toEqual("a b+c*");
-  });
-
-  it("never forwards a kind", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage({ kind: "audit" }));
-
-    expect(calledUrl().searchParams.has("kind")).toBe(false);
-  });
-
-  it("keeps both cursors, the status and q together on one request", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(
-      aPage({
-        slices: { cwInbox: "abc", cwOutbox: "def" },
-        status: "FAILED",
-        q: "evt-1",
-      }),
-    );
-
-    expect(Object.fromEntries(calledUrl().searchParams)).toEqual({
-      pageSize: "20",
-      inboxCursor: "abc",
-      outboxCursor: "def",
-      status: "FAILED",
-      q: "evt-1",
-    });
-  });
-
-  it("reads the whole page in ONE request", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage());
-
-    expect(wreck.get).toHaveBeenCalledTimes(1);
-  });
-
-  it("propagates the wreck rejection unchanged", async () => {
-    const error = Boom.unauthorized("nope");
-    wreck.get.mockRejectedValue(error);
-
-    await expect(findCwPage(aPage())).rejects.toBe(error);
-  });
-});
-
-describe("findCwPage from and to", () => {
-  it("forwards both bounds on the query string", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(
-      aPage({
-        from: "2026-06-16T00:00:00.000Z",
-        to: "2026-06-16T23:59:59.999Z",
-      }),
-    );
-
-    expect(calledUrl().searchParams.get("from")).toBe(
-      "2026-06-16T00:00:00.000Z",
-    );
-    expect(calledUrl().searchParams.get("to")).toBe("2026-06-16T23:59:59.999Z");
-  });
-
-  it("omits a bound that was not supplied", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage({ from: "x" }));
-
-    expect(calledUrl().searchParams.has("to")).toBe(false);
-  });
-});
-
-describe("findCwPage sections", () => {
-  it("asks for exactly the sections the page draws, as a comma list", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage({ sections: ["list", "counts"] }));
-
-    expect(calledUrl().searchParams.get("sections")).toBe("list,counts");
-  });
-
-  it("omits it when no sections are named, leaving Caseworking's default of all three", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage());
-
-    expect(calledUrl().searchParams.has("sections")).toBe(false);
-  });
-});
-
-describe("the error filter reaches Caseworking", () => {
-  it("forwards `error` on the page query", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage({ error: "No handler found" }));
-
-    expect(calledUrl().searchParams.get("error")).toBe("No handler found");
-  });
-
-  it("omits it entirely when absent, so an unfiltered call is unchanged", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage());
-
-    expect(calledUrl().searchParams.has("error")).toBe(false);
-  });
-});
-
-describe("the audit dimension reaches Caseworking", () => {
-  it("forwards `audit` on the page query, so the figures match the rows", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage({ audit: "include" }));
-
-    expect(calledUrl().searchParams.get("audit")).toBe("include");
-  });
-
-  it("omits it entirely when absent, so an unfiltered call is unchanged", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage());
-
-    expect(calledUrl().searchParams.has("audit")).toBe(false);
-  });
-});
-
-describe("findCwPage response", () => {
-  it("answers with each box's rows, counts and groups", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    const page = await findCwPage(aPage());
-
-    expect(page).toEqual({
-      inbox: {
-        list: {
-          data: [{ _id: "665f1c2e9a1b2c3d4e5f6a7b" }],
-          pagination: { endCursor: "b", hasNextPage: false },
-        },
-        facets: { counts: someCounts() },
-        groups: someGroups(),
-      },
-      outbox: {
-        list: {
-          data: [{ _id: "665f1c2e9a1b2c3d4e5f6a7b" }],
-          pagination: expect.any(Object),
-        },
-        facets: { counts: someCounts() },
-        groups: someGroups(),
-      },
-    });
-  });
-
-  it("gives the page read its own timeout, not the shared client's", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await findCwPage(aPage());
-
-    expect(wreck.get).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ timeout: cwBackend.timeoutMs }),
-    );
-    expect(cwBackend.timeoutMs).toBeLessThan(10000);
-  });
-
-  it("tolerates a box that sent rows but no pagination", async () => {
-    wreck.get.mockResolvedValue(
-      composite({ inbox: box({ pagination: undefined }) }),
-    );
-
-    expect((await findCwPage(aPage())).inbox.list).toEqual({
-      data: [{ _id: "665f1c2e9a1b2c3d4e5f6a7b" }],
-      pagination: {},
-    });
-  });
-
-  it.each([
-    ["events that are not a list at all", { events: "nope" }],
-    ["events that are a truthy non-array", { events: {} }],
-    ["a row with no id", { events: [{ eventId: "evt-1" }] }],
-    ["a row whose id is not a string", { events: [{ _id: 12345 }] }],
-    [
-      "one bad row among good ones",
-      {
-        events: [{ _id: "665f1c2e9a1b2c3d4e5f6a7b" }, { _id: null }],
-      },
-    ],
-  ])("reports %s as a gap rather than throwing", async (_name, events) => {
-    wreck.get.mockResolvedValue(composite({ inbox: box(events) }));
-
-    const page = await findCwPage(aPage());
-
-    expect(page.inbox.list).toBeNull();
-    expect(page.outbox.list.data).toHaveLength(1);
-  });
-
-  it("leaves a section Caseworking could not read null rather than empty", async () => {
-    wreck.get.mockResolvedValue(composite({ inbox: {} }));
-
-    expect((await findCwPage(aPage())).inbox).toEqual({
-      list: null,
-      facets: null,
-      groups: null,
-    });
-  });
-
-  it("nulls only the section that is missing, keeping the box's others", async () => {
-    wreck.get.mockResolvedValue(
-      composite({ inbox: box({ counts: undefined }) }),
-    );
-
-    const { inbox } = await findCwPage(aPage());
-
-    expect(inbox.facets).toBeNull();
-    expect(inbox.list.data).toHaveLength(1);
-    expect(inbox.groups).toEqual(someGroups());
-  });
-
-  it("nulls one box without touching the other", async () => {
-    wreck.get.mockResolvedValue(composite({ outbox: {} }));
-
-    const page = await findCwPage(aPage());
-
-    expect(page.outbox).toEqual({ list: null, facets: null, groups: null });
-    expect(page.inbox.facets).toEqual({ counts: someCounts() });
-  });
-
-  it("nulls every section of both boxes when there is no payload at all", async () => {
-    wreck.get.mockResolvedValue({ payload: null });
-
-    expect(await findCwPage(aPage())).toEqual({
-      inbox: { list: null, facets: null, groups: null },
-      outbox: { list: null, facets: null, groups: null },
-    });
-  });
-
-  it("nulls every section of both boxes when the payload is empty", async () => {
-    wreck.get.mockResolvedValue({ payload: {} });
-
-    expect(await findCwPage(aPage())).toEqual({
-      inbox: { list: null, facets: null, groups: null },
-      outbox: { list: null, facets: null, groups: null },
-    });
-  });
-
-  it("keeps an empty dead-letter breakdown as no groups rather than as a gap", async () => {
-    wreck.get.mockResolvedValue(
-      composite({ inbox: box({ breakdown: { groups: [] } }) }),
-    );
-
-    expect((await findCwPage(aPage())).inbox.groups).toEqual([]);
-  });
-
-  it("does not catch, so the use case can turn it into a sourceError", async () => {
-    wreck.get.mockRejectedValue(Boom.badGateway("down"));
-
-    await expect(findCwPage(aPage())).rejects.toThrow();
-  });
 });
 
 describe("isCwConfigured", () => {
@@ -1003,17 +616,6 @@ describe("operator forwarding", () => {
     });
   });
 
-  it("sends it on the events list read too", async () => {
-    wreck.get.mockResolvedValue(composite());
-
-    await withRequestContext({ user: OID }, () => findCwPage(aPage()));
-
-    expect(wreck.get.mock.calls[0][1].headers).toEqual({
-      authorization: `Bearer ${TOKEN}`,
-      "x-actor-id": OID,
-    });
-  });
-
   it("sends none when the request named no operator", async () => {
     wreck.get.mockResolvedValue({ payload: {} });
 
@@ -1072,70 +674,6 @@ describe("Caseworking cases", () => {
 
   const inRequest = (call) => withRequestContext({ user: OID }, call);
 
-  it("searches with a POST carrying the query, the operator and the repeat flag", async () => {
-    wreck.post.mockResolvedValue({ payload: { cases: [] } });
-
-    await inRequest(() =>
-      searchCwCases(
-        { ref: "ref-1", workflowCode: "frps-private-beta" },
-        { actor: ACTOR, repeat: true },
-      ),
-    );
-
-    const [url, options] = wreck.post.mock.calls[0];
-    expect(new URL(url).pathname).toBe("/actuators/cases/search");
-    expect(options.payload).toEqual({
-      ref: "ref-1",
-      workflowCode: "frps-private-beta",
-    });
-    expect(options.headers).toEqual({
-      authorization: `Bearer ${TOKEN}`,
-      "x-actor-id": OID,
-      "x-actor": ACTOR,
-      "x-search-repeat": "1",
-    });
-    expect(options.maxBytes).toBe(4 * 1024 * 1024);
-    expect(options.timeout).toBe(TIMEOUT_MS);
-  });
-
-  it("sends no repeat flag on a fresh search", async () => {
-    wreck.post.mockResolvedValue({ payload: { cases: [] } });
-
-    await inRequest(() => searchCwCases({}, { actor: ACTOR, repeat: false }));
-
-    expect(wreck.post.mock.calls[0][1].headers).not.toHaveProperty(
-      "x-search-repeat",
-    );
-  });
-
-  it("answers rows, each marked replaced or not, with the total and workflow codes only where Caseworking gave them", async () => {
-    wreck.post.mockResolvedValueOnce({
-      payload: {
-        cases: [aCase("ref-1"), aCase("ref-0", true)],
-        pagination: { endCursor: "c", hasNextPage: true },
-        total: { count: 1, capped: false },
-        workflowCodes: ["frps-private-beta"],
-      },
-    });
-    wreck.post.mockResolvedValueOnce({
-      payload: {
-        cases: [],
-        pagination: { endCursor: null, hasNextPage: false },
-      },
-    });
-
-    expect(await searchCwCases({}, {})).toEqual({
-      rows: [aCase("ref-1"), aCase("ref-0", true)],
-      pagination: { endCursor: "c", hasNextPage: true },
-      total: { count: 1, capped: false },
-      workflowCodes: ["frps-private-beta"],
-    });
-    expect(await searchCwCases({ cursor: "c" }, {})).toEqual({
-      rows: [],
-      pagination: { endCursor: null, hasNextPage: false },
-    });
-  });
-
   it("reads one case, with its document only when asked", async () => {
     wreck.get.mockResolvedValue(aCaseAnswer());
 
@@ -1177,16 +715,6 @@ describe("Caseworking cases", () => {
       storedBytes: 4096,
       document: { caseRef: "ref-1" },
     });
-  });
-
-  it("leaves replaced off a row from a Caseworking that predates it", async () => {
-    wreck.post.mockResolvedValue({
-      payload: { cases: [{ ...aCase("ref-1"), replaced: undefined }] },
-    });
-
-    const { rows } = await searchCwCases({}, {});
-
-    expect(rows[0]).not.toHaveProperty("replaced");
   });
 
   it("leaves members off a series from a Caseworking that predates them", async () => {
@@ -1262,36 +790,6 @@ describe("Caseworking cases", () => {
     });
   });
 
-  it("answers a query Caseworking refused, such as a stale cursor, as a 400", async () => {
-    wreck.post.mockRejectedValue(
-      httpError(400, { message: "Cannot decode cursor" }),
-    );
-
-    const error = await searchCwCases({ cursor: "x" }, {}).catch((e) => e);
-
-    expect(error.output.statusCode).toBe(400);
-    expect(error.message).toBe("CW-BE refused the case query");
-  });
-
-  it.each([
-    ["down", httpError(500, { message: "SECRET-BODY" })],
-    ["slow", httpError(504)],
-    ["without the route", httpError(404, { message: "Not Found" })],
-  ])(
-    "answers a search as a 502 when Caseworking is %s, logging no body",
-    async (_name, failure) => {
-      wreck.post.mockRejectedValue(failure);
-
-      const error = await searchCwCases({}, {}).catch((e) => e);
-
-      expect(error.output.statusCode).toBe(502);
-      expect(error.message).toBe("Cases could not be loaded from Caseworking");
-      expect(JSON.stringify(logger.warn.mock.calls)).not.toContain(
-        "SECRET-BODY",
-      );
-    },
-  );
-
   it("answers a missing case 404 with its reason, naming no ref", async () => {
     wreck.get.mockRejectedValue(
       httpError(404, { statusCode: 404, reason: CASE_NOT_FOUND }),
@@ -1326,20 +824,350 @@ describe("Caseworking cases", () => {
     );
   });
 
-  it("answers 502 when Caseworking is not configured", async () => {
-    cwBackend.url = undefined;
-
-    const error = await searchCwCases({}, {}).catch((e) => e);
-
-    expect(error.output.statusCode).toBe(502);
-    expect(wreck.post).not.toHaveBeenCalled();
-  });
-
   it("leaves an event 404 a 404, reason or not", async () => {
     wreck.get.mockRejectedValue(httpError(404));
 
     const error = await findCwEvent("inbox", ID).catch((e) => e);
 
     expect(error.output.statusCode).toBe(404);
+  });
+});
+
+describe("Caseworking buckets", () => {
+  const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+  const ACTOR = "UTF-8''%C5%81ukasz";
+
+  const anEntry = (overrides) => ({
+    id: "cw.example",
+    path: "cw/example",
+    label: "Example",
+    service: "CW",
+    shortLabel: "Example",
+    icon: null,
+    order: 80,
+    noun: { one: "example", many: "examples" },
+    time: { label: "Created" },
+    facts: [
+      {
+        name: "closed",
+        param: "closed",
+        label: "Closed",
+        values: [{ value: "true", label: "Closed" }],
+        toggle: null,
+      },
+    ],
+    refs: [{ kind: "ref", label: "Reference" }],
+    indexes: [[]],
+    groupings: [],
+    title: { label: "Reference", format: "mono" },
+    columns: [],
+    audited: true,
+    timeline: false,
+    summaries: [],
+    page: null,
+    tab: null,
+    ...overrides,
+  });
+
+  const failure = (statusCode, payload) => {
+    const error = new Boom.Boom("failed", { statusCode });
+
+    error.data = { payload };
+
+    return error;
+  };
+
+  const inRequest = (call) => withRequestContext({ user: OID }, call);
+
+  describe("findCwBuckets", () => {
+    it("reads Caseworking's catalogue", async () => {
+      wreck.get.mockResolvedValue({ payload: { buckets: [anEntry()] } });
+
+      expect(await inRequest(() => findCwBuckets())).toEqual([anEntry()]);
+
+      const [url, options] = wreck.get.mock.calls[0];
+      expect(url).toBe(`${URL_BASE}/actuators/buckets`);
+      expect(options.headers).toEqual({
+        authorization: `Bearer ${TOKEN}`,
+        "x-actor-id": OID,
+      });
+      expect(options.timeout).toBe(TIMEOUT_MS);
+    });
+
+    it("keeps only the entries whose id Caseworking owns", async () => {
+      wreck.get.mockResolvedValue({
+        payload: {
+          buckets: [anEntry(), anEntry({ id: "gas.example" })],
+        },
+      });
+
+      expect((await findCwBuckets()).map(({ id }) => id)).toEqual([
+        "cw.example",
+      ]);
+    });
+
+    it.each([
+      ["no list of buckets", {}],
+      ["an entry without its facts", { buckets: [{ id: "cw.example" }] }],
+      ["no body", null],
+    ])("answers 502 for %s", async (_, payload) => {
+      wreck.get.mockResolvedValue({ payload });
+
+      const error = await findCwBuckets().catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+      expect(error.message).toBe(
+        "CW-BE answered a bucket catalogue that cannot be read",
+      );
+    });
+
+    it("answers 502 when Caseworking is not configured", async () => {
+      cwBackend.url = undefined;
+
+      const error = await findCwBuckets().catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+      expect(wreck.get).not.toHaveBeenCalled();
+    });
+
+    it("answers 502 when Caseworking fails", async () => {
+      wreck.get.mockRejectedValue(failure(500, { message: "SECRET" }));
+
+      const error = await findCwBuckets().catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+      expect(error.message).toBe("CW-BE buckets unavailable: HTTP 500");
+    });
+  });
+
+  describe("queryCwBucket", () => {
+    const BODY = { where: { closed: true }, limit: 20 };
+    const ANSWER = { bucket: "cw.example", rows: [] };
+
+    it("posts the body to the bucket, as the operator", async () => {
+      wreck.post.mockResolvedValue({ payload: ANSWER });
+
+      const answer = await inRequest(() =>
+        queryCwBucket("cw.example", BODY, { actor: ACTOR, repeat: true }),
+      );
+
+      const [url, options] = wreck.post.mock.calls[0];
+      expect(answer).toBe(ANSWER);
+      expect(url).toBe(`${URL_BASE}/actuators/buckets/cw.example/query`);
+      expect(options.payload).toEqual(BODY);
+      expect(options.headers).toEqual({
+        authorization: `Bearer ${TOKEN}`,
+        "x-actor-id": OID,
+        "x-actor": ACTOR,
+        "x-search-repeat": "1",
+      });
+      expect(options.timeout).toBe(TIMEOUT_MS);
+    });
+
+    it("sends no repeat flag unless it is a repeat", async () => {
+      wreck.post.mockResolvedValue({ payload: ANSWER });
+
+      await queryCwBucket("cw.example", BODY, { actor: ACTOR });
+
+      expect(wreck.post.mock.calls[0][1].headers).not.toHaveProperty(
+        "x-search-repeat",
+      );
+    });
+
+    it("encodes the bucket id into the path", async () => {
+      wreck.post.mockResolvedValue({ payload: ANSWER });
+
+      await queryCwBucket("cw.a/b", BODY);
+
+      expect(new URL(wreck.post.mock.calls[0][0]).pathname).toBe(
+        "/actuators/buckets/cw.a%2Fb/query",
+      );
+    });
+
+    it.each([
+      [400, "UNKNOWN_FACT", 400],
+      [400, "INVALID_CURSOR", 400],
+      [404, "UNKNOWN_BUCKET", 404],
+      [504, "TIMED_OUT", 504],
+    ])(
+      "rebuilds a %i refusal from its reason %s alone",
+      async (statusCode, reason, answered) => {
+        wreck.post.mockRejectedValue(
+          failure(statusCode, { reason, message: "SECRET-CW-MESSAGE" }),
+        );
+
+        const error = await queryCwBucket("cw.example", BODY).catch((e) => e);
+
+        expect(error.output.statusCode).toBe(answered);
+        expect(error.output.payload.reason).toBe(reason);
+        expect(JSON.stringify(error.output.payload)).not.toContain("SECRET");
+      },
+    );
+
+    it("reads the reason from a raw body too", async () => {
+      wreck.post.mockRejectedValue(
+        failure(400, Buffer.from(JSON.stringify({ reason: "INVALID_RANGE" }))),
+      );
+
+      const error = await queryCwBucket("cw.example", BODY).catch((e) => e);
+
+      expect(error.output.payload.reason).toBe("INVALID_RANGE");
+    });
+
+    it("answers 502 for a 404 without a reason: a Caseworking with no bucket routes", async () => {
+      wreck.post.mockRejectedValue(failure(404, { message: "Not Found" }));
+
+      const error = await queryCwBucket("cw.example", BODY).catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+      expect(error.message).toBe("CW-BE has no bucket routes");
+    });
+
+    it.each([
+      ["a 400 with a reason it does not know", 400, { reason: "SOMETHING" }],
+      ["a 400 with no body", 400, undefined],
+      ["a 500", 500, { reason: "UNKNOWN_FACT" }],
+    ])("answers 502 for %s", async (_, statusCode, payload) => {
+      wreck.post.mockRejectedValue(failure(statusCode, payload));
+
+      const error = await queryCwBucket("cw.example", BODY).catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+      expect(error.output.payload).not.toHaveProperty("reason");
+    });
+
+    it.each([504, 408])(
+      "answers TIMED_OUT when Caseworking answers %i",
+      async (statusCode) => {
+        wreck.post.mockRejectedValue(failure(statusCode));
+
+        const error = await queryCwBucket("cw.example", BODY).catch((e) => e);
+
+        expect(error.output.statusCode).toBe(504);
+        expect(error.output.payload.reason).toBe("TIMED_OUT");
+      },
+    );
+
+    it("answers 502 when Caseworking is not configured", async () => {
+      cwBackend.token = undefined;
+
+      const error = await queryCwBucket("cw.example", BODY).catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+      expect(wreck.post).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("summariseCwBucket", () => {
+    const BODY = { from: "2026-10-08T12:00:00.000Z" };
+    const ANSWER = {
+      bucket: "cw.inbox",
+      summary: "errors",
+      entries: [
+        {
+          values: { errorKey: null, eventType: null },
+          count: 2,
+          capped: false,
+          firstAt: null,
+          lastAt: null,
+        },
+      ],
+      more: false,
+      complete: true,
+    };
+
+    it("posts the range to the bucket's summary, as the operator", async () => {
+      wreck.post.mockResolvedValue({ payload: ANSWER });
+
+      const answer = await inRequest(() =>
+        summariseCwBucket("cw.inbox", "errors", BODY, { actor: ACTOR }),
+      );
+
+      const [url, options] = wreck.post.mock.calls[0];
+      expect(answer).toEqual(ANSWER);
+      expect(url).toBe(
+        `${URL_BASE}/actuators/buckets/cw.inbox/summaries/errors`,
+      );
+      expect(options.payload).toEqual(BODY);
+      expect(options.headers).toEqual({
+        authorization: `Bearer ${TOKEN}`,
+        "x-actor-id": OID,
+        "x-actor": ACTOR,
+      });
+    });
+
+    it("encodes the ids into the path", async () => {
+      wreck.post.mockResolvedValue({ payload: ANSWER });
+
+      await summariseCwBucket("cw.a/b", "c/d", BODY);
+
+      expect(new URL(wreck.post.mock.calls[0][0]).pathname).toBe(
+        "/actuators/buckets/cw.a%2Fb/summaries/c%2Fd",
+      );
+    });
+
+    it.each([
+      ["no entries", { bucket: "cw.inbox", summary: "errors" }],
+      ["no body", null],
+    ])("answers 502 for %s", async (_, payload) => {
+      wreck.post.mockResolvedValue({ payload });
+
+      const error = await summariseCwBucket("cw.inbox", "errors", BODY).catch(
+        (e) => e,
+      );
+
+      expect(error.output.statusCode).toBe(502);
+    });
+  });
+
+  describe("readCwTimeline", () => {
+    const TIMELINE = {
+      buckets: [
+        { id: "cw.outbox", label: "CW outbox", rows: [], more: false },
+        { id: "cw.inbox", label: "CW inbox", rows: null, more: false },
+      ],
+    };
+
+    it("posts the ref to Caseworking's timeline as the operator, in one call", async () => {
+      wreck.post.mockResolvedValue({ payload: TIMELINE });
+
+      const answer = await inRequest(() =>
+        readCwTimeline("ref:abc-123", { actor: ACTOR }),
+      );
+
+      const [url, options] = wreck.post.mock.calls[0];
+      expect(answer).toEqual(TIMELINE);
+      expect(wreck.post).toHaveBeenCalledTimes(1);
+      expect(wreck.get).not.toHaveBeenCalled();
+      expect(url).toBe(`${URL_BASE}/actuators/timeline`);
+      expect(options.payload).toEqual({ ref: "ref:abc-123" });
+      expect(options.headers).toEqual({
+        authorization: `Bearer ${TOKEN}`,
+        "x-actor-id": OID,
+        "x-actor": ACTOR,
+      });
+      expect(options.timeout).toBe(TIMEOUT_MS);
+    });
+
+    it.each([
+      ["no list of buckets", {}],
+      ["a bucket without its rows", { buckets: [{ id: "cw.inbox" }] }],
+      ["no body", null],
+    ])("answers 502 for %s", async (_, payload) => {
+      wreck.post.mockResolvedValue({ payload });
+
+      const error = await readCwTimeline("ref:abc-123").catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+    });
+
+    it("answers 502 when Caseworking is not configured", async () => {
+      cwBackend.token = undefined;
+
+      const error = await readCwTimeline("ref:abc-123").catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+      expect(wreck.post).not.toHaveBeenCalled();
+    });
   });
 });

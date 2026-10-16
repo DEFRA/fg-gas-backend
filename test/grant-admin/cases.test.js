@@ -3,7 +3,7 @@ import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { applicationPageSchemas } from "../../src/grant-admin/schemas/application-page.schema.js";
 import { casePageSchemas } from "../../src/grant-admin/schemas/case-page.schema.js";
-import { searchCasesResponseSchema } from "../../src/grant-admin/schemas/search-cases.schema.js";
+import { aCwTimelineBucket, aCwEventRow } from "../helpers/cw-buckets.js";
 import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -98,13 +98,6 @@ const anApplication = (clientRef) => ({
 const CLIENT_TIMEOUT_MS = 10_000;
 const SLOW = { timeout: 15_000 };
 
-const search = (payload = {}, headers = OPERATOR) =>
-  wreck.post("/grant-admin/cases/search", {
-    payload,
-    headers,
-    timeout: CLIENT_TIMEOUT_MS,
-  });
-
 const getTab = (tab, caseRef = "ref-1", headers = OPERATOR) =>
   wreck.get(`/grant-admin/workflows/${WORKFLOW}/cases/${caseRef}/${tab}`, {
     headers,
@@ -124,117 +117,6 @@ const statusOf = (promise) =>
     () => 200,
     (error) => error.output.statusCode,
   );
-
-describe("POST /grant-admin/cases/search", () => {
-  it("answers Caseworking's page of cases, with closed-at, replaced, the total and the workflow codes", async () => {
-    await setCwStub({
-      cases: {
-        search: {
-          cases: [
-            aCaseRow("ref-2"),
-            aCaseRow("ref-1", { closedAt: null, replaced: true }),
-          ],
-          pagination: { endCursor: "next", hasNextPage: true },
-          total: { count: 2, capped: false },
-          workflowCodes: [WORKFLOW, "woodland"],
-        },
-      },
-    });
-
-    const { payload: page, res } = await search({ workflowCode: WORKFLOW });
-
-    expect(res.headers["cache-control"]).toBe("no-store");
-    expect(searchCasesResponseSchema.validate(page).error).toBeUndefined();
-    expect(page.rows.map((row) => row.ref.caseRef)).toEqual(["ref-2", "ref-1"]);
-    expect(page.rows[0].closedAt).toBe("2026-06-18T10:00:00.000Z");
-    expect(page.rows.map((row) => row.replaced)).toEqual([false, true]);
-    expect(page.total).toEqual({ count: 2, capped: false });
-    expect(page.workflowCodes).toEqual([WORKFLOW, "woodland"]);
-  });
-
-  it("answers a row from a Caseworking that predates replaced without it", async () => {
-    const { replaced: _replaced, ...oldRow } = aCaseRow("ref-1");
-    await setCwStub({
-      cases: {
-        search: {
-          cases: [oldRow],
-          pagination: { endCursor: null, hasNextPage: false },
-        },
-      },
-    });
-
-    const { payload: page } = await search({});
-
-    expect(searchCasesResponseSchema.validate(page).error).toBeUndefined();
-    expect(page.rows[0]).not.toHaveProperty("replaced");
-  });
-
-  it("sends Caseworking the query in the body, with the operator and the repeat flag", async () => {
-    await search(
-      { ref: "REF-1", from: "2026-06-15T00:00:00.000Z" },
-      { ...OPERATOR, "x-search-repeat": "1" },
-    );
-
-    const [request] = await caseRequests();
-    expect(request).toMatchObject({
-      method: "POST",
-      path: "/actuators/cases/search",
-      query: {},
-      body: { ref: "ref-1", from: "2026-06-15T00:00:00.000Z" },
-      actor: ACTOR,
-      actorId: OID,
-      searchRepeat: "1",
-    });
-
-    const [row] = await auditRows("SEARCH_CASES");
-    expect(row.event.audit.details).toMatchObject({
-      mode: "search",
-      repeat: true,
-    });
-  });
-
-  it("never reads GAS's own applications or events", async () => {
-    await applications.insertOne(anApplication("ref-1"));
-
-    await search({});
-
-    expect((await cwStubRequests()).map((request) => request.box)).toEqual([
-      "cases",
-    ]);
-  });
-
-  it.each([
-    ["down", "down"],
-    ["failing", "error"],
-    ["slow", "timeout"],
-  ])("answers 502 when Caseworking is %s", SLOW, async (_name, mode) => {
-    await setCwStub({ cases: { mode } });
-
-    expect(await statusOf(search({}))).toBe(502);
-
-    const [row] = await auditRows("SEARCH_CASES");
-    expect(row.event.audit.status).toBe("FAILURE");
-    expect(row.event.user).toBe(OID);
-  });
-
-  it("writes one SEARCH_CASES row per page, with the operator and PMC 0706", async () => {
-    await search({ workflowCode: WORKFLOW });
-
-    const [row] = await auditRows("SEARCH_CASES");
-    expect(row.segregationRef).toBe("admin-search-cases");
-    expect(row.event).toMatchObject({
-      user: OID,
-      security: { pmccode: "0706" },
-      audit: {
-        status: "SUCCESS",
-        entities: [
-          { entity: "CASE", action: "SEARCH_CASES", entityid: "search" },
-        ],
-        details: { mode: "browse", workflowCode: WORKFLOW, page: "first" },
-      },
-    });
-  });
-});
 
 describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () => {
   beforeEach(async () => {
@@ -307,26 +189,68 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
     expect(reads[0]).toMatchObject({ actor: ACTOR, actorId: OID });
   });
 
-  it("events: the rows for the case ref, a Caseworking inbox row among them", async () => {
+  it("events: Caseworking's rows for the case's workflow and ref alone, asked for in one call", async () => {
+    await outbox.insertOne({
+      status: "COMPLETED",
+      publicationDate: new Date("2026-06-16T10:00:00.000Z"),
+      claimExpiresAt: new Date("2099-01-01T00:00:00.000Z"),
+      event: { id: "gas-evt-ref-1" },
+      eventType: "CreateCase",
+      refs: ["ref:ref-1"],
+    });
     await setCwStub({
-      inbox: {
-        data: [
-          {
-            _id: "665f1c2e9a1b2c3d4e5f6a7c",
-            messageId: "cw-msg-ref-1",
-            type: "cloud.defra.local.fg-gas-backend.case.create",
-            status: "COMPLETED",
-            publicationDate: "2026-06-16T10:01:00.000Z",
-            completionDate: null,
-          },
-        ],
+      buckets: {
+        timeline: {
+          buckets: [
+            aCwTimelineBucket("outbox", []),
+            aCwTimelineBucket("inbox", [
+              aCwEventRow("inbox", {
+                id: "665f1c2e9a1b2c3d4e5f6a7c",
+                eventId: "cw-msg-ref-1",
+                type: "CreateCase",
+                status: "COMPLETED",
+                time: "2026-06-16T10:01:00.000Z",
+              }),
+            ]),
+          ],
+        },
       },
     });
 
     const { payload: page } = await getTab("events");
 
     expect(casePageSchemas.events.validate(page).error).toBeUndefined();
-    expect(page.events.rows.map((row) => row.service)).toContain("caseworking");
+    expect(page.events.rows.map((row) => [row.service, row.eventId])).toEqual([
+      ["caseworking", "cw-msg-ref-1"],
+    ]);
+    expect(page.sourceErrors).toEqual([]);
+
+    const asked = (await cwStubRequests()).filter(
+      (request) => request.box === "buckets",
+    );
+    expect(asked.map((request) => [request.method, request.path])).toEqual([
+      ["POST", "/actuators/timeline"],
+    ]);
+    expect(asked[0].body).toEqual({ ref: "case:frps-private-beta:ref-1" });
+    expect(asked[0]).toMatchObject({ actor: ACTOR, actorId: OID });
+  });
+
+  it("events: names a Caseworking bucket that could not be read", async () => {
+    await setCwStub({
+      buckets: {
+        timeline: {
+          buckets: [
+            aCwTimelineBucket("outbox", null),
+            aCwTimelineBucket("inbox", []),
+          ],
+        },
+      },
+    });
+
+    const { payload: page } = await getTab("events");
+
+    expect(page.events.rows).toEqual([]);
+    expect(page.sourceErrors).toEqual([{ hop: "CW outbox" }]);
   });
 
   it("raw: Caseworking's document whole, with its size", async () => {

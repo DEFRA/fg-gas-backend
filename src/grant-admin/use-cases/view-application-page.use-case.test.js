@@ -7,8 +7,7 @@ import {
   findApplicationSummary,
 } from "../../grants/services/application-read.service.js";
 import { findCwCaseExistence } from "../repositories/cw-actuators.repository.js";
-import { readCaseworkingPage } from "./caseworking-page.helpers.js";
-import { findEventsUseCase } from "./find-events.use-case.js";
+import { readApplicationEventsUseCase } from "./read-record-events.use-case.js";
 import {
   buildViewApplicationAudit,
   viewApplicationPageUseCase,
@@ -23,8 +22,7 @@ vi.mock("../../events/audited-read.js", () => ({
   },
 }));
 vi.mock("../../grants/services/application-read.service.js");
-vi.mock("./find-events.use-case.js");
-vi.mock("./caseworking-page.helpers.js");
+vi.mock("./read-record-events.use-case.js");
 vi.mock("../repositories/cw-actuators.repository.js");
 
 const REF = { clientRef: "ref-1", code: "woodland" };
@@ -41,7 +39,11 @@ const SUMMARY = {
 };
 
 const view = (tab) =>
-  viewApplicationPageUseCase({ ...REF, tab, caller: "admin-ui" });
+  viewApplicationPageUseCase({
+    ...REF,
+    tab,
+    caller: "admin-ui",
+  });
 
 describe("viewApplicationPageUseCase", () => {
   beforeEach(() => {
@@ -128,9 +130,8 @@ describe("viewApplicationPageUseCase", () => {
   it.each(["events", "raw"])(
     "%s draws the header without asking Caseworking for the case link",
     async (tab) => {
-      findEventsUseCase.mockResolvedValue({
-        events: [],
-        pagination: { hasNextPage: false },
+      readApplicationEventsUseCase.mockResolvedValue({
+        content: { events: { rows: [], more: false } },
         sourceErrors: [],
       });
       findApplicationDocument.mockResolvedValue({
@@ -147,31 +148,17 @@ describe("viewApplicationPageUseCase", () => {
     },
   );
 
-  it("events: GAS and Caseworking rows for the ref, audit rows left out, through one Caseworking read", async () => {
-    const caseworking = Promise.resolve({});
-    readCaseworkingPage.mockReturnValue(caseworking);
-    findEventsUseCase.mockResolvedValue({
-      events: [{ id: "row-1" }],
-      pagination: { hasNextPage: true },
-      sourceErrors: [
-        { key: "cwOutbox", service: "caseworking", box: "outbox" },
-      ],
+  it("events: the timeline of the application's ref, from this service alone", async () => {
+    readApplicationEventsUseCase.mockResolvedValue({
+      content: { events: { rows: [{ id: "row-1" }], more: true } },
+      sourceErrors: [{ hop: "GAS outbox" }],
     });
 
     const page = await view("events");
 
-    expect(readCaseworkingPage).toHaveBeenCalledWith({
-      q: "ref-1",
-      audit: "exclude",
-      sections: ["list"],
-    });
-    expect(findEventsUseCase).toHaveBeenCalledWith({
-      q: "ref-1",
-      audit: "exclude",
-      caseworking,
-    });
+    expect(readApplicationEventsUseCase).toHaveBeenCalledWith({ ref: "ref-1" });
     expect(page.events).toEqual({ rows: [{ id: "row-1" }], more: true });
-    expect(page.sourceErrors).toEqual([{ hop: "CW-BE Outbox" }]);
+    expect(page.sourceErrors).toEqual([{ hop: "GAS outbox" }]);
   });
 
   it("raw: the whole stored document with its size, logged without a ref", async () => {
