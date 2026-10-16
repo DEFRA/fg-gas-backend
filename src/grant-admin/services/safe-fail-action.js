@@ -3,7 +3,7 @@ import { logger } from "../../common/logger.js";
 
 // A Joi message can quote the value it refused, a ref or an operator's name
 // among them; its path and type never do.
-const describeDetails = (error) =>
+export const describeDetails = (error) =>
   (error?.details ?? [])
     .map(({ path, type }) => `${path.join(".")}:${type}`)
     .join(", ");

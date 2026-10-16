@@ -7,9 +7,8 @@ import {
 import { auditedRead } from "../../events/audited-read.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import { composeRecordPage } from "../services/compose-record-page.js";
-import { RECORD_KINDS } from "../services/record-kinds.js";
 import { readCaseHeader, startCaseRead } from "./case-page.helpers.js";
-import { readRecordEventsUseCase } from "./read-record-events.use-case.js";
+import { readCaseEventsUseCase } from "./read-record-events.use-case.js";
 
 const readOverview = async ({ caseRead }) => {
   const { summary, storedBytes } = await caseRead;
@@ -30,12 +29,8 @@ const readOverview = async ({ caseRead }) => {
   };
 };
 
-const readEvents = ({ workflowCode, caseRef }) =>
-  readRecordEventsUseCase({
-    kind: RECORD_KINDS.CASE,
-    code: workflowCode,
-    ref: caseRef,
-  });
+const readEvents = ({ workflowCode, caseRef, actor }) =>
+  readCaseEventsUseCase({ workflowCode, caseRef, actor });
 
 // Caseworking leaves its notes out of the document; nothing here adds them.
 const readRaw = async ({ caseRead }) => {

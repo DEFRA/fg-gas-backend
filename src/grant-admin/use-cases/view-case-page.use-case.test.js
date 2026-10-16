@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
 import { applicationExists } from "../../grants/services/application-read.service.js";
 import { findCwCase } from "../repositories/cw-actuators.repository.js";
-import { readCaseworkingPage } from "./caseworking-page.helpers.js";
-import { findEventsUseCase } from "./find-events.use-case.js";
+import { readCaseEventsUseCase } from "./read-record-events.use-case.js";
 import {
   buildViewCaseAudit,
   viewCasePageUseCase,
@@ -16,8 +15,7 @@ vi.mock("../../events/audited-read.js", () => ({
 }));
 vi.mock("../../grants/services/application-read.service.js");
 vi.mock("../repositories/cw-actuators.repository.js");
-vi.mock("./find-events.use-case.js");
-vi.mock("./caseworking-page.helpers.js");
+vi.mock("./read-record-events.use-case.js");
 
 const KEY = { workflowCode: "frps-private-beta", caseRef: "ref-1" };
 
@@ -65,9 +63,8 @@ describe("viewCasePageUseCase", () => {
       document: include ? DOCUMENT : null,
     }));
     applicationExists.mockResolvedValue({ exists: true, identifiers: {} });
-    findEventsUseCase.mockResolvedValue({
-      events: [],
-      pagination: { hasNextPage: false },
+    readCaseEventsUseCase.mockResolvedValue({
+      content: { events: { rows: [], more: false } },
       sourceErrors: [],
     });
   });
@@ -102,17 +99,14 @@ describe("viewCasePageUseCase", () => {
     });
   });
 
-  it("events: the rows for the case ref, audit rows left out", async () => {
+  it("events: the timeline of the case's workflow and ref, read as the operator", async () => {
     await view("events");
 
-    expect(readCaseworkingPage).toHaveBeenCalledWith({
-      q: "ref-1",
-      audit: "exclude",
-      sections: ["list"],
+    expect(readCaseEventsUseCase).toHaveBeenCalledWith({
+      workflowCode: "frps-private-beta",
+      caseRef: "ref-1",
+      actor: "Jo",
     });
-    expect(findEventsUseCase).toHaveBeenCalledWith(
-      expect.objectContaining({ q: "ref-1", audit: "exclude" }),
-    );
   });
 
   it("raw: Caseworking's document with its size, logged without a ref", async () => {
