@@ -102,6 +102,7 @@ describe("getEventRoute over HTTP", () => {
     id: ID,
     eventId: "evt-detail-1",
     type: "case.create",
+    eventType: "CreateCase",
     targetTopic: "gas__sns__create_new_case_fifo.fifo",
     status: "DEAD_LETTER",
     statusLabel: "Dead letter",

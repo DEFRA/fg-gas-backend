@@ -9,6 +9,7 @@ import {
   normaliseAttemptHistory,
   toAttemptEntry,
   toLastError,
+  withErrorKey,
 } from "../last-error.js";
 import { isRetryableFailure } from "../retryable.js";
 
@@ -37,6 +38,9 @@ const toSortableInstant = (time, fallback = () => new Date()) => {
     ? fallback().toISOString()
     : new Date(parsed).toISOString();
 };
+
+// The stamps a writer or a backfill gave the row; a row read back from before them has none.
+const stampsOf = ({ eventType = null, refs = [] }) => ({ eventType, refs });
 
 export class Inbox {
   static validationSchema = Joi.object({
@@ -86,6 +90,7 @@ export class Inbox {
     this.claimExpiresAt = null;
     this.segregationRef = props.segregationRef;
     this.eventTime = toSortableInstant(props.event?.time);
+    Object.assign(this, stampsOf(props));
   }
 
   // The columns an inbox row derives from its event, so an edited event is
@@ -138,7 +143,7 @@ export class Inbox {
       messageId: this.messageId,
       event: this.event,
       lastResubmissionDate: this.lastResubmissionDate,
-      lastError: this.lastError,
+      ...withErrorKey(this.lastError),
       attemptHistory: this.attemptHistory,
       completionAttempts: this.completionAttempts,
       status: this.status,
@@ -151,6 +156,8 @@ export class Inbox {
       claimExpiresAt: this.claimExpiresAt,
       eventTime: this.eventTime,
       segregationRef: this.segregationRef,
+      eventType: this.eventType,
+      refs: this.refs,
     };
   }
 
@@ -177,6 +184,8 @@ export class Inbox {
       claimExpiresAt: doc.claimExpiresAt,
       eventTime: doc.eventTime,
       segregationRef: doc.segregationRef,
+      eventType: doc.eventType,
+      refs: doc.refs,
     });
   }
 

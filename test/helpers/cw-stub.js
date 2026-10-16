@@ -9,6 +9,7 @@ const REQUESTS_PATH = "/__requests";
 const RESET_PATH = "/__reset";
 
 const OK = 200;
+const BAD_REQUEST = 400;
 const NO_CONTENT = 204;
 const CONFLICT = 409;
 const PRECONDITION_FAILED = 412;
@@ -21,8 +22,6 @@ export const CW_STUB_TOKEN = "cw-stub-token";
 
 const emptyBox = () => ({
   mode: "ok",
-  data: [],
-  pagination: { endCursor: null, hasNextPage: false },
   // A null `detail` or a false `redrive`/`purge` is a 404; a conflict status
   // is a 409.
   detail: null,
@@ -36,35 +35,34 @@ const emptyBox = () => ({
   editConflictStatus: null,
   editStale: false,
   editRefusal: null,
-  counts: {
-    PUBLISHED: 0,
-    PROCESSING: 0,
-    FAILED: 0,
-    RESUBMITTED: 0,
-    COMPLETED: 0,
-    DEAD_LETTER: 0,
-    PURGED: 0,
-  },
-  groups: [],
 });
 
-// The case actuators: `search` is C1's answer, `records` the cases C2 and C3
-// know by "workflowCode/caseRef". `mode` fails every case route the way a
+// The case actuators: `records` are the cases C2 and C3 know by
+// "workflowCode/caseRef". `mode` fails every case route the way a
 // box's does; `missingRoute` answers a bare 404, as a Caseworking without them.
 const emptyCases = () => ({
   mode: "ok",
   missingRoute: false,
-  search: {
-    cases: [],
-    pagination: { endCursor: null, hasNextPage: false },
-  },
   records: {},
+});
+
+// The bucket routes: `entries` is the catalogue and `answers` each bucket's
+// query answer by id. A `refusal` reason answers every query 400; a bucket
+// with no answer is a 404 UNKNOWN_BUCKET.
+const emptyBuckets = () => ({
+  mode: "ok",
+  missingRoute: false,
+  entries: [],
+  answers: {},
+  timeline: { buckets: [] },
+  refusal: null,
 });
 
 const defaultState = () => ({
   inbox: emptyBox(),
   outbox: emptyBox(),
   cases: emptyCases(),
+  buckets: emptyBuckets(),
 });
 
 let server;
@@ -95,6 +93,7 @@ const handleControl = async (request, response) => {
     inbox: { ...state.inbox, ...(patch.inbox ?? {}) },
     outbox: { ...state.outbox, ...(patch.outbox ?? {}) },
     cases: { ...state.cases, ...(patch.cases ?? {}) },
+    buckets: { ...state.buckets, ...(patch.buckets ?? {}) },
   };
 
   send(response, OK, { ok: true });
@@ -119,12 +118,8 @@ const respondForMode = (box, response) => {
     return response.destroy();
   }
 
-  if (box.mode === "timeout") {
-    // Never answers: GAS's wreck client gives up on its own timeout.
-    return undefined;
-  }
-
-  return send(response, OK, { data: box.data, pagination: box.pagination });
+  // "timeout" never answers: GAS's wreck client gives up on its own timeout.
+  return undefined;
 };
 
 const record = async (name, request) => {
@@ -145,51 +140,6 @@ const record = async (name, request) => {
 
 const isAuthorised = (request) =>
   request.headers.authorization === `Bearer ${token}`;
-
-// Any failure mode fails the one page request; `unreadable` nulls one box's sections.
-const UNREADABLE = "unreadable";
-
-const ALL_SECTIONS = "list,counts,breakdown";
-
-// As the real actuator: a section that was not asked for answers null.
-const toPageSection = (box, sections) =>
-  box.mode === UNREADABLE
-    ? { events: null, pagination: null, counts: null, breakdown: null }
-    : {
-        events: box.data,
-        pagination: box.pagination,
-        counts: sections.includes("counts") ? box.counts : null,
-        breakdown: sections.includes("breakdown")
-          ? { groups: box.groups }
-          : null,
-      };
-
-const isWholeRequestFailure = (box) =>
-  box.mode !== "ok" && box.mode !== UNREADABLE;
-
-const handlePage = async (request, response) => {
-  await record("page", request);
-
-  if (!isAuthorised(request)) {
-    return send(response, UNAUTHORIZED, { message: "bad token" });
-  }
-
-  const failing = [state.inbox, state.outbox].find(isWholeRequestFailure);
-
-  if (failing) {
-    return respondForMode(failing, response);
-  }
-
-  const sections = (
-    new URL(request.url, "http://stub.local").searchParams.get("sections") ??
-    ALL_SECTIONS
-  ).split(",");
-
-  return send(response, OK, {
-    inbox: toPageSection(state.inbox, sections),
-    outbox: toPageSection(state.outbox, sections),
-  });
-};
 
 // GET /actuators/events/{box}/{id} - the whole document, payload included.
 const handleDetail = async (name, id, request, response) => {
@@ -358,8 +308,7 @@ const withDocument = (found, url) =>
     ? found
     : { case: found.case, storedBytes: found.storedBytes };
 
-// POST /actuators/cases/search, GET /actuators/cases/{workflowCode}/{caseRef}
-// and its /existence.
+// GET /actuators/cases/{workflowCode}/{caseRef} and its /existence.
 const handleCases = async (pathname, request, response) => {
   await record("cases", request);
 
@@ -375,10 +324,6 @@ const handleCases = async (pathname, request, response) => {
 
   if (cases.missingRoute) {
     return send(response, NOT_FOUND, { message: "Not Found" });
-  }
-
-  if (pathname === "/actuators/cases/search") {
-    return send(response, OK, cases.search);
   }
 
   const [, workflowCode, caseRef, existence] = CASE_PATH.exec(pathname);
@@ -397,8 +342,59 @@ const handleCases = async (pathname, request, response) => {
     : caseNotFound(response);
 };
 
-const isCasePath = (pathname) =>
-  pathname === "/actuators/cases/search" || CASE_PATH.test(pathname);
+const BUCKETS_PATH = "/actuators/buckets";
+const BUCKET_QUERY_PATH = /^\/actuators\/buckets\/([^/]+)\/query$/;
+const TIMELINE_PATH = "/actuators/timeline";
+
+const answerBucketQuery = (pathname, response) => {
+  const { answers, refusal } = state.buckets;
+  const [, bucketId] = BUCKET_QUERY_PATH.exec(pathname);
+  const answer = answers[decodeURIComponent(bucketId)];
+
+  if (refusal) {
+    return send(response, BAD_REQUEST, {
+      reason: refusal,
+      message: "SECRET-CW-REFUSAL",
+    });
+  }
+
+  return answer
+    ? send(response, OK, answer)
+    : send(response, NOT_FOUND, { reason: "UNKNOWN_BUCKET" });
+};
+
+const answerBuckets = (pathname, buckets, response) =>
+  pathname === BUCKETS_PATH
+    ? send(response, OK, { buckets: buckets.entries })
+    : answerBucketQuery(pathname, response);
+
+// GET /actuators/buckets, POST /actuators/buckets/{bucketId}/query and
+// POST /actuators/timeline.
+const handleBuckets = async (pathname, request, response) => {
+  await record("buckets", request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const { buckets } = state;
+
+  if (buckets.mode !== "ok") {
+    return respondForMode(buckets, response);
+  }
+
+  if (buckets.missingRoute) {
+    return send(response, NOT_FOUND, { message: "Not Found" });
+  }
+
+  return pathname === TIMELINE_PATH
+    ? send(response, OK, buckets.timeline)
+    : answerBuckets(pathname, buckets, response);
+};
+
+const isBucketPath = (pathname) =>
+  [BUCKETS_PATH, TIMELINE_PATH].includes(pathname) ||
+  BUCKET_QUERY_PATH.test(pathname);
 
 const route = async (request, response) => {
   const { pathname } = new URL(request.url, "http://stub.local");
@@ -415,11 +411,11 @@ const route = async (request, response) => {
     return send(response, OK, { requests });
   }
 
-  if (pathname === "/actuators/events") {
-    return handlePage(request, response);
+  if (isBucketPath(pathname)) {
+    return handleBuckets(pathname, request, response);
   }
 
-  if (isCasePath(pathname)) {
+  if (CASE_PATH.test(pathname)) {
     return handleCases(pathname, request, response);
   }
 

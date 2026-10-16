@@ -1,5 +1,5 @@
-// Consumer test: fg-gas-backend reads cases FROM fg-cw-backend's actuators,
-// over HTTP, for the Grant Admin Cases pages and the record links.
+// Consumer test: fg-gas-backend reads buckets and cases FROM fg-cw-backend's
+// actuators, over HTTP, for the Grant Admin lists, case pages and record links.
 //
 // A separate provider name from the message pact (consumer.cw-backend.test.js),
 // so each pair is verified on its own. Case payloads and documents are config
@@ -10,10 +10,11 @@ import { describe, expect, it, vi } from "vitest";
 import { withRequestContext } from "../../src/common/get-request-context.js";
 import {
   CASE_NOT_FOUND,
+  findCwBuckets,
   findCwCase,
   findCwCaseExistence,
   findCwEvent,
-  searchCwCases,
+  queryCwBucket,
 } from "../../src/grant-admin/repositories/cw-actuators.repository.js";
 
 const { atLeastLike, boolean, eachLike, integer, like, regex, string } =
@@ -70,20 +71,9 @@ const caseFacts = (caseRef) => ({
   createdAt,
 });
 
-const caseRow = (caseRef) => ({
-  ...caseFacts(caseRef),
-  replaced: boolean(false),
-});
-
-// A real keyset cursor: {createdAt, _id}, base64url.
+// A real bucket cursor: {t, i}, base64url.
 const CURSOR =
-  "eyJjcmVhdGVkQXQiOiIyMDI2LTA2LTE2VDEwOjAwOjAwLjAwMFoiLCJfaWQiOiJmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmYifQ";
-
-// A browse page always names its last row, whether or not more follow.
-const browsePagination = (hasNextPage) => ({
-  endCursor: string(CURSOR),
-  hasNextPage: boolean(hasNextPage),
-});
+  "eyJ0IjoiMjAyNi0wNi0xNlQxMDowMDowMC4wMDBaIiwiaSI6ImZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZiJ9";
 
 // Every call carries the operator's id from the request, as the routes set it.
 const asOperator = (call) => withRequestContext({ user: OID }, call);
@@ -96,36 +86,112 @@ const run = (interaction, test) =>
   });
 
 describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
-  describe("C1: POST /actuators/cases/search", () => {
-    it("browses the first page, with a total and the workflow codes", () =>
+  describe("C1: the bucket routes", () => {
+    const CASES_BUCKET = "cw.cases";
+    const EMPTY_QUERY = { where: {}, limit: 20, groupBy: [] };
+
+    // Value lists, refs and columns differ per bucket, so each is only "a list".
+    const bucketEntry = {
+      id: regex("^cw\\.[a-z][a-z0-9-]*$", CASES_BUCKET),
+      path: string("cases"),
+      label: string("Cases"),
+      service: string("CW"),
+      shortLabel: string("Cases"),
+      icon: string("folder"),
+      order: integer(80),
+      noun: { one: string("case"), many: string("cases") },
+      time: { label: string("Created") },
+      facts: like([]),
+      refs: like([]),
+      indexes: like([]),
+      groupings: like([]),
+      title: { label: string("Reference"), format: string("mono") },
+      columns: like([]),
+      audited: boolean(true),
+      timeline: boolean(false),
+      summaries: like([]),
+      page: null,
+      tab: null,
+    };
+
+    const bucketRow = {
+      id: string("665f1c2e9a1b2c3d4e5f6a7b"),
+      time: createdAt,
+      title: like("ref-1"),
+      subtitle: null,
+      cells: like({}),
+      link: {
+        kind: "case",
+        workflowCode: like(WORKFLOW),
+        caseRef: like("ref-1"),
+      },
+    };
+
+    it("lists the buckets Caseworking owns", () =>
       run(
         {
           states: [{ description: "cases exist" }],
-          uponReceiving: "a first browse page of cases",
+          uponReceiving: "a read of the bucket catalogue",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/buckets",
+            headers: { authorization },
+          },
+          willRespondWith: {
+            status: 200,
+            body: { buckets: eachLike(bucketEntry) },
+          },
+        },
+        async () => {
+          const [entry] = await findCwBuckets();
+
+          expect(entry.id).toBe(CASES_BUCKET);
+          expect(entry.audited).toBe(true);
+        },
+      ));
+
+    it("answers one page of a bucket, newest first", () =>
+      run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "a first page of the cases bucket",
           withRequest: {
             method: "POST",
-            path: "/actuators/cases/search",
+            path: `/actuators/buckets/${CASES_BUCKET}/query`,
             headers: operatorHeaders,
-            body: {},
+            body: EMPTY_QUERY,
           },
           willRespondWith: {
             status: 200,
             body: {
-              cases: eachLike(caseRow("ref-1")),
-              pagination: browsePagination(true),
-              total: { count: integer(21), capped: boolean(false) },
-              workflowCodes: eachLike(WORKFLOW),
+              bucket: CASES_BUCKET,
+              plan: {
+                kind: "exact",
+                index: eachLike("createdAt"),
+                bound: like([]),
+                filled: like([]),
+                residual: like([]),
+                scans: integer(1),
+              },
+              rows: eachLike(bucketRow),
+              page: {
+                next: like(CURSOR),
+                keepLooking: null,
+                searchedTo: null,
+                complete: boolean(false),
+              },
+              groups: like([]),
             },
           },
         },
         async () => {
           const answer = await asOperator(() =>
-            searchCwCases({}, { actor: ACTOR, repeat: false }),
+            queryCwBucket(CASES_BUCKET, EMPTY_QUERY, { actor: ACTOR }),
           );
 
-          expect(answer.rows[0].ref.caseRef).toBe("ref-1");
-          expect(answer.rows[0].replaced).toBe(false);
-          expect(answer.total.capped).toBe(false);
+          expect(answer.bucket).toBe(CASES_BUCKET);
+          expect(answer.rows[0].link.kind).toBe("case");
+          expect(answer.plan.kind).toBe("exact");
         },
       ));
 
@@ -133,136 +199,83 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
       run(
         {
           states: [{ description: "cases exist" }],
-          uponReceiving: "a repeated first browse page of cases",
+          uponReceiving: "a repeated first page of the cases bucket",
           withRequest: {
             method: "POST",
-            path: "/actuators/cases/search",
+            path: `/actuators/buckets/${CASES_BUCKET}/query`,
             headers: { ...operatorHeaders, "x-search-repeat": "1" },
-            body: {},
+            body: EMPTY_QUERY,
           },
           willRespondWith: {
             status: 200,
-            body: {
-              cases: eachLike(caseRow("ref-1")),
-              pagination: browsePagination(true),
-              total: { count: integer(21), capped: boolean(false) },
-              workflowCodes: eachLike(WORKFLOW),
-            },
+            body: { bucket: CASES_BUCKET, rows: eachLike(bucketRow) },
           },
         },
         async () => {
           const answer = await asOperator(() =>
-            searchCwCases({}, { actor: ACTOR, repeat: true }),
-          );
-
-          expect(answer.rows[0].ref.caseRef).toBe("ref-1");
-        },
-      ));
-
-    it("continues from a cursor, with no total", () =>
-      run(
-        {
-          states: [{ description: "cases exist" }],
-          uponReceiving: "a later browse page of cases",
-          withRequest: {
-            method: "POST",
-            path: "/actuators/cases/search",
-            headers: operatorHeaders,
-            body: { cursor: like(CURSOR) },
-          },
-          willRespondWith: {
-            status: 200,
-            body: {
-              cases: eachLike(caseRow("ref-2")),
-              pagination: browsePagination(true),
-            },
-          },
-        },
-        async () => {
-          const answer = await asOperator(() =>
-            searchCwCases({ cursor: CURSOR }, { actor: ACTOR, repeat: false }),
-          );
-
-          expect(answer).not.toHaveProperty("total");
-        },
-      ));
-
-    it("narrows to a workflow and a created range", () =>
-      run(
-        {
-          states: [{ description: "cases exist" }],
-          uponReceiving: "a browse of one workflow's cases over a range",
-          withRequest: {
-            method: "POST",
-            path: "/actuators/cases/search",
-            headers: operatorHeaders,
-            body: {
-              workflowCode: like(WORKFLOW),
-              from: regex(ISO, "2026-06-15T00:00:00.000Z"),
-              to: regex(ISO, "2026-06-17T00:00:00.000Z"),
-            },
-          },
-          willRespondWith: {
-            status: 200,
-            body: {
-              cases: eachLike(caseRow("ref-1")),
-              pagination: browsePagination(false),
-              total: { count: integer(1), capped: boolean(false) },
-              workflowCodes: eachLike(WORKFLOW),
-            },
-          },
-        },
-        async () => {
-          const answer = await asOperator(() =>
-            searchCwCases(
-              {
-                workflowCode: WORKFLOW,
-                from: "2026-06-15T00:00:00.000Z",
-                to: "2026-06-17T00:00:00.000Z",
-              },
-              { actor: ACTOR },
-            ),
+            queryCwBucket(CASES_BUCKET, EMPTY_QUERY, {
+              actor: ACTOR,
+              repeat: true,
+            }),
           );
 
           expect(answer.rows).toHaveLength(1);
         },
       ));
 
-    it("finds every case in a ref's series, as one page", () =>
+    it("refuses a filter on a fact the bucket does not declare, by reason", () =>
       run(
         {
-          states: [
-            {
-              description: "a case series exists",
-              parameters: {
-                workflowCode: WORKFLOW,
-                caseRefs: ["ref-1", "ref-2"],
-              },
-            },
-          ],
-          uponReceiving: "a search for a case ref",
+          states: [{ description: "cases exist" }],
+          uponReceiving: "a cases bucket query naming an undeclared fact",
           withRequest: {
             method: "POST",
-            path: "/actuators/cases/search",
+            path: `/actuators/buckets/${CASES_BUCKET}/query`,
             headers: operatorHeaders,
-            body: { ref: like("ref-1") },
+            body: { ...EMPTY_QUERY, where: { colour: "x" } },
           },
           willRespondWith: {
-            status: 200,
-            body: {
-              cases: eachLike(caseRow("ref-2")),
-              pagination: { endCursor: null, hasNextPage: false },
-              total: { count: integer(2), capped: boolean(false) },
-              workflowCodes: eachLike(WORKFLOW),
-            },
+            status: 400,
+            body: { reason: "UNKNOWN_FACT" },
           },
         },
         async () => {
-          const answer = await asOperator(() =>
-            searchCwCases({ ref: "ref-1" }, { actor: ACTOR }),
-          );
+          const error = await asOperator(() =>
+            queryCwBucket(
+              CASES_BUCKET,
+              { ...EMPTY_QUERY, where: { colour: "x" } },
+              { actor: ACTOR },
+            ),
+          ).catch((e) => e);
 
-          expect(answer.pagination.hasNextPage).toBe(false);
+          expect(error.output.statusCode).toBe(400);
+          expect(error.output.payload.reason).toBe("UNKNOWN_FACT");
+        },
+      ));
+
+    it("answers 404 with a reason for a bucket it does not have", () =>
+      run(
+        {
+          states: [{ description: "cases exist" }],
+          uponReceiving: "a query of a bucket Caseworking does not have",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/buckets/cw.nothing/query",
+            headers: operatorHeaders,
+            body: EMPTY_QUERY,
+          },
+          willRespondWith: {
+            status: 404,
+            body: { reason: "UNKNOWN_BUCKET" },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            queryCwBucket("cw.nothing", EMPTY_QUERY, { actor: ACTOR }),
+          ).catch((e) => e);
+
+          expect(error.output.statusCode).toBe(404);
+          expect(error.output.payload.reason).toBe("UNKNOWN_BUCKET");
         },
       ));
 
@@ -270,18 +283,18 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
       run(
         {
           states: [{ description: "the caller is not fg-gas-backend" }],
-          uponReceiving: "a case search from another client",
+          uponReceiving: "a bucket query from another client",
           withRequest: {
             method: "POST",
-            path: "/actuators/cases/search",
+            path: `/actuators/buckets/${CASES_BUCKET}/query`,
             headers: operatorHeaders,
-            body: {},
+            body: EMPTY_QUERY,
           },
           willRespondWith: { status: 403 },
         },
         async () => {
           const error = await asOperator(() =>
-            searchCwCases({}, { actor: ACTOR }),
+            queryCwBucket(CASES_BUCKET, EMPTY_QUERY, { actor: ACTOR }),
           ).catch((e) => e);
 
           expect(error.output.statusCode).toBe(502);

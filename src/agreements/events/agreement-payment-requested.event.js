@@ -2,10 +2,18 @@ import Joi from "joi";
 import { CloudEvent } from "../../common/cloud-event.js";
 import { config } from "../../common/config.js";
 import { deepFreeze, validateEventProps } from "../../events/event-contract.js";
+import { OUTBOX, defineEventType } from "../../events/event-types.js";
 
 const type = "agreement.payment.requested";
 
-export const AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE = `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.${type}`;
+export const agreementPaymentRequested = defineEventType({
+  name: "AgreementPaymentRequested",
+  sentAs: `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.${type}`,
+  boxes: [OUTBOX],
+});
+
+export const AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE =
+  agreementPaymentRequested.sentAs;
 
 const requestSchema = Joi.object({
   agreement: Joi.object({

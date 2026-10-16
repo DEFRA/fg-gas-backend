@@ -36,7 +36,8 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 | **Commands**                              | Send commands through the internal command target; command shapes live in `src/*/commands/`                                                                                                                                     |
 | **Durable publications**                  | Pass producer-owned events or commands to `saveEvents` in the caller's transaction. Direct inbox/outbox collection access belongs to the Events module and the documented Grant Admin seam.                                     |
 | **Shared infrastructure**                 | Import from `src/common/` (logger, DB client, messaging helpers)                                                                                                                                                                |
-| **Shared event domain**                   | Import from `src/events/` (audit predicate, list filter, status counts, facets, breakdown, redrive, purge, payload edits, retention, last error)                                                                                |
+| **Shared event domain**                   | Import from `src/events/` (event type declarations, stamps, audit predicate, status values, redrive, purge, payload edits, retention, last error)                                                                               |
+| **Buckets**                               | Declare a list the admin portal can show in the module that owns the collection and register it with `common/buckets/registry.js`. See [Buckets](#buckets).                                                                     |
 | **Grants → Agreements reference context** | `grants` may call the reviewed Agreements query interface for a plain reference-resolution context. The query accepts the active Mongo session; it does not expose an Agreements repository or domain model.                    |
 | **Grants → Agreements status event type** | `grants` imports only `agreements/events/agreement-status-updated.event.js` to register its handler against the producer-owned exact CloudEvent type; the event still arrives through SNS/SQS.                                  |
 | **Config definition checks**              | When the Config Broker publishes a version, `grants` asks each owning context whether its own definition file is usable, before the version is recorded. See [Config definition entry points](#config-definition-entry-points). |
@@ -51,11 +52,12 @@ event module directly:
 | ------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
 | `grant-admin` | `grants/services/entitlement.service.js`             | Claims overview, entitlement creation and update, and who may do them   |
 | `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup and submitted-Claim reads                  |
-| `grant-admin` | `grants/services/application-read.service.js`        | Read-only Applications list, application documents, series and codes    |
+| `grant-admin` | `grants/services/application-read.service.js`        | Read-only application facts, stored documents and series                |
 | `grant-admin` | `grants/services/allow-list.service.js`              | Audited grant allow-list reads and transactional whole-list replacement |
 | `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                  |
-| `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: list, inspect, redrive, purge and edit GAS inbound events  |
-| `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: list, inspect, redrive, purge and edit GAS outbound events |
+| `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: inspect, redrive, purge and edit GAS inbound events        |
+| `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: inspect, redrive, purge and edit GAS outbound events       |
+| `grant-admin` | `common/buckets/registry.js` and `engine.js`         | Every list: the catalogue and one query route over the declared buckets |
 
 Who may see or change a grant's Claims is Grants' rule, not the BFF's. The grant
 configures the roles it requires; `grants/models/claims-access.js` turns them
@@ -101,10 +103,12 @@ Events, cases and applications follow the same path, each its own change.
 `src/events/` owns the durable inbox/outbox mechanism shared by every context:
 the models, repositories, FIFO locks, pollers, retries, dead-letter handling,
 redrive, purge and payload-edit operations, and event audit helpers. It also defines what an
-event-store row means: which rows are audit records (`event-audit.js`), how a
-list of them is selected (`event-list-filter.js`), the statuses they move
-through and how they are counted and grouped (`status-counts.js`,
-`event-facets.js`, `event-breakdown.js`), how long a terminal row is kept
+event-store row means: which event types this service sends and receives
+(`event-types.js`, declared by each context beside its event class), the facts
+and refs a writer stamps on a row at insert (`stamps.js`), which rows are audit
+records (`event-audit.js`), the statuses they move through
+(`event-status-values.js`), the lists the admin portal can show of them
+(`buckets/`), how long a terminal row is kept
 (`event-retention.js`), what redriving one means (`event-redrive.js`), what
 purging one means (`event-purge.js`), what editing one's payload means
 (`event-edit.js`, with `payload-changes.js` for what an edit changed and
@@ -260,6 +264,37 @@ shared Agreement ownership check, and translating a rejected transition into a 4
 holds no agreement logic of its own and never touches an Agreements repository or domain
 model directly. ESLint permits this one Agreements entry point and rejects every other
 production Agreements import made by `test-endpoints`. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
+
+### Buckets
+
+A bucket is one list the admin portal can show: one collection, with the facts
+a filter or grouping may name, the ref kinds a search may name, a time field
+and its index lines. A fact may lead every index key (`lead`), and a value of
+a fact may stay out of the list until a switch shows it (`hidden`, `toggle`):
+`gas.outbox` leads with its event type and hides the `audit` type that way,
+because that type is declared `hiddenByDefault`. It is declared
+once, with `defineBucket`, in the module that owns the collection, and
+registered with `registerBucket` when that module's plugin starts:
+
+| Bucket             | Declared in                             | Registered by     |
+| ------------------ | --------------------------------------- | ----------------- |
+| `gas.outbox`       | `events/buckets/outbox.bucket.js`       | `events/index.js` |
+| `gas.inbox`        | `events/buckets/inbox.bucket.js`        | `events/index.js` |
+| `gas.applications` | `grants/buckets/applications.bucket.js` | `grants/index.js` |
+
+`src/common/buckets/` is the engine: it turns any query into one read on one
+named index, and says whether that read was exact or bounded. It imports
+nothing but `common`, knows no collection and no bucket, and is the same code
+in `fg-cw-backend`. `grant-admin` serves every bucket through
+`GET /grant-admin/buckets` and `POST /grant-admin/buckets/{bucketId}/query`; it
+reads the registry, never a declaration, so a new bucket needs no route and no
+`grant-admin` change. A bucket whose id begins `cw.` is forwarded to
+Caseworking by that id.
+
+A new bucket is a declaration, one `registerBucket` line, `refs` built by the
+collection's writer, and one migration that backfills `refs` and calls
+`ensureIndexes`. A migration imports a bucket factory by path and never reads
+the registry, which is empty until the plugins have started.
 
 ## Adding a New Seam
 

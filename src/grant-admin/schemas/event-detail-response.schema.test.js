@@ -32,6 +32,7 @@ const aListRow = (overrides = {}) => ({
 });
 
 const aDetail = (overrides = {}) => ({
+  eventType: "CreateCase",
   ...aSingleRow(),
   payload: { id: "evt-1", data: { clientRef: "REF-1" } },
   traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
@@ -534,6 +535,16 @@ describe("eventDetailResponseSchema record", () => {
         aDetail({ record: { kind: "agreement", code: "c", ref: "r" } }),
       ).error,
     ).toBeDefined();
+  });
+
+  it("carries the stamped event type, or null for a row not yet stamped", () => {
+    expect(
+      eventDetailResponseSchema.validate(aDetail({ eventType: null })).error,
+    ).toBeUndefined();
+
+    const { eventType: _, ...unstated } = aDetail();
+
+    expect(eventDetailResponseSchema.validate(unstated).error).toBeDefined();
   });
 
   it("accepts a null searchRef, as on an audit row", () => {

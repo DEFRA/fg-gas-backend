@@ -1,16 +1,7 @@
 import { ObjectId } from "mongodb";
 import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
-import { paginate } from "../../common/paginate.js";
-import {
-  AUDIT_TARGET_FIELDS,
-  EVENT_TYPE_FIELDS,
-  auditGroupExpression,
-} from "../event-audit.js";
-import { breakdownStages, toBreakdownGroups } from "../event-breakdown.js";
 import { editUpdate, revisionFilter } from "../event-edit.js";
-import { toSourceFacets } from "../event-facets.js";
-import { buildEventListFilter } from "../event-list-filter.js";
 import { purgeUpdate } from "../event-purge.js";
 import {
   DEAD_LETTER,
@@ -20,9 +11,10 @@ import {
 import {
   claimExpiredAttempt,
   claimExpiredError,
+  withErrorKey,
   pushAttemptUpdate,
 } from "../last-error.js";
-import { statusGroupStage } from "../status-counts.js";
+import { withoutStamps } from "../stamps.js";
 import { Inbox, InboxStatus } from "../models/inbox.js";
 
 const collection = "inbox";
@@ -30,46 +22,6 @@ const MAX_RETRIES = config.inbox.inboxMaxRetries;
 const NUMBER_OF_RECORDS = config.inbox.inboxClaimMaxRecords;
 const EXPIRES_IN_MS = config.inbox.inboxExpiresMs;
 const RETENTION_DAYS = config.events.retentionDays;
-
-// Never `event` or `claimedBy`.
-const listProjection = {
-  _id: 1,
-  messageId: 1,
-  type: 1,
-  status: 1,
-  publicationDate: 1,
-  completionDate: 1,
-};
-
-// A canonical ISO string on every inbox row, so it round-trips unchanged.
-const listCodecs = {
-  publicationDate: {
-    encode: (value) => value ?? null,
-    decode: (value) => value ?? null,
-  },
-  _id: {
-    encode: (id) => id.toString(),
-    decode: (hex) => ObjectId.createFromHexString(hex),
-  },
-};
-
-// The admin lists by receipt; the poller deliberately claims by `eventTime` instead.
-const listFilter = ({ status, q, error, from, to, audit }) =>
-  buildEventListFilter({
-    status,
-    q,
-    error,
-    from,
-    to,
-    audit,
-    targetField: AUDIT_TARGET_FIELDS.inbox,
-    eventIdField: "messageId",
-    traceparentField: "traceparent",
-    rangeField: "publicationDate",
-    rangeIsDate: false,
-  });
-
-const listSort = { publicationDate: -1, _id: -1 };
 
 export const deadLetterEvent = async (event) => {
   const results = await db.collection(collection).updateOne(
@@ -149,7 +101,7 @@ export const processExpiredEvents = async () => {
     {
       $set: {
         status: InboxStatus.FAILED,
-        lastError: claimExpiredError(),
+        ...withErrorKey(claimExpiredError()),
         claimedBy: null,
         claimedAt: null,
         claimExpiresAt: null,
@@ -246,43 +198,12 @@ export const insertOne = async (inbox, session) => {
 // Matching on `claimedBy` stops a handler that outlived its claim from
 // overwriting whatever happened to the row after the claim expired.
 export const update = async (inbox, claimedBy) => {
-  const document = inbox.toDocument();
-  const { _id, ...updateDoc } = document;
+  const { _id, ...updateDoc } = withoutStamps(inbox.toDocument());
 
   return db
     .collection(collection)
     .updateOne({ _id, claimedBy }, { $set: updateDoc });
 };
-
-export const findPage = async ({
-  cursor,
-  pageSize = 20,
-  status,
-  q,
-  error,
-  from,
-  to,
-  audit,
-} = {}) =>
-  paginate(db.collection(collection), {
-    filter: listFilter({ status, q, error, from, to, audit }),
-    sort: listSort,
-    codecs: listCodecs,
-    maxTimeMS: config.adminReadTimeoutMs,
-    cursor,
-    pageSize,
-    project: listProjection,
-  });
-
-export const countFacets = async (filter = {}) =>
-  toSourceFacets(
-    await db
-      .collection(collection)
-      .aggregate([{ $match: listFilter(filter) }, statusGroupStage()], {
-        maxTimeMS: config.adminReadTimeoutMs,
-      })
-      .toArray(),
-  );
 
 const toId = (id) => ObjectId.createFromHexString(id);
 
@@ -371,20 +292,3 @@ export const editPayloadById = async (
 
   return matchedCount > 0;
 };
-
-// Scoped to DEAD_LETTER here so it can never count a still-retrying row.
-export const breakdown = async (filter = {}) =>
-  toBreakdownGroups(
-    await db
-      .collection(collection)
-      .aggregate(
-        breakdownStages({
-          filter: listFilter({ ...filter, status: InboxStatus.DEAD_LETTER }),
-          typeField: EVENT_TYPE_FIELDS.inbox,
-          auditExpression: auditGroupExpression(AUDIT_TARGET_FIELDS.inbox),
-          sortKey: "publicationDate",
-        }),
-        { maxTimeMS: config.adminReadTimeoutMs },
-      )
-      .toArray(),
-  );

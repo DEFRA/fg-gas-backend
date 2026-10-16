@@ -2,10 +2,18 @@ import Joi from "joi";
 import { CloudEvent } from "../../common/cloud-event.js";
 import { config } from "../../common/config.js";
 import { deepFreeze, validateEventProps } from "../../events/event-contract.js";
+import { OUTBOX, defineEventType } from "../../events/event-types.js";
 
 const type = "claim.payment.requested";
 
-export const CLAIM_PAYMENT_REQUESTED_EVENT_TYPE = `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.${type}`;
+export const claimPaymentRequested = defineEventType({
+  name: "ClaimPaymentRequested",
+  sentAs: `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.${type}`,
+  boxes: [OUTBOX],
+  refs: ({ data }) => [["ref", data?.source?.clientRef]],
+});
+
+export const CLAIM_PAYMENT_REQUESTED_EVENT_TYPE = claimPaymentRequested.sentAs;
 
 const requestSchema = Joi.object({
   code: Joi.string().required(),

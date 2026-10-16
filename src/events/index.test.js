@@ -1,5 +1,6 @@
 import hapi from "@hapi/hapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearBuckets, listBuckets } from "../common/buckets/registry.js";
 import { events } from "./index.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
@@ -17,6 +18,16 @@ describe("events", () => {
   beforeEach(() => {
     server = hapi.server();
     vi.clearAllMocks();
+    clearBuckets();
+  });
+
+  it("registers the outbox and inbox buckets", async () => {
+    await server.register(events);
+
+    expect(listBuckets().map(({ id }) => id)).toEqual([
+      "gas.outbox",
+      "gas.inbox",
+    ]);
   });
 
   it("owns the durable event subscriber lifecycle", async () => {

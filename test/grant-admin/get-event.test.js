@@ -511,20 +511,6 @@ describe("GET /grant-admin/events/{service}/{box}/{id} attemptHistory", () => {
 
     expect(detail.attemptHistory).toEqual([]);
   });
-
-  it("is not on a list row", async () => {
-    const doc = anInboxDoc({ attemptHistory: [anEntry("one")] });
-    await inbox.insertOne(doc);
-
-    const { payload } = await wreck.get(
-      "/grant-admin/events/page?q=msg-detail-1",
-    );
-
-    expect(payload.events.length).toBeGreaterThan(0);
-    for (const row of payload.events) {
-      expect(row).not.toHaveProperty("attemptHistory");
-    }
-  });
 });
 
 describe("swagger - the detail page", () => {

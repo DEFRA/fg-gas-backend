@@ -1,3 +1,6 @@
+import { registerBucket } from "../common/buckets/registry.js";
+import { inboxBucket } from "./buckets/inbox.bucket.js";
+import { outboxBucket } from "./buckets/outbox.bucket.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
@@ -13,6 +16,9 @@ export { saveEvents } from "./save-events.js";
 export const events = {
   name: "events",
   register(server) {
+    registerBucket(outboxBucket());
+    registerBucket(inboxBucket());
+
     const inboxSubscriber = new InboxSubscriber();
     const outboxSubscriber = new OutboxSubscriber();
 

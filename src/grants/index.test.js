@@ -2,6 +2,7 @@ import hapi from "@hapi/hapi";
 import { up } from "migrate-mongo";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AGREEMENT_STATUS_UPDATED_EVENT_TYPE } from "../agreements/events/agreement-status-updated.event.js";
+import { clearBuckets, findBucket } from "../common/buckets/registry.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
 import {
@@ -33,6 +34,7 @@ describe("grants", () => {
     up.mockResolvedValue([]);
     vi.clearAllMocks();
     clearEventHandlers();
+    clearBuckets();
   });
 
   it("runs migrations on startup", async () => {
@@ -40,6 +42,20 @@ describe("grants", () => {
     await server.initialize();
 
     expect(up).toHaveBeenCalledWith(db, mongoClient);
+  });
+
+  it("registers the applications bucket once the migrations have run", async () => {
+    up.mockImplementation(async () => {
+      expect(findBucket("gas.applications")).toBeUndefined();
+      return [];
+    });
+
+    await server.register(grants);
+
+    expect(findBucket("gas.applications")).toMatchObject({
+      collection: "applications",
+      audited: true,
+    });
   });
 
   it("logs applied migrations", async () => {

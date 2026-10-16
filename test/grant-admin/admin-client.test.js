@@ -13,7 +13,7 @@ const ID = "665f1c2e9a1b2c3d4e5f6a7b";
 const as = (authorization) => ({ headers: { authorization } });
 
 const ROUTES = [
-  ["the page", () => wreck.get("/grant-admin/events/page", as(OTHER_SERVICE))],
+  ["the catalogue", () => wreck.get("/grant-admin/buckets", as(OTHER_SERVICE))],
   [
     "an event",
     () => wreck.get(`/grant-admin/events/gas/inbox/${ID}`, as(OTHER_SERVICE)),
@@ -74,12 +74,12 @@ describe("the grant-admin surface answers one client", () => {
 
   it("still answers 401 to a credential it does not know", async () => {
     await expect(
-      wreck.get("/grant-admin/events/page", as(NOT_A_TOKEN)),
+      wreck.get("/grant-admin/buckets", as(NOT_A_TOKEN)),
     ).rejects.toMatchObject({ output: { statusCode: 401 } });
   });
 
   it("answers the grants platform admin", async () => {
-    const { res } = await wreck.get("/grant-admin/events/page");
+    const { res } = await wreck.get("/grant-admin/buckets");
 
     expect(res.statusCode).toBe(200);
   });
