@@ -33,7 +33,7 @@ export const updateEntitlementRoute = {
     const findHeldRoles = prefetchOperatorRoles();
 
     logger.info(
-      `Update entitlement ${entitlementId} for application with code ${code} and clientRef ${clientRef}`,
+      `Update entitlement requested for ${entitlementId} for application with code ${code} and clientRef ${clientRef}`,
     );
 
     return updateEntitlement(

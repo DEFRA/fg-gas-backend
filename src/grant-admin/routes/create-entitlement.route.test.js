@@ -9,6 +9,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { logger } from "../../common/logger.js";
 import { createEntitlement } from "../../grants/services/entitlement.service.js";
 import { prefetchOperatorRoles } from "../services/operator-roles.js";
 import { createEntitlementRoute } from "./create-entitlement.route.js";
@@ -193,6 +194,9 @@ describe("createEntitlementRoute", () => {
       createEntitlement.mockRejectedValue(Boom.forbidden());
 
       expect((await send()).statusCode).toEqual(403);
+      expect(logger.info).toHaveBeenCalledWith(
+        `Create entitlement requested for application with code ${code}, claimCode ${claimCode} and clientRef ${clientRef}`,
+      );
     });
 
     it("passes on a failure to determine the operator's roles with a 503", async () => {

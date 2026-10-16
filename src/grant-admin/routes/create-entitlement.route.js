@@ -42,7 +42,7 @@ export const createEntitlementRoute = {
     const findHeldRoles = prefetchOperatorRoles();
 
     logger.info(
-      `Create entitlement for application with code ${code}, claimCode ${payload.claimCode} and clientRef ${clientRef}`,
+      `Create entitlement requested for application with code ${code}, claimCode ${payload.claimCode} and clientRef ${clientRef}`,
     );
 
     const entitlement = await createEntitlement(
