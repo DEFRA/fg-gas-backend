@@ -15,7 +15,7 @@ import {
   listSubmittedClaims,
 } from "../../grants/services/claims.service.js";
 import {
-  getEntitlementOverview,
+  getApplicationClaimsOverview,
   getEntitlementTemplateDetails,
 } from "../../grants/services/entitlement.service.js";
 import { listClaimPaymentsUseCase } from "../../payments/use-cases/list-claim-payments.use-case.js";
@@ -110,11 +110,12 @@ describe("getEntitlementRoute", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    getEntitlementOverview.mockResolvedValue({
+    getApplicationClaimsOverview.mockResolvedValue({
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
       claimsRequiredRoles: null,
+      access: "full",
     });
     getEntitlementTemplateDetails.mockResolvedValue(template);
     listEntitlementsWithClaimCapacity.mockResolvedValue([
@@ -138,6 +139,11 @@ describe("getEntitlementRoute", () => {
     const result = await server.inject({ method: "GET", url: url() });
 
     expect(result.statusCode).toEqual(200);
+    expect(getApplicationClaimsOverview).toHaveBeenCalledWith({
+      code,
+      clientRef,
+      findHeldRoles,
+    });
     expect(getEntitlementTemplateDetails).toHaveBeenCalledWith({
       code,
       clientRef,
@@ -181,54 +187,38 @@ describe("getEntitlementRoute", () => {
     expect(result.statusCode).toEqual(404);
   });
 
-  describe("when the grant configures claims roles", () => {
-    beforeEach(() => {
-      getEntitlementOverview.mockResolvedValue({
+  // Which roles may see the claims page is Grants' to decide; the route only
+  // hands over the lookup and passes on the outcome.
+  describe("access by claims roles", () => {
+    const get = () => server.inject({ method: "GET", url: url() });
+
+    it("answers the access Grants decided, with the roles it was decided on", async () => {
+      getApplicationClaimsOverview.mockResolvedValue({
         claimsPage: { details: { banner } },
         applicationContext: {},
         creationOptions: [],
         claimsRequiredRoles: CLAIMS_ROLES,
+        access: "view-only",
       });
-    });
-
-    const get = () => server.inject({ method: "GET", url: url() });
-
-    it("answers full access to an operator holding them", async () => {
-      findHeldRoles.mockResolvedValue(["ROLE_WMP_CLAIMS"]);
-
-      const result = await get();
-
-      expect(result.statusCode).toEqual(200);
-      expect(result.result.access).toEqual("full");
-      expect(findHeldRoles).toHaveBeenCalledTimes(1);
-    });
-
-    it("answers view-only access to an operator with other roles", async () => {
-      findHeldRoles.mockResolvedValue(["ROLE_OTHER"]);
 
       const result = await get();
 
       expect(result.statusCode).toEqual(200);
       expect(result.result.access).toEqual("view-only");
+      expect(result.result.claimsRequiredRoles).toEqual(CLAIMS_ROLES);
+      expect(findHeldRoles).not.toHaveBeenCalled();
     });
 
-    it("refuses an operator with no roles with a 403", async () => {
-      findHeldRoles.mockResolvedValue([]);
+    it("passes on Grants' refusal with a 403", async () => {
+      getApplicationClaimsOverview.mockRejectedValue(Boom.forbidden());
 
       expect((await get()).statusCode).toEqual(403);
     });
 
-    it("answers 503 when Caseworking cannot say which roles the operator holds", async () => {
-      findHeldRoles.mockRejectedValue(Boom.serverUnavailable());
+    it("passes on a failure to determine the operator's roles with a 503", async () => {
+      getApplicationClaimsOverview.mockRejectedValue(Boom.serverUnavailable());
 
       expect((await get()).statusCode).toEqual(503);
     });
-  });
-
-  it("does not ask Caseworking when the grant configures no claims roles", async () => {
-    expect(
-      (await server.inject({ method: "GET", url: url() })).statusCode,
-    ).toEqual(200);
-    expect(findHeldRoles).not.toHaveBeenCalled();
   });
 });

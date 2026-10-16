@@ -14,8 +14,6 @@ const anyHeld = (held, anyOf) =>
 
 const defaults = { allOf: [], anyOf: [] };
 
-const toReqs = (req) => ({ ...defaults, ...req });
-
 /**
  * Whether the held roles satisfy the requirement: every `allOf` role must be
  * present, and if `anyOf` is non-empty at least one must be.
@@ -25,46 +23,32 @@ export const satisfies = (heldRoles, requirements) => {
     return false;
   }
 
-  const { allOf, anyOf } = toReqs(requirements);
+  const { allOf, anyOf } = { ...defaults, ...requirements };
   const held = new Set(heldRoles);
 
   return allHeld(held, allOf) && anyHeld(held, anyOf);
 };
 
-const accessFor = (heldRoles, claimsRequiredRoles) => {
+/**
+ * The access an operator gets to a grant's Claims.
+ *
+ * - `full` when the grant configures no required roles (opt-in model), or the
+ *   operator satisfies them.
+ * - `view-only` when the operator has Caseworking roles but not these.
+ * - `hidden` when the operator has no Caseworking roles at all.
+ */
+export const claimsAccessFor = (requiredRoles, heldRoles) => {
+  if (!requiredRoles) {
+    return ACCESS_FULL;
+  }
   if (!hasRoles(heldRoles)) {
     return ACCESS_HIDDEN;
   }
-  if (satisfies(heldRoles, claimsRequiredRoles)) {
-    return ACCESS_FULL;
-  }
 
-  return ACCESS_VIEW_ONLY;
+  return satisfies(heldRoles, requiredRoles) ? ACCESS_FULL : ACCESS_VIEW_ONLY;
 };
 
-/**
- * Resolves the access tier the operator gets for claims on a grant.
- *
- * - `full` when the grant has not configured any claims roles (opt-in model),
- *   without reading the operator's roles, or when the operator satisfies them.
- * - `view-only` when the operator has Caseworking roles but not these.
- * - `hidden` when the operator has no Caseworking roles at all.
- *
- * `findHeldRoles` answers the operator's roles, or rejects when they cannot be
- * determined.
- */
-export const resolveClaimsAccess = async (
-  claimsRequiredRoles,
-  findHeldRoles,
-) => {
-  if (!claimsRequiredRoles) {
-    return ACCESS_FULL;
-  }
-
-  return accessFor(await findHeldRoles(), claimsRequiredRoles);
-};
-
-export const assertFullAccess = (access) => {
+export const assertMayChangeClaims = (access) => {
   if (access !== ACCESS_FULL) {
     throw Boom.forbidden(
       "You do not have the required roles to perform this action",
@@ -72,7 +56,7 @@ export const assertFullAccess = (access) => {
   }
 };
 
-export const assertNotHidden = (access) => {
+export const assertMayViewClaims = (access) => {
   if (access === ACCESS_HIDDEN) {
     throw Boom.forbidden(
       "You do not have the required roles to view claims for this grant",
