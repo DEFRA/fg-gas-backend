@@ -250,6 +250,14 @@ knows that an `EndpointServiceUrlError` is a deployment fault rather than a bad 
 definition and therefore must not poison the config version.
 
 Grants checks its own `gas.json` through `Grant.fromDefinition`, which needs no seam.
+On top of building the `Grant`, it checks the published grant definition schema and builds
+the definition's `GrantLifecycle` (phases, stages and statuses with unique codes, each
+`validFrom` resolving to a position under the runtime's own rules, and no status with
+`validFrom` carrying its own processes, which would never run) and `ExternalStatusMap`
+(every `mappedTo` resolving to a position), and checks that every amendable position
+exists. It is given the process and questions checks the runtime uses, so every process
+must have a handler and each phase's `questions` must compile with the answers validator.
+A stored grant is built by the constructor alone and is not held to these rules.
 
 ### Test endpoint entry points
 

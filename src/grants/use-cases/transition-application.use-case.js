@@ -14,21 +14,23 @@ import { requestAgreementTerminationUseCase } from "./request-agreement-terminat
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
 
-const getHandlerForProcess = (processName) => {
-  const processHandlers = {
-    GENERATE_OFFER: createAgreementCommandUseCase,
-    STORE_AGREEMENT_CASE: addAgreementUseCase,
-    ACCEPT_AGREEMENT: acceptAgreementUseCase,
-    CANCEL_AGREEMENT: cancelAgreementUseCase,
-    REQUEST_APPLICATION_WITHDRAWAL: withdrawApplicationUseCase,
-    REQUEST_AGREEMENT_CANCELLATION: requestAgreementCancellationUseCase,
-    WITHDRAW_AGREEMENT: withdrawAgreementUseCase,
-    REQUEST_AGREEMENT_TERMINATION: requestAgreementTerminationUseCase,
-    APPLY_AGREEMENT_TERMINATION: applyAgreementTerminationUseCase,
-  };
-
-  return processHandlers[processName];
+const processHandlers = {
+  GENERATE_OFFER: createAgreementCommandUseCase,
+  STORE_AGREEMENT_CASE: addAgreementUseCase,
+  ACCEPT_AGREEMENT: acceptAgreementUseCase,
+  CANCEL_AGREEMENT: cancelAgreementUseCase,
+  REQUEST_APPLICATION_WITHDRAWAL: withdrawApplicationUseCase,
+  REQUEST_AGREEMENT_CANCELLATION: requestAgreementCancellationUseCase,
+  WITHDRAW_AGREEMENT: withdrawAgreementUseCase,
+  REQUEST_AGREEMENT_TERMINATION: requestAgreementTerminationUseCase,
+  APPLY_AGREEMENT_TERMINATION: applyAgreementTerminationUseCase,
 };
+
+const getHandlerForProcess = (processName) => processHandlers[processName];
+
+// A process with no handler is skipped when a transition runs.
+export const isGrantProcess = (processName) =>
+  Object.hasOwn(processHandlers, processName);
 
 const getHandlersForAllProcesses = (processes) => {
   if (!processes) {
