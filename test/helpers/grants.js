@@ -1,5 +1,19 @@
+import { MongoClient } from "mongodb";
+import { env } from "node:process";
+import { GrantDocument } from "../../src/grants/models/grant-document.js";
 import { Grant } from "../../src/grants/models/grant.js";
-import { wreck } from "./wreck.js";
+
+export const insertGrant = async (payload) => {
+  const client = await MongoClient.connect(env.MONGO_URI);
+  try {
+    await client
+      .db()
+      .collection("grants")
+      .insertOne(new GrantDocument(new Grant(payload)));
+  } finally {
+    await client.close();
+  }
+};
 
 export const createTestGrant = (overrides = {}) => {
   return new Grant({
@@ -124,8 +138,5 @@ export const createGrant = async (code = "test-code-1") => {
     },
   };
 
-  await wreck.post("/grants", {
-    json: true,
-    payload,
-  });
+  await insertGrant(payload);
 };
