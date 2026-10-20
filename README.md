@@ -38,8 +38,8 @@ There are two ways to run gas locally:
 Both ways use this repo's `compose/compose.gas.yml`, so:
 
 - Container env goes in the `environment:` block of `compose/compose.gas.yml`.
-  `.env` is for running node on your machine: its `localhost` URLs don't work
-  inside a container.
+  `.env` is for running node on your machine, so values that differ inside a
+  container, such as `MONGO_URI` and other services' hostnames, are set there.
 - Values that only make sense in the full stack, such as other services' URLs
   and tokens, stay in fg-grants-core's `compose/compose.override.yml`.
 - New queues and topics go in `compose/floci/start.d/10-setup-resources.sh`.

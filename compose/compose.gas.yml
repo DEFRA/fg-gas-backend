@@ -11,8 +11,9 @@ services:
       PORT: 3102
       MONGO_URI: mongodb://mongodb:27017/?replicaSet=mongoRepl
       AWS_ENDPOINT_URL: "http://floci:4566"
-      # Queue URLs name the host the SDK calls, so inside a container they must
-      # point at floci rather than the localhost URLs in .env.
+      # Container URLs, the same as the rest of the stack uses. The SDK sends
+      # every request to AWS_ENDPOINT_URL, so only the queue name in the path
+      # is actually used.
       GAS__SQS__CONFIG_VERSION_QUEUE_URL: "http://floci:4566/000000000000/gas__sqs__config_version_updated"
       OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
       INBOX_POLL_MS: "${INBOX_POLL_MS}"
