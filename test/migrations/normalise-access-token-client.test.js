@@ -119,6 +119,64 @@ describe("normalising access token client", () => {
     expect(once[0].client).toBe("grants-ui");
   });
 
+  it.each([
+    {},
+    { clientId: null },
+    { clientId: "" },
+    { clientId: "   " },
+    { clientId: 123 },
+    { clientId: ["fg-grants-platform-admin"] },
+    { expiresAt: null },
+    { expiresAt: new Date("2099-01-01") },
+    { expiresAt: "2000-01-01" },
+    { expiresAt: [new Date("2000-01-01")] },
+  ])(
+    "blocks an admin privilege increase before any writes: %j",
+    async (fields) => {
+      await tokens.insertMany([
+        { id: "needs-migration", clientId: "grants-ui" },
+        {
+          id: "synthetic-admin-hash",
+          client: "fg-grants-platform-admin",
+          ...fields,
+        },
+      ]);
+      const before = await tokens.find({}).toArray();
+
+      await expect(up(database)).rejects.toThrow(/1.*grant-admin/i);
+      expect(await tokens.find({}).toArray()).toEqual(before);
+    },
+  );
+
+  it("allows existing admin access and tokens that are already expired", async () => {
+    await tokens.insertMany([
+      {
+        id: "legacy-admin",
+        clientId: "fg-grants-platform-admin",
+        expiresAt: null,
+      },
+      {
+        id: "current-admin",
+        client: "fg-grants-platform-admin",
+        clientId: "fg-grants-platform-admin",
+      },
+      {
+        id: "expired-admin",
+        client: "fg-grants-platform-admin",
+        expiresAt: new Date("2000-01-01"),
+      },
+    ]);
+
+    await up(database);
+
+    expect((await tokens.findOne({ id: "legacy-admin" })).client).toBe(
+      "fg-grants-platform-admin",
+    );
+    expect((await tokens.findOne({ id: "expired-admin" })).expiresAt).toEqual(
+      new Date("2000-01-01"),
+    );
+  });
+
   it("preserves the bearer token and its service identity after migration", async () => {
     const token = "synthetic-existing-token";
     const id = createHash("sha256").update(token).digest("hex");

@@ -373,28 +373,21 @@ its existing bearer token; callers do not send an identity header.
 The normalisation migration copies a populated `clientId` into a missing,
 blank or non-string `client`. It preserves token hashes, expiry, seed ownership
 and `clientId`. If both fields contain different populated strings, it stops
-before updating any records. Review those conflicts and explicitly resolve the
-intended identity before retrying; do not infer permissions from the field name.
+before updating any records. Resolve conflicts through a reviewed remediation
+migration before retrying; do not infer permissions from the field name.
 
 > [!IMPORTANT]
-> Before deploying to each environment, review all tokens whose `client` is
-> `fg-grants-platform-admin` but whose `clientId` is different or absent. Any
-> unexpired token in that group gains access to the guarded admin surface when
-> authentication switches to `client`, including event purge, event redrive and
-> allow-list replacement. This inventory has not been verified by the migration.
+> The migration checks admin access automatically through GAS's database
+> connection. No operator database access or manual inventory is required.
+> If an existing token would gain grant-admin access when authentication switches
+> to `client`, it stops before writing anything. The error reports only the
+> affected count, without token hashes. Tokens already expired by a BSON Date are
+> excluded; missing or malformed expiry values cannot bypass the check.
 
-Run this read-only inventory in the target GAS database. The projection excludes
-the token hash; review expiry and seed ownership alongside the intended caller:
-
-```javascript
-db.access_tokens.find(
-  {
-    client: "fg-grants-platform-admin",
-    clientId: { $ne: "fg-grants-platform-admin" },
-  },
-  { _id: 1, client: 1, clientId: 1, expiresAt: 1, seeded: 1 },
-);
-```
+If the migration blocks deployment, the existing version keeps its authorisation
+behaviour. Resolve affected records through a separately reviewed token
+remediation migration, using the normal deployment process. Do not bypass the
+check or change token permissions as part of this normalisation.
 
 Roll out in two releases:
 
