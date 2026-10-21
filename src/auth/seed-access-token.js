@@ -68,8 +68,8 @@ export const seedAccessToken = async () => {
     // partial unique index on {client, seeded} backs that invariant up.
     const result = await accessTokens.replaceOne(
       { seeded, client },
-      // Keep both fields for compatibility with consumers that read clientId;
-      // auth.js accepts either, while the index and mint script use client.
+      // client is canonical. Mirror clientId only during the rolling upgrade:
+      // older GAS instances still read it. Remove the mirror in a later release.
       { id, client, clientId: client, expiresAt: null, seeded },
       { upsert: true },
     );

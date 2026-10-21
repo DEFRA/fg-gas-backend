@@ -23,7 +23,7 @@ async function seedAccessToken() {
     const db = client.db();
     const col = db.collection("access_tokens");
 
-    // `clientId` is what auth.js reads onto the credentials, and the
+    // `client` is what auth.js reads onto the credentials, and the
     // grant-admin surface answers one client by name - so the suite's own
     // credential has to BE that client, exactly as a deployed one is.
     await col.updateOne(
@@ -32,7 +32,6 @@ async function seedAccessToken() {
         $set: {
           id: HASHED_TOKEN,
           client: "fg-grants-platform-admin",
-          clientId: "fg-grants-platform-admin",
         },
       },
       { upsert: true },
@@ -44,7 +43,6 @@ async function seedAccessToken() {
         $set: {
           id: OTHER_CLIENT_HASHED_TOKEN,
           client: "some-other-service",
-          clientId: "some-other-service",
         },
       },
       { upsert: true },

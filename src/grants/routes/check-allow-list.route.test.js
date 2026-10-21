@@ -25,13 +25,13 @@ vi.mock("../use-cases/check-grant-allow-list.use-case.js");
 
 // Synthetic unit-test credentials, never generated deployment credentials.
 const tokens = {
-  "test-grants-ui-token": { clientId: "grants-ui", expiresAt: null },
-  "test-sfd-token": { clientId: "single-front-door", expiresAt: null },
-  "test-legacy-grants-ui-token": { client: "grants-ui", expiresAt: null },
+  "test-grants-ui-token": { client: "grants-ui", expiresAt: null },
+  "test-sfd-token": { client: "single-front-door", expiresAt: null },
+  "test-unmigrated-token": { clientId: "grants-ui", expiresAt: null },
   "test-unidentified-token": { expiresAt: null },
   "test-blank-identity-token": { client: "   ", clientId: "", expiresAt: null },
   "test-expired-token": {
-    clientId: "expired",
+    client: "expired",
     expiresAt: new Date("2000-01-01"),
   },
 };
@@ -90,7 +90,6 @@ describe("allow-list routes", () => {
 
   it.each([
     ["test-grants-ui-token", "grants-ui", true],
-    ["test-legacy-grants-ui-token", "grants-ui", true],
     ["test-sfd-token", "single-front-door", false],
   ])(
     "accepts %s and derives caller from authentication",
@@ -155,7 +154,11 @@ describe("allow-list routes", () => {
     });
   });
 
-  it.each(["test-unidentified-token", "test-blank-identity-token"])(
+  it.each([
+    "test-unidentified-token",
+    "test-blank-identity-token",
+    "test-unmigrated-token",
+  ])(
     "refuses to release a decision without an authenticated caller identity: %s",
     async (token) => {
       const response = await server.inject({

@@ -10,7 +10,7 @@ vi.mock("../../src/common/mongo-client.js", () => {
       const accessTokens = [
         {
           id: "12b9377cbe7e5c94e8a70d9d23929523d14afa954793130f8a3959c7b849aca8", // Hashed 00000000-0000-0000-0000-000000000000 token
-          clientId: "contract-test",
+          client: "contract-test",
         },
       ];
 

@@ -340,6 +340,49 @@ could not be checked.
 
 SFD gets its own client pair via the existing provisioning process above.
 
+#### Access token identity migration (FGP-1508)
+
+`access_tokens.client` is the canonical service identity. Authentication reads
+only `client`, matching the mint script and the client indexes. Grants UI keeps
+its existing bearer token; callers do not send an identity header.
+
+The normalisation migration copies a populated `clientId` into a missing,
+blank or non-string `client`. It preserves token hashes, expiry, seed ownership
+and `clientId`. If both fields contain different populated strings, it stops
+before updating any records. Review those conflicts and explicitly resolve the
+intended identity before retrying; do not infer permissions from the field name.
+
+> [!IMPORTANT]
+> Before deploying to each environment, review all tokens whose `client` is
+> `fg-grants-platform-admin` but whose `clientId` is different or absent. Any
+> unexpired token in that group gains access to the guarded admin surface when
+> authentication switches to `client`, including event purge, event redrive and
+> allow-list replacement. This inventory has not been verified by the migration.
+
+Run this read-only inventory in the target GAS database. The projection excludes
+the token hash; review expiry and seed ownership alongside the intended caller:
+
+```javascript
+db.access_tokens.find(
+  {
+    client: "fg-grants-platform-admin",
+    clientId: { $ne: "fg-grants-platform-admin" },
+  },
+  { _id: 1, client: 1, clientId: 1, expiresAt: 1, seeded: 1 },
+);
+```
+
+Roll out in two releases:
+
+- [ ] Deploy the normalisation migration and the reader that uses only `client`.
+      Keep the seeder's temporary `clientId` mirror for older GAS instances.
+      Existing client-only tokens gain their identity only on the new instances,
+      so complete the rollout before verifying the allow-list request.
+- [ ] Once every instance reads `client` and rollback to a `clientId` reader is
+      no longer needed, stop the seeder's mirror and remove `clientId` in a
+      follow-up migration. Do not ship that cleanup migration in the first
+      release: the migration runner would execute it before older instances stop.
+
 #### Revoke
 
 There is no revoke-by-omission - clearing the secret deliberately does nothing.

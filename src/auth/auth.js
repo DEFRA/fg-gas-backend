@@ -52,13 +52,8 @@ const registerServiceAuth = async (server) => {
         throw Boom.unauthorized("Invalid token");
       }
 
-      // FGP-1508: existing Grants UI tokens can store their identity as client.
-      const service = [record.clientId, record.client].find(
-        (value) => typeof value === "string" && value.trim() !== "",
-      );
-
       return h.authenticated({
-        credentials: { service, tokenId: record.id },
+        credentials: { service: record.client, tokenId: record.id },
       });
     },
   }));

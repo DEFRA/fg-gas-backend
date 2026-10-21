@@ -103,7 +103,8 @@ describe("requireAdminClient with service bearer authentication", () => {
   it.each([
     [{ client: "fg-grants-platform-admin" }, 200],
     [{ client: "grants-ui" }, 403],
-    [{ clientId: "grants-ui", client: "fg-grants-platform-admin" }, 403],
+    [{ clientId: "fg-grants-platform-admin", client: "grants-ui" }, 403],
+    [{ clientId: "fg-grants-platform-admin" }, 403],
   ])("authorises token record %j with status %i", async (identity, status) => {
     const token = "test-admin-guard-token";
     const id = createHash("sha256").update(token).digest("hex");

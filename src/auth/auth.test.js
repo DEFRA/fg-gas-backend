@@ -21,7 +21,7 @@ describe("auth plugin", () => {
     validId = crypto.createHash("sha256").update("good", "utf8").digest("hex");
 
     tokensById = {
-      [validId]: { id: validId, clientId: "http-client" },
+      [validId]: { id: validId, client: "http-client" },
     };
 
     const accessTokens = {
@@ -38,13 +38,14 @@ describe("auth plugin", () => {
   });
 
   it.each([
-    [{ clientId: "http-client" }, "http-client"],
+    [{ client: "http-client" }, "http-client"],
     [{ client: "grants-ui" }, "grants-ui"],
     [{ clientId: null, client: "grants-ui" }, "grants-ui"],
     [{ clientId: "", client: "grants-ui" }, "grants-ui"],
     [{ clientId: "   ", client: "grants-ui" }, "grants-ui"],
     [{ clientId: 123, client: "grants-ui" }, "grants-ui"],
-    [{ clientId: "http-client", client: "grants-ui" }, "http-client"],
+    [{ clientId: "http-client", client: "grants-ui" }, "grants-ui"],
+    [{ clientId: "http-client" }, undefined],
   ])(
     "derives service identity from token record %j",
     async (identity, service) => {

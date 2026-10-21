@@ -34,10 +34,10 @@ describe("server", () => {
       .digest("hex");
 
     const tokensById = {
-      [validId]: { id: validId, clientId: "http-client" },
+      [validId]: { id: validId, client: "http-client" },
       [expiredId]: {
         id: expiredId,
-        clientId: "http-client",
+        client: "http-client",
         expiresAt: new Date(Date.now() - 1000),
       },
     };
