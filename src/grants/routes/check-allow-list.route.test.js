@@ -190,6 +190,28 @@ describe("allow-list routes", () => {
   );
 
   it.each([
+    [{ service: "grants-ui", tokenId: "synthetic" }, 200],
+    [{ tokenId: "synthetic" }, 401],
+  ])(
+    "handles credentials without artifacts: %j",
+    async (credentials, status) => {
+      const response = await server.inject({
+        url: uri,
+        auth: { strategy: "service", credentials },
+      });
+
+      expect(response.statusCode).toBe(status);
+      expect(response.headers["cache-control"]).toBe("no-store");
+      if (status === 200) {
+        expect(response.result).toEqual({ allowed: true });
+      } else {
+        expect(response.result.message).toBe("Service identity required");
+        expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it.each([
     `${base}/sbi/10600003/crn/1042000000`,
     `${base}/sbi/1060000333/crn/1042000000`,
     `${base}/sbi/10600A033/crn/1042000000`,

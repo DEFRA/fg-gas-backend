@@ -54,8 +54,8 @@ const registerServiceAuth = async (server) => {
 
       return h.authenticated({
         credentials: { service: record.clientId, tokenId: record.id },
-        // Allow-list caller auditing can use the legacy client field without
-        // changing the service identity used for authorisation elsewhere.
+        // FGP-1534: remove legacy client metadata after identity migration.
+        // Only allow-list auditing uses it; authorisation keeps credentials.service.
         artifacts: { client: record.client },
       });
     },
