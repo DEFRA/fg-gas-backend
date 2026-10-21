@@ -159,13 +159,13 @@ Before code changes, check dependencies and run each repository's baseline unit 
 **Files (Woodland):**
 
 - Modify `configurations/woodland/gas/gas.next.json`.
-- Create `configurations/woodland/gas/gas.next.test.js`.
+- Create `test/configurations/woodland-claims.test.js`.
 - Create `.changeset/woodland-claim-caseworking.md` using the existing changeset format and a patch entry for `grants-config-woodland`.
 
 **Files (GAS documentation):** `docs/superpowers/specs/2026-10-21-fgp-1382-claim-caseworking-design.md` and `docs/superpowers/plans/2026-10-21-fgp-1382-claim-caseworking.md` copied from thread storage; update review/progress checkboxes only as completed.
 
 - [x] **Write the failing configuration test.** Load the JSON using `readFile`/`JSON.parse` so the actual next definition is checked. Assert `claims.onSubmission.processes` equals `["STORE_CLAIM_CASE"]`; `requiresApproval` remains false; `claims.onClaimApproval` still maps Awaiting Claim to Claim Complete. Assert the default GAS definition has no new hook. Keep byte-for-byte diffs of unrelated configuration out of the change.
-- [x] **Run red:** `npm exec vitest run configurations/woodland/gas/gas.next.test.js` from the Woodland workspace.
+- [x] **Run red:** `npm exec vitest run test/configurations/woodland-claims.test.js` from the Woodland workspace.
 - [x] **Add the hook and changeset.** Do not modify default `gas.json`, `cw.json`, `cw.next.json`, package versions or lockfiles. The changeset describes delivering claim supplementary data while retaining the existing completion path.
 - [ ] **Run green and final checks.** GAS: relevant claim/config unit suites, the two claim integration suites from Task 2, affected Docker integration tests, lint and format checks. CW: Task 3 unit/database suites, existing case progression regressions, lint and format checks. Woodland: `npm test`, `npm run lint`, `npm run format:check`. Save test JSON and command logs; save lint findings in machine-readable form. Check every changed repository's diff for whitespace, unrelated files and accidentally recorded payloads/secrets. Run Task 4's local contracts once after the final event changes, if any.
 - [x] **Run independent review** against the approved spec and file allowlist. Use the execution method chosen by the user and its required review skill. Address concrete findings and rerun only affected checks; record unresolved limitations without claiming completion.
