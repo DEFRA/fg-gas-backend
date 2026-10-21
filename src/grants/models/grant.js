@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { onClaimSubmission } from "../schemas/grant/claims.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
 
 // Constants for fully qualified status path format: "PHASE:STAGE:STATUS"
@@ -45,6 +46,16 @@ export class Grant {
     );
     this.pages = pages;
     this.claims = claims;
+    if (claims?.onSubmission !== undefined) {
+      const { error } = onClaimSubmission.validate(claims.onSubmission, {
+        convert: false,
+      });
+      if (error) {
+        throw Boom.badImplementation(
+          `Invalid claim submission configuration: ${error.message}`,
+        );
+      }
+    }
 
     this.#assertEntitlementTemplateClaimCodesUnique();
     this.#assertEntitlementTemplatePositionsExist();

@@ -1209,3 +1209,22 @@ describe("Grant", () => {
     });
   });
 });
+
+describe("submission definition validation", () => {
+  it("retains a valid submission hook", () => {
+    expect(
+      createTestGrant({
+        claims: { onSubmission: { processes: ["STORE_CLAIM_CASE"] } },
+      }).claims.onSubmission.processes,
+    ).toEqual(["STORE_CLAIM_CASE"]);
+  });
+  it.each([
+    {},
+    { processes: ["UNKNOWN"] },
+    { processes: ["STORE_CLAIM_CASE", "STORE_CLAIM_CASE"] },
+  ])("rejects invalid published hook %j", (onSubmission) => {
+    expect(() => createTestGrant({ claims: { onSubmission } })).toThrow(
+      /Invalid claim submission/,
+    );
+  });
+});

@@ -571,3 +571,16 @@ it("validates externalStatusMap structure - requires status code, source, and ma
     '"externalStatusMap.phases[0].stages[0].statuses[0].mappedTo" is required',
   );
 });
+
+it("retains the validated claim submission hook", () => {
+  const { value, error } = createGrantRequestSchema.validate({
+    code: "woodland",
+    phases: validPhases,
+    metadata: { description: "Test", startDate: "2100-01-01T00:00:00.000Z" },
+    actions: [],
+    amendablePositions: [],
+    claims: { onSubmission: { processes: ["STORE_CLAIM_CASE"] } },
+  });
+  expect(error).toBeUndefined();
+  expect(value.claims.onSubmission.processes).toEqual(["STORE_CLAIM_CASE"]);
+});

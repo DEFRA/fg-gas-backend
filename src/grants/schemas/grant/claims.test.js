@@ -93,3 +93,23 @@ describe("claims", () => {
     expect(error?.message).toContain("is not allowed");
   });
 });
+
+describe("claim submission processes", () => {
+  it.each([{ processes: [] }, { processes: ["STORE_CLAIM_CASE"] }])(
+    "accepts configured processes %j",
+    ({ processes }) => {
+      expect(
+        claims.validate({ onSubmission: { processes } }).error,
+      ).toBeUndefined();
+    },
+  );
+  it.each([
+    {},
+    { processes: "STORE_CLAIM_CASE" },
+    { processes: ["UNKNOWN"] },
+    { processes: ["STORE_CLAIM_CASE", "STORE_CLAIM_CASE"] },
+    { processes: [], extra: true },
+  ])("rejects invalid hook %j", (onSubmission) => {
+    expect(claims.validate({ onSubmission }).error).toBeDefined();
+  });
+});

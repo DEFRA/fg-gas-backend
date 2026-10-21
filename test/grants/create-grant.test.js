@@ -51,8 +51,9 @@ describe("POST /grants", () => {
     ]);
   });
 
-  it("persists claims.onClaimApproval configured on the grant", async () => {
+  it("persists claim submission and approval configuration", async () => {
     const claims = {
+      onSubmission: { processes: ["STORE_CLAIM_CASE"] },
       onClaimApproval: {
         currentPosition: {
           phase: "PRE_AWARD",

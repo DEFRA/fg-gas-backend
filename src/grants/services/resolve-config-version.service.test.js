@@ -192,16 +192,17 @@ describe("resolveAndFetchGrant", () => {
     );
   });
 
-  it("latches permanent_error when the fetched grant definition is invalid", async () => {
+  it.each([
+    'Entitlement template "ENT" references an invalid position',
+    "Invalid claim submission configuration: unknown process",
+  ])("latches permanent_error for invalid definitions: %s", async (message) => {
     const cv = mockConfigVersion({ fetchStatus: FetchStatus.Pending });
     findLatestForMajor.mockResolvedValue(cv);
     fetchConfigFile.mockResolvedValue(mockGrantDefinition);
 
     // Grant/EntitlementTemplate validation failures surface as
     // Boom.badImplementation, which must not be retried forever.
-    const invalidDefinitionError = Boom.badImplementation(
-      'Entitlement template "ENT" references position "A:B:C" which does not match any phase:stage:status in "phases"',
-    );
+    const invalidDefinitionError = Boom.badImplementation(message);
     saveFromDefinition.mockRejectedValue(invalidDefinitionError);
     updateFetchStatus.mockResolvedValue();
 
