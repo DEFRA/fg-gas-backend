@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearDefinitionChecks,
   registerDefinitionCheck,
 } from "../../common/config-broker/definition-checks.js";
+import { logger } from "../../common/logger.js";
 import { validateConfigDefinitions } from "./validate-config-definitions.js";
 
 const { mockFetchConfigFile, mockCheckAgreement, mockCompilePayment } =
@@ -36,9 +38,16 @@ const grantDefinition = {
           statuses: [{ code: "APPLICATION_RECEIVED", validFrom: [] }],
         },
       ],
+      questions: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+      },
     },
   ],
 };
+
+const readDefinition = (path) =>
+  JSON.parse(readFileSync(new URL(`../../../${path}`, import.meta.url)));
 
 const validate = (s3Keys) =>
   validateConfigDefinitions({
@@ -99,6 +108,86 @@ describe("validateConfigDefinitions", () => {
     await expect(
       validate({ grant: "woodland/1.2.0/gas/gas.json" }),
     ).rejects.toThrow();
+  });
+
+  it("logs and rejects a grant definition that points at no position", async () => {
+    mockFetchConfigFile.mockResolvedValue({
+      ...grantDefinition,
+      amendablePositions: ["PRE_AWARD:ASSESSMENT:MISSING"],
+    });
+
+    await expect(
+      validate({ grant: "woodland/1.2.0/gas/gas.json" }),
+    ).rejects.toMatchObject({ isBoom: true });
+
+    expect(logger.error).toHaveBeenCalledWith(
+      { event: { action: "config-definition-check-failed" } },
+      expect.stringContaining(
+        'amendable position "PRE_AWARD:ASSESSMENT:MISSING"',
+      ),
+    );
+  });
+
+  it.each([
+    "compose/seed/pigs-might-fly/1.0.0/gas/gas.json",
+    "compose/seed/woodland/1.39.1/gas/gas.json",
+    "test/fixtures/pmf-grant-definition.json",
+    "test/fixtures/wmp/woodland.json",
+    "test/fixtures/grasslands/grasslands.json",
+  ])("accepts the grant definition in %s", async (path) => {
+    mockFetchConfigFile.mockResolvedValue(readDefinition(path));
+
+    await expect(
+      validate({ grant: "woodland/1.2.0/gas/gas.json" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects a grant definition that runs a process GAS has no handler for", async () => {
+    const [phase] = grantDefinition.phases;
+    const [stage] = phase.stages;
+    mockFetchConfigFile.mockResolvedValue({
+      ...grantDefinition,
+      phases: [
+        {
+          ...phase,
+          stages: [
+            {
+              ...stage,
+              statuses: [
+                { code: "APPLICATION_RECEIVED", validFrom: [] },
+                {
+                  code: "IN_REVIEW",
+                  validFrom: [
+                    { code: "APPLICATION_RECEIVED", processes: ["UNHANDLED"] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    await expect(
+      validate({ grant: "woodland/1.2.0/gas/gas.json" }),
+    ).rejects.toThrow('runs unknown process "UNHANDLED"');
+  });
+
+  it("rejects a grant definition whose questions the answers validator cannot compile", async () => {
+    const [phase] = grantDefinition.phases;
+    mockFetchConfigFile.mockResolvedValue({
+      ...grantDefinition,
+      phases: [
+        {
+          ...phase,
+          questions: { type: "object", unknownKeyword: true },
+        },
+      ],
+    });
+
+    await expect(
+      validate({ grant: "woodland/1.2.0/gas/gas.json" }),
+    ).rejects.toThrow(/questions cannot be compiled: .*unknownKeyword/);
   });
 
   it("rejects when the agreement definition cannot be used", async () => {

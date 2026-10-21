@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import addFormats from "ajv-formats";
 import Ajv2020 from "ajv/dist/2020.js";
 
-export const validateAnswersAgainstSchema = (clientRef, schema, answers) => {
+const createAnswersValidator = () => {
   const ajv = new Ajv2020({
     strict: true,
     allErrors: true,
@@ -65,10 +65,21 @@ export const validateAnswersAgainstSchema = (clientRef, schema, answers) => {
     },
   });
 
+  addFormats(ajv, ["date-time", "date", "time", "duration", "email", "uri"]);
+
+  return ajv;
+};
+
+// Throws as answers validation would on a schema it cannot use, so a grant
+// definition can be checked before any answers arrive.
+export const compileAnswersSchema = (schema) =>
+  createAnswersValidator().compile(schema);
+
+export const validateAnswersAgainstSchema = (clientRef, schema, answers) => {
+  const ajv = createAnswersValidator();
+
   // Ajv strips unknown fields and mutates the original
   const clonedAnswers = structuredClone(answers);
-
-  addFormats(ajv, ["date-time", "date", "time", "duration", "email", "uri"]);
 
   let valid;
   try {

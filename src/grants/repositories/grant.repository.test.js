@@ -57,6 +57,7 @@ describe("save", () => {
             url: "http://localhost",
           },
         ],
+        amendablePositions: [],
         entitlementTemplates: [],
       }),
     );
@@ -331,6 +332,7 @@ describe("entitlementTemplates", () => {
         },
         actions: [],
         phases,
+        amendablePositions: [],
         entitlementTemplates,
       }),
     );
@@ -548,5 +550,27 @@ describe("pages", () => {
     const result = await findByCode("woodland");
 
     expect(result.pages).toBeUndefined();
+  });
+});
+
+describe("amendablePositions", () => {
+  it.each([
+    ["the key is absent", {}],
+    ["the key is null", { amendablePositions: null }],
+  ])("reads no amendable positions when %s", async (_label, storedField) => {
+    const findOne = vi.fn().mockResolvedValueOnce({
+      code: "legacy",
+      version: "1.0.0",
+      metadata: { description: "test", startDate: "2021-01-01T00:00:00.000Z" },
+      actions: [],
+      phases: [],
+      ...storedField,
+    });
+
+    db.collection.mockReturnValue({ findOne });
+
+    const result = await findByCode("legacy");
+
+    expect(result.amendablePositions).toEqual([]);
   });
 });
