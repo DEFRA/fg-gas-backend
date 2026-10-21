@@ -21,7 +21,7 @@ describe("auth plugin", () => {
     validId = crypto.createHash("sha256").update("good", "utf8").digest("hex");
 
     tokensById = {
-      [validId]: { id: validId, client: "http-client" },
+      [validId]: { id: validId, clientId: "http-client" },
     };
 
     const accessTokens = {
@@ -37,50 +37,28 @@ describe("auth plugin", () => {
     });
   });
 
-  it.each([
-    [{ client: "http-client" }, "http-client"],
-    [{ client: "grants-ui" }, "grants-ui"],
-    [{ clientId: null, client: "grants-ui" }, "grants-ui"],
-    [{ clientId: "", client: "grants-ui" }, "grants-ui"],
-    [{ clientId: "   ", client: "grants-ui" }, "grants-ui"],
-    [{ clientId: 123, client: "grants-ui" }, "grants-ui"],
-    [{ clientId: "http-client", client: "grants-ui" }, "grants-ui"],
-    [{ clientId: "http-client" }, "http-client"],
-    [
-      {
-        client: "rotation-owner",
-        clientId: "grants-ui",
-        identityMigrationPending: true,
-      },
-      "grants-ui",
-    ],
-  ])(
-    "derives service identity from token record %j",
-    async (identity, service) => {
-      tokensById[validId] = { id: validId, ...identity };
-      const server = await createServer();
-      server.route({
-        method: "GET",
-        path: "/secure",
-        handler: (request) => ({ creds: request.auth.credentials }),
-      });
+  it("authenticates requests with a valid bearer token and exposes credentials", async () => {
+    const server = await createServer();
+    server.route({
+      method: "GET",
+      path: "/secure",
+      handler: (request) => ({ creds: request.auth.credentials }),
+    });
 
-      await server.initialize();
+    await server.initialize();
 
-      const res = await server.inject({
-        method: "GET",
-        url: "/secure",
-        headers: { authorization: "Bearer good" },
-      });
+    const res = await server.inject({
+      method: "GET",
+      url: "/secure",
+      headers: { authorization: "Bearer good" },
+    });
 
-      expect(res.statusCode).toBe(200);
-      expect(res.result.creds).toEqual({
-        service,
-        tokenId: validId,
-        grantAdminAccess: false,
-      });
-    },
-  );
+    expect(res.statusCode).toBe(200);
+    expect(res.result.creds).toEqual({
+      service: "http-client",
+      tokenId: validId,
+    });
+  });
 
   it("accepts whitespace around the token (header is trimmed)", async () => {
     const server = await createServer();

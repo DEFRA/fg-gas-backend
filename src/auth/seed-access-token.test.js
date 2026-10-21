@@ -76,7 +76,6 @@ describe("seedAccessToken", () => {
         id: hash,
         client: "some-service",
         clientId: "some-service",
-        grantAdminAccess: false,
         expiresAt: null,
         seeded: true,
       },
@@ -91,16 +90,6 @@ describe("seedAccessToken", () => {
 
     expect(filter).toEqual({ seeded: true, client: "some-service" });
     expect(filter).not.toHaveProperty("id");
-  });
-
-  it("issues explicit permission for the admin client", async () => {
-    config.serviceAccessTokenHash = `fg-grants-platform-admin:${hash}`;
-
-    await seedAccessToken();
-
-    const [, replacement] = accessTokens.replaceOne.mock.calls[0];
-    expect(replacement.client).toBe("fg-grants-platform-admin");
-    expect(replacement.grantAdminAccess).toBe(true);
   });
 
   it("does not expire the seeded token", async () => {

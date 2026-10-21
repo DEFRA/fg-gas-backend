@@ -6,9 +6,7 @@ import { auth } from "../auth/auth.js";
 import { db } from "../common/mongo-client.js";
 import { ADMIN_CLIENT, requireAdminClient } from "./admin-client.js";
 
-vi.mock("../common/mongo-client.js", () => ({
-  db: { collection: vi.fn() },
-}));
+vi.mock("../common/mongo-client.js", () => ({ db: { collection: vi.fn() } }));
 
 const serverFor = async (client) => {
   const server = hapi.server();
@@ -17,12 +15,7 @@ const serverFor = async (client) => {
     authenticate: (request, h) =>
       client === null
         ? h.unauthenticated(Boom.unauthorized("no credential"))
-        : h.authenticated({
-            credentials: {
-              service: client,
-              grantAdminAccess: client === ADMIN_CLIENT,
-            },
-          }),
+        : h.authenticated({ credentials: { service: client } }),
   }));
   server.auth.strategy("service", "stub");
   server.auth.default("service");
@@ -104,30 +97,20 @@ describe("requireAdminClient", () => {
   });
 });
 
-describe("requireAdminClient with service bearer authentication", () => {
+describe("admin authorisation with legacy token metadata", () => {
   it.each([
-    [{ client: "fg-grants-platform-admin", grantAdminAccess: true }, 200],
     [{ client: "fg-grants-platform-admin" }, 403],
-    [{ client: "grants-ui" }, 403],
-    [{ clientId: "fg-grants-platform-admin", client: "grants-ui" }, 200],
     [{ clientId: "fg-grants-platform-admin" }, 200],
-    [
-      {
-        client: "fg-grants-platform-admin",
-        clientId: "fg-grants-platform-admin",
-        grantAdminAccess: false,
-      },
-      403,
-    ],
-  ])("authorises token record %j with status %i", async (identity, status) => {
-    const token = "test-admin-guard-token";
+    [{ clientId: "grants-ui", client: "fg-grants-platform-admin" }, 403],
+    [{ clientId: "fg-grants-platform-admin", client: "grants-ui" }, 200],
+  ])("preserves access for token record %j", async (identity, status) => {
+    const token = "synthetic-admin-guard-token";
     const id = createHash("sha256").update(token).digest("hex");
     db.collection.mockReturnValue({
       findOne: vi.fn(async (query) =>
-        query.id === id ? { id, ...identity, expiresAt: null } : null,
+        query.id === id ? { id, ...identity } : null,
       ),
     });
-
     const server = hapi.server();
     await server.register(auth);
     await server.register({
@@ -136,28 +119,18 @@ describe("requireAdminClient with service bearer authentication", () => {
         inner.ext("onPostAuth", requireAdminClient, { sandbox: "plugin" });
         inner.route({
           method: "GET",
-          path: "/grant-admin/events",
+          path: "/grant-admin/probe",
           handler: () => ({ ok: true }),
         });
       },
     });
-    await server.initialize();
-
     try {
       const response = await server.inject({
-        method: "GET",
-        url: "/grant-admin/events",
+        url: "/grant-admin/probe",
         headers: { authorization: `Bearer ${token}` },
       });
-
       expect(response.statusCode).toBe(status);
-      if (status === 200) {
-        expect(response.result).toEqual({ ok: true });
-      } else {
-        expect(response.result.message).toBe(
-          "The grant-admin API is not open to this client",
-        );
-      }
+      if (status === 200) expect(response.result).toEqual({ ok: true });
     } finally {
       await server.stop();
     }

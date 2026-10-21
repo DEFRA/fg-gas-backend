@@ -364,46 +364,6 @@ could not be checked.
 
 SFD gets its own client pair via the existing provisioning process above.
 
-#### Access token identity migration (FGP-1508)
-
-`access_tokens.client` is the canonical service identity. Grants UI keeps its
-existing bearer token; callers do not send an identity header.
-
-The migration copies a populated `clientId` into an unusable `client`, preserving
-token hashes, expiry, seed ownership and the legacy field for the rolling upgrade.
-Client-only records retain their existing client. Conflicting client fields are
-left unchanged and marked for a transitional read of their old identity, so a
-seeded token is never silently moved to a different rotation owner.
-
-Admin permission is stored separately as the boolean `grantAdminAccess`. For
-existing records, the migration snapshots the previous admin guard's exact rule:
-`clientId === "fg-grants-platform-admin"`. A client-only admin record remains
-forbidden; an already-authorised admin token retains access. Explicit boolean
-permission decisions are preserved on retries. The seeder and mint script grant
-admin permission only when issuing a token for `fg-grants-platform-admin`.
-
-> [!NOTE]
-> Conflicting identities and client-only admin tokens do not block startup.
-> No manual database access or inventory is required. If a client copy would
-> violate the seeded-client unique index, the record is marked for a transitional
-> read of its legacy identity and the migration continues. Those tokens retain
-> their identity and admin permission. Logs contain counts only, without hashes.
-> Database connectivity or other infrastructure errors still behave like ordinary
-> migration failures; this change does not bypass the existing migration runner.
-
-Roll out in two releases:
-
-- [ ] Deploy the migration, the canonical client reader and the permission guard.
-      Keep the seeder's `clientId` mirror for old instances. New readers temporarily
-      honour legacy admin permission if an old writer has not yet stored the
-      boolean, and legacy identity if canonical data has not yet reached a replica.
-      Complete the rollout before verifying the allow-list request.
-- [ ] After old instances and rollback requirements are gone, resolve any deferred
-      conflicts and index collisions through a deployed migration. Backfill permissions for
-      records created by old writers, stop the seeder's mirror, then remove
-      `clientId` and the transitional reads in a follow-up release. Do not ship
-      that cleanup migration in the first release.
-
 #### Revoke
 
 There is no revoke-by-omission - clearing the secret deliberately does nothing.
