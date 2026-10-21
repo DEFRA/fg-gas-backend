@@ -46,6 +46,14 @@ describe("auth plugin", () => {
     [{ clientId: 123, client: "grants-ui" }, "grants-ui"],
     [{ clientId: "http-client", client: "grants-ui" }, "grants-ui"],
     [{ clientId: "http-client" }, "http-client"],
+    [
+      {
+        client: "rotation-owner",
+        clientId: "grants-ui",
+        identityMigrationPending: true,
+      },
+      "grants-ui",
+    ],
   ])(
     "derives service identity from token record %j",
     async (identity, service) => {
