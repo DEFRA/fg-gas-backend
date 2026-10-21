@@ -8,8 +8,10 @@ import {
   MessageProviderPact,
   providerWithMetadata,
 } from "@pact-foundation/pact";
-import { describe, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { ClaimSubmittedEvent } from "../../src/grants/events/claim-submitted.event.js";
+import { Claim } from "../../src/grants/models/claim.js";
 import { CreateNewCaseCommand } from "../../src/grants/commands/create-new-case.command.js";
 import { UpdateCaseStatusCommand } from "../../src/grants/commands/update-case-status.command.js";
 import { buildMessageVerifierOptions } from "./messageVerifierConfig.js";
@@ -19,6 +21,7 @@ vi.mock("../../src/common/config.js", () => ({
   config: {
     serviceName: "fg-gas-backend",
     environment: "test",
+    cdpEnvironment: "test",
   },
 }));
 
@@ -444,5 +447,50 @@ describe("GAS Provider (sends messages to CW)", () => {
 
       return messagePact.verify(verifyOpts);
     });
+  });
+});
+
+describe("Submitted claim provider verification", () => {
+  it("verifies a submitted claim event from GAS using the production builder", async () => {
+    vi.stubEnv("PACT_DESCRIPTION", "^a submitted claim event from GAS$");
+    const build = vi.fn(
+      () =>
+        new ClaimSubmittedEvent({
+          claimId: "507f1f77bcf86cd799439011",
+          claim: Claim.create({
+            code: "woodland",
+            clientRef: "wmp-6hb-j8e",
+            claimCode: "ENT_CS_CAPITAL_PA3",
+            clientClaimRef: "WMP-6HB-J8E-C0001",
+            createdAt: "2026-08-07T11:16:05.745Z",
+            metadata: {
+              clientRef: "wmp-6hb-j8e",
+              grantCode: "woodland",
+              sbi: "113593357",
+            },
+            claim: {
+              entitlementId: "entitlement-1",
+              totalClaimAmountPence: 150000,
+            },
+          }),
+        }),
+    );
+    const provide = providerWithMetadata(build, {
+      contentType: "application/json",
+    });
+    try {
+      const pact = new MessageProviderPact({
+        ...buildMessageVerifierOptions({
+          providerName: "fg-gas-backend",
+          consumerName: "fg-cw-backend",
+        }),
+        messageProviders: { "a submitted claim event from GAS": provide },
+        logLevel: "warn",
+      });
+      await pact.verify();
+      expect(build).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
