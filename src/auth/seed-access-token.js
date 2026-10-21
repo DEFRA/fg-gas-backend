@@ -1,6 +1,7 @@
 import { config } from "../common/config.js";
 import { logger } from "../common/logger.js";
 import { db } from "../common/mongo-client.js";
+import { GRANT_ADMIN_CLIENT } from "./service-token.js";
 
 // Scopes reconciliation to records this module owns, so tokens minted with
 // scripts/mint-access-token.js are never removed.
@@ -70,7 +71,14 @@ export const seedAccessToken = async () => {
       { seeded, client },
       // client is canonical. Mirror clientId only during the rolling upgrade:
       // older GAS instances still read it. Remove the mirror in a later release.
-      { id, client, clientId: client, expiresAt: null, seeded },
+      {
+        id,
+        client,
+        clientId: client,
+        grantAdminAccess: client === GRANT_ADMIN_CLIENT,
+        expiresAt: null,
+        seeded,
+      },
       { upsert: true },
     );
 

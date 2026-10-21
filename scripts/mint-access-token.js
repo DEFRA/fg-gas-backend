@@ -62,12 +62,13 @@
  * Notes
  * -----
  * - The database document shape:
- *   { id: <sha256 hex>, client: <string>, expiresAt: <Date|null> }
+ *   { id: <sha256 hex>, client: <string>, grantAdminAccess: <boolean>, expiresAt: <Date|null> }
  * - To use the token in HTTP client requests, set the Authorization header:
  *   Authorization: Bearer <RAW_TOKEN>
  */
 import { MongoClient } from "mongodb";
 import crypto from "node:crypto";
+import { GRANT_ADMIN_CLIENT } from "../src/auth/service-token.js";
 
 const mongoUri = `${process.env.MONGO_URI}?directConnection=true`;
 const dbName = process.env.MONGO_DATABASE;
@@ -97,6 +98,7 @@ async function main() {
     const doc = {
       id: hash,
       client: clientName,
+      grantAdminAccess: clientName === GRANT_ADMIN_CLIENT,
       expiresAt: expires ? new Date(expires) : null,
     };
 

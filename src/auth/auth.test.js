@@ -45,7 +45,7 @@ describe("auth plugin", () => {
     [{ clientId: "   ", client: "grants-ui" }, "grants-ui"],
     [{ clientId: 123, client: "grants-ui" }, "grants-ui"],
     [{ clientId: "http-client", client: "grants-ui" }, "grants-ui"],
-    [{ clientId: "http-client" }, undefined],
+    [{ clientId: "http-client" }, "http-client"],
   ])(
     "derives service identity from token record %j",
     async (identity, service) => {
@@ -69,6 +69,7 @@ describe("auth plugin", () => {
       expect(res.result.creds).toEqual({
         service,
         tokenId: validId,
+        grantAdminAccess: false,
       });
     },
   );

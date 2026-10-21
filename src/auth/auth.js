@@ -4,6 +4,7 @@ import { config } from "../common/config.js";
 import { logger } from "../common/logger.js";
 import { db } from "../common/mongo-client.js";
 import { verifyCallerToken } from "./caller-token.js";
+import { getServiceIdentity, hasGrantAdminAccess } from "./service-token.js";
 
 // FGP-1394: the caller-token header is being renamed from 'x-encrypted-auth' to
 // 'x-user-context' (it carries a signed, not encrypted, value). Accept the new
@@ -53,7 +54,13 @@ const registerServiceAuth = async (server) => {
       }
 
       return h.authenticated({
-        credentials: { service: record.client, tokenId: record.id },
+        credentials: {
+          // Conflicts and index collisions defer normalisation. Preserve the
+          // token's old identity until a later migration can finish the copy.
+          service: getServiceIdentity(record),
+          tokenId: record.id,
+          grantAdminAccess: hasGrantAdminAccess(record),
+        },
       });
     },
   }));

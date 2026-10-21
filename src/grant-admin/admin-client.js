@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { GRANT_ADMIN_CLIENT } from "../auth/service-token.js";
 
 /**
  * The one caller this surface answers.
@@ -10,11 +11,11 @@ import Boom from "@hapi/boom";
  * this, a credential issued to any other service could read an event payload
  * or redrive a message.
  *
- * Hard-coded rather than configured, on purpose: a config var that is unset or
- * misspelled in one environment fails OPEN, and this is the guard in front of
- * the endpoints that can put a message back on a queue.
+ * The permission is explicit, so normalising a token's client name cannot
+ * promote it. Existing permissions are migrated from the old clientId guard;
+ * token issuers grant this permission only to the named admin client.
  */
-export const ADMIN_CLIENT = "fg-grants-platform-admin";
+export const ADMIN_CLIENT = GRANT_ADMIN_CLIENT;
 
 /**
  * 403, not 401: the caller authenticated perfectly well, and telling them
@@ -27,7 +28,7 @@ export const ADMIN_CLIENT = "fg-grants-platform-admin";
  * outside it is touched.
  */
 export const requireAdminClient = (request, h) => {
-  if (request.auth.credentials?.service !== ADMIN_CLIENT) {
+  if (request.auth.credentials?.grantAdminAccess !== true) {
     throw Boom.forbidden("The grant-admin API is not open to this client");
   }
 

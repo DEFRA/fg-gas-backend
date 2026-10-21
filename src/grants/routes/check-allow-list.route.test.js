@@ -90,6 +90,7 @@ describe("allow-list routes", () => {
 
   it.each([
     ["test-grants-ui-token", "grants-ui", true],
+    ["test-unmigrated-token", "grants-ui", true],
     ["test-sfd-token", "single-front-door", false],
   ])(
     "accepts %s and derives caller from authentication",
@@ -154,11 +155,7 @@ describe("allow-list routes", () => {
     });
   });
 
-  it.each([
-    "test-unidentified-token",
-    "test-blank-identity-token",
-    "test-unmigrated-token",
-  ])(
+  it.each(["test-unidentified-token", "test-blank-identity-token"])(
     "refuses to release a decision without an authenticated caller identity: %s",
     async (token) => {
       const response = await server.inject({
