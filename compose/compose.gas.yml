@@ -11,6 +11,10 @@ services:
       PORT: 3102
       MONGO_URI: mongodb://mongodb:27017/?replicaSet=mongoRepl
       AWS_ENDPOINT_URL: "http://floci:4566"
+      # Container URLs, the same as the rest of the stack uses. The SDK sends
+      # every request to AWS_ENDPOINT_URL, so only the queue name in the path
+      # is actually used.
+      GAS__SQS__CONFIG_VERSION_QUEUE_URL: "http://floci:4566/000000000000/gas__sqs__config_version_updated"
       OUTBOX_POLL_MS: "${OUTBOX_POLL_MS}"
       INBOX_POLL_MS: "${INBOX_POLL_MS}"
       GRANT_FUNDING_CALCULATOR_URL: "${GRANT_FUNDING_CALCULATOR_URL}"
@@ -24,6 +28,12 @@ services:
       # plain `docker compose up` never exposes them; the integration test
       # harness passes "true" to exercise the routes.
       ENABLE_TEST_ENDPOINTS: "${ENABLE_TEST_ENDPOINTS:-false}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3102/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     depends_on:
       mongo-ready:
         condition: service_healthy

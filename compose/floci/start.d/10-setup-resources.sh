@@ -195,23 +195,27 @@ done
 
 echo "SNS/SQS ready"
 
-# Create S3 bucket for config broker and seed with sample grant config
-if ! awslocal s3api head-bucket --bucket config-broker-local >/dev/null 2>&1; then
-  awslocal s3 mb s3://config-broker-local
+# Create S3 bucket for config broker and seed with sample grant config.
+# The seed folder is only mounted when gas runs on its own. In the full stack
+# (fg-grants-core) the config broker supplies the configs, so skip it there.
+if [ -d /etc/floci/seed ]; then
+  if ! awslocal s3api head-bucket --bucket config-broker-local >/dev/null 2>&1; then
+    awslocal s3 mb s3://config-broker-local
+  fi
+  awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/gas.json \
+    s3://config-broker-local/pigs-might-fly/1.0.0/gas/gas.json
+
+  awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/agreement.json \
+    s3://config-broker-local/pigs-might-fly/1.0.0/gas/agreement.json
+
+  awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/payment.json \
+    s3://config-broker-local/pigs-might-fly/1.0.0/gas/payment.json
+
+  awslocal s3 cp /etc/floci/seed/woodland/1.39.1/gas/gas.json \
+    s3://config-broker-local/woodland/1.39.1/gas/gas.json
+
+  awslocal s3 cp /etc/floci/seed/woodland/1.39.1/gas/payment.json \
+    s3://config-broker-local/woodland/1.39.1/gas/payment.json
+
+  echo "S3 config broker bucket ready"
 fi
-awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/gas.json \
-  s3://config-broker-local/pigs-might-fly/1.0.0/gas/gas.json
-
-awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/agreement.json \
-  s3://config-broker-local/pigs-might-fly/1.0.0/gas/agreement.json
-
-awslocal s3 cp /etc/floci/seed/pigs-might-fly/1.0.0/gas/payment.json \
-  s3://config-broker-local/pigs-might-fly/1.0.0/gas/payment.json
-
-awslocal s3 cp /etc/floci/seed/woodland/1.39.1/gas/gas.json \
-  s3://config-broker-local/woodland/1.39.1/gas/gas.json
-
-awslocal s3 cp /etc/floci/seed/woodland/1.39.1/gas/payment.json \
-  s3://config-broker-local/woodland/1.39.1/gas/payment.json
-
-echo "S3 config broker bucket ready"
