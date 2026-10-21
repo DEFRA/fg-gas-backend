@@ -63,6 +63,7 @@ beforeAll(async () => {
   await mongoClient.connect();
   await saveGrant(
     createTestGrant({
+      claims: { onSubmission: { processes: ["STORE_CLAIM_CASE"] } },
       code,
       version: configVersion,
       entitlementTemplates: [
@@ -169,6 +170,11 @@ describe("Claim submission and durable Payment request", () => {
 
     expect(result).toEqual({ created: true, claimId: expect.any(String) });
     expect(result.claimId).toMatch(/^[a-f0-9]{24}$/);
+    expect(
+      await db
+        .collection("outbox")
+        .countDocuments({ "event.type": /\.claim\.submitted$/ }),
+    ).toBe(1);
     const committedClaim = await db.collection("claims").findOne({
       clientClaimRef: payload.metadata.clientClaimRef,
     });
