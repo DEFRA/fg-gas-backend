@@ -17,13 +17,11 @@ import {
   checkAllowListRoute,
   missingAllowListIdentifiersRoute,
 } from "./routes/check-allow-list.route.js";
-import { createGrantRoute } from "./routes/create-grant.route.js";
 import { getAvailableClaimsRoute } from "./routes/get-available-claims.route.js";
 import {
   invokeGetActionRoute,
   invokePostActionRoute,
 } from "./routes/invoke-action.route.js";
-import { replaceGrantRoute } from "./routes/replace-grant.route.js";
 import { submitApplicationRoute } from "./routes/submit-application.route.js";
 import { submitClaimRoute } from "./routes/submit-claim.route.js";
 import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
@@ -67,8 +65,6 @@ export const grants = {
     server.route([
       checkAllowListRoute,
       missingAllowListIdentifiersRoute,
-      createGrantRoute,
-      replaceGrantRoute,
       invokeGetActionRoute,
       invokePostActionRoute,
       submitApplicationRoute,

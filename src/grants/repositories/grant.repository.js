@@ -47,14 +47,6 @@ export const save = async (grant) => {
   }
 };
 
-export const replace = async (grant) => {
-  const document = new GrantDocument(grant);
-
-  await db
-    .collection(collection)
-    .replaceOne({ code: grant.code, version: grant.version }, document);
-};
-
 export const findByCode = async (code, version) => {
   const grants = db.collection(collection);
   const filter = { code, version: version ?? "0.0.0" };

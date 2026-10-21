@@ -2,16 +2,16 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { seedConfigVersion } from "../helpers/applications.js";
+import { insertGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 let client;
 let db;
-let grants, applications;
+let applications;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   db = client.db();
-  grants = db.collection("grants");
   applications = db.collection("applications");
 });
 
@@ -60,28 +60,7 @@ describe("Simple Integration Tests", () => {
       actions: [],
     };
 
-    // Create the grant
-    try {
-      const grantResponse = await wreck.post("/grants", {
-        payload: grantData,
-      });
-      expect(grantResponse.res.statusCode).toBe(204);
-    } catch (error) {
-      console.error("Grant creation failed:", error.message);
-      if (error.data && error.data.payload) {
-        console.error(
-          "Error details:",
-          JSON.stringify(error.data.payload, null, 2),
-        );
-      }
-      throw error;
-    }
-
-    // Verify grant exists in database
-    const dbGrant = await grants.findOne({ code: grantCode });
-    expect(dbGrant).toBeTruthy();
-    expect(dbGrant.code).toBe(grantCode);
-    expect(dbGrant.phases[0].questions.properties.farmName.type).toBe("string");
+    await insertGrant(grantData);
 
     // Seed config version for the grant
     await seedConfigVersion(db, grantCode);
