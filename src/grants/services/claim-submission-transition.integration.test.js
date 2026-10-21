@@ -425,7 +425,7 @@ const claimEventsFor = (fixture) =>
   db
     .collection("outbox")
     .find({
-      "event.type": /\.claim\.submitted$/,
+      "event.type": /\.case\.update\.supplementary\.data$/,
       "event.data.caseRef": fixture.clientRef,
     })
     .toArray();
@@ -458,8 +458,11 @@ describe("claim supplementary data publication", () => {
     expect(events[0].event.data).toEqual({
       caseRef: fixture.clientRef,
       workflowCode: fixture.code,
-      claims: [
-        {
+      supplementaryData: {
+        targetNode: "claims",
+        dataType: "ARRAY",
+        key: "gasClaimId",
+        data: {
           gasClaimId: created.claimId,
           clientClaimRef: "claim-1",
           claimCode: saved.claimCode,
@@ -468,7 +471,7 @@ describe("claim supplementary data publication", () => {
           status: "SUBMITTED",
           submittedAt: saved.createdAt,
         },
-      ],
+      },
     });
     await expect(submitClaim(fixture.command())).resolves.toEqual({
       created: false,
@@ -506,7 +509,11 @@ describe("claim supplementary data publication", () => {
       const validator =
         collection === "claims"
           ? { clientRef: "never-valid" }
-          : { "event.type": { $not: { $regex: "\\.claim\\.submitted$" } } };
+          : {
+              "event.type": {
+                $not: { $regex: "\\.case\\.update\\.supplementary\\.data$" },
+              },
+            };
       await db.command({ collMod: collection, validator });
       try {
         await expect(submitClaim(fixture.command())).rejects.toThrow();

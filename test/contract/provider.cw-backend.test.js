@@ -10,8 +10,7 @@ import {
 } from "@pact-foundation/pact";
 import { describe, expect, it, vi } from "vitest";
 
-import { ClaimSubmittedEvent } from "../../src/grants/events/claim-submitted.event.js";
-import { Claim } from "../../src/grants/models/claim.js";
+import { UpdateCaseSupplementaryDataCommand } from "../../src/grants/commands/update-case-supplementary-data.command.js";
 import { CreateNewCaseCommand } from "../../src/grants/commands/create-new-case.command.js";
 import { UpdateCaseStatusCommand } from "../../src/grants/commands/update-case-status.command.js";
 import { buildMessageVerifierOptions } from "./messageVerifierConfig.js";
@@ -450,29 +449,23 @@ describe("GAS Provider (sends messages to CW)", () => {
   });
 });
 
-describe("Submitted claim provider verification", () => {
-  it("verifies a submitted claim event from GAS using the production builder", async () => {
-    vi.stubEnv("PACT_DESCRIPTION", "^a submitted claim event from GAS$");
+describe("Supplementary data provider verification", () => {
+  it("verifies the generic supplementary data command using the production builder", async () => {
+    vi.stubEnv(
+      "PACT_DESCRIPTION",
+      "^a supplementary data update command from GAS$",
+    );
     const build = vi.fn(
       () =>
-        new ClaimSubmittedEvent({
-          claimId: "507f1f77bcf86cd799439011",
-          claim: Claim.create({
-            code: "woodland",
-            clientRef: "wmp-6hb-j8e",
-            claimCode: "ENT_CS_CAPITAL_PA3",
-            clientClaimRef: "WMP-6HB-J8E-C0001",
-            createdAt: "2026-08-07T11:16:05.745Z",
-            metadata: {
-              clientRef: "wmp-6hb-j8e",
-              grantCode: "woodland",
-              sbi: "113593357",
-            },
-            claim: {
-              entitlementId: "entitlement-1",
-              totalClaimAmountPence: 150000,
-            },
-          }),
+        new UpdateCaseSupplementaryDataCommand({
+          caseRef: "case-1",
+          workflowCode: "example",
+          supplementaryData: {
+            targetNode: "results",
+            dataType: "ARRAY",
+            key: "id",
+            data: { id: "record-1", arbitrary: { score: -100 } },
+          },
         }),
     );
     const provide = providerWithMetadata(build, {
@@ -484,7 +477,9 @@ describe("Submitted claim provider verification", () => {
           providerName: "fg-gas-backend",
           consumerName: "fg-cw-backend",
         }),
-        messageProviders: { "a submitted claim event from GAS": provide },
+        messageProviders: {
+          "a supplementary data update command from GAS": provide,
+        },
         logLevel: "warn",
       });
       await pact.verify();

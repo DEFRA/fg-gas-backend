@@ -1,4 +1,4 @@
-import { claimSubmitted } from "../grants/events/claim-submitted.event.js";
+import { caseUpdateSupplementaryData } from "../grants/commands/update-case-supplementary-data.command.js";
 import {
   AGREEMENT_CREATED,
   AGREEMENT_STATUS_CHANGED,
@@ -28,8 +28,8 @@ const GAS = "cloud.defra.local.fg-gas-backend.";
 
 const declared = [
   {
-    eventType: claimSubmitted,
-    sentAs: `${GAS}claim.submitted`,
+    eventType: caseUpdateSupplementaryData,
+    sentAs: `${GAS}case.update.supplementary.data`,
     boxes: [OUTBOX],
     event: { data: { workflowCode: "woodland", caseRef: "abc-123" } },
     refs: [
