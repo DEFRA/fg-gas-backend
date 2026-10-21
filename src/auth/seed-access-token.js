@@ -68,8 +68,8 @@ export const seedAccessToken = async () => {
     // partial unique index on {client, seeded} backs that invariant up.
     const result = await accessTokens.replaceOne(
       { seeded, client },
-      // auth.js reads clientId, while the index and mint script use client, so
-      // both are written until that mismatch is resolved.
+      // Keep both fields for compatibility with consumers that read clientId;
+      // auth.js accepts either, while the index and mint script use client.
       { id, client, clientId: client, expiresAt: null, seeded },
       { upsert: true },
     );
