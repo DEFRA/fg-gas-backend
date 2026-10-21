@@ -3,6 +3,7 @@ set -euo pipefail
 
 PRIMARY="${PRIMARY:-127.0.0.1:27017}"
 REPLSET="${REPLSET:-mongoRepl}"
+RS_HOST="${RS_HOST:-localhost:27017}"
 
 echo "Waiting for mongod to respond on $PRIMARY..."
 for i in {1..60}; do
@@ -17,7 +18,7 @@ try { rs.status() } catch(e) {
   rs.initiate({
     _id: "$REPLSET",
     members: [
-      { _id: 0, host: "mongodb:27017", priority: 2 }
+      { _id: 0, host: "$RS_HOST", priority: 2 }
     ]
   })
 }
