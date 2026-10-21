@@ -461,20 +461,6 @@ const transitionOnFinalClaim = async (
   );
 };
 
-const submissionProcessesFor = (grant) =>
-  grant.claims?.onClaimSubmission?.processes ?? [];
-
-const runClaimSubmissionProcesses = async (
-  { grant, claim, claimId },
-  session,
-) => {
-  for (const process of submissionProcessesFor(grant)) {
-    if (process === "STORE_CLAIM_CASE") {
-      await storeClaimCaseUseCase({ claim, claimId }, session);
-    }
-  }
-};
-
 const submitInTransaction = async (
   { command, grant, pinnedVersion, paymentConfigured },
   session,
@@ -503,7 +489,7 @@ const submitInTransaction = async (
     session,
   );
 
-  await runClaimSubmissionProcesses(
+  await storeClaimCaseUseCase(
     { grant, claim: savedClaim, claimId: result.claimId },
     session,
   );

@@ -3,6 +3,9 @@ import { config } from "../../common/config.js";
 import { saveEvents } from "../../events/index.js";
 import { storeClaimCaseUseCase } from "./store-claim-case.use-case.js";
 vi.mock("../../events/index.js");
+const grant = {
+  claims: { onClaimSubmission: { processes: ["STORE_CLAIM_CASE"] } },
+};
 const claim = {
   metadata: { clientRef: "app-1", grantCode: "woodland", sbi: "113593357" },
   clientClaimRef: "claim-1",
@@ -12,7 +15,7 @@ const claim = {
 };
 it("queues a data-only event with the claim transaction's session", async () => {
   const session = { transaction: true };
-  await storeClaimCaseUseCase({ claim, claimId: "mongo-id" }, session);
+  await storeClaimCaseUseCase({ grant, claim, claimId: "mongo-id" }, session);
   expect(saveEvents).toHaveBeenCalledWith(
     [
       {
@@ -31,6 +34,21 @@ it("queues a data-only event with the claim transaction's session", async () => 
 it("propagates failed outbox insertion to abort the transaction", async () => {
   saveEvents.mockRejectedValue(new Error("outbox unavailable"));
   await expect(
-    storeClaimCaseUseCase({ claim, claimId: "mongo-id" }, {}),
+    storeClaimCaseUseCase({ grant, claim, claimId: "mongo-id" }, {}),
   ).rejects.toThrow("outbox unavailable");
 });
+
+it.each([
+  {},
+  { claims: {} },
+  { claims: { onClaimSubmission: { processes: [] } } },
+])(
+  "does not queue claim delivery when the grant has no configured process: %j",
+  async (unconfiguredGrant) => {
+    await storeClaimCaseUseCase(
+      { grant: unconfiguredGrant, claim, claimId: "mongo-id" },
+      {},
+    );
+    expect(saveEvents).not.toHaveBeenCalled();
+  },
+);
