@@ -535,7 +535,6 @@ describe("pages", () => {
 
   const pages = {
     claims: {
-      onSubmission: { processes: ["STORE_CLAIM_CASE"] },
       details: {
         banner: {
           title: {
