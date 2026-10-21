@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { seedConfigVersion } from "../helpers/applications.js";
+import { insertGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 let client;
@@ -92,7 +93,7 @@ const claimPayload = (code, clientRef, clientClaimRef, entitlementId) => ({
 });
 
 const seedGrantAndApplication = async (code) => {
-  await wreck.post("/grants", { json: true, payload: grantPayload(code) });
+  await insertGrant(grantPayload(code));
   await seedConfigVersion(db, code);
   const clientRef = `wmp-${randomUUID().slice(0, 8)}`;
 

@@ -2,6 +2,7 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { seedConfigVersion } from "../../helpers/applications.js";
+import { insertGrant } from "../../helpers/grants.js";
 import { wreck } from "../../helpers/wreck.js";
 
 let client;
@@ -20,221 +21,6 @@ afterAll(async () => {
 });
 
 describe("Grant Service Integration Tests", () => {
-  describe("Grant Creation and Validation", () => {
-    it("should create grant with complex schema validation", async () => {
-      const testId = Date.now();
-      const grantData = {
-        code: `test-grant-${testId}`,
-        version: "0.0.0",
-        amendablePositions: [],
-        metadata: {
-          description:
-            "Complex integration test grant with multiple validation rules",
-          startDate: "2025-01-01T00:00:00.000Z",
-        },
-        phases: [
-          {
-            code: "PHASE_1",
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                farmSize: {
-                  type: "number",
-                  minimum: 1,
-                  maximum: 10000,
-                  description: "Farm size in hectares",
-                },
-                animalTypes: {
-                  type: "array",
-                  items: {
-                    type: "string",
-                    enum: ["cattle", "sheep", "pigs", "poultry"],
-                  },
-                  minItems: 1,
-                  description: "Types of animals on farm",
-                },
-                sustainablePractices: {
-                  type: "boolean",
-                  description: "Uses sustainable farming practices",
-                },
-                contactEmail: {
-                  type: "string",
-                  format: "email",
-                  description: "Contact email address",
-                },
-              },
-              required: [
-                "farmSize",
-                "animalTypes",
-                "sustainablePractices",
-                "contactEmail",
-              ],
-            },
-            stages: [
-              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-            ],
-          },
-        ],
-        actions: [
-          {
-            name: "calculate-subsidy",
-            method: "POST",
-            url: "http://external-service.test/calculate-subsidy",
-          },
-          {
-            name: "validate-eligibility",
-            method: "GET",
-            url: "http://external-service.test/validate",
-          },
-        ],
-      };
-
-      // Test grant creation via API
-      const response = await wreck.post("/grants", {
-        payload: grantData,
-      });
-
-      expect(response.res.statusCode).toBe(204);
-
-      // Verify database persistence
-      const dbGrant = await grants.findOne({ code: `test-grant-${testId}` });
-      expect(dbGrant).toBeTruthy();
-      expect(dbGrant.code).toBe(`test-grant-${testId}`);
-      expect(dbGrant.phases[0].questions.properties.farmSize.minimum).toBe(1);
-      expect(
-        dbGrant.phases[0].questions.properties.animalTypes.items.enum,
-      ).toContain("cattle");
-      expect(dbGrant.actions).toHaveLength(2);
-      expect(dbGrant.actions[0].name).toBe("calculate-subsidy");
-    });
-
-    it("should handle grant creation with nested schema validation", async () => {
-      const testId = Date.now();
-      const complexGrantData = {
-        code: `test-grant-complex-${testId}`,
-        version: "0.0.0",
-        metadata: {
-          description: "Grant with deeply nested validation rules",
-          startDate: "2025-06-01T00:00:00.000Z",
-        },
-        amendablePositions: [],
-        phases: [
-          {
-            code: "PHASE_1",
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                landParcels: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      parcelId: { type: "string", pattern: "^\\d+$" },
-                      size: { type: "number", minimum: 0.1 },
-                      cropTypes: {
-                        type: "array",
-                        items: { type: "string" },
-                        minItems: 1,
-                      },
-                      soilType: {
-                        type: "string",
-                        enum: ["clay", "sand", "loam", "chalk"],
-                      },
-                    },
-                    required: ["parcelId", "size", "cropTypes", "soilType"],
-                  },
-                  minItems: 1,
-                },
-              },
-              required: ["landParcels"],
-            },
-            stages: [
-              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-            ],
-          },
-        ],
-        actions: [],
-      };
-
-      // Create complex grant
-      const response = await wreck.post("/grants", {
-        payload: complexGrantData,
-      });
-      expect(response.res.statusCode).toBe(204);
-
-      // Verify nested schema structure persisted correctly
-      const dbGrant = await grants.findOne({
-        code: `test-grant-complex-${testId}`,
-      });
-      expect(
-        dbGrant.phases[0].questions.properties.landParcels.items.properties
-          .parcelId.pattern,
-      ).toBe("^\\d+$");
-      expect(
-        dbGrant.phases[0].questions.properties.landParcels.items.properties
-          .soilType.enum,
-      ).toContain("loam");
-    });
-
-    it("should prevent duplicate grant creation", async () => {
-      const testId = Date.now();
-      const grantCode = `test-grant-dup-${testId}`;
-      const grantData = {
-        code: grantCode,
-        version: "0.0.0",
-        metadata: {
-          description: "Duplicate test grant",
-          startDate: "2025-01-01T00:00:00.000Z",
-        },
-        amendablePositions: [],
-        phases: [
-          {
-            code: "PHASE_1",
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                testField: { type: "string" },
-              },
-            },
-            stages: [
-              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-            ],
-          },
-        ],
-        actions: [],
-      };
-
-      // Create first grant
-      const firstResponse = await wreck.post("/grants", {
-        payload: grantData,
-      });
-      expect(firstResponse.res.statusCode).toBe(204);
-
-      // Attempt to create duplicate
-      let duplicateError;
-      try {
-        await wreck.post("/grants", {
-          json: true,
-          payload: grantData,
-        });
-      } catch (error) {
-        duplicateError = error.data.payload;
-      }
-
-      expect(duplicateError.statusCode).toBe(409);
-      expect(duplicateError.message).toContain(
-        `Grant with code "${grantCode}" version "0.0.0" already exists`,
-      );
-
-      // Verify only one grant exists in database
-      const grantCount = await grants.countDocuments({ code: grantCode });
-      expect(grantCount).toBe(1);
-    });
-  });
-
   describe("Grant Data Integrity and Relationships", () => {
     it("should maintain referential integrity between grants and applications", async () => {
       const testId = Date.now();
@@ -269,9 +55,7 @@ describe("Grant Service Integration Tests", () => {
         actions: [],
       };
 
-      await wreck.post("/grants", {
-        payload: grantData,
-      });
+      await insertGrant(grantData);
 
       await seedConfigVersion(db, grantCode);
 
@@ -354,14 +138,11 @@ describe("Grant Service Integration Tests", () => {
             ],
             actions: [],
           };
-          return wreck.post("/grants", { payload: grantData });
+          return insertGrant(grantData);
         },
       );
 
-      const grantResponses = await Promise.all(grantPromises);
-      grantResponses.forEach((response) => {
-        expect(response.res.statusCode).toBe(204);
-      });
+      await Promise.all(grantPromises);
 
       // Seed config versions for all grants
       await Promise.all(
@@ -489,9 +270,7 @@ describe("Grant Service Integration Tests", () => {
         ],
       };
 
-      await wreck.post("/grants", {
-        payload: businessGrantData,
-      });
+      await insertGrant(businessGrantData);
 
       await seedConfigVersion(db, grantCode);
 
