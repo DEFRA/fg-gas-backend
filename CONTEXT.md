@@ -39,3 +39,19 @@
 
 **Current Version**
 : The Config Version GAS gives new applications: the newest Active one.
+
+## Mappings
+
+**Mapping**
+: A value in a definition that is resolved against a context. It is a literal, a `$.` reference to the context, an `@.` reference to the current row, a `jsonata:` expression, an `itemsRef`/`items` collection that repeats `items` for each row of a list, or an array or object whose values are themselves Mappings.
+
+## Payments
+
+**Payment Definition**
+: How a grant version turns a trigger's context into a Payment request: its request fields and its Due Payments, each given as a Mapping.
+
+**Due Payment**
+: One dated part of a Payment, with a total and its Invoice Lines.
+
+**Invoice Line**
+: One accounting line of a Due Payment.

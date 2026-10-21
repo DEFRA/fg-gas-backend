@@ -1,3 +1,8 @@
+import {
+  DeleteObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { Long, MongoClient, ObjectId } from "mongodb";
 import { readFile } from "node:fs/promises";
 import { env } from "node:process";
@@ -6,6 +11,7 @@ import {
   grantVersionPageSchemas,
   grantVersionsSchema,
 } from "../../src/grant-admin/schemas/grant-version-page.schema.js";
+import { config } from "../../src/common/config.js";
 import { GrantDocument } from "../../src/grants/models/grant-document.js";
 import { Grant } from "../../src/grants/models/grant.js";
 import { wreck } from "../helpers/wreck.js";
@@ -23,6 +29,7 @@ let agreementDefinitions;
 let paymentDefinitions;
 let outbox;
 let grantDefinition;
+let pmfPaymentDefinition;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
@@ -35,6 +42,14 @@ beforeAll(async () => {
   grantDefinition = JSON.parse(
     await readFile(
       new URL("../fixtures/pmf-grant-definition.json", import.meta.url),
+    ),
+  );
+  pmfPaymentDefinition = JSON.parse(
+    await readFile(
+      new URL(
+        "../../compose/seed/pigs-might-fly/1.0.0/gas/payment.json",
+        import.meta.url,
+      ),
     ),
   );
 });
@@ -313,5 +328,113 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     const [row] = await auditRows("VIEW_GRANT_VERSION");
     expect(row.event.audit.status).toBe("FAILURE");
     expect(row.event.audit.details.tab).toBe("overview");
+  });
+});
+
+describe("GET /grant-admin/grants/{code}/versions/{version}/payment", () => {
+  const WITH_PAYMENT = aConfigVersion(
+    "2.0.0",
+    "draft",
+    "2026-10-15T10:04:00.000Z",
+    { payment: fileState("2.0.0", "pending") },
+  );
+
+  it("answers the stored payment definition as stored, audited with its tab", async () => {
+    await configVersions.insertOne(WITH_PAYMENT);
+    await paymentDefinitions.insertOne({
+      code: CODE,
+      version: "2.0.0",
+      definition: pmfPaymentDefinition,
+    });
+
+    const { payload, res } = await get(`${CODE}/versions/2.0.0/payment`);
+
+    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(
+      grantVersionPageSchemas.payment.validate(payload).error,
+    ).toBeUndefined();
+    expect(payload.header.files.payment).toEqual({
+      stored: true,
+      fetchStatus: "pending",
+    });
+    expect(payload.payment).toStrictEqual(pmfPaymentDefinition);
+    expect(payload.sectionErrors).toEqual([]);
+    const rows = await auditRows("VIEW_GRANT_VERSION");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].event.audit).toMatchObject({
+      status: "SUCCESS",
+      details: { version: "2.0.0", tab: "payment" },
+    });
+  });
+
+  it("a payment file not stored is null; the read stores nothing and leaves the config version unchanged", async () => {
+    const s3 = new S3Client({
+      region: config.region,
+      endpoint: config.awsEndpointUrl,
+      forcePathStyle: true,
+    });
+    const Key = `${CODE}/payment-read/2.0.0/gas/payment.json`;
+    const inS3 = aConfigVersion("2.0.0", "draft", "2026-10-15T10:04:00.000Z", {
+      payment: { ...fileState("2.0.0", "pending"), s3Key: Key },
+    });
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: inS3.s3Bucket,
+        Key,
+        Body: JSON.stringify(pmfPaymentDefinition),
+        ContentType: "application/json",
+      }),
+    );
+    await configVersions.insertOne(inS3);
+
+    try {
+      const { payload } = await get(`${CODE}/versions/2.0.0/payment`);
+
+      expect(payload.header.files.payment).toEqual({
+        stored: false,
+        fetchStatus: "pending",
+      });
+      expect(payload.payment).toBeNull();
+      expect(payload.sectionErrors).toEqual([]);
+      expect(await configVersions.findOne({ _id: inS3._id })).toStrictEqual(
+        inS3,
+      );
+      expect(await paymentDefinitions.countDocuments()).toBe(0);
+    } finally {
+      await s3.send(new DeleteObjectCommand({ Bucket: inS3.s3Bucket, Key }));
+    }
+  });
+
+  it("a stored definition over the section cap is too large to show", async () => {
+    await configVersions.insertOne(WITH_PAYMENT);
+    await paymentDefinitions.insertOne({
+      code: CODE,
+      version: "2.0.0",
+      definition: {
+        ...pmfPaymentDefinition,
+        padding: "x".repeat(1_100_000),
+      },
+    });
+
+    const { payload } = await get(`${CODE}/versions/2.0.0/payment`);
+
+    expect(payload.payment).toBeNull();
+    expect(payload.sectionErrors).toEqual([
+      { section: "payment", message: "too large to show" },
+    ]);
+  });
+
+  it("answers 404 NO_DEFINITION_FILE for a version with no payment file, audited as a FAILURE", async () => {
+    await configVersions.insertOne(
+      aConfigVersion("2.0.0", "draft", "2026-10-15T10:04:00.000Z"),
+    );
+
+    const error = await get(`${CODE}/versions/2.0.0/payment`).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(404);
+    expect(error.data.payload.reason).toBe("NO_DEFINITION_FILE");
+    const [row] = await auditRows("VIEW_GRANT_VERSION");
+    expect(row.event.audit.status).toBe("FAILURE");
+    expect(row.event.audit.details.tab).toBe("payment");
   });
 });

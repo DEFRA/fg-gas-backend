@@ -6,6 +6,7 @@ import {
   findGrantDefinitionSummary,
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
+import { findStoredPaymentDefinitionUseCase } from "../../payments/use-cases/find-stored-payment-definition.use-case.js";
 import { SECTION_CAP_BYTES } from "../services/compose-record-page.js";
 import {
   buildViewGrantVersionAudit,
@@ -21,6 +22,7 @@ vi.mock("../../events/audited-read.js", () => ({
   },
 }));
 vi.mock("../../grants/services/config-version.service.js");
+vi.mock("../../payments/use-cases/find-stored-payment-definition.use-case.js");
 
 const REF = { code: "woodland", version: "2.0.0" };
 
@@ -142,6 +144,82 @@ describe("viewGrantVersionPageUseCase", () => {
     ]);
   });
 
+  describe("payment", () => {
+    const PAYMENT_FILES = {
+      ...FILES,
+      files: {
+        ...FILES.files,
+        payment: { stored: true, fetchStatus: "fetched" },
+      },
+    };
+
+    beforeEach(() => {
+      findConfigVersionFiles.mockResolvedValue(PAYMENT_FILES);
+      findStoredPaymentDefinitionUseCase.mockResolvedValue({
+        definition: { code: "woodland", currency: "GBP" },
+        storedBytes: 512,
+      });
+    });
+
+    it("the stored payment definition, read under the section cap", async () => {
+      const page = await view("payment");
+
+      expect(page.payment).toEqual({ code: "woodland", currency: "GBP" });
+      expect(page.sectionErrors).toEqual([]);
+      expect(findStoredPaymentDefinitionUseCase).toHaveBeenCalledWith(REF, {
+        maxBytes: SECTION_CAP_BYTES,
+      });
+    });
+
+    it("BSON numbers go out as JSON", async () => {
+      findStoredPaymentDefinitionUseCase.mockResolvedValue({
+        definition: { totalAmountPence: Long.fromString("9007199254740993") },
+        storedBytes: 512,
+      });
+
+      expect((await view("payment")).payment).toEqual({
+        totalAmountPence: "9007199254740993",
+      });
+    });
+
+    it("a payment file not stored is null, with no section error", async () => {
+      findStoredPaymentDefinitionUseCase.mockResolvedValue({
+        definition: null,
+        storedBytes: null,
+      });
+
+      const page = await view("payment");
+
+      expect(page.payment).toBeNull();
+      expect(page.sectionErrors).toEqual([]);
+    });
+
+    it("a stored definition over the cap is too large to show", async () => {
+      findStoredPaymentDefinitionUseCase.mockResolvedValue({
+        definition: null,
+        storedBytes: SECTION_CAP_BYTES + 1,
+      });
+
+      const page = await view("payment");
+
+      expect(page.payment).toBeNull();
+      expect(page.sectionErrors).toEqual([
+        { section: "payment", message: "too large to show" },
+      ]);
+    });
+
+    it("answers 404 NO_DEFINITION_FILE for a version with no payment file", async () => {
+      findConfigVersionFiles.mockResolvedValue(FILES);
+
+      await expect(view("payment")).rejects.toMatchObject({
+        output: {
+          statusCode: 404,
+          payload: { reason: "NO_DEFINITION_FILE" },
+        },
+      });
+    });
+  });
+
   it("answers 404 GRANT_VERSION_NOT_FOUND for an unknown version", async () => {
     findConfigVersionFiles.mockResolvedValue(null);
 
@@ -178,6 +256,12 @@ describe("buildViewGrantVersionAudit", () => {
       security: { pmccode: "0706" },
       segregationRef: "admin-view-grant-version",
     });
+  });
+
+  it("records the payment tab", () => {
+    expect(
+      buildViewGrantVersionAudit({ ...args, tab: "payment" }).details,
+    ).toEqual({ caller: "admin-ui", version: "2.0.0", tab: "payment" });
   });
 
   it("is the builder the view is audited with, for a refused view too", () => {

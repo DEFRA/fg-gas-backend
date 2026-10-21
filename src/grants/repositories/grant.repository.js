@@ -1,6 +1,10 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { config } from "../../common/config.js";
+import {
+  cappedField,
+  storedBytes,
+} from "../../common/mongo/capped-projection.js";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
@@ -86,9 +90,6 @@ const readOne = async (pipeline) => {
   return doc ?? null;
 };
 
-// $bsonSize measures the whole stored document before any projection.
-const storedBytes = { $bsonSize: "$$ROOT" };
-
 const orNull = (path) => ({ $ifNull: [path, null] });
 
 export const findStoredGrantSummary = (code, version) =>
@@ -114,13 +115,10 @@ export const findStoredGrantDocument = async (code, version, { maxBytes }) => {
       $project: {
         _id: 0,
         storedBytes,
-        document: {
-          $cond: [
-            { $lte: [storedBytes, maxBytes] },
-            { $unsetField: { field: "_id", input: "$$ROOT" } },
-            "$$REMOVE",
-          ],
-        },
+        document: cappedField(
+          { $unsetField: { field: "_id", input: "$$ROOT" } },
+          maxBytes,
+        ),
       },
     },
   ]);

@@ -71,6 +71,9 @@ const overviewSchema = Joi.object({
 // The stored grant document as stored: null when not stored or too large.
 const definitionSchema = Joi.object().unknown(true).allow(null).required();
 
+// The stored payment definition as stored: null when not stored or too large.
+const paymentSchema = Joi.object().unknown(true).allow(null).required();
+
 const pageSchema = (tab, keys, label) =>
   recordPageSchema(grantVersionHeaderSchema, tab, keys, label);
 
@@ -84,5 +87,10 @@ export const grantVersionPageSchemas = {
     "definition",
     { definition: definitionSchema },
     "GrantVersionDefinitionPage",
+  ),
+  payment: pageSchema(
+    "payment",
+    { payment: paymentSchema },
+    "GrantVersionPaymentPage",
   ),
 };

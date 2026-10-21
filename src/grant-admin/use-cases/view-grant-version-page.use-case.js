@@ -13,13 +13,24 @@ import {
   findGrantDefinitionSummary,
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
+import { findStoredPaymentDefinitionUseCase } from "../../payments/use-cases/find-stored-payment-definition.use-case.js";
 import {
   SECTION_CAP_BYTES,
   composeRecordPage,
 } from "../services/compose-record-page.js";
-import { grantVersionNotFound } from "../services/grant-not-found.js";
+import {
+  grantVersionNotFound,
+  noDefinitionFile,
+} from "../services/grant-not-found.js";
 
-const readGrantVersionHeader = async ({ code, version }) => {
+// A version without the tab's Definition File has no such tab.
+const assertTabFile = ({ file }, files) => {
+  if (file && !files[file]) {
+    throw noDefinitionFile();
+  }
+};
+
+const readGrantVersionHeader = async ({ code, version, tab }) => {
   const [found, grant] = await Promise.all([
     findConfigVersionFiles({ code, version }),
     findConfigVersions(code),
@@ -29,6 +40,8 @@ const readGrantVersionHeader = async ({ code, version }) => {
     throw grantVersionNotFound();
   }
 
+  assertTabFile(GRANT_VERSION_TABS[tab], found.files);
+
   return { header: { ...found, versions: grant.versions }, accounts: null };
 };
 
@@ -36,18 +49,29 @@ const readOverview = async ({ code, version }) => ({
   content: { overview: await findGrantDefinitionSummary({ code, version }) },
 });
 
-// Too large only when stored: a grant file not stored has no size.
-const readDefinition = async ({ code, version }) => {
-  const { definition, storedBytes } = await findStoredGrantDefinition(
-    { code, version },
-    { maxBytes: SECTION_CAP_BYTES },
+// Too large only when stored: a file not stored has no size.
+const toCappedRead = (key, { definition, storedBytes }) => ({
+  content: { [key]: definition && withJsonNumbers(definition) },
+  tooLarge: storedBytes !== null && definition === null,
+});
+
+const readDefinition = async ({ code, version }) =>
+  toCappedRead(
+    "definition",
+    await findStoredGrantDefinition(
+      { code, version },
+      { maxBytes: SECTION_CAP_BYTES },
+    ),
   );
 
-  return {
-    content: { definition: definition && withJsonNumbers(definition) },
-    tooLarge: storedBytes !== null && definition === null,
-  };
-};
+const readPayment = async ({ code, version }) =>
+  toCappedRead(
+    "payment",
+    await findStoredPaymentDefinitionUseCase(
+      { code, version },
+      { maxBytes: SECTION_CAP_BYTES },
+    ),
+  );
 
 const GRANT_VERSION_TABS = {
   overview: { readTab: readOverview, empty: { overview: null } },
@@ -55,6 +79,12 @@ const GRANT_VERSION_TABS = {
     readTab: readDefinition,
     empty: { definition: null },
     capped: "definition",
+  },
+  payment: {
+    readTab: readPayment,
+    empty: { payment: null },
+    capped: "payment",
+    file: "payment",
   },
 };
 
