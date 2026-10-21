@@ -1,9 +1,12 @@
 import Boom from "@hapi/boom";
 import { onClaimSubmission } from "../schemas/grant/claims.js";
+import { grantDefinition } from "../schemas/grant/grant-definition.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
-
-// Constants for fully qualified status path format: "PHASE:STAGE:STATUS"
-const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
+import { ExternalStatusMap } from "./external-status-map.js";
+import { ExternalStatusMapping } from "./external-status-mapping.js";
+import { GrantLifecycle } from "./grant-lifecycle.js";
+import { Position } from "./position.js";
+import { ValidFrom } from "./valid-from.js";
 
 const formatPosition = ({ phase, stage, status }) =>
   [phase, stage, status].filter((part) => part != null).join(":");
@@ -24,6 +27,8 @@ const assertClaimSubmission = (claims) => {
 };
 
 export class Grant {
+  static definitionSchema = grantDefinition;
+
   constructor({
     code,
     version,
@@ -31,7 +36,7 @@ export class Grant {
     actions,
     phases,
     externalStatusMap,
-    amendablePositions,
+    amendablePositions = [],
     // Always a collection, never absent. The repository normalises what it
     // reads out of Mongo; everything else builds a Grant from a request or a
     // grant definition, where omitting the block means it has none.
@@ -67,9 +72,56 @@ export class Grant {
   }
 
   // Builds a Grant from a published grant definition, so a definition can be checked
-  // without saving it.
-  static fromDefinition(grantDefinition, version) {
-    return new Grant({ ...grantDefinition, version });
+  // before its version is recorded. Only a published definition is built into a
+  // GrantLifecycle and an ExternalStatusMap, and so held to their rules: a stored
+  // grant goes through the constructor alone and has to load as it is.
+  static fromDefinition(definition, version, dependencies) {
+    Grant.#assertMatchesDefinitionSchema(definition);
+
+    const grant = new Grant({ ...definition, version });
+    grant.#assertPublishable(dependencies);
+
+    return grant;
+  }
+
+  static #assertMatchesDefinitionSchema(definition) {
+    const { error } = Grant.definitionSchema.validate(definition, {
+      abortEarly: false,
+    });
+
+    if (error) {
+      throw Boom.badImplementation(
+        `Invalid grant definition "${definition?.code}": ${error.details.map((d) => d.message).join(", ")}`,
+      );
+    }
+  }
+
+  #assertPublishable(dependencies) {
+    try {
+      const lifecycle = new GrantLifecycle(this.phases, dependencies);
+
+      new ExternalStatusMap(this.externalStatusMap).assertTargetsExistIn(
+        lifecycle,
+      );
+      this.#assertAmendablePositionsExistIn(lifecycle);
+    } catch (error) {
+      if (!error.isBoom) {
+        throw error;
+      }
+
+      throw Boom.badImplementation(`Grant "${this.code}" ${error.message}`);
+    }
+  }
+
+  // Application.isReplacementAllowed matches the whole position exactly.
+  #assertAmendablePositionsExistIn(lifecycle) {
+    for (const position of this.amendablePositions) {
+      if (!lifecycle.has(Position.parse(position))) {
+        throw Boom.badImplementation(
+          `amendable position "${position}" does not match any position in "phases"`,
+        );
+      }
+    }
   }
 
   findEntitlementTemplate(claimCode) {
@@ -351,36 +403,20 @@ export class Grant {
   }
 
   #parseMappedToField(mappedTo, currentPhase, currentStage) {
-    if (mappedTo.startsWith("::")) {
-      // Format: "::STATUS" - keep current phase and stage, only change status
-      return {
-        valid: true,
-        targetPhase: currentPhase,
-        targetStage: currentStage,
-        targetStatus: mappedTo.substring(2),
-      };
-    }
+    const { target } = new ExternalStatusMapping(
+      { mappedTo },
+      { phase: currentPhase, stage: currentStage },
+    );
 
-    if (mappedTo.includes(":")) {
-      // Format: "PHASE:STAGE:STATUS" - full path specification
-      const parts = mappedTo.split(":");
-      if (parts.length === FULLY_QUALIFIED_STATUS_PARTS_COUNT) {
-        return {
-          valid: true,
-          targetPhase: parts[0],
-          targetStage: parts[1],
-          targetStatus: parts[2],
-        };
-      }
+    if (!target) {
       return { valid: false };
     }
 
-    // Format: "STATUS" - just status code, keep current phase and stage
     return {
       valid: true,
-      targetPhase: currentPhase,
-      targetStage: currentStage,
-      targetStatus: mappedTo,
+      targetPhase: target.phase,
+      targetStage: target.stage,
+      targetStatus: target.status,
     };
   }
 
@@ -422,16 +458,9 @@ export class Grant {
   }
 
   #isValidFromMatch(validFrom, currentStatus) {
-    return validFrom.find((entry) => {
-      if (entry.code.includes(":")) {
-        // Fully qualified status like "PRE_AWARD:REVIEW_APPLICATION:APPROVED"
-        return entry.code === currentStatus;
-      }
-
-      // Simple status code - extract just the status part from currentStatus
-      const currentStatusCode = currentStatus.split(":").pop();
-      return entry.code === currentStatusCode;
-    });
+    return validFrom.find((entry) =>
+      new ValidFrom(entry).matches(currentStatus),
+    );
   }
 
   findStatuses(position) {
