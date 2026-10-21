@@ -4,10 +4,24 @@ import {
   validateReportingEvent,
 } from "@defra/grants-reporting-publisher";
 import { config } from "../../common/config.js";
+import { OUTBOX, defineEventType } from "../../events/event-types.js";
 
 const REPORTING_SCHEMA_VERSION = "1.0.0";
 const REPORTING_APPLICATION = "GAS";
 const REPORTING_SERVICE = "grants";
+
+export const reportingAgreementCreated = defineEventType({
+  name: "AgreementCreatedReport",
+  recognise: ({ eventData }) => eventData?.eventType === AGREEMENT_CREATED,
+  boxes: [OUTBOX],
+});
+
+export const reportingAgreementStatusChanged = defineEventType({
+  name: "AgreementStatusChangedReport",
+  recognise: ({ eventData }) =>
+    eventData?.eventType === AGREEMENT_STATUS_CHANGED,
+  boxes: [OUTBOX],
+});
 
 const optional = (name, value) =>
   value === undefined ? {} : { [name]: value };

@@ -8,6 +8,7 @@ import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application-series.repository.js";
+import { linkSeries } from "../repositories/application.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import {
@@ -21,6 +22,7 @@ vi.mock("../../events/write-audit-event.js");
 vi.mock("./create-application.use-case.js");
 vi.mock("./find-application-by-client-ref-and-code.use-case.js");
 vi.mock("../repositories/application-series.repository.js");
+vi.mock("../repositories/application.repository.js");
 vi.mock("./resolve-current-grant.use-case.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
@@ -72,7 +74,12 @@ describe("replaceApplicationUseCase", () => {
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(prevApplication);
     createApplicationUseCase.mockResolvedValue("new-application-id");
 
-    const mockXref = { addClientRef: vi.fn() };
+    const mockXref = {
+      addClientRef: vi.fn(),
+      code: "test-grant",
+      clientRefs: new Set(["previous-client-ref", "new-client-ref"]),
+      latestClientRef: "new-client-ref",
+    };
     findByClientRefAndCode.mockResolvedValue(mockXref);
     update.mockResolvedValue({});
 
@@ -93,6 +100,42 @@ describe("replaceApplicationUseCase", () => {
       "new-application-id",
     );
     expect(update).toHaveBeenCalledWith(mockXref, mockSession);
+  });
+
+  it("links the series it has just updated, in the same transaction", async () => {
+    const mockSession = {};
+    withTransaction.mockImplementation(async (cb) => cb(mockSession));
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(
+      new Application({
+        currentPhase: "PRE_AWARD",
+        currentStage: "REVIEW_OFFER",
+        currentStatus: "APPLICATION_AMEND",
+        code: "test-grant",
+        clientRef: "ref-123",
+        phases: [],
+      }),
+    );
+    createApplicationUseCase.mockResolvedValue("new-application-id");
+    findByClientRefAndCode.mockResolvedValue({
+      addClientRef: vi.fn(),
+      code: "test-grant",
+      clientRefs: new Set(["previous-client-ref", "new-client-ref"]),
+      latestClientRef: "new-client-ref",
+    });
+    update.mockResolvedValue({});
+
+    await replaceApplicationUseCase("test-grant", testApplication);
+
+    expect(linkSeries).toHaveBeenCalledWith(
+      {
+        code: "test-grant",
+        clientRefs: ["previous-client-ref", "new-client-ref"],
+      },
+      mockSession,
+    );
+    expect(update.mock.invocationCallOrder[0]).toBeLessThan(
+      linkSeries.mock.invocationCallOrder[0],
+    );
   });
 
   it("throws a conflict error when replacement is not allowed", async () => {
@@ -126,6 +169,7 @@ describe("replaceApplicationUseCase", () => {
 
     expect(createApplicationUseCase).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+    expect(linkSeries).not.toHaveBeenCalled();
   });
 
   it("throws when the previous application is not found", async () => {
@@ -145,6 +189,7 @@ describe("replaceApplicationUseCase", () => {
 
     expect(createApplicationUseCase).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+    expect(linkSeries).not.toHaveBeenCalled();
   });
 
   it("throws when createApplicationUseCase fails", async () => {
@@ -178,6 +223,7 @@ describe("replaceApplicationUseCase", () => {
     ).rejects.toThrow("Failed to create application");
 
     expect(update).not.toHaveBeenCalled();
+    expect(linkSeries).not.toHaveBeenCalled();
   });
 
   it("writes an audit event after a successful replace", async () => {
@@ -194,7 +240,12 @@ describe("replaceApplicationUseCase", () => {
     withTransaction.mockImplementation(async (cb) => cb(mockSession));
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(prevApplication);
     createApplicationUseCase.mockResolvedValue("new-application-id");
-    const mockXref = { addClientRef: vi.fn() };
+    const mockXref = {
+      addClientRef: vi.fn(),
+      code: "test-grant",
+      clientRefs: new Set(["previous-client-ref", "new-client-ref"]),
+      latestClientRef: "new-client-ref",
+    };
     findByClientRefAndCode.mockResolvedValue(mockXref);
     update.mockResolvedValue({});
 

@@ -18,6 +18,7 @@ const eventAttemptSchema = Joi.object({
 // `claimedBy` is a live claim token and must never be returned.
 export const eventDetailResponseSchema = eventRowWithAttemptsSchema
   .keys({
+    eventType: Joi.string().allow(null).required().example("UpdateCaseStatus"),
     payload: Joi.object().unknown(true).allow(null).required(),
     // Null where the owning service cannot edit a payload: the admin gates its
     // Edit button on it, and posts it back as the edit's revision.

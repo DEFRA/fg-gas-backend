@@ -3,6 +3,7 @@ import { ConfigVersion, FetchStatus } from "../models/config-version.js";
 import {
   findByGrantCodeAndVersion,
   findLatestForMajor,
+  findLatestActive,
   updateFetchStatus,
   upsert,
 } from "./config-version.repository.js";
@@ -21,6 +22,17 @@ vi.mock("../../common/mongo-client.js", () => ({
 describe("config-version.repository", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe("findLatestActive", () => {
+    it("resolves admin permissions from the highest active semantic version", async () => {
+      mockCollection.findOne.mockResolvedValue(null);
+      expect(await findLatestActive("woodland")).toBeNull();
+      expect(mockCollection.findOne).toHaveBeenCalledWith(
+        { grantCode: "woodland", status: "active" },
+        { sort: { major: -1, minor: -1, patch: -1 } },
+      );
+    });
   });
 
   describe("upsert", () => {

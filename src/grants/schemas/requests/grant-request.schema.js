@@ -24,4 +24,7 @@ export const grantRequestSchema = Joi.object({
   entitlementTemplates: entitlementTemplates.optional(),
   pages: pages.optional(),
   claims: claims.optional(),
+  admin: Joi.object({ role: Joi.string().trim().required() })
+    .unknown(false)
+    .optional(),
 });

@@ -5,17 +5,13 @@ import {
   listEntitlementsWithClaimCapacity,
   listSubmittedClaims,
 } from "../../grants/services/claims.service.js";
-import { getEntitlementOverview } from "../../grants/services/entitlement.service.js";
+import { getApplicationClaimsOverview } from "../../grants/services/entitlement.service.js";
 import { listClaimPaymentsUseCase } from "../../payments/use-cases/list-claim-payments.use-case.js";
-import { claimsHeadersSchema } from "../schemas/actor-header.schema.js";
 import { code as grantCode } from "../schemas/code.js";
 import { getClaimsResponseSchema } from "../schemas/get-claims-response.schema.js";
-import { buildClaimsView } from "../services/build-claims-view.js";
-import {
-  assertNotHidden,
-  resolveClaimsAccess,
-  userRolesOf,
-} from "../services/claims-access.js";
+import { buildBanner } from "../services/build-banner.js";
+import { prefetchOperatorRoles } from "../services/operator-roles.js";
+import { buildClaimsView } from "../view-models/build-claims-view.js";
 
 export const getClaimsRoute = {
   method: "GET",
@@ -28,7 +24,6 @@ export const getClaimsRoute = {
         code: grantCode,
         clientRef: applicationClientRef,
       }),
-      headers: claimsHeadersSchema,
     },
     response: {
       schema: getClaimsResponseSchema,
@@ -40,20 +35,18 @@ export const getClaimsRoute = {
       `Get claims and entitlements for application with  code ${code} and clientRef ${clientRef}`,
     );
 
+    const findHeldRoles = prefetchOperatorRoles();
     const [overview, claimableEntitlements, claims, claimPayments] =
       await Promise.all([
-        getEntitlementOverview({ code, clientRef }),
+        getApplicationClaimsOverview({ code, clientRef, findHeldRoles }),
         listEntitlementsWithClaimCapacity({ code, clientRef }),
         listSubmittedClaims({ code, clientRef }),
         listClaimPaymentsUseCase({ code, clientRef }),
       ]);
 
-    const heldRoles = userRolesOf(request);
-    const access = resolveClaimsAccess(heldRoles, overview.claimsRequiredRoles);
-    assertNotHidden(access);
-
     return buildClaimsView({
       ...overview,
+      banner: await buildBanner(overview),
       claimableEntitlements,
       claims,
       claimPayments,

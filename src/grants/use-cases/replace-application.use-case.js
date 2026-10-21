@@ -7,6 +7,7 @@ import {
   findByClientRefAndCode,
   update,
 } from "../repositories/application-series.repository.js";
+import { linkSeries } from "../repositories/application.repository.js";
 import { createApplicationUseCase } from "./create-application.use-case.js";
 import { findApplicationByClientRefAndCodeUseCase } from "./find-application-by-client-ref-and-code.use-case.js";
 import {
@@ -42,6 +43,10 @@ const replaceApplication = async ({ code, application }, session) => {
     );
     series.addClientRef(clientRef, applicationID);
     await update(series, session);
+    await linkSeries(
+      { code: series.code, clientRefs: [...series.clientRefs] },
+      session,
+    );
     logger.info("Updated ApplicationSeries.");
     return applicationID;
   } else {

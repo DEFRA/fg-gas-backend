@@ -16,12 +16,11 @@ import {
   SECTION_CAP_BYTES,
   composeRecordPage,
 } from "../services/compose-record-page.js";
-import { RECORD_KINDS } from "../services/record-kinds.js";
 import {
   readApplicationHeader,
   readApplicationSummary,
 } from "./application-page.helpers.js";
-import { readRecordEventsUseCase } from "./read-record-events.use-case.js";
+import { readApplicationEventsUseCase } from "./read-record-events.use-case.js";
 
 const readOverview = async ({ clientRef, code }) => {
   const [{ summary, storedBytes }, series] = await Promise.all([
@@ -46,12 +45,8 @@ const readOverview = async ({ clientRef, code }) => {
   };
 };
 
-const readEvents = ({ clientRef, code }) =>
-  readRecordEventsUseCase({
-    kind: RECORD_KINDS.APPLICATION,
-    code,
-    ref: clientRef,
-  });
+const readEvents = ({ clientRef }) =>
+  readApplicationEventsUseCase({ ref: clientRef });
 
 // Too large to show is known from the stored size, so an oversized document
 // is never fetched.

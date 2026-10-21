@@ -1,3 +1,5 @@
+import { toErrorKey } from "../common/buckets/error-key.js";
+
 // Why the last attempt at an inbox/outbox event failed, recorded on the
 // document so the events admin list can show it without anyone reading the
 // logs. Flat fields only - never the error object itself, which is not
@@ -70,6 +72,13 @@ export const toLastError = (error) => {
     stack: stackOf(error, MAX_STACK_LENGTH),
   };
 };
+
+// Every write of a `lastError` carries the key Top errors groups it by, so
+// the two can never disagree.
+export const withErrorKey = (lastError) => ({
+  lastError,
+  errorKey: toErrorKey(lastError),
+});
 
 // The claim-expiry sweep has no exception to record: nothing threw, the worker
 // simply stopped answering, so the sweep names itself.

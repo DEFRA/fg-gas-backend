@@ -2,7 +2,10 @@ import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { up as moveInboxListOntoReceipt } from "../../migrations/20260914120000-inbox-publication-date-list-indexes.js";
-import { findPage as findInboxPage } from "../../src/events/repositories/inbox.repository.js";
+import { parseQuery, runQuery } from "../../src/common/buckets/engine.js";
+import { queryRequestSchema } from "../../src/common/buckets/schema.js";
+import { mongoClient } from "../../src/common/mongo-client.js";
+import { inboxBucket } from "../../src/events/buckets/inbox.bucket.js";
 
 const LIST_INDEX = "publicationDate_-1__id_-1";
 const STATUS_INDEX = "status_1_publicationDate_-1__id_-1";
@@ -21,6 +24,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await moveInboxListOntoReceipt(db);
   await client?.close();
+  await mongoClient.close();
 });
 
 const idAt = (iso) =>
@@ -70,19 +74,25 @@ const byRef = async () =>
     (await inbox.find({}).toArray()).map((r) => [r.segregationRef, r]),
   );
 
-const walkForward = async (opts = {}) => {
+const bucket = inboxBucket();
+
+const findInboxPage = (body = {}) => {
+  const { value } = queryRequestSchema.validate(body);
+
+  return runQuery(bucket, parseQuery(bucket, value));
+};
+
+const walkForward = async (body = {}) => {
   const rows = [];
   let cursor;
-  let hasNextPage = true;
   let guard = 0;
 
-  while (hasNextPage && guard < 50) {
-    const page = await findInboxPage({ ...opts, cursor });
-    rows.push(...page.data);
-    cursor = page.pagination.endCursor;
-    hasNextPage = page.pagination.hasNextPage;
+  do {
+    const page = await findInboxPage({ ...body, cursor });
+    rows.push(...page.rows);
+    cursor = page.page.next ?? undefined;
     guard++;
-  }
+  } while (cursor && guard < 50);
 
   return rows;
 };
@@ -136,9 +146,9 @@ describe("normalising inbox publicationDate", () => {
     await seedMixed();
     await moveInboxListOntoReceipt(db);
 
-    const rows = await walkForward({ pageSize: 2 });
+    const rows = await walkForward({ limit: 2 });
 
-    expect(rows.map((r) => r.messageId)).toEqual([
+    expect(rows.map((r) => r.subtitle)).toEqual([
       "msg-canonical",
       "msg-date",
       "msg-offset",
@@ -254,7 +264,7 @@ describe("the inbox list by publicationDate", () => {
       to: "2026-06-16T10:03:00.000Z",
     });
 
-    expect(page.data.map((r) => r.messageId)).toEqual([
+    expect(page.rows.map((r) => r.subtitle)).toEqual([
       "msg-row-3",
       "msg-row-2",
     ]);
@@ -265,7 +275,7 @@ describe("the inbox list by publicationDate", () => {
 
     const page = await findInboxPage({ from: "2026-06-16T11:04:00+01:00" });
 
-    expect(page.data.map((r) => r.messageId)).toEqual([
+    expect(page.rows.map((r) => r.subtitle)).toEqual([
       "msg-row-5",
       "msg-row-4",
     ]);
@@ -274,9 +284,12 @@ describe("the inbox list by publicationDate", () => {
   it("pages a status-filtered list by publicationDate", async () => {
     await seedRows();
 
-    const rows = await walkForward({ status: "DEAD_LETTER", pageSize: 1 });
+    const rows = await walkForward({
+      where: { status: "DEAD_LETTER" },
+      limit: 1,
+    });
 
-    expect(rows.map((r) => r.messageId)).toEqual([
+    expect(rows.map((r) => r.subtitle)).toEqual([
       "msg-row-5",
       "msg-row-3",
       "msg-row-1",

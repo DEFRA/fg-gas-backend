@@ -5,6 +5,7 @@ import { logger } from "../../common/logger.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
 import { parseSemver } from "../../common/semver.js";
 import {
+  findLatestActive,
   findLatestForMajor,
   updateFetchStatus,
 } from "../repositories/config-version.repository.js";
@@ -198,11 +199,20 @@ const resolveConfigVersion = async (grantCode, requestedVersion) => {
   return configVersion;
 };
 
+// Without a requested version, resolve the highest active published definition
+// across all majors. A requested version keeps the existing major boundary.
 export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
-  logger.info(`Resolving config version for ${grantCode}@${requestedVersion}`);
+  const configVersion =
+    requestedVersion === undefined
+      ? await findLatestActive(grantCode)
+      : await resolveConfigVersion(grantCode, requestedVersion);
 
-  const configVersion = await resolveConfigVersion(grantCode, requestedVersion);
+  if (!configVersion) {
+    throw Boom.notFound(`No active config version found for ${grantCode}`);
+  }
+
   const resolvedVersion = configVersion.version;
+  logger.info(`Loading grant definition for ${grantCode}@${resolvedVersion}`);
 
   await guardFetchStatus(configVersion, grantCode, resolvedVersion);
 

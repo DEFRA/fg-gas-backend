@@ -105,6 +105,8 @@ export const toEventDetail = ({
 
   return {
     ...row,
+    // The stamp, as the lists show it; null on a row no writer or backfill has reached.
+    eventType: orNull(doc.eventType),
     ...payloadFacts(service, doc),
     traceId: deriveTraceId(intermediate.traceparent),
     segregationRef: orNull(doc.segregationRef),

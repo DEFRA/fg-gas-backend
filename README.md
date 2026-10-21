@@ -326,6 +326,19 @@ first.
 
 Locally, set `SERVICE_ACCESS_TOKEN_HASH` in `.env` instead of the portal.
 
+#### Single Front Door allow-list access
+
+`GET /api/allow-list/grants/{grantCode}/sbi/{sbi}/crn/{crn}` requires a bearer
+token, a nine-digit SBI and a ten-digit CRN. Grants UI uses its existing
+application-submission token. No configuration version is accepted; GAS resolves
+the latest active published definition across all major versions and returns 404
+if none exists. Each populated allow list must match; an empty list imposes no
+restriction. The response is `{ "allowed": true }` or `{ "allowed": false }`.
+All responses use `Cache-Control: no-store`. A server error means eligibility
+could not be checked.
+
+SFD gets its own client pair via the existing provisioning process above.
+
 #### Revoke
 
 There is no revoke-by-omission - clearing the secret deliberately does nothing.

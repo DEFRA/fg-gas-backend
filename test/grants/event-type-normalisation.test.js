@@ -2,7 +2,10 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { up as normaliseSortKeys } from "../../migrations/20260901130000-normalise-event-sort-keys.js";
-import { findPage as findOutboxPage } from "../../src/events/repositories/outbox.repository.js";
+import { parseQuery, runQuery } from "../../src/common/buckets/engine.js";
+import { queryRequestSchema } from "../../src/common/buckets/schema.js";
+import { mongoClient } from "../../src/common/mongo-client.js";
+import { outboxBucket } from "../../src/events/buckets/outbox.bucket.js";
 
 let client;
 let db;
@@ -18,21 +21,21 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await client?.close();
+  await mongoClient.close();
 });
 
-const walkForward = async (findPage, pageSize) => {
+const walkForward = async (bucket, limit) => {
   const rows = [];
   let cursor;
-  let hasNextPage = true;
   let guard = 0;
 
-  while (hasNextPage && guard < 50) {
-    const page = await findPage({ pageSize, cursor });
-    rows.push(...page.data);
-    cursor = page.pagination.endCursor;
-    hasNextPage = page.pagination.hasNextPage;
+  do {
+    const { value } = queryRequestSchema.validate({ limit, cursor });
+    const page = await runQuery(bucket, parseQuery(bucket, value));
+    rows.push(...page.rows);
+    cursor = page.page.next ?? undefined;
     guard++;
-  }
+  } while (cursor && guard < 50);
 
   return rows;
 };
@@ -152,11 +155,11 @@ describe("normalising the event sort keys", () => {
       await seedMixedOutbox();
       await normaliseSortKeys(db);
 
-      const rows = await walkForward(findOutboxPage, 2);
+      const rows = await walkForward(outboxBucket(), 2);
 
       expect(rows).toHaveLength(3);
       const seeded = await outbox.find({}).project({ _id: 1 }).toArray();
-      expect(rows.map((r) => r._id.toString()).sort()).toEqual(
+      expect(rows.map((r) => r.id).sort()).toEqual(
         seeded.map((d) => d._id.toString()).sort(),
       );
     });

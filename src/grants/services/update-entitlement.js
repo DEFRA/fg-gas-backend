@@ -23,6 +23,7 @@ import {
   invalidClaimCode,
   invalidUpdateData,
 } from "./entitlement-errors.js";
+import { requireClaimsChange } from "./claims-access.js";
 import { toChangedValues } from "./entitlement-audit-values.js";
 import { toEntitlementDto } from "./map-entitlement.js";
 
@@ -153,13 +154,14 @@ const updateInTransaction = async (
   return toEntitlementDto(updated);
 };
 
-export const updateEntitlement = async (command) => {
+export const updateEntitlement = async (command, findHeldRoles) => {
   const application = await mapApplicationNotFound(command);
   const pinnedVersion = pinnedVersionOf(application);
   const { grant } = await resolveCurrentGrantUseCase(
     command.code,
     pinnedVersion,
   );
+  await requireClaimsChange(grant, findHeldRoles);
 
   return withTransaction((session) =>
     updateInTransaction({ command, grant, pinnedVersion }, session),

@@ -18,8 +18,8 @@ import {
 } from "../use-cases/resolve-current-grant.use-case.js";
 import {
   createEntitlement,
+  getApplicationClaimsOverview,
   getEntitlementCreationDetails,
-  getEntitlementOverview,
   getEntitlementTemplateDetails,
   updateEntitlement,
 } from "./entitlement.service.js";
@@ -95,9 +95,15 @@ const grant = {
   findEntitlementTemplatesAvailableAt: vi.fn(() => [template]),
 };
 
+const findHeldRoles = vi.fn();
+
+const requiredRoles = { allOf: ["ROLE_WMP_CLAIMS"], anyOf: [] };
+const restrictedGrant = { ...grant, claims: { requiredRoles } };
+
 describe("EntitlementService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    findHeldRoles.mockReset();
     findApplicationByClientRefAndCodeUseCase.mockResolvedValue(application);
     resolveCurrentGrantUseCase.mockResolvedValue({ grant });
     pinnedVersionOf.mockImplementation(
@@ -139,9 +145,10 @@ describe("EntitlementService", () => {
     findExistingEntitlements.mockResolvedValue([existing]);
 
     await expect(
-      getEntitlementOverview({
+      getApplicationClaimsOverview({
         code: command.code,
         clientRef: command.clientRef,
+        findHeldRoles,
       }),
     ).resolves.toEqual({
       entitlements: [existing],
@@ -155,6 +162,7 @@ describe("EntitlementService", () => {
       applicationContext: { answers: { hectares: 3 } },
       claimsPage: grant.pages.claims,
       claimsRequiredRoles: null,
+      access: "full",
     });
   });
 
@@ -587,6 +595,42 @@ describe("EntitlementService", () => {
       });
     });
 
+    it("updates for an operator holding the grant's required claims roles", async () => {
+      resolveCurrentGrantUseCase.mockResolvedValue({ grant: restrictedGrant });
+      findHeldRoles.mockResolvedValue(["ROLE_WMP_CLAIMS"]);
+
+      await expect(
+        updateEntitlement(update, findHeldRoles),
+      ).resolves.toMatchObject({
+        id: stored.id,
+        data: { hectares: 45000, fixed: "yes" },
+      });
+      expect(findHeldRoles).toHaveBeenCalledTimes(1);
+      expect(updateEntitlementData).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          id: stored.id,
+          data: { hectares: 45000, fixed: "yes" },
+        }),
+        "session",
+      );
+    });
+
+    it("passes on a role lookup failure before starting an update transaction", async () => {
+      resolveCurrentGrantUseCase.mockResolvedValue({ grant: restrictedGrant });
+      const failure = Boom.serverUnavailable(
+        "Caseworking roles could not be determined",
+      );
+      failure.output.payload.errorCode = "CASEWORKING_ROLES_UNAVAILABLE";
+      findHeldRoles.mockRejectedValue(failure);
+
+      await expect(updateEntitlement(update, findHeldRoles)).rejects.toBe(
+        failure,
+      );
+      expect(withTransaction).not.toHaveBeenCalled();
+      expect(updateEntitlementData).not.toHaveBeenCalled();
+      expect(buildAuditEvent).not.toHaveBeenCalled();
+    });
+
     it("updates under the application lock, wherever the application stands", async () => {
       template.isAvailableAt.mockReturnValue(false);
 
@@ -704,6 +748,174 @@ describe("EntitlementService", () => {
           statusCode: 409,
           payload: { errorCode: "CONFIGURATION_CHANGED" },
         },
+      });
+    });
+  });
+  // Whether an operator may see or change an application's Claims is Grants' to
+  // decide, from the roles the grant requires.
+  describe("access by claims roles", () => {
+    const holding = (...roles) => findHeldRoles.mockResolvedValue(roles);
+    const forbidden = { output: { statusCode: 403 } };
+
+    beforeEach(() => {
+      resolveCurrentGrantUseCase.mockResolvedValue({ grant: restrictedGrant });
+    });
+
+    describe("getApplicationClaimsOverview", () => {
+      const overview = () =>
+        getApplicationClaimsOverview({
+          code: command.code,
+          clientRef: command.clientRef,
+          findHeldRoles,
+        });
+
+      it("answers full access, and the roles it was decided on, to an operator holding them", async () => {
+        holding("ROLE_WMP_CLAIMS");
+
+        await expect(overview()).resolves.toMatchObject({
+          access: "full",
+          claimsRequiredRoles: requiredRoles,
+        });
+      });
+
+      it("answers view-only access to an operator holding other roles", async () => {
+        holding("ROLE_OTHER");
+
+        await expect(overview()).resolves.toMatchObject({
+          access: "view-only",
+        });
+      });
+
+      it("refuses an operator holding no roles", async () => {
+        holding();
+
+        await expect(overview()).rejects.toMatchObject(forbidden);
+      });
+
+      it("passes on a failure to determine the operator's roles", async () => {
+        findHeldRoles.mockRejectedValue(Boom.serverUnavailable());
+
+        await expect(overview()).rejects.toMatchObject({
+          output: { statusCode: 503 },
+        });
+      });
+
+      it("does not ask for the roles when the grant requires none", async () => {
+        resolveCurrentGrantUseCase.mockResolvedValue({ grant });
+
+        await expect(overview()).resolves.toMatchObject({ access: "full" });
+        expect(findHeldRoles).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("getEntitlementCreationDetails", () => {
+      const details = (claimCode = command.claimCode) =>
+        getEntitlementCreationDetails({ ...command, claimCode, findHeldRoles });
+
+      it("shows the creation option to an operator who may change claims", async () => {
+        holding("ROLE_WMP_CLAIMS");
+
+        await expect(details()).resolves.toMatchObject({
+          claimCode: command.claimCode,
+        });
+      });
+
+      it("refuses an operator who may only view claims", async () => {
+        holding("ROLE_OTHER");
+
+        await expect(details()).rejects.toMatchObject(forbidden);
+      });
+
+      it("refuses before saying whether the claim code exists", async () => {
+        holding("ROLE_OTHER");
+
+        await expect(details("ENT_UNKNOWN")).rejects.toMatchObject(forbidden);
+      });
+    });
+
+    describe("createEntitlement", () => {
+      it("creates for an operator who may change claims", async () => {
+        holding("ROLE_WMP_CLAIMS");
+
+        await createEntitlement(command, findHeldRoles);
+
+        expect(insertEntitlement).toHaveBeenCalled();
+      });
+
+      it.each([[["ROLE_OTHER"]], [[]]])(
+        "refuses an operator holding %j before touching anything",
+        async (roles) => {
+          holding(...roles);
+
+          await expect(
+            createEntitlement(command, findHeldRoles),
+          ).rejects.toMatchObject(forbidden);
+          expect(withTransaction).not.toHaveBeenCalled();
+          expect(insertEntitlement).not.toHaveBeenCalled();
+        },
+      );
+
+      it("does not ask for the roles when the grant requires none", async () => {
+        resolveCurrentGrantUseCase.mockResolvedValue({ grant });
+
+        await createEntitlement(command, findHeldRoles);
+
+        expect(findHeldRoles).not.toHaveBeenCalled();
+      });
+
+      it("fails when it cannot tell which roles the operator holds", async () => {
+        findHeldRoles.mockRejectedValue(Boom.serverUnavailable());
+
+        await expect(
+          createEntitlement(command, findHeldRoles),
+        ).rejects.toMatchObject({ output: { statusCode: 503 } });
+        expect(insertEntitlement).not.toHaveBeenCalled();
+      });
+
+      // A retry resolves the grant afresh, and the configuration may have changed
+      // under it, so the check follows the grant each attempt creates under.
+      it("checks a retry against the grant it is about to create under", async () => {
+        resolveCurrentGrantUseCase
+          .mockResolvedValueOnce({ grant })
+          .mockResolvedValueOnce({ grant: restrictedGrant });
+        insertEntitlement.mockResolvedValueOnce(false);
+        holding("ROLE_OTHER");
+
+        await expect(
+          createEntitlement(command, findHeldRoles),
+        ).rejects.toMatchObject(forbidden);
+        expect(withTransaction).toHaveBeenCalledTimes(1);
+        expect(findHeldRoles).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("updateEntitlement", () => {
+      const update = {
+        code: command.code,
+        clientRef: command.clientRef,
+        entitlementId: "entitlement-1",
+        data: { hectares: { value: 45000 } },
+      };
+
+      it("refuses an operator who may only view claims, before any write", async () => {
+        holding("ROLE_OTHER");
+
+        await expect(
+          updateEntitlement(update, findHeldRoles),
+        ).rejects.toMatchObject(forbidden);
+        expect(withTransaction).not.toHaveBeenCalled();
+        expect(updateEntitlementData).not.toHaveBeenCalled();
+      });
+
+      it("does not ask for the roles when the grant requires none", async () => {
+        resolveCurrentGrantUseCase.mockResolvedValue({ grant });
+        findExistingEntitlements.mockResolvedValue([]);
+
+        // Past the access check, there is no such entitlement to change.
+        await expect(
+          updateEntitlement(update, findHeldRoles),
+        ).rejects.toMatchObject({ output: { statusCode: 404 } });
+        expect(findHeldRoles).not.toHaveBeenCalled();
       });
     });
   });

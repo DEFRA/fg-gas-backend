@@ -2,22 +2,12 @@ import Boom from "@hapi/boom";
 import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
-import {
-  createEntitlement,
-  getEntitlementOverview,
-} from "../../grants/services/entitlement.service.js";
-import {
-  actorHeaderSchema,
-  claimsHeadersSchema,
-} from "../schemas/actor-header.schema.js";
+import { createEntitlement } from "../../grants/services/entitlement.service.js";
+import { actorHeaderSchema } from "../schemas/actor-header.schema.js";
 import { code as grantCode } from "../schemas/code.js";
 import { createEntitlementRequestSchema } from "../schemas/create-entitlement-request.schema.js";
 import { decodeActor } from "../services/actor-header.js";
-import {
-  assertFullAccess,
-  resolveClaimsAccess,
-  userRolesOf,
-} from "../services/claims-access.js";
+import { prefetchOperatorRoles } from "../services/operator-roles.js";
 
 const HTTP_STATUS_CREATED = 201;
 
@@ -35,7 +25,7 @@ export const createEntitlementRoute = {
         code: grantCode,
         clientRef: applicationClientRef,
       }),
-      headers: claimsHeadersSchema.concat(actorHeaderSchema),
+      headers: actorHeaderSchema,
       payload: createEntitlementRequestSchema,
     },
   },
@@ -49,22 +39,22 @@ export const createEntitlementRoute = {
       );
     }
 
-    const overview = await getEntitlementOverview({ code, clientRef });
-    const heldRoles = userRolesOf(request);
-    const access = resolveClaimsAccess(heldRoles, overview.claimsRequiredRoles);
-    assertFullAccess(access);
+    const findHeldRoles = prefetchOperatorRoles();
 
     logger.info(
-      `Create entitlement for application with code ${code}, claimCode ${payload.claimCode} and clientRef ${clientRef}`,
+      `Create entitlement requested for application with code ${code}, claimCode ${payload.claimCode} and clientRef ${clientRef}`,
     );
 
-    const entitlement = await createEntitlement({
-      code,
-      clientRef,
-      claimCode: payload.claimCode,
-      data: payload.data,
-      actor: readActor(request),
-    });
+    const entitlement = await createEntitlement(
+      {
+        code,
+        clientRef,
+        claimCode: payload.claimCode,
+        data: payload.data,
+        actor: readActor(request),
+      },
+      findHeldRoles,
+    );
 
     return h.response(entitlement).code(HTTP_STATUS_CREATED);
   },

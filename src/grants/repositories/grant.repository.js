@@ -1,9 +1,10 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
-import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
+
+const optionalBlock = (value) => value ?? undefined;
 
 // Stored documents predate most of what the model now expects: a grant written
 // before entitlement templates existed has no such key, and one written without
@@ -23,8 +24,9 @@ export const toGrant = (doc) =>
     entitlementTemplates: doc.entitlementTemplates ?? [],
     // Stored as null by the driver when a grant carries none, which the model
     // reads as "absent" only if it arrives undefined.
-    pages: doc.pages ?? undefined,
-    claims: doc.claims ?? undefined,
+    pages: optionalBlock(doc.pages),
+    claims: optionalBlock(doc.claims),
+    admin: optionalBlock(doc.admin),
   });
 
 export const collection = "grants";
@@ -53,11 +55,10 @@ export const replace = async (grant) => {
     .replaceOne({ code: grant.code, version: grant.version }, document);
 };
 
-export const findByCode = async (code, version = "0.0.0") => {
-  const result = await db.collection(collection).findOne({
-    code,
-    version,
-  });
+export const findByCode = async (code, version) => {
+  const grants = db.collection(collection);
+  const filter = { code, version: version ?? "0.0.0" };
+  const result = await grants.findOne(filter);
 
   return result && toGrant(result);
 };
@@ -67,8 +68,3 @@ export const saveFromDefinition = async (grantDefinition, version) => {
   await save(grant);
   return grant;
 };
-
-export const findCodes = () =>
-  db
-    .collection(collection)
-    .distinct("code", {}, { maxTimeMS: config.adminReadTimeoutMs });
