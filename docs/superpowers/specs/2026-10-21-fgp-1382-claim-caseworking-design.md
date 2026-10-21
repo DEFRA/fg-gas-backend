@@ -23,7 +23,7 @@ The user approved reusing the existing outbox and supplementary-data machinery, 
 - `STORE_AGREEMENT_CASE` builds supplementary data and enqueues an `UpdateCaseStatusCommand` with the caller's session. It is a useful pattern, but it also stores an agreement and couples data attachment to case progression.
 - `saveEvents`, `CloudEvent`, the outbox publisher, and the current FIFO topic/queue already supply durable delivery, tracing, grouping, and retries.
 - CW ingests the GAS update queue into its inbox and dispatches by CloudEvent type. Its Case model already merges supplementary-data array entries by a nominated key.
-- CW's general case repository `update` replaces the entire case document. A data-only consumer must use a narrower write to avoid overwriting concurrent status or task changes.
+- Before this feature, CW's general case repository `update` replaced the entire case document. The data-only consumer needs a narrower write, and other case updates must atomically retain the latest stored claims to prevent a stale caseworker edit from erasing an ingested claim.
 
 ## Alternatives and decision
 
@@ -101,7 +101,7 @@ The new inbox handler validates the complete event data before writing: nonempty
 
 Find the existing case by `caseRef` and `workflowCode`. Merge each entry using `Case.updateSupplementaryData` with `targetNode: "claims"`, `dataType: "ARRAY"`, and `key: "gasClaimId"`. A repeated delivery replaces the existing claim entry rather than appending a duplicate. Different claims remain present.
 
-Persist only `supplementaryData.claims` using a targeted repository update. Do not call the general whole-document replacement, `progressTo`, position validation, workflow resolution, or status publication. Position, phase/stage tasks, timeline, assignment, and other supplementary-data nodes remain untouched. Existing inbox grouping serializes claim deliveries for a case; the targeted write also protects concurrent updates to unrelated case fields.
+Persist only `supplementaryData.claims` using a targeted repository update. Do not call the general whole-document replacement, `progressTo`, position validation, workflow resolution, or status publication. Position, phase/stage tasks, timeline, assignment, and other supplementary-data nodes remain untouched. Existing inbox grouping serializes claim deliveries for a case; the targeted write also protects concurrent updates to unrelated case fields. For the opposite ordering, the general case update uses an atomic aggregation-pipeline replacement that merges the latest stored claims into the caller's snapshot. Only the dedicated claim-data writer changes this reserved node. Tests cover both orderings, existing claims, and literal payload values.
 
 If the case is missing or the payload is invalid, let the existing inbox failure/retry/dead-letter machinery record the failure. Do not report successful processing or create a new case. A failed write must also propagate for retry. Redelivery after a successful write but before inbox completion is safe because the claim merge is keyed by GAS ID.
 
@@ -142,6 +142,7 @@ Deploy the CW handler before enabling the producer hook in a published grant def
 
 - [x] Existing GAS, CW, and Woodland next paths inspected.
 - [x] Design self-reviewed against FGP-1382 and the user's status constraint.
-- [ ] User review of this written design.
-- [ ] Detailed implementation plan and execution-method selection.
-- [ ] Implementation, automated verification, and independent review.
+- [x] User review of this written design — approved in thread on 2026-10-21.
+- [x] Detailed implementation plan approved; native execution selected.
+- [x] Implementation and independent review, including a verified fix for concurrent case edits.
+- [ ] Docker HTTP/queue integration checks — container runtime access is unavailable locally.
