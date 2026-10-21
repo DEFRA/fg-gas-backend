@@ -4,12 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
-import {
-  findByCode,
-  replace,
-  save,
-  saveFromDefinition,
-} from "./grant.repository.js";
+import { findByCode, save, saveFromDefinition } from "./grant.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -132,62 +127,6 @@ describe("save", () => {
         }),
       ),
     ).rejects.toThrow(error);
-  });
-});
-
-describe("replace", () => {
-  it("replaces a Grant in the repository", async () => {
-    const replaceOne = vi.fn().mockResolvedValueOnce({
-      insertedId: "code-1",
-    });
-
-    db.collection.mockReturnValue({
-      replaceOne,
-    });
-
-    await replace(
-      new Grant({
-        code: "code-1",
-        version: "0.0.0",
-        metadata: {
-          description: "test",
-          startDate: "2021-01-01T00:00:00.000Z",
-        },
-        actions: [
-          {
-            method: "GET",
-            name: "test-action",
-            url: "http://localhost",
-          },
-        ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
-      }),
-    );
-
-    expect(db.collection).toHaveBeenCalledWith("grants");
-
-    expect(replaceOne).toHaveBeenCalledWith(
-      { code: "code-1", version: "0.0.0" },
-      new GrantDocument({
-        code: "code-1",
-        version: "0.0.0",
-        metadata: {
-          description: "test",
-          startDate: "2021-01-01T00:00:00.000Z",
-        },
-        actions: [
-          {
-            method: "GET",
-            name: "test-action",
-            url: "http://localhost",
-          },
-        ],
-        entitlementTemplates: [],
-      }),
-    );
   });
 });
 
