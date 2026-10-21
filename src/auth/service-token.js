@@ -1,7 +1,9 @@
 export const GRANT_ADMIN_CLIENT = "fg-grants-platform-admin";
 
 export const getServiceIdentity = (record) => {
-  if (record.identityMigrationPending === true) return record.clientId;
+  if (record.identityMigrationPending === true) {
+    return record.clientId;
+  }
 
   // Old writers and replica lag can expose records before the backfill.
   return typeof record.client === "string" && record.client.trim() !== ""

@@ -1,5 +1,4 @@
 import Boom from "@hapi/boom";
-import { GRANT_ADMIN_CLIENT } from "../auth/service-token.js";
 
 /**
  * The one caller this surface answers.
@@ -15,7 +14,7 @@ import { GRANT_ADMIN_CLIENT } from "../auth/service-token.js";
  * promote it. Existing permissions are migrated from the old clientId guard;
  * token issuers grant this permission only to the named admin client.
  */
-export const ADMIN_CLIENT = GRANT_ADMIN_CLIENT;
+export { GRANT_ADMIN_CLIENT as ADMIN_CLIENT } from "../auth/service-token.js";
 
 /**
  * 403, not 401: the caller authenticated perfectly well, and telling them
