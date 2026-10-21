@@ -10,5 +10,6 @@ export class GrantDocument {
     this.entitlementTemplates = grant.entitlementTemplates;
     this.pages = grant.pages;
     this.claims = grant.claims;
+    this.admin = grant.admin;
   }
 }

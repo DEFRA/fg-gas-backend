@@ -9,13 +9,19 @@ import {
   it,
   vi,
 } from "vitest";
-import {
-  createEntitlement,
-  getEntitlementOverview,
-} from "../../grants/services/entitlement.service.js";
+import { logger } from "../../common/logger.js";
+import { createEntitlement } from "../../grants/services/entitlement.service.js";
+import { prefetchOperatorRoles } from "../services/operator-roles.js";
 import { createEntitlementRoute } from "./create-entitlement.route.js";
 
 vi.mock("../../grants/services/entitlement.service.js");
+vi.mock("../services/operator-roles.js");
+
+const findHeldRoles = vi.fn();
+
+beforeEach(() => {
+  prefetchOperatorRoles.mockReturnValue(findHeldRoles);
+});
 vi.mock("../../common/logger.js", () => ({
   logger: {
     info: vi.fn(),
@@ -59,7 +65,7 @@ describe("createEntitlementRoute", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    getEntitlementOverview.mockResolvedValue({ claimsRequiredRoles: null });
+    createEntitlement.mockResolvedValue(entitlement);
   });
 
   afterAll(async () => {
@@ -72,13 +78,16 @@ describe("createEntitlementRoute", () => {
     const result = await server.inject({ method: "POST", url, payload });
 
     expect(result.statusCode).toEqual(201);
-    expect(createEntitlement).toHaveBeenCalledWith({
-      code,
-      clientRef,
-      claimCode,
-      data: payload.data,
-      actor: null,
-    });
+    expect(createEntitlement).toHaveBeenCalledWith(
+      {
+        code,
+        clientRef,
+        claimCode,
+        data: payload.data,
+        actor: null,
+      },
+      findHeldRoles,
+    );
     expect(result.result).toEqual(entitlement);
   });
 
@@ -94,6 +103,7 @@ describe("createEntitlementRoute", () => {
 
     expect(createEntitlement).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "Łukasz Nowak" }),
+      findHeldRoles,
     );
   });
 
@@ -162,6 +172,37 @@ describe("createEntitlementRoute", () => {
       statusCode: 409,
       errorCode: "ENTITLEMENT_LIMIT_EXCEEDED",
       message: `Cannot create entitlement '${claimCode}'. Maximum instance limit of 1 has been reached.`,
+    });
+  });
+
+  // Which roles may create is Grants' to decide, against the grant the entitlement
+  // is created under; the route only hands over the lookup and passes on the
+  // outcome.
+  describe("access by claims roles", () => {
+    const send = () => server.inject({ method: "POST", url, payload });
+
+    it("hands Grants the operator's roles lookup without asking for the roles itself", async () => {
+      expect((await send()).statusCode).toEqual(201);
+      expect(createEntitlement).toHaveBeenCalledExactlyOnceWith(
+        expect.any(Object),
+        findHeldRoles,
+      );
+      expect(findHeldRoles).not.toHaveBeenCalled();
+    });
+
+    it("passes on Grants' refusal with a 403", async () => {
+      createEntitlement.mockRejectedValue(Boom.forbidden());
+
+      expect((await send()).statusCode).toEqual(403);
+      expect(logger.info).toHaveBeenCalledWith(
+        `Create entitlement requested for application with code ${code}, claimCode ${claimCode} and clientRef ${clientRef}`,
+      );
+    });
+
+    it("passes on a failure to determine the operator's roles with a 503", async () => {
+      createEntitlement.mockRejectedValue(Boom.serverUnavailable());
+
+      expect((await send()).statusCode).toEqual(503);
     });
   });
 });

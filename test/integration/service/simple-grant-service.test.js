@@ -2,16 +2,16 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { seedConfigVersion } from "../../helpers/applications.js";
+import { insertGrant } from "../../helpers/grants.js";
 import { wreck } from "../../helpers/wreck.js";
 
 let client;
 let db;
-let grants, applications;
+let applications;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   db = client.db();
-  grants = db.collection("grants");
   applications = db.collection("applications");
 });
 
@@ -73,19 +73,7 @@ describe("Simple Grant Service Integration Tests", () => {
       ],
     };
 
-    const grantResponse = await wreck.post("/grants", {
-      payload: grantData,
-    });
-    expect(grantResponse.res.statusCode).toBe(204);
-
-    // Verify grant in database
-    const dbGrant = await grants.findOne({ code: grantCode });
-    expect(dbGrant).toBeTruthy();
-    expect(dbGrant.code).toBe(grantCode);
-    expect(dbGrant.phases[0].code).toBe("PHASE_1");
-    expect(dbGrant.phases[0].questions.properties.farmSize.minimum).toBe(1);
-    expect(dbGrant.phases[0].stages[0].statuses[0].code).toBe("NEW");
-    expect(dbGrant.actions).toHaveLength(1);
+    await insertGrant(grantData);
 
     // Seed config version for the grant
     await seedConfigVersion(db, grantCode);
@@ -162,9 +150,7 @@ describe("Simple Grant Service Integration Tests", () => {
       actions: [],
     };
 
-    await wreck.post("/grants", {
-      payload: grantData,
-    });
+    await insertGrant(grantData);
 
     // Seed config version for the grant
     await seedConfigVersion(db, grantCode);
@@ -205,63 +191,5 @@ describe("Simple Grant Service Integration Tests", () => {
       clientRef: `test-validation-invalid-${testId}`,
     });
     expect(dbApplication).toBe(null);
-  });
-
-  it("should prevent duplicate grant creation", async () => {
-    const testId = Date.now();
-    const grantCode = `test-grant-duplicate-${testId}`;
-
-    const grantData = {
-      code: grantCode,
-      version: "0.0.0",
-      metadata: {
-        description: "Test duplicate prevention",
-        startDate: "2025-01-01T00:00:00.000Z",
-      },
-      amendablePositions: [],
-      phases: [
-        {
-          code: "PHASE_1",
-          questions: {
-            $schema: "https://json-schema.org/draft/2020-12/schema",
-            type: "object",
-            properties: {
-              testField: { type: "string" },
-            },
-            required: ["testField"],
-          },
-          stages: [
-            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-          ],
-        },
-      ],
-      actions: [],
-    };
-
-    // Create first grant
-    const firstResponse = await wreck.post("/grants", {
-      payload: grantData,
-    });
-    expect(firstResponse.res.statusCode).toBe(204);
-
-    // Try to create duplicate
-    let duplicateError;
-    try {
-      await wreck.post("/grants", {
-        json: true,
-        payload: grantData,
-      });
-    } catch (error) {
-      duplicateError = error.data.payload;
-    }
-
-    expect(duplicateError.statusCode).toBe(409);
-    expect(duplicateError.message).toContain(
-      `Grant with code "${grantCode}" version "0.0.0" already exists`,
-    );
-
-    // Verify only one grant exists
-    const grantCount = await grants.countDocuments({ code: grantCode });
-    expect(grantCount).toBe(1);
   });
 });

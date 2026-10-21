@@ -9,7 +9,7 @@ import { up as scheduleCompletedExpiry } from "../../migrations/20260921120000-e
 // not another case in the migration test.
 
 const DAY_MS = 86_400_000;
-const TTL_IMAGE = "mongo:6.0.13";
+const TTL_IMAGE = "mongo:7.0";
 const DELETION_TIMEOUT_MS = 30_000;
 const POLL_MS = 250;
 

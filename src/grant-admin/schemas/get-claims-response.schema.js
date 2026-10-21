@@ -94,6 +94,7 @@ export const applicationClaimsSchema = Joi.object({
   availableEntitlements,
   claimableEntitlements: Joi.array().items(claimableEntitlement).required(),
   claimsRequiredRoles: requiredRolesSchema.required(),
+  access: Joi.string().valid("full", "view-only").required(),
 });
 
 export const getClaimsResponseSchema = applicationClaimsSchema.keys({

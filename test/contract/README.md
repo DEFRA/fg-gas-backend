@@ -82,6 +82,9 @@ npm run test:contract -- test/contract/consumer.cw-backend.test.js
 
 # Caseworking case actuators consumer (HTTP)
 npm run test:contract -- test/contract/consumer.cw-backend-actuators.test.js
+
+# Caseworking user roles consumer (HTTP)
+npm run test:contract -- test/contract/consumer.cw-backend-users.test.js
 ```
 
 ### Run Provider Tests
@@ -182,7 +185,14 @@ Corrected to reflect actual architecture:
    - Test: `consumer.cw-backend-actuators.test.js`
    - Calls: the case list or search, one case (with or without its document), case existence, and an event's case on the event detail. Case payloads and documents are matched only as objects.
 
-4. **grants-ui → fg-gas-backend** (HTTP API)
+4. **fg-gas-backend → fg-cw-backend-users** (HTTP API)
+   - Consumer: fg-gas-backend
+   - Provider: fg-cw-backend-users
+   - Type: HTTP contract
+   - Test: `consumer.cw-backend-users.test.js`
+   - Calls: a user's active app roles (`GET /api/users/{entraId}/roles`), for the claims and allow-list pages, including the empty list for a user with none.
+
+5. **grants-ui → fg-gas-backend** (HTTP API)
    - Consumer: grants-ui
    - Provider: fg-gas-backend
    - Type: HTTP contract

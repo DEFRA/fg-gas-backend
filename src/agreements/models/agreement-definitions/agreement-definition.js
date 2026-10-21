@@ -56,10 +56,6 @@ export class AgreementDefinition {
     return this.#executeAction(options);
   }
 
-  getEndpoints() {
-    return structuredClone(this.#definition.endpoints ?? []);
-  }
-
   getTemplates() {
     return structuredClone(this.#definition.templates ?? {});
   }

@@ -5,16 +5,13 @@ import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import { Inbox, InboxStatus } from "../models/inbox.js";
 import {
-  breakdown,
   claimEvents,
-  countFacets,
   deadLetterEvent,
   editPayloadById,
   findById,
   findEditableById,
   findByMessageId,
   findNextMessage,
-  findPage,
   findStatusById,
   insertMany,
   insertOne,
@@ -26,6 +23,7 @@ import {
   updateFailedEvents,
   updateResubmittedEvents,
 } from "./inbox.repository.js";
+import { STAMPED_FIELDS } from "../stamps.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -170,6 +168,7 @@ describe("inbox.repository", () => {
             message: "claim expired before completion",
             at: expect.any(String),
           },
+          errorKey: "ClaimExpired: claim expired before completion",
           claimedAt: null,
           claimedBy: null,
           claimExpiresAt: null,
@@ -302,231 +301,29 @@ describe("inbox.repository", () => {
 
     await update(inbox, "claim-token-1");
 
-    const { _id, ...expected } = inbox;
+    const { _id, eventType, refs, ...expected } = inbox;
     expect(updateOneMock).toHaveBeenCalledWith(
       { _id: inbox._id, claimedBy: "claim-token-1" },
       {
-        $set: expected,
+        $set: { ...expected, errorKey: null },
       },
     );
   });
 
-  describe("findPage", () => {
-    const mockFindChain = (docs) => {
-      const chain = {
-        project: vi.fn().mockReturnThis(),
-        sort: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        toArray: vi.fn().mockResolvedValue(docs),
-      };
-      const find = vi.fn().mockReturnValue(chain);
-      db.collection.mockReturnValue({ find });
-      return { find, chain };
-    };
-
-    const decodeCursor = (cursor) =>
-      JSON.parse(Buffer.from(cursor, "base64url").toString());
-
-    const listProjection = {
-      _id: 1,
-      messageId: 1,
-      type: 1,
-      status: 1,
-      publicationDate: 1,
-      completionDate: 1,
-    };
-
-    const id = "665f1c2e9a1b2c3d4e5f6a7b";
-    const publicationDate = "2026-06-16T10:00:00.000Z";
-
-    it("queries the inbox newest-first with the _id tie-breaker", async () => {
-      const { find, chain } = mockFindChain([]);
-
-      await findPage();
-
-      expect(find).toHaveBeenCalledWith({}, MAX_TIME);
-      expect(chain.sort).toHaveBeenCalledWith({
-        publicationDate: -1,
-        _id: -1,
-      });
-      expect(chain.limit).toHaveBeenCalledWith(21);
+  it("should never send the stamps back, so a stale copy cannot overwrite them", async () => {
+    const inbox = Inbox.createMock({
+      eventType: "case.status.updated",
+      refs: ["ref:abc-123"],
     });
+    const updateOneMock = vi.fn();
+    db.collection.mockReturnValue({ updateOne: updateOneMock });
 
-    it("requests pageSize + 1 documents", async () => {
-      const { chain } = mockFindChain([]);
+    await update(inbox, "claim-token-1");
 
-      await findPage({ pageSize: 5 });
+    const sent = Object.keys(updateOneMock.mock.calls[0][1].$set);
 
-      expect(chain.limit).toHaveBeenCalledWith(6);
-    });
-
-    it("projects only the generic list fields", async () => {
-      const { chain } = mockFindChain([]);
-
-      await findPage();
-
-      expect(chain.project).toHaveBeenCalledWith(listProjection);
-    });
-
-    it("never projects the payload, claim or detail-only fields", async () => {
-      const { chain } = mockFindChain([]);
-
-      await findPage();
-
-      const projection = chain.project.mock.calls[0][0];
-      for (const field of [
-        "event",
-        "event.data",
-        "claimedBy",
-        "claimedAt",
-        "claimExpiresAt",
-        "traceparent",
-        "segregationRef",
-        "lastRedrive",
-        "attemptHistory",
-      ]) {
-        expect(projection).not.toHaveProperty(field);
-      }
-    });
-
-    it("applies the status filter when given", async () => {
-      const { find } = mockFindChain([]);
-
-      await findPage({ status: InboxStatus.DEAD_LETTER });
-
-      expect(find).toHaveBeenCalledWith({ status: "DEAD_LETTER" }, MAX_TIME);
-    });
-
-    it("returns every status when no filter is given", async () => {
-      const { find } = mockFindChain([]);
-
-      await findPage({});
-
-      expect(find).toHaveBeenCalledWith({}, MAX_TIME);
-    });
-
-    it("returns the raw documents without rebuilding the Inbox model", async () => {
-      const doc = {
-        _id: ObjectId.createFromHexString(id),
-        messageId: "msg-1",
-        type: "cloud.defra.local.fg-cw-backend.case.status.updated",
-        source: "CW",
-        status: InboxStatus.COMPLETED,
-        completionAttempts: 1,
-        publicationDate,
-        lastResubmissionDate: null,
-        completionDate: "2026-06-16T10:05:00.000Z",
-        segregationRef: "ref-1",
-      };
-      mockFindChain([doc]);
-
-      const result = await findPage();
-
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0]).toBe(doc);
-    });
-
-    it("encodes the end cursor from publicationDate and _id", async () => {
-      mockFindChain([
-        { _id: ObjectId.createFromHexString(id), publicationDate },
-      ]);
-
-      const result = await findPage();
-
-      expect(decodeCursor(result.pagination.endCursor)).toEqual({
-        publicationDate,
-        _id: id,
-      });
-    });
-
-    it("resumes from a cursor with a decoded ObjectId", async () => {
-      const cursor = Buffer.from(
-        JSON.stringify({ publicationDate, _id: id }),
-      ).toString("base64url");
-      const { find } = mockFindChain([]);
-
-      await findPage({ cursor });
-
-      const filter = find.mock.calls[0][0];
-      const [, bound, keyset] = filter.$and;
-
-      expect(bound).toEqual({ publicationDate: { $lte: publicationDate } });
-      expect(keyset.$or).toEqual([
-        { publicationDate: { $lt: publicationDate } },
-        { publicationDate, _id: { $lt: ObjectId.createFromHexString(id) } },
-      ]);
-      expect(keyset.$or[1]._id.$lt).toBeInstanceOf(ObjectId);
-    });
-
-    it("rejects a tampered cursor", async () => {
-      mockFindChain([]);
-
-      await expect(findPage({ cursor: "!!!not-base64!!!" })).rejects.toThrow(
-        "Cannot decode cursor",
-      );
-
-      mockFindChain([]);
-
-      const nonHex = Buffer.from(
-        JSON.stringify({ publicationDate, _id: "nope" }),
-      ).toString("base64url");
-
-      await expect(findPage({ cursor: nonHex })).rejects.toThrow(
-        "Cannot decode cursor",
-      );
-    });
-  });
-});
-
-describe("inbox.repository findPage search", () => {
-  const mockFind = () => {
-    const chain = {
-      project: vi.fn().mockReturnThis(),
-      sort: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      toArray: vi.fn().mockResolvedValue([]),
-    };
-    const find = vi.fn().mockReturnValue(chain);
-    db.collection.mockReturnValue({ find });
-    return find;
-  };
-
-  const filterFor = async (options) => {
-    const find = mockFind();
-    await findPage(options);
-    return find.mock.calls[0][0];
-  };
-
-  it("matches q against messageId, segregationRef and its prefix", async () => {
-    const filter = await filterFor({ q: "msg-1" });
-
-    expect(filter.$or).toContainEqual({ messageId: "msg-1" });
-    expect(filter.$or).toContainEqual({ segregationRef: "msg-1" });
-    expect(filter.$or).toContainEqual({
-      segregationRef: { $regex: "^msg-1", $options: "i" },
-    });
-  });
-
-  it("matches a 24-hex q against _id as well", async () => {
-    const hex = "665f1c2e9a1b2c3d4e5f6a7b";
-
-    expect((await filterFor({ q: hex })).$or).toContainEqual({
-      _id: ObjectId.createFromHexString(hex),
-    });
-  });
-
-  it("combines status and q with $and", async () => {
-    const filter = await filterFor({ status: "FAILED", q: "msg-1" });
-
-    expect(filter.$and[0]).toEqual({ status: "FAILED" });
-  });
-
-  it("ignores a kind key rather than filtering on it", async () => {
-    expect(await filterFor({ kind: "audit" })).toEqual({});
-  });
-
-  it("ignores a whitespace-only q", async () => {
-    expect(await filterFor({ q: "   " })).toEqual({});
+    expect(sent.filter((key) => STAMPED_FIELDS.includes(key))).toEqual([]);
+    expect(sent).toContain("status");
   });
 });
 
@@ -714,195 +511,6 @@ describe("inbox.repository detail and redrive", () => {
         false,
       );
     });
-  });
-});
-
-const FROM = "2026-06-16T00:00:00.000Z";
-const TO = "2026-06-16T23:59:59.999Z";
-
-const mockRangeFind = () => {
-  const chain = {
-    project: vi.fn().mockReturnThis(),
-    sort: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    toArray: vi.fn().mockResolvedValue([]),
-  };
-  const find = vi.fn().mockReturnValue(chain);
-
-  db.collection.mockReturnValue({ find });
-
-  return find;
-};
-
-const mockAggregate = (rows) => {
-  const aggregate = vi.fn().mockReturnValue({
-    toArray: vi.fn().mockResolvedValue(rows),
-  });
-
-  db.collection.mockReturnValue({ aggregate });
-
-  return aggregate;
-};
-
-describe("inbox.repository findPage from/to", () => {
-  it("filters on publicationDate as a string, inclusive at both ends", async () => {
-    const find = mockRangeFind();
-
-    await findPage({ from: FROM, to: TO });
-
-    expect(find).toHaveBeenCalledWith(
-      {
-        publicationDate: { $gte: FROM, $lte: TO },
-      },
-      MAX_TIME,
-    );
-  });
-
-  it("accepts each bound on its own", async () => {
-    const find = mockRangeFind();
-
-    await findPage({ from: FROM });
-
-    expect(find).toHaveBeenCalledWith(
-      { publicationDate: { $gte: FROM } },
-      MAX_TIME,
-    );
-  });
-
-  it("filters on nothing when no bound is given", async () => {
-    const find = mockRangeFind();
-
-    await findPage({});
-
-    expect(find).toHaveBeenCalledWith({}, MAX_TIME);
-  });
-
-  it("combines the range with the other filters", async () => {
-    const find = mockRangeFind();
-
-    await findPage({ status: "FAILED", from: FROM });
-
-    expect(find).toHaveBeenCalledWith(
-      {
-        $and: [{ status: "FAILED" }, { publicationDate: { $gte: FROM } }],
-      },
-      MAX_TIME,
-    );
-  });
-});
-
-describe("inbox.repository countFacets", () => {
-  it("matches the same rows as the list and groups them by status", async () => {
-    const aggregate = mockAggregate([]);
-
-    await countFacets({ from: FROM, to: TO });
-
-    expect(aggregate).toHaveBeenCalledWith(
-      [
-        { $match: { publicationDate: { $gte: FROM, $lte: TO } } },
-        { $group: { _id: "$status", count: { $sum: 1 } } },
-      ],
-      MAX_TIME,
-    );
-  });
-
-  it("counts the whole box when nothing is filtered", async () => {
-    const aggregate = mockAggregate([]);
-
-    await countFacets();
-
-    expect(aggregate.mock.calls[0][0][0]).toEqual({ $match: {} });
-  });
-
-  it("zero-fills the status block for an empty box", async () => {
-    mockAggregate([]);
-
-    expect(await countFacets()).toEqual({
-      counts: {
-        PUBLISHED: 0,
-        PROCESSING: 0,
-        FAILED: 0,
-        RESUBMITTED: 0,
-        COMPLETED: 0,
-        DEAD_LETTER: 0,
-        PURGED: 0,
-      },
-    });
-  });
-
-  it("counts the rows the $group emits into their statuses", async () => {
-    mockAggregate([
-      { _id: "FAILED", count: 3 },
-      { _id: "DEAD_LETTER", count: 1 },
-    ]);
-
-    const { counts } = await countFacets();
-
-    expect(counts.FAILED).toBe(3);
-    expect(counts.DEAD_LETTER).toBe(1);
-  });
-});
-
-describe("inbox.repository audit", () => {
-  const mockFindChain = () => {
-    const chain = {
-      project: vi.fn().mockReturnThis(),
-      sort: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      toArray: vi.fn().mockResolvedValue([]),
-    };
-    const find = vi.fn().mockReturnValue(chain);
-
-    db.collection.mockReturnValue({ find });
-
-    return find;
-  };
-
-  const aggregateStages = async (run) => {
-    const aggregate = vi.fn().mockReturnValue({
-      toArray: vi.fn().mockResolvedValue([]),
-    });
-
-    db.collection.mockReturnValue({ aggregate });
-    await run();
-
-    return aggregate.mock.calls[0][0];
-  };
-
-  const findFilter = async (options) => {
-    const find = mockFindChain();
-
-    await findPage(options);
-
-    return find.mock.calls[0][0];
-  };
-
-  it.each(["exclude", "include"])(
-    "never filters the inbox, whatever audit=%s says",
-    async (audit) => {
-      expect(await findFilter({ audit })).toEqual({});
-    },
-  );
-
-  it("leaves every other filter exactly as it was", async () => {
-    expect(await findFilter({ status: "FAILED", audit: "exclude" })).toEqual({
-      status: "FAILED",
-    });
-  });
-
-  it("counts the same population the list lists", async () => {
-    const stages = await aggregateStages(() =>
-      countFacets({ audit: "exclude" }),
-    );
-
-    expect(stages[0]).toEqual({ $match: {} });
-  });
-
-  it("groups with a constant false audit flag", async () => {
-    const stages = await aggregateStages(() => breakdown({ audit: "exclude" }));
-
-    expect(stages[0]).toEqual({ $match: { status: "DEAD_LETTER" } });
-    expect(stages[1].$group._id.audit).toEqual({ $literal: false });
   });
 });
 

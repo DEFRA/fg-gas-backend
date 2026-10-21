@@ -1,7 +1,12 @@
 import Boom from "@hapi/boom";
 import hapi from "@hapi/hapi";
-import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
+import { auth } from "../auth/auth.js";
+import { db } from "../common/mongo-client.js";
 import { ADMIN_CLIENT, requireAdminClient } from "./admin-client.js";
+
+vi.mock("../common/mongo-client.js", () => ({ db: { collection: vi.fn() } }));
 
 const serverFor = async (client) => {
   const server = hapi.server();
@@ -89,5 +94,45 @@ describe("requireAdminClient", () => {
     const { statusCode } = await get("some-other-service", "/grants/woodland");
 
     expect(statusCode).toBe(200);
+  });
+});
+
+describe("admin authorisation with legacy token metadata", () => {
+  it.each([
+    [{ client: "fg-grants-platform-admin" }, 403],
+    [{ clientId: "fg-grants-platform-admin" }, 200],
+    [{ clientId: "grants-ui", client: "fg-grants-platform-admin" }, 403],
+    [{ clientId: "fg-grants-platform-admin", client: "grants-ui" }, 200],
+  ])("preserves access for token record %j", async (identity, status) => {
+    const token = "synthetic-admin-guard-token";
+    const id = createHash("sha256").update(token).digest("hex");
+    db.collection.mockReturnValue({
+      findOne: vi.fn(async (query) =>
+        query.id === id ? { id, ...identity } : null,
+      ),
+    });
+    const server = hapi.server();
+    await server.register(auth);
+    await server.register({
+      name: "guarded",
+      register(inner) {
+        inner.ext("onPostAuth", requireAdminClient, { sandbox: "plugin" });
+        inner.route({
+          method: "GET",
+          path: "/grant-admin/probe",
+          handler: () => ({ ok: true }),
+        });
+      },
+    });
+    try {
+      const response = await server.inject({
+        url: "/grant-admin/probe",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(response.statusCode).toBe(status);
+      if (status === 200) expect(response.result).toEqual({ ok: true });
+    } finally {
+      await server.stop();
+    }
   });
 });

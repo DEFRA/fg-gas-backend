@@ -41,6 +41,7 @@ export class Grant {
     // is written.
     pages,
     claims,
+    admin,
   }) {
     this.code = code;
     this.version = version;
@@ -58,6 +59,7 @@ export class Grant {
     this.pages = pages;
     this.claims = claims;
     assertClaimSubmission(claims);
+    this.admin = admin;
 
     this.#assertEntitlementTemplateClaimCodesUnique();
     this.#assertEntitlementTemplatePositionsExist();

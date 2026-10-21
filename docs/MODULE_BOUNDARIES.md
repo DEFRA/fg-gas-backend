@@ -2,22 +2,22 @@
 
 ## Bounded Contexts
 
-| Module           | Path                  | Description                                                       |
-| ---------------- | --------------------- | ----------------------------------------------------------------- |
-| `grants`         | `src/grants/`         | Grants and Application sub-domain (grant lifecycle, applications) |
-| `agreements`     | `src/agreements/`     | Agreements domain (separate bounded context)                      |
-| `payments`       | `src/payments/`       | Payments domain (Payments, claim IDs, invoice numbering)          |
-| `grant-admin`    | `src/grant-admin/`    | Inbound admin adapter for Entitlement, Claim and Application work |
-| `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes     |
-| `auth`           | `src/auth/`           | Authentication and authorisation                                  |
-| `common`         | `src/common/`         | Shared infrastructure and context-neutral mapping utilities       |
-| `events`         | `src/events/`         | Shared event domain: what an inbox/outbox event IS and means      |
+| Module           | Path                  | Description                                                                                     |
+| ---------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
+| `grants`         | `src/grants/`         | Grants and Application sub-domain (grant lifecycle, applications)                               |
+| `agreements`     | `src/agreements/`     | Agreements domain (separate bounded context)                                                    |
+| `payments`       | `src/payments/`       | Payments domain (Payments, claim IDs, invoice numbering)                                        |
+| `grant-admin`    | `src/grant-admin/`    | Backend-for-frontend (BFF) for `fg-grants-platform-admin`'s admin screens - not a domain module |
+| `test-endpoints` | `src/test-endpoints/` | Inbound QA adapter for the feature-flagged `/api/test` routes                                   |
+| `auth`           | `src/auth/`           | Authentication and authorisation                                                                |
+| `common`         | `src/common/`         | Shared infrastructure and context-neutral mapping utilities                                     |
+| `events`         | `src/events/`         | Shared event domain: what an inbox/outbox event IS and means                                    |
 
 ## Forbidden Imports
 
 `agreements`, `grants` and `payments` must not directly import each other's internals (models, repositories, use-cases, services, routes, schemas, etc.). The boundary is enforced in both directions, except for explicitly documented reviewed seams below. Direct cross-module imports create hidden coupling that prevents either context from evolving independently.
 
-`grant-admin` is an inbound adapter, not a peer domain module. It validates and maps HTTP/UI concerns but does not access Grants models, repositories, schemas, use cases, or general services. Its only Grants entry points are `grants/services/entitlement.service.js` and `grants/services/claims.service.js` for entitlement and claim work, and `grants/services/application-read.service.js` for reading applications. `grants` never imports from `grant-admin`, and `grant-admin` does not import from `agreements`.
+`grant-admin` is a backend-for-frontend (BFF) for `fg-grants-platform-admin`, not a peer domain module - it shapes screens, `grants` owns the rules. It validates and maps HTTP/UI concerns only: no access to Grants models, repositories, schemas, use cases or general services. Its only way into Grants is four reviewed services - `entitlement.service.js`, `claims.service.js`, `application-read.service.js`, `allow-list.service.js`. `grants` never imports from `grant-admin`, and `grant-admin` never imports from `agreements`. See [View models vs. services](#view-models-vs-services) for the same split enforced inside `grant-admin` itself.
 
 `payments` knows nothing about the modules that source a Payment: it never imports `agreements` or `grants`, and it takes the identifiers it needs as plain values.
 
@@ -36,7 +36,8 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 | **Commands**                              | Send commands through the internal command target; command shapes live in `src/*/commands/`                                                                                                                                     |
 | **Durable publications**                  | Pass producer-owned events or commands to `saveEvents` in the caller's transaction. Direct inbox/outbox collection access belongs to the Events module and the documented Grant Admin seam.                                     |
 | **Shared infrastructure**                 | Import from `src/common/` (logger, DB client, messaging helpers)                                                                                                                                                                |
-| **Shared event domain**                   | Import from `src/events/` (audit predicate, list filter, status counts, facets, breakdown, redrive, purge, payload edits, retention, last error)                                                                                |
+| **Shared event domain**                   | Import from `src/events/` (event type declarations, stamps, audit predicate, status values, redrive, purge, payload edits, retention, last error)                                                                               |
+| **Buckets**                               | Declare a list the admin portal can show in the module that owns the collection and register it with `common/buckets/registry.js`. See [Buckets](#buckets).                                                                     |
 | **Grants → Agreements reference context** | `grants` may call the reviewed Agreements query interface for a plain reference-resolution context. The query accepts the active Mongo session; it does not expose an Agreements repository or domain model.                    |
 | **Grants → Agreements status event type** | `grants` imports only `agreements/events/agreement-status-updated.event.js` to register its handler against the producer-owned exact CloudEvent type; the event still arrives through SNS/SQS.                                  |
 | **Config definition checks**              | When the Config Broker publishes a version, `grants` asks each owning context whether its own definition file is usable, before the version is recorded. See [Config definition entry points](#config-definition-entry-points). |
@@ -47,29 +48,67 @@ Grant Admin enters the Grants application layer through three named services, an
 Payments through one named use case. Event administration enters the shared
 event module directly:
 
-| Caller        | Entry point                                          | Responsibility                                                           |
-| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
-| `grant-admin` | `grants/services/entitlement.service.js`             | Entitlement overview, creation and update operations                     |
-| `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup, Claim submission and submitted-Claim reads |
-| `grant-admin` | `grants/services/application-read.service.js`        | Read-only Applications list, application documents, series and codes     |
-| `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                   |
-| `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: list, inspect, redrive, purge and edit GAS inbound events   |
-| `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: list, inspect, redrive, purge and edit GAS outbound events  |
+| Caller        | Entry point                                          | Responsibility                                                          |
+| ------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| `grant-admin` | `grants/services/entitlement.service.js`             | Claims overview, entitlement creation and update, and who may do them   |
+| `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup and submitted-Claim reads                  |
+| `grant-admin` | `grants/services/application-read.service.js`        | Read-only application facts, stored documents and series                |
+| `grant-admin` | `grants/services/allow-list.service.js`              | Audited grant allow-list reads and transactional whole-list replacement |
+| `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                  |
+| `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: inspect, redrive, purge and edit GAS inbound events        |
+| `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: inspect, redrive, purge and edit GAS outbound events       |
+| `grant-admin` | `common/buckets/registry.js` and `engine.js`         | Every list: the catalogue and one query route over the declared buckets |
+
+Who may see or change a grant's Claims is Grants' rule, not the BFF's. The grant
+configures the roles it requires; `grants/models/claims-access.js` turns them
+and the operator's roles into full, view-only or hidden access. Grant Admin
+holds only how to find the operator's roles (`operator-roles.js`) and hands that
+lookup to the Grants entry points, which ask for it only when the grant requires
+roles: the Claims overview refuses hidden access and reports the access it
+decided, and entitlement creation and update refuse anything short of full
+access. Claim submission is not one of these - the applicant-facing Grants UI
+calls it, for an applicant rather than a Caseworking operator.
 
 The Claims page is a read-model join across two contexts: Grants resolves a
 Claim against the template it was made under, Payments answers whether it has
 raised a Payment, and `grant-admin` puts the two together. Neither context
 imports the other.
 
+### View models vs. services
+
+`grant-admin` is a BFF (see above) - so its own code has to stay a BFF too, not
+quietly grow a second domain layer.
+
+`services/` is a flat catch-all. Some of it prepares data for a view
+(`build-banner.js` resolves the banner's references and refuses a grant with
+none); some of it does more (`operator-roles.js` asks Caseworking for the
+operator's roles and throws Boom when they cannot be determined). Nothing stops
+a `services/` file reaching into a repository or a domain service directly -
+that split is a naming convention, not a rule.
+
+`view-models/` is the enforced version: `import-x/no-restricted-paths` lets a
+file there import only another view-model, nothing else. A route still does
+both steps - resolve data via `services/` or a domain entry point, then shape
+it via `view-models/` - the same two steps `get-claims.route.js` takes with
+`build-banner.js` and `build-claims-view.js`.
+
+This is where we want all of `grant-admin`'s screen-shaping to land, one
+screen at a time. `build-allow-list-view.js` is the first, since it was new
+work rather than a migration. Claims is the second: `build-claims-view.js` now
+lives there and receives the banner already resolved by `build-banner.js`.
+Events, cases and applications follow the same path, each its own change.
+
 ### Events domain
 
 `src/events/` owns the durable inbox/outbox mechanism shared by every context:
 the models, repositories, FIFO locks, pollers, retries, dead-letter handling,
 redrive, purge and payload-edit operations, and event audit helpers. It also defines what an
-event-store row means: which rows are audit records (`event-audit.js`), how a
-list of them is selected (`event-list-filter.js`), the statuses they move
-through and how they are counted and grouped (`status-counts.js`,
-`event-facets.js`, `event-breakdown.js`), how long a terminal row is kept
+event-store row means: which event types this service sends and receives
+(`event-types.js`, declared by each context beside its event class), the facts
+and refs a writer stamps on a row at insert (`stamps.js`), which rows are audit
+records (`event-audit.js`), the statuses they move through
+(`event-status-values.js`), the lists the admin portal can show of them
+(`buckets/`), how long a terminal row is kept
 (`event-retention.js`), what redriving one means (`event-redrive.js`), what
 purging one means (`event-purge.js`), what editing one's payload means
 (`event-edit.js`, with `payload-changes.js` for what an edit changed and
@@ -225,6 +264,37 @@ shared Agreement ownership check, and translating a rejected transition into a 4
 holds no agreement logic of its own and never touches an Agreements repository or domain
 model directly. ESLint permits this one Agreements entry point and rejects every other
 production Agreements import made by `test-endpoints`. See [TEST_ENDPOINTS.md](./TEST_ENDPOINTS.md).
+
+### Buckets
+
+A bucket is one list the admin portal can show: one collection, with the facts
+a filter or grouping may name, the ref kinds a search may name, a time field
+and its index lines. A fact may lead every index key (`lead`), and a value of
+a fact may stay out of the list until a switch shows it (`hidden`, `toggle`):
+`gas.outbox` leads with its event type and hides the `audit` type that way,
+because that type is declared `hiddenByDefault`. It is declared
+once, with `defineBucket`, in the module that owns the collection, and
+registered with `registerBucket` when that module's plugin starts:
+
+| Bucket             | Declared in                             | Registered by     |
+| ------------------ | --------------------------------------- | ----------------- |
+| `gas.outbox`       | `events/buckets/outbox.bucket.js`       | `events/index.js` |
+| `gas.inbox`        | `events/buckets/inbox.bucket.js`        | `events/index.js` |
+| `gas.applications` | `grants/buckets/applications.bucket.js` | `grants/index.js` |
+
+`src/common/buckets/` is the engine: it turns any query into one read on one
+named index, and says whether that read was exact or bounded. It imports
+nothing but `common`, knows no collection and no bucket, and is the same code
+in `fg-cw-backend`. `grant-admin` serves every bucket through
+`GET /grant-admin/buckets` and `POST /grant-admin/buckets/{bucketId}/query`; it
+reads the registry, never a declaration, so a new bucket needs no route and no
+`grant-admin` change. A bucket whose id begins `cw.` is forwarded to
+Caseworking by that id.
+
+A new bucket is a declaration, one `registerBucket` line, `refs` built by the
+collection's writer, and one migration that backfills `refs` and calls
+`ensureIndexes`. A migration imports a bucket factory by path and never reads
+the registry, which is empty until the plugins have started.
 
 ## Adding a New Seam
 

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import { Outbox } from "./models/outbox.js";
 import { insertMany } from "./repositories/outbox.repository.js";
+import { auditStamps } from "./stamps.js";
 import { config } from "../common/config.js";
 import { getRequestContext } from "../common/get-request-context.js";
 import { logger } from "../common/logger.js";
@@ -121,6 +122,7 @@ export const writeAuditEvent = async (
       event: payload,
       target: config.sns.auditTopicArn,
       segregationRef: segregationRef ?? randomUUID(),
+      ...auditStamps(payload),
     });
 
     await insertMany([outboxEntry], session);

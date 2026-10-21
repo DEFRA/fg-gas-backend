@@ -139,14 +139,14 @@ describe("composeRecordPage", () => {
     expect((await view("raw")).raw).toEqual({ a: 1 });
   });
 
-  it("names each source a read lost, as a hop", async () => {
+  it("names each source a read lost, as the read named it", async () => {
     tabs.overview.readTab.mockResolvedValue({
       content: { overview: {} },
-      sourceErrors: [{ key: "cwInbox", service: "caseworking", box: "inbox" }],
+      sourceErrors: [{ hop: "CW inbox" }],
     });
 
     expect((await view("overview")).sourceErrors).toEqual([
-      { hop: "CW-BE Inbox" },
+      { hop: "CW inbox" },
     ]);
   });
 

@@ -25,7 +25,29 @@ Grant Application Service defines and manages farming grants and applications. I
 
 ## Running with other services
 
-If you want to run this service with other farming grants applications see [fg-grants-core](https://github.com/DEFRA/fg-grants-core)
+There are two ways to run gas locally:
+
+- **On its own:** `docker compose up --build --watch` in this repo. It uses this
+  repo's `compose.yml`, which runs its own MongoDB and floci, and the integration tests
+  use the same file. See [Local development](#local-development).
+- **With the rest of Farming Grants:** check out [fg-grants-core](https://github.com/DEFRA/fg-grants-core) alongside this repo and
+  run `npm run stack cw` there (add `grants-ui`, `agreements` and so on as
+  needed). fg-grants-core runs the shared infrastructure and wires the services
+  together.
+
+Both ways use this repo's `compose/compose.gas.yml`, so:
+
+- Container env goes in the `environment:` block of `compose/compose.gas.yml`.
+  `.env` is for running node on your machine, so values that differ inside a
+  container, such as `MONGO_URI` and other services' hostnames, are set there.
+- Values that only make sense in the full stack, such as other services' URLs
+  and tokens, stay in fg-grants-core's `compose/compose.override.yml`.
+- New queues and topics go in `compose/floci/start.d/10-setup-resources.sh`.
+  fg-grants-core mounts that script into its own floci, alongside other repos'
+  scripts, so a queue or topic that another repo also creates must keep the
+  same attributes.
+- Keep the infrastructure versions in `compose.yml` the same as
+  fg-grants-core's. `npm run stack` there warns when they differ.
 
 ## User guide
 
@@ -112,8 +134,9 @@ rely on this transition for a mix of approval and non-approval templates: if an
 approval claim consumes the final slot, it deliberately does not trigger the
 move. An approval-driven transition is outside FGP-1397.
 
-Grant Admin accepts this optional block when creating a grant with `POST /grants` or replacing one with `PUT /grants/{code}`. Replacement is not a
-patch: omitting `claims` removes an existing claim-approval configuration.
+The block is optional and belongs in the grant definition published through
+the config broker. Each version carries its own: omitting `claims` from a new
+version removes the claim-approval configuration for it.
 
 The final Claim, Application move, normal application-status event, and
 Caseworking status-update command are committed as one transaction. If the
@@ -195,8 +218,10 @@ therefore never start before their queues exist. If you add a script, give it a
 numeric prefix below `99`.
 
 When gas is pulled into another stack that already runs floci, only
-`10-setup-resources.sh` is mounted and the host stack owns the marker — see
-`compose/ext/compose.gas-ext.example.yml`.
+`10-setup-resources.sh` is mounted and the host stack owns the marker.
+fg-grants-core mounts it as `ready.d/20-gas-resources.sh`; see also
+`compose/ext/compose.gas-ext.example.yml`. The seed data is not mounted there,
+so the script skips the S3 seeding step.
 
 State is in-memory: every `compose up` recreates the resources from scratch.
 
@@ -326,6 +351,19 @@ first.
 
 Locally, set `SERVICE_ACCESS_TOKEN_HASH` in `.env` instead of the portal.
 
+#### Single Front Door allow-list access
+
+`GET /api/allow-list/grants/{grantCode}/sbi/{sbi}/crn/{crn}` requires a bearer
+token, a nine-digit SBI and a ten-digit CRN. Grants UI uses its existing
+application-submission token. No configuration version is accepted; GAS resolves
+the latest active published definition across all major versions and returns 404
+if none exists. Each populated allow list must match; an empty list imposes no
+restriction. The response is `{ "allowed": true }` or `{ "allowed": false }`.
+All responses use `Cache-Control: no-store`. A server error means eligibility
+could not be checked.
+
+SFD gets its own client pair via the existing provisioning process above.
+
 #### Revoke
 
 There is no revoke-by-omission - clearing the secret deliberately does nothing.
@@ -359,7 +397,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
   -H "Authorization: Bearer <raw token>" \
   -H "Content-Type: application/json" \
   -d '{}' \
-  https://fg-gas-backend.<env>.cdp-int.defra.cloud/grants
+  https://fg-gas-backend.<env>.cdp-int.defra.cloud/grants/woodland/applications
 ```
 
 A valid token reaches request validation and returns `400`; an invalid token

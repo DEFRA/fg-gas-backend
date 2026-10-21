@@ -1,12 +1,6 @@
 import { isAuditTarget, shortEventType } from "../../events/event-audit.js";
 import { normaliseAttemptHistory } from "../../events/last-error.js";
-import {
-  actorName,
-  attemptsLabel,
-  latency,
-  latencyTitle,
-  statusDisplay,
-} from "./event-display.js";
+import { actorName, attemptsLabel, statusDisplay } from "./event-display.js";
 
 const INTERNAL_TARGETS = new Set(["internal:message-bus", "internal:event"]);
 const INTERNAL_TARGET_NAME = "internal";
@@ -106,9 +100,6 @@ const deriveEventId = (intermediate) =>
 
 const deriveCreatedAt = (createdAtIso, id) => createdAtIso ?? idTimestamp(id);
 
-const toOrder = (createdAtIso) =>
-  createdAtIso === null ? null : Date.parse(createdAtIso);
-
 const buildRow = ({ service, box, intermediate, createdAtIso }) => ({
   service,
   box,
@@ -125,15 +116,6 @@ const attemptAndTargetFacts = (intermediate) => ({
   attempts: attemptsLabel(intermediate.attempts, intermediate.maxAttempts),
   targetTopic: targetName(intermediate.target),
   lastError: intermediate.lastError,
-});
-
-const buildListRow = (parts) => ({
-  ...buildRow(parts),
-  latency: latency(
-    deriveCreatedAt(parts.createdAtIso, parts.intermediate.id),
-    orNull(parts.intermediate.completedAt),
-  ),
-  latencyTitle: latencyTitle(parts.box),
 });
 
 // Both boxes list by publicationDate; inbox eventTime is the poller's order.
@@ -169,31 +151,6 @@ export const normaliseGasOutbox = (doc, maxAttempts) => {
     lastError: toLastError(doc.lastError),
     completedAt: toIso(doc.completionDate),
     lastRedrive: toLastRedrive(doc.lastRedrive),
-  };
-};
-
-// A Caseworking list row feeds only the list row, so only its fields are read.
-export const normaliseCwListRow = (row) => ({
-  id: row._id,
-  cursorValue: orNull(row.publicationDate),
-  eventId: orNull(row.eventId),
-  fullTypeRaw: orNull(row.type),
-  derivedType: orNull(row.type),
-  target: null,
-  status: row.status,
-  completedAt: orNull(row.completedAt),
-});
-
-// cursorValue stays verbatim: re-canonicalising it would shift the page.
-export const toEventTuple = ({ key, service, box, intermediate }) => {
-  const createdAtIso = toIso(intermediate.cursorValue);
-
-  return {
-    key,
-    order: toOrder(createdAtIso),
-    cursorValue: intermediate.cursorValue,
-    id: intermediate.id,
-    row: buildListRow({ service, box, intermediate, createdAtIso }),
   };
 };
 

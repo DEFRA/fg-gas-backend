@@ -154,6 +154,42 @@ describe("toEventDetail expiresAt", () => {
   });
 });
 
+describe("toEventDetail eventType", () => {
+  it("answers the stamp as it is stored, beside the envelope's own type", () => {
+    const detail = toEventDetail({
+      service: "gas",
+      box: "inbox",
+      doc: anInboxDoc({ eventType: "CaseStatusUpdated" }),
+      maxAttempts: 5,
+    });
+
+    expect(detail.eventType).toBe("CaseStatusUpdated");
+    expect(detail.type).toBe("case.status.updated");
+  });
+
+  it("answers a Caseworking row's own stamp", () => {
+    const detail = toEventDetail({
+      service: "caseworking",
+      box: "outbox",
+      doc: { ...anInboxDoc({ eventType: "Audit" }), type: "audit" },
+      maxAttempts: 5,
+    });
+
+    expect(detail.eventType).toBe("Audit");
+  });
+
+  it("answers null for a row that carries none, never a name it was not given", () => {
+    const detail = toEventDetail({
+      service: "gas",
+      box: "inbox",
+      doc: anInboxDoc(),
+      maxAttempts: 5,
+    });
+
+    expect(detail.eventType).toBeNull();
+  });
+});
+
 describe("toEventDetail lastRedrive", () => {
   it("names an unattributed redrive as the platform's own", () => {
     const doc = anInboxDoc({

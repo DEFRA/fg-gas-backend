@@ -10,12 +10,15 @@ export const auditEntities = {
   EVENT: "EVENT",
   // A Caseworking case, as Grant Admin shows it. GAS holds none.
   CASE: "CASE",
+  // One list Grant Admin can show, as its owning service declares it.
+  BUCKET: "BUCKET",
 };
 
 export const auditActions = {
   SUBMIT_APPLICATION: "SUBMIT_APPLICATION",
   REPLACE_APPLICATION: "REPLACE_APPLICATION",
   STATUS_TRANSITION: "STATUS_TRANSITION",
+  // Written by no route; kept for the stored audit rows that carry it.
   REPLACE_GRANT: "REPLACE_GRANT",
   CANCEL_AGREEMENT: "CANCEL_AGREEMENT",
   WITHDRAW_APPLICATION: "WITHDRAW_APPLICATION",
@@ -41,14 +44,19 @@ export const auditActions = {
   // Replacing one redrivable row's payload. The row keeps its status; only a
   // redrive retries it.
   EDIT_EVENT_PAYLOAD: "EDIT_EVENT_PAYLOAD",
-  // Grant Admin's Applications list: one row per page, browse or ref search.
+  // Written by no route; kept for the stored audit rows that carry it.
   SEARCH_APPLICATIONS: "SEARCH_APPLICATIONS",
   // One tab of one application in Grant Admin.
   VIEW_APPLICATION: "VIEW_APPLICATION",
-  // Grant Admin's Cases list, read from Caseworking: one row per page.
+  VIEW_ALLOW_LIST: "VIEW_ALLOW_LIST",
+  CHECK_ALLOW_LIST: "CHECK_ALLOW_LIST",
+  REPLACE_ALLOW_LIST: "REPLACE_ALLOW_LIST",
+  // Written by no route; kept for the stored audit rows that carry it.
   SEARCH_CASES: "SEARCH_CASES",
   // One tab of one case in Grant Admin.
   VIEW_CASE_DATA: "VIEW_CASE_DATA",
+  // One page of one audited bucket.
+  QUERY_BUCKET: "QUERY_BUCKET",
 };
 
 // The protective-monitoring code on every Grant Admin read.

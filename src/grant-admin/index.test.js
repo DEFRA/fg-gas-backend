@@ -10,7 +10,7 @@ describe("grant-admin", () => {
     expect(server.registrations["grant-admin"]).toBeDefined();
   });
 
-  it("registers the admin claims, events, applications and cases endpoints", async () => {
+  it("registers the admin claims, events, buckets, applications and cases endpoints", async () => {
     const server = hapi.server();
     await server.register(grantAdmin);
 
@@ -20,8 +20,9 @@ describe("grant-admin", () => {
       .sort();
 
     expect(routes).toEqual([
-      "get /grant-admin/events/page",
+      "get /grant-admin/buckets",
       "get /grant-admin/events/{service}/{box}/{id}",
+      "get /grant-admin/grants/{code}/allow-list",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
       "get /grant-admin/grants/{code}/applications/{clientRef}/claims/{claimCode}",
@@ -31,12 +32,13 @@ describe("grant-admin", () => {
       "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/events",
       "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/overview",
       "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/raw",
-      "post /grant-admin/applications/search",
-      "post /grant-admin/cases/search",
+      "post /grant-admin/buckets/{bucketId}/query",
+      "post /grant-admin/buckets/{bucketId}/summaries/{summaryId}",
       "post /grant-admin/events/{service}/{box}/{id}/payload",
       "post /grant-admin/events/{service}/{box}/{id}/purge",
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
       "post /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
+      "put /grant-admin/grants/{code}/allow-list",
       "put /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
     ]);
   });
@@ -61,7 +63,6 @@ describe("grant-admin", () => {
       .table()
       .map(({ method, path }) => `${method} ${path}`);
 
-    expect(routes).toContain("get /grant-admin/events/page");
     expect(routes).toContain("get /grant-admin/events/{service}/{box}/{id}");
     expect(routes).toContain(
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
@@ -73,17 +74,46 @@ describe("grant-admin", () => {
       "post /grant-admin/events/{service}/{box}/{id}/payload",
     );
   });
+
+  it("protects the allow-list routes from other authenticated clients", async () => {
+    const server = hapi.server();
+    server.auth.scheme("stub", () => ({
+      authenticate: (_request, h) =>
+        h.authenticated({ credentials: { service: "some-other-service" } }),
+    }));
+    server.auth.strategy("service", "stub");
+    server.auth.default("service");
+    await server.register(grantAdmin);
+    await server.initialize();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/grant-admin/grants/woodland/allow-list",
+      headers: {
+        "x-actor": "Jo Operator",
+        "x-actor-id": "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    await server.stop();
+  });
 });
 
 describe("grant-admin route conflicts", () => {
-  it("routes /events/page to the page route, not the detail route", async () => {
-    const server = hapi.server();
-    await server.register(grantAdmin);
+  it.each([
+    ["get", "/grant-admin/events/page"],
+    ["post", "/grant-admin/applications/search"],
+    ["post", "/grant-admin/cases/search"],
+  ])(
+    "no longer routes %s %s, which a bucket replaced",
+    async (method, path) => {
+      const server = hapi.server();
+      await server.register(grantAdmin);
 
-    const match = server.match("get", "/grant-admin/events/page");
-
-    expect(match.path).toBe("/grant-admin/events/page");
-  });
+      expect(server.match(method, path)).toBeNull();
+    },
+  );
 
   it("still routes a three-segment detail path to the detail route", async () => {
     const server = hapi.server();

@@ -286,6 +286,8 @@ describe("writeAuditEvent", () => {
       event: expect.objectContaining({ application: "Grants Platform" }),
       target: "arn:aws:sns:eu-west-2:123:audit-topic",
       segregationRef: expect.stringMatching(uuidPattern),
+      eventType: "Audit",
+      refs: ["trace:trace-id-123"],
     });
   });
 

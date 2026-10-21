@@ -1,7 +1,11 @@
 import Boom from "@hapi/boom";
-import { config } from "../../common/config.js";
-import { getRequestContext } from "../../common/get-request-context.js";
-import { logger } from "../../common/logger.js";
+import Joi from "joi";
+import { REFUSAL_REASONS, refuse } from "../../common/buckets/refusal.js";
+import {
+  catalogueEntrySchema,
+  summaryResponseSchema,
+  timelineResponseSchema,
+} from "../../common/buckets/schema.js";
 import { wreck } from "../../common/wreck.js";
 import {
   EDITABLE_DESCRIPTION,
@@ -11,123 +15,20 @@ import {
   DEAD_LETTER,
   REDRIVABLE_DESCRIPTION,
 } from "../../events/event-redrive.js";
-import { EVENT_STATUSES } from "../../events/status-counts.js";
+import { eventStatusValues } from "../../events/event-status-values.js";
+import {
+  CLIENT_TIMEOUT,
+  GATEWAY_TIMEOUT,
+  cwUrl,
+  describeError,
+  isCwConfigured,
+  requestOptions,
+  statusOf,
+} from "./cw-http.js";
 
-const GATEWAY_TIMEOUT = 504;
-const CLIENT_TIMEOUT = 408;
-const TIMEOUT_STATUSES = new Set([GATEWAY_TIMEOUT, CLIENT_TIMEOUT]);
+export { describeError, isCwConfigured };
 
-const READ_FAILED = "read failed";
-const TIMED_OUT = "timeout";
-
-// `new URL(path, undefined)` throws, so callers check this first.
-export const isCwConfigured = () =>
-  Boolean(config.cwBackend.url && config.cwBackend.token);
-
-const statusOf = (error) => error?.output?.statusCode ?? null;
-
-// `wreck` attaches the CW response body to the error; read only the status.
-export const describeError = (error) => {
-  const statusCode = statusOf(error);
-
-  if (statusCode === null) {
-    return READ_FAILED;
-  }
-
-  if (TIMEOUT_STATUSES.has(statusCode)) {
-    return TIMED_OUT;
-  }
-
-  return `HTTP ${statusCode}`;
-};
-
-// `audit` is forwarded: only Caseworking recognises its own audit topic.
-const PAGE_PARAMS = ["status", "q", "error", "from", "to", "audit"];
-
-const setOptional = (url, options, names) => {
-  for (const name of names) {
-    if (options[name]) {
-      url.searchParams.set(name, options[name]);
-    }
-  }
-};
-
-const setCursor = (url, name, value) => {
-  if (value) {
-    url.searchParams.set(name, value);
-  }
-};
-
-const setSections = (url, sections) => {
-  if (sections?.length) {
-    url.searchParams.set("sections", sections.join(","));
-  }
-};
-
-const buildPageUrl = ({ pageSize, slices = {}, sections, ...filters }) => {
-  const url = new URL("/actuators/events", config.cwBackend.url);
-
-  url.searchParams.set("pageSize", String(pageSize));
-  setSections(url, sections);
-  setCursor(url, "inboxCursor", slices.cwInbox);
-  setCursor(url, "outboxCursor", slices.cwOutbox);
-  setOptional(url, filters, PAGE_PARAMS);
-
-  return url.toString();
-};
-
-// `idTimestamp` throws on a non-string `_id`.
-const isRow = (row) => typeof row?._id === "string";
-
-// A malformed body becomes a null section, not a TypeError that 500s the page.
-const toList = (section) => {
-  if (!Array.isArray(section.events) || !section.events.every(isRow)) {
-    return null;
-  }
-
-  return { data: section.events, pagination: section.pagination ?? {} };
-};
-
-const toFacets = (section) =>
-  section.counts ? { counts: section.counts } : null;
-
-const toGroups = (section) => section.breakdown?.groups ?? null;
-
-const toBoxSection = (section = {}) => ({
-  list: toList(section),
-  facets: toFacets(section),
-  groups: toGroups(section),
-});
-
-// Caseworking records the same operator on the audit events it writes.
-const actorIdHeader = () => {
-  const user = getRequestContext()?.user;
-
-  return user ? { "x-actor-id": user } : {};
-};
-
-const requestOptions = ({ headers, ...options } = {}) => ({
-  json: true,
-  timeout: config.cwBackend.timeoutMs,
-  ...options,
-  headers: {
-    authorization: `Bearer ${config.cwBackend.token}`,
-    ...actorIdHeader(),
-    ...headers,
-  },
-});
-
-// A shorter timeout, so a slow Caseworking degrades the page rather than stalls it.
-export const findCwPage = async (options) => {
-  const { payload } = await wreck.get(buildPageUrl(options), requestOptions());
-
-  const body = payload ?? {};
-
-  return {
-    inbox: toBoxSection(body.inbox),
-    outbox: toBoxSection(body.outbox),
-  };
-};
+const EVENT_STATUSES = new Set(eventStatusValues.map(({ value }) => value));
 
 // Detail and redrive have no partial mode, so these catch and translate.
 
@@ -160,7 +61,7 @@ const bodyOf = (error) => {
 const conflictStatusOf = (error) => {
   const status = bodyOf(error)?.status;
 
-  return EVENT_STATUSES.includes(status) ? status : null;
+  return EVENT_STATUSES.has(status) ? status : null;
 };
 
 const toConflict = (error, label, expected) => {
@@ -244,7 +145,7 @@ const cwRequest = async (
 
   try {
     const { payload } = await wreck[method](
-      new URL(path, config.cwBackend.url).toString(),
+      cwUrl(path),
       optionsWith(body, options),
     );
 
@@ -304,7 +205,6 @@ export const editCwPayload = (box, id, { by, payload, note, revision }) =>
 
 export const CASE_NOT_FOUND = "CASE_NOT_FOUND";
 
-const BAD_REQUEST = 400;
 const PAYLOAD_TOO_LARGE = 413;
 const CASE_MAX_BYTES = 4 * 1024 * 1024;
 const CASES_LABEL = "cases";
@@ -340,67 +240,20 @@ const CASE_FAILURES = {
   otherwise: caseUnavailable,
 };
 
-const caseQueryRefused = () => Boom.badRequest("CW-BE refused the case query");
-
-const casesNotLoaded = (error) => {
-  logger.warn(
-    `Search cases: caseworking unavailable (${describeError(error)})`,
-  );
-
-  return Boom.badGateway("Cases could not be loaded from Caseworking");
-};
-
-// The list has no other source, so Caseworking being down is the call
-// failing. A query it refused, such as a stale cursor, is still a 400.
-const SEARCH_FAILURES = {
-  [BAD_REQUEST]: caseQueryRefused,
-  otherwise: casesNotLoaded,
-};
-
 // `actor` is sent as the admin encoded it; Caseworking decodes it.
-const caseRequestOptions = ({ actor, repeat } = {}) => ({
+const operatorHeaders = ({ actor, repeat }) => ({
+  ...(actor ? { "x-actor": actor } : {}),
+  ...(repeat ? { "x-search-repeat": "1" } : {}),
+});
+
+const caseRequestOptions = ({ actor } = {}) => ({
   failures: CASE_FAILURES,
   maxBytes: CASE_MAX_BYTES,
-  headers: {
-    ...(actor ? { "x-actor": actor } : {}),
-    ...(repeat ? { "x-search-repeat": "1" } : {}),
-  },
+  headers: operatorHeaders({ actor }),
 });
 
 const casePath = ({ workflowCode, caseRef }) =>
   `/actuators/cases/${encodeURIComponent(workflowCode)}/${encodeURIComponent(caseRef)}`;
-
-const toCaseRow = ({
-  ref,
-  position,
-  closed,
-  closedAt,
-  createdAt,
-  replaced,
-}) => ({
-  ref: { caseRef: ref.caseRef, workflowCode: ref.workflowCode },
-  position,
-  closed,
-  closedAt,
-  createdAt,
-  ...(replaced === undefined ? {} : { replaced }),
-});
-
-const toCasePage = ({ cases, pagination, total, workflowCodes }) => ({
-  rows: cases.map(toCaseRow),
-  pagination,
-  ...(total ? { total } : {}),
-  ...(workflowCodes ? { workflowCodes } : {}),
-});
-
-export const searchCwCases = async (query, { actor, repeat } = {}) =>
-  toCasePage(
-    await cwRequest("post", "/actuators/cases/search", CASES_LABEL, {
-      ...caseRequestOptions({ actor, repeat }),
-      failures: SEARCH_FAILURES,
-      body: query,
-    }),
-  );
 
 const toSeriesMember = ({ caseRef, position, createdAt, closedAt }) => ({
   caseRef,
@@ -468,4 +321,120 @@ export const findCwCaseExistence = (ref) =>
     `${casePath(ref)}/existence`,
     CASES_LABEL,
     caseRequestOptions(),
+  );
+
+const BAD_REQUEST = 400;
+const BUCKETS_LABEL = "buckets";
+const CW_BUCKET_PREFIX = "cw.";
+
+const catalogueSchema = Joi.object({
+  buckets: Joi.array().items(catalogueEntrySchema).required(),
+});
+
+const bucketsUnavailable = (error) =>
+  Boom.badGateway(`CW-BE buckets unavailable: ${describeError(error)}`);
+
+const bucketsTimedOut = () => refuse("TIMED_OUT");
+
+// The reason code is all that is read; the refusal is rebuilt from it.
+const bucketRefusalOf = (error) => {
+  const reason = bodyOf(error)?.reason;
+
+  return REFUSAL_REASONS.includes(reason) ? refuse(reason) : null;
+};
+
+const bucketRefused = (error) =>
+  bucketRefusalOf(error) ?? bucketsUnavailable(error);
+
+// A 404 without a reason is a Caseworking that has no bucket routes yet.
+const bucketNotFound = (error) =>
+  bucketRefusalOf(error) ?? Boom.badGateway("CW-BE has no bucket routes");
+
+const BUCKET_FAILURES = {
+  [BAD_REQUEST]: bucketRefused,
+  [NOT_FOUND]: bucketNotFound,
+  [GATEWAY_TIMEOUT]: bucketsTimedOut,
+  [CLIENT_TIMEOUT]: bucketsTimedOut,
+  otherwise: bucketsUnavailable,
+};
+
+const bucketRequestOptions = (who) => ({
+  failures: BUCKET_FAILURES,
+  headers: operatorHeaders(who),
+});
+
+const toCwEntries = (payload) => {
+  const { error, value } = catalogueSchema.validate(payload);
+
+  if (error) {
+    throw Boom.badGateway(
+      "CW-BE answered a bucket catalogue that cannot be read",
+    );
+  }
+
+  return value.buckets.filter(({ id }) => id.startsWith(CW_BUCKET_PREFIX));
+};
+
+// Only the entries GAS can route: those whose id Caseworking owns.
+export const findCwBuckets = async () =>
+  toCwEntries(
+    await cwRequest(
+      "get",
+      "/actuators/buckets",
+      BUCKETS_LABEL,
+      bucketRequestOptions({}),
+    ),
+  );
+
+// Caseworking's answer is returned as it is; it audits the read itself.
+export const queryCwBucket = async (bucketId, body, options = {}) =>
+  cwRequest(
+    "post",
+    `/actuators/buckets/${encodeURIComponent(bucketId)}/query`,
+    BUCKETS_LABEL,
+    { ...bucketRequestOptions(options), body },
+  );
+
+const toCwSummary = (payload) => {
+  const { error, value } = summaryResponseSchema.validate(payload);
+
+  if (error) {
+    throw Boom.badGateway("CW-BE answered a summary that cannot be read");
+  }
+
+  return value;
+};
+
+export const summariseCwBucket = async (
+  bucketId,
+  summaryId,
+  body,
+  options = {},
+) =>
+  toCwSummary(
+    await cwRequest(
+      "post",
+      `/actuators/buckets/${encodeURIComponent(bucketId)}/summaries/${encodeURIComponent(summaryId)}`,
+      BUCKETS_LABEL,
+      { ...bucketRequestOptions(options), body },
+    ),
+  );
+
+const toCwTimeline = (payload) => {
+  const { error, value } = timelineResponseSchema.validate(payload);
+
+  if (error) {
+    throw Boom.badGateway("CW-BE answered a timeline that cannot be read");
+  }
+
+  return value;
+};
+
+// A case's events, from Caseworking's own timeline buckets in one call.
+export const readCwTimeline = async (ref, options = {}) =>
+  toCwTimeline(
+    await cwRequest("post", "/actuators/timeline", BUCKETS_LABEL, {
+      ...bucketRequestOptions(options),
+      body: { ref },
+    }),
   );

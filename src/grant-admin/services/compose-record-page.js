@@ -1,4 +1,3 @@
-import { toPublicSourceErrors } from "./event-sources.js";
 import { sectionOf } from "./page-sections.js";
 
 // Past this a tab's document is not shown: the admin renders a section whole.
@@ -24,7 +23,7 @@ const tabContent = (tab, read, sectionErrors) =>
   read ? capSection(read, tab.capped, sectionErrors) : tab.empty;
 
 const sourceErrorsOf = (...reads) =>
-  toPublicSourceErrors(...reads.map((read) => read?.sourceErrors ?? []));
+  reads.flatMap((read) => read?.sourceErrors ?? []);
 
 // An unreadable header fails the page; an unreadable or oversized tab is null
 // beside a section error. `accounts` are for the audit, never the page.

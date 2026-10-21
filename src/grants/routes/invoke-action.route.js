@@ -2,7 +2,7 @@ import Joi from "joi";
 import { logger } from "../../common/logger.js";
 import { name } from "../schemas/grant/action/name.js";
 import { code } from "../schemas/grant/code.js";
-import { invokePostActionRequest } from "../schemas/requests/invoke-post-action-request.schema.js";
+import { invokePostActionRequestSchema } from "../schemas/requests/invoke-post-action-request.schema.js";
 import { invokeActionResponseSchema } from "../schemas/responses/invoke-action-response.schema.js";
 import { invokeActionUseCase } from "../use-cases/invoke-action.use-case.js";
 
@@ -41,7 +41,7 @@ export const invokePostActionRoute = {
         code,
         name,
       }),
-      payload: invokePostActionRequest,
+      payload: invokePostActionRequestSchema,
     },
     response: {
       status: {
