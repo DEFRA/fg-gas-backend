@@ -37,28 +37,40 @@ describe("auth plugin", () => {
     });
   });
 
-  it("authenticates requests with a valid bearer token and exposes credentials", async () => {
-    const server = await createServer();
-    server.route({
-      method: "GET",
-      path: "/secure",
-      handler: (request) => ({ creds: request.auth.credentials }),
-    });
+  it.each([
+    [{ clientId: "http-client" }, "http-client"],
+    [{ client: "grants-ui" }, "grants-ui"],
+    [{ clientId: null, client: "grants-ui" }, "grants-ui"],
+    [{ clientId: "", client: "grants-ui" }, "grants-ui"],
+    [{ clientId: "   ", client: "grants-ui" }, "grants-ui"],
+    [{ clientId: 123, client: "grants-ui" }, "grants-ui"],
+    [{ clientId: "http-client", client: "grants-ui" }, "http-client"],
+  ])(
+    "derives service identity from token record %j",
+    async (identity, service) => {
+      tokensById[validId] = { id: validId, ...identity };
+      const server = await createServer();
+      server.route({
+        method: "GET",
+        path: "/secure",
+        handler: (request) => ({ creds: request.auth.credentials }),
+      });
 
-    await server.initialize();
+      await server.initialize();
 
-    const res = await server.inject({
-      method: "GET",
-      url: "/secure",
-      headers: { authorization: "Bearer good" },
-    });
+      const res = await server.inject({
+        method: "GET",
+        url: "/secure",
+        headers: { authorization: "Bearer good" },
+      });
 
-    expect(res.statusCode).toBe(200);
-    expect(res.result.creds).toEqual({
-      service: "http-client",
-      tokenId: validId,
-    });
-  });
+      expect(res.statusCode).toBe(200);
+      expect(res.result.creds).toEqual({
+        service,
+        tokenId: validId,
+      });
+    },
+  );
 
   it("accepts whitespace around the token (header is trimmed)", async () => {
     const server = await createServer();

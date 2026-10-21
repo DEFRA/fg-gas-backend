@@ -27,7 +27,9 @@ vi.mock("../use-cases/check-grant-allow-list.use-case.js");
 const tokens = {
   "test-grants-ui-token": { clientId: "grants-ui", expiresAt: null },
   "test-sfd-token": { clientId: "single-front-door", expiresAt: null },
-  "test-unidentified-token": { client: "grants-ui", expiresAt: null },
+  "test-legacy-grants-ui-token": { client: "grants-ui", expiresAt: null },
+  "test-unidentified-token": { expiresAt: null },
+  "test-blank-identity-token": { client: "   ", clientId: "", expiresAt: null },
   "test-expired-token": {
     clientId: "expired",
     expiresAt: new Date("2000-01-01"),
@@ -88,6 +90,7 @@ describe("allow-list routes", () => {
 
   it.each([
     ["test-grants-ui-token", "grants-ui", true],
+    ["test-legacy-grants-ui-token", "grants-ui", true],
     ["test-sfd-token", "single-front-door", false],
   ])(
     "accepts %s and derives caller from authentication",
@@ -152,16 +155,19 @@ describe("allow-list routes", () => {
     });
   });
 
-  it("refuses to release a decision without an authenticated caller identity", async () => {
-    const response = await server.inject({
-      url: uri,
-      headers: { authorization: "Bearer test-unidentified-token" },
-    });
-    expect(response.statusCode).toBe(401);
-    expect(response.headers["cache-control"]).toBe("no-store");
-    expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
-    expect(response.result).not.toHaveProperty("allowed");
-  });
+  it.each(["test-unidentified-token", "test-blank-identity-token"])(
+    "refuses to release a decision without an authenticated caller identity: %s",
+    async (token) => {
+      const response = await server.inject({
+        url: uri,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(response.statusCode).toBe(401);
+      expect(response.headers["cache-control"]).toBe("no-store");
+      expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
+      expect(response.result).not.toHaveProperty("allowed");
+    },
+  );
 
   it.each([
     `${base}/sbi/10600003/crn/1042000000`,
