@@ -1,4 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
+import {
+  clearDefinitionStores,
+  storedDefinitionVersions,
+} from "../common/config-broker/definition-stores.js";
 import { AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE } from "../agreements/events/agreement-payment-requested.event.js";
 import {
   clearEventHandlers,
@@ -8,16 +12,19 @@ import { CLAIM_PAYMENT_REQUESTED_EVENT_TYPE } from "../grants/events/claim-payme
 import { handleAgreementPaymentRequested } from "./handlers/handle-agreement-payment-requested.js";
 import { handleClaimPaymentRequested } from "./handlers/handle-claim-payment-requested.js";
 import { payments } from "./index.js";
+import { findStoredVersions } from "./repositories/payment-definition.repository.js";
 
 vi.mock("./handlers/handle-agreement-payment-requested.js", () => ({
   handleAgreementPaymentRequested: vi.fn(),
 }));
+vi.mock("./repositories/payment-definition.repository.js");
 vi.mock("./handlers/handle-claim-payment-requested.js", () => ({
   handleClaimPaymentRequested: vi.fn(),
 }));
 
 afterEach(() => {
   clearEventHandlers();
+  clearDefinitionStores();
   vi.clearAllMocks();
 });
 
@@ -37,4 +44,14 @@ it("registers against the producer-owned Claim payment request type", async () =
   await dispatchEvent(message);
 
   expect(handleClaimPaymentRequested).toHaveBeenCalledWith(message);
+});
+
+it("registers the payment definition store's stored-version read", async () => {
+  findStoredVersions.mockResolvedValue(["1.0.1"]);
+  payments.register();
+
+  await expect(
+    storedDefinitionVersions("payment", "woodland", ["1.0.1"]),
+  ).resolves.toEqual(new Set(["1.0.1"]));
+  expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"]);
 });

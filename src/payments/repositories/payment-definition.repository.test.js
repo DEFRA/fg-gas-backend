@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import {
   findPaymentDefinition,
+  findStoredVersions,
   insertPaymentDefinition,
   paymentDefinitionsCollection,
 } from "./payment-definition.repository.js";
@@ -54,5 +55,25 @@ describe("Payment definition repository", () => {
       definition,
     });
     expect(result).toBeUndefined();
+  });
+});
+
+describe("findStoredVersions", () => {
+  it("answers which of the asked versions are stored, reading versions alone", async () => {
+    const toArray = vi.fn().mockResolvedValue([{ version: "1.0.1" }]);
+    const find = vi.fn().mockReturnValue({ toArray });
+    db.collection.mockReturnValue({ find });
+
+    const stored = await findStoredVersions("pigs-might-fly", [
+      "1.0.1",
+      "2.0.0",
+    ]);
+
+    expect(db.collection).toHaveBeenCalledWith(paymentDefinitionsCollection);
+    expect(find).toHaveBeenCalledWith(
+      { code: "pigs-might-fly", version: { $in: ["1.0.1", "2.0.0"] } },
+      expect.objectContaining({ projection: { _id: 0, version: 1 } }),
+    );
+    expect(stored).toEqual(["1.0.1"]);
   });
 });

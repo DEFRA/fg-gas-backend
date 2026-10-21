@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
+import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
@@ -59,4 +60,72 @@ export const saveFromDefinition = async (grantDefinition, version) => {
   const grant = new Grant({ ...grantDefinition, version });
   await save(grant);
   return grant;
+};
+
+export const findStoredVersions = async (code, versions) => {
+  const documents = await db
+    .collection(collection)
+    .find(
+      { code, version: { $in: versions } },
+      {
+        projection: { _id: 0, version: 1 },
+        maxTimeMS: config.adminReadTimeoutMs,
+      },
+    )
+    .toArray();
+
+  return documents.map(({ version }) => version);
+};
+
+const readOne = async (pipeline) => {
+  const [doc] = await db
+    .collection(collection)
+    .aggregate(pipeline, { maxTimeMS: config.adminReadTimeoutMs })
+    .toArray();
+
+  return doc ?? null;
+};
+
+// $bsonSize measures the whole stored document before any projection.
+const storedBytes = { $bsonSize: "$$ROOT" };
+
+const orNull = (path) => ({ $ifNull: [path, null] });
+
+export const findStoredGrantSummary = (code, version) =>
+  readOne([
+    { $match: { code, version } },
+    {
+      $project: {
+        _id: 0,
+        description: "$metadata.description",
+        startDate: "$metadata.startDate",
+        adminRole: orNull("$admin.role"),
+        storedBytes,
+      },
+    },
+  ]);
+
+// The stored document exactly as stored, less its _id. One over `maxBytes` is
+// never sent: only its size is.
+export const findStoredGrantDocument = async (code, version, { maxBytes }) => {
+  const found = await readOne([
+    { $match: { code, version } },
+    {
+      $project: {
+        _id: 0,
+        storedBytes,
+        document: {
+          $cond: [
+            { $lte: [storedBytes, maxBytes] },
+            { $unsetField: { field: "_id", input: "$$ROOT" } },
+            "$$REMOVE",
+          ],
+        },
+      },
+    },
+  ]);
+
+  return found
+    ? { storedBytes: found.storedBytes, document: found.document ?? null }
+    : null;
 };

@@ -4,7 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
-import { findByCode, save, saveFromDefinition } from "./grant.repository.js";
+import {
+  findByCode,
+  findStoredGrantDocument,
+  findStoredGrantSummary,
+  findStoredVersions,
+  save,
+  saveFromDefinition,
+} from "./grant.repository.js";
 
 vi.mock("../../common/mongo-client.js");
 
@@ -572,5 +579,98 @@ describe("amendablePositions", () => {
     const result = await findByCode("legacy");
 
     expect(result.amendablePositions).toEqual([]);
+  });
+});
+
+describe("findStoredVersions", () => {
+  it("answers which of the asked versions are stored, reading versions alone", async () => {
+    const find = vi
+      .fn()
+      .mockReturnValue({ toArray: async () => [{ version: "1.0.0" }] });
+    db.collection.mockReturnValue({ find });
+
+    expect(await findStoredVersions("woodland", ["1.0.0", "2.0.0"])).toEqual([
+      "1.0.0",
+    ]);
+    expect(find).toHaveBeenCalledWith(
+      { code: "woodland", version: { $in: ["1.0.0", "2.0.0"] } },
+      expect.objectContaining({ projection: { _id: 0, version: 1 } }),
+    );
+  });
+});
+
+const aggregating = (docs) => {
+  const aggregate = vi.fn().mockReturnValue({ toArray: async () => docs });
+  db.collection.mockReturnValue({ aggregate });
+  return aggregate;
+};
+
+describe("findStoredGrantDocument", () => {
+  it("answers the document as stored beside its size, leaving out its _id", async () => {
+    const document = { code: "woodland", version: "1.0.0" };
+    const aggregate = aggregating([{ storedBytes: 512, document }]);
+
+    expect(
+      await findStoredGrantDocument("woodland", "1.0.0", { maxBytes: 1024 }),
+    ).toEqual({ storedBytes: 512, document });
+    const [match, project] = aggregate.mock.calls[0][0];
+    expect(match).toEqual({ $match: { code: "woodland", version: "1.0.0" } });
+    expect(JSON.stringify(project)).toContain(
+      '{"$unsetField":{"field":"_id","input":"$$ROOT"}}',
+    );
+  });
+
+  it("answers a document over maxBytes by its size alone", async () => {
+    aggregating([{ storedBytes: 2048 }]);
+
+    expect(
+      await findStoredGrantDocument("woodland", "1.0.0", { maxBytes: 1024 }),
+    ).toEqual({ storedBytes: 2048, document: null });
+  });
+
+  it("answers null when the version is not stored", async () => {
+    aggregating([]);
+
+    expect(
+      await findStoredGrantDocument("woodland", "1.0.0", { maxBytes: 1024 }),
+    ).toBeNull();
+  });
+});
+
+describe("findStoredGrantSummary", () => {
+  it("answers the description, start date and admin role beside the stored size", async () => {
+    aggregating([
+      {
+        storedBytes: 512,
+        description: "Woodland creation",
+        startDate: "2025-04-01",
+        adminRole: "WOODLAND_ADMIN",
+      },
+    ]);
+
+    expect(await findStoredGrantSummary("woodland", "1.0.0")).toEqual({
+      description: "Woodland creation",
+      startDate: "2025-04-01",
+      adminRole: "WOODLAND_ADMIN",
+      storedBytes: 512,
+    });
+  });
+
+  it("reads the description and start date as stored, and a missing admin role as null", async () => {
+    const aggregate = aggregating([]);
+
+    await findStoredGrantSummary("woodland", "1.0.0");
+
+    expect(aggregate.mock.calls[0][0][1].$project).toMatchObject({
+      description: "$metadata.description",
+      startDate: "$metadata.startDate",
+      adminRole: { $ifNull: ["$admin.role", null] },
+    });
+  });
+
+  it("answers null when the version is not stored", async () => {
+    aggregating([]);
+
+    expect(await findStoredGrantSummary("woodland", "1.0.0")).toBeNull();
   });
 });

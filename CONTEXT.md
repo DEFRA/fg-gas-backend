@@ -25,3 +25,17 @@
 
 **External Status Map**
 : How a status reported by another service, such as Case Working, moves an application to a Position.
+
+## Config versions
+
+**Config Version**
+: One published version of a grant's configuration, as the Config Broker announced it. It is Active or Draft. The admin portal calls it a grant version.
+
+**Definition File**
+: One part of a Config Version that a context reads: the grant's own definition, and optionally an agreement definition and a payment definition.
+
+**Stored Definition**
+: A Definition File that GAS holds itself. Until it is stored, the Config Version is only an announcement.
+
+**Current Version**
+: The Config Version GAS gives new applications: the newest Active one.
