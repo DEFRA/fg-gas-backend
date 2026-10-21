@@ -60,6 +60,10 @@ const uploadDefinitions = () =>
       "woodland/2.0.0/gas/gas.json",
       "farm-payments/1.2.6/gas/gas.json",
     ].map((key) => put(key, grantDefinition)),
+    put("woodland/1.2.9/gas/gas.json", {
+      ...grantDefinition,
+      amendablePositions: ["PHASE_PRE_AWARD"],
+    }),
     put("woodland/1.2.4/gas/agreement.json", {
       ...agreementDefinition,
       code: "woodland",
@@ -183,6 +187,24 @@ describe("config broker message flow", () => {
         ],
       }),
     ).rejects.toThrow('does not match "woodland"');
+
+    await expect(
+      configVersionsCol.findOne({ grantCode: "woodland", version }),
+    ).resolves.toBeNull();
+  });
+
+  it("rejects an unusable grant definition before recording its version", async () => {
+    const version = "1.2.9";
+
+    await expect(
+      processConfigVersionUseCase({
+        grantCode: "woodland",
+        version,
+        status: "active",
+        s3Bucket: BUCKET,
+        manifest: [`woodland/${version}/gas/gas.json`],
+      }),
+    ).rejects.toThrow('amendable position "PHASE_PRE_AWARD"');
 
     await expect(
       configVersionsCol.findOne({ grantCode: "woodland", version }),

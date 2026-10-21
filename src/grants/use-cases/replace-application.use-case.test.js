@@ -4,6 +4,7 @@ import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { Application } from "../models/application.js";
+import { Grant } from "../models/grant.js";
 import {
   findByClientRefAndCode,
   update,
@@ -170,6 +171,29 @@ describe("replaceApplicationUseCase", () => {
     expect(createApplicationUseCase).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
     expect(linkSeries).not.toHaveBeenCalled();
+  });
+
+  it("refuses the replacement when the grant lists no amendable positions", async () => {
+    resolveGrantForApplication.mockResolvedValue({
+      grant: new Grant({ code: "test-grant", metadata: {}, phases: [] }),
+      resolvedVersion: null,
+    });
+    const prevApplication = new Application({
+      currentPhase: "PRE_AWARD",
+      currentStage: "REVIEW_OFFER",
+      currentStatus: "APPLICATION_AMEND",
+      code: "test-grant",
+      clientRef: "ref-123",
+      phases: [],
+    });
+    withTransaction.mockImplementation(async (cb) => cb({}));
+    findApplicationByClientRefAndCodeUseCase.mockResolvedValue(prevApplication);
+
+    await expect(
+      replaceApplicationUseCase("test-grant", testApplication),
+    ).rejects.toMatchObject({ isBoom: true, output: { statusCode: 409 } });
+
+    expect(createApplicationUseCase).not.toHaveBeenCalled();
   });
 
   it("throws when the previous application is not found", async () => {

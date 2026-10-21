@@ -1,5 +1,4 @@
 import Joi from "joi";
-import { questions } from "./questions.js";
 
 const validFrom = Joi.object({
   code: Joi.string().required(),
@@ -8,7 +7,7 @@ const validFrom = Joi.object({
 
 const status = Joi.object({
   code: Joi.string().required(),
-  validFrom: Joi.array().items(validFrom).required(),
+  validFrom: Joi.array().items(validFrom),
 })
   .unknown()
   .label("Status");
@@ -23,7 +22,8 @@ const stage = Joi.object({
 const phase = Joi.object({
   code: Joi.string().required(),
   stages: Joi.array().items(stage).min(1).required(),
-  questions: questions.optional(),
+  // Compiled with the answers validator when a definition is checked.
+  questions: Joi.object().optional(),
 })
   .unknown()
   .label("Phase");
