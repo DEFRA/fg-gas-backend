@@ -2,6 +2,7 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { seedConfigVersion } from "../../helpers/applications.js";
+import { insertGrant } from "../../helpers/grants.js";
 import { wreck } from "../../helpers/wreck.js";
 
 let client;
@@ -121,9 +122,7 @@ describe("Application Service Integration Tests", () => {
         actions: [],
       };
 
-      await wreck.post("/grants", {
-        payload: grantData,
-      });
+      await insertGrant(grantData);
 
       await seedConfigVersion(db, grantCode);
 
@@ -290,9 +289,7 @@ describe("Application Service Integration Tests", () => {
         actions: [],
       };
 
-      await wreck.post("/grants", {
-        payload: grantData,
-      });
+      await insertGrant(grantData);
 
       await seedConfigVersion(db, grantCode);
 
@@ -420,9 +417,7 @@ describe("Application Service Integration Tests", () => {
         actions: [],
       };
 
-      await wreck.post("/grants", {
-        payload: grantData,
-      });
+      await insertGrant(grantData);
 
       await seedConfigVersion(db, grantCode);
 

@@ -134,8 +134,9 @@ rely on this transition for a mix of approval and non-approval templates: if an
 approval claim consumes the final slot, it deliberately does not trigger the
 move. An approval-driven transition is outside FGP-1397.
 
-Grant Admin accepts this optional block when creating a grant with `POST /grants` or replacing one with `PUT /grants/{code}`. Replacement is not a
-patch: omitting `claims` removes an existing claim-approval configuration.
+The block is optional and belongs in the grant definition published through
+the config broker. Each version carries its own: omitting `claims` from a new
+version removes the claim-approval configuration for it.
 
 The final Claim, Application move, normal application-status event, and
 Caseworking status-update command are committed as one transaction. If the
@@ -396,7 +397,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
   -H "Authorization: Bearer <raw token>" \
   -H "Content-Type: application/json" \
   -d '{}' \
-  https://fg-gas-backend.<env>.cdp-int.defra.cloud/grants
+  https://fg-gas-backend.<env>.cdp-int.defra.cloud/grants/woodland/applications
 ```
 
 A valid token reaches request validation and returns `400`; an invalid token

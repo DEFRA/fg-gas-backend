@@ -1,5 +1,9 @@
 # Config Broker Integration - Implementation Tickets
 
+> Historical planning record. The grant write endpoints and use cases it
+> mentions were removed in FGP-1398; grants now arrive only through the config
+> broker.
+
 ---
 
 ## Parent Ticket
