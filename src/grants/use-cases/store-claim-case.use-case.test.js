@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { saveEvents } from "../../events/index.js";
 import { storeClaimCaseUseCase } from "./store-claim-case.use-case.js";

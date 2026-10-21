@@ -461,11 +461,14 @@ const transitionOnFinalClaim = async (
   );
 };
 
+const submissionProcessesFor = (grant) =>
+  grant.claims?.onSubmission?.processes ?? [];
+
 const runClaimSubmissionProcesses = async (
   { grant, claim, claimId },
   session,
 ) => {
-  for (const process of grant.claims?.onSubmission?.processes ?? []) {
+  for (const process of submissionProcessesFor(grant)) {
     if (process === "STORE_CLAIM_CASE") {
       await storeClaimCaseUseCase({ claim, claimId }, session);
     }

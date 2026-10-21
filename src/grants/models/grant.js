@@ -12,6 +12,17 @@ const positionParts = ["phase", "stage", "status"];
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
+const assertClaimSubmission = (claims) => {
+  const { error } = onClaimSubmission.validate(claims?.onSubmission, {
+    convert: false,
+  });
+  if (error) {
+    throw Boom.badImplementation(
+      `Invalid claim submission configuration: ${error.message}`,
+    );
+  }
+};
+
 export class Grant {
   constructor({
     code,
@@ -46,16 +57,7 @@ export class Grant {
     );
     this.pages = pages;
     this.claims = claims;
-    if (claims?.onSubmission !== undefined) {
-      const { error } = onClaimSubmission.validate(claims.onSubmission, {
-        convert: false,
-      });
-      if (error) {
-        throw Boom.badImplementation(
-          `Invalid claim submission configuration: ${error.message}`,
-        );
-      }
-    }
+    assertClaimSubmission(claims);
 
     this.#assertEntitlementTemplateClaimCodesUnique();
     this.#assertEntitlementTemplatePositionsExist();
