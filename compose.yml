@@ -37,7 +37,7 @@ services:
       - cdp-tenant
 
   mongodb:
-    image: mongo:6.0.13
+    image: mongo:7.0
     networks:
       - cdp-tenant
     ports:
@@ -51,19 +51,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    command:
-      ["mongod", "--replSet", "mongoRepl", "--bind_ip", "localhost,mongodb"]
+    command: ["mongod", "--replSet", "mongoRepl", "--bind_ip", "0.0.0.0"]
     volumes:
       - mongodb-data:/data/db
       - mongodb-config:/data/configdb
     restart: always
 
   mongo-ready:
-    image: mongo:6.0.13
+    image: mongo:7.0
     networks: [cdp-tenant]
     environment:
       PRIMARY: "mongodb:27017"
       REPLSET: "mongoRepl"
+      RS_HOST: "mongodb:27017"
     volumes:
       - ./scripts/wait-for-replicaset.sh:/wait-for-replicaset.sh:ro
     entrypoint: ["/bin/bash", "/wait-for-replicaset.sh"]
