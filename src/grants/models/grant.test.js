@@ -1214,16 +1214,16 @@ describe("submission definition validation", () => {
   it("retains a valid submission hook", () => {
     expect(
       createTestGrant({
-        claims: { onSubmission: { processes: ["STORE_CLAIM_CASE"] } },
-      }).claims.onSubmission.processes,
+        claims: { onClaimSubmission: { processes: ["STORE_CLAIM_CASE"] } },
+      }).claims.onClaimSubmission.processes,
     ).toEqual(["STORE_CLAIM_CASE"]);
   });
   it.each([
     {},
     { processes: ["UNKNOWN"] },
     { processes: ["STORE_CLAIM_CASE", "STORE_CLAIM_CASE"] },
-  ])("rejects invalid published hook %j", (onSubmission) => {
-    expect(() => createTestGrant({ claims: { onSubmission } })).toThrow(
+  ])("rejects invalid published hook %j", (onClaimSubmission) => {
+    expect(() => createTestGrant({ claims: { onClaimSubmission } })).toThrow(
       /Invalid claim submission/,
     );
   });

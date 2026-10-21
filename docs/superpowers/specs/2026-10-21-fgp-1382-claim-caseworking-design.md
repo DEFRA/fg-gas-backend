@@ -40,14 +40,14 @@ Add an optional block to the GAS grant definition:
 ```json
 {
   "claims": {
-    "onSubmission": {
+    "onClaimSubmission": {
       "processes": ["STORE_CLAIM_CASE"]
     }
   }
 }
 ```
 
-`onSubmission` is an object with a required `processes` array. The array accepts the known process name `STORE_CLAIM_CASE`, rejects duplicate entries and unknown process names, and may be empty to disable the effect. Absence of the entire block also disables it, preserving existing grants. Validate the hook on both the grant API and published-definition loading path; the existing Grant object retains the claims configuration. Do not change the existing status-transition process dispatcher.
+`onClaimSubmission` is an object with a required `processes` array. The array accepts the known process name `STORE_CLAIM_CASE`, rejects duplicate entries and unknown process names, and may be empty to disable the effect. Absence of the entire block also disables it, preserving existing grants. Validate the hook on both the grant API and published-definition loading path; the existing Grant object retains the claims configuration. Do not change the existing status-transition process dispatcher.
 
 The submission path uses the application's already resolved, pinned grant definition. After the claim insertion succeeds, run the configured submission process with the saved Claim, its Mongo ID, and the same MongoDB session. Queue the claim event before the existing final-claim transition. The hook runs for every newly inserted claim, including partial claims, claims with further capacity remaining, and claims requiring approval. It never runs for a duplicate request.
 

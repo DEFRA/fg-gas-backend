@@ -13,7 +13,7 @@ const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
 const assertClaimSubmission = (claims) => {
-  const { error } = onClaimSubmission.validate(claims?.onSubmission, {
+  const { error } = onClaimSubmission.validate(claims?.onClaimSubmission, {
     convert: false,
   });
   if (error) {

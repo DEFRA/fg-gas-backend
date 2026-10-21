@@ -99,7 +99,7 @@ describe("claim submission processes", () => {
     "accepts configured processes %j",
     ({ processes }) => {
       expect(
-        claims.validate({ onSubmission: { processes } }).error,
+        claims.validate({ onClaimSubmission: { processes } }).error,
       ).toBeUndefined();
     },
   );
@@ -109,7 +109,7 @@ describe("claim submission processes", () => {
     { processes: ["UNKNOWN"] },
     { processes: ["STORE_CLAIM_CASE", "STORE_CLAIM_CASE"] },
     { processes: [], extra: true },
-  ])("rejects invalid hook %j", (onSubmission) => {
-    expect(claims.validate({ onSubmission }).error).toBeDefined();
+  ])("rejects invalid hook %j", (onClaimSubmission) => {
+    expect(claims.validate({ onClaimSubmission }).error).toBeDefined();
   });
 });

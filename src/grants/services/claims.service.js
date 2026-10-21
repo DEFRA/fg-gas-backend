@@ -462,7 +462,7 @@ const transitionOnFinalClaim = async (
 };
 
 const submissionProcessesFor = (grant) =>
-  grant.claims?.onSubmission?.processes ?? [];
+  grant.claims?.onClaimSubmission?.processes ?? [];
 
 const runClaimSubmissionProcesses = async (
   { grant, claim, claimId },

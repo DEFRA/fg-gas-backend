@@ -143,7 +143,7 @@ const seedFixture = async (options = {}) => {
           : {}),
         ...(submissionProcesses === null
           ? {}
-          : { onSubmission: { processes: submissionProcesses } }),
+          : { onClaimSubmission: { processes: submissionProcesses } }),
       },
     }),
   );
