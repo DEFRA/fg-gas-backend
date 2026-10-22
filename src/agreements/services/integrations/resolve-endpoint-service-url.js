@@ -67,24 +67,24 @@ const endpointsFor = (definition) => [
   ...processEndpointsFor(definition),
 ];
 
-export const validateEndpointServiceUrls = (definitions) => {
+export const missingEndpointServiceUrls = (definitions) => {
   const services = new Set(
     definitions
       .flatMap((definition) => endpointsFor(definition))
       .map((endpoint) => endpoint.service),
   );
 
-  const missing = [...services].filter(
-    (service) => !process.env[`${service}_URL`],
-  );
+  return [...services]
+    .map((service) => `${service}_URL`)
+    .filter((envVar) => !process.env[envVar]);
+};
+
+export const validateEndpointServiceUrls = (definitions) => {
+  const missing = missingEndpointServiceUrls(definitions);
 
   if (missing.length > 0) {
-    const missingServicesUrls = missing
-      .map((service) => `${service}_URL`)
-      .join(", ");
-
     throw new EndpointServiceUrlError(
-      `Missing required endpoint URL env var(s): ${missingServicesUrls}`,
+      `Missing required endpoint URL env var(s): ${missing.join(", ")}`,
     );
   }
 };

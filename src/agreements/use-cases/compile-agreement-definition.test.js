@@ -91,8 +91,23 @@ describe("checkAgreementDefinition", () => {
       checkAgreementDefinition(definition(), CODE, "1.2.0"),
     ).not.toThrow();
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Skipped Agreement definition checks"),
+      expect.stringContaining("Skipped the endpoint service URL check"),
     );
+  });
+
+  it("still rejects a broken definition when a service URL is missing", () => {
+    mockValidateEndpointServiceUrls.mockImplementation(() => {
+      throw new EndpointServiceUrlError("no url configured for service x");
+    });
+    const broken = definition();
+    const { accept } = broken.states.offered.on;
+    accept.validation.page = accept.page;
+    delete accept.page;
+
+    expect(() => checkAgreementDefinition(broken, CODE, "1.2.0")).toThrow(
+      /missing required peer "page"/,
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it("passes on a failure that is the definition's own fault", () => {
