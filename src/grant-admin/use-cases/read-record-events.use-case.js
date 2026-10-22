@@ -3,10 +3,8 @@ import { toRef } from "../../common/buckets/refs.js";
 import { logger } from "../../common/logger.js";
 import { toCaseLink } from "../../events/case-refs.js";
 import { UNRECOGNISED } from "../../events/event-types.js";
-import {
-  describeError,
-  readCwTimeline,
-} from "../repositories/cw-actuators.repository.js";
+import { readCwTimeline } from "../repositories/cw-actuators.repository.js";
+import { describeError } from "../repositories/cw-http.js";
 import {
   latency,
   latencyTitle,

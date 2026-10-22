@@ -34,6 +34,7 @@ const workflowVersionHeaderSchema = Joi.object({
   version: Joi.string().required(),
   status: versionStatus,
   receivedAt: receivedAtSchema,
+  s3Bucket: Joi.string().allow(null),
   files: Joi.object({ workflow: definitionFileSchema.required() })
     .required()
     .label("WorkflowDefinitionFiles"),

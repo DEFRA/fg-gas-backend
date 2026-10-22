@@ -137,7 +137,10 @@ const fetchEach = (configVersion, missingFiles) =>
   );
 
 const fetchConfigDefinitions = async ({ grantCode, version }) => {
-  const found = await loadConfigVersionFiles({ code: grantCode, version });
+  const [found] = await loadConfigVersionFiles({
+    code: grantCode,
+    versions: [version],
+  });
 
   if (!found) {
     throw configVersionNotFound();

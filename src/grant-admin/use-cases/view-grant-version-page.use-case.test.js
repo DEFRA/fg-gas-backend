@@ -10,7 +10,7 @@ import {
   findGrantLifecycle,
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
-import { findCwWorkflowVersionExistence } from "../repositories/cw-actuators.repository.js";
+import { findCwWorkflowVersionExistence } from "../repositories/cw-workflows.repository.js";
 import { SECTION_CAP_BYTES } from "../services/compose-record-page.js";
 import {
   buildViewGrantVersionAudit,
@@ -27,7 +27,7 @@ vi.mock("../../events/audited-read.js", () => ({
 }));
 vi.mock("../../grants/services/config-version.service.js");
 vi.mock(
-  "../repositories/cw-actuators.repository.js",
+  "../repositories/cw-workflows.repository.js",
   async (importOriginal) => ({
     ...(await importOriginal()),
     findCwWorkflowVersionExistence: vi.fn(),

@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 import { loadAgreementDefinition } from "../../src/agreements/use-cases/load-agreement-definition.js";
+import { withWorstFetchStatus } from "../../src/common/config-broker/config-catalog.repository.js";
 import { config } from "../../src/common/config.js";
 import {
   fetchDefinitionsResponseSchema,
@@ -78,6 +79,16 @@ const fileState = (version, fetchStatus) => ({
   lastFetchAttemptAt: null,
 });
 
+const fetchStateOf = (version, fetchStatus) => {
+  const {
+    fetchedAt: _,
+    lastFetchAttemptAt: __,
+    ...shown
+  } = fileState(version, fetchStatus);
+
+  return shown;
+};
+
 const aConfigVersion = (version, status, receivedAt, definitions = {}) => {
   const [major, minor, patch] = version.split(".").map(Number);
 
@@ -93,6 +104,17 @@ const aConfigVersion = (version, status, receivedAt, definitions = {}) => {
     receivedAt,
     definitions: { grant: fileState(version, "pending"), ...definitions },
   };
+};
+
+// Stamped as GAS's writers stamp a version they record.
+const insertVersions = async (...rows) => {
+  const ids = rows.map(({ _id }) => _id);
+  await configVersions.insertMany(rows);
+  await configVersions.updateMany({ _id: { $in: ids } }, [
+    withWorstFetchStatus,
+  ]);
+
+  return configVersions.find({ _id: { $in: ids } }).toArray();
 };
 
 const storeGrant = (version, overrides = {}) =>
@@ -112,11 +134,11 @@ const auditRows = (action) =>
 
 describe("GET /grant-admin/grants/{code}/versions", () => {
   it("answers every version newest first, naming the newest active one current", async () => {
-    await configVersions.insertMany([
+    await insertVersions(
       aConfigVersion("1.2.0", "active", "2026-10-10T16:25:00.000Z"),
       aConfigVersion("10.0.0", "draft", "2026-10-15T10:04:00.000Z"),
       aConfigVersion("1.10.0", "active", "2026-10-12T09:00:00.000Z"),
-    ]);
+    );
 
     const { payload, res } = await get(`${CODE}/versions`);
 
@@ -130,16 +152,22 @@ describe("GET /grant-admin/grants/{code}/versions", () => {
           version: "10.0.0",
           status: "draft",
           receivedAt: "2026-10-15T10:04:00.000Z",
+          fetchStatus: "pending",
+          stored: false,
         },
         {
           version: "1.10.0",
           status: "active",
           receivedAt: "2026-10-12T09:00:00.000Z",
+          fetchStatus: "pending",
+          stored: false,
         },
         {
           version: "1.2.0",
           status: "active",
           receivedAt: "2026-10-10T16:25:00.000Z",
+          fetchStatus: "pending",
+          stored: false,
         },
       ],
     });
@@ -147,7 +175,7 @@ describe("GET /grant-admin/grants/{code}/versions", () => {
   });
 
   it("names no current version for a draft-only grant", async () => {
-    await configVersions.insertOne(
+    await insertVersions(
       aConfigVersion("2.0.0", "draft", "2026-10-15T10:04:00.000Z"),
     );
 
@@ -185,7 +213,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     });
 
   it("a draft with nothing stored: every file not stored, no definition, and the row unchanged", async () => {
-    await configVersions.insertOne(DRAFT);
+    const [row] = await insertVersions(DRAFT);
 
     const { payload: overview } = await get(`${CODE}/versions/2.0.0/overview`);
     const { payload: definition, res } = await get(
@@ -201,16 +229,22 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
       version: "2.0.0",
       status: "draft",
       receivedAt: "2026-10-15T10:04:00.000Z",
+      s3Bucket: "config-broker-local",
       files: {
-        grant: { stored: false, fetchStatus: "pending" },
-        agreement: { stored: false, fetchStatus: "pending" },
-        payment: { stored: false, fetchStatus: "permanent_error" },
+        grant: { stored: false, ...fetchStateOf("2.0.0", "pending") },
+        agreement: { stored: false, ...fetchStateOf("2.0.0", "pending") },
+        payment: {
+          stored: false,
+          ...fetchStateOf("2.0.0", "permanent_error"),
+        },
       },
       versions: [
         {
           version: "2.0.0",
           status: "draft",
           receivedAt: "2026-10-15T10:04:00.000Z",
+          fetchStatus: "permanent_error",
+          stored: false,
         },
       ],
       counterpart: null,
@@ -224,13 +258,11 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
       storedBytes: null,
     });
     expect(overview.header.receivedAt).toBe("2026-10-15T10:04:00.000Z");
-    expect(await configVersions.findOne({ _id: DRAFT._id })).toStrictEqual(
-      DRAFT,
-    );
+    expect(await configVersions.findOne({ _id: DRAFT._id })).toStrictEqual(row);
   });
 
   it("a stored version: its files stored, the overview facts and the document as stored", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
     await storeGrant("2.0.0", { admin: { role: "WOODLAND_ADMIN" } });
     await agreementDefinitions.insertOne({
       code: CODE,
@@ -246,7 +278,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     expect(
       grantVersionPageSchemas.overview.validate(overview).error,
     ).toBeUndefined();
-    expect(overview.header.files).toEqual({
+    expect(overview.header.files).toMatchObject({
       grant: { stored: true, fetchStatus: "pending" },
       agreement: { stored: true, fetchStatus: "pending" },
       payment: { stored: false, fetchStatus: "permanent_error" },
@@ -283,7 +315,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   it.each(["overview", "phases"])(
     "%s: the workflow link, asked of Caseworking with no operator name",
     async (tab) => {
-      await configVersions.insertOne(DRAFT);
+      await insertVersions(DRAFT);
       await storeWorkflowVersions("2.0.0");
 
       const { payload } = await get(`${CODE}/versions/2.0.0/${tab}`);
@@ -303,7 +335,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   );
 
   it("overview: no workflow link when Caseworking has only another version", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
     await storeWorkflowVersions("1.2.0");
 
     const { payload } = await get(`${CODE}/versions/2.0.0/overview`);
@@ -312,7 +344,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   });
 
   it("overview: the workflow link is unknown, and the page still drawn, when Caseworking is down", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
     await setCwStub({ workflows: { mode: "down" } });
 
     const { payload, res } = await get(`${CODE}/versions/2.0.0/overview`);
@@ -323,7 +355,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   });
 
   it("definition: Caseworking is not asked for the workflow link", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
     await storeWorkflowVersions("2.0.0");
 
     const { payload } = await get(`${CODE}/versions/2.0.0/definition`);
@@ -333,7 +365,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   });
 
   it("a stored payment definition shows as stored", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
     await paymentDefinitions.insertOne({
       code: CODE,
       version: "2.0.0",
@@ -342,14 +374,14 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
 
     const { payload } = await get(`${CODE}/versions/2.0.0/overview`);
 
-    expect(payload.header.files.payment).toEqual({
+    expect(payload.header.files.payment).toMatchObject({
       stored: true,
       fetchStatus: "permanent_error",
     });
   });
 
   it("a stored BSON number goes out as plain JSON", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
     await storeGrant("2.0.0");
     await grants.updateOne(
       { code: CODE, version: "2.0.0" },
@@ -362,7 +394,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   });
 
   it("a stored document over the section cap is too large to show", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
     await storeGrant("2.0.0", {
       metadata: {
         ...grantDefinition.metadata,
@@ -379,7 +411,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   });
 
   it("phases: the stored grant's lifecycle as Grants resolves it, audited with its tab", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
     await storeGrant("2.0.0");
 
     const { payload } = await get(`${CODE}/versions/2.0.0/phases`);
@@ -402,15 +434,37 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
           to: "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_RECEIVED",
           kind: "any",
           processes: [],
+          processEffects: [],
         },
         {
           to: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
           kind: "move",
           from: "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
+          matchedBy: expect.any(String),
           processes: expect.any(Array),
+          processEffects: expect.any(Array),
+        },
+        {
+          to: "PRE_AWARD:REVIEW_APPLICATION:WITHDRAWAL_REQUESTED",
+          kind: "move",
+          from: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
+          matchedBy: "status",
+          processes: ["REQUEST_APPLICATION_WITHDRAWAL"],
+          processEffects: [
+            {
+              process: "REQUEST_APPLICATION_WITHDRAWAL",
+              setsStatus: "APPLICATION_WITHDRAWN",
+              tellsCw: true,
+              onlyWhen: "no agreement is on offer",
+            },
+          ],
         },
       ]),
     );
+    expect(payload.lifecycle.phases[0].stages[0].statuses[0]).toEqual({
+      code: "APPLICATION_RECEIVED",
+      name: null,
+    });
     expect(payload.lifecycle.externalMappings).toContainEqual({
       source: "CW",
       code: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
@@ -426,7 +480,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   });
 
   it("phases: why a stored grant has no lifecycle, shown rather than skipped", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
     await storeGrant("2.0.0");
     await grants.updateOne(
       { code: CODE, version: "2.0.0" },
@@ -443,7 +497,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   });
 
   it("phases: neither a lifecycle nor a problem when the grant file is not stored", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
 
     const { payload } = await get(`${CODE}/versions/2.0.0/phases`);
 
@@ -455,7 +509,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   });
 
   it("writes one VIEW_GRANT_VERSION row per tab read, with the operator, PMC 0706, the version and the tab", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
 
     await get(`${CODE}/versions/2.0.0/definition`);
 
@@ -476,7 +530,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
   });
 
   it("answers 404 GRANT_VERSION_NOT_FOUND for an unknown version, audited as a FAILURE", async () => {
-    await configVersions.insertOne(DRAFT);
+    await insertVersions(DRAFT);
 
     const error = await get(`${CODE}/versions/9.9.9/overview`).catch((e) => e);
 
@@ -566,15 +620,22 @@ describe("POST /grant-admin/grants/{code}/versions/{version}/fetch", () => {
   };
 
   it("stores every file, leaves the version row as it was and audits the operator", async () => {
-    const row = aPublishedVersion("3.0.0");
-    await configVersions.insertOne(row);
+    const [row] = await insertVersions(aPublishedVersion("3.0.0"));
     await publish("3.0.0");
 
     expect(await fetchDefinitions(CODE, "3.0.0")).toEqual(ALL_STORED);
 
+    expect(row.worstFetchStatus).toBe("pending");
     expect(await configVersions.findOne({ _id: row._id })).toStrictEqual(row);
     const { payload } = await get(`${CODE}/versions/3.0.0/definition`);
-    expect(payload.header.files).toEqual({
+    expect(payload.header.versions).toEqual([
+      expect.objectContaining({
+        version: "3.0.0",
+        fetchStatus: "pending",
+        stored: true,
+      }),
+    ]);
+    expect(payload.header.files).toMatchObject({
       grant: { stored: true, fetchStatus: "pending" },
       agreement: { stored: true, fetchStatus: "pending" },
       payment: { stored: true, fetchStatus: "pending" },
@@ -600,8 +661,7 @@ describe("POST /grant-admin/grants/{code}/versions/{version}/fetch", () => {
   });
 
   it("reports a missing payment file, stores nothing for it and still stores the others", async () => {
-    const row = aPublishedVersion("3.0.1");
-    await configVersions.insertOne(row);
+    const [row] = await insertVersions(aPublishedVersion("3.0.1"));
     await publish("3.0.1", { files: { payment: null } });
 
     expect(await fetchDefinitions(CODE, "3.0.1")).toEqual({
@@ -624,7 +684,7 @@ describe("POST /grant-admin/grants/{code}/versions/{version}/fetch", () => {
   });
 
   it("reports a file arrival would refuse as invalid, with GAS's reason", async () => {
-    await configVersions.insertOne(aPublishedVersion("3.0.2"));
+    await insertVersions(aPublishedVersion("3.0.2"));
     await publish("3.0.2", {
       files: { payment: { ...paymentDefinition, code: CODE, unknownField: 1 } },
     });
@@ -643,7 +703,7 @@ describe("POST /grant-admin/grants/{code}/versions/{version}/fetch", () => {
   });
 
   it("answers no files once every one is stored, and two at once leave one copy of each", async () => {
-    await configVersions.insertOne(aPublishedVersion("3.0.3"));
+    await insertVersions(aPublishedVersion("3.0.3"));
     await publish("3.0.3");
 
     const both = await Promise.all([
@@ -660,8 +720,9 @@ describe("POST /grant-admin/grants/{code}/versions/{version}/fetch", () => {
   });
 
   it("stores a version GAS won't use, and leaves it so", async () => {
-    const row = aPublishedVersion("3.0.4", { grantStatus: "permanent_error" });
-    await configVersions.insertOne(row);
+    const [row] = await insertVersions(
+      aPublishedVersion("3.0.4", { grantStatus: "permanent_error" }),
+    );
     await publish("3.0.4");
 
     expect(await fetchDefinitions(CODE, "3.0.4")).toEqual(ALL_STORED);
@@ -670,9 +731,7 @@ describe("POST /grant-admin/grants/{code}/versions/{version}/fetch", () => {
 
   it("refuses an aliased grant file, storing nothing for it, each time it is asked", async () => {
     const ALIAS = "frps-private-beta";
-    await configVersions.insertOne(
-      aPublishedVersion("3.0.5", { code: "farm-payments" }),
-    );
+    await insertVersions(aPublishedVersion("3.0.5", { code: "farm-payments" }));
     await publish("3.0.5", {
       code: "farm-payments",
       files: { gas: { ...grantDefinition, code: ALIAS } },
@@ -722,9 +781,7 @@ describe("POST /grant-admin/grants/{code}/versions/{version}/fetch", () => {
 
   it("GAS still resolves an admin-fetched version as before, and records it fetched", async () => {
     vi.stubEnv("GRANT_FUNDING_CALCULATOR_URL", "http://127.0.0.1:1");
-    await configVersions.insertOne(
-      aPublishedVersion("3.0.6", { status: "active" }),
-    );
+    await insertVersions(aPublishedVersion("3.0.6", { status: "active" }));
     await publish("3.0.6");
     await fetchDefinitions(CODE, "3.0.6");
 

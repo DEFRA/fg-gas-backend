@@ -1,5 +1,5 @@
 import { logger } from "../../common/logger.js";
-import { describeError } from "../repositories/cw-actuators.repository.js";
+import { describeError } from "../repositories/cw-http.js";
 
 // Unknown, not absent, when the other side cannot say: the page still draws.
 export const readCounterpart = async (link, probe) => {

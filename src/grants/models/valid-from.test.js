@@ -15,6 +15,10 @@ describe("ValidFrom", () => {
     it("does not match the same status in another stage", () => {
       expect(validFrom.matches("PRE_AWARD:OTHER:RECEIVED")).toBe(false);
     });
+
+    it("matches by position", () => {
+      expect(validFrom.matchedBy).toBe("position");
+    });
   });
 
   describe("with a status code", () => {
@@ -26,6 +30,10 @@ describe("ValidFrom", () => {
 
     it("does not match another status", () => {
       expect(validFrom.matches("PRE_AWARD:REVIEW:HELD")).toBe(false);
+    });
+
+    it("matches by status", () => {
+      expect(validFrom.matchedBy).toBe("status");
     });
   });
 });

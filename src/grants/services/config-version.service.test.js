@@ -13,6 +13,7 @@ import {
   findStoredGrantDocument,
   findStoredGrantSummary,
 } from "../repositories/grant.repository.js";
+import { CLAIM_APPROVAL_TELLS_CW } from "./claims.service.js";
 import {
   findConfigVersionFiles,
   findConfigVersions,
@@ -26,41 +27,54 @@ vi.mock("../../common/config-broker/definition-stores.js");
 vi.mock("../repositories/config-version.repository.js");
 vi.mock("../repositories/grant.repository.js");
 
-const VERSIONS = [
-  {
-    version: "2.0.0",
-    status: "draft",
-    receivedAt: "2026-10-15T10:04:00.000Z",
-  },
-  {
-    version: "1.2.0",
-    status: "active",
-    receivedAt: "2026-10-10T16:25:00.000Z",
-  },
-];
+const aFile = (version, type, fetchStatus) => ({
+  s3Key: `woodland/${version}/${type}.json`,
+  fetchStatus,
+  fetchAttempts: 0,
+  fetchError: null,
+});
 
 const ROW = {
-  _id: "row-1",
   grantCode: "woodland",
   version: "2.0.0",
   status: "draft",
   receivedAt: "2026-10-15T10:04:00.000Z",
+  s3Bucket: "config-broker-local",
+  worstFetchStatus: "permanent_error",
   definitions: {
-    grant: { s3Key: "woodland/2.0.0/gas.json", fetchStatus: "fetched" },
-    agreement: {
-      s3Key: "woodland/2.0.0/agreement.json",
-      fetchStatus: "pending",
-    },
+    grant: aFile("2.0.0", "gas", "fetched"),
+    agreement: aFile("2.0.0", "agreement", "pending"),
     payment: {
-      s3Key: "woodland/2.0.0/payment.json",
-      fetchStatus: "permanent_error",
+      ...aFile("2.0.0", "payment", "permanent_error"),
+      fetchAttempts: 1,
+      fetchError: "invalid",
     },
   },
 };
 
+const OLDER = {
+  grantCode: "woodland",
+  version: "1.2.0",
+  status: "active",
+  receivedAt: "2026-10-10T16:25:00.000Z",
+  s3Bucket: "config-broker-local",
+  worstFetchStatus: "pending",
+  definitions: { grant: aFile("1.2.0", "gas", "pending") },
+};
+
+const storedAs = ({ grant = [], agreement = [], payment = [] }) => {
+  storedDefinitionVersions.mockImplementation(
+    async (type) => new Set({ grant, agreement, payment }[type]),
+  );
+};
+
 describe("findConfigVersions", () => {
-  it("answers every version newest first, naming the newest active one current", async () => {
-    findVersionsByGrantCode.mockResolvedValue(VERSIONS);
+  beforeEach(() => {
+    findVersionsByGrantCode.mockResolvedValue([ROW, OLDER]);
+    storedAs({ grant: ["2.0.0", "1.2.0"], payment: ["2.0.0"] });
+  });
+
+  it("answers every version newest first, with its worst fetch status and whether every file is stored", async () => {
     findLatestActive.mockResolvedValue(
       ConfigVersion.createMock({ grantCode: "woodland", version: "1.2.0" }),
     );
@@ -68,13 +82,59 @@ describe("findConfigVersions", () => {
     expect(await findConfigVersions("woodland")).toEqual({
       code: "woodland",
       current: "1.2.0",
-      versions: VERSIONS,
+      versions: [
+        {
+          version: "2.0.0",
+          status: "draft",
+          receivedAt: "2026-10-15T10:04:00.000Z",
+          fetchStatus: "permanent_error",
+          stored: false,
+        },
+        {
+          version: "1.2.0",
+          status: "active",
+          receivedAt: "2026-10-10T16:25:00.000Z",
+          fetchStatus: "pending",
+          stored: true,
+        },
+      ],
     });
     expect(findLatestActive).toHaveBeenCalledWith("woodland");
+    expect(findVersionsByGrantCode).toHaveBeenCalledWith("woodland", undefined);
+  });
+
+  it("asks each store once, about every version that has its file", async () => {
+    findLatestActive.mockResolvedValue(null);
+
+    await findConfigVersions("woodland");
+
+    expect(storedDefinitionVersions.mock.calls).toEqual([
+      ["grant", "woodland", ["2.0.0", "1.2.0"]],
+      ["agreement", "woodland", ["2.0.0"]],
+      ["payment", "woodland", ["2.0.0"]],
+    ]);
+  });
+
+  it("reads a version stored by an operator while GAS has not loaded it as stored, keeping its fetch status", async () => {
+    findVersionsByGrantCode.mockResolvedValue([OLDER]);
+    findLatestActive.mockResolvedValue(null);
+
+    const { versions } = await findConfigVersions("woodland");
+
+    expect(versions[0]).toMatchObject({ fetchStatus: "pending", stored: true });
+  });
+
+  it("answers a version not yet stamped with a worst fetch status as null", async () => {
+    const { worstFetchStatus: _, ...unstamped } = OLDER;
+    findVersionsByGrantCode.mockResolvedValue([unstamped]);
+    findLatestActive.mockResolvedValue(null);
+
+    const { versions } = await findConfigVersions("woodland");
+
+    expect(versions[0].fetchStatus).toBeNull();
   });
 
   it("names no current version when none is active", async () => {
-    findVersionsByGrantCode.mockResolvedValue([VERSIONS[0]]);
     findLatestActive.mockResolvedValue(null);
 
     expect((await findConfigVersions("woodland")).current).toBeNull();
@@ -90,13 +150,11 @@ describe("findConfigVersions", () => {
 
 describe("findConfigVersionFiles", () => {
   beforeEach(() => {
-    findVersionDocument.mockResolvedValue(ROW);
-    storedDefinitionVersions.mockImplementation(async (type) =>
-      type === "agreement" ? new Set() : new Set(["2.0.0"]),
-    );
+    findVersionsByGrantCode.mockResolvedValue([ROW]);
+    storedAs({ grant: ["2.0.0"], payment: ["2.0.0"] });
   });
 
-  it("answers the version and whether each of its files is stored, as plain data", async () => {
+  it("answers the version, where it is and the fetch state of each of its files, as plain data", async () => {
     const found = await findConfigVersionFiles({
       code: "woodland",
       version: "2.0.0",
@@ -107,50 +165,55 @@ describe("findConfigVersionFiles", () => {
       version: "2.0.0",
       status: "draft",
       receivedAt: "2026-10-15T10:04:00.000Z",
+      s3Bucket: "config-broker-local",
       files: {
-        grant: { stored: true, fetchStatus: "fetched" },
-        agreement: { stored: false, fetchStatus: "pending" },
-        payment: { stored: true, fetchStatus: "permanent_error" },
+        grant: { stored: true, ...aFile("2.0.0", "gas", "fetched") },
+        agreement: { stored: false, ...aFile("2.0.0", "agreement", "pending") },
+        payment: { stored: true, ...ROW.definitions.payment },
       },
     });
+    expect(findVersionsByGrantCode).toHaveBeenCalledWith("woodland", ["2.0.0"]);
     expect(storedDefinitionVersions).toHaveBeenCalledWith("grant", "woodland", [
       "2.0.0",
     ]);
-    expect(storedDefinitionVersions).toHaveBeenCalledWith(
-      "agreement",
-      "woodland",
-      ["2.0.0"],
-    );
   });
 
   it("asks only about the files the version has", async () => {
-    findVersionDocument.mockResolvedValue({
-      ...ROW,
-      definitions: { grant: ROW.definitions.grant },
-    });
+    findVersionsByGrantCode.mockResolvedValue([OLDER]);
 
     const found = await findConfigVersionFiles({
       code: "woodland",
-      version: "2.0.0",
+      version: "1.2.0",
     });
 
     expect(Object.keys(found.files)).toEqual(["grant"]);
     expect(storedDefinitionVersions).toHaveBeenCalledTimes(1);
     expect(storedDefinitionVersions).toHaveBeenCalledWith("grant", "woodland", [
-      "2.0.0",
+      "1.2.0",
     ]);
   });
 
   it("answers null for an unknown version", async () => {
-    findVersionDocument.mockResolvedValue(null);
+    findVersionsByGrantCode.mockResolvedValue([]);
 
     expect(
       await findConfigVersionFiles({ code: "woodland", version: "9.9.9" }),
     ).toBeNull();
   });
 
-  it("refuses a row the read model cannot accept, never skipping it", async () => {
-    findVersionDocument.mockResolvedValue({ ...ROW, receivedAt: null });
+  it.each([
+    ["no receivedAt", { receivedAt: null }],
+    ["a worst fetch status GAS does not know", { worstFetchStatus: "lost" }],
+    [
+      "a negative attempt count",
+      {
+        definitions: {
+          grant: { ...ROW.definitions.grant, fetchAttempts: -1 },
+        },
+      },
+    ],
+  ])("refuses a row with %s, never skipping it", async (_, overrides) => {
+    findVersionsByGrantCode.mockResolvedValue([{ ...ROW, ...overrides }]);
 
     await expect(
       findConfigVersionFiles({ code: "woodland", version: "2.0.0" }),
@@ -249,18 +312,89 @@ describe("grantVersionExists", () => {
   });
 });
 
+const TWO_STATUSES = [
+  {
+    code: "P",
+    stages: [
+      {
+        code: "S",
+        statuses: [
+          { code: "A", validFrom: [] },
+          {
+            code: "B",
+            validFrom: [
+              {
+                code: "A",
+                processes: ["GENERATE_OFFER", "REQUEST_APPLICATION_WITHDRAWAL"],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+];
+
 describe("findGrantLifecycle", () => {
   const ref = { code: "woodland", version: "2.0.0" };
 
   it("answers the stored grant's lifecycle as Grants resolves it", async () => {
     const grant = createTestGrant();
     findByCode.mockResolvedValue(grant);
+    const { waysIn, claimApproval, ...lifecycle } = grant.describeLifecycle();
 
     expect(await findGrantLifecycle(ref)).toEqual({
-      lifecycle: grant.describeLifecycle(),
+      lifecycle: {
+        ...lifecycle,
+        waysIn: waysIn.map((wayIn) => expect.objectContaining(wayIn)),
+        claimApproval,
+      },
       problem: null,
     });
     expect(findByCode).toHaveBeenCalledWith("woodland", "2.0.0");
+  });
+
+  it("says what GAS does on each way in, from the processes it has a handler for", async () => {
+    findByCode.mockResolvedValue(createTestGrant({ phases: TWO_STATUSES }));
+
+    const { lifecycle } = await findGrantLifecycle(ref);
+
+    expect(
+      lifecycle.waysIn.find(({ to }) => to === "P:S:B").processEffects,
+    ).toEqual([
+      {
+        process: "GENERATE_OFFER",
+        setsStatus: null,
+        tellsCw: false,
+        onlyWhen: null,
+      },
+      {
+        process: "REQUEST_APPLICATION_WITHDRAWAL",
+        setsStatus: "APPLICATION_WITHDRAWN",
+        tellsCw: true,
+        onlyWhen: "no agreement is on offer",
+      },
+    ]);
+  });
+
+  it("says whether GAS tells CW of the claim approval move, as claims makes it", async () => {
+    const grant = createTestGrant({
+      phases: TWO_STATUSES,
+      claims: {
+        onClaimApproval: {
+          currentPosition: { phase: "P", stage: "S", status: "A" },
+          targetPosition: { phase: "P", stage: "S", status: "B" },
+        },
+      },
+    });
+    findByCode.mockResolvedValue(grant);
+
+    const { lifecycle } = await findGrantLifecycle(ref);
+
+    expect(lifecycle.claimApproval).toEqual({
+      ...grant.describeLifecycle().claimApproval,
+      tellsCw: CLAIM_APPROVAL_TELLS_CW,
+    });
   });
 
   it("answers null when the grant file is not stored", async () => {

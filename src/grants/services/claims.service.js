@@ -31,6 +31,9 @@ import {
 } from "../use-cases/resolve-current-grant.use-case.js";
 import { transitionApplicationUseCase } from "../use-cases/transition-application.use-case.js";
 
+// Whether GAS tells CW of the Claim Approval Transition it makes.
+export const CLAIM_APPROVAL_TELLS_CW = true;
+
 const retries = 1;
 
 class RetryClaimSubmission extends Error {}
@@ -449,7 +452,7 @@ const transitionOnFinalClaim = async (
       application,
       grant,
       targetPosition,
-      publishCaseWorkingStatusUpdate: true,
+      publishCaseWorkingStatusUpdate: CLAIM_APPROVAL_TELLS_CW,
       sideEffectContext: {
         clientRef: application.clientRef,
         code: application.code,

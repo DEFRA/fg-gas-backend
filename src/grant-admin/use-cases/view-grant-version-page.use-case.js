@@ -14,7 +14,7 @@ import {
   findGrantLifecycle,
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
-import { findCwWorkflowVersionExistence } from "../repositories/cw-actuators.repository.js";
+import { findCwWorkflowVersionExistence } from "../repositories/cw-workflows.repository.js";
 import {
   SECTION_CAP_BYTES,
   composeRecordPage,

@@ -7,6 +7,7 @@ const validFrom = Joi.object({
 
 const status = Joi.object({
   code: Joi.string().required(),
+  name: Joi.string(),
   validFrom: Joi.array().items(validFrom),
   processes: Joi.array().items(Joi.string()),
 })

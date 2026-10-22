@@ -5,9 +5,13 @@ export class ValidFrom {
   }
 
   // A fully qualified code matches the whole position, any other code the
-  // status alone.
+  // status alone, in any stage of any phase.
+  get matchedBy() {
+    return this.code.includes(":") ? "position" : "status";
+  }
+
   matches(position) {
-    if (this.code.includes(":")) {
+    if (this.matchedBy === "position") {
       return this.code === position;
     }
 

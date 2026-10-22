@@ -1,9 +1,7 @@
 import { logger } from "../../common/logger.js";
 import { applicationExists } from "../../grants/services/application-read.service.js";
-import {
-  describeError,
-  findCwCase,
-} from "../repositories/cw-actuators.repository.js";
+import { findCwCase } from "../repositories/cw-actuators.repository.js";
+import { describeError } from "../repositories/cw-http.js";
 import { startSharedRead } from "../services/compose-record-page.js";
 
 export const startCaseRead = ({ workflowCode, caseRef }, options) =>

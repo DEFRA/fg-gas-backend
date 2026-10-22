@@ -1,5 +1,5 @@
 import { grantVersionExists } from "../../grants/services/config-version.service.js";
-import { findCwWorkflowVersion } from "../repositories/cw-actuators.repository.js";
+import { findCwWorkflowVersion } from "../repositories/cw-workflows.repository.js";
 import { startSharedRead } from "../services/compose-record-page.js";
 import { readCounterpart } from "./read-counterpart.js";
 
@@ -24,10 +24,14 @@ export const readWorkflowVersionHeader = async (args) => {
       version: read.version.version,
       status: read.version.status,
       receivedAt: read.version.receivedAt,
+      s3Bucket: read.version.s3Bucket,
       files: {
         workflow: {
           stored: read.storedBytes !== null,
           fetchStatus: read.version.fetchStatus,
+          fetchError: read.version.fetchError,
+          fetchAttempts: read.version.fetchAttempts,
+          s3Key: read.version.s3Key,
         },
       },
       versions: read.versions,

@@ -6,10 +6,7 @@ import { writeAuditEvent } from "../../events/write-audit-event.js";
 import { findById as findGasInboxById } from "../../events/repositories/inbox.repository.js";
 import { findById as findGasOutboxById } from "../../events/repositories/outbox.repository.js";
 import { applicationExists } from "../../grants/services/application-read.service.js";
-import {
-  describeError,
-  findCwEvent,
-} from "../repositories/cw-actuators.repository.js";
+import { findCwEvent } from "../repositories/cw-actuators.repository.js";
 import { getEventAuditBuilder, getEventUseCase } from "./get-event.use-case.js";
 
 vi.mock("../../common/mongo-client.js");
@@ -289,14 +286,12 @@ describe("getEventUseCase record", () => {
     );
     const failure = new Error("mongo down");
     applicationExists.mockRejectedValue(failure);
-    describeError.mockReturnValue("read failed");
     const error = vi.spyOn(logger, "error");
 
     const event = await call();
 
     expect(event.record).toBeNull();
     expect(event.searchRef).toBe("GLD-9B2");
-    expect(describeError).toHaveBeenCalledWith(failure);
     expect(error).toHaveBeenCalledWith(
       "Get event: application link unknown: read failed",
     );

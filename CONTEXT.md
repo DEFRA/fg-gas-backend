@@ -47,10 +47,14 @@
 : One part of a Config Version that a context reads: the grant's own definition, and optionally an agreement definition and a payment definition.
 
 **Stored Definition**
-: A Definition File that GAS holds itself. Until it is stored, the Config Version is only an announcement.
+: A Definition File that GAS holds itself. Until it is stored, the Config Version is only an announcement. The Grants list's "Stored" (fetch status `fetched`) means GAS has loaded the file itself, from S3 or from a stored copy; a version page's "Stored" means a Stored Definition, however it got there.
+
+**Worst Fetch Status**
+: The worst fetch status among a Config Version's Definition Files: Failed, then Fetch error, then Not stored yet, then Stored. It records only what GAS's own loads record, never Fetch Definitions.
+_Avoid_: definitions fetch status (reads like Fetch Definitions); reading it as stored, since Fetch Definitions can store a file without changing it.
 
 **Current Version**
-: The Config Version GAS gives new applications: the newest Active one.
+: The Config Version GAS resolves a request to: the newest Active one in the requested major whose grant file is not Failed. A call that names no version (the allow list, administration) takes the newest Active one across all majors, Failed or not. GAS never fetches an older version of a major.
 
 **Fetch Definitions**
 : An operator asks GAS to store every Definition File of a Config Version that is not stored. It never changes what GAS recorded about fetching the version. For a Workflow Version, GAS asks Caseworking, which stores it.

@@ -23,15 +23,30 @@ const HEADER = {
   version: "2.0.0",
   status: "draft",
   receivedAt: "2026-10-15T10:04:00.000Z",
+  s3Bucket: "config-broker-local",
   files: {
-    grant: { stored: false, fetchStatus: "pending" },
-    payment: { stored: false, fetchStatus: "permanent_error" },
+    grant: {
+      stored: false,
+      fetchStatus: "pending",
+      fetchError: null,
+      fetchAttempts: 0,
+      s3Key: "woodland/2.0.0/gas/gas.json",
+    },
+    payment: {
+      stored: true,
+      fetchStatus: "permanent_error",
+      fetchError: "invalid",
+      fetchAttempts: 1,
+      s3Key: "woodland/2.0.0/gas/payment.json",
+    },
   },
   versions: [
     {
       version: "2.0.0",
       status: "draft",
       receivedAt: "2026-10-15T10:04:00.000Z",
+      fetchStatus: "permanent_error",
+      stored: false,
     },
   ],
   counterpart: { exists: true },
@@ -46,7 +61,10 @@ const LIFECYCLE = {
         {
           code: "APPLICATION",
           name: null,
-          statuses: [{ code: "RECEIVED" }, { code: "AMEND" }],
+          statuses: [
+            { code: "RECEIVED", name: "Received" },
+            { code: "AMEND", name: null },
+          ],
         },
       ],
     },
@@ -54,18 +72,34 @@ const LIFECYCLE = {
   initialPosition: "PRE_AWARD:APPLICATION:RECEIVED",
   amendablePositions: ["PRE_AWARD:APPLICATION:AMEND"],
   waysIn: [
-    { to: "PRE_AWARD:APPLICATION:RECEIVED", kind: "any", processes: [] },
+    {
+      to: "PRE_AWARD:APPLICATION:RECEIVED",
+      kind: "any",
+      processes: [],
+      processEffects: [],
+    },
     {
       to: "PRE_AWARD:APPLICATION:AMEND",
       kind: "move",
       from: "PRE_AWARD:APPLICATION:RECEIVED",
-      processes: ["NOTIFY"],
+      matchedBy: "status",
+      processes: ["NOTIFY", "REQUEST_APPLICATION_WITHDRAWAL"],
+      processEffects: [
+        {
+          process: "REQUEST_APPLICATION_WITHDRAWAL",
+          setsStatus: "APPLICATION_WITHDRAWN",
+          tellsCw: true,
+          onlyWhen: "no agreement is on offer",
+        },
+      ],
     },
     {
       to: "PRE_AWARD:APPLICATION:AMEND",
       kind: "unmatched",
       code: "ON_HOLD",
+      matchedBy: "status",
       processes: [],
+      processEffects: [],
     },
   ],
   externalMappings: [
@@ -87,6 +121,7 @@ const LIFECYCLE = {
   claimApproval: {
     from: "PRE_AWARD:APPLICATION:RECEIVED",
     to: "PRE_AWARD:APPLICATION:AMEND",
+    tellsCw: true,
   },
 };
 

@@ -34,6 +34,7 @@ const grantVersionHeaderSchema = Joi.object({
   version: Joi.string().required(),
   status: versionStatus,
   receivedAt: receivedAtSchema,
+  s3Bucket: Joi.string().allow(null).required(),
   files: Joi.object({
     grant: definitionFileSchema.required(),
     agreement: definitionFileSchema,
@@ -77,7 +78,7 @@ const lifecyclePhaseSchema = Joi.object({
         code: codeSchema,
         name: nameSchema,
         statuses: Joi.array()
-          .items(Joi.object({ code: codeSchema }))
+          .items(Joi.object({ code: codeSchema, name: nameSchema }))
           .required(),
       }).label("LifecycleStage"),
     )
@@ -97,7 +98,21 @@ const wayInSchema = Joi.object({
     is: "unmatched",
     otherwise: Joi.forbidden(),
   }),
+  // How the validFrom entry matched: a whole position, or a bare status code
+  // in any stage of any phase. Absent on a way in from any status.
+  matchedBy: Joi.string().valid("position", "status"),
   processes: processesSchema,
+  // One per process GAS has a handler for, in the order they run.
+  processEffects: Joi.array()
+    .items(
+      Joi.object({
+        process: Joi.string().required(),
+        setsStatus: Joi.string().allow(null).required(),
+        tellsCw: Joi.boolean().required(),
+        onlyWhen: Joi.string().allow(null).required(),
+      }).label("ProcessEffect"),
+    )
+    .required(),
 }).label("WayIn");
 
 const externalStatusMappingSchema = Joi.object({
@@ -114,7 +129,11 @@ const grantLifecycleSchema = Joi.object({
   amendablePositions: Joi.array().items(Joi.string()).required(),
   waysIn: Joi.array().items(wayInSchema).required(),
   externalMappings: Joi.array().items(externalStatusMappingSchema).required(),
-  claimApproval: Joi.object({ from: positionSchema, to: positionSchema })
+  claimApproval: Joi.object({
+    from: positionSchema,
+    to: positionSchema,
+    tellsCw: Joi.boolean().required(),
+  })
     .allow(null)
     .required()
     .label("ClaimApprovalTransition"),

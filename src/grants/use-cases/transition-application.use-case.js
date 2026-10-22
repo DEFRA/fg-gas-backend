@@ -2,6 +2,7 @@ import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
 import { saveEvents } from "../../events/index.js";
 import { UpdateCaseStatusCommand } from "../commands/update-case-status.command.js";
+import { ApplicationStatus } from "../models/application.js";
 import { update } from "../repositories/application.repository.js";
 import { acceptAgreementUseCase } from "./accept-agreement.use-case.js";
 import { addAgreementUseCase } from "./add-agreement.use-case.js";
@@ -14,23 +15,54 @@ import { requestAgreementTerminationUseCase } from "./request-agreement-terminat
 import { withdrawAgreementUseCase } from "./withdraw-agreement.use-case.js";
 import { withdrawApplicationUseCase } from "./withdraw-application.use-case.js";
 
-const processHandlers = {
-  GENERATE_OFFER: createAgreementCommandUseCase,
-  STORE_AGREEMENT_CASE: addAgreementUseCase,
-  ACCEPT_AGREEMENT: acceptAgreementUseCase,
-  CANCEL_AGREEMENT: cancelAgreementUseCase,
-  REQUEST_APPLICATION_WITHDRAWAL: withdrawApplicationUseCase,
-  REQUEST_AGREEMENT_CANCELLATION: requestAgreementCancellationUseCase,
-  WITHDRAW_AGREEMENT: withdrawAgreementUseCase,
-  REQUEST_AGREEMENT_TERMINATION: requestAgreementTerminationUseCase,
-  APPLY_AGREEMENT_TERMINATION: applyAgreementTerminationUseCase,
-};
+const grantProcess = (handle, effects) => ({
+  handle,
+  setsStatus: null,
+  tellsCw: false,
+  onlyWhen: null,
+  ...effects,
+});
 
-const getHandlerForProcess = (processName) => processHandlers[processName];
+// What each process does beyond the move: a status it sets itself, and
+// whether it tells CW the application's status.
+const grantProcesses = {
+  GENERATE_OFFER: grantProcess(createAgreementCommandUseCase),
+  STORE_AGREEMENT_CASE: grantProcess(addAgreementUseCase, { tellsCw: true }),
+  ACCEPT_AGREEMENT: grantProcess(acceptAgreementUseCase, { tellsCw: true }),
+  CANCEL_AGREEMENT: grantProcess(cancelAgreementUseCase, { tellsCw: true }),
+  REQUEST_APPLICATION_WITHDRAWAL: grantProcess(withdrawApplicationUseCase, {
+    setsStatus: ApplicationStatus.Withdrawn,
+    tellsCw: true,
+    onlyWhen: "no agreement is on offer",
+  }),
+  REQUEST_AGREEMENT_CANCELLATION: grantProcess(
+    requestAgreementCancellationUseCase,
+  ),
+  WITHDRAW_AGREEMENT: grantProcess(withdrawAgreementUseCase, {
+    tellsCw: true,
+  }),
+  REQUEST_AGREEMENT_TERMINATION: grantProcess(
+    requestAgreementTerminationUseCase,
+  ),
+  APPLY_AGREEMENT_TERMINATION: grantProcess(applyAgreementTerminationUseCase, {
+    tellsCw: true,
+  }),
+};
 
 // A process with no handler is skipped when a transition runs.
 export const isGrantProcess = (processName) =>
-  Object.hasOwn(processHandlers, processName);
+  Object.hasOwn(grantProcesses, processName);
+
+// Null for a process with no handler, which does nothing.
+export const processEffectsOf = (processName) => {
+  if (!isGrantProcess(processName)) {
+    return null;
+  }
+
+  const { setsStatus, tellsCw, onlyWhen } = grantProcesses[processName];
+
+  return { process: processName, setsStatus, tellsCw, onlyWhen };
+};
 
 const getHandlersForAllProcesses = (processes) => {
   if (!processes) {
@@ -43,8 +75,8 @@ const getHandlersForAllProcesses = (processes) => {
   }
 
   return processes
-    .map((processName) => getHandlerForProcess(processName))
-    .filter((handler) => handler !== undefined);
+    .filter(isGrantProcess)
+    .map((processName) => grantProcesses[processName].handle);
 };
 
 const enqueueCaseWorkingStatusUpdate = async (

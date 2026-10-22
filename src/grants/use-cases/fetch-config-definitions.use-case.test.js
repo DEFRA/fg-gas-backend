@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   findConfigDefinition,
   updateDefinitionFetchStatus,
-  updateDefinitionLocation,
 } from "../../common/config-broker/config-catalog.repository.js";
 import {
   storeDefinition,
@@ -15,7 +14,7 @@ import { logger } from "../../common/logger.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import {
-  findVersionDocument,
+  findVersionsByGrantCode,
   updateFetchStatus,
   upsert,
 } from "../repositories/config-version.repository.js";
@@ -57,10 +56,17 @@ const aRow = (types = ["grant", "agreement", "payment"]) => ({
   version: VERSION,
   status: "draft",
   receivedAt: "2026-10-15T10:04:00.000Z",
+  s3Bucket: "config-broker-local",
+  worstFetchStatus: "pending",
   definitions: Object.fromEntries(
     types.map((type) => [
       type,
-      { s3Key: location(type).s3Key, fetchStatus: "pending" },
+      {
+        s3Key: location(type).s3Key,
+        fetchStatus: "pending",
+        fetchAttempts: 0,
+        fetchError: null,
+      },
     ]),
   ),
 });
@@ -87,7 +93,7 @@ const audit = () => writeAuditEvent.mock.calls[0][0];
 
 beforeEach(() => {
   vi.resetAllMocks();
-  findVersionDocument.mockResolvedValue(aRow());
+  findVersionsByGrantCode.mockResolvedValue([aRow()]);
   storedDefinitionVersions.mockResolvedValue(new Set());
   findConfigDefinition.mockImplementation(({ definitionType }) =>
     Promise.resolve(location(definitionType)),
@@ -142,7 +148,7 @@ describe("fetchConfigDefinitionsUseCase", () => {
   });
 
   it("only asks about the files the version has", async () => {
-    findVersionDocument.mockResolvedValue(aRow(["grant"]));
+    findVersionsByGrantCode.mockResolvedValue([aRow(["grant"])]);
 
     const { files } = await fetchConfigDefinitionsUseCase(ARGS);
 
@@ -159,7 +165,6 @@ describe("fetchConfigDefinitionsUseCase", () => {
 
     expect(updateFetchStatus).not.toHaveBeenCalled();
     expect(updateDefinitionFetchStatus).not.toHaveBeenCalled();
-    expect(updateDefinitionLocation).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
   });
 
@@ -357,7 +362,7 @@ describe("fetchConfigDefinitionsUseCase", () => {
   });
 
   it("refuses an unknown version with 404 GRANT_VERSION_NOT_FOUND, audited as a FAILURE", async () => {
-    findVersionDocument.mockResolvedValue(null);
+    findVersionsByGrantCode.mockResolvedValue([]);
 
     const error = await fetchConfigDefinitionsUseCase(ARGS).catch((e) => e);
 

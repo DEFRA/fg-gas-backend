@@ -125,14 +125,24 @@ export const findByGrantCodeAndVersion = async (grantCode, version) => {
   return ConfigVersion.fromDocument(doc);
 };
 
-export const findVersionsByGrantCode = (grantCode) =>
+// Every version of the grant, or only those named; newest version first.
+export const findVersionsByGrantCode = (grantCode, versions) =>
   db
     .collection(collection)
     .find(
-      { grantCode },
+      { grantCode, ...(versions && { version: { $in: versions } }) },
       {
         sort: { major: -1, minor: -1, patch: -1 },
-        projection: { _id: 0, version: 1, status: 1, receivedAt: 1 },
+        projection: {
+          _id: 0,
+          grantCode: 1,
+          version: 1,
+          status: 1,
+          receivedAt: 1,
+          s3Bucket: 1,
+          worstFetchStatus: 1,
+          definitions: 1,
+        },
         maxTimeMS: config.adminReadTimeoutMs,
       },
     )
