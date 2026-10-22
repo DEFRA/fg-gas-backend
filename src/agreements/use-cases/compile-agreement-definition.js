@@ -23,10 +23,12 @@ export const compileAgreementDefinition = (rawDefinition, code, version) => {
   }
 
   const definition = { ...rawDefinition, configVersion: version };
-  validateEndpointServiceUrls([validateAgreementDefinition(definition)]);
-  return new AgreementDefinition(definition, {
+  // Built first so every structural check runs even when a service URL is missing.
+  const compiled = new AgreementDefinition(definition, {
     callEndpoint: callAgreementEndpoint,
   });
+  validateEndpointServiceUrls([validateAgreementDefinition(definition)]);
+  return compiled;
 };
 
 // The seam for checking a published definition before it is recorded. A missing service
@@ -39,7 +41,7 @@ export const checkAgreementDefinition = (rawDefinition, code, version) => {
   } catch (error) {
     if (error instanceof EndpointServiceUrlError) {
       logger.warn(
-        `Skipped Agreement definition checks for ${code}@${version}: ${error.message}`,
+        `Skipped the endpoint service URL check for Agreement definition ${code}@${version}: ${error.message}`,
       );
       return;
     }
