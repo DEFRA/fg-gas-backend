@@ -13,6 +13,7 @@ import { up as normaliseStatuslessRows } from "../../migrations/20261014100000-n
 import { up as stampEventFacts } from "../../migrations/20261014110000-stamp-event-facts.js";
 import { up as stampApplicationFacts } from "../../migrations/20261014120000-stamp-application-facts.js";
 import { up as buildBucketIndexes } from "../../migrations/20261014140000-build-bucket-indexes.js";
+import { up as buildApplicationVersionIndex } from "../../migrations/20261022120000-build-application-version-index.js";
 
 vi.mock("../../src/common/logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -440,6 +441,7 @@ describe("build bucket indexes", () => {
       "clientRef,code",
       "createdAt,_id",
       "code,createdAt,_id",
+      "code,currentConfigVersion,createdAt,_id",
       "refs,createdAt,_id",
     ]);
     expect((await db.collection("inbox").indexes())[1].name).toBe("list");
@@ -452,5 +454,40 @@ describe("build bucket indexes", () => {
     await buildBucketIndexes(db);
 
     expect(await keysOf("outbox")).toEqual(before);
+  });
+});
+
+describe("build application version index", () => {
+  const keysOf = async () =>
+    (await db.collection("applications").indexes()).map(({ key }) =>
+      Object.keys(key).join(","),
+    );
+
+  it("builds the grant and version key and keeps the indexes that were there", async () => {
+    await db
+      .collection("applications")
+      .createIndex({ code: 1, createdAt: -1, _id: -1 }, { name: "by-grant" });
+
+    await buildApplicationVersionIndex(db);
+
+    expect(await keysOf()).toEqual([
+      "_id",
+      "code,createdAt,_id",
+      "createdAt,_id",
+      "code,currentConfigVersion,createdAt,_id",
+      "refs,createdAt,_id",
+    ]);
+    expect((await db.collection("applications").indexes())[1].name).toBe(
+      "by-grant",
+    );
+  });
+
+  it("builds nothing the second time", async () => {
+    await buildApplicationVersionIndex(db);
+    const before = await keysOf();
+
+    await buildApplicationVersionIndex(db);
+
+    expect(await keysOf()).toEqual(before);
   });
 });

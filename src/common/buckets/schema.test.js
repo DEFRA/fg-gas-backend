@@ -71,6 +71,7 @@ const entry = () => ({
       label: "Status",
       values: [{ value: "PUBLISHED", label: "Queued", tone: "neutral" }],
       toggle: null,
+      within: null,
     },
     {
       name: "source",
@@ -78,6 +79,7 @@ const entry = () => ({
       label: "Source",
       values: [{ value: "AS", label: "Agreement service" }],
       toggle: null,
+      within: null,
     },
     {
       name: "grantCode",
@@ -85,6 +87,7 @@ const entry = () => ({
       label: "Grant",
       values: null,
       toggle: null,
+      within: null,
     },
   ],
   refs: [{ kind: "ref", label: "Reference" }],
@@ -263,6 +266,27 @@ describe("catalogueEntrySchema", () => {
     };
 
     expect(Boolean(catalogueEntrySchema.validate(toggled).error)).toBe(refused);
+  });
+
+  it.each([
+    ["grantCode", false],
+    [null, false],
+    [1, true],
+  ])("a fact within %j: refused is %s", (within, refused) => {
+    const [status, ...facts] = entry().facts;
+    const nested = { ...entry(), facts: [{ ...status, within }, ...facts] };
+
+    expect(Boolean(catalogueEntrySchema.validate(nested).error)).toBe(refused);
+  });
+
+  it("accepts a fact that does not say what it is within, as a service from before within sends", () => {
+    const [status, ...facts] = entry().facts;
+    const { within: _, ...older } = status;
+
+    expect(
+      catalogueEntrySchema.validate({ ...entry(), facts: [older, ...facts] })
+        .error,
+    ).toBeUndefined();
   });
 
   it("accepts a value marked hidden", () => {
