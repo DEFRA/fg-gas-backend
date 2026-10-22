@@ -1,5 +1,6 @@
 import { Decimal128, Long } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { findStoredDefinition } from "../../common/config-broker/definition-stores.js";
 import {
   findConfigVersionFiles,
   findConfigVersions,
@@ -23,6 +24,7 @@ vi.mock("../../events/audited-read.js", () => ({
 }));
 vi.mock("../../grants/services/config-version.service.js");
 vi.mock("../../payments/use-cases/find-stored-payment-definition.use-case.js");
+vi.mock("../../common/config-broker/definition-stores.js");
 
 const REF = { code: "woodland", version: "2.0.0" };
 
@@ -240,6 +242,118 @@ describe("viewGrantVersionPageUseCase", () => {
         payload: { reason: "GRANT_VERSION_NOT_FOUND" },
       },
     });
+  });
+});
+
+describe("viewGrantVersionPageUseCase agreement tab", () => {
+  const WITH_AGREEMENT = {
+    ...FILES,
+    files: {
+      ...FILES.files,
+      agreement: { stored: true, fetchStatus: "fetched" },
+    },
+  };
+
+  const DEFINITION = {
+    code: "woodland",
+    rate: Decimal128.fromString("1.10"),
+  };
+
+  const FOUND = {
+    definition: DEFINITION,
+    addresses: [
+      {
+        process: "GENERATE_OFFER",
+        service: "LAND_DATA",
+        url: "https://land-data.test/parcels/{sbi}",
+      },
+    ],
+    endpointAddresses: [
+      { code: "PARCELS", service: "AGREEMENT_DOCS", url: null },
+    ],
+    missingServiceUrls: ["AGREEMENT_DOCS_URL"],
+    problem: null,
+  };
+
+  beforeEach(() => {
+    findConfigVersionFiles.mockResolvedValue(WITH_AGREEMENT);
+    findConfigVersions.mockResolvedValue({
+      code: "woodland",
+      current: "1.2.0",
+      versions: VERSIONS,
+    });
+    findStoredDefinition.mockResolvedValue(FOUND);
+  });
+
+  it("reads the stored agreement definition and its Service Addresses under the section cap", async () => {
+    const page = await view("agreement");
+
+    expect(page.agreement).toEqual({
+      ...FOUND,
+      definition: { code: "woodland", rate: "1.10" },
+    });
+    expect(page.sectionErrors).toEqual([]);
+    expect(findStoredDefinition).toHaveBeenCalledWith(
+      "agreement",
+      { grantCode: "woodland", version: "2.0.0" },
+      { maxBytes: SECTION_CAP_BYTES },
+    );
+  });
+
+  it("is null, with no section error, when the agreement file is not stored", async () => {
+    findStoredDefinition.mockResolvedValue(null);
+
+    const page = await view("agreement");
+
+    expect(page.agreement).toBeNull();
+    expect(page.sectionErrors).toEqual([]);
+  });
+
+  it("is too large to show when the stored definition is over the cap", async () => {
+    findStoredDefinition.mockResolvedValue({
+      definition: null,
+      addresses: [],
+      problem: null,
+    });
+
+    const page = await view("agreement");
+
+    expect(page.agreement).toBeNull();
+    expect(page.sectionErrors).toEqual([
+      { section: "agreement", message: "too large to show" },
+    ]);
+  });
+
+  it("passes a definition GAS cannot load through with its problem, not as a section error", async () => {
+    const refused = {
+      definition: { code: "other" },
+      addresses: [],
+      problem: 'Agreement definition code "other" does not match "woodland"',
+    };
+    findStoredDefinition.mockResolvedValue(refused);
+
+    const page = await view("agreement");
+
+    expect(page.agreement).toEqual(refused);
+    expect(page.sectionErrors).toEqual([]);
+  });
+
+  it("answers 404 NO_DEFINITION_FILE for a version with no agreement file", async () => {
+    findConfigVersionFiles.mockResolvedValue(FILES);
+
+    await expect(view("agreement")).rejects.toMatchObject({
+      output: {
+        statusCode: 404,
+        payload: { reason: "NO_DEFINITION_FILE" },
+      },
+    });
+  });
+
+  it("is audited with the agreement tab", () => {
+    expect(
+      buildViewGrantVersionAudit({ ...REF, tab: "agreement", caller: "x" })
+        .details,
+    ).toEqual({ caller: "x", version: "2.0.0", tab: "agreement" });
   });
 });
 

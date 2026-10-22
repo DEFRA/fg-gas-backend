@@ -1,3 +1,4 @@
+import { findStoredDefinition } from "../../common/config-broker/definition-stores.js";
 import { logger } from "../../common/logger.js";
 import {
   PMC_0706_SECURITY,
@@ -73,6 +74,28 @@ const readPayment = async ({ code, version }) =>
     ),
   );
 
+const readAgreement = async ({ code, version }) => {
+  const found = await findStoredDefinition(
+    "agreement",
+    { grantCode: code, version },
+    { maxBytes: SECTION_CAP_BYTES },
+  );
+
+  if (!found) {
+    return { content: { agreement: null } };
+  }
+
+  return {
+    content: {
+      agreement: {
+        ...found,
+        definition: found.definition && withJsonNumbers(found.definition),
+      },
+    },
+    tooLarge: found.definition === null,
+  };
+};
+
 const GRANT_VERSION_TABS = {
   overview: { readTab: readOverview, empty: { overview: null } },
   definition: {
@@ -85,6 +108,12 @@ const GRANT_VERSION_TABS = {
     empty: { payment: null },
     capped: "payment",
     file: "payment",
+  },
+  agreement: {
+    readTab: readAgreement,
+    empty: { agreement: null },
+    capped: "agreement",
+    file: "agreement",
   },
 };
 

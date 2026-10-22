@@ -46,21 +46,23 @@ When Agreements needs to collaborate with Grants, use one of these approved seam
 ### Grant Admin entry points
 
 Grant Admin enters the Grants application layer through five named services, and
-Payments through two named use cases. Event administration enters the shared
-event module directly:
+Payments through two named use cases. It reads a stored Agreement definition
+through the definition-stores registry, and event administration enters the
+shared event module directly:
 
-| Caller        | Entry point                                                     | Responsibility                                                              |
-| ------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `grant-admin` | `grants/services/entitlement.service.js`                        | Claims overview, entitlement creation and update, and who may do them       |
-| `grant-admin` | `grants/services/claims.service.js`                             | Claimable-entitlement lookup and submitted-Claim reads                      |
-| `grant-admin` | `grants/services/application-read.service.js`                   | Read-only application facts, stored documents and series                    |
-| `grant-admin` | `grants/services/allow-list.service.js`                         | Audited grant allow-list reads and transactional whole-list replacement     |
-| `grant-admin` | `grants/services/config-version.service.js`                     | Config version reads: versions, stored files, the stored grant              |
-| `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js`            | Which of an application's Claims have raised a Payment                      |
-| `grant-admin` | `payments/use-cases/find-stored-payment-definition.use-case.js` | A grant version's stored Payment definition, read-only, for its Payment tab |
-| `grant-admin` | `events/repositories/inbox.repository.js`                       | Event admin: inspect, redrive, purge and edit GAS inbound events            |
-| `grant-admin` | `events/repositories/outbox.repository.js`                      | Event admin: inspect, redrive, purge and edit GAS outbound events           |
-| `grant-admin` | `common/buckets/registry.js` and `engine.js`                    | Every list: the catalogue and one query route over the declared buckets     |
+| Caller        | Entry point                                                          | Responsibility                                                                                            |
+| ------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `grant-admin` | `grants/services/entitlement.service.js`                             | Claims overview, entitlement creation and update, and who may do them                                     |
+| `grant-admin` | `grants/services/claims.service.js`                                  | Claimable-entitlement lookup and submitted-Claim reads                                                    |
+| `grant-admin` | `grants/services/application-read.service.js`                        | Read-only application facts, stored documents and series                                                  |
+| `grant-admin` | `grants/services/allow-list.service.js`                              | Audited grant allow-list reads and transactional whole-list replacement                                   |
+| `grant-admin` | `grants/services/config-version.service.js`                          | Config version reads: versions, stored files, the stored grant                                            |
+| `grant-admin` | `common/config-broker/definition-stores.js` (`findStoredDefinition`) | A grant version's stored Agreement definition and its Service Addresses, read-only, for its Agreement tab |
+| `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js`                 | Which of an application's Claims have raised a Payment                                                    |
+| `grant-admin` | `payments/use-cases/find-stored-payment-definition.use-case.js`      | A grant version's stored Payment definition, read-only, for its Payment tab                               |
+| `grant-admin` | `events/repositories/inbox.repository.js`                            | Event admin: inspect, redrive, purge and edit GAS inbound events                                          |
+| `grant-admin` | `events/repositories/outbox.repository.js`                           | Event admin: inspect, redrive, purge and edit GAS outbound events                                         |
+| `grant-admin` | `common/buckets/registry.js` and `engine.js`                         | Every list: the catalogue and one query route over the declared buckets                                   |
 
 Who may see or change a grant's Claims is Grants' rule, not the BFF's. The grant
 configures the roles it requires; `grants/models/claims-access.js` turns them
@@ -266,7 +268,9 @@ The admin's grant version page shows which of a version's files GAS has stored. 
 answers that for its own `gas.json`; for the others it asks the context-neutral registry in
 `common/config-broker/definition-stores.js`, where Agreements and Payments each register a
 store for their own file when their plugin starts. A store's `storedVersions` is a read
-only: it fetches nothing and writes no fetch status.
+only: it fetches nothing and writes no fetch status. A store may also offer a read-only
+`find` of its stored definition; Agreements does, because Grant Admin may not import
+Agreements.
 
 ### Test endpoint entry points
 

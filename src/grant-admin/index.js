@@ -19,6 +19,7 @@ import { replaceAllowListRoute } from "./routes/replace-allow-list.route.js";
 import { viewCaseEventsRoute } from "./routes/view-case-events.route.js";
 import { viewCaseOverviewRoute } from "./routes/view-case-overview.route.js";
 import { viewCaseRawRoute } from "./routes/view-case-raw.route.js";
+import { viewGrantVersionAgreementRoute } from "./routes/view-grant-version-agreement.route.js";
 import { viewGrantVersionDefinitionRoute } from "./routes/view-grant-version-definition.route.js";
 import { viewGrantVersionOverviewRoute } from "./routes/view-grant-version-overview.route.js";
 import { viewGrantVersionPaymentRoute } from "./routes/view-grant-version-payment.route.js";
@@ -57,6 +58,7 @@ export const grantAdmin = {
       viewGrantVersionOverviewRoute,
       viewGrantVersionDefinitionRoute,
       viewGrantVersionPaymentRoute,
+      viewGrantVersionAgreementRoute,
     ]);
   },
 };

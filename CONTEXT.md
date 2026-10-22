@@ -55,3 +55,13 @@
 
 **Invoice Line**
 : One accounting line of a Due Payment.
+
+## Agreements
+
+**Service Address**
+: The configured base's scheme, host and path, plus the path of an agreement endpoint, a Process's or a root one. It never includes the service's headers, credentials, query or fragment.
+_Avoid_: service URL, when the configured value is meant.
+
+**Page Processes**
+: The Processes an agreement State runs every time one of its pages is rendered. They do not run once on entry.
+_Avoid_: on entry.

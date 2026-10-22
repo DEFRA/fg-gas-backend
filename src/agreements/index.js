@@ -7,6 +7,7 @@ import { getAgreementByNumberRoute } from "./routes/get-agreement-by-number.rout
 import { getCurrentAgreementRoute } from "./routes/get-current-agreement.route.js";
 import { invokeAgreementActionRoute } from "./routes/invoke-agreement-action.route.js";
 import { prepareAgreementActionRoute } from "./routes/prepare-agreement-action.route.js";
+import { findStoredAgreementDefinition } from "./use-cases/find-stored-agreement-definition.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 import { handleUpdateAgreementStatusCommandUseCase } from "./use-cases/handle-update-agreement-status-command.use-case.js";
 
@@ -18,6 +19,7 @@ export const agreements = {
   register(server) {
     registerDefinitionStore("agreement", {
       storedVersions: findStoredVersions,
+      find: findStoredAgreementDefinition,
     });
     registerInternalCommandHandler(
       internalCommandTypes.AGREEMENT_CREATE,

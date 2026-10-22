@@ -30,4 +30,16 @@ export const storedDefinitionVersions = async (
     ),
   );
 
+export const findStoredDefinition = async (definitionType, ref, options) => {
+  const { find } = getDefinitionStore(definitionType);
+
+  if (!find) {
+    throw new Error(
+      `The ${definitionType} definition store cannot find a stored definition`,
+    );
+  }
+
+  return find(ref, options);
+};
+
 export const clearDefinitionStores = () => stores.clear();

@@ -57,6 +57,34 @@ export const resolveEndpointServiceUrl = (service) => {
   return url;
 };
 
+const buildUrl = (baseUrl, path) => {
+  const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  return `${cleanBaseUrl}${cleanPath}`;
+};
+
+export const resolveEndpointUrl = (endpoint) =>
+  buildUrl(resolveEndpointServiceUrl(endpoint.service), endpoint.path);
+
+const parseUrl = (value) => {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+};
+
+// The Service Address: the configured base's scheme, host and path, plus the
+// endpoint's path. Path placeholders stay as written. Null when the base is
+// unset or unparseable.
+export const toServiceAddress = (endpoint) => {
+  const base = parseUrl(process.env[`${endpoint.service}_URL`]);
+
+  return base
+    ? buildUrl(`${base.protocol}//${base.host}${base.pathname}`, endpoint.path)
+    : null;
+};
+
 const processEndpointsFor = (definition) =>
   Object.values(definition.processDefinitions ?? {})
     .filter(({ type }) => type === "endpoint")
@@ -67,24 +95,24 @@ const endpointsFor = (definition) => [
   ...processEndpointsFor(definition),
 ];
 
-export const validateEndpointServiceUrls = (definitions) => {
+export const missingEndpointServiceUrls = (definitions) => {
   const services = new Set(
     definitions
       .flatMap((definition) => endpointsFor(definition))
       .map((endpoint) => endpoint.service),
   );
 
-  const missing = [...services].filter(
-    (service) => !process.env[`${service}_URL`],
-  );
+  return [...services]
+    .filter((service) => !process.env[`${service}_URL`])
+    .map((service) => `${service}_URL`);
+};
+
+export const validateEndpointServiceUrls = (definitions) => {
+  const missing = missingEndpointServiceUrls(definitions);
 
   if (missing.length > 0) {
-    const missingServicesUrls = missing
-      .map((service) => `${service}_URL`)
-      .join(", ");
-
     throw new EndpointServiceUrlError(
-      `Missing required endpoint URL env var(s): ${missingServicesUrls}`,
+      `Missing required endpoint URL env var(s): ${missing.join(", ")}`,
     );
   }
 };

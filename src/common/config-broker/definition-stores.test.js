@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import {
   clearDefinitionStores,
+  findStoredDefinition,
   registerDefinitionStore,
   storedDefinitionVersions,
 } from "./definition-stores.js";
@@ -24,4 +25,35 @@ it("answers the versions the registered store holds, as a set", async () => {
 
   expect(stored).toEqual(new Set(["1.0.0"]));
   expect(storedVersions).toHaveBeenCalledWith("woodland", ["1.0.0", "2.0.0"]);
+});
+
+it("finds a stored definition through the registered store's read", async () => {
+  const found = { definition: {}, addresses: [], problem: null };
+  const find = vi.fn().mockResolvedValue(found);
+  registerDefinitionStore("agreement", { storedVersions: vi.fn(), find });
+
+  const ref = { grantCode: "woodland", version: "1.0.0" };
+
+  expect(await findStoredDefinition("agreement", ref, { maxBytes: 1024 })).toBe(
+    found,
+  );
+  expect(find).toHaveBeenCalledWith(ref, { maxBytes: 1024 });
+});
+
+it("refuses to find a stored definition of a type no context has registered", async () => {
+  await expect(
+    findStoredDefinition("agreement", { grantCode: "woodland" }, {}),
+  ).rejects.toThrow(
+    "No configuration definition store registered for agreement",
+  );
+});
+
+it("refuses to find a stored definition whose store offers no read of it", async () => {
+  registerDefinitionStore("payment", { storedVersions: vi.fn() });
+
+  await expect(
+    findStoredDefinition("payment", { grantCode: "woodland" }, {}),
+  ).rejects.toThrow(
+    "The payment definition store cannot find a stored definition",
+  );
 });

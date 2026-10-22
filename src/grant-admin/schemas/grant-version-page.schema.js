@@ -74,6 +74,35 @@ const definitionSchema = Joi.object().unknown(true).allow(null).required();
 // The stored payment definition as stored: null when not stored or too large.
 const paymentSchema = Joi.object().unknown(true).allow(null).required();
 
+// A Service Address keeps the definition's path placeholders, so it is not
+// always a valid URI. Null when the service has no usable URL here.
+const processAddressSchema = Joi.object({
+  process: Joi.string().required(),
+  service: Joi.string().required(),
+  url: Joi.string().allow(null).required(),
+}).label("ProcessAddress");
+
+const endpointAddressSchema = Joi.object({
+  code: Joi.string().required(),
+  service: Joi.string().required(),
+  url: Joi.string().allow(null).required(),
+}).label("EndpointAddress");
+
+// The stored agreement definition as stored, with the rule it breaks when GAS
+// cannot load it. Null when not stored, too large or the read failed.
+// missingServiceUrls names the {SERVICE}_URL env vars whose absence stops GAS
+// loading it here.
+const agreementSchema = Joi.object({
+  definition: Joi.object().unknown(true).required(),
+  addresses: Joi.array().items(processAddressSchema).required(),
+  endpointAddresses: Joi.array().items(endpointAddressSchema).required(),
+  missingServiceUrls: Joi.array().items(Joi.string()).required(),
+  problem: Joi.string().allow(null).required(),
+})
+  .allow(null)
+  .required()
+  .label("GrantVersionAgreement");
+
 const pageSchema = (tab, keys, label) =>
   recordPageSchema(grantVersionHeaderSchema, tab, keys, label);
 
@@ -92,5 +121,10 @@ export const grantVersionPageSchemas = {
     "payment",
     { payment: paymentSchema },
     "GrantVersionPaymentPage",
+  ),
+  agreement: pageSchema(
+    "agreement",
+    { agreement: agreementSchema },
+    "GrantVersionAgreementPage",
   ),
 };

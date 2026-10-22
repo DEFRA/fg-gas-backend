@@ -2,6 +2,7 @@ import hapi from "@hapi/hapi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearDefinitionStores,
+  findStoredDefinition,
   storedDefinitionVersions,
 } from "../common/config-broker/definition-stores.js";
 import { config } from "../common/config.js";
@@ -13,10 +14,12 @@ import {
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { agreements } from "./index.js";
 import { findStoredVersions } from "./repositories/agreement-definition.repository.js";
+import { findStoredAgreementDefinition } from "./use-cases/find-stored-agreement-definition.js";
 import { handleCreateAgreementCommandUseCase } from "./use-cases/handle-create-agreement-command.use-case.js";
 import { handleUpdateAgreementStatusCommandUseCase } from "./use-cases/handle-update-agreement-status-command.use-case.js";
 
 vi.mock("./repositories/agreement-definition.repository.js");
+vi.mock("./use-cases/find-stored-agreement-definition.js");
 
 describe("agreements", () => {
   const originalLegacyCodes = config.legacyAgreementGrantCodes;
@@ -171,5 +174,21 @@ describe("agreements", () => {
       storedDefinitionVersions("agreement", "woodland", ["1.0.1"]),
     ).resolves.toEqual(new Set(["1.0.1"]));
     expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"]);
+  });
+
+  it("registers the agreement definition store's read of a stored definition", async () => {
+    const found = { definition: null, addresses: [], problem: null };
+    findStoredAgreementDefinition.mockResolvedValue(found);
+    const server = hapi.server();
+    await server.register(agreements);
+
+    const ref = { grantCode: "woodland", version: "1.0.1" };
+
+    await expect(
+      findStoredDefinition("agreement", ref, { maxBytes: 1024 }),
+    ).resolves.toBe(found);
+    expect(findStoredAgreementDefinition).toHaveBeenCalledWith(ref, {
+      maxBytes: 1024,
+    });
   });
 });

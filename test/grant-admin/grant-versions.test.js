@@ -438,3 +438,195 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/payment", () => {
     expect(row.event.audit.details.tab).toBe("payment");
   });
 });
+
+describe("GET /grant-admin/grants/{code}/versions/{version}/agreement", () => {
+  const ACTIVE = aConfigVersion("1.2.0", "active", "2026-10-10T16:25:00.000Z", {
+    agreement: fileState("1.2.0", "fetched"),
+  });
+
+  let agreementDefinition;
+
+  beforeAll(async () => {
+    const seeded = JSON.parse(
+      await readFile(
+        new URL(
+          "../../compose/seed/pigs-might-fly/1.0.0/gas/agreement.json",
+          import.meta.url,
+        ),
+      ),
+    );
+
+    agreementDefinition = {
+      ...seeded,
+      code: CODE,
+      endpoints: [
+        {
+          code: "PARCELS",
+          method: "GET",
+          service: "LAND_DATA",
+          path: "/api/v2/parcels/{sbi}",
+        },
+        {
+          code: "SIGNING",
+          method: "POST",
+          service: "AGREEMENT_SIGNING",
+          path: "/sign",
+        },
+      ],
+      processDefinitions: {
+        ...seeded.processDefinitions,
+        FETCH_PARCELS: {
+          type: "endpoint",
+          endpoint: {
+            method: "GET",
+            service: "LAND_DATA",
+            path: "/api/v2/parcels/{sbi}",
+          },
+          request: { body: { scheme: "woodland" } },
+          output: { parcels: "$.response.parcels" },
+        },
+        SEND_DOCUMENT: {
+          type: "endpoint",
+          endpoint: {
+            method: "POST",
+            service: "AGREEMENT_DOCS",
+            path: "/documents",
+          },
+          request: { body: { scheme: "woodland" } },
+          output: { name: "$.response.name" },
+        },
+      },
+    };
+  });
+
+  const storeAgreement = (definition) =>
+    agreementDefinitions.insertOne({
+      code: CODE,
+      version: "1.2.0",
+      definition,
+    });
+
+  it("answers the definition as stored with each endpoint's Service Address, and nothing of the service's secrets", async () => {
+    await configVersions.insertOne(ACTIVE);
+    await storeAgreement(agreementDefinition);
+
+    const { payload, res } = await get(`${CODE}/versions/1.2.0/agreement`);
+
+    expect(res.statusCode).toBe(200);
+    expect(
+      grantVersionPageSchemas.agreement.validate(payload).error,
+    ).toBeUndefined();
+    expect(payload.agreement.definition).toStrictEqual(agreementDefinition);
+    expect(payload.agreement.problem).toBeNull();
+    expect(payload.agreement.addresses).toEqual([
+      {
+        process: "GENERATE_OFFER",
+        service: "GRANT_FUNDING_CALCULATOR",
+        url: expect.stringMatching(
+          /^http:\/\/host\.docker\.internal:\d+\/paymentSchedule$/,
+        ),
+      },
+      {
+        process: "FETCH_PARCELS",
+        service: "LAND_DATA",
+        url: "https://land-data.test/base/api/v2/parcels/{sbi}",
+      },
+      { process: "SEND_DOCUMENT", service: "AGREEMENT_DOCS", url: null },
+    ]);
+    expect(payload.agreement.endpointAddresses).toEqual([
+      {
+        code: "PARCELS",
+        service: "LAND_DATA",
+        url: "https://land-data.test/base/api/v2/parcels/{sbi}",
+      },
+      { code: "SIGNING", service: "AGREEMENT_SIGNING", url: null },
+    ]);
+    expect(payload.agreement.missingServiceUrls).toEqual([
+      "AGREEMENT_SIGNING_URL",
+      "AGREEMENT_DOCS_URL",
+    ]);
+    const text = JSON.stringify(payload);
+    expect(text).not.toContain("secret");
+    expect(text).not.toContain("u:p");
+    expect(text).not.toContain("k=v");
+  });
+
+  it("answers a stored definition GAS cannot load as stored, with its problem and no addresses", async () => {
+    const refused = { ...agreementDefinition, code: "other-grant" };
+    await configVersions.insertOne(ACTIVE);
+    await storeAgreement(refused);
+
+    const { payload, res } = await get(`${CODE}/versions/1.2.0/agreement`);
+
+    expect(res.statusCode).toBe(200);
+    expect(payload.agreement).toStrictEqual({
+      definition: refused,
+      addresses: [],
+      endpointAddresses: [],
+      missingServiceUrls: [],
+      problem: `Agreement definition code "other-grant" does not match "${CODE}"`,
+    });
+    expect(payload.sectionErrors).toEqual([]);
+  });
+
+  it("answers null when the agreement file is not stored, and the file waiting in S3 is not fetched", async () => {
+    const s3 = new S3Client({
+      region: config.region,
+      endpoint: config.awsEndpointUrl,
+      forcePathStyle: true,
+    });
+    const Key = `${CODE}/agreement-read/1.2.0/gas/agreement.json`;
+    const inS3 = aConfigVersion("1.2.0", "active", "2026-10-10T16:25:00.000Z", {
+      agreement: { ...fileState("1.2.0", "pending"), s3Key: Key },
+    });
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: inS3.s3Bucket,
+        Key,
+        Body: JSON.stringify(agreementDefinition),
+        ContentType: "application/json",
+      }),
+    );
+    await configVersions.insertOne(inS3);
+
+    try {
+      const { payload } = await get(`${CODE}/versions/1.2.0/agreement`);
+
+      expect(payload.header.files.agreement).toEqual({
+        stored: false,
+        fetchStatus: "pending",
+      });
+      expect(payload.agreement).toBeNull();
+      expect(payload.sectionErrors).toEqual([]);
+      expect(await configVersions.findOne({ _id: inS3._id })).toStrictEqual(
+        inS3,
+      );
+      expect(await agreementDefinitions.countDocuments()).toBe(0);
+    } finally {
+      await s3.send(new DeleteObjectCommand({ Bucket: inS3.s3Bucket, Key }));
+    }
+  });
+
+  it("answers 404 NO_DEFINITION_FILE for a version with no agreement file", async () => {
+    await configVersions.insertOne(
+      aConfigVersion("1.2.0", "active", "2026-10-10T16:25:00.000Z"),
+    );
+
+    const error = await get(`${CODE}/versions/1.2.0/agreement`).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(404);
+    expect(error.data.payload.reason).toBe("NO_DEFINITION_FILE");
+  });
+
+  it("is audited as a VIEW_GRANT_VERSION of the agreement tab", async () => {
+    await configVersions.insertOne(ACTIVE);
+
+    await get(`${CODE}/versions/1.2.0/agreement`);
+
+    const [row] = await auditRows("VIEW_GRANT_VERSION");
+    expect(row.event.audit.details).toMatchObject({
+      version: "1.2.0",
+      tab: "agreement",
+    });
+  });
+});

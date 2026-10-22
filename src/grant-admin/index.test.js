@@ -30,6 +30,7 @@ describe("grant-admin", () => {
       "get /grant-admin/grants/{code}/applications/{clientRef}/overview",
       "get /grant-admin/grants/{code}/applications/{clientRef}/raw",
       "get /grant-admin/grants/{code}/versions",
+      "get /grant-admin/grants/{code}/versions/{version}/agreement",
       "get /grant-admin/grants/{code}/versions/{version}/definition",
       "get /grant-admin/grants/{code}/versions/{version}/overview",
       "get /grant-admin/grants/{code}/versions/{version}/payment",
