@@ -4,6 +4,7 @@ import {
   findConfigVersionFiles,
   findConfigVersions,
   findGrantDefinitionSummary,
+  findGrantLifecycle,
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
 import { SECTION_CAP_BYTES } from "../services/compose-record-page.js";
@@ -140,6 +141,49 @@ describe("viewGrantVersionPageUseCase", () => {
     expect(page.sectionErrors).toEqual([
       { section: "definition", message: "too large to show" },
     ]);
+  });
+
+  it("phases: the stored grant's lifecycle as Grants resolves it", async () => {
+    const lifecycle = { phases: [], initialPosition: "P:S:A" };
+    findGrantLifecycle.mockResolvedValue({ lifecycle, problem: null });
+
+    const page = await view("phases");
+
+    expect(page).toMatchObject({ lifecycle, problem: null, sectionErrors: [] });
+    expect(findGrantLifecycle).toHaveBeenCalledWith(REF);
+    expect(findStoredGrantDefinition).not.toHaveBeenCalled();
+  });
+
+  it("phases: why a stored grant has no lifecycle", async () => {
+    findGrantLifecycle.mockResolvedValue({
+      lifecycle: null,
+      problem: 'Grant "woodland" has no initial position',
+    });
+
+    expect(await view("phases")).toMatchObject({
+      lifecycle: null,
+      problem: 'Grant "woodland" has no initial position',
+    });
+  });
+
+  it("phases: neither a lifecycle nor a problem when the grant file is not stored", async () => {
+    findGrantLifecycle.mockResolvedValue(null);
+
+    expect(await view("phases")).toMatchObject({
+      lifecycle: null,
+      problem: null,
+      sectionErrors: [],
+    });
+  });
+
+  it("phases: a lifecycle that cannot be read is a section error", async () => {
+    findGrantLifecycle.mockRejectedValue(new Error("connection lost"));
+
+    expect(await view("phases")).toMatchObject({
+      lifecycle: null,
+      problem: null,
+      sectionErrors: [{ section: "phases", message: "read failed" }],
+    });
   });
 
   it("answers 404 GRANT_VERSION_NOT_FOUND for an unknown version", async () => {

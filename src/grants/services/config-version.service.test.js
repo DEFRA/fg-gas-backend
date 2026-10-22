@@ -1,4 +1,6 @@
+import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createTestGrant } from "../../../test/helpers/grants.js";
 import { storedDefinitionVersions } from "../../common/config-broker/definition-stores.js";
 import { ConfigVersion } from "../models/config-version.js";
 import {
@@ -7,6 +9,7 @@ import {
   findVersionsByGrantCode,
 } from "../repositories/config-version.repository.js";
 import {
+  findByCode,
   findStoredGrantDocument,
   findStoredGrantSummary,
 } from "../repositories/grant.repository.js";
@@ -14,6 +17,7 @@ import {
   findConfigVersionFiles,
   findConfigVersions,
   findGrantDefinitionSummary,
+  findGrantLifecycle,
   findStoredGrantDefinition,
 } from "./config-version.service.js";
 
@@ -222,5 +226,73 @@ describe("findStoredGrantDefinition", () => {
         { maxBytes: 1024 },
       ),
     ).toEqual({ definition: null, storedBytes: null });
+  });
+});
+
+describe("findGrantLifecycle", () => {
+  const ref = { code: "woodland", version: "2.0.0" };
+
+  it("answers the stored grant's lifecycle as Grants resolves it", async () => {
+    const grant = createTestGrant();
+    findByCode.mockResolvedValue(grant);
+
+    expect(await findGrantLifecycle(ref)).toEqual({
+      lifecycle: grant.describeLifecycle(),
+      problem: null,
+    });
+    expect(findByCode).toHaveBeenCalledWith("woodland", "2.0.0");
+  });
+
+  it("answers null when the grant file is not stored", async () => {
+    findByCode.mockResolvedValue(null);
+
+    expect(await findGrantLifecycle(ref)).toBeNull();
+  });
+
+  it("answers why a stored grant that cannot be described has no lifecycle", async () => {
+    findByCode.mockResolvedValue(
+      createTestGrant({
+        phases: [{ code: "P", stages: [{ code: "S", statuses: [] }] }],
+      }),
+    );
+
+    expect(await findGrantLifecycle(ref)).toEqual({
+      lifecycle: null,
+      problem:
+        'Grant "test-grant" has a lifecycle GAS cannot read: "phases[0].stages[0].statuses" must contain at least 1 items',
+    });
+  });
+
+  it.each([
+    ["an invalid", Boom.badImplementation("x".repeat(600))],
+    ["a malformed", new TypeError("x".repeat(600))],
+  ])(
+    "answers %s stored grant's defect, cut to 500 characters",
+    async (_, error) => {
+      findByCode.mockRejectedValue(error);
+
+      expect(await findGrantLifecycle(ref)).toEqual({
+        lifecycle: null,
+        problem: "x".repeat(500),
+      });
+    },
+  );
+
+  it("fails on a fault in describing a grant that loaded", async () => {
+    const grant = createTestGrant();
+    const fault = new TypeError("describing broke");
+    vi.spyOn(grant, "describeLifecycle").mockImplementation(() => {
+      throw fault;
+    });
+    findByCode.mockResolvedValue(grant);
+
+    await expect(findGrantLifecycle(ref)).rejects.toBe(fault);
+  });
+
+  it("fails on anything that is not a defect of the stored grant", async () => {
+    const error = new Error("connection lost");
+    findByCode.mockRejectedValue(error);
+
+    await expect(findGrantLifecycle(ref)).rejects.toBe(error);
   });
 });

@@ -11,6 +11,7 @@ import {
   findConfigVersionFiles,
   findConfigVersions,
   findGrantDefinitionSummary,
+  findGrantLifecycle,
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
 import {
@@ -49,6 +50,12 @@ const readDefinition = async ({ code, version }) => {
   };
 };
 
+const NO_LIFECYCLE = { lifecycle: null, problem: null };
+
+const readPhases = async ({ code, version }) => ({
+  content: (await findGrantLifecycle({ code, version })) ?? NO_LIFECYCLE,
+});
+
 const GRANT_VERSION_TABS = {
   overview: { readTab: readOverview, empty: { overview: null } },
   definition: {
@@ -56,6 +63,7 @@ const GRANT_VERSION_TABS = {
     empty: { definition: null },
     capped: "definition",
   },
+  phases: { readTab: readPhases, empty: NO_LIFECYCLE },
 };
 
 export const buildViewGrantVersionAudit = ({ code, version, tab, caller }) =>
