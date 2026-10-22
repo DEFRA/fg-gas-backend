@@ -516,16 +516,17 @@ describe("findGrantVersionEntitlements", () => {
       claims: { requiredRoles: { allOf: ["Grants.Claims.Read"] } },
     });
 
-    expect(
-      JSON.parse(JSON.stringify(await findGrantVersionEntitlements(ref))),
-    ).toEqual({
+    expect(await findGrantVersionEntitlements(ref)).toStrictEqual({
       entitlementTemplates: [
         {
           claimCode: "MAINTENANCE",
           name: "Maintenance payment",
+          description: undefined,
           materialised: true,
+          fields: undefined,
           maxEntitlements: 1,
           availableAt: [ACCEPTED],
+          help: undefined,
           claim: {
             claimableAt: [{ phase: "POST_AWARD" }],
             limits: { maximumClaims: 1, allowsPartialClaims: false },
@@ -536,9 +537,13 @@ describe("findGrantVersionEntitlements", () => {
         {
           claimCode: "CAPITAL",
           name: "Capital items",
+          description: undefined,
           materialised: true,
+          fields: undefined,
           maxEntitlements: 1,
           availableAt: [ACCEPTED],
+          help: undefined,
+          claim: undefined,
         },
       ],
       claims: { requiredRoles: { allOf: ["Grants.Claims.Read"] } },
@@ -549,7 +554,7 @@ describe("findGrantVersionEntitlements", () => {
   it("answers no templates and no claims for a grant with neither", async () => {
     await storing({ entitlementTemplates: undefined, claims: null });
 
-    expect(await findGrantVersionEntitlements(ref)).toEqual({
+    expect(await findGrantVersionEntitlements(ref)).toStrictEqual({
       entitlementTemplates: [],
       claims: null,
       statusNames: { "POST_AWARD:AGREEMENT:ACCEPTED": "Accepted" },

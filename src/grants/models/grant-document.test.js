@@ -42,4 +42,13 @@ describe("GrantDocument", () => {
       }),
     );
   });
+
+  it("refuses a start date published as a string that is no instant", () => {
+    expect(() => new GrantDocument(aGrant("soon"))).toThrow(
+      expect.objectContaining({
+        message: 'Grant start date "soon" is not an instant',
+        output: expect.objectContaining({ statusCode: 500 }),
+      }),
+    );
+  });
 });
