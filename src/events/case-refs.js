@@ -41,3 +41,20 @@ export const caseRefsOf = (workflowCode, caseRef) => [
   ["ref", caseRef],
   ["case", caseKeyOf(workflowCode, caseRef)],
 ];
+
+const configKeyOf = (code, version) =>
+  [code, version].every(hasValue)
+    ? `${keepCase(code)}@${keepCase(version)}`
+    : null;
+
+// A config version's own events, by its code and version, either of which
+// may differ from another only in case; null when either is missing.
+export const toConfigLink = (code, version) =>
+  toRef("config", configKeyOf(code, version));
+
+// A config version's events are found by its code alone, and listed for its
+// page by its link.
+export const configRefsOf = (code, version) => [
+  ["ref", code],
+  ["config", configKeyOf(code, version)],
+];
