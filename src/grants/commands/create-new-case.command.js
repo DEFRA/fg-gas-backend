@@ -1,6 +1,6 @@
 import { CloudEvent } from "../../common/cloud-event.js";
 import { config } from "../../common/config.js";
-import { caseRefsOf } from "../../events/case-refs.js";
+import { applicationRefsOf, caseRefsOf } from "../../events/case-refs.js";
 import { OUTBOX, defineEventType } from "../../events/event-types.js";
 
 export const caseCreate = defineEventType({
@@ -13,6 +13,8 @@ export const caseCreate = defineEventType({
     return [
       ...caseRefsOf(workflowCode, caseRef),
       ...caseRefsOf(workflowCode, previousCaseRef),
+      ...applicationRefsOf(workflowCode, caseRef),
+      ...applicationRefsOf(workflowCode, previousCaseRef),
     ];
   },
 });

@@ -182,6 +182,19 @@ describe("Payment", () => {
       ).toThrow('"source.type" must be one of [agreement, claim]');
     });
 
+    it("belongs to the Application a Claim source names", () => {
+      const payment = Payment.create({ ...props, source: claimSource });
+
+      expect(payment.applicationOf()).toEqual({
+        code: "woodland",
+        clientRef: "wmp-example-002",
+      });
+    });
+
+    it("belongs to no Application from an Agreement source", () => {
+      expect(Payment.create(props).applicationOf()).toBeNull();
+    });
+
     it("rejects a source with no type", () => {
       expect(() =>
         Payment.create({ ...props, source: { code: "woodland" } }),

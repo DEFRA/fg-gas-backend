@@ -199,7 +199,7 @@ describe("createPaymentPublication", () => {
   });
 
   describe("from a Claim", () => {
-    const claimPayment = {
+    const claimPayment = new Payment({
       ...payment,
       source: {
         type: PaymentSourceType.CLAIM,
@@ -210,7 +210,7 @@ describe("createPaymentPublication", () => {
         agreementNumber: "WMP-WMPTU3LBJ",
         agreementVersion: 3,
       },
-    };
+    });
 
     // Every Claim under one Application shares a lock, so its Payments are
     // ordered against each other rather than racing.
@@ -228,6 +228,17 @@ describe("createPaymentPublication", () => {
       expect(event.data.grants[0].agreementNumber).toBe("WMP-WMPTU3LBJ");
       expect(event.data.grants[0]).not.toHaveProperty("clientClaimRef");
     });
+
+    it("links the row to the Claim's Application", () => {
+      expect(createPaymentPublication(claimPayment).refs).toEqual([
+        ["ref", "wmp-example-002"],
+        ["application", "woodland:wmp-example-002"],
+      ]);
+    });
+  });
+
+  it("links an Agreement's Payment to no Application", () => {
+    expect(createPaymentPublication(payment).refs).toEqual([]);
   });
 
   it("stringifies pence at the boundary", () => {

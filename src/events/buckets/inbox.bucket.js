@@ -30,6 +30,7 @@ export const inboxBucket = () =>
       errorKey: { label: "Error", param: "error" },
     },
     refs: { ref: "Reference", trace: "Trace ID", id: "Event ID" },
+    links: ["application"],
     indexes: [
       ["status"],
       ["status", "eventType"],

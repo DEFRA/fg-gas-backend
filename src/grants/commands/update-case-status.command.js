@@ -1,13 +1,20 @@
 import { CloudEvent } from "../../common/cloud-event.js";
 import { config } from "../../common/config.js";
-import { caseRefsOf } from "../../events/case-refs.js";
+import { applicationRefsOf, caseRefsOf } from "../../events/case-refs.js";
 import { OUTBOX, defineEventType } from "../../events/event-types.js";
 
 export const caseUpdateStatus = defineEventType({
   name: "UpdateCaseStatus",
   sentAs: `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.case.update.status`,
   boxes: [OUTBOX],
-  refs: ({ data }) => caseRefsOf(data?.workflowCode, data?.caseRef),
+  refs: ({ data }) => {
+    const { workflowCode, caseRef } = data ?? {};
+
+    return [
+      ...caseRefsOf(workflowCode, caseRef),
+      ...applicationRefsOf(workflowCode, caseRef),
+    ];
+  },
 });
 
 export class UpdateCaseStatusCommand extends CloudEvent {

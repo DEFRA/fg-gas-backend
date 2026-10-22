@@ -148,7 +148,7 @@ describe("viewApplicationPageUseCase", () => {
     },
   );
 
-  it("events: the timeline of the application's ref, from this service alone", async () => {
+  it("events: the timeline of the application's link within its grant, from this service alone", async () => {
     readApplicationEventsUseCase.mockResolvedValue({
       content: { events: { rows: [{ id: "row-1" }], more: true } },
       sourceErrors: [{ hop: "GAS outbox" }],
@@ -156,7 +156,10 @@ describe("viewApplicationPageUseCase", () => {
 
     const page = await view("events");
 
-    expect(readApplicationEventsUseCase).toHaveBeenCalledWith({ ref: "ref-1" });
+    expect(readApplicationEventsUseCase).toHaveBeenCalledWith({
+      code: REF.code,
+      clientRef: REF.clientRef,
+    });
     expect(page.events).toEqual({ rows: [{ id: "row-1" }], more: true });
     expect(page.sourceErrors).toEqual([{ hop: "GAS outbox" }]);
   });
