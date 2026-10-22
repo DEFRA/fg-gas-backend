@@ -7,9 +7,8 @@ import { Grant } from "../models/grant.js";
 
 const optionalBlock = (value) => value ?? undefined;
 
-// Stored documents predate most of what the model now expects: a grant written
-// before entitlement templates existed has no such key, and one written without
-// any comes back as null, because the driver resolves ignoreUndefined to false.
+// Stored documents predate entitlement templates: a grant written before they
+// existed has no such key, and one written without any comes back as null, because the driver resolves ignoreUndefined to false.
 // Normalising here keeps that drift where it belongs - in the layer that owns
 // the stored shape - so the domain model can take a well-formed collection and
 // not accumulate a guard per field per schema change.
@@ -21,7 +20,7 @@ export const toGrant = (doc) =>
     actions: doc.actions,
     phases: doc.phases,
     externalStatusMap: doc.externalStatusMap,
-    amendablePositions: doc.amendablePositions ?? [],
+    amendablePositions: doc.amendablePositions,
     entitlementTemplates: doc.entitlementTemplates ?? [],
     // Stored as null by the driver when a grant carries none, which the model
     // reads as "absent" only if it arrives undefined.

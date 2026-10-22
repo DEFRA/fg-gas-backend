@@ -23,6 +23,7 @@ import { viewCaseOverviewRoute } from "./routes/view-case-overview.route.js";
 import { viewCaseRawRoute } from "./routes/view-case-raw.route.js";
 import { viewGrantVersionDefinitionRoute } from "./routes/view-grant-version-definition.route.js";
 import { viewGrantVersionOverviewRoute } from "./routes/view-grant-version-overview.route.js";
+import { viewGrantVersionPhasesRoute } from "./routes/view-grant-version-phases.route.js";
 import { viewWorkflowVersionDefinitionRoute } from "./routes/view-workflow-version-definition.route.js";
 import { viewWorkflowVersionOverviewRoute } from "./routes/view-workflow-version-overview.route.js";
 import { viewWorkflowVersionRawRoute } from "./routes/view-workflow-version-raw.route.js";
@@ -61,6 +62,7 @@ export const grantAdmin = {
       listGrantVersionsRoute,
       viewGrantVersionOverviewRoute,
       viewGrantVersionDefinitionRoute,
+      viewGrantVersionPhasesRoute,
       fetchGrantDefinitionsRoute,
       viewWorkflowVersionsRoute,
       viewWorkflowVersionOverviewRoute,

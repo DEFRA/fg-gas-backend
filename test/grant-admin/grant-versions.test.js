@@ -299,6 +299,82 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     ]);
   });
 
+  it("phases: the stored grant's lifecycle as Grants resolves it, audited with its tab", async () => {
+    await configVersions.insertOne(DRAFT);
+    await storeGrant("2.0.0");
+
+    const { payload } = await get(`${CODE}/versions/2.0.0/phases`);
+
+    expect(
+      grantVersionPageSchemas.phases.validate(payload).error,
+    ).toBeUndefined();
+    expect(payload.problem).toBeNull();
+    expect(payload.lifecycle).toMatchObject({
+      initialPosition: "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_RECEIVED",
+      amendablePositions: [
+        "PRE_AWARD:REVIEW_OFFER:APPLICATION_AMEND",
+        "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:APPLICATION_AMEND",
+      ],
+      claimApproval: null,
+    });
+    expect(payload.lifecycle.waysIn).toEqual(
+      expect.arrayContaining([
+        {
+          to: "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_RECEIVED",
+          kind: "any",
+          processes: [],
+        },
+        {
+          to: "PRE_AWARD:CUSTOMER_AGREEMENT_REVIEW:AGREEMENT_OFFERED",
+          kind: "move",
+          from: "PRE_AWARD:REVIEW_OFFER:AGREEMENT_DRAFTED",
+          processes: expect.any(Array),
+        },
+      ]),
+    );
+    expect(payload.lifecycle.externalMappings).toContainEqual({
+      source: "CW",
+      code: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
+      whileIn: "PRE_AWARD:REVIEW_APPLICATION",
+      mappedTo: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
+      to: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
+    });
+    const [row] = await auditRows("VIEW_GRANT_VERSION");
+    expect(row.event.audit.details).toMatchObject({
+      version: "2.0.0",
+      tab: "phases",
+    });
+  });
+
+  it("phases: why a stored grant has no lifecycle, shown rather than skipped", async () => {
+    await configVersions.insertOne(DRAFT);
+    await storeGrant("2.0.0");
+    await grants.updateOne(
+      { code: CODE, version: "2.0.0" },
+      { $set: { "phases.0.stages.0.statuses": [] } },
+    );
+
+    const { payload } = await get(`${CODE}/versions/2.0.0/phases`);
+
+    expect(payload.lifecycle).toBeNull();
+    expect(payload.problem).toBe(
+      `Grant "${CODE}" has a lifecycle GAS cannot read: "phases[0].stages[0].statuses" must contain at least 1 items`,
+    );
+    expect(payload.sectionErrors).toEqual([]);
+  });
+
+  it("phases: neither a lifecycle nor a problem when the grant file is not stored", async () => {
+    await configVersions.insertOne(DRAFT);
+
+    const { payload } = await get(`${CODE}/versions/2.0.0/phases`);
+
+    expect(payload).toMatchObject({
+      lifecycle: null,
+      problem: null,
+      sectionErrors: [],
+    });
+  });
+
   it("writes one VIEW_GRANT_VERSION row per tab read, with the operator, PMC 0706, the version and the tab", async () => {
     await configVersions.insertOne(DRAFT);
 

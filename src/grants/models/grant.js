@@ -1,5 +1,6 @@
 import Boom from "@hapi/boom";
 import { grantDefinition } from "../schemas/grant/grant-definition.js";
+import { storedLifecycle } from "../schemas/grant/stored-lifecycle.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
 import { ExternalStatusMap } from "./external-status-map.js";
 import { ExternalStatusMapping } from "./external-status-mapping.js";
@@ -9,6 +10,8 @@ import { ValidFrom } from "./valid-from.js";
 
 const formatPosition = ({ phase, stage, status }) =>
   [phase, stage, status].filter((part) => part != null).join(":");
+
+const codeAndName = ({ code, name }) => ({ code, name: name ?? null });
 
 const positionParts = ["phase", "stage", "status"];
 const isNonEmptyString = (value) =>
@@ -419,7 +422,7 @@ export class Grant {
       return { valid: false, processes: [] };
     }
 
-    if (!statusDef.validFrom || statusDef.validFrom.length === 0) {
+    if (this.#isFromAnyStatus(statusDef)) {
       return {
         valid: true,
         processes: statusDef.processes || [],
@@ -432,6 +435,10 @@ export class Grant {
       valid: !!isValid,
       processes: isValid?.processes,
     };
+  }
+
+  #isFromAnyStatus(statusDef) {
+    return !statusDef.validFrom || statusDef.validFrom.length === 0;
   }
 
   findStatusDefinition(targetPhase, targetStage, targetStatus) {
@@ -448,6 +455,158 @@ export class Grant {
     return validFrom.find((entry) =>
       new ValidFrom(entry).matches(currentStatus),
     );
+  }
+
+  // What can happen to an application of this grant, decided by the same
+  // lookups that move one. A stored grant is described as it loads, held only
+  // to the shape those lookups read, not to the rules a newly published
+  // definition is held to.
+  describeLifecycle() {
+    this.#assertDescribable();
+    const positions = this.#distinctPositions();
+
+    return {
+      phases: this.#describePhases(),
+      initialPosition: this.#initialPosition(),
+      amendablePositions: [...this.amendablePositions],
+      waysIn: positions.flatMap((to) => this.#waysInto(to, positions)),
+      externalMappings: this.#appliedExternalStatusMappings(),
+      claimApproval: this.#claimApproval(),
+    };
+  }
+
+  #assertDescribable() {
+    const { error } = storedLifecycle.validate(
+      { phases: this.phases, externalStatusMap: this.externalStatusMap },
+      { abortEarly: false },
+    );
+
+    if (error) {
+      throw Boom.badImplementation(
+        `Grant "${this.code}" has a lifecycle GAS cannot read: ${error.details.map((d) => d.message).join(", ")}`,
+      );
+    }
+  }
+
+  #describePhases() {
+    return this.phases.map((phase) => ({
+      ...codeAndName(phase),
+      stages: phase.stages.map((stage) => ({
+        ...codeAndName(stage),
+        statuses: stage.statuses.map(({ code }) => ({ code })),
+      })),
+    }));
+  }
+
+  #distinctPositions() {
+    const positions = this.phases.flatMap((phase) =>
+      phase.stages.flatMap((stage) =>
+        stage.statuses.map(
+          (status) =>
+            new Position({
+              phase: phase.code,
+              stage: stage.code,
+              status: status.code,
+            }),
+        ),
+      ),
+    );
+
+    return [
+      ...new Map(
+        positions.map((position) => [position.toString(), position]),
+      ).values(),
+    ];
+  }
+
+  #initialPosition() {
+    const { phase, stage, status } = this.getInitialState();
+
+    return new Position({
+      phase: phase.code,
+      stage: stage.code,
+      status: status.code,
+    }).toString();
+  }
+
+  // A status the lookup never reaches, under a repeated phase or stage code,
+  // has no way in.
+  #waysInto(to, positions) {
+    const statusDef = this.findStatusDefinition(to.phase, to.stage, to.status);
+
+    if (!statusDef) {
+      return [];
+    }
+
+    if (this.#isFromAnyStatus(statusDef)) {
+      return [
+        {
+          to: to.toString(),
+          kind: "any",
+          processes: statusDef.processes ?? [],
+        },
+      ];
+    }
+
+    return statusDef.validFrom.flatMap((entry) =>
+      this.#waysIntoBy(entry, statusDef.validFrom, to, positions),
+    );
+  }
+
+  // Each source moves by the first entry it matches. An entry that matches
+  // only the status itself, or only sources taken by earlier entries, is never
+  // used.
+  #waysIntoBy(entry, validFrom, to, positions) {
+    const target = to.toString();
+    const { processes } = entry;
+    const moves = positions
+      .map((from) => from.toString())
+      .filter(
+        (from) =>
+          from !== target && this.#isValidFromMatch(validFrom, from) === entry,
+      )
+      .map((from) => ({ to: target, kind: "move", from, processes }));
+
+    if (moves.length > 0 || this.#matchesAnyOf(entry, positions)) {
+      return moves;
+    }
+
+    return [{ to: target, kind: "unmatched", code: entry.code, processes }];
+  }
+
+  #matchesAnyOf(entry, positions) {
+    const validFrom = new ValidFrom(entry);
+
+    return positions.some((position) => validFrom.matches(position.toString()));
+  }
+
+  // Only the mapping the lookup finds for its source and code while in its
+  // phase and stage is ever applied.
+  #appliedExternalStatusMappings() {
+    return new ExternalStatusMap(this.externalStatusMap).mappings
+      .filter(
+        (mapping) =>
+          this.#findExternalStatusMapping(
+            mapping.phase,
+            mapping.stage,
+            mapping.code,
+            mapping.source,
+          ) === mapping.entry,
+      )
+      .map((mapping) => mapping.describe());
+  }
+
+  #claimApproval() {
+    const transition = this.claims?.onClaimApproval;
+
+    if (!transition) {
+      return null;
+    }
+
+    return {
+      from: formatPosition(transition.currentPosition),
+      to: formatPosition(transition.targetPosition),
+    };
   }
 
   findStatuses(position) {

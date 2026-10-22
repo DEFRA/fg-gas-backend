@@ -90,9 +90,7 @@ const fetchFromS3 = async (configVersion, grantCode, resolvedVersion) => {
 // An invalid grant definition is a defect in the published config, not a
 // transient fault. Latch it like a permanent S3 error: otherwise fetchStatus
 // stays Pending and fetchAttempts never increments, so every request re-fetches
-// from S3 and 500s forever with no backstop. saveFromDefinition builds the Grant
-// straight from the parsed JSON, so a malformed definition dies on a TypeError;
-// a Mongo failure during save must stay retryable.
+// from S3 and 500s forever with no backstop.
 const latchInvalidDefinition = async (err, grantCode, resolvedVersion) => {
   if (!isDefinitionDefect(err)) {
     return;

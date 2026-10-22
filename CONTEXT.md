@@ -23,8 +23,20 @@
 **Grant Lifecycle**
 : The phases, stages and statuses of a Grant Definition, and which positions each status can be entered from.
 
+**Way In**
+: How an application reaches a Position: a Move, a validFrom entry no Position matches, or from any status when the status has no validFrom.
+
+**Move**
+: A validFrom entry resolved to the Position it admits, as a transition checks it. Each source moves by the first entry it matches, and runs that entry's processes.
+
 **External Status Map**
 : How a status reported by another service, such as Case Working, moves an application to a Position.
+
+**External Status Mapping**
+: One entry of the External Status Map: a source's status code, the phase and stage it applies while in, and where it moves the application, when a Move to there allows it. Only the first entry for a source and code in a stage is applied.
+
+**Claim Approval Transition**
+: The move GAS makes itself, from one Position to another, when a claim submitted at that Position leaves no claim to make, unless the claim requires approval. GAS publishes the move to Case Working.
 
 ## Config versions
 
