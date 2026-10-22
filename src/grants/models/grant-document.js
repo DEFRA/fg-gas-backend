@@ -1,15 +1,16 @@
 import Boom from "@hapi/boom";
+import { startDate as instant } from "../schemas/grant/metadata/start-date.js";
 
-const toInstantString = (value) => {
-  const instant = new Date(value);
+const assertInstant = (value) => {
+  const { error, value: date } = instant.validate(value);
 
-  if (Number.isNaN(instant.getTime())) {
+  if (error) {
     throw Boom.badImplementation(
       `Grant start date "${value}" is not an instant`,
     );
   }
 
-  return instant.toISOString();
+  return date;
 };
 
 // The start date is stored as an ISO string. A published definition may write
@@ -19,9 +20,13 @@ const toStoredStartDate = (startDate) => {
     return startDate.toISOString();
   }
 
-  return startDate?.$date === undefined
-    ? startDate
-    : toInstantString(startDate.$date);
+  if (startDate?.$date !== undefined) {
+    return assertInstant(startDate.$date).toISOString();
+  }
+
+  assertInstant(startDate);
+
+  return startDate;
 };
 
 export class GrantDocument {

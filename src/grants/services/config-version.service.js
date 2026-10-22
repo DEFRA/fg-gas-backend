@@ -163,6 +163,29 @@ const statusNamesOf = (phases) =>
     ),
   );
 
+const plainTemplateOf = ({
+  claimCode,
+  name,
+  description,
+  materialised,
+  fields,
+  maxEntitlements,
+  availableAt,
+  help,
+  claim,
+}) =>
+  structuredClone({
+    claimCode,
+    name,
+    description,
+    materialised,
+    fields,
+    maxEntitlements,
+    availableAt,
+    help,
+    claim,
+  });
+
 // Templates as the domain model normalised them. Throws for a stored grant the
 // model refuses.
 export const findGrantVersionEntitlements = async ({ code, version }) => {
@@ -170,7 +193,7 @@ export const findGrantVersionEntitlements = async ({ code, version }) => {
 
   return (
     grant && {
-      entitlementTemplates: grant.entitlementTemplates,
+      entitlementTemplates: grant.entitlementTemplates.map(plainTemplateOf),
       claims: grant.claims ?? null,
       statusNames: statusNamesOf(grant.phases),
     }
