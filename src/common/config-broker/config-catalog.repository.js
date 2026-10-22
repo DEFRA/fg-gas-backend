@@ -1,10 +1,36 @@
-import { FetchStatus } from "../fetch-status.js";
+import { FetchStatus, fetchStatusRank } from "../fetch-status.js";
 import { db } from "../mongo-client.js";
 import { buildFetchStateUpdate } from "./fetch-state-update.js";
 
 const collection = "config_versions";
 
 const definitionPath = (definitionType) => `definitions.${definitionType}`;
+
+const fileRanks = {
+  $map: {
+    input: { $objectToArray: { $ifNull: ["$definitions", {}] } },
+    as: "file",
+    in: { $indexOfArray: [fetchStatusRank, "$$file.v.fetchStatus"] },
+  },
+};
+
+// Null for no files or a file with no known status, so bad data never reads as Failed.
+export const withWorstFetchStatus = {
+  $set: {
+    worstFetchStatus: {
+      $let: {
+        vars: { ranks: fileRanks },
+        in: {
+          $cond: [
+            { $or: [{ $eq: ["$$ranks", []] }, { $in: [-1, "$$ranks"] }] },
+            null,
+            { $arrayElemAt: [fetchStatusRank, { $max: "$$ranks" }] },
+          ],
+        },
+      },
+    },
+  },
+};
 
 const toDefinition = (doc, definitionType) => {
   const definition = doc?.definitions?.[definitionType];
@@ -65,37 +91,6 @@ export const findLatestUsableDefinition = async ({
   return toDefinition(doc, definitionType);
 };
 
-export const updateDefinitionLocation = async ({
-  grantCode,
-  version,
-  definitionType,
-  s3Key,
-}) => {
-  const path = definitionPath(definitionType);
-  const defaults = {
-    fetchStatus: FetchStatus.Pending,
-    fetchAttempts: 0,
-    fetchError: null,
-    fetchedAt: null,
-    lastFetchAttemptAt: null,
-  };
-
-  // Do not upsert an incomplete config version. $literal preserves leading "$".
-  return db.collection(collection).updateOne({ grantCode, version }, [
-    {
-      $set: {
-        [path]: {
-          $mergeObjects: [
-            defaults,
-            { $ifNull: [`$${path}`, {}] },
-            { s3Key: { $literal: s3Key } },
-          ],
-        },
-      },
-    },
-  ]);
-};
-
 export const updateDefinitionFetchStatus = async ({
   grantCode,
   version,
@@ -103,19 +98,14 @@ export const updateDefinitionFetchStatus = async ({
   fetchStatus,
   fetchError = null,
 }) => {
-  const { set, inc } = buildFetchStateUpdate({
+  const set = buildFetchStateUpdate({
     path: definitionPath(definitionType),
     fetchStatus,
     fetchError,
     at: new Date().toISOString(),
   });
 
-  const mongoUpdate = { $set: set };
-  if (inc) {
-    mongoUpdate.$inc = inc;
-  }
-
   return db
     .collection(collection)
-    .updateOne({ grantCode, version }, mongoUpdate);
+    .updateOne({ grantCode, version }, [{ $set: set }, withWorstFetchStatus]);
 };

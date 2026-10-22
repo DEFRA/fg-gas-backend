@@ -4,10 +4,7 @@ import { readFileSync } from "node:fs";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { config } from "../../../src/common/config.js";
-import {
-  updateDefinitionFetchStatus,
-  updateDefinitionLocation,
-} from "../../../src/common/config-broker/config-catalog.repository.js";
+import { updateDefinitionFetchStatus } from "../../../src/common/config-broker/config-catalog.repository.js";
 import { FetchStatus } from "../../../src/grants/models/config-version.js";
 import { processConfigVersionUseCase } from "../../../src/grants/use-cases/process-config-version.use-case.js";
 import { payments } from "../../../src/payments/index.js";
@@ -241,22 +238,7 @@ describe("config broker message flow", () => {
       fetchAttempts: 0,
       s3Key: "woodland/1.2.5/gas/agreement.json",
     });
-  });
-
-  it("does not create a config version record when the parent is missing", async () => {
-    await updateDefinitionLocation({
-      grantCode: "never-ingested",
-      version: "9.9.9",
-      definitionType: "agreement",
-      s3Key: "never-ingested/9.9.9/gas/agreement.json",
-    });
-
-    await expect(
-      configVersionsCol.findOne({
-        grantCode: "never-ingested",
-        version: "9.9.9",
-      }),
-    ).resolves.toBeNull();
+    expect(doc.worstFetchStatus).toBe(FetchStatus.Pending);
   });
 
   it("stores the publishing grant's paths for an aliased release", async () => {

@@ -1,6 +1,6 @@
 import { FetchStatus } from "../fetch-status.js";
 
-// Returns fragments so callers can combine them in one update.
+// A pipeline $set, so callers can combine it with other stages in one update.
 export const buildFetchStateUpdate = ({
   path,
   fetchStatus,
@@ -9,17 +9,19 @@ export const buildFetchStateUpdate = ({
 }) => {
   const set = {
     [`${path}.fetchStatus`]: fetchStatus,
-    [`${path}.fetchError`]: fetchError,
+    [`${path}.fetchError`]: { $literal: fetchError },
     [`${path}.lastFetchAttemptAt`]: at,
   };
 
   if (fetchStatus !== FetchStatus.Fetched) {
-    return { set, inc: { [`${path}.fetchAttempts`]: 1 } };
+    return {
+      ...set,
+      [`${path}.fetchAttempts`]: {
+        $add: [{ $ifNull: [`$${path}.fetchAttempts`, 0] }, 1],
+      },
+    };
   }
 
-  set[`${path}.fetchedAt`] = at;
   // Count consecutive failures only.
-  set[`${path}.fetchAttempts`] = 0;
-
-  return { set };
+  return { ...set, [`${path}.fetchedAt`]: at, [`${path}.fetchAttempts`]: 0 };
 };

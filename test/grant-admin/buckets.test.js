@@ -1,6 +1,7 @@
 import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { withWorstFetchStatus } from "../../src/common/config-broker/config-catalog.repository.js";
 import {
   bucketCatalogueResponseSchema,
   bucketQueryResponseSchema,
@@ -77,6 +78,11 @@ const aConfigVersion = (grantCode, version, overrides = {}) => ({
   ...overrides,
 });
 
+const seedConfigVersions = async (...rows) => {
+  await configVersions.insertMany(rows);
+  await configVersions.updateMany({}, [withWorstFetchStatus]);
+};
+
 const query = (bucketId, payload, headers = OPERATOR) =>
   wreck.post(`/grant-admin/buckets/${bucketId}/query`, { payload, headers });
 
@@ -147,7 +153,7 @@ describe("GET /grant-admin/buckets", () => {
   });
 
   it("lists the stored grant codes of the config versions", async () => {
-    await configVersions.insertOne(aConfigVersion("woodland", "1.0.0"));
+    await seedConfigVersions(aConfigVersion("woodland", "1.0.0"));
 
     const { payload } = await wreck.get("/grant-admin/buckets");
     const { facts } = payload.buckets.find(({ id }) => id === "gas.grants");
@@ -331,8 +337,8 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
 
   it("pages config versions newest received first, each once", async () => {
     await configVersions.deleteMany({});
-    await configVersions.insertMany(
-      Array.from({ length: 25 }, (_, n) =>
+    await seedConfigVersions(
+      ...Array.from({ length: 25 }, (_, n) =>
         aConfigVersion("woodland", `1.0.${n}`, {
           receivedAt: minute(n).toISOString(),
         }),
@@ -361,13 +367,13 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
   });
 
   it("lists only drafts when asked for Draft, on an exact plan", async () => {
-    await configVersions.insertMany([
+    await seedConfigVersions(
       aConfigVersion("woodland", "1.0.0"),
       aConfigVersion("woodland", "2.0.0", {
         status: "draft",
         definitions: { grant: { fetchStatus: "permanent_error" } },
       }),
-    ]);
+    );
 
     const answer = await answerOf("gas.grants", {
       where: { status: "draft" },
@@ -383,8 +389,8 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
     ]);
   });
 
-  it("reads one grant's versions by their definition's fetch status, exactly", async () => {
-    await configVersions.insertMany([
+  it("reads one grant's versions by the worst fetch status of their files, exactly", async () => {
+    await seedConfigVersions(
       aConfigVersion("woodland", "1.0.0"),
       aConfigVersion("woodland", "1.1.0", {
         definitions: { grant: { fetchStatus: "pending" } },
@@ -392,19 +398,41 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
       aConfigVersion("hedgerow", "1.0.0", {
         definitions: { grant: { fetchStatus: "pending" } },
       }),
-    ]);
+    );
 
     const answer = await answerOf("gas.grants", {
-      where: {
-        grantCode: "woodland",
-        "definitions.grant.fetchStatus": "pending",
-      },
+      where: { grantCode: "woodland", worstFetchStatus: "pending" },
     });
 
     expect(answer.plan).toMatchObject({ kind: "exact", residual: [] });
     expect(
       answer.rows.map(({ title, cells }) => [title, cells.version]),
     ).toEqual([["woodland", "1.1.0"]]);
+  });
+
+  it("lists a version whose agreement file failed as Failed, on an exact plan", async () => {
+    await seedConfigVersions(
+      aConfigVersion("woodland", "1.0.0"),
+      aConfigVersion("woodland", "1.1.0", {
+        definitions: {
+          grant: { fetchStatus: "fetched" },
+          agreement: { fetchStatus: "permanent_error" },
+        },
+      }),
+    );
+
+    const answer = await answerOf("gas.grants", {
+      where: { worstFetchStatus: "permanent_error" },
+    });
+
+    expect(answer.plan).toMatchObject({
+      kind: "exact",
+      index: expect.arrayContaining(["worstFetchStatus"]),
+      residual: [],
+    });
+    expect(answer.rows.map((row) => row.cells)).toEqual([
+      { version: "1.1.0", status: "active", definition: "permanent_error" },
+    ]);
   });
 
   it("writes no audit row for a read of the grants list", async () => {
