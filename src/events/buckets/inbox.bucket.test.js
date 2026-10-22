@@ -78,6 +78,19 @@ describe("gas.inbox", () => {
     });
   });
 
+  it("reads a config version's events by its link, never offered as a search", () => {
+    const query = queryRequestSchema.validate({
+      ref: "config:woodland-creation@1~2e.0~2e.0",
+    }).value;
+
+    expect(bucket.links).toContain("config");
+    expect(Object.keys(bucket.refs)).not.toContain("config");
+    expect(parseQuery(bucket, query)).toMatchObject({
+      ref: "config:woodland-creation@1~2e.0~2e.0",
+      refKind: "config",
+    });
+  });
+
   it("holds only its lines in its index keys", () => {
     expect(indexKeysOf(bucket).map(Object.keys)).toEqual([
       ["publicationDate", "_id"],
