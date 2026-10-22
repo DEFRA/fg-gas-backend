@@ -7,6 +7,7 @@ import {
   findVersionsByGrantCode,
 } from "../repositories/config-version.repository.js";
 import {
+  findByCode,
   findStoredGrantDocument,
   findStoredGrantSummary,
 } from "../repositories/grant.repository.js";
@@ -14,6 +15,7 @@ import {
   findConfigVersionFiles,
   findConfigVersions,
   findGrantDefinitionSummary,
+  findGrantVersionEntitlements,
   findStoredGrantDefinition,
 } from "./config-version.service.js";
 
@@ -222,5 +224,161 @@ describe("findStoredGrantDefinition", () => {
         { maxBytes: 1024 },
       ),
     ).toEqual({ definition: null, storedBytes: null });
+  });
+});
+
+describe("findGrantVersionEntitlements", () => {
+  const ref = { code: "woodland", version: "2.0.0" };
+  const ACCEPTED = {
+    phase: "POST_AWARD",
+    stage: "AGREEMENT",
+    status: "ACCEPTED",
+  };
+
+  const storing = async (overrides) => {
+    const { toGrant } = await vi.importActual(
+      "../repositories/grant.repository.js",
+    );
+    findByCode.mockImplementation(async () =>
+      toGrant({
+        code: "woodland",
+        version: "2.0.0",
+        metadata: { description: "Woodland", startDate: "2025-04-01" },
+        actions: [],
+        phases: [
+          {
+            code: "POST_AWARD",
+            stages: [
+              {
+                code: "AGREEMENT",
+                statuses: [
+                  { code: "OFFERED" },
+                  { code: "ACCEPTED", name: "Accepted" },
+                ],
+              },
+            ],
+          },
+        ],
+        ...overrides,
+      }),
+    );
+  };
+
+  it("answers null when the grant file is not stored", async () => {
+    findByCode.mockResolvedValue(null);
+
+    expect(await findGrantVersionEntitlements(ref)).toBeNull();
+    expect(findByCode).toHaveBeenCalledWith("woodland", "2.0.0");
+  });
+
+  it("answers each template as the model normalised it, with its defaults applied", async () => {
+    await storing({
+      entitlementTemplates: [
+        {
+          claimCode: "MAINTENANCE",
+          name: "Maintenance payment",
+          description: null,
+          availableAt: [ACCEPTED],
+          claim: { claimableAt: [{ phase: "POST_AWARD" }] },
+        },
+        {
+          claimCode: "CAPITAL",
+          name: "Capital items",
+          availableAt: [ACCEPTED],
+          claim: null,
+        },
+      ],
+      claims: { requiredRoles: { allOf: ["Grants.Claims.Read"] } },
+    });
+
+    expect(
+      JSON.parse(JSON.stringify(await findGrantVersionEntitlements(ref))),
+    ).toEqual({
+      entitlementTemplates: [
+        {
+          claimCode: "MAINTENANCE",
+          name: "Maintenance payment",
+          materialised: true,
+          maxEntitlements: 1,
+          availableAt: [ACCEPTED],
+          claim: {
+            claimableAt: [{ phase: "POST_AWARD" }],
+            limits: { maximumClaims: 1, allowsPartialClaims: false },
+            requiresApproval: false,
+            requiresEvidence: false,
+          },
+        },
+        {
+          claimCode: "CAPITAL",
+          name: "Capital items",
+          materialised: true,
+          maxEntitlements: 1,
+          availableAt: [ACCEPTED],
+        },
+      ],
+      claims: { requiredRoles: { allOf: ["Grants.Claims.Read"] } },
+      statusNames: { "POST_AWARD:AGREEMENT:ACCEPTED": "Accepted" },
+    });
+  });
+
+  it("answers no templates and no claims for a grant with neither", async () => {
+    await storing({ entitlementTemplates: undefined, claims: null });
+
+    expect(await findGrantVersionEntitlements(ref)).toEqual({
+      entitlementTemplates: [],
+      claims: null,
+      statusNames: { "POST_AWARD:AGREEMENT:ACCEPTED": "Accepted" },
+    });
+  });
+
+  it("names each named status by its full position, in every phase", async () => {
+    await storing({
+      phases: [
+        {
+          code: "PRE_AWARD",
+          name: "Pre-award",
+          stages: [
+            {
+              code: "ASSESSMENT",
+              statuses: [
+                { code: "RECEIVED", name: "Received" },
+                { code: "IN_PROGRESS" },
+              ],
+            },
+          ],
+        },
+        {
+          code: "POST_AWARD",
+          stages: [
+            {
+              code: "AGREEMENT",
+              statuses: [{ code: "RECEIVED", name: "Offer received" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect((await findGrantVersionEntitlements(ref)).statusNames).toEqual({
+      "PRE_AWARD:ASSESSMENT:RECEIVED": "Received",
+      "POST_AWARD:AGREEMENT:RECEIVED": "Offer received",
+    });
+  });
+
+  it("refuses a stored template the model cannot load", async () => {
+    await storing({
+      entitlementTemplates: [
+        {
+          claimCode: "MAINTENANCE",
+          name: "Maintenance payment",
+          materialised: null,
+          availableAt: [ACCEPTED],
+        },
+      ],
+    });
+
+    await expect(findGrantVersionEntitlements(ref)).rejects.toThrow(
+      'Invalid entitlement template "MAINTENANCE"',
+    );
   });
 });

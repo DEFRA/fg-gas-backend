@@ -1,11 +1,13 @@
 import { storedDefinitionVersions } from "../../common/config-broker/definition-stores.js";
 import { ConfigVersionFiles } from "../models/config-version-files.js";
+import { Position } from "../models/position.js";
 import {
   findLatestActive,
   findVersionDocument,
   findVersionsByGrantCode,
 } from "../repositories/config-version.repository.js";
 import {
+  findByCode,
   findStoredGrantDocument,
   findStoredGrantSummary,
 } from "../repositories/grant.repository.js";
@@ -72,4 +74,38 @@ export const findStoredGrantDefinition = async (
     (await findStoredGrantDocument(code, version, { maxBytes })) ?? NO_DOCUMENT;
 
   return { definition: document, storedBytes };
+};
+
+const namedStatusesOf = (phase, stage) =>
+  stage.statuses
+    .filter(({ name }) => name != null)
+    .map(({ code, name }) => [
+      new Position({
+        phase: phase.code,
+        stage: stage.code,
+        status: code,
+      }).toString(),
+      name,
+    ]);
+
+// "<PHASE:STAGE:STATUS>" to name, for the statuses the definition names.
+const statusNamesOf = (phases) =>
+  Object.fromEntries(
+    phases.flatMap((phase) =>
+      phase.stages.flatMap((stage) => namedStatusesOf(phase, stage)),
+    ),
+  );
+
+// Templates as the domain model normalised them. Throws for a stored grant the
+// model refuses.
+export const findGrantVersionEntitlements = async ({ code, version }) => {
+  const grant = await findByCode(code, version);
+
+  return (
+    grant && {
+      entitlementTemplates: grant.entitlementTemplates,
+      claims: grant.claims ?? null,
+      statusNames: statusNamesOf(grant.phases),
+    }
+  );
 };

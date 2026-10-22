@@ -1,9 +1,11 @@
+import Boom from "@hapi/boom";
 import { Decimal128, Long } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   findConfigVersionFiles,
   findConfigVersions,
   findGrantDefinitionSummary,
+  findGrantVersionEntitlements,
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
 import { findStoredPaymentDefinitionUseCase } from "../../payments/use-cases/find-stored-payment-definition.use-case.js";
@@ -220,6 +222,106 @@ describe("viewGrantVersionPageUseCase", () => {
     });
   });
 
+  describe("entitlements", () => {
+    const TEMPLATE = {
+      claimCode: "MAINTENANCE",
+      name: "Maintenance payment",
+      materialised: false,
+      maxEntitlements: 10,
+      availableAt: [{ phase: "POST_AWARD" }],
+    };
+    const CLAIMS = { requiredRoles: { allOf: ["Grants.Claims.Read"] } };
+    const PAYMENT = { code: "woodland", sbi: "$.agreement.identifiers.sbi" };
+
+    beforeEach(() => {
+      findGrantVersionEntitlements.mockResolvedValue({
+        entitlementTemplates: [TEMPLATE],
+        claims: CLAIMS,
+      });
+      findStoredPaymentDefinitionUseCase.mockResolvedValue({
+        definition: PAYMENT,
+        storedBytes: 512,
+      });
+    });
+
+    it("the templates and claims beside the stored payment definition, read under the section cap", async () => {
+      const page = await view("entitlements");
+
+      expect(page.entitlements).toEqual({
+        entitlementTemplates: [TEMPLATE],
+        claims: CLAIMS,
+        payment: PAYMENT,
+      });
+      expect(page.sectionErrors).toEqual([]);
+      expect(findGrantVersionEntitlements).toHaveBeenCalledWith(REF);
+      expect(findStoredPaymentDefinitionUseCase).toHaveBeenCalledWith(REF, {
+        maxBytes: SECTION_CAP_BYTES,
+      });
+    });
+
+    it("needs no payment file: a version without one is read, its payment null", async () => {
+      findStoredPaymentDefinitionUseCase.mockResolvedValue({
+        definition: null,
+        storedBytes: null,
+      });
+
+      const page = await view("entitlements");
+
+      expect(page.entitlements.payment).toBeNull();
+      expect(page.sectionErrors).toEqual([]);
+    });
+
+    it("BSON numbers in the payment definition go out as JSON", async () => {
+      findStoredPaymentDefinitionUseCase.mockResolvedValue({
+        definition: { totalAmountPence: Long.fromString("9007199254740993") },
+        storedBytes: 512,
+      });
+
+      expect((await view("entitlements")).entitlements.payment).toEqual({
+        totalAmountPence: "9007199254740993",
+      });
+    });
+
+    it("a grant file not stored is null, with no section error", async () => {
+      findGrantVersionEntitlements.mockResolvedValue(null);
+
+      const page = await view("entitlements");
+
+      expect(page.entitlements).toBeNull();
+      expect(page.sectionErrors).toEqual([]);
+    });
+
+    it("a stored payment definition over the cap makes the section too large to show", async () => {
+      findStoredPaymentDefinitionUseCase.mockResolvedValue({
+        definition: null,
+        storedBytes: SECTION_CAP_BYTES + 1,
+      });
+
+      const page = await view("entitlements");
+
+      expect(page.entitlements).toBeNull();
+      expect(page.sectionErrors).toEqual([
+        { section: "entitlements", message: "too large to show" },
+      ]);
+    });
+
+    it("a stored grant the model refuses is a section error, not a failed page", async () => {
+      findGrantVersionEntitlements.mockRejectedValue(
+        Boom.badImplementation('Invalid entitlement template "MAINTENANCE"'),
+      );
+
+      const page = await view("entitlements");
+
+      expect(page.entitlements).toBeNull();
+      expect(page.sectionErrors).toEqual([
+        {
+          section: "entitlements",
+          message: "An internal server error occurred",
+        },
+      ]);
+    });
+  });
+
   it("answers 404 GRANT_VERSION_NOT_FOUND for an unknown version", async () => {
     findConfigVersionFiles.mockResolvedValue(null);
 
@@ -262,6 +364,12 @@ describe("buildViewGrantVersionAudit", () => {
     expect(
       buildViewGrantVersionAudit({ ...args, tab: "payment" }).details,
     ).toEqual({ caller: "admin-ui", version: "2.0.0", tab: "payment" });
+  });
+
+  it("records the entitlements tab", () => {
+    expect(
+      buildViewGrantVersionAudit({ ...args, tab: "entitlements" }).details,
+    ).toEqual({ caller: "admin-ui", version: "2.0.0", tab: "entitlements" });
   });
 
   it("is the builder the view is audited with, for a refused view too", () => {

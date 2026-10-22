@@ -11,6 +11,7 @@ import {
   findConfigVersionFiles,
   findConfigVersions,
   findGrantDefinitionSummary,
+  findGrantVersionEntitlements,
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
 import { findStoredPaymentDefinitionUseCase } from "../../payments/use-cases/find-stored-payment-definition.use-case.js";
@@ -64,14 +65,28 @@ const readDefinition = async ({ code, version }) =>
     ),
   );
 
-const readPayment = async ({ code, version }) =>
-  toCappedRead(
-    "payment",
-    await findStoredPaymentDefinitionUseCase(
-      { code, version },
-      { maxBytes: SECTION_CAP_BYTES },
-    ),
+const readStoredPayment = ({ code, version }) =>
+  findStoredPaymentDefinitionUseCase(
+    { code, version },
+    { maxBytes: SECTION_CAP_BYTES },
   );
+
+const readPayment = async ({ code, version }) =>
+  toCappedRead("payment", await readStoredPayment({ code, version }));
+
+// No tab file: every version has a grant file, and a payment file is optional.
+const readEntitlements = async ({ code, version }) => {
+  const [entitlements, payment] = await Promise.all([
+    findGrantVersionEntitlements({ code, version }),
+    readStoredPayment({ code, version }),
+  ]);
+  const { content, tooLarge } = toCappedRead("payment", payment);
+
+  return {
+    content: { entitlements: entitlements && { ...entitlements, ...content } },
+    tooLarge: entitlements !== null && tooLarge,
+  };
+};
 
 const GRANT_VERSION_TABS = {
   overview: { readTab: readOverview, empty: { overview: null } },
@@ -85,6 +100,11 @@ const GRANT_VERSION_TABS = {
     empty: { payment: null },
     capped: "payment",
     file: "payment",
+  },
+  entitlements: {
+    readTab: readEntitlements,
+    empty: { entitlements: null },
+    capped: "entitlements",
   },
 };
 

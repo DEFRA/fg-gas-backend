@@ -74,6 +74,21 @@ const definitionSchema = Joi.object().unknown(true).allow(null).required();
 // The stored payment definition as stored: null when not stored or too large.
 const paymentSchema = Joi.object().unknown(true).allow(null).required();
 
+// Templates and claims as the domain model reads them, beside the stored payment
+// definition as stored. Null when the grant is not stored, the model refuses
+// it, or the section or its payment file is too large.
+const entitlementsSchema = Joi.object({
+  entitlementTemplates: Joi.array()
+    .items(Joi.object().unknown(true))
+    .required(),
+  claims: Joi.object().unknown(true).allow(null).required(),
+  payment: Joi.object().unknown(true).allow(null).required(),
+  statusNames: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
+})
+  .allow(null)
+  .required()
+  .label("GrantVersionEntitlements");
+
 const pageSchema = (tab, keys, label) =>
   recordPageSchema(grantVersionHeaderSchema, tab, keys, label);
 
@@ -92,5 +107,10 @@ export const grantVersionPageSchemas = {
     "payment",
     { payment: paymentSchema },
     "GrantVersionPaymentPage",
+  ),
+  entitlements: pageSchema(
+    "entitlements",
+    { entitlements: entitlementsSchema },
+    "GrantVersionEntitlementsPage",
   ),
 };

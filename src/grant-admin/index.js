@@ -20,6 +20,7 @@ import { viewCaseEventsRoute } from "./routes/view-case-events.route.js";
 import { viewCaseOverviewRoute } from "./routes/view-case-overview.route.js";
 import { viewCaseRawRoute } from "./routes/view-case-raw.route.js";
 import { viewGrantVersionDefinitionRoute } from "./routes/view-grant-version-definition.route.js";
+import { viewGrantVersionEntitlementsRoute } from "./routes/view-grant-version-entitlements.route.js";
 import { viewGrantVersionOverviewRoute } from "./routes/view-grant-version-overview.route.js";
 import { viewGrantVersionPaymentRoute } from "./routes/view-grant-version-payment.route.js";
 import { updateEntitlementRoute } from "./routes/update-entitlement.route.js";
@@ -57,6 +58,7 @@ export const grantAdmin = {
       viewGrantVersionOverviewRoute,
       viewGrantVersionDefinitionRoute,
       viewGrantVersionPaymentRoute,
+      viewGrantVersionEntitlementsRoute,
     ]);
   },
 };

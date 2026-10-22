@@ -438,3 +438,160 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/payment", () => {
     expect(row.event.audit.details.tab).toBe("payment");
   });
 });
+
+describe("GET /grant-admin/grants/{code}/versions/{version}/entitlements", () => {
+  const ACCEPTED = {
+    phase: "POST_AGREEMENT_MONITORING",
+    stage: "MONITORING",
+    status: "AGREEMENT_ACCEPTED",
+  };
+  const ENTITLEMENTS = {
+    entitlementTemplates: [
+      {
+        claimCode: "MAINTENANCE",
+        name: "Maintenance payment",
+        availableAt: [{ phase: "POST_AGREEMENT_MONITORING" }],
+        claim: { claimableAt: [ACCEPTED], requiresApproval: true },
+      },
+    ],
+    claims: {
+      onClaimApproval: { currentPosition: ACCEPTED, targetPosition: ACCEPTED },
+      requiredRoles: { allOf: ["Grants.Claims.Read"], anyOf: [] },
+    },
+  };
+  const WITH_PAYMENT = aConfigVersion(
+    "2.0.0",
+    "draft",
+    "2026-10-15T10:04:00.000Z",
+    { payment: fileState("2.0.0", "pending") },
+  );
+
+  const namingAccepted = (phases) =>
+    phases.map((phase) => ({
+      ...phase,
+      stages: phase.stages.map((stage) => ({
+        ...stage,
+        statuses: stage.statuses.map((status) =>
+          status.code === ACCEPTED.status
+            ? { ...status, name: "Agreement accepted" }
+            : status,
+        ),
+      })),
+    }));
+
+  it("answers the templates as the model reads them, the claims, the status names and the stored payment definition, audited with its tab", async () => {
+    await configVersions.insertOne(WITH_PAYMENT);
+    await storeGrant("2.0.0", {
+      ...ENTITLEMENTS,
+      phases: namingAccepted(grantDefinition.phases),
+    });
+    await paymentDefinitions.insertOne({
+      code: CODE,
+      version: "2.0.0",
+      definition: pmfPaymentDefinition,
+    });
+
+    const { payload, res } = await get(`${CODE}/versions/2.0.0/entitlements`);
+
+    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(
+      grantVersionPageSchemas.entitlements.validate(payload).error,
+    ).toBeUndefined();
+    expect(payload.entitlements).toStrictEqual({
+      entitlementTemplates: [
+        {
+          claimCode: "MAINTENANCE",
+          name: "Maintenance payment",
+          materialised: true,
+          maxEntitlements: 1,
+          availableAt: [{ phase: "POST_AGREEMENT_MONITORING" }],
+          claim: {
+            claimableAt: [ACCEPTED],
+            limits: { maximumClaims: 1, allowsPartialClaims: false },
+            requiresApproval: true,
+            requiresEvidence: false,
+          },
+        },
+      ],
+      claims: ENTITLEMENTS.claims,
+      statusNames: {
+        "POST_AGREEMENT_MONITORING:MONITORING:AGREEMENT_ACCEPTED":
+          "Agreement accepted",
+      },
+      payment: pmfPaymentDefinition,
+    });
+    expect(payload.sectionErrors).toEqual([]);
+    const rows = await auditRows("VIEW_GRANT_VERSION");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].event.audit).toMatchObject({
+      status: "SUCCESS",
+      details: { version: "2.0.0", tab: "entitlements" },
+    });
+  });
+
+  it("a version with no payment file is read, with no templates, no claims and no payment definition", async () => {
+    await configVersions.insertOne(
+      aConfigVersion("2.0.0", "draft", "2026-10-15T10:04:00.000Z"),
+    );
+    await storeGrant("2.0.0");
+
+    const { payload } = await get(`${CODE}/versions/2.0.0/entitlements`);
+
+    expect(payload.entitlements).toStrictEqual({
+      entitlementTemplates: [],
+      claims: null,
+      statusNames: {},
+      payment: null,
+    });
+    expect(payload.sectionErrors).toEqual([]);
+  });
+
+  it("a grant file not stored is null, with no section error", async () => {
+    await configVersions.insertOne(WITH_PAYMENT);
+
+    const { payload } = await get(`${CODE}/versions/2.0.0/entitlements`);
+
+    expect(payload.header.files.grant.stored).toBe(false);
+    expect(payload.entitlements).toBeNull();
+    expect(payload.sectionErrors).toEqual([]);
+  });
+
+  it("a stored payment definition over the section cap makes the section too large to show", async () => {
+    await configVersions.insertOne(WITH_PAYMENT);
+    await storeGrant("2.0.0", ENTITLEMENTS);
+    await paymentDefinitions.insertOne({
+      code: CODE,
+      version: "2.0.0",
+      definition: {
+        ...pmfPaymentDefinition,
+        padding: "x".repeat(1_100_000),
+      },
+    });
+
+    const { payload } = await get(`${CODE}/versions/2.0.0/entitlements`);
+
+    expect(payload.entitlements).toBeNull();
+    expect(payload.sectionErrors).toEqual([
+      { section: "entitlements", message: "too large to show" },
+    ]);
+  });
+
+  it("a stored grant the model refuses is a section error", async () => {
+    await configVersions.insertOne(WITH_PAYMENT);
+    await storeGrant("2.0.0", ENTITLEMENTS);
+    await grants.updateOne(
+      { code: CODE, version: "2.0.0" },
+      { $set: { "entitlementTemplates.0.materialised": null } },
+    );
+
+    const { payload } = await get(`${CODE}/versions/2.0.0/entitlements`);
+
+    expect(payload.entitlements).toBeNull();
+    expect(payload.sectionErrors).toEqual([
+      {
+        section: "entitlements",
+        message: "An internal server error occurred",
+      },
+    ]);
+  });
+});
