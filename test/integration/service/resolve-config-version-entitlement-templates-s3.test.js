@@ -211,4 +211,27 @@ describe("config broker entitlementTemplates ingestion (real S3)", () => {
     const storedDoc = await grants.findOne({ code: grantCode, version });
     expect(storedDoc).toBeNull();
   });
+
+  it("stores a start date published as Mongo extended JSON as an ISO string", async () => {
+    const grantCode = "woodland-extended-json-start-date";
+    const version = "1.0.0";
+    const s3Key = `${grantCode}/${version}/gas/gas.json`;
+
+    await uploadGrantDefinition("config-broker-local", s3Key, {
+      code: grantCode,
+      metadata: {
+        description: "Woodland Management Plan",
+        startDate: { $date: "2100-01-01T00:00:00Z" },
+      },
+      actions: [],
+      amendablePositions: [],
+      phases,
+    });
+    await seedPendingConfigVersion(grantCode, version, s3Key);
+
+    await resolveAndFetchGrant(grantCode, version);
+
+    const storedDoc = await grants.findOne({ code: grantCode, version });
+    expect(storedDoc.metadata.startDate).toBe("2100-01-01T00:00:00.000Z");
+  });
 });

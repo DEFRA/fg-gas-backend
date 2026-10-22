@@ -6,6 +6,7 @@ import { getClaimsRoute } from "./routes/get-claims.route.js";
 import { getEntitlementRoute } from "./routes/get-entitlement.route.js";
 import { getEventRoute } from "./routes/get-event.route.js";
 import { getAllowListRoute } from "./routes/get-allow-list.route.js";
+import { listGrantVersionsRoute } from "./routes/list-grant-versions.route.js";
 import { listBucketsRoute } from "./routes/list-buckets.route.js";
 import { purgeEventRoute } from "./routes/purge-event.route.js";
 import { queryBucketRoute } from "./routes/query-bucket.route.js";
@@ -18,6 +19,12 @@ import { replaceAllowListRoute } from "./routes/replace-allow-list.route.js";
 import { viewCaseEventsRoute } from "./routes/view-case-events.route.js";
 import { viewCaseOverviewRoute } from "./routes/view-case-overview.route.js";
 import { viewCaseRawRoute } from "./routes/view-case-raw.route.js";
+import { viewGrantVersionAgreementRoute } from "./routes/view-grant-version-agreement.route.js";
+import { viewGrantVersionDefinitionRoute } from "./routes/view-grant-version-definition.route.js";
+import { viewGrantVersionEntitlementsRoute } from "./routes/view-grant-version-entitlements.route.js";
+import { viewGrantVersionOverviewRoute } from "./routes/view-grant-version-overview.route.js";
+import { viewGrantVersionPhasesRoute } from "./routes/view-grant-version-phases.route.js";
+import { viewGrantVersionPaymentRoute } from "./routes/view-grant-version-payment.route.js";
 import { updateEntitlementRoute } from "./routes/update-entitlement.route.js";
 import { setAuditActor } from "./set-audit-actor.js";
 
@@ -49,6 +56,13 @@ export const grantAdmin = {
       viewCaseOverviewRoute,
       viewCaseEventsRoute,
       viewCaseRawRoute,
+      listGrantVersionsRoute,
+      viewGrantVersionOverviewRoute,
+      viewGrantVersionDefinitionRoute,
+      viewGrantVersionPhasesRoute,
+      viewGrantVersionPaymentRoute,
+      viewGrantVersionAgreementRoute,
+      viewGrantVersionEntitlementsRoute,
     ]);
   },
 };

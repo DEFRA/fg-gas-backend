@@ -61,6 +61,7 @@ describe("claims permissions with real services", () => {
     grant = new Grant({
       code,
       metadata: {},
+      actions: [],
       phases: [],
       claims: { requiredRoles },
       pages: {

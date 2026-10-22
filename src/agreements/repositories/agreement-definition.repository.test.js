@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
 import {
   agreementDefinitionsCollection,
   findAgreementDefinition,
+  findStoredAgreementDefinitionDocument,
+  findStoredVersions,
   insertAgreementDefinition,
 } from "./agreement-definition.repository.js";
 
@@ -54,5 +57,82 @@ describe("Agreement definition repository", () => {
       definition,
     });
     expect(result).toBeUndefined();
+  });
+});
+
+describe("findStoredVersions", () => {
+  it("answers which of the asked versions are stored, reading versions alone", async () => {
+    const toArray = vi.fn().mockResolvedValue([{ version: "1.0.1" }]);
+    const find = vi.fn().mockReturnValue({ toArray });
+    db.collection.mockReturnValue({ find });
+
+    const stored = await findStoredVersions("pigs-might-fly", [
+      "1.0.1",
+      "2.0.0",
+    ]);
+
+    expect(db.collection).toHaveBeenCalledWith(agreementDefinitionsCollection);
+    expect(find).toHaveBeenCalledWith(
+      { code: "pigs-might-fly", version: { $in: ["1.0.1", "2.0.0"] } },
+      expect.objectContaining({ projection: { _id: 0, version: 1 } }),
+    );
+    expect(stored).toEqual(["1.0.1"]);
+  });
+});
+
+describe("findStoredAgreementDefinitionDocument", () => {
+  const aggregating = (docs) => {
+    const aggregate = vi.fn().mockReturnValue({ toArray: async () => docs });
+    db.collection.mockReturnValue({ aggregate });
+    return aggregate;
+  };
+
+  it("answers the definition as stored beside the stored size, within the admin read timeout", async () => {
+    const aggregate = aggregating([{ storedBytes: 512, definition }]);
+
+    expect(
+      await findStoredAgreementDefinitionDocument("pigs-might-fly", "1.0.1", {
+        maxBytes: 1024,
+      }),
+    ).toEqual({ definition, storedBytes: 512 });
+    expect(db.collection).toHaveBeenCalledWith(agreementDefinitionsCollection);
+    const [[pipeline, options]] = aggregate.mock.calls;
+    expect(pipeline).toEqual([
+      { $match: { code: "pigs-might-fly", version: "1.0.1" } },
+      {
+        $project: {
+          _id: 0,
+          storedBytes: { $bsonSize: "$$ROOT" },
+          definition: {
+            $cond: [
+              { $lte: [{ $bsonSize: "$$ROOT" }, 1024] },
+              "$definition",
+              "$$REMOVE",
+            ],
+          },
+        },
+      },
+    ]);
+    expect(options).toEqual({ maxTimeMS: config.adminReadTimeoutMs });
+  });
+
+  it("answers a document over maxBytes by its size alone", async () => {
+    aggregating([{ storedBytes: 2048 }]);
+
+    expect(
+      await findStoredAgreementDefinitionDocument("pigs-might-fly", "1.0.1", {
+        maxBytes: 1024,
+      }),
+    ).toEqual({ definition: null, storedBytes: 2048 });
+  });
+
+  it("answers null when the version is not stored", async () => {
+    aggregating([]);
+
+    expect(
+      await findStoredAgreementDefinitionDocument("pigs-might-fly", "9.9.9", {
+        maxBytes: 1024,
+      }),
+    ).toBeNull();
   });
 });
