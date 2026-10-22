@@ -213,6 +213,39 @@ describe("normalising stored agreement definition shapes", () => {
     );
   });
 
+  it("recomputes the worst fetch status of a version it marks fetched", async () => {
+    await storeDefinition("3.11.1", validationPageShape());
+    await storeDefinition("3.14.1", paymentInputShape());
+    await configVersions.insertMany([
+      {
+        grantCode: "pigs-might-fly",
+        version: "3.11.1",
+        worstFetchStatus: "permanent_error",
+        definitions: {
+          grant: { fetchStatus: "fetched" },
+          agreement: unusable("missing required peer"),
+        },
+      },
+      {
+        grantCode: "pigs-might-fly",
+        version: "3.14.1",
+        worstFetchStatus: "permanent_error",
+        definitions: {
+          grant: { fetchStatus: "pending" },
+          agreement: unusable("unknown input"),
+        },
+      },
+    ]);
+
+    await migrate();
+
+    const worstOf = async (version) =>
+      (await configVersions.findOne({ grantCode: "pigs-might-fly", version }))
+        .worstFetchStatus;
+    expect(await worstOf("3.11.1")).toBe("fetched");
+    expect(await worstOf("3.14.1")).toBe("pending");
+  });
+
   it("marks a fixed permanent_error version fetched when its service URL is missing, and says which", async () => {
     await storeDefinition("3.14.1", paymentInputShape());
     await storeConfigVersion("3.14.1", unusable("unknown input"));

@@ -4,7 +4,7 @@ import {
   findConfigDefinition,
   findLatestUsableDefinition,
   updateDefinitionFetchStatus,
-  updateDefinitionLocation,
+  withWorstFetchStatus,
 } from "./config-catalog.repository.js";
 
 const collection = {
@@ -111,47 +111,6 @@ describe("config catalog repository", () => {
     );
   });
 
-  it("upserts location without resetting existing fetch state", async () => {
-    await updateDefinitionLocation({
-      grantCode: "woodland",
-      version: "1.2.3",
-      definitionType: "agreement",
-      s3Key: "woodland/1.2.3/gas/agreement.json",
-    });
-
-    expect(collection.updateOne).toHaveBeenCalledWith(
-      { grantCode: "woodland", version: "1.2.3" },
-      [
-        {
-          $set: {
-            "definitions.agreement": {
-              $mergeObjects: [
-                expect.objectContaining({
-                  fetchStatus: FetchStatus.Pending,
-                  fetchAttempts: 0,
-                }),
-                { $ifNull: ["$definitions.agreement", {}] },
-                { s3Key: { $literal: "woodland/1.2.3/gas/agreement.json" } },
-              ],
-            },
-          },
-        },
-      ],
-    );
-  });
-
-  it("is not an upsert, so it cannot create a config version record", async () => {
-    await updateDefinitionLocation({
-      grantCode: "woodland",
-      version: "1.2.3",
-      definitionType: "agreement",
-      s3Key: "woodland/1.2.3/gas/agreement.json",
-    });
-
-    const [, , options] = collection.updateOne.mock.calls[0];
-    expect(options?.upsert).toBeFalsy();
-  });
-
   it("updates only the selected definition fetch state", async () => {
     await updateDefinitionFetchStatus({
       grantCode: "woodland",
@@ -163,13 +122,21 @@ describe("config catalog repository", () => {
 
     expect(collection.updateOne).toHaveBeenCalledWith(
       { grantCode: "woodland", version: "1.2.3" },
-      {
-        $set: expect.objectContaining({
-          "definitions.agreement.fetchStatus": FetchStatus.TransientError,
-          "definitions.agreement.fetchError": "timeout",
-        }),
-        $inc: { "definitions.agreement.fetchAttempts": 1 },
-      },
+      [
+        {
+          $set: expect.objectContaining({
+            "definitions.agreement.fetchStatus": FetchStatus.TransientError,
+            "definitions.agreement.fetchError": { $literal: "timeout" },
+            "definitions.agreement.fetchAttempts": {
+              $add: [
+                { $ifNull: ["$definitions.agreement.fetchAttempts", 0] },
+                1,
+              ],
+            },
+          }),
+        },
+        withWorstFetchStatus,
+      ],
     );
   });
 
@@ -181,8 +148,8 @@ describe("config catalog repository", () => {
       fetchStatus: FetchStatus.Fetched,
     });
 
-    const [, update] = collection.updateOne.mock.calls[0];
-    expect(update.$set["definitions.agreement.fetchAttempts"]).toBe(0);
-    expect(update.$inc).toBeUndefined();
+    const [, [{ $set }]] = collection.updateOne.mock.calls[0];
+    expect($set["definitions.agreement.fetchAttempts"]).toBe(0);
+    expect($set["definitions.agreement.fetchedAt"]).toEqual(expect.any(String));
   });
 });

@@ -289,6 +289,7 @@ registered with `registerBucket` when that module's plugin starts:
 | `gas.outbox`       | `events/buckets/outbox.bucket.js`       | `events/index.js` |
 | `gas.inbox`        | `events/buckets/inbox.bucket.js`        | `events/index.js` |
 | `gas.applications` | `grants/buckets/applications.bucket.js` | `grants/index.js` |
+| `gas.grants`       | `grants/buckets/grants.bucket.js`       | `grants/index.js` |
 
 `src/common/buckets/` is the engine: it turns any query into one read on one
 named index, and says whether that read was exact or bounded. It imports

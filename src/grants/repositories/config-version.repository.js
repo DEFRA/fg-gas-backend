@@ -1,4 +1,7 @@
-import { updateDefinitionFetchStatus } from "../../common/config-broker/config-catalog.repository.js";
+import {
+  updateDefinitionFetchStatus,
+  withWorstFetchStatus,
+} from "../../common/config-broker/config-catalog.repository.js";
 import { FetchStatus } from "../../common/fetch-status.js";
 import { db } from "../../common/mongo-client.js";
 import { ConfigVersion } from "../models/config-version.js";
@@ -74,6 +77,7 @@ export const upsert = async (
             definitionLocationUpdate("payment", paymentS3Key)),
         },
       },
+      withWorstFetchStatus,
     ],
     { upsert: true },
   );
