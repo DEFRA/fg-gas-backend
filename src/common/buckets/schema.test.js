@@ -306,6 +306,23 @@ describe("catalogueEntrySchema", () => {
     expect(catalogueEntrySchema.validate(hiding).error).toBeUndefined();
   });
 
+  it.each([
+    ["Not needed yet.", false],
+    ["", true],
+    [1, true],
+  ])("a value with the hint %j: refused is %s", (hint, refused) => {
+    const [status, ...facts] = entry().facts;
+    const hinted = {
+      ...entry(),
+      facts: [
+        { ...status, values: [{ value: "A", label: "A", hint }] },
+        ...facts,
+      ],
+    };
+
+    expect(Boolean(catalogueEntrySchema.validate(hinted).error)).toBe(refused);
+  });
+
   it("refuses a tone it does not know", () => {
     const [status, ...facts] = entry().facts;
     const loud = {

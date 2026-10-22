@@ -150,6 +150,7 @@ const factValue = Joi.object({
   value: storedValue.required(),
   label: Joi.string().allow("").required(),
   tone: Joi.string().valid("neutral", "info", "warning", "success", "error"),
+  hint: Joi.string(),
   hidden: Joi.boolean(),
 });
 
