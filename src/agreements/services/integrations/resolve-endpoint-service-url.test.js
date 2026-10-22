@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  missingEndpointServiceUrls,
   resolveEndpointServiceHeaders,
   resolveEndpointServiceUrl,
   validateEndpointServiceUrls,
@@ -59,6 +60,19 @@ describe("resolveEndpointServiceUrl", () => {
     expect(() => resolveEndpointServiceUrl("UNKNOWN_SERVICE")).toThrow(
       /No URL configured for service "UNKNOWN_SERVICE"/,
     );
+  });
+});
+
+describe("missingEndpointServiceUrls", () => {
+  it("lists the URL env vars of referenced services that are not configured", () => {
+    vi.stubEnv("SERVICE_A_URL", "http://service-a");
+
+    expect(
+      missingEndpointServiceUrls([
+        { endpoints: [{ service: "SERVICE_A" }, { service: "SERVICE_B" }] },
+        { endpoints: [{ service: "SERVICE_B" }] },
+      ]),
+    ).toEqual(["SERVICE_B_URL"]);
   });
 });
 
