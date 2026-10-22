@@ -74,14 +74,19 @@ const parseUrl = (value) => {
   }
 };
 
+const pathOnly = (path) => path.split(/[?#]/)[0];
+
 // The Service Address: the configured base's scheme, host and path, plus the
-// endpoint's path. Path placeholders stay as written. Null when the base is
-// unset or unparseable.
+// endpoint's path without its query or fragment. Path placeholders stay as
+// written. Null when the base is unset or unparseable.
 export const toServiceAddress = (endpoint) => {
   const base = parseUrl(process.env[`${endpoint.service}_URL`]);
 
   return base
-    ? buildUrl(`${base.protocol}//${base.host}${base.pathname}`, endpoint.path)
+    ? buildUrl(
+        `${base.protocol}//${base.host}${base.pathname}`,
+        pathOnly(endpoint.path),
+      )
     : null;
 };
 
