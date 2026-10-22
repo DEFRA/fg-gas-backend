@@ -32,7 +32,11 @@ describe("every insert into the outbox", () => {
 
     expect(insertedOutboxRow()).toMatchObject({
       eventType: "ApplicationCreated",
-      refs: ["ref:abc-123", `id:${event.id}`],
+      refs: [
+        "ref:abc-123",
+        "application:example-grant:~41.~42.~43.-123",
+        `id:${event.id}`,
+      ],
     });
   });
 
@@ -74,6 +78,7 @@ describe("every insert into the inbox", () => {
       refs: [
         "ref:abc-123",
         "case:example-grant:~41.~42.~43.-123",
+        "application:example-grant:~41.~42.~43.-123",
         "id:0b7c1d1e-0000-4000-8000-000000000001",
         "trace:4bf92f3577b34da6a3ce929d0e0e4736",
       ],

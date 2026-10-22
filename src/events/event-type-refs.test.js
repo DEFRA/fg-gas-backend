@@ -2,7 +2,13 @@ import {
   AGREEMENT_CREATED,
   AGREEMENT_STATUS_CHANGED,
 } from "@defra/grants-reporting-publisher";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+// Every plugin main.js registers is loaded, so the boxes list every type the
+// running service declares.
+import "../agreements/index.js";
+import "../grants/index.js";
+import "../payments/index.js";
+import "./index.js";
 import { agreementPaymentRequested } from "../agreements/events/agreement-payment-requested.event.js";
 import {
   reportingAgreementCreated,
@@ -21,7 +27,15 @@ import {
 } from "../grants/events/inbound-event-types.js";
 import { agreementStatusUpdate } from "../grants/events/update-agreement-status.command.js";
 import { agreementCreatePayment } from "../payments/events/create-payment.event.js";
-import { INBOX, OUTBOX, findEventType } from "./event-types.js";
+import {
+  INBOX,
+  OUTBOX,
+  UNRECOGNISED,
+  eventTypeNames,
+  findEventType,
+} from "./event-types.js";
+
+vi.mock("../common/mongo-client.js");
 
 const GAS = "cloud.defra.local.fg-gas-backend.";
 
@@ -31,14 +45,20 @@ const declared = [
     sentAs: `${GAS}application.created`,
     boxes: [OUTBOX],
     event: { data: { code: "example-grant", clientRef: "abc-123" } },
-    refs: [["ref", "abc-123"]],
+    refs: [
+      ["ref", "abc-123"],
+      ["application", "example-grant:abc-123"],
+    ],
   },
   {
     eventType: applicationStatusUpdated,
     sentAs: `${GAS}application.status.updated`,
     boxes: [OUTBOX],
     event: { data: { grantCode: "example-grant", clientRef: "abc-123" } },
-    refs: [["ref", "abc-123"]],
+    refs: [
+      ["ref", "abc-123"],
+      ["application", "example-grant:abc-123"],
+    ],
   },
   {
     eventType: caseCreate,
@@ -56,6 +76,10 @@ const declared = [
       ["case", "example-grant:abc-124"],
       ["ref", "abc-123"],
       ["case", "example-grant:abc-123"],
+      ["ref", "abc-124"],
+      ["application", "example-grant:abc-124"],
+      ["ref", "abc-123"],
+      ["application", "example-grant:abc-123"],
     ],
   },
   {
@@ -66,6 +90,8 @@ const declared = [
     refs: [
       ["ref", "abc-123"],
       ["case", "example-grant:abc-123"],
+      ["ref", "abc-123"],
+      ["application", "example-grant:abc-123"],
     ],
   },
   {
@@ -73,7 +99,10 @@ const declared = [
     sentAs: `${GAS}agreement.create`,
     boxes: [OUTBOX],
     event: { data: { code: "example-grant", clientRef: "abc-123" } },
-    refs: [["ref", "abc-123"]],
+    refs: [
+      ["ref", "abc-123"],
+      ["application", "example-grant:abc-123"],
+    ],
   },
   {
     eventType: agreementStatusUpdate,
@@ -86,7 +115,10 @@ const declared = [
         agreementNumber: "FPTT000000001",
       },
     },
-    refs: [["ref", "abc-123"]],
+    refs: [
+      ["ref", "abc-123"],
+      ["application", "example-grant:abc-123"],
+    ],
   },
   {
     eventType: agreementPaymentRequested,
@@ -114,7 +146,10 @@ const declared = [
         agreement: { agreementNumber: "FPTT000000001" },
       },
     },
-    refs: [["ref", "abc-123"]],
+    refs: [
+      ["ref", "abc-123"],
+      ["application", "example-grant:abc-123"],
+    ],
   },
   {
     eventType: agreementStatusUpdated,
@@ -128,7 +163,10 @@ const declared = [
         sbi: "100000001",
       },
     },
-    refs: [["ref", "abc-123"]],
+    refs: [
+      ["ref", "abc-123"],
+      ["application", "example-grant:abc-123"],
+    ],
   },
   {
     eventType: agreementCreatePayment,
@@ -178,6 +216,8 @@ const declared = [
     refs: [
       ["ref", "abc-123"],
       ["case", "example-grant:abc-123"],
+      ["ref", "abc-123"],
+      ["application", "example-grant:abc-123"],
     ],
   },
   {
@@ -221,4 +261,36 @@ describe("agreement.create-payment", () => {
 
     expect(refs).toContainEqual(["ref", "abc-123"]);
   });
+});
+
+// Every type a box lists concerns an application unless it says why not here.
+const notApplicationEvents = {
+  Audit: "written by its own writer, found by its trace",
+  AgreementPaymentRequested: "an agreement's, with no client reference",
+  AgreementCreatedReport: "an agreement's, with no client reference",
+  AgreementStatusChangedReport: "an agreement's, with no client reference",
+  ConfigVersionUpdated: "a grant's, not an application's",
+  CreateAgreementPayment: "linked by its publication, from the Payment",
+};
+
+const isApplicationLink = ([kind, value]) =>
+  kind === "application" && value !== null;
+
+const isLinked = (name) =>
+  declared.some(
+    ({ eventType, refs }) =>
+      eventType.name === name && refs.some(isApplicationLink),
+  );
+
+describe("every type a box lists", () => {
+  const listed = [
+    ...new Set([...eventTypeNames(OUTBOX), ...eventTypeNames(INBOX)]),
+  ].filter((name) => name !== UNRECOGNISED);
+
+  it.each(listed)(
+    "%s is linked to its application, or says why not",
+    (name) => {
+      expect(isLinked(name)).toBe(!Object.hasOwn(notApplicationEvents, name));
+    },
+  );
 });

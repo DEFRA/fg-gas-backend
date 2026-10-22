@@ -1,7 +1,6 @@
 import { readTimeline } from "../../common/buckets/engine.js";
-import { toRef } from "../../common/buckets/refs.js";
 import { logger } from "../../common/logger.js";
-import { toCaseLink } from "../../events/case-refs.js";
+import { toApplicationLink, toCaseLink } from "../../events/case-refs.js";
 import { UNRECOGNISED } from "../../events/event-types.js";
 import {
   describeError,
@@ -55,10 +54,25 @@ const toEvents = ({ buckets, sourceErrors = [] }) => {
   };
 };
 
-// An application lives in this service: its Events tab is its ref searched in
-// this service's timeline buckets, and asks Caseworking nothing.
-export const readApplicationEventsUseCase = async ({ ref }) =>
-  toEvents(await readTimeline(toRef("ref", ref)));
+// A link with no grant code or reference reads no bucket, so it is refused
+// here rather than shown as every bucket failing.
+const applicationLinkOf = (code, clientRef) => {
+  const link = toApplicationLink(code, clientRef);
+
+  if (link === null) {
+    throw new Error(
+      "An application's events need its grant code and reference",
+    );
+  }
+
+  return link;
+};
+
+// An application lives in this service: its Events tab is its link read in
+// this service's timeline buckets, and asks Caseworking nothing. It is keyed by
+// the grant as well, since two grants may hold the same reference.
+export const readApplicationEventsUseCase = async ({ code, clientRef }) =>
+  toEvents(await readTimeline(applicationLinkOf(code, clientRef)));
 
 const readCaseTimeline = async (ref, actor) => {
   try {

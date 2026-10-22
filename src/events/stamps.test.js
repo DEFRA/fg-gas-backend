@@ -85,6 +85,23 @@ describe("outboxStamps", () => {
     });
   });
 
+  it("adds the refs the writer gives after the type's own, dropping empty ones", () => {
+    expect(
+      outboxStamps(event(), {
+        segregationRef: "ABC-123",
+        refs: [
+          ["application", "example-grant:~41.~42.~43.-123"],
+          ["application", null],
+        ],
+      }).refs,
+    ).toEqual([
+      "ref:abc-123",
+      "application:example-grant:~41.~42.~43.-123",
+      "id:0b7c1d1e-0000-4000-8000-000000000001",
+      TRACE_REF,
+    ]);
+  });
+
   it("stamps only the refs the envelope has", () => {
     expect(
       outboxStamps(event({ data: {}, traceparent: undefined }), {}),

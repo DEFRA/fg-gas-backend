@@ -1,7 +1,9 @@
 import { ObjectId } from "mongodb";
 import { describe, expect, it } from "vitest";
 import { indexKeysOf } from "../../common/buckets/bucket.js";
+import { parseQuery } from "../../common/buckets/engine.js";
 import { choosePlan } from "../../common/buckets/plan.js";
+import { queryRequestSchema } from "../../common/buckets/schema.js";
 import { INBOX, OUTBOX, defineEventType } from "../event-types.js";
 import { inboxBucket } from "./inbox.bucket.js";
 
@@ -59,6 +61,20 @@ describe("gas.inbox", () => {
       ref: "Reference",
       trace: "Trace ID",
       id: "Event ID",
+    });
+  });
+
+  it("reads an application's events by its link, never offered as a search", () => {
+    const { value } = queryRequestSchema.validate({
+      ref: "application:woodland:client-wmp-test-0061",
+    });
+
+    expect(bucket.links).toContain("application");
+    expect(Object.keys(bucket.refs)).not.toContain("application");
+    expect(parseQuery(bucket, value)).toMatchObject({
+      ref: "application:woodland:client-wmp-test-0061",
+      refKind: "application",
+      plan: { line: "refs" },
     });
   });
 
