@@ -15,6 +15,7 @@ import {
   findConfigVersions,
   findGrantDefinitionSummary,
   findStoredGrantDefinition,
+  grantVersionExists,
 } from "./config-version.service.js";
 
 vi.mock("../../common/config-broker/definition-stores.js");
@@ -222,5 +223,24 @@ describe("findStoredGrantDefinition", () => {
         { maxBytes: 1024 },
       ),
     ).toEqual({ definition: null, storedBytes: null });
+  });
+});
+
+describe("grantVersionExists", () => {
+  it("is true when GAS has the grant version, read by its code and version", async () => {
+    findVersionDocument.mockResolvedValue({ grantCode: "woodland" });
+
+    expect(
+      await grantVersionExists({ code: "woodland", version: "1.2.0" }),
+    ).toBe(true);
+    expect(findVersionDocument).toHaveBeenCalledWith("woodland", "1.2.0");
+  });
+
+  it("is false when it does not", async () => {
+    findVersionDocument.mockResolvedValue(null);
+
+    expect(
+      await grantVersionExists({ code: "Casework-Smoke", version: "0.0.0" }),
+    ).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import {
   findLatestActive,
+  findVersionDocument,
   findVersionsByGrantCode,
 } from "../repositories/config-version.repository.js";
 import {
@@ -23,6 +24,10 @@ export const findConfigVersions = async (code) => {
 
 export const findConfigVersionFiles = async ({ code, version }) =>
   (await loadConfigVersionFiles({ code, version }))?.toView() ?? null;
+
+// Whether a workflow version has its grant counterpart: paired by code and version alone.
+export const grantVersionExists = async ({ code, version }) =>
+  (await findVersionDocument(code, version)) !== null;
 
 const NOT_STORED = {
   description: null,

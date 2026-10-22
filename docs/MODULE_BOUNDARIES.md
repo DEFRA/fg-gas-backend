@@ -49,17 +49,17 @@ Grant Admin enters the Grants application layer through five named services, and
 Payments through one named use case. Event administration enters the shared
 event module directly:
 
-| Caller        | Entry point                                          | Responsibility                                                          |
-| ------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
-| `grant-admin` | `grants/services/entitlement.service.js`             | Claims overview, entitlement creation and update, and who may do them   |
-| `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup and submitted-Claim reads                  |
-| `grant-admin` | `grants/services/application-read.service.js`        | Read-only application facts, stored documents and series                |
-| `grant-admin` | `grants/services/allow-list.service.js`              | Audited grant allow-list reads and transactional whole-list replacement |
-| `grant-admin` | `grants/services/config-version.service.js`          | Config version reads and the audited operator Fetch Definitions         |
-| `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                  |
-| `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: inspect, redrive, purge and edit GAS inbound events        |
-| `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: inspect, redrive, purge and edit GAS outbound events       |
-| `grant-admin` | `common/buckets/registry.js` and `engine.js`         | Every list: the catalogue and one query route over the declared buckets |
+| Caller        | Entry point                                          | Responsibility                                                                           |
+| ------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `grant-admin` | `grants/services/entitlement.service.js`             | Claims overview, entitlement creation and update, and who may do them                    |
+| `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup and submitted-Claim reads                                   |
+| `grant-admin` | `grants/services/application-read.service.js`        | Read-only application facts, stored documents and series                                 |
+| `grant-admin` | `grants/services/allow-list.service.js`              | Audited grant allow-list reads and transactional whole-list replacement                  |
+| `grant-admin` | `grants/services/config-version.service.js`          | Config version reads, grant version existence and the audited operator Fetch Definitions |
+| `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                                   |
+| `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: inspect, redrive, purge and edit GAS inbound events                         |
+| `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: inspect, redrive, purge and edit GAS outbound events                        |
+| `grant-admin` | `common/buckets/registry.js` and `engine.js`         | Every list: the catalogue and one query route over the declared buckets                  |
 
 Who may see or change a grant's Claims is Grants' rule, not the BFF's. The grant
 configures the roles it requires; `grants/models/claims-access.js` turns them

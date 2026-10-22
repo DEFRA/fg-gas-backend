@@ -5,6 +5,7 @@ import {
   SECTION_CAP_BYTES,
   TOO_LARGE,
   composeRecordPage,
+  startSharedRead,
 } from "./compose-record-page.js";
 
 vi.mock("../../common/logger.js");
@@ -155,5 +156,18 @@ describe("composeRecordPage", () => {
 
     expect(accounts).toEqual(ACCOUNTS);
     expect(page).not.toHaveProperty("accounts");
+  });
+});
+
+describe("startSharedRead", () => {
+  it("answers the read itself, its failure left for whoever awaits it", async () => {
+    const failure = new Error("CW-BE down");
+    const read = Promise.reject(failure);
+
+    const shared = startSharedRead(read);
+    await Promise.resolve();
+
+    expect(shared).toBe(read);
+    await expect(shared).rejects.toBe(failure);
   });
 });
