@@ -7,7 +7,7 @@ vi.mock("../../events/index.js");
 const grant = {
   claims: { onClaimSubmission: { processes: ["STORE_CLAIM_CASE"] } },
 };
-const savedClaim = (amount = 150000) =>
+const savedClaim = (amount = 150000, details = {}) =>
   Claim.create({
     code: "woodland",
     clientRef: "wmp-6hb-j8e",
@@ -24,7 +24,9 @@ const savedClaim = (amount = 150000) =>
     claim: {
       entitlementId: "ent-1",
       totalClaimAmountPence: amount,
-      privateAnswer: "omit",
+      quantity: 1,
+      additionalAnswers: { reference: "plan-123" },
+      ...details,
     },
   });
 it.each([150000, 0])(
@@ -48,6 +50,9 @@ it.each([150000, 0])(
                 dataType: "ARRAY",
                 key: "gasClaimId",
                 data: {
+                  entitlementId: "ent-1",
+                  quantity: 1,
+                  additionalAnswers: { reference: "plan-123" },
                   gasClaimId: "mongo-id",
                   clientClaimRef: "WMP-6HB-J8E-C0001",
                   claimCode: "ENT_CS_CAPITAL_PA3",
@@ -66,6 +71,38 @@ it.each([150000, 0])(
     );
   },
 );
+it("keeps saved GAS facts authoritative when claim details use the same names", async () => {
+  await storeClaimCaseUseCase(
+    {
+      grant,
+      claim: savedClaim(150000, {
+        gasClaimId: "caller-id",
+        clientClaimRef: "caller-reference",
+        claimCode: "caller-code",
+        claimAmountPence: 1,
+        sbi: "caller-sbi",
+        status: "caller-status",
+        submittedAt: "caller-date",
+      }),
+      claimId: "mongo-id",
+    },
+    {},
+  );
+  const record =
+    saveEvents.mock.calls[0][0][0].event.data.supplementaryData.data;
+  expect(record).toEqual({
+    entitlementId: "ent-1",
+    quantity: 1,
+    additionalAnswers: { reference: "plan-123" },
+    gasClaimId: "mongo-id",
+    clientClaimRef: "WMP-6HB-J8E-C0001",
+    claimCode: "ENT_CS_CAPITAL_PA3",
+    claimAmountPence: 150000,
+    sbi: "113593357",
+    status: "SUBMITTED",
+    submittedAt: "2026-08-07T11:16:05.745Z",
+  });
+});
 it("propagates failed outbox insertion to abort the transaction", async () => {
   saveEvents.mockRejectedValue(new Error("outbox unavailable"));
   await expect(

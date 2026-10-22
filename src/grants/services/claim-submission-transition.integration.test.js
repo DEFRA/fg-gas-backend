@@ -463,6 +463,8 @@ describe("claim supplementary data publication", () => {
         dataType: "ARRAY",
         key: "gasClaimId",
         data: {
+          entitlementId: saved.claim.entitlementId,
+          quantity: 23,
           gasClaimId: created.claimId,
           clientClaimRef: "claim-1",
           claimCode: saved.claimCode,
