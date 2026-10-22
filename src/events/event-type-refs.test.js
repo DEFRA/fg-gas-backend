@@ -9,6 +9,7 @@ import "../agreements/index.js";
 import "../grants/index.js";
 import "../payments/index.js";
 import "./index.js";
+import { toRefs } from "../common/buckets/refs.js";
 import { agreementPaymentRequested } from "../agreements/events/agreement-payment-requested.event.js";
 import {
   reportingAgreementCreated,
@@ -224,8 +225,11 @@ const declared = [
     eventType: configVersionUpdated,
     sentAs: "config-version.updated",
     boxes: [INBOX],
-    event: { data: { grantCode: "example-grant" } },
-    refs: [],
+    event: { data: { grantCode: "example-grant", version: "1.2.3" } },
+    refs: [
+      ["ref", "example-grant"],
+      ["config", "example-grant@1~2e.2~2e.3"],
+    ],
   },
 ];
 
@@ -293,4 +297,37 @@ describe("every type a box lists", () => {
       expect(isLinked(name)).toBe(!Object.hasOwn(notApplicationEvents, name));
     },
   );
+});
+
+describe("config-version.updated", () => {
+  it("keeps a mixed-case code's case in its link", () => {
+    expect(
+      configVersionUpdated.refs(
+        { data: { grantCode: "Example_Grant", version: "1.0.0" } },
+        {},
+      ),
+    ).toEqual([
+      ["ref", "Example_Grant"],
+      ["config", "~45.xample~5f.~47.rant@1~2e.0~2e.0"],
+    ]);
+  });
+
+  it("is found by its code alone when it names no version", () => {
+    expect(
+      toRefs(
+        configVersionUpdated.refs({ data: { grantCode: "woodland" } }, {}),
+      ),
+    ).toEqual(["ref:woodland"]);
+  });
+
+  it("is found by no reference when it names no grant", () => {
+    expect(
+      toRefs(
+        configVersionUpdated.refs(
+          { data: { version: "1.0.0" } },
+          { segregationRef: "unknown-grant" },
+        ),
+      ),
+    ).toEqual([]);
+  });
 });
