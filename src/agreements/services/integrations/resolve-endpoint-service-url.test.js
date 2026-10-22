@@ -210,6 +210,17 @@ describe("toServiceAddress", () => {
     expect(toServiceAddress(endpoint)).toBe("https://h:8443/base/x/{sbi}");
   });
 
+  it.each(["/x/{sbi}?mode=full", "/x/{sbi}#details", "/x/{sbi}?mode=full#a?b"])(
+    "leaves out the query and fragment of the path %s",
+    (path) => {
+      vi.stubEnv("LAND_DATA_URL", "https://h/base");
+
+      expect(toServiceAddress({ service: "LAND_DATA", path })).toBe(
+        "https://h/base/x/{sbi}",
+      );
+    },
+  );
+
   it("collapses one trailing slash and adds a missing leading one", () => {
     vi.stubEnv("LAND_DATA_URL", "https://h/base");
 

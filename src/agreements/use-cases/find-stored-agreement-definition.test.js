@@ -134,6 +134,50 @@ describe("findStoredAgreementDefinition", () => {
     ]);
   });
 
+  it("leaves the query and fragment out of root endpoint and endpoint process addresses", async () => {
+    vi.stubEnv("LAND_DATA_URL", "https://land.test/");
+    const withQueries = (definition) => ({
+      ...definition,
+      endpoints: [
+        {
+          code: "PARCELS",
+          method: "GET",
+          service: "LAND_DATA",
+          path: "/parcels/{sbi}?mode=full#details",
+        },
+      ],
+      processDefinitions: {
+        ...definition.processDefinitions,
+        FETCH_PARCELS: {
+          type: "endpoint",
+          endpoint: {
+            method: "GET",
+            service: "LAND_DATA",
+            path: "/parcels/{sbi}#details",
+          },
+          request: { body: { scheme: "pigs" } },
+          output: { parcels: "$.response.parcels" },
+        },
+      },
+    });
+    storing(withQueries(seeded()));
+
+    const found = await findStoredAgreementDefinition(REF, OPTIONS);
+
+    expect(found.endpointAddresses).toEqual([
+      {
+        code: "PARCELS",
+        service: "LAND_DATA",
+        url: "https://land.test/parcels/{sbi}",
+      },
+    ]);
+    expect(found.addresses).toContainEqual({
+      process: "FETCH_PARCELS",
+      service: "LAND_DATA",
+      url: "https://land.test/parcels/{sbi}",
+    });
+  });
+
   it.each([
     ["a root endpoint", withRootEndpoints],
     ["an endpoint process", withLandData],
