@@ -213,6 +213,49 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/{tab}", () => {
     expect(request.query).toEqual({});
   });
 
+  it("passes on Caseworking's fetch state of the workflow file and of each version, when it sends them", async () => {
+    const versions = VERSIONS.map((entry) => ({
+      ...entry,
+      fetchStatus: "transient_error",
+      stored: false,
+    }));
+    await setCwStub({
+      workflows: {
+        records: {
+          [`${CODE}/2.0.0`]: {
+            ...NOT_STORED,
+            version: {
+              ...NOT_STORED.version,
+              fetchStatus: "transient_error",
+              fetchError: "S3 timed out",
+              fetchAttempts: 2,
+              s3Key: `${CODE}/2.0.0/cw/workflow.json`,
+              s3Bucket: "config-broker-local",
+            },
+            versions,
+          },
+        },
+      },
+    });
+
+    const { payload: page } = await get(`${CODE}/versions/2.0.0/raw`);
+
+    expect(workflowVersionPageSchemas.raw.validate(page).error).toBeUndefined();
+    expect(page.header).toMatchObject({
+      s3Bucket: "config-broker-local",
+      files: {
+        workflow: {
+          stored: false,
+          fetchStatus: "transient_error",
+          fetchError: "S3 timed out",
+          fetchAttempts: 2,
+          s3Key: `${CODE}/2.0.0/cw/workflow.json`,
+        },
+      },
+      versions,
+    });
+  });
+
   it("overview: a workflow with no grant says so", async () => {
     const { payload } = await get(`${CODE}/versions/1.2.0/overview`);
 

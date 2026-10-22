@@ -9,18 +9,27 @@ export const fetchStatusSchema = Joi.string()
   .valid(...Object.values(FetchStatus))
   .required();
 
+// `fetchStatus` is the version's worst, null until it is stamped with one;
+// `stored` is whether every file it has is stored. Both are absent from a
+// Caseworking that does not send them.
 const configVersionSchema = Joi.object({
   version: Joi.string().required(),
   status: versionStatus,
   receivedAt: receivedAtSchema,
+  fetchStatus: fetchStatusSchema.optional().allow(null),
+  stored: Joi.boolean(),
 }).label("ConfigVersion");
 
 // Newest first.
 export const versionsSchema = Joi.array().items(configVersionSchema).required();
 
+// The fetch details are absent from a Caseworking that does not send them.
 export const definitionFileSchema = Joi.object({
   stored: Joi.boolean().required(),
   fetchStatus: fetchStatusSchema,
+  fetchError: Joi.string().allow(null),
+  fetchAttempts: Joi.number().integer().min(0),
+  s3Key: Joi.string().allow(null),
 }).label("DefinitionFile");
 
 const fetchedFileSchema = (files, kind) =>

@@ -2,21 +2,30 @@ import { Position } from "../models/position.js";
 import {
   findLatestActive,
   findVersionDocument,
-  findVersionsByGrantCode,
 } from "../repositories/config-version.repository.js";
 import {
   findByCode,
   findStoredGrantDocument,
   findStoredGrantSummary,
 } from "../repositories/grant.repository.js";
+import { CLAIM_APPROVAL_TELLS_CW } from "./claims.service.js";
 import { loadConfigVersionFiles } from "../use-cases/load-config-version-files.js";
+import { processEffectsOf } from "../use-cases/transition-application.use-case.js";
 import { isDefinitionDefect } from "./definition-defect.js";
 
 const PROBLEM_MAX_LENGTH = 500;
 
+const toVersionEntry = (files) => ({
+  version: files.version,
+  status: files.status,
+  receivedAt: files.receivedAt,
+  fetchStatus: files.worstFetchStatus,
+  stored: files.allStored(),
+});
+
 export const findConfigVersions = async (code) => {
   const [versions, current] = await Promise.all([
-    findVersionsByGrantCode(code),
+    loadConfigVersionFiles({ code }),
     findLatestActive(code),
   ]);
 
@@ -24,11 +33,18 @@ export const findConfigVersions = async (code) => {
     return null;
   }
 
-  return { code, current: current?.version ?? null, versions };
+  return {
+    code,
+    current: current?.version ?? null,
+    versions: versions.map(toVersionEntry),
+  };
 };
 
-export const findConfigVersionFiles = async ({ code, version }) =>
-  (await loadConfigVersionFiles({ code, version }))?.toView() ?? null;
+export const findConfigVersionFiles = async ({ code, version }) => {
+  const [found] = await loadConfigVersionFiles({ code, versions: [version] });
+
+  return found?.toView() ?? null;
+};
 
 // Whether a workflow version has its grant counterpart: paired by code and version alone.
 export const grantVersionExists = async ({ code, version }) =>
@@ -84,9 +100,26 @@ const storedGrantOf = (code, version) =>
     },
   );
 
+// What GAS does on each way in, as the registry that runs its processes
+// declares, and the claim move as claims makes it.
+const withProcessEffects = (lifecycle) => ({
+  ...lifecycle,
+  waysIn: lifecycle.waysIn.map((wayIn) => ({
+    ...wayIn,
+    processEffects: wayIn.processes.map(processEffectsOf).filter(Boolean),
+  })),
+  claimApproval: lifecycle.claimApproval && {
+    ...lifecycle.claimApproval,
+    tellsCw: CLAIM_APPROVAL_TELLS_CW,
+  },
+});
+
 const lifecycleOf = (grant) => {
   try {
-    return { lifecycle: grant.describeLifecycle(), problem: null };
+    return {
+      lifecycle: withProcessEffects(grant.describeLifecycle()),
+      problem: null,
+    };
   } catch (error) {
     if (!error.isBoom) {
       throw error;

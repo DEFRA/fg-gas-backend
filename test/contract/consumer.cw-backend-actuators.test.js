@@ -11,17 +11,20 @@ import { describe, expect, it, vi } from "vitest";
 import { withRequestContext } from "../../src/common/get-request-context.js";
 import {
   CASE_NOT_FOUND,
-  WORKFLOW_NOT_FOUND,
-  WORKFLOW_VERSION_NOT_FOUND,
-  fetchCwWorkflowDefinition,
   findCwBuckets,
   findCwCase,
   findCwCaseExistence,
   findCwEvent,
-  findCwWorkflowVersion,
-  findCwWorkflowVersions,
   queryCwBucket,
 } from "../../src/grant-admin/repositories/cw-actuators.repository.js";
+import {
+  WORKFLOW_NOT_FOUND,
+  WORKFLOW_VERSION_NOT_FOUND,
+  fetchCwWorkflowDefinition,
+  findCwWorkflowVersion,
+  findCwWorkflowVersionExistence,
+  findCwWorkflowVersions,
+} from "../../src/grant-admin/repositories/cw-workflows.repository.js";
 
 const { atLeastLike, boolean, eachLike, integer, like, regex, string } =
   MatchersV3;
@@ -472,6 +475,13 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
       receivedAt: regex(ISO, "2026-10-01T09:00:00.000Z"),
     };
 
+    // Each version's fetch state, and where the workflow file is: optional to
+    // GAS, which reads a Caseworking that does not send them as before.
+    const versionFetchState = {
+      fetchStatus: like("fetched"),
+      stored: boolean(true),
+    };
+
     const storedVersion = {
       version: {
         grantCode: like(CODE),
@@ -480,8 +490,11 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           "^(pending|fetched|transient_error|permanent_error)$",
           "fetched",
         ),
+        fetchAttempts: integer(0),
+        s3Key: like(`${CODE}/${VERSION}/cw/workflow.json`),
+        s3Bucket: like("config-broker-local"),
       },
-      versions: eachLike(versionEntry),
+      versions: eachLike({ ...versionEntry, ...versionFetchState }),
       current: regex(SEMVER, VERSION),
       storedBytes: integer(48213),
       summary: {
@@ -574,6 +587,15 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
 
           expect(answer.summary.schemeName).toBe("Woodland Creation");
           expect(answer.document).toBeNull();
+          expect(answer.version).toMatchObject({
+            fetchAttempts: 0,
+            s3Key: `${CODE}/${VERSION}/cw/workflow.json`,
+            s3Bucket: "config-broker-local",
+          });
+          expect(answer.versions[0]).toMatchObject({
+            fetchStatus: "fetched",
+            stored: true,
+          });
         },
       ));
 
@@ -673,6 +695,33 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           expect(answer.files[0].file).toBe("workflow");
         },
       ));
+
+    it.each([
+      [VERSION, true],
+      ["9.9.9", false],
+    ])(
+      "answers whether version %s exists, with no operator name",
+      (version, exists) =>
+        run(
+          {
+            states: versionState("a workflow version is stored"),
+            uponReceiving: `an existence check for a workflow version that ${exists ? "exists" : "does not exist"}`,
+            withRequest: {
+              method: "GET",
+              path: `/actuators/workflows/${CODE}/versions/${version}/existence`,
+              headers: { authorization, "x-actor-id": regex(GUID, OID) },
+            },
+            willRespondWith: { status: 200, body: { exists } },
+          },
+          async () => {
+            expect(
+              await asOperator(() =>
+                findCwWorkflowVersionExistence({ code: CODE, version }),
+              ),
+            ).toEqual({ exists });
+          },
+        ),
+    );
   });
 
   describe("the event detail actuator", () => {
