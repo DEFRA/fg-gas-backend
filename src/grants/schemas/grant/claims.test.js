@@ -94,22 +94,8 @@ describe("claims", () => {
   });
 });
 
-describe("claim submission processes", () => {
-  it.each([{ processes: [] }, { processes: ["STORE_CLAIM_CASE"] }])(
-    "accepts configured processes %j",
-    ({ processes }) => {
-      expect(
-        claims.validate({ onClaimSubmission: { processes } }).error,
-      ).toBeUndefined();
-    },
-  );
-  it.each([
-    {},
-    { processes: "STORE_CLAIM_CASE" },
-    { processes: ["UNKNOWN"] },
-    { processes: ["STORE_CLAIM_CASE", "STORE_CLAIM_CASE"] },
-    { processes: [], extra: true },
-  ])("rejects invalid hook %j", (onClaimSubmission) => {
-    expect(claims.validate({ onClaimSubmission }).error).toBeDefined();
-  });
+it("rejects a configurable submission hook", () => {
+  expect(
+    claims.validate({ onClaimSubmission: { processes: [] } }).error,
+  ).toBeDefined();
 });

@@ -1,5 +1,4 @@
 import Boom from "@hapi/boom";
-import { onClaimSubmission } from "../schemas/grant/claims.js";
 import { grantDefinition } from "../schemas/grant/grant-definition.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
 import { ExternalStatusMap } from "./external-status-map.js";
@@ -14,17 +13,6 @@ const formatPosition = ({ phase, stage, status }) =>
 const positionParts = ["phase", "stage", "status"];
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
-
-const assertClaimSubmission = (claims) => {
-  const { error } = onClaimSubmission.validate(claims?.onClaimSubmission, {
-    convert: false,
-  });
-  if (error) {
-    throw Boom.badImplementation(
-      `Invalid claim submission configuration: ${error.message}`,
-    );
-  }
-};
 
 export class Grant {
   static definitionSchema = grantDefinition;
@@ -63,7 +51,6 @@ export class Grant {
     );
     this.pages = pages;
     this.claims = claims;
-    assertClaimSubmission(claims);
     this.admin = admin;
 
     this.#assertEntitlementTemplateClaimCodesUnique();

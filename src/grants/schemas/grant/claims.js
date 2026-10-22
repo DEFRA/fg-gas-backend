@@ -22,16 +22,8 @@ const onClaimApproval = Joi.object({
   .unknown(false)
   .label("OnClaimApproval");
 
-export const onClaimSubmission = Joi.object({
-  processes: Joi.array()
-    .items(Joi.string().valid("STORE_CLAIM_CASE"))
-    .unique()
-    .required(),
-}).unknown(false);
-
 export const claims = Joi.object({
   requiredRoles: requiredRoles.optional(),
-  onClaimSubmission: onClaimSubmission.optional(),
   onClaimApproval: onClaimApproval.optional(),
 })
   .unknown(false)

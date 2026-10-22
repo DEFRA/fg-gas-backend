@@ -108,14 +108,12 @@ const seedFixture = async (options = {}) => {
     claimsConfigured,
     entitlementCount,
     requiresApproval,
-    submissionProcesses,
   } = {
     maximumClaims: 1,
     position: currentPosition,
     claimsConfigured: true,
     entitlementCount: 1,
     requiresApproval: false,
-    submissionProcesses: ["STORE_CLAIM_CASE"],
     ...options,
   };
   fixtureNumber += 1;
@@ -141,9 +139,6 @@ const seedFixture = async (options = {}) => {
         ...(claimsConfigured
           ? { onClaimApproval: { currentPosition, targetPosition } }
           : {}),
-        ...(submissionProcesses === null
-          ? {}
-          : { onClaimSubmission: { processes: submissionProcesses } }),
       },
     }),
   );
@@ -495,15 +490,6 @@ describe("claim supplementary data publication", () => {
       currentPosition.status,
     );
   });
-  it.each([null, []])(
-    "does not publish for a disabled hook: %j",
-    async (submissionProcesses) => {
-      const fixture = await seedFixture({ submissionProcesses });
-      await submitClaim(fixture.command());
-      expect(await claimEventsFor(fixture)).toHaveLength(0);
-      expect(await countCommands(fixture)).toBe(1);
-    },
-  );
   it.each(["claims", "outbox"])(
     "rolls back claim and event when %s rejects insertion",
     async (collection) => {

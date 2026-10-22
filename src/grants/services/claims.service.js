@@ -490,7 +490,7 @@ const submitInTransaction = async (
   );
 
   await storeClaimCaseUseCase(
-    { grant, claim: savedClaim, claimId: result.claimId },
+    { claim: savedClaim, claimId: result.claimId },
     session,
   );
 

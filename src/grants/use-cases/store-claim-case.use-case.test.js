@@ -4,9 +4,6 @@ import { saveEvents } from "../../events/index.js";
 import { Claim } from "../models/claim.js";
 import { storeClaimCaseUseCase } from "./store-claim-case.use-case.js";
 vi.mock("../../events/index.js");
-const grant = {
-  claims: { onClaimSubmission: { processes: ["STORE_CLAIM_CASE"] } },
-};
 const savedClaim = (amount = 150000, details = {}) =>
   Claim.create({
     code: "woodland",
@@ -34,7 +31,7 @@ it.each([150000, 0])(
   async (amount) => {
     const session = { transaction: true };
     await storeClaimCaseUseCase(
-      { grant, claim: savedClaim(amount), claimId: "mongo-id" },
+      { claim: savedClaim(amount), claimId: "mongo-id" },
       session,
     );
     expect(saveEvents).toHaveBeenCalledWith(
@@ -74,7 +71,6 @@ it.each([150000, 0])(
 it("keeps saved GAS facts authoritative when claim details use the same names", async () => {
   await storeClaimCaseUseCase(
     {
-      grant,
       claim: savedClaim(150000, {
         gasClaimId: "caller-id",
         clientClaimRef: "caller-reference",
@@ -106,20 +102,6 @@ it("keeps saved GAS facts authoritative when claim details use the same names", 
 it("propagates failed outbox insertion to abort the transaction", async () => {
   saveEvents.mockRejectedValue(new Error("outbox unavailable"));
   await expect(
-    storeClaimCaseUseCase(
-      { grant, claim: savedClaim(), claimId: "mongo-id" },
-      {},
-    ),
+    storeClaimCaseUseCase({ claim: savedClaim(), claimId: "mongo-id" }, {}),
   ).rejects.toThrow("outbox unavailable");
-});
-it.each([
-  {},
-  { claims: {} },
-  { claims: { onClaimSubmission: { processes: [] } } },
-])("does not queue unconfigured delivery: %j", async (unconfiguredGrant) => {
-  await storeClaimCaseUseCase(
-    { grant: unconfiguredGrant, claim: savedClaim(), claimId: "mongo-id" },
-    {},
-  );
-  expect(saveEvents).not.toHaveBeenCalled();
 });

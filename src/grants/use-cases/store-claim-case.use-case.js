@@ -18,15 +18,7 @@ const supplementaryClaimData = (claim, claimId) => {
   };
 };
 
-export const storeClaimCaseUseCase = async (
-  { grant, claim, claimId },
-  session,
-) => {
-  if (
-    !grant.claims?.onClaimSubmission?.processes.includes("STORE_CLAIM_CASE")
-  ) {
-    return;
-  }
+export const storeClaimCaseUseCase = async ({ claim, claimId }, session) => {
   logger.info(
     `Queuing supplementary claim data for application "${claim.clientRef}" and grant "${claim.code}"`,
   );

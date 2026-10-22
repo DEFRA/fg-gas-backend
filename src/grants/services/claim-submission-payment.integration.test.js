@@ -65,7 +65,6 @@ beforeAll(async () => {
   await mongoClient.connect();
   await saveGrant(
     createTestGrant({
-      claims: { onClaimSubmission: { processes: ["STORE_CLAIM_CASE"] } },
       code,
       version: configVersion,
       entitlementTemplates: [
