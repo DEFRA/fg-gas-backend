@@ -69,6 +69,28 @@ describe("ConfigVersionFiles", () => {
     });
   });
 
+  it("names the files not stored, grant then agreement then payment", () => {
+    const files = new ConfigVersionFiles(
+      aVersion({
+        files: {
+          payment: { stored: false, fetchStatus: "pending" },
+          agreement: { stored: true, fetchStatus: "fetched" },
+          grant: { stored: false, fetchStatus: "pending" },
+        },
+      }),
+    );
+
+    expect(files.missingFiles()).toEqual(["grant", "payment"]);
+  });
+
+  it("names no file when every one is stored", () => {
+    const files = new ConfigVersionFiles(
+      aVersion({ files: { grant: { stored: true, fetchStatus: "pending" } } }),
+    );
+
+    expect(files.missingFiles()).toEqual([]);
+  });
+
   it.each([
     ["a version that is not semver", { version: "2.0" }],
     ["an unknown status", { status: "retired" }],

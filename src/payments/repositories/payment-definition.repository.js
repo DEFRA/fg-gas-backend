@@ -4,6 +4,7 @@ import {
   storedBytes,
 } from "../../common/mongo/capped-projection.js";
 import { db } from "../../common/mongo-client.js";
+import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 
 export const paymentDefinitionsCollection = "payments__definitions";
 
@@ -15,14 +16,21 @@ export const findPaymentDefinition = async (code, version) => {
   return document?.definition ?? null;
 };
 
+// A version stored first by someone else is left as it is.
 export const insertPaymentDefinition = async ({
   code,
   version,
   definition,
 }) => {
-  await db
-    .collection(paymentDefinitionsCollection)
-    .insertOne({ code, version, definition });
+  try {
+    await db
+      .collection(paymentDefinitionsCollection)
+      .insertOne({ code, version, definition });
+  } catch (error) {
+    if (!isMongoDuplicateKeyError(error)) {
+      throw error;
+    }
+  }
 };
 
 export const findStoredVersions = async (code, versions) => {

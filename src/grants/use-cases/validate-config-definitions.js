@@ -6,15 +6,18 @@ import { Grant } from "../models/grant.js";
 import { compileAnswersSchema } from "../services/schema-validation.service.js";
 import { isGrantProcess } from "./transition-application.use-case.js";
 
+// An operator's Fetch Definitions holds a grant file to this same check.
+export const checkGrantDefinition = (definition, version) =>
+  Grant.fromDefinition(definition, version, {
+    isKnownProcess: isGrantProcess,
+    compileQuestions: compileAnswersSchema,
+  });
+
 // Building each model is the check: every one throws on a definition its context cannot
 // use. Called directly rather than through the loaders, so nothing is cached and no fetch
 // status is written - we are proving a version is usable, not putting it into service.
 const checks = {
-  grant: ({ definition, version }) =>
-    Grant.fromDefinition(definition, version, {
-      isKnownProcess: isGrantProcess,
-      compileQuestions: compileAnswersSchema,
-    }),
+  grant: ({ definition, version }) => checkGrantDefinition(definition, version),
   agreement: ({ definition, grantCode, version }) =>
     checkAgreementDefinition(definition, grantCode, version),
   payment: (context) => checkRegisteredDefinition("payment", context),

@@ -42,4 +42,12 @@ export const findStoredDefinition = async (definitionType, ref, options) => {
   return find(ref, options);
 };
 
+// The owning context checks its file as it would on arrival and stores it once; a file
+// already stored counts as stored. It writes no fetch status.
+export const storeDefinition = async (
+  definitionType,
+  { grantCode, version, definition },
+) =>
+  getDefinitionStore(definitionType).store({ grantCode, version, definition });
+
 export const clearDefinitionStores = () => stores.clear();

@@ -1,3 +1,4 @@
+import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
@@ -57,6 +58,34 @@ describe("Agreement definition repository", () => {
       definition,
     });
     expect(result).toBeUndefined();
+  });
+});
+
+describe("insertAgreementDefinition", () => {
+  const insertRejecting = (error) =>
+    db.collection.mockReturnValue({
+      insertOne: vi.fn().mockRejectedValue(error),
+    });
+  const insert = () =>
+    insertAgreementDefinition({
+      code: "pigs-might-fly",
+      version: "1.0.1",
+      definition,
+    });
+
+  it("leaves a version someone else stored first as it is", async () => {
+    insertRejecting(
+      new MongoServerError({ message: "E11000 duplicate key", code: 11000 }),
+    );
+
+    await expect(insert()).resolves.toBeUndefined();
+  });
+
+  it("lets any other Mongo failure through", async () => {
+    const failure = new MongoServerError({ message: "down", code: 6 });
+    insertRejecting(failure);
+
+    await expect(insert()).rejects.toBe(failure);
   });
 });
 

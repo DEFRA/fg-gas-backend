@@ -3,6 +3,7 @@ import {
   clearDefinitionStores,
   findStoredDefinition,
   registerDefinitionStore,
+  storeDefinition,
   storedDefinitionVersions,
 } from "./definition-stores.js";
 
@@ -56,4 +57,45 @@ it("refuses to find a stored definition whose store offers no read of it", async
   ).rejects.toThrow(
     "The payment definition store cannot find a stored definition",
   );
+});
+
+it("refuses to store a type no context has registered a store for", async () => {
+  await expect(
+    storeDefinition("agreement", {
+      grantCode: "woodland",
+      version: "1.0.0",
+      definition: {},
+    }),
+  ).rejects.toThrow(
+    "No configuration definition store registered for agreement",
+  );
+});
+
+it("hands the file to the registered store", async () => {
+  const store = vi.fn().mockResolvedValue(undefined);
+  registerDefinitionStore("agreement", { store });
+  const file = {
+    grantCode: "woodland",
+    version: "1.0.0",
+    definition: { code: "woodland" },
+  };
+
+  await storeDefinition("agreement", file);
+
+  expect(store).toHaveBeenCalledWith(file);
+});
+
+it("lets the store's own refusal through", async () => {
+  const refusal = new Error("not usable");
+  registerDefinitionStore("agreement", {
+    store: vi.fn().mockRejectedValue(refusal),
+  });
+
+  await expect(
+    storeDefinition("agreement", {
+      grantCode: "woodland",
+      version: "1.0.0",
+      definition: {},
+    }),
+  ).rejects.toBe(refusal);
 });

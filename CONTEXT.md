@@ -71,6 +71,10 @@
 **Current Version**
 : The Config Version GAS gives new applications: the newest Active one.
 
+**Fetch Definitions**
+: An operator asks GAS to store every Definition File of a Config Version that is not stored. It never changes what GAS recorded about fetching the version.
+_Avoid_: refresh, cache.
+
 ## Mappings
 
 **Mapping**

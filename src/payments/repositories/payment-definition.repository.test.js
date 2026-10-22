@@ -1,3 +1,4 @@
+import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import {
@@ -56,6 +57,34 @@ describe("Payment definition repository", () => {
       definition,
     });
     expect(result).toBeUndefined();
+  });
+});
+
+describe("insertPaymentDefinition", () => {
+  const insertRejecting = (error) =>
+    db.collection.mockReturnValue({
+      insertOne: vi.fn().mockRejectedValue(error),
+    });
+  const insert = () =>
+    insertPaymentDefinition({
+      code: "pigs-might-fly",
+      version: "1.0.1",
+      definition,
+    });
+
+  it("leaves a version someone else stored first as it is", async () => {
+    insertRejecting(
+      new MongoServerError({ message: "E11000 duplicate key", code: 11000 }),
+    );
+
+    await expect(insert()).resolves.toBeUndefined();
+  });
+
+  it("lets any other Mongo failure through", async () => {
+    const failure = new MongoServerError({ message: "down", code: 6 });
+    insertRejecting(failure);
+
+    await expect(insert()).rejects.toBe(failure);
   });
 });
 
