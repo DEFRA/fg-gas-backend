@@ -14,23 +14,36 @@ import {
   findGrantLifecycle,
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
+import { findCwWorkflowVersionExistence } from "../repositories/cw-actuators.repository.js";
 import {
   SECTION_CAP_BYTES,
   composeRecordPage,
 } from "../services/compose-record-page.js";
 import { grantVersionNotFound } from "../services/grant-not-found.js";
+import { readCounterpart } from "./read-counterpart.js";
 
-const readGrantVersionHeader = async ({ code, version }) => {
-  const [found, grant] = await Promise.all([
+const readWorkflowLink = (ref) =>
+  readCounterpart(
+    "Grant version page: workflow link",
+    async () => (await findCwWorkflowVersionExistence(ref)).exists,
+  );
+
+// Only a tab that shows the workflow link asks Caseworking for it.
+const readGrantVersionHeader = async ({ code, version, withCounterpart }) => {
+  const [found, grant, counterpart] = await Promise.all([
     findConfigVersionFiles({ code, version }),
     findConfigVersions(code),
+    withCounterpart ? readWorkflowLink({ code, version }) : null,
   ]);
 
   if (!found || !grant) {
     throw grantVersionNotFound();
   }
 
-  return { header: { ...found, versions: grant.versions }, accounts: null };
+  return {
+    header: { ...found, versions: grant.versions, counterpart },
+    accounts: null,
+  };
 };
 
 const readOverview = async ({ code, version }) => ({
@@ -57,13 +70,17 @@ const readPhases = async ({ code, version }) => ({
 });
 
 const GRANT_VERSION_TABS = {
-  overview: { readTab: readOverview, empty: { overview: null } },
+  overview: {
+    readTab: readOverview,
+    empty: { overview: null },
+    withCounterpart: true,
+  },
   definition: {
     readTab: readDefinition,
     empty: { definition: null },
     capped: "definition",
   },
-  phases: { readTab: readPhases, empty: NO_LIFECYCLE },
+  phases: { readTab: readPhases, empty: NO_LIFECYCLE, withCounterpart: true },
 };
 
 export const buildViewGrantVersionAudit = ({ code, version, tab, caller }) =>
@@ -76,12 +93,15 @@ export const buildViewGrantVersionAudit = ({ code, version, tab, caller }) =>
     segregationRef: "admin-view-grant-version",
   });
 
-const viewGrantVersionPage = (args) =>
-  composeRecordPage({
+const viewGrantVersionPage = (args) => {
+  const tab = GRANT_VERSION_TABS[args.tab];
+
+  return composeRecordPage({
     readHeader: readGrantVersionHeader,
-    tab: GRANT_VERSION_TABS[args.tab],
-    args,
+    tab,
+    args: { ...args, withCounterpart: tab.withCounterpart === true },
   });
+};
 
 const auditedViewGrantVersionPage = auditedRead(
   viewGrantVersionPage,

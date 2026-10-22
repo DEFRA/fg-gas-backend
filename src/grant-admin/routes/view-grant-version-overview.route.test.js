@@ -34,6 +34,7 @@ const HEADER = {
       receivedAt: "2026-10-15T10:04:00.000Z",
     },
   ],
+  counterpart: { exists: true },
 };
 
 const PAGE = {
@@ -115,6 +116,23 @@ describe("viewGrantVersionOverviewRoute", () => {
   ])("refuses %s with 400", async (_name, version, code) => {
     expect((await get(HEADERS, version, code)).statusCode).toBe(400);
     expect(viewGrantVersionPageUseCase).not.toHaveBeenCalled();
+  });
+
+  it("answers a workflow link Caseworking could not say", async () => {
+    const page = { ...PAGE, header: { ...HEADER, counterpart: null } };
+    viewGrantVersionPageUseCase.mockResolvedValue(page);
+
+    const response = await get();
+
+    expect(response.statusCode).toBe(200);
+    expect(response.result).toEqual(page);
+  });
+
+  it("refuses a header without the workflow link", async () => {
+    const { counterpart: _, ...header } = HEADER;
+    viewGrantVersionPageUseCase.mockResolvedValue({ ...PAGE, header });
+
+    expect((await get()).statusCode).toBe(500);
   });
 
   it("refuses a header naming a file of no known type", async () => {

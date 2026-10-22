@@ -1,5 +1,7 @@
+import Boom from "@hapi/boom";
 import { Decimal128, Long } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../../common/logger.js";
 import {
   configVersionNotFound,
   findConfigVersionFiles,
@@ -8,6 +10,7 @@ import {
   findGrantLifecycle,
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
+import { findCwWorkflowVersionExistence } from "../repositories/cw-actuators.repository.js";
 import { SECTION_CAP_BYTES } from "../services/compose-record-page.js";
 import {
   buildViewGrantVersionAudit,
@@ -23,6 +26,13 @@ vi.mock("../../events/audited-read.js", () => ({
   },
 }));
 vi.mock("../../grants/services/config-version.service.js");
+vi.mock(
+  "../repositories/cw-actuators.repository.js",
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    findCwWorkflowVersionExistence: vi.fn(),
+  }),
+);
 
 const actualNotFound = await vi.importActual(
   "../../grants/services/config-version-not-found.js",
@@ -70,6 +80,7 @@ describe("viewGrantVersionPageUseCase", () => {
       definition: { code: "woodland", version: "2.0.0" },
       storedBytes: 512,
     });
+    findCwWorkflowVersionExistence.mockResolvedValue({ exists: true });
   });
 
   it("is audited as a read that releases data", () => {
@@ -77,9 +88,10 @@ describe("viewGrantVersionPageUseCase", () => {
   });
 
   it("draws the header from the version's files and every version of the grant", async () => {
-    expect((await view("overview")).header).toEqual({
+    expect((await view("definition")).header).toEqual({
       ...FILES,
       versions: VERSIONS,
+      counterpart: null,
     });
     expect(findConfigVersionFiles).toHaveBeenCalledWith(REF);
     expect(findConfigVersions).toHaveBeenCalledWith("woodland");
@@ -192,6 +204,44 @@ describe("viewGrantVersionPageUseCase", () => {
       problem: null,
       sectionErrors: [{ section: "phases", message: "read failed" }],
     });
+  });
+
+  it.each(["overview", "phases"])(
+    "%s: the header says Caseworking has the workflow version",
+    async (tab) => {
+      expect((await view(tab)).header.counterpart).toEqual({ exists: true });
+      expect(findCwWorkflowVersionExistence).toHaveBeenCalledWith(REF);
+    },
+  );
+
+  it("overview: the header says Caseworking has no such workflow version", async () => {
+    findCwWorkflowVersionExistence.mockResolvedValue({ exists: false });
+
+    expect((await view("overview")).header.counterpart).toEqual({
+      exists: false,
+    });
+  });
+
+  it.each([
+    ["is unavailable", Boom.badGateway("CW-BE has no workflow routes")],
+    ["times out", Boom.gatewayTimeout("CW-BE did not answer in time")],
+  ])(
+    "overview: the workflow link is unknown when Caseworking %s",
+    async (_, error) => {
+      findCwWorkflowVersionExistence.mockRejectedValue(error);
+
+      const page = await view("overview");
+
+      expect(page.header.counterpart).toBeNull();
+      expect(page.overview).not.toBeNull();
+      expect(logger.warn).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("definition: Caseworking is never asked for the workflow link", async () => {
+    await view("definition");
+
+    expect(findCwWorkflowVersionExistence).not.toHaveBeenCalled();
   });
 
   it("answers 404 GRANT_VERSION_NOT_FOUND for an unknown version", async () => {

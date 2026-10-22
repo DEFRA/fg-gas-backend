@@ -494,6 +494,21 @@ const readWorkflowVersion = async (ref, { include, actor }) => {
 
 export const findCwWorkflowVersion = withDocumentRetry(readWorkflowVersion);
 
+const cwExistenceSchema = Joi.object({ exists: Joi.boolean().required() });
+
+// Only yes or no, so it names no `x-actor` and Caseworking writes no audit.
+export const findCwWorkflowVersionExistence = async (ref) =>
+  readWorkflowAnswer(
+    cwExistenceSchema,
+    await cwRequest(
+      "get",
+      `${versionPath(ref)}/existence`,
+      WORKFLOWS_LABEL,
+      workflowRequestOptions(),
+    ),
+    "a workflow version's existence",
+  );
+
 const toFetchedFile = ({ file, outcome, reason, message }) =>
   outcome === "stored"
     ? { file, outcome }

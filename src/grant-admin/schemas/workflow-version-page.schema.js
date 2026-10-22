@@ -1,5 +1,6 @@
 import Joi from "joi";
 import {
+  counterpartSchema,
   nullableString,
   recordPageSchema,
   storedBytesSchema as storedBytes,
@@ -38,9 +39,7 @@ const workflowVersionHeaderSchema = Joi.object({
     .label("WorkflowDefinitionFiles"),
   versions: versionsSchema,
   // Read on the overview alone; null there while GAS cannot say.
-  counterpart: Joi.object({ exists: Joi.boolean().required() })
-    .allow(null)
-    .required(),
+  counterpart: counterpartSchema,
 })
   .required()
   .label("WorkflowVersionHeader");

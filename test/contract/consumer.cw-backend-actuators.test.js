@@ -19,6 +19,7 @@ import {
   findCwCaseExistence,
   findCwEvent,
   findCwWorkflowVersion,
+  findCwWorkflowVersionExistence,
   findCwWorkflowVersions,
   queryCwBucket,
 } from "../../src/grant-admin/repositories/cw-actuators.repository.js";
@@ -673,6 +674,33 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           expect(answer.files[0].file).toBe("workflow");
         },
       ));
+
+    it.each([
+      [VERSION, true],
+      ["9.9.9", false],
+    ])(
+      "answers whether version %s exists, with no operator name",
+      (version, exists) =>
+        run(
+          {
+            states: versionState("a workflow version is stored"),
+            uponReceiving: `an existence check for a workflow version that ${exists ? "exists" : "does not exist"}`,
+            withRequest: {
+              method: "GET",
+              path: `/actuators/workflows/${CODE}/versions/${version}/existence`,
+              headers: { authorization, "x-actor-id": regex(GUID, OID) },
+            },
+            willRespondWith: { status: 200, body: { exists } },
+          },
+          async () => {
+            expect(
+              await asOperator(() =>
+                findCwWorkflowVersionExistence({ code: CODE, version }),
+              ),
+            ).toEqual({ exists });
+          },
+        ),
+    );
   });
 
   describe("the event detail actuator", () => {

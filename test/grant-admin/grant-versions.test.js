@@ -2,7 +2,15 @@ import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Long, MongoClient, ObjectId } from "mongodb";
 import { readFile } from "node:fs/promises";
 import { env } from "node:process";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { loadAgreementDefinition } from "../../src/agreements/use-cases/load-agreement-definition.js";
 import { config } from "../../src/common/config.js";
 import {
@@ -14,6 +22,7 @@ import { GrantDocument } from "../../src/grants/models/grant-document.js";
 import { Grant } from "../../src/grants/models/grant.js";
 import { resolveAndFetchGrant } from "../../src/grants/services/resolve-config-version.service.js";
 import { loadPaymentDefinition } from "../../src/payments/use-cases/load-payment-definition.js";
+import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
 
 const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
@@ -159,6 +168,22 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     payment: fileState("2.0.0", "permanent_error"),
   });
 
+  beforeEach(async () => {
+    await resetCwStub();
+  });
+
+  const workflowRequests = async () =>
+    (await cwStubRequests()).filter((request) => request.box === "workflows");
+
+  const storeWorkflowVersions = (...versions) =>
+    setCwStub({
+      workflows: {
+        records: Object.fromEntries(
+          versions.map((version) => [`${CODE}/${version}`, {}]),
+        ),
+      },
+    });
+
   it("a draft with nothing stored: every file not stored, no definition, and the row unchanged", async () => {
     await configVersions.insertOne(DRAFT);
 
@@ -188,6 +213,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
           receivedAt: "2026-10-15T10:04:00.000Z",
         },
       ],
+      counterpart: null,
     });
     expect(definition.definition).toBeNull();
     expect(definition.sectionErrors).toEqual([]);
@@ -197,6 +223,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
       adminRole: null,
       storedBytes: null,
     });
+    expect(overview.header.receivedAt).toBe("2026-10-15T10:04:00.000Z");
     expect(await configVersions.findOne({ _id: DRAFT._id })).toStrictEqual(
       DRAFT,
     );
@@ -251,6 +278,58 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     const error = await get(`${CODE}/versions/2.0.0/overview`).catch((e) => e);
 
     expect(error.output.statusCode).toBe(500);
+  });
+
+  it.each(["overview", "phases"])(
+    "%s: the workflow link, asked of Caseworking with no operator name",
+    async (tab) => {
+      await configVersions.insertOne(DRAFT);
+      await storeWorkflowVersions("2.0.0");
+
+      const { payload } = await get(`${CODE}/versions/2.0.0/${tab}`);
+
+      expect(
+        grantVersionPageSchemas[tab].validate(payload).error,
+      ).toBeUndefined();
+      expect(payload.header.counterpart).toEqual({ exists: true });
+      expect(await workflowRequests()).toEqual([
+        expect.objectContaining({
+          method: "GET",
+          path: `/actuators/workflows/${CODE}/versions/2.0.0/existence`,
+          actor: null,
+        }),
+      ]);
+    },
+  );
+
+  it("overview: no workflow link when Caseworking has only another version", async () => {
+    await configVersions.insertOne(DRAFT);
+    await storeWorkflowVersions("1.2.0");
+
+    const { payload } = await get(`${CODE}/versions/2.0.0/overview`);
+
+    expect(payload.header.counterpart).toEqual({ exists: false });
+  });
+
+  it("overview: the workflow link is unknown, and the page still drawn, when Caseworking is down", async () => {
+    await configVersions.insertOne(DRAFT);
+    await setCwStub({ workflows: { mode: "down" } });
+
+    const { payload, res } = await get(`${CODE}/versions/2.0.0/overview`);
+
+    expect(res.statusCode).toBe(200);
+    expect(payload.header.counterpart).toBeNull();
+    expect(payload.overview).not.toBeNull();
+  });
+
+  it("definition: Caseworking is not asked for the workflow link", async () => {
+    await configVersions.insertOne(DRAFT);
+    await storeWorkflowVersions("2.0.0");
+
+    const { payload } = await get(`${CODE}/versions/2.0.0/definition`);
+
+    expect(payload.header.counterpart).toBeNull();
+    expect(await workflowRequests()).toEqual([]);
   });
 
   it("a stored payment definition shows as stored", async () => {

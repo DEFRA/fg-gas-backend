@@ -61,7 +61,7 @@ const emptyBuckets = () => ({
 // The workflow version routes: `versions` answers by code, `records` by
 // "code/version" with the document and addresses, which the stub drops unless
 // asked; `fetches` answer each fetch by "code/version". Anything missing is a
-// 404 with Caseworking's reason.
+// 404 with Caseworking's reason, except existence, which answers from `records`.
 const emptyWorkflows = () => ({
   mode: "ok",
   versions: {},
@@ -356,7 +356,7 @@ const handleCases = async (pathname, request, response) => {
 };
 
 const WORKFLOW_PATH =
-  /^\/actuators\/workflows\/([^/]+)\/versions(?:\/([^/]+?)(\/fetch)?)?$/;
+  /^\/actuators\/workflows\/([^/]+)\/versions(?:\/([^/]+?)(?:\/(fetch|existence))?)?$/;
 
 const workflowNotFound = (response, reason) =>
   send(response, NOT_FOUND, {
@@ -392,7 +392,7 @@ const answerWorkflowVersions = (found, response) =>
     ? send(response, OK, found)
     : workflowNotFound(response, "WORKFLOW_NOT_FOUND");
 
-// GET /actuators/workflows/{code}/versions[/{version}] and
+// GET /actuators/workflows/{code}/versions[/{version}[/existence]] and
 // POST /actuators/workflows/{code}/versions/{version}/fetch.
 const handleWorkflows = async (pathname, request, response) => {
   await record("workflows", request);
@@ -407,10 +407,14 @@ const handleWorkflows = async (pathname, request, response) => {
     return respondForMode(workflows, response);
   }
 
-  const [, code, version, fetch] = WORKFLOW_PATH.exec(pathname);
+  const [, code, version, action] = WORKFLOW_PATH.exec(pathname);
   const key = `${code}/${version}`;
 
-  if (fetch) {
+  if (action === "existence") {
+    return send(response, OK, { exists: Boolean(workflows.records[key]) });
+  }
+
+  if (action === "fetch") {
     return answerWorkflowFetch(workflows.fetches[key], response);
   }
 

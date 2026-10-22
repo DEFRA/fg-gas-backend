@@ -34,6 +34,7 @@ const HEADER = {
       receivedAt: "2026-10-15T10:04:00.000Z",
     },
   ],
+  counterpart: { exists: true },
 };
 
 const LIFECYCLE = {

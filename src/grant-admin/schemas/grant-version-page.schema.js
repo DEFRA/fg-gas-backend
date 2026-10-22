@@ -1,5 +1,6 @@
 import Joi from "joi";
 import {
+  counterpartSchema,
   nullableIso,
   nullableString,
   recordPageSchema,
@@ -41,6 +42,8 @@ const grantVersionHeaderSchema = Joi.object({
     .required()
     .label("DefinitionFiles"),
   versions: versionsSchema,
+  // Null while the workflow link is unknown, and on a tab that does not show it.
+  counterpart: counterpartSchema,
 })
   .required()
   .label("GrantVersionHeader");

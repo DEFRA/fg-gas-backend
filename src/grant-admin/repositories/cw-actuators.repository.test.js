@@ -12,6 +12,7 @@ import {
   findCwBuckets,
   findCwEvent,
   findCwWorkflowVersion,
+  findCwWorkflowVersionExistence,
   findCwWorkflowVersions,
   isCwConfigured,
   purgeCwEvent,
@@ -1060,6 +1061,45 @@ describe("Caseworking workflow versions", () => {
 
     expect(error.output.statusCode).toBe(expected);
     expect(error.message).not.toContain("SECRET");
+  });
+
+  it("asks whether a version exists, escaped, with the operator's id but no operator name", async () => {
+    wreck.get.mockResolvedValue({ payload: { exists: false } });
+
+    expect(
+      await inRequest(() =>
+        findCwWorkflowVersionExistence({
+          code: "Case/Smoke",
+          version: "1.2.0",
+        }),
+      ),
+    ).toEqual({ exists: false });
+    expect(new URL(wreck.get.mock.calls[0][0]).pathname).toBe(
+      "/actuators/workflows/Case%2FSmoke/versions/1.2.0/existence",
+    );
+    expect(wreck.get.mock.calls[0][1].headers).toEqual({
+      authorization: `Bearer ${TOKEN}`,
+      "x-actor-id": OID,
+    });
+  });
+
+  it.each([[{}], [{ exists: "yes" }], [{ exists: null }]])(
+    "answers 502, not no workflow, for an existence answer it cannot read: %j",
+    async (payload) => {
+      wreck.get.mockResolvedValue({ payload });
+
+      const error = await findCwWorkflowVersionExistence(REF).catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+    },
+  );
+
+  it("answers a 404 on the existence check - a route this Caseworking lacks - as a 502", async () => {
+    wreck.get.mockRejectedValue(httpError(404, { message: "Not Found" }));
+
+    const error = await findCwWorkflowVersionExistence(REF).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(502);
   });
 
   describe("fetchCwWorkflowDefinition", () => {
