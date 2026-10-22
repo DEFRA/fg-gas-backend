@@ -33,6 +33,7 @@ const describeFact =
     label: fact.label,
     values: fact.values === STORED ? toValueList(stored[name]) : fact.values,
     toggle: hidesValues(fact) ? fact.toggle : null,
+    within: fact.within,
   });
 
 export const describeBucket = async (bucket) => {

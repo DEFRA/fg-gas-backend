@@ -166,6 +166,8 @@ const fact = Joi.object({
   })
     .allow(null)
     .required(),
+  // Optional, so a catalogue from a release before `within` still reads.
+  within: Joi.string().allow(null),
 });
 
 const column = Joi.object({
