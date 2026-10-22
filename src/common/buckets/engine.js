@@ -15,7 +15,7 @@ import {
 } from "./plan.js";
 import { toRef } from "./refs.js";
 import { refuse } from "./refusal.js";
-import { listBuckets } from "./registry.js";
+import { findBucket, listBuckets } from "./registry.js";
 import { TIMELINE_LIMIT, queryRequestSchema } from "./schema.js";
 
 export const COUNT_CAP = 10_000;
@@ -462,4 +462,9 @@ export const readTimeline = async (ref) => ({
       .filter(({ timeline }) => timeline)
       .map(readTimelineOf(ref)),
   ),
+});
+
+// One bucket's rows for a link only it declares, read as a timeline bucket is.
+export const readBucketTimeline = async (id, ref) => ({
+  buckets: [await readTimelineOf(ref)(findBucket(id))],
 });

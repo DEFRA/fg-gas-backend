@@ -1,8 +1,18 @@
-import { readTimeline } from "../../common/buckets/engine.js";
+import {
+  readBucketTimeline,
+  readTimeline,
+} from "../../common/buckets/engine.js";
 import { logger } from "../../common/logger.js";
-import { toApplicationLink, toCaseLink } from "../../events/case-refs.js";
+import {
+  toApplicationLink,
+  toCaseLink,
+  toConfigLink,
+} from "../../events/case-refs.js";
 import { UNRECOGNISED } from "../../events/event-types.js";
-import { readCwTimeline } from "../repositories/cw-actuators.repository.js";
+import {
+  readCwBucketTimeline,
+  readCwTimeline,
+} from "../repositories/cw-actuators.repository.js";
 import { describeError } from "../repositories/cw-http.js";
 import {
   latency,
@@ -72,13 +82,11 @@ const applicationLinkOf = (code, clientRef) => {
 export const readApplicationEventsUseCase = async ({ code, clientRef }) =>
   toEvents(await readTimeline(applicationLinkOf(code, clientRef)));
 
-const readCaseTimeline = async (ref, actor) => {
+const readFromCaseworking = async (source, read) => {
   try {
-    return await readCwTimeline(ref, { actor });
+    return await read();
   } catch (error) {
-    logger.warn(
-      `Case events: caseworking unavailable (${describeError(error)})`,
-    );
+    logger.warn(`${source}: caseworking unavailable (${describeError(error)})`);
 
     return CW_UNAVAILABLE;
   }
@@ -88,4 +96,26 @@ const readCaseTimeline = async (ref, actor) => {
 // read in one call, and none of this service's boxes. It is keyed by the
 // workflow as well, since two workflows may hold the same case reference.
 export const readCaseEventsUseCase = async ({ workflowCode, caseRef, actor }) =>
-  toEvents(await readCaseTimeline(toCaseLink(workflowCode, caseRef), actor));
+  toEvents(
+    await readFromCaseworking("Case events", () =>
+      readCwTimeline(toCaseLink(workflowCode, caseRef), { actor }),
+    ),
+  );
+
+// A grant's config versions live in this service: a version's Events tab is
+// the inbox rows linked to that version, and asks Caseworking nothing.
+export const readGrantVersionEventsUseCase = async ({ code, version }) =>
+  toEvents(await readBucketTimeline("gas.inbox", toConfigLink(code, version)));
+
+// A workflow's config versions live in Caseworking: a version's Events tab is
+// Caseworking's inbox rows linked to that version.
+export const readWorkflowVersionEventsUseCase = async ({
+  code,
+  version,
+  actor,
+}) =>
+  toEvents(
+    await readFromCaseworking("Workflow events", () =>
+      readCwBucketTimeline("cw.inbox", toConfigLink(code, version), { actor }),
+    ),
+  );

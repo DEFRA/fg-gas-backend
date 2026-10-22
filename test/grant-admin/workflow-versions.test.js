@@ -372,6 +372,100 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/{tab}", () => {
   );
 });
 
+describe("GET /grant-admin/workflows/{code}/versions/{version}/events", () => {
+  const LINK = "config:~43.asework-~53.moke@1~2e.2~2e.0";
+
+  const aCwEventRow = (id, status, time) => ({
+    id,
+    time,
+    title: "ConfigVersionUpdated",
+    subtitle: `cw-msg-${id}`,
+    cells: { status, completedAt: null },
+    link: { kind: "event", service: "caseworking", box: "inbox", id },
+  });
+
+  const aCwInboxPage = (rows) => ({
+    bucket: "cw.inbox",
+    plan: {
+      kind: "exact",
+      index: ["refs", "publicationDate", "_id"],
+      bound: [],
+      filled: [],
+      residual: [],
+      scans: 1,
+    },
+    rows,
+    page: { next: null, keepLooking: null, searchedTo: null, complete: true },
+    groups: [],
+  });
+
+  const bucketRequests = async () =>
+    (await cwStubRequests()).filter((request) => request.box === "buckets");
+
+  beforeEach(async () => {
+    await setCwStub({
+      workflows: {
+        records: { [`${CODE}/1.2.0`]: aVersionRecord("1.2.0", "active") },
+      },
+    });
+  });
+
+  it("asks Caseworking's inbox for the version's config link, keeping its case, as the operator", async () => {
+    await setCwStub({
+      buckets: {
+        answers: {
+          "cw.inbox": aCwInboxPage([
+            aCwEventRow(
+              "665f1c2e9a1b2c3d4e5f6a7d",
+              "DEAD_LETTER",
+              "2026-10-11T09:00:00.000Z",
+            ),
+            aCwEventRow(
+              "665f1c2e9a1b2c3d4e5f6a7c",
+              "COMPLETED",
+              "2026-10-01T09:00:00.000Z",
+            ),
+          ]),
+        },
+      },
+    });
+
+    const { payload: page } = await get(`${CODE}/versions/1.2.0/events`);
+
+    expect(
+      workflowVersionPageSchemas.events.validate(page).error,
+    ).toBeUndefined();
+    expect(page.events.rows.map((row) => [row.service, row.eventId])).toEqual([
+      ["caseworking", "cw-msg-665f1c2e9a1b2c3d4e5f6a7d"],
+      ["caseworking", "cw-msg-665f1c2e9a1b2c3d4e5f6a7c"],
+    ]);
+    expect(page.events.rows[0].statusRole).toBe("error");
+    expect(page.sourceErrors).toEqual([]);
+    const [request] = await bucketRequests();
+    expect(request).toMatchObject({
+      method: "POST",
+      path: "/actuators/buckets/cw.inbox/query",
+      body: { ref: LINK, limit: 50 },
+      actor: ACTOR,
+      actorId: OID,
+    });
+    const [row] = await auditRows("VIEW_WORKFLOW_VERSION");
+    expect(row.event.audit.details).toMatchObject({ tab: "events" });
+  });
+
+  it("names Caseworking, with no rows, when its inbox cannot be read", async () => {
+    await setCwStub({ buckets: { mode: "down" } });
+
+    const { payload: page } = await get(`${CODE}/versions/1.2.0/events`);
+
+    expect(
+      workflowVersionPageSchemas.events.validate(page).error,
+    ).toBeUndefined();
+    expect(page.events).toEqual({ rows: [], more: false });
+    expect(page.sourceErrors).toEqual([{ hop: "CW-BE" }]);
+  });
+});
+
 describe("POST /grant-admin/workflows/{code}/versions/{version}/fetch", () => {
   const FAILED = {
     files: [
