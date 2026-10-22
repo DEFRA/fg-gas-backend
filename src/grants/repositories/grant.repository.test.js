@@ -255,6 +255,29 @@ describe("actions", () => {
   });
 });
 
+describe("metadata.startDate", () => {
+  it.each(["soon", { $date: "soon" }])(
+    "refuses to store a grant definition whose start date %o is no instant",
+    async (startDate) => {
+      const insertOne = vi.fn();
+      db.collection.mockReturnValue({ insertOne });
+
+      await expect(
+        saveFromDefinition(
+          {
+            code: "woodland",
+            metadata: { description: "test", startDate },
+            actions: [],
+            phases: [],
+          },
+          "1.0.0",
+        ),
+      ).rejects.toThrow('Grant start date "soon" is not an instant');
+      expect(insertOne).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe("entitlementTemplates", () => {
   const phases = [
     {
