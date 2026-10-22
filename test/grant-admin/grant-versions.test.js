@@ -1,13 +1,19 @@
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Long, MongoClient, ObjectId } from "mongodb";
 import { readFile } from "node:fs/promises";
 import { env } from "node:process";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { loadAgreementDefinition } from "../../src/agreements/use-cases/load-agreement-definition.js";
+import { config } from "../../src/common/config.js";
 import {
+  fetchDefinitionsResponseSchema,
   grantVersionPageSchemas,
   grantVersionsSchema,
 } from "../../src/grant-admin/schemas/grant-version-page.schema.js";
 import { GrantDocument } from "../../src/grants/models/grant-document.js";
 import { Grant } from "../../src/grants/models/grant.js";
+import { resolveAndFetchGrant } from "../../src/grants/services/resolve-config-version.service.js";
+import { loadPaymentDefinition } from "../../src/payments/use-cases/load-payment-definition.js";
 import { wreck } from "../helpers/wreck.js";
 
 const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
@@ -23,6 +29,8 @@ let agreementDefinitions;
 let paymentDefinitions;
 let outbox;
 let grantDefinition;
+let paymentDefinition;
+let agreementDefinition;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
@@ -37,7 +45,16 @@ beforeAll(async () => {
       new URL("../fixtures/pmf-grant-definition.json", import.meta.url),
     ),
   );
+  paymentDefinition = await readSeed("woodland/1.39.1/gas/payment.json");
+  agreementDefinition = await readSeed(
+    "pigs-might-fly/1.0.0/gas/agreement.json",
+  );
 });
+
+const readSeed = async (path) =>
+  JSON.parse(
+    await readFile(new URL(`../../compose/seed/${path}`, import.meta.url)),
+  );
 
 afterAll(async () => {
   await client?.close();
@@ -313,5 +330,270 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     const [row] = await auditRows("VIEW_GRANT_VERSION");
     expect(row.event.audit.status).toBe("FAILURE");
     expect(row.event.audit.details.tab).toBe("overview");
+  });
+});
+
+describe("POST /grant-admin/grants/{code}/versions/{version}/fetch", () => {
+  const BUCKET = "config-broker-local";
+  const s3Client = new S3Client({
+    region: config.region,
+    endpoint: config.awsEndpointUrl,
+    forcePathStyle: true,
+  });
+
+  const keyOf = (code, version, file) =>
+    `admin-fetch/${code}/${version}/gas/${file}.json`;
+
+  const put = (key, definition) =>
+    s3Client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+        Body: JSON.stringify(definition),
+        ContentType: "application/json",
+      }),
+    );
+
+  const located = (code, version, file, fetchStatus = "pending") => ({
+    ...fileState(version, fetchStatus),
+    s3Key: keyOf(code, version, file),
+  });
+
+  const aPublishedVersion = (
+    version,
+    { status = "draft", grantStatus = "pending", code = CODE } = {},
+  ) => ({
+    ...aConfigVersion(version, status, "2026-10-15T10:04:00.000Z"),
+    grantCode: code,
+    definitions: {
+      grant: located(code, version, "gas", grantStatus),
+      agreement: located(code, version, "agreement"),
+      payment: located(code, version, "payment"),
+    },
+  });
+
+  const publish = (version, { code = CODE, files = {} } = {}) => {
+    const published = {
+      gas: { ...grantDefinition, code },
+      agreement: { ...agreementDefinition, code },
+      payment: { ...paymentDefinition, code },
+      ...files,
+    };
+
+    return Promise.all(
+      Object.entries(published)
+        .filter(([, definition]) => definition)
+        .map(([file, definition]) =>
+          put(keyOf(code, version, file), definition),
+        ),
+    );
+  };
+
+  const fetchDefinitions = async (code, version) => {
+    const { payload } = await wreck.post(
+      `/grant-admin/grants/${code}/versions/${version}/fetch`,
+      { headers: OPERATOR },
+    );
+
+    expect(fetchDefinitionsResponseSchema.validate(payload).error).toBe(
+      undefined,
+    );
+
+    return payload;
+  };
+
+  const ALL_STORED = {
+    files: [
+      { file: "grant", outcome: "stored" },
+      { file: "agreement", outcome: "stored" },
+      { file: "payment", outcome: "stored" },
+    ],
+  };
+
+  it("stores every file, leaves the version row as it was and audits the operator", async () => {
+    const row = aPublishedVersion("3.0.0");
+    await configVersions.insertOne(row);
+    await publish("3.0.0");
+
+    expect(await fetchDefinitions(CODE, "3.0.0")).toEqual(ALL_STORED);
+
+    expect(await configVersions.findOne({ _id: row._id })).toStrictEqual(row);
+    const { payload } = await get(`${CODE}/versions/3.0.0/definition`);
+    expect(payload.header.files).toEqual({
+      grant: { stored: true, fetchStatus: "pending" },
+      agreement: { stored: true, fetchStatus: "pending" },
+      payment: { stored: true, fetchStatus: "pending" },
+    });
+    expect(payload.definition.code).toBe(CODE);
+    const rows = await auditRows("FETCH_CONFIG_DEFINITION");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].event).toMatchObject({
+      user: OID,
+      security: { pmccode: "0706" },
+      audit: {
+        status: "SUCCESS",
+        entities: [
+          {
+            entity: "GRANT",
+            action: "FETCH_CONFIG_DEFINITION",
+            entityid: CODE,
+          },
+        ],
+        details: { version: "3.0.0", files: ALL_STORED.files },
+      },
+    });
+  });
+
+  it("reports a missing payment file, stores nothing for it and still stores the others", async () => {
+    const row = aPublishedVersion("3.0.1");
+    await configVersions.insertOne(row);
+    await publish("3.0.1", { files: { payment: null } });
+
+    expect(await fetchDefinitions(CODE, "3.0.1")).toEqual({
+      files: [
+        { file: "grant", outcome: "stored" },
+        { file: "agreement", outcome: "stored" },
+        {
+          file: "payment",
+          outcome: "failed",
+          reason: "missing",
+          message: null,
+        },
+      ],
+    });
+
+    expect(
+      await paymentDefinitions.findOne({ code: CODE, version: "3.0.1" }),
+    ).toBeNull();
+    expect(await configVersions.findOne({ _id: row._id })).toStrictEqual(row);
+  });
+
+  it("reports a file arrival would refuse as invalid, with GAS's reason", async () => {
+    await configVersions.insertOne(aPublishedVersion("3.0.2"));
+    await publish("3.0.2", {
+      files: { payment: { ...paymentDefinition, code: CODE, unknownField: 1 } },
+    });
+
+    const { files } = await fetchDefinitions(CODE, "3.0.2");
+
+    expect(files[2]).toEqual({
+      file: "payment",
+      outcome: "failed",
+      reason: "invalid",
+      message: expect.any(String),
+    });
+    expect(
+      await paymentDefinitions.findOne({ code: CODE, version: "3.0.2" }),
+    ).toBeNull();
+  });
+
+  it("answers no files once every one is stored, and two at once leave one copy of each", async () => {
+    await configVersions.insertOne(aPublishedVersion("3.0.3"));
+    await publish("3.0.3");
+
+    const both = await Promise.all([
+      fetchDefinitions(CODE, "3.0.3"),
+      fetchDefinitions(CODE, "3.0.3"),
+    ]);
+
+    expect(both).toEqual([ALL_STORED, ALL_STORED]);
+    expect(await fetchDefinitions(CODE, "3.0.3")).toEqual({ files: [] });
+    const filter = { code: CODE, version: "3.0.3" };
+    expect(await grants.countDocuments(filter)).toBe(1);
+    expect(await agreementDefinitions.countDocuments(filter)).toBe(1);
+    expect(await paymentDefinitions.countDocuments(filter)).toBe(1);
+  });
+
+  it("stores a version GAS won't use, and leaves it so", async () => {
+    const row = aPublishedVersion("3.0.4", { grantStatus: "permanent_error" });
+    await configVersions.insertOne(row);
+    await publish("3.0.4");
+
+    expect(await fetchDefinitions(CODE, "3.0.4")).toEqual(ALL_STORED);
+    expect(await configVersions.findOne({ _id: row._id })).toStrictEqual(row);
+  });
+
+  it("refuses an aliased grant file, storing nothing for it, each time it is asked", async () => {
+    const ALIAS = "frps-private-beta";
+    await configVersions.insertOne(
+      aPublishedVersion("3.0.5", { code: "farm-payments" }),
+    );
+    await publish("3.0.5", {
+      code: "farm-payments",
+      files: { gas: { ...grantDefinition, code: ALIAS } },
+    });
+    const refused = {
+      file: "grant",
+      outcome: "failed",
+      reason: "invalid",
+      message: `Definition is for "${ALIAS}", not "farm-payments"`,
+    };
+
+    const first = await fetchDefinitions("farm-payments", "3.0.5");
+    const again = await fetchDefinitions("farm-payments", "3.0.5");
+
+    expect(first).toEqual({ files: [refused, ...ALL_STORED.files.slice(1)] });
+    expect(again).toEqual({ files: [refused] });
+    const { payload } = await get("farm-payments/versions/3.0.5/overview");
+    expect(payload.header.files.grant.stored).toBe(false);
+    expect(await grants.countDocuments({ version: "3.0.5" })).toBe(0);
+  });
+
+  it("answers 404 GRANT_VERSION_NOT_FOUND for an unknown version, audited as a FAILURE", async () => {
+    const error = await wreck
+      .post(`/grant-admin/grants/${CODE}/versions/9.9.9/fetch`, {
+        headers: OPERATOR,
+      })
+      .catch((e) => e);
+
+    expect(error.output.statusCode).toBe(404);
+    expect(error.data.payload.reason).toBe("GRANT_VERSION_NOT_FOUND");
+    const [row] = await auditRows("FETCH_CONFIG_DEFINITION");
+    expect(row.event.audit).toMatchObject({
+      status: "FAILURE",
+      details: { files: [], errorCode: "GRANT_VERSION_NOT_FOUND" },
+    });
+  });
+
+  it("refuses an operator with no Entra id", async () => {
+    const error = await wreck
+      .post(`/grant-admin/grants/${CODE}/versions/3.0.0/fetch`, {
+        headers: { "x-actor": "Jo Operator" },
+      })
+      .catch((e) => e);
+
+    expect(error.output.statusCode).toBe(400);
+  });
+
+  it("GAS still resolves an admin-fetched version as before, and records it fetched", async () => {
+    vi.stubEnv("GRANT_FUNDING_CALCULATOR_URL", "http://127.0.0.1:1");
+    await configVersions.insertOne(
+      aPublishedVersion("3.0.6", { status: "active" }),
+    );
+    await publish("3.0.6");
+    await fetchDefinitions(CODE, "3.0.6");
+
+    const resolved = await resolveAndFetchGrant(CODE, "3.0.6");
+    const agreement = await loadAgreementDefinition({
+      code: CODE,
+      configVersion: "3.0.6",
+      resolution: "exact",
+    });
+    const payment = await loadPaymentDefinition({
+      code: CODE,
+      configVersion: "3.0.6",
+    });
+
+    expect(resolved.resolvedVersion).toBe("3.0.6");
+    expect(resolved.grant).toMatchObject({ code: CODE, version: "3.0.6" });
+    expect(agreement.configVersion).toBe("3.0.6");
+    expect(payment.code).toBe(CODE);
+    const { definitions } = await configVersions.findOne({
+      grantCode: CODE,
+      version: "3.0.6",
+    });
+    expect(definitions.grant.fetchStatus).toBe("fetched");
+    expect(definitions.agreement.fetchStatus).toBe("fetched");
+    expect(definitions.payment.fetchStatus).toBe("fetched");
   });
 });

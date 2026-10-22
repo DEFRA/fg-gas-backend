@@ -1,14 +1,12 @@
-import { storedDefinitionVersions } from "../../common/config-broker/definition-stores.js";
-import { ConfigVersionFiles } from "../models/config-version-files.js";
 import {
   findLatestActive,
-  findVersionDocument,
   findVersionsByGrantCode,
 } from "../repositories/config-version.repository.js";
 import {
   findStoredGrantDocument,
   findStoredGrantSummary,
 } from "../repositories/grant.repository.js";
+import { loadConfigVersionFiles } from "../use-cases/load-config-version-files.js";
 
 export const findConfigVersions = async (code) => {
   const [versions, current] = await Promise.all([
@@ -23,30 +21,8 @@ export const findConfigVersions = async (code) => {
   return { code, current: current?.version ?? null, versions };
 };
 
-const isStored = async (type, code, version) =>
-  (await storedDefinitionVersions(type, code, [version])).has(version);
-
-const storedTypesOf = async (doc) => {
-  const types = ConfigVersionFiles.typesIn(doc);
-  const stored = await Promise.all(
-    types.map((type) => isStored(type, doc.grantCode, doc.version)),
-  );
-
-  return new Set(types.filter((_, index) => stored[index]));
-};
-
-export const findConfigVersionFiles = async ({ code, version }) => {
-  const doc = await findVersionDocument(code, version);
-
-  if (!doc) {
-    return null;
-  }
-
-  return ConfigVersionFiles.fromDocument(
-    doc,
-    await storedTypesOf(doc),
-  ).toView();
-};
+export const findConfigVersionFiles = async ({ code, version }) =>
+  (await loadConfigVersionFiles({ code, version }))?.toView() ?? null;
 
 const NOT_STORED = {
   description: null,
@@ -73,3 +49,10 @@ export const findStoredGrantDefinition = async (
 
   return { definition: document, storedBytes };
 };
+
+export { fetchConfigDefinitionsUseCase as fetchConfigDefinitions } from "../use-cases/fetch-config-definitions.use-case.js";
+
+export {
+  GRANT_VERSION_NOT_FOUND,
+  configVersionNotFound,
+} from "./config-version-not-found.js";

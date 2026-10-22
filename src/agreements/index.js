@@ -3,6 +3,7 @@ import { registerInternalCommandHandler } from "../common/internal-command-handl
 import { internalCommandTypes } from "../common/internal-command-types.js";
 import { isGasManagedAgreementGrant } from "./services/agreement-ownership.js";
 import { findStoredVersions } from "./repositories/agreement-definition.repository.js";
+import { storeAgreementDefinition } from "./use-cases/store-agreement-definition.js";
 import { getAgreementByNumberRoute } from "./routes/get-agreement-by-number.route.js";
 import { getCurrentAgreementRoute } from "./routes/get-current-agreement.route.js";
 import { invokeAgreementActionRoute } from "./routes/invoke-agreement-action.route.js";
@@ -18,6 +19,7 @@ export const agreements = {
   register(server) {
     registerDefinitionStore("agreement", {
       storedVersions: findStoredVersions,
+      store: storeAgreementDefinition,
     });
     registerInternalCommandHandler(
       internalCommandTypes.AGREEMENT_CREATE,

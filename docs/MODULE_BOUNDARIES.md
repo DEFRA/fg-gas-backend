@@ -55,7 +55,7 @@ event module directly:
 | `grant-admin` | `grants/services/claims.service.js`                  | Claimable-entitlement lookup and submitted-Claim reads                  |
 | `grant-admin` | `grants/services/application-read.service.js`        | Read-only application facts, stored documents and series                |
 | `grant-admin` | `grants/services/allow-list.service.js`              | Audited grant allow-list reads and transactional whole-list replacement |
-| `grant-admin` | `grants/services/config-version.service.js`          | Config version reads: versions, stored files, the stored grant          |
+| `grant-admin` | `grants/services/config-version.service.js`          | Config version reads and the audited operator Fetch Definitions         |
 | `grant-admin` | `payments/use-cases/list-claim-payments.use-case.js` | Which of an application's Claims have raised a Payment                  |
 | `grant-admin` | `events/repositories/inbox.repository.js`            | Event admin: inspect, redrive, purge and edit GAS inbound events        |
 | `grant-admin` | `events/repositories/outbox.repository.js`           | Event admin: inspect, redrive, purge and edit GAS outbound events       |
@@ -266,6 +266,14 @@ answers that for its own `gas.json`; for the others it asks the context-neutral 
 `common/config-broker/definition-stores.js`, where Agreements and Payments each register a
 store for their own file when their plugin starts. A store's `storedVersions` is a read
 only: it fetches nothing and writes no fetch status.
+
+An operator's Fetch Definitions stores the files a version still lacks. Grants decides
+which files and in what order, and fetches each from S3; it never writes `config_versions`.
+Each owning context registers one `store` operation with the same registry, which holds its
+file to the check it met on arrival, stores it as published, counts a file already stored
+as stored, and writes no fetch status. Grants calls it for an operator's Fetch Definitions,
+never for a broker message. Grants holds its own `gas.json` to its arrival check before it
+saves it, and refuses one whose code is not the version's grant.
 
 ### Test endpoint entry points
 

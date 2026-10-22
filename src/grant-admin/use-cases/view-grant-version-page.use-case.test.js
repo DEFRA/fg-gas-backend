@@ -1,6 +1,7 @@
 import { Decimal128, Long } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  configVersionNotFound,
   findConfigVersionFiles,
   findConfigVersions,
   findGrantDefinitionSummary,
@@ -21,6 +22,10 @@ vi.mock("../../events/audited-read.js", () => ({
   },
 }));
 vi.mock("../../grants/services/config-version.service.js");
+
+const actualNotFound = await vi.importActual(
+  "../../grants/services/config-version-not-found.js",
+);
 
 const REF = { code: "woodland", version: "2.0.0" };
 
@@ -45,6 +50,9 @@ const view = (tab) =>
 
 describe("viewGrantVersionPageUseCase", () => {
   beforeEach(() => {
+    configVersionNotFound.mockImplementation(
+      actualNotFound.configVersionNotFound,
+    );
     findConfigVersionFiles.mockResolvedValue(FILES);
     findConfigVersions.mockResolvedValue({
       code: "woodland",
