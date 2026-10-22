@@ -24,7 +24,8 @@ const assertSentAsIsFree = ({ name, sentAs }) => {
 // name: the stamp. sentAs: the envelope `type` as it travels. recognise: for an
 // envelope with no `type`. boxes: where this service meets it. refs: the row's
 // identifiers as [kind, value] pairs, read once by the writer from the envelope
-// and the row's ordering key; must never throw (read with `?.`). hiddenByDefault: left out of a list until it is asked for.
+// and the row's ordering key, to which a publication may add pairs from its
+// aggregate; must never throw (read with `?.`). hiddenByDefault: left out of a list until it is asked for.
 export const defineEventType = ({
   name,
   sentAs,

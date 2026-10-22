@@ -32,6 +32,7 @@ export const outboxBucket = () =>
       errorKey: { label: "Error", param: "error" },
     },
     refs: { ref: "Reference", trace: "Trace ID", id: "Event ID" },
+    links: ["application"],
     indexes: [["status"], ["status", "lastError.name"], ["status", "errorKey"]],
     groupings: ["status"],
     audited: false,

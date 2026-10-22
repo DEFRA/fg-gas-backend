@@ -62,17 +62,32 @@ const timeline = (outbox = OUTBOX_ROWS, inbox = INBOX_ROWS) => ({
 });
 
 describe("readApplicationEventsUseCase", () => {
-  const read = () => readApplicationEventsUseCase({ ref: " ABC-123" });
+  const read = () =>
+    readApplicationEventsUseCase({
+      code: "woodland",
+      clientRef: "client-wmp-test-0061",
+    });
 
   beforeEach(() => {
     readTimeline.mockResolvedValue(timeline());
   });
 
-  it("searches this service's timeline for the application's ref, and asks Caseworking nothing", async () => {
+  it("reads this service's timeline by the application's link within its grant, and asks Caseworking nothing", async () => {
     await read();
 
-    expect(readTimeline).toHaveBeenCalledExactlyOnceWith("ref:abc-123");
+    expect(readTimeline).toHaveBeenCalledExactlyOnceWith(
+      "application:woodland:client-wmp-test-0061",
+    );
     expect(readCwTimeline).not.toHaveBeenCalled();
+  });
+
+  it("refuses an application with no grant code, reading nothing", async () => {
+    await expect(
+      readApplicationEventsUseCase({ code: " ", clientRef: "abc-123" }),
+    ).rejects.toThrow(
+      "An application's events need its grant code and reference",
+    );
+    expect(readTimeline).not.toHaveBeenCalled();
   });
 
   it("merges the rows newest first, by time and then id, as event rows", async () => {

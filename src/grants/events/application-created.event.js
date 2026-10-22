@@ -1,12 +1,13 @@
 import { CloudEvent } from "../../common/cloud-event.js";
 import { config } from "../../common/config.js";
+import { applicationRefsOf } from "../../events/case-refs.js";
 import { OUTBOX, defineEventType } from "../../events/event-types.js";
 
 export const applicationCreated = defineEventType({
   name: "ApplicationCreated",
   sentAs: `cloud.defra.${config.cdpEnvironment}.${config.serviceName}.application.created`,
   boxes: [OUTBOX],
-  refs: ({ data }) => [["ref", data?.clientRef]],
+  refs: ({ data }) => applicationRefsOf(data?.code, data?.clientRef),
 });
 
 export class ApplicationCreatedEvent extends CloudEvent {

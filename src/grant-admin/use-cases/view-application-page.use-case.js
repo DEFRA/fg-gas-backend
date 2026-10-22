@@ -45,8 +45,8 @@ const readOverview = async ({ clientRef, code }) => {
   };
 };
 
-const readEvents = ({ clientRef }) =>
-  readApplicationEventsUseCase({ ref: clientRef });
+const readEvents = ({ clientRef, code }) =>
+  readApplicationEventsUseCase({ code, clientRef });
 
 // Too large to show is known from the stored size, so an oversized document
 // is never fetched.

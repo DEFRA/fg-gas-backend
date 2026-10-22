@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { config } from "../../common/config.js";
+import { applicationRefsOf } from "../../events/case-refs.js";
 import { OUTBOX, defineEventType } from "../../events/event-types.js";
 import { PaymentSourceType } from "../models/payment.js";
 
@@ -102,6 +103,15 @@ const segregationRefOf = (payment) =>
     ? payment.source.clientRef
     : payment.source.agreementNumber;
 
+// The message carries no grant code, so the row's link comes from the Payment.
+export const applicationRefsOfPayment = (payment) => {
+  const application = payment.applicationOf();
+
+  return application
+    ? applicationRefsOf(application.code, application.clientRef)
+    : [];
+};
+
 /**
  * Turns a persisted Payment into the publication sent to the Payment Service.
  *
@@ -112,4 +122,5 @@ export const createPaymentPublication = (payment) => ({
   event: createPaymentEvent(payment),
   target: config.sns.createPaymentTopicArn,
   segregationRef: segregationRefOf(payment),
+  refs: applicationRefsOfPayment(payment),
 });

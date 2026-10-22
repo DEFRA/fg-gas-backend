@@ -175,6 +175,13 @@ export class Payment {
     deepFreeze(this);
   }
 
+  // A Claim's Payment is its Application's; an Agreement's is not one's alone.
+  applicationOf() {
+    const { type, code, clientRef } = this.source;
+
+    return type === PaymentSourceType.CLAIM ? { code, clientRef } : null;
+  }
+
   static create({
     id = randomUUID(),
     correlationId = randomUUID(),

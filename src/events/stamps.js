@@ -17,29 +17,35 @@ const unrecognised = { name: UNRECOGNISED, refs: () => [] };
 const declaredFor = (box, eventType) =>
   eventType?.boxes.includes(box) ? eventType : null;
 
-const messageStamps = (eventType, event, { segregationRef, traceparent }) => ({
+const messageStamps = (
+  eventType,
+  event,
+  { segregationRef, traceparent, refs = [] },
+) => ({
   eventType: eventType.name,
   refs: toRefs([
     ...eventType.refs(event, { segregationRef }),
+    ...refs,
     ["id", event.id],
     ["trace", toTraceId(traceparent)],
   ]),
 });
 
-const outboxMessageStamps = (eventType, event, segregationRef) =>
+const outboxMessageStamps = (eventType, event, segregationRef, refs) =>
   messageStamps(eventType, event, {
     segregationRef,
     traceparent: event.traceparent,
+    refs,
   });
 
-export const outboxStamps = (event, { segregationRef }) => {
+export const outboxStamps = (event, { segregationRef, refs }) => {
   const eventType = declaredFor(OUTBOX, findEventType(event));
 
   if (!eventType) {
     throw new Error(`Event type "${event.type}" is not declared`);
   }
 
-  return outboxMessageStamps(eventType, event, segregationRef);
+  return outboxMessageStamps(eventType, event, segregationRef, refs);
 };
 
 export const inboxStamps = (message, { segregationRef }) =>
