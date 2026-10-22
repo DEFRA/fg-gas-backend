@@ -72,8 +72,11 @@
 : The Config Version GAS gives new applications: the newest Active one.
 
 **Fetch Definitions**
-: An operator asks GAS to store every Definition File of a Config Version that is not stored. It never changes what GAS recorded about fetching the version.
+: An operator asks GAS to store every Definition File of a Config Version that is not stored. It never changes what GAS recorded about fetching the version. For a Workflow Version, GAS asks Caseworking, which stores it.
 _Avoid_: refresh, cache.
+
+**Workflow Version**
+: Caseworking's half of a Config Version: the workflow it holds under the same code and version. GAS holds none; Grant Admin reads it from Caseworking.
 
 ## Mappings
 

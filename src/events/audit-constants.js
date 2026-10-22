@@ -10,6 +10,8 @@ export const auditEntities = {
   EVENT: "EVENT",
   // A Caseworking case, as Grant Admin shows it. GAS holds none.
   CASE: "CASE",
+  // A Caseworking workflow version, as Grant Admin shows it. GAS holds none.
+  WORKFLOW: "WORKFLOW",
   // One list Grant Admin can show, as its owning service declares it.
   BUCKET: "BUCKET",
 };
@@ -57,7 +59,10 @@ export const auditActions = {
   VIEW_CASE_DATA: "VIEW_CASE_DATA",
   // One tab of one grant version in Grant Admin.
   VIEW_GRANT_VERSION: "VIEW_GRANT_VERSION",
-  // An operator storing a grant version's Definition Files that GAS has not stored.
+  // One tab of one Caseworking workflow version in Grant Admin.
+  VIEW_WORKFLOW_VERSION: "VIEW_WORKFLOW_VERSION",
+  // An operator storing a version's Definition Files that are not stored: a
+  // grant's in GAS, or a workflow's, which Caseworking stores.
   FETCH_CONFIG_DEFINITION: "FETCH_CONFIG_DEFINITION",
   // One page of one audited bucket.
   QUERY_BUCKET: "QUERY_BUCKET",

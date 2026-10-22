@@ -7,6 +7,7 @@ import { getEntitlementRoute } from "./routes/get-entitlement.route.js";
 import { getEventRoute } from "./routes/get-event.route.js";
 import { getAllowListRoute } from "./routes/get-allow-list.route.js";
 import { fetchGrantDefinitionsRoute } from "./routes/fetch-grant-definitions.route.js";
+import { fetchWorkflowDefinitionRoute } from "./routes/fetch-workflow-definition.route.js";
 import { listGrantVersionsRoute } from "./routes/list-grant-versions.route.js";
 import { listBucketsRoute } from "./routes/list-buckets.route.js";
 import { purgeEventRoute } from "./routes/purge-event.route.js";
@@ -26,6 +27,10 @@ import { viewGrantVersionEntitlementsRoute } from "./routes/view-grant-version-e
 import { viewGrantVersionOverviewRoute } from "./routes/view-grant-version-overview.route.js";
 import { viewGrantVersionPhasesRoute } from "./routes/view-grant-version-phases.route.js";
 import { viewGrantVersionPaymentRoute } from "./routes/view-grant-version-payment.route.js";
+import { viewWorkflowVersionDefinitionRoute } from "./routes/view-workflow-version-definition.route.js";
+import { viewWorkflowVersionOverviewRoute } from "./routes/view-workflow-version-overview.route.js";
+import { viewWorkflowVersionRawRoute } from "./routes/view-workflow-version-raw.route.js";
+import { viewWorkflowVersionsRoute } from "./routes/view-workflow-versions.route.js";
 import { updateEntitlementRoute } from "./routes/update-entitlement.route.js";
 import { setAuditActor } from "./set-audit-actor.js";
 
@@ -65,6 +70,11 @@ export const grantAdmin = {
       viewGrantVersionAgreementRoute,
       viewGrantVersionEntitlementsRoute,
       fetchGrantDefinitionsRoute,
+      viewWorkflowVersionsRoute,
+      viewWorkflowVersionOverviewRoute,
+      viewWorkflowVersionDefinitionRoute,
+      viewWorkflowVersionRawRoute,
+      fetchWorkflowDefinitionRoute,
     ]);
   },
 };
