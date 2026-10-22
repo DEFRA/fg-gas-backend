@@ -474,8 +474,8 @@ describe("build grants bucket indexes", () => {
       "_id",
       "grantCode,version",
       "receivedAt,_id",
-      "grantCode,status,definitions.grant.fetchStatus,receivedAt,_id",
-      "status,definitions.grant.fetchStatus,receivedAt,_id",
+      "grantCode,status,worstFetchStatus,receivedAt,_id",
+      "status,worstFetchStatus,receivedAt,_id",
       "refs,receivedAt,_id",
     ]);
     expect((await db.collection("config_versions").indexes())[2].name).toBe(

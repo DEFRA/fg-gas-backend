@@ -23,7 +23,7 @@ describe("gas.grants", () => {
     });
   });
 
-  it("filters by the stored grant codes, the status and the grant definition's fetch status", () => {
+  it("filters by the stored grant codes, the status and the worst fetch status of a version's files", () => {
     expect(bucket.facts).toEqual({
       grantCode: {
         label: "Grant",
@@ -34,24 +34,67 @@ describe("gas.grants", () => {
       status: {
         label: "Status",
         values: [
-          { value: "active", label: "Active", tone: "success" },
-          { value: "draft", label: "Draft", tone: "neutral" },
+          {
+            value: "active",
+            label: "Active",
+            tone: "success",
+            hint: "Published by the config broker.",
+          },
+          {
+            value: "draft",
+            label: "Draft",
+            tone: "neutral",
+            hint: "Not yet published as active.",
+          },
         ],
         toggle: null,
         param: "status",
       },
-      "definitions.grant.fetchStatus": {
+      worstFetchStatus: {
         label: "Definition",
         values: [
-          { value: "fetched", label: "Fetched", tone: "success" },
-          { value: "pending", label: "Not fetched", tone: "info" },
-          { value: "transient_error", label: "Retrying", tone: "warning" },
-          { value: "permanent_error", label: "Failed", tone: "error" },
+          expect.objectContaining({
+            value: "fetched",
+            label: "Stored",
+            tone: "success",
+          }),
+          expect.objectContaining({
+            value: "pending",
+            label: "Not stored yet",
+            tone: "neutral",
+          }),
+          expect.objectContaining({
+            value: "transient_error",
+            label: "Fetch error",
+            tone: "warning",
+          }),
+          expect.objectContaining({
+            value: "permanent_error",
+            label: "Failed",
+            tone: "error",
+          }),
         ],
         toggle: null,
         param: "definition",
       },
     });
+  });
+
+  it("explains each definition value", () => {
+    const hints = bucket.facts.worstFetchStatus.values.map(({ hint }) => hint);
+
+    expect(hints).toEqual([
+      "GAS has loaded every file of this version (grant, agreement, payment).",
+      expect.stringContaining(
+        "the grant file only for the newest usable Active version of a major, the agreement and payment files whenever an agreement or claim on this version needs them.",
+      ),
+      expect.stringContaining(
+        "GAS tries again the next time it needs it; after 5 failed fetches of the grant file it stops trying and marks it Failed.",
+      ),
+      expect.stringContaining(
+        "GAS couldn't fetch or read at least one of this version's files, or stopped after 5 failed fetches, and won't use it.",
+      ),
+    ]);
   });
 
   it("declares no ref kinds", () => {
@@ -64,13 +107,13 @@ describe("gas.grants", () => {
       {
         grantCode: 1,
         status: 1,
-        "definitions.grant.fetchStatus": 1,
+        worstFetchStatus: 1,
         receivedAt: -1,
         _id: -1,
       },
       {
         status: 1,
-        "definitions.grant.fetchStatus": 1,
+        worstFetchStatus: 1,
         receivedAt: -1,
         _id: -1,
       },
@@ -82,27 +125,27 @@ describe("gas.grants", () => {
     [[]],
     [["grantCode"]],
     [["status"]],
-    [["definitions.grant.fetchStatus"]],
+    [["worstFetchStatus"]],
     [["grantCode", "status"]],
-    [["grantCode", "definitions.grant.fetchStatus"]],
-    [["status", "definitions.grant.fetchStatus"]],
-    [["grantCode", "status", "definitions.grant.fetchStatus"]],
+    [["grantCode", "worstFetchStatus"]],
+    [["status", "worstFetchStatus"]],
+    [["grantCode", "status", "worstFetchStatus"]],
   ])("reads %j exactly", (asked) => {
     expect(choosePlan(bucket, asked, false).kind).toBe("exact");
   });
 
-  it("groups by nothing, so its grants are a menu, and draws status and definition as badges", () => {
+  it("groups by nothing, so its grants are a menu, and draws the definition then the status as badges", () => {
     expect(bucket.groupings).toEqual([]);
     expect(bucket.title).toEqual({ label: "Grant", format: "mono" });
     expect(bucket.columns).toEqual([
       { key: "version", label: "Version", format: "mono" },
-      { key: "status", label: "Status", format: "badge", fact: "status" },
       {
         key: "definition",
         label: "Definition",
         format: "badge",
-        fact: "definitions.grant.fetchStatus",
+        fact: "worstFetchStatus",
       },
+      { key: "status", label: "Status", format: "badge", fact: "status" },
     ]);
   });
 
@@ -111,7 +154,7 @@ describe("gas.grants", () => {
       grantCode: 1,
       version: 1,
       status: 1,
-      "definitions.grant.fetchStatus": 1,
+      worstFetchStatus: 1,
     });
   });
 
@@ -121,7 +164,7 @@ describe("gas.grants", () => {
         grantCode: "woodland-creation",
         version: "1.2.0",
         status: "active",
-        definitions: { grant: { fetchStatus: "fetched" } },
+        worstFetchStatus: "fetched",
       }),
     ).toEqual({
       title: "woodland-creation",
@@ -131,13 +174,17 @@ describe("gas.grants", () => {
     });
   });
 
-  it("presents a version whose definition fetch failed for good", () => {
+  it("presents a version one of whose files failed for good", () => {
     expect(
       bucket.row.present({
         grantCode: "woodland-creation",
         version: "2.0.0",
         status: "draft",
-        definitions: { grant: { fetchStatus: "permanent_error" } },
+        definitions: {
+          grant: { fetchStatus: "fetched" },
+          agreement: { fetchStatus: "permanent_error" },
+        },
+        worstFetchStatus: "permanent_error",
       }).cells,
     ).toEqual({
       version: "2.0.0",

@@ -2,6 +2,7 @@ import { MongoClient } from "mongodb";
 import { env } from "node:process";
 import { afterEach, beforeEach } from "vitest";
 import { clearAgreementDefinitionCaches } from "../src/agreements/use-cases/load-agreement-definition.js";
+import { withWorstFetchStatus } from "../src/common/config-broker/config-catalog.repository.js";
 import { clearPaymentDefinitionCaches } from "../src/payments/use-cases/load-payment-definition.js";
 import { purgeQueues } from "./helpers/sqs";
 
@@ -31,44 +32,47 @@ beforeEach(async () => {
 
   await db.collection("config_versions").updateOne(
     { grantCode: "pigs-might-fly", version: "1.0.1" },
-    {
-      $set: {
-        major: 1,
-        minor: 0,
-        patch: 1,
-        status: "active",
-        receivedAt: "2026-01-01T00:00:00.000Z",
-        fetchStatus: "fetched",
-        s3Key: "pigs-might-fly/1.0.0/gas/gas.json",
-        s3Bucket: "config-broker-local",
-        definitions: {
-          grant: {
-            s3Key: "pigs-might-fly/1.0.0/gas/gas.json",
-            fetchStatus: "fetched",
-            fetchAttempts: 0,
-            fetchError: null,
-            fetchedAt: null,
-            lastFetchAttemptAt: null,
-          },
-          agreement: {
-            s3Key: "pigs-might-fly/1.0.0/gas/agreement.json",
-            fetchStatus: "pending",
-            fetchAttempts: 0,
-            fetchError: null,
-            fetchedAt: null,
-            lastFetchAttemptAt: null,
-          },
-          payment: {
-            s3Key: "pigs-might-fly/1.0.0/gas/payment.json",
-            fetchStatus: "pending",
-            fetchAttempts: 0,
-            fetchError: null,
-            fetchedAt: null,
-            lastFetchAttemptAt: null,
+    [
+      {
+        $set: {
+          major: 1,
+          minor: 0,
+          patch: 1,
+          status: "active",
+          receivedAt: "2026-01-01T00:00:00.000Z",
+          fetchStatus: "fetched",
+          s3Key: "pigs-might-fly/1.0.0/gas/gas.json",
+          s3Bucket: "config-broker-local",
+          definitions: {
+            grant: {
+              s3Key: "pigs-might-fly/1.0.0/gas/gas.json",
+              fetchStatus: "fetched",
+              fetchAttempts: 0,
+              fetchError: null,
+              fetchedAt: null,
+              lastFetchAttemptAt: null,
+            },
+            agreement: {
+              s3Key: "pigs-might-fly/1.0.0/gas/agreement.json",
+              fetchStatus: "pending",
+              fetchAttempts: 0,
+              fetchError: null,
+              fetchedAt: null,
+              lastFetchAttemptAt: null,
+            },
+            payment: {
+              s3Key: "pigs-might-fly/1.0.0/gas/payment.json",
+              fetchStatus: "pending",
+              fetchAttempts: 0,
+              fetchError: null,
+              fetchedAt: null,
+              lastFetchAttemptAt: null,
+            },
           },
         },
       },
-    },
+      withWorstFetchStatus,
+    ],
     { upsert: true },
   );
 

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withWorstFetchStatus } from "../../common/config-broker/config-catalog.repository.js";
 import { ConfigVersion, FetchStatus } from "../models/config-version.js";
 import {
   findByGrantCodeAndVersion,
@@ -71,6 +72,7 @@ describe("config-version.repository", () => {
               }),
             }),
           },
+          withWorstFetchStatus,
         ],
         { upsert: true },
       );
@@ -233,15 +235,18 @@ describe("config-version.repository", () => {
 
       expect(mockCollection.updateOne).toHaveBeenCalledWith(
         { grantCode: "woodland", version: "1.2.3" },
-        {
-          $set: expect.objectContaining({
-            "definitions.grant.fetchStatus": FetchStatus.TransientError,
-            "definitions.grant.fetchError": "S3 timeout",
-          }),
-          $inc: {
-            "definitions.grant.fetchAttempts": 1,
+        [
+          {
+            $set: expect.objectContaining({
+              "definitions.grant.fetchStatus": FetchStatus.TransientError,
+              "definitions.grant.fetchError": { $literal: "S3 timeout" },
+              "definitions.grant.fetchAttempts": {
+                $add: [{ $ifNull: ["$definitions.grant.fetchAttempts", 0] }, 1],
+              },
+            }),
           },
-        },
+          withWorstFetchStatus,
+        ],
       );
     });
 
@@ -252,14 +257,16 @@ describe("config-version.repository", () => {
 
       expect(mockCollection.updateOne).toHaveBeenCalledWith(
         { grantCode: "woodland", version: "1.2.3" },
-        {
-          $set: expect.objectContaining({
-            "definitions.grant.fetchStatus": FetchStatus.Fetched,
-            "definitions.grant.fetchedAt": expect.any(String),
-          }),
-        },
+        [
+          {
+            $set: expect.objectContaining({
+              "definitions.grant.fetchStatus": FetchStatus.Fetched,
+              "definitions.grant.fetchedAt": expect.any(String),
+            }),
+          },
+          withWorstFetchStatus,
+        ],
       );
-      expect(mockCollection.updateOne.mock.calls[0][1].$inc).toBeUndefined();
     });
 
     it("clears only the nested attempt counter on success", async () => {
@@ -267,10 +274,10 @@ describe("config-version.repository", () => {
 
       await updateFetchStatus("woodland", "1.2.3", FetchStatus.Fetched);
 
-      const [, update] = mockCollection.updateOne.mock.calls[0];
-      expect(update.$set["definitions.grant.fetchAttempts"]).toBe(0);
-      expect(update.$set.fetchAttempts).toBeUndefined();
-      expect(update.$set.fetchStatus).toBeUndefined();
+      const [, [{ $set }]] = mockCollection.updateOne.mock.calls[0];
+      expect($set["definitions.grant.fetchAttempts"]).toBe(0);
+      expect($set.fetchAttempts).toBeUndefined();
+      expect($set.fetchStatus).toBeUndefined();
     });
   });
 
