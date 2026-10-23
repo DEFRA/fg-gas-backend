@@ -175,7 +175,12 @@ describe("replaceApplicationUseCase", () => {
 
   it("refuses the replacement when the grant lists no amendable positions", async () => {
     resolveGrantForApplication.mockResolvedValue({
-      grant: new Grant({ code: "test-grant", metadata: {}, phases: [] }),
+      grant: new Grant({
+        code: "test-grant",
+        metadata: {},
+        actions: [],
+        phases: [],
+      }),
       resolvedVersion: null,
     });
     const prevApplication = new Application({

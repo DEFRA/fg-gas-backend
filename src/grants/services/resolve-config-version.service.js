@@ -13,10 +13,10 @@ import {
   findByCode,
   saveFromDefinition,
 } from "../repositories/grant.repository.js";
+import { isDefinitionDefect } from "./definition-defect.js";
 
 const MAX_FETCH_ATTEMPTS = 5;
 const HTTP_CONFLICT = 409;
-const HTTP_INTERNAL_ERROR = 500;
 
 const handleS3Error = async (err, grantCode, version) => {
   if (err.isPermanent || err.isParseError) {
@@ -91,17 +91,6 @@ const fetchFromS3 = async (configVersion, grantCode, resolvedVersion) => {
 // transient fault. Latch it like a permanent S3 error: otherwise fetchStatus
 // stays Pending and fetchAttempts never increments, so every request re-fetches
 // from S3 and 500s forever with no backstop.
-//
-// Two shapes reach here. Grant/EntitlementTemplate validation throws
-// Boom.badImplementation. But saveFromDefinition builds the Grant straight from
-// the parsed JSON without validating its shape first, so a definition that is
-// malformed rather than merely invalid - no metadata key, entitlementTemplates
-// published as an object - dies on a plain TypeError instead. Only these two:
-// a Mongo failure during save is transient and must stay retryable.
-const isDefinitionDefect = (err) =>
-  (err.isBoom && err.output.statusCode === HTTP_INTERNAL_ERROR) ||
-  err instanceof TypeError;
-
 const latchInvalidDefinition = async (err, grantCode, resolvedVersion) => {
   if (!isDefinitionDefect(err)) {
     return;

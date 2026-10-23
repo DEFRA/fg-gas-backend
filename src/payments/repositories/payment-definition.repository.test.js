@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { db } from "../../common/mongo-client.js";
 import {
   findPaymentDefinition,
+  findStoredPaymentDefinition,
+  findStoredVersions,
   insertPaymentDefinition,
   paymentDefinitionsCollection,
 } from "./payment-definition.repository.js";
@@ -54,5 +56,80 @@ describe("Payment definition repository", () => {
       definition,
     });
     expect(result).toBeUndefined();
+  });
+});
+
+describe("findStoredVersions", () => {
+  it("answers which of the asked versions are stored, reading versions alone", async () => {
+    const toArray = vi.fn().mockResolvedValue([{ version: "1.0.1" }]);
+    const find = vi.fn().mockReturnValue({ toArray });
+    db.collection.mockReturnValue({ find });
+
+    const stored = await findStoredVersions("pigs-might-fly", [
+      "1.0.1",
+      "2.0.0",
+    ]);
+
+    expect(db.collection).toHaveBeenCalledWith(paymentDefinitionsCollection);
+    expect(find).toHaveBeenCalledWith(
+      { code: "pigs-might-fly", version: { $in: ["1.0.1", "2.0.0"] } },
+      expect.objectContaining({ projection: { _id: 0, version: 1 } }),
+    );
+    expect(stored).toEqual(["1.0.1"]);
+  });
+});
+
+const aggregating = (docs) => {
+  const aggregate = vi.fn().mockReturnValue({ toArray: async () => docs });
+  db.collection.mockReturnValue({ aggregate });
+  return aggregate;
+};
+
+describe("findStoredPaymentDefinition", () => {
+  const ref = { code: "pigs-might-fly", version: "1.0.0" };
+
+  it("answers the definition as stored beside the record's size, within the admin read timeout", async () => {
+    const aggregate = aggregating([{ storedBytes: 512, definition }]);
+
+    expect(await findStoredPaymentDefinition(ref, { maxBytes: 1024 })).toEqual({
+      storedBytes: 512,
+      definition,
+    });
+    expect(db.collection).toHaveBeenCalledWith(paymentDefinitionsCollection);
+    const [pipeline, options] = aggregate.mock.calls[0];
+    expect(pipeline).toEqual([
+      { $match: { code: "pigs-might-fly", version: "1.0.0" } },
+      {
+        $project: {
+          _id: 0,
+          storedBytes: { $bsonSize: "$$ROOT" },
+          definition: {
+            $cond: [
+              { $lte: [{ $bsonSize: "$$ROOT" }, 1024] },
+              "$definition",
+              "$$REMOVE",
+            ],
+          },
+        },
+      },
+    ]);
+    expect(options).toEqual({ maxTimeMS: expect.any(Number) });
+  });
+
+  it("answers a record over maxBytes by its size alone", async () => {
+    aggregating([{ storedBytes: 2048 }]);
+
+    expect(await findStoredPaymentDefinition(ref, { maxBytes: 1024 })).toEqual({
+      storedBytes: 2048,
+      definition: null,
+    });
+  });
+
+  it("answers null when the version's definition is not stored", async () => {
+    aggregating([]);
+
+    expect(
+      await findStoredPaymentDefinition(ref, { maxBytes: 1024 }),
+    ).toBeNull();
   });
 });

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
@@ -818,6 +819,37 @@ describe("Grant", () => {
     });
   });
 
+  describe("actions", () => {
+    const grantWith = (actionsField) =>
+      new Grant({
+        code: "test-grant",
+        version: "1.0.0",
+        metadata: { description: "Test", startDate: "2023-01-01T00:00:00Z" },
+        phases: [],
+        ...actionsField,
+      });
+
+    it.each([
+      ["missing", {}],
+      ["null", { actions: null }],
+      ["an object", { actions: { name: "calculate" } }],
+    ])("rejects a grant whose actions are %s", (_label, actionsField) => {
+      expect(() => grantWith(actionsField)).toThrow(
+        'Grant "test-grant" actions must be an array',
+      );
+    });
+
+    it.each([
+      ["no actions", []],
+      [
+        "a list of actions",
+        [{ name: "calculate", method: "POST", url: "http://example.com" }],
+      ],
+    ])("builds a grant with %s", (_label, actions) => {
+      expect(grantWith({ actions }).actions).toEqual(actions);
+    });
+  });
+
   describe("hasPhases", () => {
     it("returns true when grant has phases", () => {
       const grant = createTestGrant();
@@ -1419,5 +1451,390 @@ describe("Grant", () => {
 
       expect(result).toEqual({});
     });
+  });
+  describe("describeLifecycle", () => {
+    const status = (code, validFrom, processes) => ({
+      code,
+      validFrom,
+      processes,
+    });
+    const from = (code, processes = []) => ({ code, processes });
+    const lifecycleOf = (phases, overrides = {}) =>
+      createTestGrant({ phases, ...overrides }).describeLifecycle();
+    const oneStage = (statuses) => [
+      { code: "P", stages: [{ code: "S", statuses }] },
+    ];
+    const waysInto = (lifecycle, to) =>
+      lifecycle.waysIn.filter((wayIn) => wayIn.to === to);
+
+    it("describes the phases, initial, amendable and claim approval positions", () => {
+      const lifecycle = lifecycleOf(
+        [
+          {
+            code: "PRE_AWARD",
+            name: "Pre award",
+            stages: [
+              {
+                code: "APPLICATION",
+                name: "Application",
+                statuses: [
+                  status("RECEIVED", []),
+                  status("AMEND", [from("RECEIVED", ["NOTIFY"])]),
+                ],
+              },
+            ],
+            questions: {},
+          },
+          {
+            code: "CLAIM",
+            stages: [
+              {
+                code: "AWAITING",
+                statuses: [
+                  status("OPEN", [from("PRE_AWARD:APPLICATION:AMEND")]),
+                ],
+              },
+            ],
+          },
+        ],
+        {
+          amendablePositions: ["PRE_AWARD:APPLICATION:AMEND"],
+          claims: {
+            onClaimApproval: {
+              currentPosition: {
+                phase: "PRE_AWARD",
+                stage: "APPLICATION",
+                status: "AMEND",
+              },
+              targetPosition: {
+                phase: "CLAIM",
+                stage: "AWAITING",
+                status: "OPEN",
+              },
+            },
+          },
+        },
+      );
+
+      expect(lifecycle).toEqual({
+        phases: [
+          {
+            code: "PRE_AWARD",
+            name: "Pre award",
+            stages: [
+              {
+                code: "APPLICATION",
+                name: "Application",
+                statuses: [{ code: "RECEIVED" }, { code: "AMEND" }],
+              },
+            ],
+          },
+          {
+            code: "CLAIM",
+            name: null,
+            stages: [
+              { code: "AWAITING", name: null, statuses: [{ code: "OPEN" }] },
+            ],
+          },
+        ],
+        initialPosition: "PRE_AWARD:APPLICATION:RECEIVED",
+        amendablePositions: ["PRE_AWARD:APPLICATION:AMEND"],
+        waysIn: [
+          { to: "PRE_AWARD:APPLICATION:RECEIVED", kind: "any", processes: [] },
+          {
+            to: "PRE_AWARD:APPLICATION:AMEND",
+            kind: "move",
+            from: "PRE_AWARD:APPLICATION:RECEIVED",
+            processes: ["NOTIFY"],
+          },
+          {
+            to: "CLAIM:AWAITING:OPEN",
+            kind: "move",
+            from: "PRE_AWARD:APPLICATION:AMEND",
+            processes: [],
+          },
+        ],
+        externalMappings: [],
+        claimApproval: {
+          from: "PRE_AWARD:APPLICATION:AMEND",
+          to: "CLAIM:AWAITING:OPEN",
+        },
+      });
+    });
+
+    it.each([
+      [
+        "a stage with no status",
+        { phases: oneStage([]) },
+        '"phases[0].stages[0].statuses" must contain at least 1 items',
+      ],
+      [
+        "processes written as a single string",
+        { phases: oneStage([{ code: "A", processes: "SKIPPED" }]) },
+        '"phases[0].stages[0].statuses[0].processes" must be an array',
+      ],
+      [
+        "a validFrom entry with no processes",
+        { phases: oneStage([status("A", [{ code: "B" }])]) },
+        '"phases[0].stages[0].statuses[0].validFrom[0].processes" is required',
+      ],
+      [
+        "an external status mapped to nothing",
+        {
+          phases: oneStage([status("A", [])]),
+          externalStatusMap: {
+            phases: [
+              {
+                code: "P",
+                stages: [
+                  { code: "S", statuses: [{ code: "UNMAPPED", source: "CW" }] },
+                ],
+              },
+            ],
+          },
+        },
+        '"externalStatusMap.phases[0].stages[0].statuses[0].mappedTo" is required',
+      ],
+    ])("refuses a stored grant with %s", (_label, overrides, detail) => {
+      const grant = createTestGrant(overrides);
+
+      expect(() => grant.describeLifecycle()).toThrow(
+        `Grant "test-grant" has a lifecycle GAS cannot read: ${detail}`,
+      );
+    });
+
+    it("admits a full code from that position alone and a bare code from that status anywhere", () => {
+      const lifecycle = lifecycleOf([
+        {
+          code: "P",
+          stages: [
+            { code: "S", statuses: [status("A", []), status("B", [])] },
+            {
+              code: "T",
+              statuses: [
+                status("A", []),
+                status("FULL", [from("P:S:A")]),
+                status("BARE", [from("A")]),
+                status("TWO_PART", [from("S:A")]),
+              ],
+            },
+          ],
+        },
+      ]);
+
+      expect(waysInto(lifecycle, "P:T:FULL")).toEqual([
+        { to: "P:T:FULL", kind: "move", from: "P:S:A", processes: [] },
+      ]);
+      expect(waysInto(lifecycle, "P:T:BARE")).toEqual([
+        { to: "P:T:BARE", kind: "move", from: "P:S:A", processes: [] },
+        { to: "P:T:BARE", kind: "move", from: "P:T:A", processes: [] },
+      ]);
+      expect(waysInto(lifecycle, "P:T:TWO_PART")).toEqual([
+        { to: "P:T:TWO_PART", kind: "unmatched", code: "S:A", processes: [] },
+      ]);
+    });
+
+    it("lists each source under the first entry it matches, and an entry that matches nothing as unmatched", () => {
+      const lifecycle = lifecycleOf(
+        oneStage([
+          status("A", []),
+          status("B", []),
+          status("X", [
+            from("X", ["SELF"]),
+            from("A", ["FIRST"]),
+            from("P:S:A", ["SHADOWED"]),
+            from("GONE", ["LOST"]),
+            from("B"),
+          ]),
+        ]),
+      );
+
+      expect(waysInto(lifecycle, "P:S:X")).toEqual([
+        { to: "P:S:X", kind: "move", from: "P:S:A", processes: ["FIRST"] },
+        { to: "P:S:X", kind: "unmatched", code: "GONE", processes: ["LOST"] },
+        { to: "P:S:X", kind: "move", from: "P:S:B", processes: [] },
+      ]);
+    });
+
+    it("reads an empty or missing validFrom as from any status, with the status's own processes", () => {
+      const lifecycle = lifecycleOf(
+        oneStage([
+          status("A", [], ["START"]),
+          { code: "B", processes: ["OPEN"] },
+          { code: "C" },
+        ]),
+      );
+
+      expect(lifecycle.waysIn).toEqual([
+        { to: "P:S:A", kind: "any", processes: ["START"] },
+        { to: "P:S:B", kind: "any", processes: ["OPEN"] },
+        { to: "P:S:C", kind: "any", processes: [] },
+      ]);
+    });
+
+    it("leaves out what the runtime never reaches under a repeated phase code", () => {
+      const lifecycle = lifecycleOf(
+        [
+          { code: "P", stages: [{ code: "S", statuses: [status("A", [])] }] },
+          {
+            code: "P",
+            stages: [{ code: "HIDDEN", statuses: [status("B", [from("A")])] }],
+          },
+        ],
+        {
+          externalStatusMap: {
+            phases: [
+              { code: "P", stages: [{ code: "S", statuses: [] }] },
+              {
+                code: "P",
+                stages: [
+                  {
+                    code: "S",
+                    statuses: [{ code: "LATER", source: "CW", mappedTo: "A" }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      );
+
+      expect(lifecycle.phases[1].stages[0].statuses).toEqual([{ code: "B" }]);
+      expect(waysInto(lifecycle, "P:HIDDEN:B")).toEqual([]);
+      expect(lifecycle.externalMappings).toEqual([]);
+    });
+
+    it("describes each external status mapping the runtime would apply, with where it lands", () => {
+      const mapping = (code, mappedTo, source = "CW") => ({
+        code,
+        source,
+        mappedTo,
+      });
+      const lifecycle = lifecycleOf(oneStage([status("A", [])]), {
+        externalStatusMap: {
+          phases: [
+            {
+              code: "P",
+              stages: [
+                {
+                  code: "S",
+                  statuses: [
+                    mapping("IN_STAGE", "::A"),
+                    mapping("BARE", "A"),
+                    mapping("FULL", "Q:R:A"),
+                    mapping("TWO_PART", "S:A"),
+                    mapping("NO_STAGE", "P::A"),
+                    mapping("BARE", "ignored"),
+                    mapping("BARE", "A", "AS"),
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      expect(lifecycle.externalMappings).toEqual([
+        {
+          source: "CW",
+          code: "IN_STAGE",
+          whileIn: "P:S",
+          mappedTo: "::A",
+          to: "P:S:A",
+        },
+        {
+          source: "CW",
+          code: "BARE",
+          whileIn: "P:S",
+          mappedTo: "A",
+          to: "P:S:A",
+        },
+        {
+          source: "CW",
+          code: "FULL",
+          whileIn: "P:S",
+          mappedTo: "Q:R:A",
+          to: "Q:R:A",
+        },
+        {
+          source: "CW",
+          code: "TWO_PART",
+          whileIn: "P:S",
+          mappedTo: "S:A",
+          to: null,
+        },
+        {
+          source: "CW",
+          code: "NO_STAGE",
+          whileIn: "P:S",
+          mappedTo: "P::A",
+          to: "P::A",
+        },
+        {
+          source: "AS",
+          code: "BARE",
+          whileIn: "P:S",
+          mappedTo: "A",
+          to: "P:S:A",
+        },
+      ]);
+    });
+
+    it("has no external status mappings or claim approval when the grant has none", () => {
+      const lifecycle = lifecycleOf(oneStage([status("A", [])]));
+
+      expect(lifecycle.externalMappings).toEqual([]);
+      expect(lifecycle.claimApproval).toBeNull();
+    });
+
+    it.each([
+      "compose/seed/pigs-might-fly/1.0.0/gas/gas.json",
+      "compose/seed/woodland/1.39.1/gas/gas.json",
+    ])(
+      "lists a move exactly where isValidTransition allows one, in %s",
+      (seed) => {
+        const definition = JSON.parse(
+          readFileSync(new URL(`../../../${seed}`, import.meta.url), "utf8"),
+        );
+        const grant = new Grant({ ...definition, version: "1.0.0" });
+        const { phases, waysIn } = grant.describeLifecycle();
+        const positions = phases.flatMap((phase) =>
+          phase.stages.flatMap((stage) =>
+            stage.statuses.map(
+              ({ code }) => `${phase.code}:${stage.code}:${code}`,
+            ),
+          ),
+        );
+        const anyStatus = new Set(
+          waysIn.filter(({ kind }) => kind === "any").map(({ to }) => to),
+        );
+
+        const allowed = positions
+          .filter((to) => !anyStatus.has(to))
+          .flatMap((to) => {
+            const [phase, stage, code] = to.split(":");
+
+            return positions
+              .filter((from) => from !== to)
+              .flatMap((from) => {
+                const { valid, processes } = grant.isValidTransition(
+                  phase,
+                  stage,
+                  code,
+                  from,
+                );
+
+                return valid
+                  ? [{ to, kind: "move", from, processes: processes ?? [] }]
+                  : [];
+              });
+          });
+        const moves = waysIn.filter(({ kind }) => kind === "move");
+
+        expect(allowed.length).toBeGreaterThan(0);
+        expect(moves).toHaveLength(allowed.length);
+        expect(moves).toEqual(expect.arrayContaining(allowed));
+      },
+    );
   });
 });

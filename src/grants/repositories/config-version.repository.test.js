@@ -5,6 +5,8 @@ import {
   findByGrantCodeAndVersion,
   findLatestForMajor,
   findLatestActive,
+  findVersionDocument,
+  findVersionsByGrantCode,
   updateFetchStatus,
   upsert,
 } from "./config-version.repository.js";
@@ -12,6 +14,7 @@ import {
 const mockCollection = {
   updateOne: vi.fn(),
   findOne: vi.fn(),
+  find: vi.fn(),
 };
 
 vi.mock("../../common/mongo-client.js", () => ({
@@ -313,6 +316,46 @@ describe("config-version.repository", () => {
 
       const result = await findByGrantCodeAndVersion("woodland", "9.9.9");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("findVersionsByGrantCode", () => {
+    it("answers each version's status and receipt, newest version first", async () => {
+      const rows = [
+        {
+          version: "2.0.0",
+          status: "draft",
+          receivedAt: "2026-10-15T10:04:00.000Z",
+        },
+        {
+          version: "1.2.0",
+          status: "active",
+          receivedAt: "2026-10-10T16:25:00.000Z",
+        },
+      ];
+      mockCollection.find.mockReturnValue({ toArray: async () => rows });
+
+      expect(await findVersionsByGrantCode("woodland")).toEqual(rows);
+      expect(mockCollection.find).toHaveBeenCalledWith(
+        { grantCode: "woodland" },
+        expect.objectContaining({
+          sort: { major: -1, minor: -1, patch: -1 },
+          projection: { _id: 0, version: 1, status: 1, receivedAt: 1 },
+        }),
+      );
+    });
+  });
+
+  describe("findVersionDocument", () => {
+    it("answers the row as stored, without building a ConfigVersion", async () => {
+      const row = { grantCode: "woodland", version: "2.0.0", definitions: {} };
+      mockCollection.findOne.mockResolvedValue(row);
+
+      expect(await findVersionDocument("woodland", "2.0.0")).toBe(row);
+      expect(mockCollection.findOne).toHaveBeenCalledWith(
+        { grantCode: "woodland", version: "2.0.0" },
+        expect.any(Object),
+      );
     });
   });
 });

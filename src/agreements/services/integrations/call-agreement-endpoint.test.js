@@ -1,12 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { wreck } from "../../../common/wreck.js";
 import { callAgreementEndpoint } from "./call-agreement-endpoint.js";
-import {
-  resolveEndpointServiceHeaders,
-  resolveEndpointServiceUrl,
-} from "./resolve-endpoint-service-url.js";
+import { resolveEndpointServiceHeaders } from "./resolve-endpoint-service-url.js";
 
-vi.mock("./resolve-endpoint-service-url.js");
+vi.mock("./resolve-endpoint-service-url.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveEndpointServiceHeaders: vi.fn(),
+}));
 vi.mock("../../../common/wreck.js");
 
 const endpointConfig = {
@@ -17,8 +17,13 @@ const endpointConfig = {
 };
 
 describe("callAgreementEndpoint", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("resolves the service URL, calls the endpoint, and returns the payload", async () => {
-    resolveEndpointServiceUrl.mockReturnValue(
+    vi.stubEnv(
+      "GRANT_FUNDING_CALCULATOR_URL",
       "http://grant-funding-calculator",
     );
     wreck.request.mockResolvedValue({ statusCode: 200 });
@@ -30,9 +35,6 @@ describe("callAgreementEndpoint", () => {
       BODY: { pigTypes: [] },
     });
 
-    expect(resolveEndpointServiceUrl).toHaveBeenCalledWith(
-      "GRANT_FUNDING_CALCULATOR",
-    );
     expect(wreck.request).toHaveBeenCalledWith(
       "POST",
       "http://grant-funding-calculator/grantFundingCalculator",
@@ -48,7 +50,7 @@ describe("callAgreementEndpoint", () => {
   });
 
   it("adds headers configured for the endpoint service", async () => {
-    resolveEndpointServiceUrl.mockReturnValue("http://land-grants");
+    vi.stubEnv("LAND_GRANTS_URL", "http://land-grants");
     resolveEndpointServiceHeaders.mockReturnValue({
       Authorization: "Bearer encrypted-token",
     });
@@ -74,7 +76,8 @@ describe("callAgreementEndpoint", () => {
   });
 
   it("throws Boom.badGateway on a non-2xx response", async () => {
-    resolveEndpointServiceUrl.mockReturnValue(
+    vi.stubEnv(
+      "GRANT_FUNDING_CALCULATOR_URL",
       "http://grant-funding-calculator",
     );
     wreck.request.mockResolvedValue({ statusCode: 500 });
@@ -86,7 +89,8 @@ describe("callAgreementEndpoint", () => {
   });
 
   it("reports the non-2xx status even when the error response body isn't valid JSON, since it never attempts to read a non-2xx body", async () => {
-    resolveEndpointServiceUrl.mockReturnValue(
+    vi.stubEnv(
+      "GRANT_FUNDING_CALCULATOR_URL",
       "http://grant-funding-calculator",
     );
     wreck.request.mockResolvedValue({ statusCode: 500 });
@@ -99,7 +103,8 @@ describe("callAgreementEndpoint", () => {
   });
 
   it("throws a distinct error when a successful response's body fails to parse", async () => {
-    resolveEndpointServiceUrl.mockReturnValue(
+    vi.stubEnv(
+      "GRANT_FUNDING_CALCULATOR_URL",
       "http://grant-funding-calculator",
     );
     wreck.request.mockResolvedValue({ statusCode: 200 });
@@ -113,7 +118,8 @@ describe("callAgreementEndpoint", () => {
   });
 
   it("throws Boom.badGateway when the request itself fails", async () => {
-    resolveEndpointServiceUrl.mockReturnValue(
+    vi.stubEnv(
+      "GRANT_FUNDING_CALCULATOR_URL",
       "http://grant-funding-calculator",
     );
     wreck.request.mockRejectedValue(new Error("network down"));
