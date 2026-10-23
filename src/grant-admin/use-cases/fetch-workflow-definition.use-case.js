@@ -7,7 +7,7 @@ import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import {
   WORKFLOW_VERSION_NOT_FOUND,
   fetchCwWorkflowDefinition,
-} from "../repositories/cw-actuators.repository.js";
+} from "../repositories/cw-workflows.repository.js";
 import { GATEWAY_TIMEOUT, statusOf } from "../repositories/cw-http.js";
 
 const fetchWorkflowDefinition = ({ code, version, actor }) =>

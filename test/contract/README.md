@@ -183,7 +183,7 @@ Corrected to reflect actual architecture:
    - Provider: fg-cw-backend-actuators
    - Type: HTTP contract
    - Test: `consumer.cw-backend-actuators.test.js`
-   - Calls: the case list or search, one case (with or without its document), case existence, an event's case on the event detail, a workflow's versions, one workflow version (with or without its document and endpoint addresses), and the operator's fetch of a workflow definition. Case payloads and documents, and stored workflows, are matched only as objects.
+   - Calls: the case list or search, one case (with or without its document), case existence, an event's case on the event detail, a workflow's versions, one workflow version (with or without its document and endpoint addresses), workflow version existence, and the operator's fetch of a workflow definition. Case payloads and documents, and stored workflows, are matched only as objects.
 
 4. **fg-gas-backend → fg-cw-backend-users** (HTTP API)
    - Consumer: fg-gas-backend

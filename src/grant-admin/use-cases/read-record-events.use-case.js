@@ -2,10 +2,8 @@ import { readTimeline } from "../../common/buckets/engine.js";
 import { logger } from "../../common/logger.js";
 import { toApplicationLink, toCaseLink } from "../../events/case-refs.js";
 import { UNRECOGNISED } from "../../events/event-types.js";
-import {
-  describeError,
-  readCwTimeline,
-} from "../repositories/cw-actuators.repository.js";
+import { readCwTimeline } from "../repositories/cw-actuators.repository.js";
+import { describeError } from "../repositories/cw-http.js";
 import {
   latency,
   latencyTitle,

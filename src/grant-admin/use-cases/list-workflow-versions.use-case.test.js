@@ -1,9 +1,9 @@
 import Boom from "@hapi/boom";
 import { expect, it, vi } from "vitest";
-import { findCwWorkflowVersions } from "../repositories/cw-actuators.repository.js";
+import { findCwWorkflowVersions } from "../repositories/cw-workflows.repository.js";
 import { listWorkflowVersionsUseCase } from "./list-workflow-versions.use-case.js";
 
-vi.mock("../repositories/cw-actuators.repository.js");
+vi.mock("../repositories/cw-workflows.repository.js");
 
 it("answers Caseworking's versions of the workflow, asked as the operator", async () => {
   const versions = { code: "Casework-Smoke", current: null, versions: [] };

@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../common/logger.js";
 import { grantVersionExists } from "../../grants/services/config-version.service.js";
-import { findCwWorkflowVersion } from "../repositories/cw-actuators.repository.js";
+import { findCwWorkflowVersion } from "../repositories/cw-workflows.repository.js";
 import { SECTION_CAP_BYTES } from "../services/compose-record-page.js";
 import {
   buildViewWorkflowVersionAudit,
@@ -14,7 +14,7 @@ vi.mock("../../events/audited-read.js", () => ({
   auditedRead: (read) => read,
 }));
 vi.mock("../../grants/services/config-version.service.js");
-vi.mock("../repositories/cw-actuators.repository.js");
+vi.mock("../repositories/cw-workflows.repository.js");
 
 const REF = { code: "woodland", version: "1.2.0" };
 

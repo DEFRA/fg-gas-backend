@@ -6,11 +6,14 @@ import { ConfigVersionStatus } from "./config-version.js";
 
 const FILE_TYPES = ["grant", "agreement", "payment"];
 
+const fetchStatus = Joi.string().valid(...Object.values(FetchStatus));
+
 const fileSchema = Joi.object({
   stored: Joi.boolean().required(),
-  fetchStatus: Joi.string()
-    .valid(...Object.values(FetchStatus))
-    .required(),
+  fetchStatus: fetchStatus.required(),
+  fetchError: Joi.string().allow(null).required(),
+  fetchAttempts: Joi.number().integer().min(0).required(),
+  s3Key: Joi.string().allow(null).required(),
 });
 
 // A Config Version as the admin sees it: each of its Definition Files, and
@@ -23,6 +26,9 @@ export class ConfigVersionFiles {
       .valid(...Object.values(ConfigVersionStatus))
       .required(),
     receivedAt: Joi.string().isoDate().required(),
+    s3Bucket: Joi.string().allow(null).required(),
+    // Null until the version is stamped with one.
+    worstFetchStatus: fetchStatus.allow(null).required(),
     files: Joi.object({
       grant: fileSchema.required(),
       agreement: fileSchema,
@@ -45,6 +51,8 @@ export class ConfigVersionFiles {
     this.version = props.version;
     this.status = props.status;
     this.receivedAt = props.receivedAt;
+    this.s3Bucket = props.s3Bucket;
+    this.worstFetchStatus = props.worstFetchStatus;
     this.files = props.files;
   }
 
@@ -56,6 +64,10 @@ export class ConfigVersionFiles {
     return FILE_TYPES.filter((type) => this.files[type]?.stored === false);
   }
 
+  allStored() {
+    return this.missingFiles().length === 0;
+  }
+
   static fromDocument(doc, storedTypes) {
     const files = Object.fromEntries(
       ConfigVersionFiles.typesIn(doc).map((type) => [
@@ -63,6 +75,9 @@ export class ConfigVersionFiles {
         {
           stored: storedTypes.has(type),
           fetchStatus: doc.definitions[type].fetchStatus,
+          fetchError: doc.definitions[type].fetchError,
+          fetchAttempts: doc.definitions[type].fetchAttempts,
+          s3Key: doc.definitions[type].s3Key,
         },
       ]),
     );
@@ -72,6 +87,8 @@ export class ConfigVersionFiles {
       version: doc.version,
       status: doc.status,
       receivedAt: doc.receivedAt,
+      s3Bucket: doc.s3Bucket,
+      worstFetchStatus: doc.worstFetchStatus ?? null,
       files,
     });
   }
@@ -82,6 +99,7 @@ export class ConfigVersionFiles {
       version: this.version,
       status: this.status,
       receivedAt: this.receivedAt,
+      s3Bucket: this.s3Bucket,
       files: this.files,
     };
   }

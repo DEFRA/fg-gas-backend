@@ -320,7 +320,7 @@ describe("config-version.repository", () => {
   });
 
   describe("findVersionsByGrantCode", () => {
-    it("answers each version's status and receipt, newest version first", async () => {
+    it("answers each version with its fetch state, newest version first", async () => {
       const rows = [
         {
           version: "2.0.0",
@@ -340,8 +340,28 @@ describe("config-version.repository", () => {
         { grantCode: "woodland" },
         expect.objectContaining({
           sort: { major: -1, minor: -1, patch: -1 },
-          projection: { _id: 0, version: 1, status: 1, receivedAt: 1 },
+          projection: {
+            _id: 0,
+            grantCode: 1,
+            version: 1,
+            status: 1,
+            receivedAt: 1,
+            s3Bucket: 1,
+            worstFetchStatus: 1,
+            definitions: 1,
+          },
         }),
+      );
+    });
+
+    it("answers only the versions named", async () => {
+      mockCollection.find.mockReturnValue({ toArray: async () => [] });
+
+      await findVersionsByGrantCode("woodland", ["2.0.0"]);
+
+      expect(mockCollection.find).toHaveBeenCalledWith(
+        { grantCode: "woodland", version: { $in: ["2.0.0"] } },
+        expect.any(Object),
       );
     });
   });
