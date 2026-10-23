@@ -3,6 +3,7 @@ import { Decimal128, Long } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { findStoredDefinition } from "../../common/config-broker/definition-stores.js";
 import {
+  configVersionNotFound,
   findConfigVersionFiles,
   findConfigVersions,
   findGrantDefinitionSummary,
@@ -29,6 +30,10 @@ vi.mock("../../grants/services/config-version.service.js");
 vi.mock("../../payments/use-cases/find-stored-payment-definition.use-case.js");
 vi.mock("../../common/config-broker/definition-stores.js");
 
+const actualNotFound = await vi.importActual(
+  "../../grants/services/config-version-not-found.js",
+);
+
 const REF = { code: "woodland", version: "2.0.0" };
 
 const FILES = {
@@ -52,6 +57,9 @@ const view = (tab) =>
 
 describe("viewGrantVersionPageUseCase", () => {
   beforeEach(() => {
+    configVersionNotFound.mockImplementation(
+      actualNotFound.configVersionNotFound,
+    );
     findConfigVersionFiles.mockResolvedValue(FILES);
     findConfigVersions.mockResolvedValue({
       code: "woodland",

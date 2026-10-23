@@ -57,6 +57,8 @@ export const auditActions = {
   VIEW_CASE_DATA: "VIEW_CASE_DATA",
   // One tab of one grant version in Grant Admin.
   VIEW_GRANT_VERSION: "VIEW_GRANT_VERSION",
+  // An operator storing a grant version's Definition Files that GAS has not stored.
+  FETCH_CONFIG_DEFINITION: "FETCH_CONFIG_DEFINITION",
   // One page of one audited bucket.
   QUERY_BUCKET: "QUERY_BUCKET",
 };

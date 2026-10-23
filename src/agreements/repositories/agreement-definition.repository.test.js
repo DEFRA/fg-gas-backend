@@ -1,3 +1,4 @@
+import { MongoServerError } from "mongodb";
 import { describe, expect, it, vi } from "vitest";
 import { config } from "../../common/config.js";
 import { db } from "../../common/mongo-client.js";
@@ -45,18 +46,61 @@ describe("Agreement definition repository", () => {
     const insertOne = vi.fn().mockResolvedValue({ insertedId: "id" });
     db.collection.mockReturnValue({ insertOne });
 
-    const result = await insertAgreementDefinition({
+    const session = { id: "transaction" };
+
+    const result = await insertAgreementDefinition(
+      { code: "pigs-might-fly", version: "1.0.1", definition },
+      session,
+    );
+
+    expect(insertOne).toHaveBeenCalledWith(
+      { code: "pigs-might-fly", version: "1.0.1", definition },
+      { session },
+    );
+    expect(result).toBeUndefined();
+  });
+});
+
+describe("insertAgreementDefinition", () => {
+  const insertRejecting = (error) =>
+    db.collection.mockReturnValue({
+      insertOne: vi.fn().mockRejectedValue(error),
+    });
+  const insert = () =>
+    insertAgreementDefinition({
       code: "pigs-might-fly",
       version: "1.0.1",
       definition,
     });
 
-    expect(insertOne).toHaveBeenCalledWith({
-      code: "pigs-might-fly",
-      version: "1.0.1",
-      definition,
+  it("leaves a version someone else stored first as it is", async () => {
+    insertRejecting(
+      new MongoServerError({ message: "E11000 duplicate key", code: 11000 }),
+    );
+
+    await expect(insert()).resolves.toBeUndefined();
+  });
+
+  it("lets a duplicate inside a transaction through, as it has aborted it", async () => {
+    const duplicate = new MongoServerError({
+      message: "E11000 duplicate key",
+      code: 11000,
     });
-    expect(result).toBeUndefined();
+    insertRejecting(duplicate);
+
+    await expect(
+      insertAgreementDefinition(
+        { code: "pigs-might-fly", version: "1.0.1", definition },
+        { id: "transaction" },
+      ),
+    ).rejects.toBe(duplicate);
+  });
+
+  it("lets any other Mongo failure through", async () => {
+    const failure = new MongoServerError({ message: "down", code: 6 });
+    insertRejecting(failure);
+
+    await expect(insert()).rejects.toBe(failure);
   });
 });
 

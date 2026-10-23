@@ -1,4 +1,3 @@
-import { MongoServerError } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   findConfigDefinition,
@@ -87,12 +86,6 @@ const expectLogged = (error) => {
   );
 };
 
-const duplicateKeyError = () => {
-  const error = new MongoServerError("duplicate definition");
-  error.code = 11000;
-  return error;
-};
-
 const deferred = () => {
   let resolvePromise;
   const promise = new Promise((resolve) => {
@@ -145,15 +138,6 @@ describe("loadPaymentDefinition", () => {
       version: configVersion,
       definition: rawDefinition,
     });
-    expectStatus(FetchStatus.Fetched);
-  });
-
-  it("tolerates a duplicate-key insert from a concurrent process", async () => {
-    insertPaymentDefinition.mockRejectedValue(duplicateKeyError());
-
-    await expect(loadPaymentDefinition(options)).resolves.toBeInstanceOf(
-      PaymentDefinition,
-    );
     expectStatus(FetchStatus.Fetched);
   });
 

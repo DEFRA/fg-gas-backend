@@ -5,6 +5,7 @@ import { registerEventHandler } from "../events/index.js";
 import { handleAgreementPaymentRequested } from "./handlers/handle-agreement-payment-requested.js";
 import { handleClaimPaymentRequested } from "./handlers/handle-claim-payment-requested.js";
 import { findStoredVersions } from "./repositories/payment-definition.repository.js";
+import { storePaymentDefinition } from "./use-cases/store-payment-definition.js";
 import { compilePaymentDefinition } from "./use-cases/compile-payment-definition.js";
 
 // Keep identical to the producer-owned type in
@@ -22,7 +23,10 @@ export const payments = {
     registerDefinitionCheck("payment", ({ definition, grantCode }) =>
       compilePaymentDefinition(definition, grantCode),
     );
-    registerDefinitionStore("payment", { storedVersions: findStoredVersions });
+    registerDefinitionStore("payment", {
+      storedVersions: findStoredVersions,
+      store: storePaymentDefinition,
+    });
     registerEventHandler(
       AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE,
       handleAgreementPaymentRequested,

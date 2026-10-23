@@ -52,6 +52,10 @@ export class ConfigVersionFiles {
     return FILE_TYPES.filter((type) => doc.definitions?.[type]);
   }
 
+  missingFiles() {
+    return FILE_TYPES.filter((type) => this.files[type]?.stored === false);
+  }
+
   static fromDocument(doc, storedTypes) {
     const files = Object.fromEntries(
       ConfigVersionFiles.typesIn(doc).map((type) => [
