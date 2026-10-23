@@ -105,6 +105,7 @@ describe("saveEvents", () => {
       eventType: "AgreementStatusUpdated",
       refs: [
         "ref:client",
+        "application:pigs-might-fly:~43.~4c.~49.~45.~4e.~54.",
         "id:0b7c1d1e-0000-4000-8000-000000000001",
         "trace:4bf92f3577b34da6a3ce929d0e0e4736",
       ],
@@ -142,6 +143,28 @@ describe("saveEvents", () => {
       segregationRef: "WDL-1",
       refs: ["ref:wdl-1"],
     });
+  });
+
+  it("adds the refs a publication takes from its aggregate after the type's own", async () => {
+    await saveEvents(
+      [
+        {
+          ...paymentPublication,
+          segregationRef: "WDL-1",
+          refs: [
+            ["ref", "WDL-1"],
+            ["application", "woodland:wdl-1"],
+            ["application", null],
+          ],
+        },
+      ],
+      session,
+    );
+
+    expect(insertMany.mock.calls[0][0][0].refs).toEqual([
+      "ref:wdl-1",
+      "application:woodland:wdl-1",
+    ]);
   });
 
   it("refuses an event whose type nobody declared", async () => {

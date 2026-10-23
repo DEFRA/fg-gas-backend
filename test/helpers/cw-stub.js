@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { env } from "node:process";
+import { queryRequestSchema } from "../../src/common/buckets/schema.js";
 
 // A stand-in for fg-cw-backend's actuator endpoints, reached by GAS over real
 // HTTP (`host.docker.internal`) and driven by the tests over its control paths.
@@ -47,8 +48,9 @@ const emptyCases = () => ({
 });
 
 // The bucket routes: `entries` is the catalogue and `answers` each bucket's
-// query answer by id. A `refusal` reason answers every query 400; a bucket
-// with no answer is a 404 UNKNOWN_BUCKET.
+// query answer by id. A `refusal` reason answers every query 400, as does a
+// query Caseworking's schema refuses; a bucket with no answer is a 404
+// UNKNOWN_BUCKET.
 const emptyBuckets = () => ({
   mode: "ok",
   missingRoute: false,
@@ -58,11 +60,23 @@ const emptyBuckets = () => ({
   refusal: null,
 });
 
+// The workflow version routes: `versions` answers by code, `records` by
+// "code/version" with the document and addresses, which the stub drops unless
+// asked; `fetches` answer each fetch by "code/version". Anything missing is a
+// 404 with Caseworking's reason, except existence, which answers from `records`.
+const emptyWorkflows = () => ({
+  mode: "ok",
+  versions: {},
+  records: {},
+  fetches: {},
+});
+
 const defaultState = () => ({
   inbox: emptyBox(),
   outbox: emptyBox(),
   cases: emptyCases(),
   buckets: emptyBuckets(),
+  workflows: emptyWorkflows(),
 });
 
 let server;
@@ -94,6 +108,7 @@ const handleControl = async (request, response) => {
     outbox: { ...state.outbox, ...(patch.outbox ?? {}) },
     cases: { ...state.cases, ...(patch.cases ?? {}) },
     buckets: { ...state.buckets, ...(patch.buckets ?? {}) },
+    workflows: { ...state.workflows, ...(patch.workflows ?? {}) },
   };
 
   send(response, OK, { ok: true });
@@ -124,8 +139,7 @@ const respondForMode = (box, response) => {
 
 const record = async (name, request) => {
   const url = new URL(request.url, "http://stub.local");
-
-  requests.push({
+  const entry = {
     box: name,
     method: request.method,
     path: url.pathname,
@@ -135,7 +149,11 @@ const record = async (name, request) => {
     actor: request.headers["x-actor"] ?? null,
     searchRepeat: request.headers["x-search-repeat"] ?? null,
     body: request.method === "POST" ? await readBody(request) : null,
-  });
+  };
+
+  requests.push(entry);
+
+  return entry;
 };
 
 const isAuthorised = (request) =>
@@ -342,11 +360,83 @@ const handleCases = async (pathname, request, response) => {
     : caseNotFound(response);
 };
 
+const WORKFLOW_PATH =
+  /^\/actuators\/workflows\/([^/]+)\/versions(?:\/([^/]+?)(?:\/(fetch|existence))?)?$/;
+
+const workflowNotFound = (response, reason) =>
+  send(response, NOT_FOUND, {
+    statusCode: NOT_FOUND,
+    error: "Not Found",
+    message: "Not found",
+    reason,
+  });
+
+const answerWorkflowVersion = (found, url, response) => {
+  if (!found) {
+    return workflowNotFound(response, "WORKFLOW_VERSION_NOT_FOUND");
+  }
+
+  const { document, addresses, ...rest } = found;
+
+  return send(
+    response,
+    OK,
+    url.searchParams.get("include") === "document"
+      ? { ...rest, document, addresses }
+      : rest,
+  );
+};
+
+const answerWorkflowFetch = (found, response) =>
+  found
+    ? send(response, OK, found)
+    : workflowNotFound(response, "WORKFLOW_VERSION_NOT_FOUND");
+
+const answerWorkflowVersions = (found, response) =>
+  found
+    ? send(response, OK, found)
+    : workflowNotFound(response, "WORKFLOW_NOT_FOUND");
+
+// GET /actuators/workflows/{code}/versions[/{version}[/existence]] and
+// POST /actuators/workflows/{code}/versions/{version}/fetch.
+const handleWorkflows = async (pathname, request, response) => {
+  await record("workflows", request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const { workflows } = state;
+
+  if (workflows.mode !== "ok") {
+    return respondForMode(workflows, response);
+  }
+
+  const [, code, version, action] = WORKFLOW_PATH.exec(pathname);
+  const key = `${code}/${version}`;
+
+  if (action === "existence") {
+    return send(response, OK, { exists: Boolean(workflows.records[key]) });
+  }
+
+  if (action === "fetch") {
+    return answerWorkflowFetch(workflows.fetches[key], response);
+  }
+
+  return version
+    ? answerWorkflowVersion(
+        workflows.records[key],
+        new URL(request.url, "http://stub.local"),
+        response,
+      )
+    : answerWorkflowVersions(workflows.versions[code], response);
+};
+
 const BUCKETS_PATH = "/actuators/buckets";
 const BUCKET_QUERY_PATH = /^\/actuators\/buckets\/([^/]+)\/query$/;
 const TIMELINE_PATH = "/actuators/timeline";
 
-const answerBucketQuery = (pathname, response) => {
+const answerBucketQuery = (pathname, body, response) => {
   const { answers, refusal } = state.buckets;
   const [, bucketId] = BUCKET_QUERY_PATH.exec(pathname);
   const answer = answers[decodeURIComponent(bucketId)];
@@ -358,20 +448,24 @@ const answerBucketQuery = (pathname, response) => {
     });
   }
 
+  if (queryRequestSchema.validate(body).error) {
+    return send(response, BAD_REQUEST, { reason: "INVALID_REQUEST" });
+  }
+
   return answer
     ? send(response, OK, answer)
     : send(response, NOT_FOUND, { reason: "UNKNOWN_BUCKET" });
 };
 
-const answerBuckets = (pathname, buckets, response) =>
+const answerBuckets = (pathname, { body }, buckets, response) =>
   pathname === BUCKETS_PATH
     ? send(response, OK, { buckets: buckets.entries })
-    : answerBucketQuery(pathname, response);
+    : answerBucketQuery(pathname, body, response);
 
 // GET /actuators/buckets, POST /actuators/buckets/{bucketId}/query and
 // POST /actuators/timeline.
 const handleBuckets = async (pathname, request, response) => {
-  await record("buckets", request);
+  const recorded = await record("buckets", request);
 
   if (!isAuthorised(request)) {
     return send(response, UNAUTHORIZED, { message: "bad token" });
@@ -389,7 +483,7 @@ const handleBuckets = async (pathname, request, response) => {
 
   return pathname === TIMELINE_PATH
     ? send(response, OK, buckets.timeline)
-    : answerBuckets(pathname, buckets, response);
+    : answerBuckets(pathname, recorded, buckets, response);
 };
 
 const isBucketPath = (pathname) =>
@@ -417,6 +511,10 @@ const route = async (request, response) => {
 
   if (CASE_PATH.test(pathname)) {
     return handleCases(pathname, request, response);
+  }
+
+  if (WORKFLOW_PATH.test(pathname)) {
+    return handleWorkflows(pathname, request, response);
   }
 
   if (EVENT_PATH.test(pathname)) {

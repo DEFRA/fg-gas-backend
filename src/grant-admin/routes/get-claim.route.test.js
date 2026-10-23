@@ -12,7 +12,7 @@ import {
 import { listEntitlementsWithClaimCapacity } from "../../grants/services/claims.service.js";
 import {
   getEntitlementCreationDetails,
-  getEntitlementOverview,
+  getApplicationClaimsOverview,
 } from "../../grants/services/entitlement.service.js";
 import { prefetchOperatorRoles } from "../services/operator-roles.js";
 import { getClaimRoute } from "./get-claim.route.js";
@@ -100,11 +100,12 @@ describe("getClaimRoute", () => {
   // and reaching into Payments to price them - would be work thrown away on
   // every form load and every validation error.
   it("reads neither the submitted Claims nor their Payments", async () => {
-    getEntitlementOverview.mockResolvedValue({
+    getApplicationClaimsOverview.mockResolvedValue({
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [template],
       claimsRequiredRoles: null,
+      access: "full",
     });
     getEntitlementCreationDetails.mockResolvedValue(template);
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
@@ -123,11 +124,12 @@ describe("getClaimRoute", () => {
     const clientRef = "ref-1234";
     const claimCode = template.claimCode;
 
-    getEntitlementOverview.mockResolvedValue({
+    getApplicationClaimsOverview.mockResolvedValue({
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [template],
       claimsRequiredRoles: null,
+      access: "full",
     });
     getEntitlementCreationDetails.mockResolvedValue(template);
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
@@ -138,14 +140,16 @@ describe("getClaimRoute", () => {
     });
 
     expect(result.statusCode).toEqual(200);
-    expect(getEntitlementOverview).toHaveBeenCalledWith({
+    expect(getApplicationClaimsOverview).toHaveBeenCalledWith({
       code,
       clientRef,
+      findHeldRoles,
     });
     expect(getEntitlementCreationDetails).toHaveBeenCalledWith({
       code,
       clientRef,
       claimCode,
+      findHeldRoles,
     });
     expect(listEntitlementsWithClaimCapacity).toHaveBeenCalledWith({
       code,
@@ -162,11 +166,12 @@ describe("getClaimRoute", () => {
   });
 
   it("returns 409 when the claim code already has an entitlement", async () => {
-    getEntitlementOverview.mockResolvedValue({
+    getApplicationClaimsOverview.mockResolvedValue({
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
       claimsRequiredRoles: null,
+      access: "full",
     });
     getEntitlementCreationDetails.mockRejectedValue(
       Boom.conflict("already exists"),
@@ -182,11 +187,12 @@ describe("getClaimRoute", () => {
   });
 
   it("returns 404 when the claim code is not available", async () => {
-    getEntitlementOverview.mockResolvedValue({
+    getApplicationClaimsOverview.mockResolvedValue({
       claimsPage: { details: { banner } },
       applicationContext: {},
       creationOptions: [],
       claimsRequiredRoles: null,
+      access: "full",
     });
     getEntitlementCreationDetails.mockRejectedValue(
       Boom.notFound("not available"),
@@ -201,55 +207,48 @@ describe("getClaimRoute", () => {
     expect(result.statusCode).toEqual(404);
   });
 
+  // Which roles may see the claims page, and which may also create from it, is
+  // Grants' to decide; the route only hands over the lookup and passes on the
+  // outcome.
   describe("access by claims roles", () => {
-    const withClaimsRoles = (claimsRequiredRoles) => {
-      getEntitlementOverview.mockResolvedValue({
-        claimsPage: { details: { banner } },
-        applicationContext: {},
-        creationOptions: [template],
-        claimsRequiredRoles,
-      });
-      getEntitlementCreationDetails.mockResolvedValue(template);
-      listEntitlementsWithClaimCapacity.mockResolvedValue([]);
-    };
-
     const get = () =>
       server.inject({
         method: "GET",
         url: url("grant-1", "ref-1234", template.claimCode),
       });
 
-    it("does not ask Caseworking when the grant configures none", async () => {
-      withClaimsRoles(null);
-
-      expect((await get()).statusCode).toEqual(200);
-      expect(findHeldRoles).not.toHaveBeenCalled();
+    beforeEach(() => {
+      getApplicationClaimsOverview.mockResolvedValue({
+        claimsPage: { details: { banner } },
+        applicationContext: {},
+        creationOptions: [template],
+        claimsRequiredRoles: CLAIMS_ROLES,
+        access: "full",
+      });
+      getEntitlementCreationDetails.mockResolvedValue(template);
+      listEntitlementsWithClaimCapacity.mockResolvedValue([]);
     });
 
-    it("answers an operator holding them", async () => {
-      withClaimsRoles(CLAIMS_ROLES);
-      findHeldRoles.mockResolvedValue(["ROLE_WMP_CLAIMS"]);
-
+    it("answers the access Grants decided, with the roles it was decided on", async () => {
       const result = await get();
 
       expect(result.statusCode).toEqual(200);
       expect(result.result.access).toEqual("full");
-      expect(findHeldRoles).toHaveBeenCalledTimes(1);
+      expect(result.result.claimsRequiredRoles).toEqual(CLAIMS_ROLES);
+      expect(findHeldRoles).not.toHaveBeenCalled();
     });
 
     it.each([
-      ["other roles", ["ROLE_OTHER"]],
-      ["no roles", []],
-    ])("refuses an operator with %s with a 403", async (_, roles) => {
-      withClaimsRoles(CLAIMS_ROLES);
-      findHeldRoles.mockResolvedValue(roles);
+      ["the overview", getApplicationClaimsOverview],
+      ["the creation details", getEntitlementCreationDetails],
+    ])("passes on %s refusing the operator with a 403", async (_, read) => {
+      read.mockRejectedValue(Boom.forbidden());
 
       expect((await get()).statusCode).toEqual(403);
     });
 
-    it("answers 503 when Caseworking cannot say which roles the operator holds", async () => {
-      withClaimsRoles(CLAIMS_ROLES);
-      findHeldRoles.mockRejectedValue(Boom.serverUnavailable());
+    it("passes on a failure to determine the operator's roles with a 503", async () => {
+      getEntitlementCreationDetails.mockRejectedValue(Boom.serverUnavailable());
 
       expect((await get()).statusCode).toEqual(503);
     });

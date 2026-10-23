@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { toConfigLink } from "../../events/case-refs.js";
 import {
   MAX_GROUPINGS,
+  MAX_LINK_LENGTH,
   MAX_PAGE_SIZE,
   PAGE_SIZE,
   TIMELINE_LIMIT,
@@ -71,6 +73,7 @@ const entry = () => ({
       label: "Status",
       values: [{ value: "PUBLISHED", label: "Queued", tone: "neutral" }],
       toggle: null,
+      within: null,
     },
     {
       name: "source",
@@ -78,6 +81,7 @@ const entry = () => ({
       label: "Source",
       values: [{ value: "AS", label: "Agreement service" }],
       toggle: null,
+      within: null,
     },
     {
       name: "grantCode",
@@ -85,6 +89,7 @@ const entry = () => ({
       label: "Grant",
       values: null,
       toggle: null,
+      within: null,
     },
   ],
   refs: [{ kind: "ref", label: "Reference" }],
@@ -136,6 +141,20 @@ describe("queryRequestSchema", () => {
   });
 
   it.each([
+    [
+      "of a 64-character workflow code's link",
+      toConfigLink("W".repeat(64), "1.0.0"),
+    ],
+    [
+      "of the longest config link a workflow route admits",
+      toConfigLink("W".repeat(128), `${"9".repeat(60)}.0.0`),
+    ],
+    ["as long as any link", "x".repeat(MAX_LINK_LENGTH)],
+  ])("accepts a ref %s", (_, ref) => {
+    expect(queryRequestSchema.validate({ ref }).error).toBeUndefined();
+  });
+
+  it.each([
     ["an unknown key", { q: "text" }],
     ["a prefix search", { prefix: "abc" }],
     ["an empty filter value", { where: { status: "" } }],
@@ -149,7 +168,7 @@ describe("queryRequestSchema", () => {
         where: Object.fromEntries([..."abcdefghi"].map((name) => [name, "x"])),
       },
     ],
-    ["a ref over 256 characters", { ref: "x".repeat(257) }],
+    ["a ref longer than any link", { ref: "x".repeat(MAX_LINK_LENGTH + 1) }],
     ["a from that is not a date", { from: "yesterday" }],
     ["a to that is not a date", { to: "tomorrow" }],
     ["a cursor over 512 characters", { cursor: "x".repeat(513) }],
@@ -265,6 +284,27 @@ describe("catalogueEntrySchema", () => {
     expect(Boolean(catalogueEntrySchema.validate(toggled).error)).toBe(refused);
   });
 
+  it.each([
+    ["grantCode", false],
+    [null, false],
+    [1, true],
+  ])("a fact within %j: refused is %s", (within, refused) => {
+    const [status, ...facts] = entry().facts;
+    const nested = { ...entry(), facts: [{ ...status, within }, ...facts] };
+
+    expect(Boolean(catalogueEntrySchema.validate(nested).error)).toBe(refused);
+  });
+
+  it("accepts a fact that does not say what it is within, as a service from before within sends", () => {
+    const [status, ...facts] = entry().facts;
+    const { within: _, ...older } = status;
+
+    expect(
+      catalogueEntrySchema.validate({ ...entry(), facts: [older, ...facts] })
+        .error,
+    ).toBeUndefined();
+  });
+
   it("accepts a value marked hidden", () => {
     const [status, ...facts] = entry().facts;
     const hiding = {
@@ -280,6 +320,23 @@ describe("catalogueEntrySchema", () => {
     };
 
     expect(catalogueEntrySchema.validate(hiding).error).toBeUndefined();
+  });
+
+  it.each([
+    ["Not needed yet.", false],
+    ["", true],
+    [1, true],
+  ])("a value with the hint %j: refused is %s", (hint, refused) => {
+    const [status, ...facts] = entry().facts;
+    const hinted = {
+      ...entry(),
+      facts: [
+        { ...status, values: [{ value: "A", label: "A", hint }] },
+        ...facts,
+      ],
+    };
+
+    expect(Boolean(catalogueEntrySchema.validate(hinted).error)).toBe(refused);
   });
 
   it("refuses a tone it does not know", () => {

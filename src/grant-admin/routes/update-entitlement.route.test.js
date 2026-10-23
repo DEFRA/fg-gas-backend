@@ -9,10 +9,8 @@ import {
   it,
   vi,
 } from "vitest";
-import {
-  getEntitlementOverview,
-  updateEntitlement,
-} from "../../grants/services/entitlement.service.js";
+import { logger } from "../../common/logger.js";
+import { updateEntitlement } from "../../grants/services/entitlement.service.js";
 import { prefetchOperatorRoles } from "../services/operator-roles.js";
 import { updateEntitlementRoute } from "./update-entitlement.route.js";
 
@@ -36,8 +34,6 @@ vi.mock("../../common/logger.js", () => ({
 const url =
   "/grant-admin/grants/grant-1/applications/ref-1234/claims/entitlements/entitlement-1";
 
-const CLAIMS_ROLES = { allOf: ["ROLE_WMP_CLAIMS"], anyOf: [] };
-
 const payload = { data: { totalHectares: { value: 125000 } } };
 
 describe("updateEntitlementRoute", () => {
@@ -51,7 +47,6 @@ describe("updateEntitlementRoute", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    getEntitlementOverview.mockResolvedValue({ claimsRequiredRoles: null });
     updateEntitlement.mockResolvedValue({ id: "entitlement-1" });
   });
 
@@ -63,13 +58,16 @@ describe("updateEntitlementRoute", () => {
     const result = await server.inject({ method: "PUT", url, payload });
 
     expect(result.statusCode).toEqual(200);
-    expect(updateEntitlement).toHaveBeenCalledWith({
-      code: "grant-1",
-      clientRef: "ref-1234",
-      entitlementId: "entitlement-1",
-      data: payload.data,
-      actor: null,
-    });
+    expect(updateEntitlement).toHaveBeenCalledWith(
+      {
+        code: "grant-1",
+        clientRef: "ref-1234",
+        entitlementId: "entitlement-1",
+        data: payload.data,
+        actor: null,
+      },
+      findHeldRoles,
+    );
     expect(result.result).toEqual({ id: "entitlement-1" });
   });
 
@@ -83,6 +81,7 @@ describe("updateEntitlementRoute", () => {
 
     expect(updateEntitlement).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "Ada Lovelace" }),
+      findHeldRoles,
     );
   });
 
@@ -117,45 +116,34 @@ describe("updateEntitlementRoute", () => {
     expect(result.statusCode).toEqual(409);
   });
 
+  // Which roles may update is Grants' to decide, against the grant the
+  // entitlement belongs to; the route only hands over the lookup and passes on
+  // the outcome.
   describe("access by claims roles", () => {
     const send = () => server.inject({ method: "PUT", url, payload });
 
-    it("does not ask Caseworking when the grant configures none", async () => {
+    it("hands Grants the operator's roles lookup without asking for the roles itself", async () => {
       expect((await send()).statusCode).toEqual(200);
+      expect(updateEntitlement).toHaveBeenCalledExactlyOnceWith(
+        expect.any(Object),
+        findHeldRoles,
+      );
       expect(findHeldRoles).not.toHaveBeenCalled();
     });
 
-    it("lets an operator holding them through", async () => {
-      getEntitlementOverview.mockResolvedValue({
-        claimsRequiredRoles: CLAIMS_ROLES,
-      });
-      findHeldRoles.mockResolvedValue(["ROLE_WMP_CLAIMS"]);
-
-      expect((await send()).statusCode).toEqual(200);
-      expect(findHeldRoles).toHaveBeenCalledTimes(1);
-    });
-
-    it.each([
-      ["other roles", ["ROLE_OTHER"]],
-      ["no roles", []],
-    ])("refuses an operator with %s with a 403", async (_, roles) => {
-      getEntitlementOverview.mockResolvedValue({
-        claimsRequiredRoles: CLAIMS_ROLES,
-      });
-      findHeldRoles.mockResolvedValue(roles);
+    it("passes on Grants' refusal with a 403", async () => {
+      updateEntitlement.mockRejectedValue(Boom.forbidden());
 
       expect((await send()).statusCode).toEqual(403);
-      expect(updateEntitlement).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        "Update entitlement requested for entitlement-1 for application with code grant-1 and clientRef ref-1234",
+      );
     });
 
-    it("answers 503 when Caseworking cannot say which roles the operator holds", async () => {
-      getEntitlementOverview.mockResolvedValue({
-        claimsRequiredRoles: CLAIMS_ROLES,
-      });
-      findHeldRoles.mockRejectedValue(Boom.serverUnavailable());
+    it("passes on a failure to determine the operator's roles with a 503", async () => {
+      updateEntitlement.mockRejectedValue(Boom.serverUnavailable());
 
       expect((await send()).statusCode).toEqual(503);
-      expect(updateEntitlement).not.toHaveBeenCalled();
     });
   });
 });

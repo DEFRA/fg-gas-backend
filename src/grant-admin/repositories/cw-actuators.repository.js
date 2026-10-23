@@ -2,11 +2,12 @@ import Boom from "@hapi/boom";
 import Joi from "joi";
 import { REFUSAL_REASONS, refuse } from "../../common/buckets/refusal.js";
 import {
+  TIMELINE_LIMIT,
   catalogueEntrySchema,
+  queryResponseSchema,
   summaryResponseSchema,
   timelineResponseSchema,
 } from "../../common/buckets/schema.js";
-import { wreck } from "../../common/wreck.js";
 import {
   EDITABLE_DESCRIPTION,
   EDIT_REFUSAL_REASONS,
@@ -19,42 +20,22 @@ import { eventStatusValues } from "../../events/event-status-values.js";
 import {
   CLIENT_TIMEOUT,
   GATEWAY_TIMEOUT,
-  cwUrl,
+  NOT_FOUND,
+  PAYLOAD_TOO_LARGE,
+  bodyOf,
+  cwRequest,
   describeError,
-  isCwConfigured,
-  requestOptions,
-  statusOf,
+  operatorHeaders,
+  withDocumentRetry,
 } from "./cw-http.js";
-
-export { describeError, isCwConfigured };
 
 const EVENT_STATUSES = new Set(eventStatusValues.map(({ value }) => value));
 
 // Detail and redrive have no partial mode, so these catch and translate.
 
-const NOT_FOUND = 404;
 const CONFLICT = 409;
 const PRECONDITION_FAILED = 412;
 const UNPROCESSABLE = 422;
-
-const parseJson = (raw) => {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-};
-
-const isRaw = (payload) =>
-  Buffer.isBuffer(payload) || typeof payload === "string";
-
-const payloadOf = (error) => error?.data?.payload;
-
-const bodyOf = (error) => {
-  const payload = payloadOf(error);
-
-  return isRaw(payload) ? parseJson(payload.toString()) : payload;
-};
 
 // The only values ever read from a CW error body: a known status here, and a
 // known refusal reason below.
@@ -102,57 +83,13 @@ const stale = (_, label) =>
 const timedOut = (_, label) =>
   Boom.gatewayTimeout(`CW-BE did not answer in time for ${label}`);
 
-const FAILURES = {
+const EVENT_FAILURES = {
   [NOT_FOUND]: notFound,
   [CONFLICT]: toConflict,
   [PRECONDITION_FAILED]: stale,
   [UNPROCESSABLE]: toRefusal,
   [GATEWAY_TIMEOUT]: timedOut,
   [CLIENT_TIMEOUT]: timedOut,
-};
-
-const unavailable = (error) =>
-  Boom.badGateway(`CW-BE is unavailable: ${describeError(error)}`);
-
-const toFailure = (error, label, expected, failures) =>
-  (failures[statusOf(error)] ?? failures.otherwise ?? unavailable)(
-    error,
-    label,
-    expected,
-  );
-
-const assertCwConfigured = () => {
-  if (!isCwConfigured()) {
-    throw Boom.badGateway("CW-BE is not configured");
-  }
-};
-
-// `wreck` serialises an object payload as JSON and sets the content type.
-const optionsWith = (body, options) =>
-  body === undefined
-    ? requestOptions(options)
-    : { ...requestOptions(options), payload: body };
-
-// `expected` is what Caseworking's 409 says the row was not, and it differs
-// per route.
-const cwRequest = async (
-  method,
-  path,
-  label,
-  { body, expected, failures = FAILURES, ...options } = {},
-) => {
-  assertCwConfigured();
-
-  try {
-    const { payload } = await wreck[method](
-      cwUrl(path),
-      optionsWith(body, options),
-    );
-
-    return payload;
-  } catch (error) {
-    throw toFailure(error, label, expected, failures);
-  }
 };
 
 const eventPath = (box, id) =>
@@ -164,6 +101,7 @@ const labelFor = (box, id) => `${box} event "${id}"`;
 export const findCwEvent = (box, id) =>
   cwRequest("get", eventPath(box, id), labelFor(box, id), {
     expected: DEAD_LETTER,
+    failures: EVENT_FAILURES,
   });
 
 const withActor = (path, by) =>
@@ -174,7 +112,7 @@ export const redriveCwEvent = (box, id, { by } = {}) =>
     "post",
     withActor(`${eventPath(box, id)}/redrive`, by),
     labelFor(box, id),
-    { expected: REDRIVABLE_DESCRIPTION },
+    { expected: REDRIVABLE_DESCRIPTION, failures: EVENT_FAILURES },
   );
 
 // The key is left out rather than sent null: Caseworking's schema stores null
@@ -190,7 +128,11 @@ export const purgeCwEvent = (box, id, { by, reasonCode, note }) =>
     "post",
     `${eventPath(box, id)}/purge?by=${encodeURIComponent(by)}`,
     labelFor(box, id),
-    { body: purgeBody(reasonCode, note), expected: DEAD_LETTER },
+    {
+      body: purgeBody(reasonCode, note),
+      expected: DEAD_LETTER,
+      failures: EVENT_FAILURES,
+    },
   );
 
 // Named on the query string as purge's is: Caseworking audits the edit
@@ -200,12 +142,15 @@ export const editCwPayload = (box, id, { by, payload, note, revision }) =>
     "post",
     `${eventPath(box, id)}/payload?by=${encodeURIComponent(by)}`,
     labelFor(box, id),
-    { body: { payload, note, revision }, expected: EDITABLE_DESCRIPTION },
+    {
+      body: { payload, note, revision },
+      expected: EDITABLE_DESCRIPTION,
+      failures: EVENT_FAILURES,
+    },
   );
 
 export const CASE_NOT_FOUND = "CASE_NOT_FOUND";
 
-const PAYLOAD_TOO_LARGE = 413;
 const CASE_MAX_BYTES = 4 * 1024 * 1024;
 const CASES_LABEL = "cases";
 
@@ -239,12 +184,6 @@ const CASE_FAILURES = {
   [CLIENT_TIMEOUT]: caseTimedOut,
   otherwise: caseUnavailable,
 };
-
-// `actor` is sent as the admin encoded it; Caseworking decodes it.
-const operatorHeaders = ({ actor, repeat }) => ({
-  ...(actor ? { "x-actor": actor } : {}),
-  ...(repeat ? { "x-search-repeat": "1" } : {}),
-});
 
 const caseRequestOptions = ({ actor } = {}) => ({
   failures: CASE_FAILURES,
@@ -297,22 +236,7 @@ const readCase = async (ref, { include, actor }) => {
   };
 };
 
-const isDocumentTooLarge = (include, error) =>
-  Boolean(include) && statusOf(error) === PAYLOAD_TOO_LARGE;
-
-// A document over the read limit is read again without it, so the page still
-// shows the case and says the document is too large.
-export const findCwCase = async (ref, { include, actor }) => {
-  try {
-    return await readCase(ref, { include, actor });
-  } catch (error) {
-    if (!isDocumentTooLarge(include, error)) {
-      throw error;
-    }
-
-    return { ...(await readCase(ref, { actor })), tooLarge: true };
-  }
-};
+export const findCwCase = withDocumentRetry(readCase);
 
 // Only yes or no, so it names no `x-actor` and Caseworking writes no audit.
 export const findCwCaseExistence = (ref) =>
@@ -395,11 +319,11 @@ export const queryCwBucket = async (bucketId, body, options = {}) =>
     { ...bucketRequestOptions(options), body },
   );
 
-const toCwSummary = (payload) => {
-  const { error, value } = summaryResponseSchema.validate(payload);
+const readBucketAnswer = (schema, payload, what) => {
+  const { error, value } = schema.validate(payload);
 
   if (error) {
-    throw Boom.badGateway("CW-BE answered a summary that cannot be read");
+    throw Boom.badGateway(`CW-BE answered ${what} that cannot be read`);
   }
 
   return value;
@@ -411,30 +335,38 @@ export const summariseCwBucket = async (
   body,
   options = {},
 ) =>
-  toCwSummary(
+  readBucketAnswer(
+    summaryResponseSchema,
     await cwRequest(
       "post",
       `/actuators/buckets/${encodeURIComponent(bucketId)}/summaries/${encodeURIComponent(summaryId)}`,
       BUCKETS_LABEL,
       { ...bucketRequestOptions(options), body },
     ),
+    "a summary",
   );
-
-const toCwTimeline = (payload) => {
-  const { error, value } = timelineResponseSchema.validate(payload);
-
-  if (error) {
-    throw Boom.badGateway("CW-BE answered a timeline that cannot be read");
-  }
-
-  return value;
-};
 
 // A case's events, from Caseworking's own timeline buckets in one call.
 export const readCwTimeline = async (ref, options = {}) =>
-  toCwTimeline(
+  readBucketAnswer(
+    timelineResponseSchema,
     await cwRequest("post", "/actuators/timeline", BUCKETS_LABEL, {
       ...bucketRequestOptions(options),
       body: { ref },
     }),
+    "a timeline",
+  );
+
+const toCwBucketTimeline = ({ bucket, rows, page }) => ({
+  buckets: [{ id: bucket, label: "CW-BE", rows, more: page.next !== null }],
+});
+
+// One Caseworking bucket's rows for a ref, in the shape readCwTimeline answers.
+export const readCwBucketTimeline = async (bucketId, ref, options = {}) =>
+  toCwBucketTimeline(
+    readBucketAnswer(
+      queryResponseSchema,
+      await queryCwBucket(bucketId, { ref, limit: TIMELINE_LIMIT }, options),
+      "a bucket page",
+    ),
   );

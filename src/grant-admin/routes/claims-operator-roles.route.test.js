@@ -16,7 +16,7 @@ import {
 } from "../../grants/services/claims.service.js";
 import {
   createEntitlement,
-  getEntitlementOverview,
+  getApplicationClaimsOverview,
 } from "../../grants/services/entitlement.service.js";
 import { listClaimPaymentsUseCase } from "../../payments/use-cases/list-claim-payments.use-case.js";
 import { findCwUserRoles } from "../repositories/cw-users.repository.js";
@@ -31,19 +31,19 @@ vi.mock("../../payments/use-cases/list-claim-payments.use-case.js");
 vi.mock("../repositories/cw-users.repository.js");
 
 const ACTOR_ID = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d";
-const CLAIMS_ROLES = { allOf: ["ROLE_WMP_CLAIMS"], anyOf: [] };
 const CLAIMS_URL =
   "/grant-admin/grants/woodland/applications/wmp-abc-123/claims";
 const ENTITLEMENTS_URL = `${CLAIMS_URL}/entitlements`;
 
-const overview = (claimsRequiredRoles) => ({
+const overview = {
   claimsPage: {
     details: { banner: { title: { text: "Elmwood Land Co", type: "string" } } },
   },
   applicationContext: {},
   creationOptions: [],
-  claimsRequiredRoles,
-});
+  claimsRequiredRoles: null,
+  access: "full",
+};
 
 const createPayload = {
   clientRef: "wmp-abc-123",
@@ -75,6 +75,23 @@ const deferred = () => {
   return { promise, resolve: release };
 };
 
+// Grants decides what the roles allow and asks for them only when the grant
+// requires some. Here the services stand in for that: a service that asks
+// calls the lookup it was handed.
+const readAsking =
+  (answer) =>
+  async ({ findHeldRoles }) => {
+    await findHeldRoles();
+
+    return answer;
+  };
+
+const commandAsking = (answer) => async (_command, findHeldRoles) => {
+  await findHeldRoles();
+
+  return answer;
+};
+
 describe("claims routes ask Caseworking for the operator's roles", () => {
   let server;
 
@@ -90,60 +107,82 @@ describe("claims routes ask Caseworking for the operator's roles", () => {
   });
 
   beforeEach(() => {
-    getEntitlementOverview.mockResolvedValue(overview(CLAIMS_ROLES));
+    getApplicationClaimsOverview.mockImplementation(readAsking(overview));
     listEntitlementsWithClaimCapacity.mockResolvedValue([]);
     listSubmittedClaims.mockResolvedValue([]);
     listClaimPaymentsUseCase.mockResolvedValue(new Set());
-    createEntitlement.mockResolvedValue({ id: "entitlement-1" });
+    createEntitlement.mockImplementation(
+      commandAsking({ id: "entitlement-1" }),
+    );
     findCwUserRoles.mockResolvedValue({ roles: ["ROLE_WMP_CLAIMS"] });
   });
 
   const getClaims = (headers = { "x-actor-id": ACTOR_ID }) =>
     server.inject({ method: "GET", url: CLAIMS_URL, headers });
 
+  const createOne = () =>
+    server.inject({
+      method: "POST",
+      url: ENTITLEMENTS_URL,
+      headers: { "x-actor-id": ACTOR_ID },
+      payload: createPayload,
+    });
+
   it("looks up the operator named by x-actor-id", async () => {
     const response = await getClaims();
 
     expect(response.statusCode).toBe(200);
-    expect(response.result.access).toBe("full");
     expect(findCwUserRoles).toHaveBeenCalledExactlyOnceWith(ACTOR_ID);
   });
 
-  it("refuses a restricted grant without asking Caseworking when no operator is named", async () => {
+  it("answers no roles, without asking Caseworking, when no operator is named", async () => {
+    let held;
+    getApplicationClaimsOverview.mockImplementation(
+      async ({ findHeldRoles }) => {
+        held = await findHeldRoles();
+
+        return overview;
+      },
+    );
+
     const response = await getClaims({});
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(200);
+    expect(held).toEqual([]);
     expect(findCwUserRoles).not.toHaveBeenCalled();
   });
 
   it.each([
-    ["the claims read", () => getClaims()],
-    [
-      "an entitlement creation",
-      () =>
-        server.inject({
-          method: "POST",
-          url: ENTITLEMENTS_URL,
-          headers: { "x-actor-id": ACTOR_ID },
-          payload: createPayload,
-        }),
-    ],
+    ["the claims read", getApplicationClaimsOverview, getClaims],
+    ["an entitlement creation", createEntitlement, createOne],
   ])(
     "asks Caseworking while %s is still reading the grant",
-    async (_, send) => {
+    async (_, service, send) => {
       const read = deferred();
-      getEntitlementOverview.mockReturnValue(read.promise);
+      service.mockReturnValue(read.promise);
 
       const response = send();
-      await vi.waitFor(() => expect(getEntitlementOverview).toHaveBeenCalled());
+      await vi.waitFor(() => expect(service).toHaveBeenCalled());
 
       expect(findCwUserRoles).toHaveBeenCalledWith(ACTOR_ID);
 
-      read.resolve(overview(CLAIMS_ROLES));
+      read.resolve(service === createEntitlement ? { id: "e" } : overview);
       expect((await response).statusCode).toBeLessThan(300);
       expect(findCwUserRoles).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("asks Caseworking once however often Grants asks for the roles", async () => {
+    createEntitlement.mockImplementation(async (_command, findHeldRoles) => {
+      await findHeldRoles();
+      await findHeldRoles();
+
+      return { id: "entitlement-1" };
+    });
+
+    expect((await createOne()).statusCode).toBe(201);
+    expect(findCwUserRoles).toHaveBeenCalledTimes(1);
+  });
 
   it("answers 503 with an errorCode when Caseworking cannot say", async () => {
     findCwUserRoles.mockResolvedValue({
@@ -160,8 +199,8 @@ describe("claims routes ask Caseworking for the operator's roles", () => {
     );
   });
 
-  it("neither needs nor warns about Caseworking for an unrestricted grant", async () => {
-    getEntitlementOverview.mockResolvedValue(overview(null));
+  it("neither needs nor warns about Caseworking when Grants does not ask for the roles", async () => {
+    getApplicationClaimsOverview.mockResolvedValue(overview);
     findCwUserRoles.mockResolvedValue({
       roles: null,
       failure: "Caseworking is not configured",

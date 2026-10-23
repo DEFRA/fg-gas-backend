@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withWorstFetchStatus } from "../../common/config-broker/config-catalog.repository.js";
 import { ConfigVersion, FetchStatus } from "../models/config-version.js";
 import {
   findByGrantCodeAndVersion,
   findLatestForMajor,
   findLatestActive,
+  findVersionDocument,
+  findVersionsByGrantCode,
   updateFetchStatus,
   upsert,
 } from "./config-version.repository.js";
@@ -11,6 +14,7 @@ import {
 const mockCollection = {
   updateOne: vi.fn(),
   findOne: vi.fn(),
+  find: vi.fn(),
 };
 
 vi.mock("../../common/mongo-client.js", () => ({
@@ -68,6 +72,7 @@ describe("config-version.repository", () => {
               }),
             }),
           },
+          withWorstFetchStatus,
         ],
         { upsert: true },
       );
@@ -230,15 +235,18 @@ describe("config-version.repository", () => {
 
       expect(mockCollection.updateOne).toHaveBeenCalledWith(
         { grantCode: "woodland", version: "1.2.3" },
-        {
-          $set: expect.objectContaining({
-            "definitions.grant.fetchStatus": FetchStatus.TransientError,
-            "definitions.grant.fetchError": "S3 timeout",
-          }),
-          $inc: {
-            "definitions.grant.fetchAttempts": 1,
+        [
+          {
+            $set: expect.objectContaining({
+              "definitions.grant.fetchStatus": FetchStatus.TransientError,
+              "definitions.grant.fetchError": { $literal: "S3 timeout" },
+              "definitions.grant.fetchAttempts": {
+                $add: [{ $ifNull: ["$definitions.grant.fetchAttempts", 0] }, 1],
+              },
+            }),
           },
-        },
+          withWorstFetchStatus,
+        ],
       );
     });
 
@@ -249,14 +257,16 @@ describe("config-version.repository", () => {
 
       expect(mockCollection.updateOne).toHaveBeenCalledWith(
         { grantCode: "woodland", version: "1.2.3" },
-        {
-          $set: expect.objectContaining({
-            "definitions.grant.fetchStatus": FetchStatus.Fetched,
-            "definitions.grant.fetchedAt": expect.any(String),
-          }),
-        },
+        [
+          {
+            $set: expect.objectContaining({
+              "definitions.grant.fetchStatus": FetchStatus.Fetched,
+              "definitions.grant.fetchedAt": expect.any(String),
+            }),
+          },
+          withWorstFetchStatus,
+        ],
       );
-      expect(mockCollection.updateOne.mock.calls[0][1].$inc).toBeUndefined();
     });
 
     it("clears only the nested attempt counter on success", async () => {
@@ -264,10 +274,10 @@ describe("config-version.repository", () => {
 
       await updateFetchStatus("woodland", "1.2.3", FetchStatus.Fetched);
 
-      const [, update] = mockCollection.updateOne.mock.calls[0];
-      expect(update.$set["definitions.grant.fetchAttempts"]).toBe(0);
-      expect(update.$set.fetchAttempts).toBeUndefined();
-      expect(update.$set.fetchStatus).toBeUndefined();
+      const [, [{ $set }]] = mockCollection.updateOne.mock.calls[0];
+      expect($set["definitions.grant.fetchAttempts"]).toBe(0);
+      expect($set.fetchAttempts).toBeUndefined();
+      expect($set.fetchStatus).toBeUndefined();
     });
   });
 
@@ -306,6 +316,66 @@ describe("config-version.repository", () => {
 
       const result = await findByGrantCodeAndVersion("woodland", "9.9.9");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("findVersionsByGrantCode", () => {
+    it("answers each version with its fetch state, newest version first", async () => {
+      const rows = [
+        {
+          version: "2.0.0",
+          status: "draft",
+          receivedAt: "2026-10-15T10:04:00.000Z",
+        },
+        {
+          version: "1.2.0",
+          status: "active",
+          receivedAt: "2026-10-10T16:25:00.000Z",
+        },
+      ];
+      mockCollection.find.mockReturnValue({ toArray: async () => rows });
+
+      expect(await findVersionsByGrantCode("woodland")).toEqual(rows);
+      expect(mockCollection.find).toHaveBeenCalledWith(
+        { grantCode: "woodland" },
+        expect.objectContaining({
+          sort: { major: -1, minor: -1, patch: -1 },
+          projection: {
+            _id: 0,
+            grantCode: 1,
+            version: 1,
+            status: 1,
+            receivedAt: 1,
+            s3Bucket: 1,
+            worstFetchStatus: 1,
+            definitions: 1,
+          },
+        }),
+      );
+    });
+
+    it("answers only the versions named", async () => {
+      mockCollection.find.mockReturnValue({ toArray: async () => [] });
+
+      await findVersionsByGrantCode("woodland", ["2.0.0"]);
+
+      expect(mockCollection.find).toHaveBeenCalledWith(
+        { grantCode: "woodland", version: { $in: ["2.0.0"] } },
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe("findVersionDocument", () => {
+    it("answers the row as stored, without building a ConfigVersion", async () => {
+      const row = { grantCode: "woodland", version: "2.0.0", definitions: {} };
+      mockCollection.findOne.mockResolvedValue(row);
+
+      expect(await findVersionDocument("woodland", "2.0.0")).toBe(row);
+      expect(mockCollection.findOne).toHaveBeenCalledWith(
+        { grantCode: "woodland", version: "2.0.0" },
+        expect.any(Object),
+      );
     });
   });
 });

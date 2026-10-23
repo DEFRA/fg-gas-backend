@@ -3,6 +3,10 @@ import { up } from "migrate-mongo";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AGREEMENT_STATUS_UPDATED_EVENT_TYPE } from "../agreements/events/agreement-status-updated.event.js";
 import { clearBuckets, findBucket } from "../common/buckets/registry.js";
+import {
+  clearDefinitionStores,
+  storedDefinitionVersions,
+} from "../common/config-broker/definition-stores.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
 import {
@@ -16,6 +20,7 @@ import {
 import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
 import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import { grants } from "./index.js";
+import { findStoredVersions } from "./repositories/grant.repository.js";
 import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
 
 vi.mock("../common/logger.js");
@@ -25,6 +30,7 @@ vi.mock("migrate-mongo");
 vi.mock("./handlers/handle-grant-status-message.js");
 vi.mock("./handlers/handle-config-version-message.js");
 vi.mock("./subscribers/config-version-updated.subscriber.js");
+vi.mock("./repositories/grant.repository.js");
 
 describe("grants", () => {
   let server;
@@ -35,6 +41,7 @@ describe("grants", () => {
     vi.clearAllMocks();
     clearEventHandlers();
     clearBuckets();
+    clearDefinitionStores();
   });
 
   it("runs migrations on startup", async () => {
@@ -44,9 +51,10 @@ describe("grants", () => {
     expect(up).toHaveBeenCalledWith(db, mongoClient);
   });
 
-  it("registers the applications bucket once the migrations have run", async () => {
+  it("registers the applications and grants buckets once the migrations have run", async () => {
     up.mockImplementation(async () => {
       expect(findBucket("gas.applications")).toBeUndefined();
+      expect(findBucket("gas.grants")).toBeUndefined();
       return [];
     });
 
@@ -55,6 +63,10 @@ describe("grants", () => {
     expect(findBucket("gas.applications")).toMatchObject({
       collection: "applications",
       audited: true,
+    });
+    expect(findBucket("gas.grants")).toMatchObject({
+      collection: "config_versions",
+      audited: false,
     });
   });
 
@@ -122,6 +134,20 @@ describe("grants", () => {
     );
   });
 
+  it("registers the grant definition store's stored-version read", async () => {
+    findStoredVersions.mockResolvedValue(["1.0.1"]);
+    await server.register(grants);
+
+    await expect(
+      storedDefinitionVersions("grant", "woodland", ["1.0.1"], {
+        id: "transaction",
+      }),
+    ).resolves.toEqual(new Set(["1.0.1"]));
+    expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"], {
+      id: "transaction",
+    });
+  });
+
   it("registers routes", async () => {
     await server.register(grants);
     await server.initialize();
@@ -133,7 +159,6 @@ describe("grants", () => {
 
     expect(routePaths).toEqual(
       expect.arrayContaining([
-        { method: "post", path: "/grants" },
         {
           method: "get",
           path: "/api/allow-list/grants/{grantCode}/sbi/{sbi}/crn/{crn}",
@@ -144,7 +169,6 @@ describe("grants", () => {
         },
         { method: "post", path: "/grants/{code}/applications" },
         { method: "post", path: "/grants/{code}/actions/{name}/invoke" },
-        { method: "put", path: "/tmp/grants/{code}" },
         { method: "get", path: "/grants/{code}/actions/{name}/invoke" },
         {
           method: "get",
@@ -160,7 +184,7 @@ describe("grants", () => {
         },
       ]),
     );
-    expect(routePaths).toHaveLength(10);
+    expect(routePaths).toHaveLength(8);
   });
 
   it.each(["/grants", "/grants/woodland"])(

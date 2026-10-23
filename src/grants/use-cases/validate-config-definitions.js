@@ -2,13 +2,13 @@ import { checkAgreementDefinition } from "../../agreements/use-cases/compile-agr
 import { checkDefinition as checkRegisteredDefinition } from "../../common/config-broker/definition-checks.js";
 import { logger } from "../../common/logger.js";
 import { fetchConfigFile } from "../../common/s3-client.js";
-import { Grant } from "../models/grant.js";
+import { checkGrantDefinition } from "./check-grant-definition.js";
 
 // Building each model is the check: every one throws on a definition its context cannot
 // use. Called directly rather than through the loaders, so nothing is cached and no fetch
 // status is written - we are proving a version is usable, not putting it into service.
 const checks = {
-  grant: ({ definition, version }) => Grant.fromDefinition(definition, version),
+  grant: ({ definition, version }) => checkGrantDefinition(definition, version),
   agreement: ({ definition, grantCode, version }) =>
     checkAgreementDefinition(definition, grantCode, version),
   payment: (context) => checkRegisteredDefinition("payment", context),

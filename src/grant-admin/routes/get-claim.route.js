@@ -3,17 +3,14 @@ import { logger } from "../../common/logger.js";
 import { clientRef as applicationClientRef } from "../../common/schemas/client-ref.js";
 import { listEntitlementsWithClaimCapacity } from "../../grants/services/claims.service.js";
 import {
+  getApplicationClaimsOverview,
   getEntitlementCreationDetails,
-  getEntitlementOverview,
 } from "../../grants/services/entitlement.service.js";
 import { code as grantCode } from "../schemas/code.js";
 import { getClaimResponseSchema } from "../schemas/get-claim-response.schema.js";
-import { buildClaimView } from "../services/build-claims-view.js";
-import {
-  assertFullAccess,
-  resolveClaimsAccess,
-} from "../services/claims-access.js";
+import { buildBanner } from "../services/build-banner.js";
 import { prefetchOperatorRoles } from "../services/operator-roles.js";
+import { buildClaimView } from "../view-models/build-claims-view.js";
 
 export const getClaimRoute = {
   method: "GET",
@@ -41,20 +38,19 @@ export const getClaimRoute = {
     const findHeldRoles = prefetchOperatorRoles();
     const [overview, creationDetails, claimableEntitlements] =
       await Promise.all([
-        getEntitlementOverview({ code, clientRef }),
-        getEntitlementCreationDetails({ code, clientRef, claimCode }),
+        getApplicationClaimsOverview({ code, clientRef, findHeldRoles }),
+        getEntitlementCreationDetails({
+          code,
+          clientRef,
+          claimCode,
+          findHeldRoles,
+        }),
         listEntitlementsWithClaimCapacity({ code, clientRef }),
       ]);
 
-    const access = await resolveClaimsAccess(
-      overview.claimsRequiredRoles,
-      findHeldRoles,
-    );
-    assertFullAccess(access);
-
     return buildClaimView({
       ...overview,
-      access,
+      banner: await buildBanner(overview),
       claimableEntitlements,
       creationDetails,
     });

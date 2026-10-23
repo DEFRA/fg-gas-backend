@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  missingEndpointServiceUrls,
   resolveEndpointServiceHeaders,
   resolveEndpointServiceUrl,
+  resolveEndpointUrl,
+  toServiceAddress,
   validateEndpointServiceUrls,
 } from "./resolve-endpoint-service-url.js";
 
@@ -62,6 +65,19 @@ describe("resolveEndpointServiceUrl", () => {
   });
 });
 
+describe("missingEndpointServiceUrls", () => {
+  it("lists the URL env vars of referenced services that are not configured", () => {
+    vi.stubEnv("SERVICE_A_URL", "http://service-a");
+
+    expect(
+      missingEndpointServiceUrls([
+        { endpoints: [{ service: "SERVICE_A" }, { service: "SERVICE_B" }] },
+        { endpoints: [{ service: "SERVICE_B" }] },
+      ]),
+    ).toEqual(["SERVICE_B_URL"]);
+  });
+});
+
 describe("validateEndpointServiceUrls", () => {
   it("does not throw when every referenced service has a URL configured", () => {
     vi.stubEnv("SERVICE_A_URL", "http://service-a");
@@ -115,5 +131,108 @@ describe("validateEndpointServiceUrls", () => {
 
   it("treats a definition with no endpoints as having nothing to validate", () => {
     expect(() => validateEndpointServiceUrls([{}])).not.toThrow();
+  });
+});
+
+describe("missingEndpointServiceUrls", () => {
+  it("names the URL env var of each unconfigured service once, root endpoints first", () => {
+    vi.stubEnv("SERVICE_A_URL", "http://service-a");
+
+    expect(
+      missingEndpointServiceUrls([
+        {
+          endpoints: [
+            { service: "SERVICE_A" },
+            { service: "SERVICE_B" },
+            { service: "SERVICE_B" },
+          ],
+          processDefinitions: {
+            calculate: {
+              type: "endpoint",
+              endpoint: { service: "PROCESS_SERVICE" },
+            },
+            decide: { type: "rule" },
+          },
+        },
+      ]),
+    ).toEqual(["SERVICE_B_URL", "PROCESS_SERVICE_URL"]);
+  });
+
+  it("is empty when every service has a URL configured", () => {
+    vi.stubEnv("SERVICE_A_URL", "http://service-a");
+
+    expect(
+      missingEndpointServiceUrls([{ endpoints: [{ service: "SERVICE_A" }] }]),
+    ).toEqual([]);
+  });
+});
+
+describe("resolveEndpointUrl", () => {
+  it("joins the configured base, as configured, to the endpoint path", () => {
+    vi.stubEnv("LAND_DATA_URL", "https://u:p@land-data/base/?k=v");
+
+    expect(
+      resolveEndpointUrl({ service: "LAND_DATA", path: "/parcels/{sbi}" }),
+    ).toBe("https://u:p@land-data/base/?k=v/parcels/{sbi}");
+  });
+
+  it("collapses one trailing slash and adds a missing leading one", () => {
+    vi.stubEnv("LAND_DATA_URL", "http://land-data/");
+
+    expect(resolveEndpointUrl({ service: "LAND_DATA", path: "parcels" })).toBe(
+      "http://land-data/parcels",
+    );
+  });
+
+  it("throws when the service has no URL configured", () => {
+    expect(() =>
+      resolveEndpointUrl({ service: "UNKNOWN_SERVICE", path: "/x" }),
+    ).toThrow(/No URL configured for service "UNKNOWN_SERVICE"/);
+  });
+});
+
+describe("toServiceAddress", () => {
+  const endpoint = { service: "LAND_DATA", path: "/x/{sbi}" };
+
+  it.each([
+    ["unset", undefined],
+    ["empty", ""],
+    ["unparseable", "not a url"],
+  ])("is null when the service URL is %s", (_case, value) => {
+    vi.stubEnv("LAND_DATA_URL", value);
+
+    expect(toServiceAddress(endpoint)).toBeNull();
+  });
+
+  it("keeps only the scheme, host and path of the base, then the path as written", () => {
+    vi.stubEnv("LAND_DATA_URL", "https://u:p@h:8443/base/?k=v#f");
+
+    expect(toServiceAddress(endpoint)).toBe("https://h:8443/base/x/{sbi}");
+  });
+
+  it.each(["/x/{sbi}?mode=full", "/x/{sbi}#details", "/x/{sbi}?mode=full#a?b"])(
+    "leaves out the query and fragment of the path %s",
+    (path) => {
+      vi.stubEnv("LAND_DATA_URL", "https://h/base");
+
+      expect(toServiceAddress({ service: "LAND_DATA", path })).toBe(
+        "https://h/base/x/{sbi}",
+      );
+    },
+  );
+
+  it("collapses one trailing slash and adds a missing leading one", () => {
+    vi.stubEnv("LAND_DATA_URL", "https://h/base");
+
+    expect(toServiceAddress({ service: "LAND_DATA", path: "x" })).toBe(
+      "https://h/base/x",
+    );
+  });
+
+  it("never carries the service's headers", () => {
+    vi.stubEnv("LAND_DATA_URL", "https://h/base");
+    vi.stubEnv("LAND_DATA_HEADERS", "Authorization: header-sentinel");
+
+    expect(toServiceAddress(endpoint)).not.toContain("header-sentinel");
   });
 });

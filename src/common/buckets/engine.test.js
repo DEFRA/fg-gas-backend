@@ -9,6 +9,7 @@ import {
   MAX_VALUES,
   SUMMARY_COUNT_CAP,
   parseQuery,
+  readBucketTimeline,
   readTimeline,
   runQuery,
 } from "./engine.js";
@@ -1127,6 +1128,81 @@ describe("readTimeline", () => {
   });
 });
 
+describe("readBucketTimeline", () => {
+  beforeEach(() => {
+    clearBuckets();
+    registerBucket(
+      testBucket({
+        id: "test.inbox",
+        label: "Test inbox",
+        timeline: true,
+        links: ["config"],
+      }),
+    );
+    registerBucket(
+      testBucket({ id: "test.outbox", label: "Test outbox", timeline: true }),
+    );
+  });
+
+  afterEach(() => {
+    clearBuckets();
+  });
+
+  it("reads the link in that bucket alone, 50 at most", async () => {
+    const collection = makeCollection({ finds: [[doc(2), doc(1)]] });
+
+    const { buckets } = await readBucketTimeline(
+      "test.inbox",
+      "config:woodland-creation",
+    );
+
+    expect(collection.find).toHaveBeenCalledExactlyOnceWith(
+      { $and: [{ refs: "config:woodland-creation" }] },
+      expect.objectContaining({ limit: 51 }),
+    );
+    expect(buckets).toEqual([
+      {
+        id: "test.inbox",
+        label: "Test inbox",
+        rows: [
+          expect.objectContaining({ id: String(id(2)) }),
+          expect.objectContaining({ id: String(id(1)) }),
+        ],
+        more: false,
+      },
+    ]);
+    expect(timelineResponseSchema.validate({ buckets }).error).toBeUndefined();
+  });
+
+  it("says the bucket has more when its page has a next", async () => {
+    makeCollection({
+      finds: [Array.from({ length: 51 }, (_, n) => doc(60 - n))],
+    });
+
+    const { buckets } = await readBucketTimeline("test.inbox", "config:abc");
+
+    expect(buckets.map(({ rows, more }) => [rows.length, more])).toEqual([
+      [50, true],
+    ]);
+  });
+
+  it("answers null rows when the bucket fails", async () => {
+    const collection = makeCollection();
+
+    collection.find.mockImplementationOnce(() => ({
+      toArray: vi.fn(async () => {
+        throw new Error("connection closed");
+      }),
+    }));
+
+    const { buckets } = await readBucketTimeline("test.inbox", "config:abc");
+
+    expect(buckets).toEqual([
+      { id: "test.inbox", label: "Test inbox", rows: null, more: false },
+    ]);
+  });
+});
+
 describe("describeBucket", () => {
   it("answers the catalogue entry with stored values read", async () => {
     const collection = makeCollection({
@@ -1159,6 +1235,7 @@ describe("describeBucket", () => {
           label: "Status",
           values: bucket.facts.status.values,
           toggle: null,
+          within: null,
         },
         {
           name: "eventType",
@@ -1166,6 +1243,7 @@ describe("describeBucket", () => {
           label: "Event",
           values: bucket.facts.eventType.values,
           toggle: null,
+          within: null,
         },
         {
           name: "grantCode",
@@ -1173,6 +1251,7 @@ describe("describeBucket", () => {
           label: "Grant",
           values: null,
           toggle: null,
+          within: null,
         },
         {
           name: "code",
@@ -1183,6 +1262,7 @@ describe("describeBucket", () => {
             { value: "beta", label: "beta" },
           ],
           toggle: null,
+          within: null,
         },
         {
           name: "source",
@@ -1190,6 +1270,7 @@ describe("describeBucket", () => {
           label: "Source",
           values: bucket.facts.source.values,
           toggle: null,
+          within: null,
         },
       ],
       refs: [
@@ -1221,6 +1302,7 @@ describe("describeBucket", () => {
         { value: "audit", label: "audit", hidden: true },
       ],
       toggle: { label: "Show audit events", param: "audit" },
+      within: null,
     });
     expect(entry.indexes).toEqual([["eventType"], ["eventType", "status"]]);
     expect(catalogueEntrySchema.validate(entry).error).toBeUndefined();
@@ -1239,6 +1321,29 @@ describe("describeBucket", () => {
     const entry = await describeBucket(open);
 
     expect(entry.facts[0].toggle).toBeNull();
+  });
+
+  it("describes the fact a fact is within", async () => {
+    makeCollection({ groups: [{ _id: "alpha" }] });
+    const within = testBucket({
+      facts: {
+        ...bucket.facts,
+        version: { label: "Version", param: "version", within: "code" },
+      },
+      indexes: [...bucket.indexes, ["code", "version"]],
+    });
+
+    const entry = await describeBucket(within);
+
+    expect(entry.facts.find(({ name }) => name === "version")).toEqual({
+      name: "version",
+      param: "version",
+      label: "Version",
+      values: null,
+      toggle: null,
+      within: "code",
+    });
+    expect(catalogueEntrySchema.validate(entry).error).toBeUndefined();
   });
 
   it("describes a stored fact with too many values as open and not a grouping", async () => {

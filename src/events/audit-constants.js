@@ -10,6 +10,8 @@ export const auditEntities = {
   EVENT: "EVENT",
   // A Caseworking case, as Grant Admin shows it. GAS holds none.
   CASE: "CASE",
+  // A Caseworking workflow version, as Grant Admin shows it. GAS holds none.
+  WORKFLOW: "WORKFLOW",
   // One list Grant Admin can show, as its owning service declares it.
   BUCKET: "BUCKET",
 };
@@ -18,6 +20,7 @@ export const auditActions = {
   SUBMIT_APPLICATION: "SUBMIT_APPLICATION",
   REPLACE_APPLICATION: "REPLACE_APPLICATION",
   STATUS_TRANSITION: "STATUS_TRANSITION",
+  // Written by no route; kept for the stored audit rows that carry it.
   REPLACE_GRANT: "REPLACE_GRANT",
   CANCEL_AGREEMENT: "CANCEL_AGREEMENT",
   WITHDRAW_APPLICATION: "WITHDRAW_APPLICATION",
@@ -54,6 +57,13 @@ export const auditActions = {
   SEARCH_CASES: "SEARCH_CASES",
   // One tab of one case in Grant Admin.
   VIEW_CASE_DATA: "VIEW_CASE_DATA",
+  // One tab of one grant version in Grant Admin.
+  VIEW_GRANT_VERSION: "VIEW_GRANT_VERSION",
+  // One tab of one Caseworking workflow version in Grant Admin.
+  VIEW_WORKFLOW_VERSION: "VIEW_WORKFLOW_VERSION",
+  // An operator storing a version's Definition Files that are not stored: a
+  // grant's in GAS, or a workflow's, which Caseworking stores.
+  FETCH_CONFIG_DEFINITION: "FETCH_CONFIG_DEFINITION",
   // One page of one audited bucket.
   QUERY_BUCKET: "QUERY_BUCKET",
 };

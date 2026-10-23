@@ -27,7 +27,23 @@ vi.mock("../use-cases/check-grant-allow-list.use-case.js");
 const tokens = {
   "test-grants-ui-token": { clientId: "grants-ui", expiresAt: null },
   "test-sfd-token": { clientId: "single-front-door", expiresAt: null },
-  "test-unidentified-token": { client: "grants-ui", expiresAt: null },
+  "test-legacy-grants-ui-token": { client: "grants-ui", expiresAt: null },
+  "test-mixed-token": {
+    clientId: "grants-ui",
+    client: "different-service",
+    expiresAt: null,
+  },
+  "test-blank-client-id-token": {
+    clientId: " ",
+    client: "grants-ui",
+    expiresAt: null,
+  },
+  "test-unidentified-token": { expiresAt: null },
+  "test-unusable-identity-token": {
+    clientId: 123,
+    client: " ",
+    expiresAt: null,
+  },
   "test-expired-token": {
     clientId: "expired",
     expiresAt: new Date("2000-01-01"),
@@ -88,6 +104,9 @@ describe("allow-list routes", () => {
 
   it.each([
     ["test-grants-ui-token", "grants-ui", true],
+    ["test-legacy-grants-ui-token", "grants-ui", true],
+    ["test-mixed-token", "grants-ui", true],
+    ["test-blank-client-id-token", "grants-ui", true],
     ["test-sfd-token", "single-front-door", false],
   ])(
     "accepts %s and derives caller from authentication",
@@ -152,16 +171,45 @@ describe("allow-list routes", () => {
     });
   });
 
-  it("refuses to release a decision without an authenticated caller identity", async () => {
-    const response = await server.inject({
-      url: uri,
-      headers: { authorization: "Bearer test-unidentified-token" },
-    });
-    expect(response.statusCode).toBe(401);
-    expect(response.headers["cache-control"]).toBe("no-store");
-    expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
-    expect(response.result).not.toHaveProperty("allowed");
-  });
+  it.each(["test-unidentified-token", "test-unusable-identity-token"])(
+    "refuses to release a decision without an authenticated caller identity: %s",
+    async (token) => {
+      const response = await server.inject({
+        url: uri,
+        headers: {
+          authorization: `Bearer ${token}`,
+          clientId: "grants-ui",
+          "x-actor": "grants-ui",
+        },
+      });
+      expect(response.statusCode).toBe(401);
+      expect(response.headers["cache-control"]).toBe("no-store");
+      expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
+      expect(response.result).not.toHaveProperty("allowed");
+    },
+  );
+
+  it.each([
+    [{ service: "grants-ui", tokenId: "synthetic" }, 200],
+    [{ tokenId: "synthetic" }, 401],
+  ])(
+    "handles credentials without artifacts: %j",
+    async (credentials, status) => {
+      const response = await server.inject({
+        url: uri,
+        auth: { strategy: "service", credentials },
+      });
+
+      expect(response.statusCode).toBe(status);
+      expect(response.headers["cache-control"]).toBe("no-store");
+      if (status === 200) {
+        expect(response.result).toEqual({ allowed: true });
+      } else {
+        expect(response.result.message).toBe("Service identity required");
+        expect(checkGrantAllowListUseCase).not.toHaveBeenCalled();
+      }
+    },
+  );
 
   it.each([
     `${base}/sbi/10600003/crn/1042000000`,

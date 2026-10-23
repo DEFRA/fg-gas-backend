@@ -1,6 +1,7 @@
 import Joi from "joi";
 import { clientRef } from "../../common/schemas/client-ref.js";
 import {
+  counterpartSchema,
   nullableIso,
   nullableString,
   positionSchema,
@@ -25,9 +26,7 @@ const applicationHeaderSchema = Joi.object({
   code: Joi.string().required(),
   position: positionSchema,
   // Null while the case link is unknown, and on a tab that does not show it.
-  counterpart: Joi.object({ exists: Joi.boolean().required() })
-    .allow(null)
-    .required(),
+  counterpart: counterpartSchema,
   fetchedAt: Joi.string().isoDate().required(),
 })
   .required()

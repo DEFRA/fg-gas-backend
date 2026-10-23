@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createTestGrant } from "../../../test/helpers/grants.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
@@ -109,29 +110,110 @@ describe("Grant", () => {
   });
 
   describe("fromDefinition", () => {
-    const definition = {
+    const definition = () => ({
       code: "test-grant",
       metadata: {
         description: "Test Grant",
         startDate: "2023-01-01T00:00:00Z",
       },
       actions: [],
-      amendablePositions: [],
+      amendablePositions: ["PRE_AWARD:ASSESSMENT:IN_REVIEW"],
       phases: [
         {
           code: "PRE_AWARD",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+          },
           stages: [
             {
               code: "ASSESSMENT",
-              statuses: [{ code: "APPLICATION_RECEIVED", validFrom: [] }],
+              statuses: [
+                { code: "APPLICATION_RECEIVED", validFrom: [] },
+                {
+                  code: "IN_REVIEW",
+                  validFrom: [{ code: "APPLICATION_RECEIVED", processes: [] }],
+                },
+                {
+                  code: "OFFERED",
+                  validFrom: [
+                    {
+                      code: "PRE_AWARD:ASSESSMENT:IN_REVIEW",
+                      processes: ["GENERATE_OFFER"],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          code: "POST_AGREEMENT",
+          stages: [
+            {
+              code: "MONITORING",
+              statuses: [
+                {
+                  code: "ACCEPTED",
+                  validFrom: [],
+                  processes: ["ACCEPT_AGREEMENT"],
+                },
+              ],
             },
           ],
         },
       ],
+      externalStatusMap: {
+        phases: [
+          {
+            code: "PRE_AWARD",
+            stages: [
+              {
+                code: "ASSESSMENT",
+                statuses: [
+                  { code: "IN_REVIEW", source: "CW", mappedTo: "::IN_REVIEW" },
+                  { code: "OFFER", source: "CW", mappedTo: "OFFERED" },
+                  {
+                    code: "accepted",
+                    source: "AS",
+                    mappedTo: "POST_AGREEMENT:MONITORING:ACCEPTED",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const dependencies = {
+      isKnownProcess: (process) =>
+        ["GENERATE_OFFER", "ACCEPT_AGREEMENT"].includes(process),
+      compileQuestions: () => {},
+    };
+
+    const fromDefinition = (published, overrides = {}) =>
+      Grant.fromDefinition(published, "1.2.0", {
+        ...dependencies,
+        ...overrides,
+      });
+
+    const withStatus = (published, status) => {
+      published.phases[0].stages[0].statuses.push(status);
+      return published;
+    };
+
+    const withMapping = (published, mappedTo) => {
+      published.externalStatusMap.phases[0].stages[0].statuses.push({
+        code: "EXTERNAL",
+        source: "CW",
+        mappedTo,
+      });
+      return published;
     };
 
     it("builds a Grant from a published definition", () => {
-      const grant = Grant.fromDefinition(definition, "1.2.0");
+      const grant = fromDefinition(definition());
 
       expect(grant).toBeInstanceOf(Grant);
       expect(grant.code).toBe("test-grant");
@@ -139,64 +221,199 @@ describe("Grant", () => {
     });
 
     it("stamps the version it is given", () => {
-      expect(Grant.fromDefinition(definition, "1.2.0").version).toBe("1.2.0");
+      expect(fromDefinition(definition()).version).toBe("1.2.0");
     });
 
     // The config catalog owns the version, so a definition cannot set its own.
     it("ignores a version carried on the definition", () => {
-      const grant = Grant.fromDefinition(
-        { ...definition, version: "9.9.9" },
-        "1.2.0",
-      );
+      const grant = fromDefinition({ ...definition(), version: "9.9.9" });
 
       expect(grant.version).toBe("1.2.0");
     });
 
-    it("defaults entitlementTemplates to an empty collection", () => {
-      expect(
-        Grant.fromDefinition(definition, "1.2.0").entitlementTemplates,
-      ).toEqual([]);
+    it("defaults amendablePositions to none when a definition has no list", () => {
+      const { amendablePositions, ...withoutList } = definition();
+
+      expect(fromDefinition(withoutList).amendablePositions).toEqual([]);
     });
 
-    // Preflight relies on this: building a Grant has to reject a bad definition.
+    it("defaults entitlementTemplates to an empty collection", () => {
+      expect(fromDefinition(definition()).entitlementTemplates).toEqual([]);
+    });
+
+    it("accepts a start date written as Mongo extended JSON", () => {
+      const published = definition();
+      published.metadata.startDate = { $date: "2100-01-01T00:00:00Z" };
+
+      expect(() => fromDefinition(published)).not.toThrow();
+    });
+
+    it("accepts empty external status maps and pages", () => {
+      expect(() =>
+        fromDefinition({ ...definition(), externalStatusMap: {}, pages: {} }),
+      ).not.toThrow();
+    });
+
+    it("accepts empty phases, stages and statuses in the external status map", () => {
+      const published = definition();
+      published.externalStatusMap.phases.push(
+        { code: "POST_AGREEMENT", stages: [] },
+        { code: "PRE_AWARD_EXTRA", stages: [{ code: "REVIEW", statuses: [] }] },
+      );
+
+      expect(() => fromDefinition(published)).not.toThrow();
+    });
+
+    it("accepts keys the runtime does not read", () => {
+      expect(() =>
+        fromDefinition({ ...definition(), _id: "abc" }),
+      ).not.toThrow();
+    });
+
+    it("rejects a definition that does not match the schema", () => {
+      const published = definition();
+      published.actions = [
+        { name: "validate", method: "DELETE", url: "http://localhost" },
+      ];
+
+      expect(() => fromDefinition(published)).toThrow(
+        /Invalid grant definition "test-grant": .*"ActionMethod" must be one of \[GET, POST\]/,
+      );
+    });
+
     it("rejects a definition the Grant model considers invalid", () => {
-      const template = {
-        claimCode: "ENT_DUPLICATE",
-        name: "Duplicate",
-        description: "Duplicated claim code",
-        materialised: false,
-        fields: {
-          totalHectares: {
-            input: true,
-            label: "Total area",
-            unitType: "decimal",
-            decimalPlaces: 4,
-            unit: "HA",
-            minValue: 0.5,
-            maxValue: null,
-          },
-        },
-        maxEntitlements: 1,
-        availableAt: [
-          {
+      const published = definition();
+      published.claims = {
+        onClaimApproval: {
+          currentPosition: {
             phase: "PRE_AWARD",
             stage: "ASSESSMENT",
-            status: "APPLICATION_RECEIVED",
+            status: "MISSING",
           },
-        ],
-        claim: {
-          limits: { maximumClaims: 1, allowsPartialClaims: false },
-          requiresApproval: false,
-          requiresEvidence: false,
+          targetPosition: {
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "IN_REVIEW",
+          },
         },
       };
 
-      expect(() =>
-        Grant.fromDefinition(
-          { ...definition, entitlementTemplates: [template, template] },
-          "1.2.0",
-        ),
-      ).toThrow(/Duplicate entitlement template claim code/);
+      expect(() => fromDefinition(published)).toThrow(
+        /claims.onClaimApproval.currentPosition/,
+      );
+    });
+
+    it("rejects a phase code used twice", () => {
+      const published = definition();
+      published.phases.push({
+        code: "PRE_AWARD",
+        stages: [{ code: "HOLD", statuses: [{ code: "HELD", validFrom: [] }] }],
+      });
+
+      expect(() => fromDefinition(published)).toThrow(
+        'Grant "test-grant" phase "PRE_AWARD" is defined more than once',
+      );
+    });
+
+    const withNamedStatus = (name) =>
+      withStatus(definition(), {
+        code: "HELD",
+        name,
+        validFrom: [{ code: "APPLICATION_RECEIVED", processes: [] }],
+      });
+
+    it("accepts a status with a name", () => {
+      expect(() => fromDefinition(withNamedStatus("Held"))).not.toThrow();
+    });
+
+    it.each([
+      ["empty", ""],
+      ["not text", { en: "Held" }],
+    ])("rejects a status whose name is %s", (_, name) => {
+      expect(() => fromDefinition(withNamedStatus(name))).toThrow(
+        'Invalid grant definition "test-grant"',
+      );
+    });
+
+    it("rejects a validFrom that does not exist", () => {
+      const published = withStatus(definition(), {
+        code: "HELD",
+        validFrom: [
+          { code: "PRE_AWARD:OTHER:APPLICATION_RECEIVED", processes: [] },
+        ],
+      });
+
+      expect(() => fromDefinition(published)).toThrow(
+        'Grant "test-grant" status "PRE_AWARD:ASSESSMENT:HELD" is valid from "PRE_AWARD:OTHER:APPLICATION_RECEIVED" which does not match any position in "phases"',
+      );
+    });
+
+    it("rejects a status whose own processes would never run", () => {
+      const published = withStatus(definition(), {
+        code: "HELD",
+        validFrom: [{ code: "APPLICATION_RECEIVED", processes: [] }],
+        processes: ["GENERATE_OFFER"],
+      });
+
+      expect(() => fromDefinition(published)).toThrow(
+        'Grant "test-grant" status "PRE_AWARD:ASSESSMENT:HELD" has its own processes, which would never run because it has validFrom',
+      );
+    });
+
+    it("rejects a validFrom process that is not known", () => {
+      const published = withStatus(definition(), {
+        code: "HELD",
+        validFrom: [{ code: "APPLICATION_RECEIVED", processes: ["UNKNOWN"] }],
+      });
+
+      expect(() => fromDefinition(published)).toThrow(
+        'Grant "test-grant" status "PRE_AWARD:ASSESSMENT:HELD" runs unknown process "UNKNOWN"',
+      );
+    });
+
+    it.each([
+      ["a phase code", "PRE_AWARD"],
+      ["a missing status", "PRE_AWARD:ASSESSMENT:MISSING"],
+    ])("rejects an amendable position that is %s", (_label, position) => {
+      const published = definition();
+      published.amendablePositions.push(position);
+
+      expect(() => fromDefinition(published)).toThrow(
+        `Grant "test-grant" amendable position "${position}" does not match any position in "phases"`,
+      );
+    });
+
+    it("rejects an external status mapped to a position that does not exist", () => {
+      const published = withMapping(definition(), "::MISSING");
+
+      expect(() => fromDefinition(published)).toThrow(
+        'Grant "test-grant" CW status "EXTERNAL" at "PRE_AWARD:ASSESSMENT" is mapped to "::MISSING" which does not match any position in "phases"',
+      );
+    });
+
+    it("lets a failure that is not about the definition through unchanged", () => {
+      const failure = new Error("process registry unavailable");
+      const isKnownProcess = () => {
+        throw failure;
+      };
+
+      expect(() => fromDefinition(definition(), { isKnownProcess })).toThrow(
+        failure,
+      );
+    });
+
+    it("rejects questions that cannot be compiled", () => {
+      const published = definition();
+      published.phases[1].questions = { type: "object" };
+      const compileQuestions = (questions) => {
+        if (!questions.$schema) {
+          throw new Error("no $schema");
+        }
+      };
+
+      expect(() => fromDefinition(published, { compileQuestions })).toThrow(
+        'Grant "test-grant" phase "POST_AGREEMENT" questions cannot be compiled: no $schema',
+      );
     });
   });
 
@@ -622,6 +839,37 @@ describe("Grant", () => {
     });
   });
 
+  describe("actions", () => {
+    const grantWith = (actionsField) =>
+      new Grant({
+        code: "test-grant",
+        version: "1.0.0",
+        metadata: { description: "Test", startDate: "2023-01-01T00:00:00Z" },
+        phases: [],
+        ...actionsField,
+      });
+
+    it.each([
+      ["missing", {}],
+      ["null", { actions: null }],
+      ["an object", { actions: { name: "calculate" } }],
+    ])("rejects a grant whose actions are %s", (_label, actionsField) => {
+      expect(() => grantWith(actionsField)).toThrow(
+        'Grant "test-grant" actions must be an array',
+      );
+    });
+
+    it.each([
+      ["no actions", []],
+      [
+        "a list of actions",
+        [{ name: "calculate", method: "POST", url: "http://example.com" }],
+      ],
+    ])("builds a grant with %s", (_label, actions) => {
+      expect(grantWith({ actions }).actions).toEqual(actions);
+    });
+  });
+
   describe("hasPhases", () => {
     it("returns true when grant has phases", () => {
       const grant = createTestGrant();
@@ -733,6 +981,11 @@ describe("Grant", () => {
                     code: "SIMPLE_STATUS",
                     source: "CW",
                     mappedTo: "RECEIVED",
+                  },
+                  {
+                    code: "PARTIAL",
+                    source: "CW",
+                    mappedTo: "REVIEW_OFFER:OFFERED",
                   },
                 ],
               },
@@ -860,6 +1113,17 @@ describe("Grant", () => {
     });
 
     describe("when external status is not mapped", () => {
+      it("should return invalid when mapped to neither a status nor a full position", () => {
+        const result = grantWithExternalMap.mapExternalStateToInternalState(
+          "PRE_AWARD",
+          "REVIEW_APPLICATION",
+          "PARTIAL",
+          "CW",
+        );
+
+        expect(result).toEqual({ valid: false });
+      });
+
       it("should return invalid when source system doesn't match", () => {
         const result = grantWithExternalMap.mapExternalStateToInternalState(
           "PRE_AWARD",
@@ -1207,5 +1471,425 @@ describe("Grant", () => {
 
       expect(result).toEqual({});
     });
+  });
+  describe("describeLifecycle", () => {
+    const status = (code, validFrom, processes) => ({
+      code,
+      validFrom,
+      processes,
+    });
+    const from = (code, processes = []) => ({ code, processes });
+    const lifecycleOf = (phases, overrides = {}) =>
+      createTestGrant({ phases, ...overrides }).describeLifecycle();
+    const oneStage = (statuses) => [
+      { code: "P", stages: [{ code: "S", statuses }] },
+    ];
+    const waysInto = (lifecycle, to) =>
+      lifecycle.waysIn.filter((wayIn) => wayIn.to === to);
+
+    it("describes the phases with their status names, initial, amendable and claim approval positions", () => {
+      const lifecycle = lifecycleOf(
+        [
+          {
+            code: "PRE_AWARD",
+            name: "Pre award",
+            stages: [
+              {
+                code: "APPLICATION",
+                name: "Application",
+                statuses: [
+                  { ...status("RECEIVED", []), name: "Received" },
+                  status("AMEND", [from("RECEIVED", ["NOTIFY"])]),
+                ],
+              },
+            ],
+            questions: {},
+          },
+          {
+            code: "CLAIM",
+            stages: [
+              {
+                code: "AWAITING",
+                statuses: [
+                  status("OPEN", [from("PRE_AWARD:APPLICATION:AMEND")]),
+                ],
+              },
+            ],
+          },
+        ],
+        {
+          amendablePositions: ["PRE_AWARD:APPLICATION:AMEND"],
+          claims: {
+            onClaimApproval: {
+              currentPosition: {
+                phase: "PRE_AWARD",
+                stage: "APPLICATION",
+                status: "AMEND",
+              },
+              targetPosition: {
+                phase: "CLAIM",
+                stage: "AWAITING",
+                status: "OPEN",
+              },
+            },
+          },
+        },
+      );
+
+      expect(lifecycle).toEqual({
+        phases: [
+          {
+            code: "PRE_AWARD",
+            name: "Pre award",
+            stages: [
+              {
+                code: "APPLICATION",
+                name: "Application",
+                statuses: [
+                  { code: "RECEIVED", name: "Received" },
+                  { code: "AMEND", name: null },
+                ],
+              },
+            ],
+          },
+          {
+            code: "CLAIM",
+            name: null,
+            stages: [
+              {
+                code: "AWAITING",
+                name: null,
+                statuses: [{ code: "OPEN", name: null }],
+              },
+            ],
+          },
+        ],
+        initialPosition: "PRE_AWARD:APPLICATION:RECEIVED",
+        amendablePositions: ["PRE_AWARD:APPLICATION:AMEND"],
+        waysIn: [
+          { to: "PRE_AWARD:APPLICATION:RECEIVED", kind: "any", processes: [] },
+          {
+            to: "PRE_AWARD:APPLICATION:AMEND",
+            kind: "move",
+            from: "PRE_AWARD:APPLICATION:RECEIVED",
+            matchedBy: "status",
+            processes: ["NOTIFY"],
+          },
+          {
+            to: "CLAIM:AWAITING:OPEN",
+            kind: "move",
+            from: "PRE_AWARD:APPLICATION:AMEND",
+            matchedBy: "position",
+            processes: [],
+          },
+        ],
+        externalMappings: [],
+        claimApproval: {
+          from: "PRE_AWARD:APPLICATION:AMEND",
+          to: "CLAIM:AWAITING:OPEN",
+        },
+      });
+    });
+
+    it.each([
+      [
+        "a stage with no status",
+        { phases: oneStage([]) },
+        '"phases[0].stages[0].statuses" must contain at least 1 items',
+      ],
+      [
+        "processes written as a single string",
+        { phases: oneStage([{ code: "A", processes: "SKIPPED" }]) },
+        '"phases[0].stages[0].statuses[0].processes" must be an array',
+      ],
+      [
+        "a validFrom entry with no processes",
+        { phases: oneStage([status("A", [{ code: "B" }])]) },
+        '"phases[0].stages[0].statuses[0].validFrom[0].processes" is required',
+      ],
+      [
+        "an external status mapped to nothing",
+        {
+          phases: oneStage([status("A", [])]),
+          externalStatusMap: {
+            phases: [
+              {
+                code: "P",
+                stages: [
+                  { code: "S", statuses: [{ code: "UNMAPPED", source: "CW" }] },
+                ],
+              },
+            ],
+          },
+        },
+        '"externalStatusMap.phases[0].stages[0].statuses[0].mappedTo" is required',
+      ],
+    ])("refuses a stored grant with %s", (_label, overrides, detail) => {
+      const grant = createTestGrant(overrides);
+
+      expect(() => grant.describeLifecycle()).toThrow(
+        `Grant "test-grant" has a lifecycle GAS cannot read: ${detail}`,
+      );
+    });
+
+    it("admits a full code from that position alone and a bare code from that status anywhere, saying which matched", () => {
+      const lifecycle = lifecycleOf([
+        {
+          code: "P",
+          stages: [
+            { code: "S", statuses: [status("A", []), status("B", [])] },
+            {
+              code: "T",
+              statuses: [
+                status("A", []),
+                status("FULL", [from("P:S:A")]),
+                status("BARE", [from("A")]),
+                status("TWO_PART", [from("S:A")]),
+              ],
+            },
+          ],
+        },
+      ]);
+
+      const move = (to, from, matchedBy) => ({
+        to,
+        kind: "move",
+        from,
+        matchedBy,
+        processes: [],
+      });
+
+      expect(waysInto(lifecycle, "P:T:FULL")).toEqual([
+        move("P:T:FULL", "P:S:A", "position"),
+      ]);
+      expect(waysInto(lifecycle, "P:T:BARE")).toEqual([
+        move("P:T:BARE", "P:S:A", "status"),
+        move("P:T:BARE", "P:T:A", "status"),
+      ]);
+      expect(waysInto(lifecycle, "P:T:TWO_PART")).toEqual([
+        {
+          to: "P:T:TWO_PART",
+          kind: "unmatched",
+          code: "S:A",
+          matchedBy: "position",
+          processes: [],
+        },
+      ]);
+    });
+
+    it("lists each source under the first entry it matches, and an entry that matches nothing as unmatched", () => {
+      const lifecycle = lifecycleOf(
+        oneStage([
+          status("A", []),
+          status("B", []),
+          status("X", [
+            from("X", ["SELF"]),
+            from("A", ["FIRST"]),
+            from("P:S:A", ["SHADOWED"]),
+            from("GONE", ["LOST"]),
+            from("B"),
+          ]),
+        ]),
+      );
+
+      expect(waysInto(lifecycle, "P:S:X")).toEqual([
+        expect.objectContaining({
+          kind: "move",
+          from: "P:S:A",
+          processes: ["FIRST"],
+        }),
+        expect.objectContaining({
+          kind: "unmatched",
+          code: "GONE",
+          processes: ["LOST"],
+        }),
+        expect.objectContaining({ kind: "move", from: "P:S:B", processes: [] }),
+      ]);
+    });
+
+    it("reads an empty or missing validFrom as from any status, with the status's own processes", () => {
+      const lifecycle = lifecycleOf(
+        oneStage([
+          status("A", [], ["START"]),
+          { code: "B", processes: ["OPEN"] },
+          { code: "C" },
+        ]),
+      );
+
+      expect(lifecycle.waysIn).toEqual([
+        { to: "P:S:A", kind: "any", processes: ["START"] },
+        { to: "P:S:B", kind: "any", processes: ["OPEN"] },
+        { to: "P:S:C", kind: "any", processes: [] },
+      ]);
+    });
+
+    it("leaves out what the runtime never reaches under a repeated phase code", () => {
+      const lifecycle = lifecycleOf(
+        [
+          { code: "P", stages: [{ code: "S", statuses: [status("A", [])] }] },
+          {
+            code: "P",
+            stages: [{ code: "HIDDEN", statuses: [status("B", [from("A")])] }],
+          },
+        ],
+        {
+          externalStatusMap: {
+            phases: [
+              { code: "P", stages: [{ code: "S", statuses: [] }] },
+              {
+                code: "P",
+                stages: [
+                  {
+                    code: "S",
+                    statuses: [{ code: "LATER", source: "CW", mappedTo: "A" }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      );
+
+      expect(lifecycle.phases[1].stages[0].statuses).toEqual([
+        { code: "B", name: null },
+      ]);
+      expect(waysInto(lifecycle, "P:HIDDEN:B")).toEqual([]);
+      expect(lifecycle.externalMappings).toEqual([]);
+    });
+
+    it("describes each external status mapping the runtime would apply, with where it lands", () => {
+      const mapping = (code, mappedTo, source = "CW") => ({
+        code,
+        source,
+        mappedTo,
+      });
+      const lifecycle = lifecycleOf(oneStage([status("A", [])]), {
+        externalStatusMap: {
+          phases: [
+            {
+              code: "P",
+              stages: [
+                {
+                  code: "S",
+                  statuses: [
+                    mapping("IN_STAGE", "::A"),
+                    mapping("BARE", "A"),
+                    mapping("FULL", "Q:R:A"),
+                    mapping("TWO_PART", "S:A"),
+                    mapping("NO_STAGE", "P::A"),
+                    mapping("BARE", "ignored"),
+                    mapping("BARE", "A", "AS"),
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      expect(lifecycle.externalMappings).toEqual([
+        {
+          source: "CW",
+          code: "IN_STAGE",
+          whileIn: "P:S",
+          mappedTo: "::A",
+          to: "P:S:A",
+        },
+        {
+          source: "CW",
+          code: "BARE",
+          whileIn: "P:S",
+          mappedTo: "A",
+          to: "P:S:A",
+        },
+        {
+          source: "CW",
+          code: "FULL",
+          whileIn: "P:S",
+          mappedTo: "Q:R:A",
+          to: "Q:R:A",
+        },
+        {
+          source: "CW",
+          code: "TWO_PART",
+          whileIn: "P:S",
+          mappedTo: "S:A",
+          to: null,
+        },
+        {
+          source: "CW",
+          code: "NO_STAGE",
+          whileIn: "P:S",
+          mappedTo: "P::A",
+          to: "P::A",
+        },
+        {
+          source: "AS",
+          code: "BARE",
+          whileIn: "P:S",
+          mappedTo: "A",
+          to: "P:S:A",
+        },
+      ]);
+    });
+
+    it("has no external status mappings or claim approval when the grant has none", () => {
+      const lifecycle = lifecycleOf(oneStage([status("A", [])]));
+
+      expect(lifecycle.externalMappings).toEqual([]);
+      expect(lifecycle.claimApproval).toBeNull();
+    });
+
+    it.each([
+      "compose/seed/pigs-might-fly/1.0.0/gas/gas.json",
+      "compose/seed/woodland/1.39.1/gas/gas.json",
+    ])(
+      "lists a move exactly where isValidTransition allows one, in %s",
+      (seed) => {
+        const definition = JSON.parse(
+          readFileSync(new URL(`../../../${seed}`, import.meta.url), "utf8"),
+        );
+        const grant = new Grant({ ...definition, version: "1.0.0" });
+        const { phases, waysIn } = grant.describeLifecycle();
+        const positions = phases.flatMap((phase) =>
+          phase.stages.flatMap((stage) =>
+            stage.statuses.map(
+              ({ code }) => `${phase.code}:${stage.code}:${code}`,
+            ),
+          ),
+        );
+        const anyStatus = new Set(
+          waysIn.filter(({ kind }) => kind === "any").map(({ to }) => to),
+        );
+
+        const allowed = positions
+          .filter((to) => !anyStatus.has(to))
+          .flatMap((to) => {
+            const [phase, stage, code] = to.split(":");
+
+            return positions
+              .filter((from) => from !== to)
+              .flatMap((from) => {
+                const { valid, processes } = grant.isValidTransition(
+                  phase,
+                  stage,
+                  code,
+                  from,
+                );
+
+                return valid
+                  ? [{ to, kind: "move", from, processes: processes ?? [] }]
+                  : [];
+              });
+          });
+        const moves = waysIn
+          .filter(({ kind }) => kind === "move")
+          .map(({ matchedBy: _, ...move }) => move);
+
+        expect(allowed.length).toBeGreaterThan(0);
+        expect(moves).toHaveLength(allowed.length);
+        expect(moves).toEqual(expect.arrayContaining(allowed));
+      },
+    );
   });
 });

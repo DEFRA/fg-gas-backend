@@ -1,9 +1,10 @@
-// Consumer test: fg-gas-backend reads buckets and cases FROM fg-cw-backend's
-// actuators, over HTTP, for the Grant Admin lists, case pages and record links.
+// Consumer test: fg-gas-backend reads buckets, cases and workflow versions FROM
+// fg-cw-backend's actuators, over HTTP, for the Grant Admin lists, record pages
+// and record links, and asks it to fetch a workflow definition.
 //
 // A separate provider name from the message pact (consumer.cw-backend.test.js),
 // so each pair is verified on its own. Case payloads and documents are config
-// shaped, so they are only ever matched as "an object".
+// shaped, so they are only ever matched as "an object"; so is a stored workflow.
 import { MatchersV3, PactV3 } from "@pact-foundation/pact";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -15,7 +16,16 @@ import {
   findCwCaseExistence,
   findCwEvent,
   queryCwBucket,
+  readCwBucketTimeline,
 } from "../../src/grant-admin/repositories/cw-actuators.repository.js";
+import {
+  WORKFLOW_NOT_FOUND,
+  WORKFLOW_VERSION_NOT_FOUND,
+  fetchCwWorkflowDefinition,
+  findCwWorkflowVersion,
+  findCwWorkflowVersionExistence,
+  findCwWorkflowVersions,
+} from "../../src/grant-admin/repositories/cw-workflows.repository.js";
 
 const { atLeastLike, boolean, eachLike, integer, like, regex, string } =
   MatchersV3;
@@ -220,6 +230,68 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           );
 
           expect(answer.rows).toHaveLength(1);
+        },
+      ));
+
+    it("answers the inbox rows linked to a config version", () =>
+      run(
+        {
+          states: [{ description: "config version events exist" }],
+          uponReceiving: "a read of the inbox by a config version link",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/buckets/cw.inbox/query",
+            headers: operatorHeaders,
+            body: { ref: `config:${WORKFLOW}@1~2e.0~2e.0`, limit: 50 },
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              bucket: "cw.inbox",
+              plan: {
+                kind: "exact",
+                index: eachLike("refs"),
+                bound: like([]),
+                filled: like([]),
+                residual: like([]),
+                scans: integer(1),
+              },
+              rows: eachLike({
+                id: string("665f1c2e9a1b2c3d4e5f6a7b"),
+                time: createdAt,
+                title: string("ConfigVersionUpdated"),
+                subtitle: string("7c1e0bd2-5f0a-4c4e-9b1d-0000174876e8"),
+                cells: {
+                  status: string("COMPLETED"),
+                  completedAt: regex(ISO, "2026-06-16T10:00:01.000Z"),
+                },
+                link: {
+                  kind: "event",
+                  service: "caseworking",
+                  box: "inbox",
+                  id: string("665f1c2e9a1b2c3d4e5f6a7b"),
+                },
+              }),
+              page: {
+                next: null,
+                keepLooking: null,
+                searchedTo: null,
+                complete: boolean(true),
+              },
+              groups: like([]),
+            },
+          },
+        },
+        async () => {
+          const { buckets } = await asOperator(() =>
+            readCwBucketTimeline("cw.inbox", `config:${WORKFLOW}@1~2e.0~2e.0`, {
+              actor: ACTOR,
+            }),
+          );
+
+          expect(buckets[0].id).toBe("cw.inbox");
+          expect(buckets[0].rows[0].link.service).toBe("caseworking");
+          expect(buckets[0].more).toBe(false);
         },
       ));
 
@@ -452,6 +524,266 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           ).toEqual({ exists });
         },
       ),
+    );
+  });
+
+  describe("C4: the workflow version routes", () => {
+    const CODE = "woodland";
+    const VERSION = "1.2.0";
+    const SEMVER = "^\\d+\\.\\d+\\.\\d+$";
+
+    const versionEntry = {
+      version: regex(SEMVER, VERSION),
+      status: regex("^(active|draft)$", "active"),
+      receivedAt: regex(ISO, "2026-10-01T09:00:00.000Z"),
+    };
+
+    // Each version's fetch state, and where the workflow file is: optional to
+    // GAS, which reads a Caseworking that does not send them as before.
+    const versionFetchState = {
+      fetchStatus: like("fetched"),
+      stored: boolean(true),
+    };
+
+    const storedVersion = {
+      version: {
+        grantCode: like(CODE),
+        ...versionEntry,
+        fetchStatus: regex(
+          "^(pending|fetched|transient_error|permanent_error)$",
+          "fetched",
+        ),
+        fetchAttempts: integer(0),
+        s3Key: like(`${CODE}/${VERSION}/cw/workflow.json`),
+        s3Bucket: like("config-broker-local"),
+      },
+      versions: eachLike({ ...versionEntry, ...versionFetchState }),
+      current: regex(SEMVER, VERSION),
+      storedBytes: integer(48213),
+      summary: {
+        schemeName: like("Woodland Creation"),
+        requiredRoles: { allOf: eachLike("Casework.Read"), anyOf: like([]) },
+      },
+    };
+
+    const versionState = (description) => [
+      { description, parameters: { code: CODE, version: VERSION } },
+    ];
+
+    it("answers a workflow's versions, newest first, and its current one", () =>
+      run(
+        {
+          states: versionState("a workflow version is stored"),
+          uponReceiving: "a read of a workflow's versions",
+          withRequest: {
+            method: "GET",
+            path: `/actuators/workflows/${CODE}/versions`,
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              code: like(CODE),
+              current: regex(SEMVER, VERSION),
+              versions: eachLike(versionEntry),
+            },
+          },
+        },
+        async () => {
+          const answer = await asOperator(() =>
+            findCwWorkflowVersions(CODE, { actor: ACTOR }),
+          );
+
+          expect(answer.current).toBe(VERSION);
+        },
+      ));
+
+    it("answers 404 WORKFLOW_NOT_FOUND for a code with no versions", () =>
+      run(
+        {
+          states: [
+            {
+              description: "no workflow exists",
+              parameters: { code: "nowhere" },
+            },
+          ],
+          uponReceiving:
+            "a read of the versions of a workflow that does not exist",
+          withRequest: {
+            method: "GET",
+            path: "/actuators/workflows/nowhere/versions",
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 404,
+            body: { reason: WORKFLOW_NOT_FOUND },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            findCwWorkflowVersions("nowhere", { actor: ACTOR }),
+          ).catch((e) => e);
+
+          expect(error.output.payload.reason).toBe(WORKFLOW_NOT_FOUND);
+        },
+      ));
+
+    it("answers one version, its stored size and summary, without the document", () =>
+      run(
+        {
+          states: versionState("a workflow version is stored"),
+          uponReceiving: "a read of one workflow version",
+          withRequest: {
+            method: "GET",
+            path: `/actuators/workflows/${CODE}/versions/${VERSION}`,
+            headers: operatorHeaders,
+          },
+          willRespondWith: { status: 200, body: storedVersion },
+        },
+        async () => {
+          const answer = await asOperator(() =>
+            findCwWorkflowVersion(
+              { code: CODE, version: VERSION },
+              { actor: ACTOR },
+            ),
+          );
+
+          expect(answer.summary.schemeName).toBe("Woodland Creation");
+          expect(answer.document).toBeNull();
+          expect(answer.version).toMatchObject({
+            fetchAttempts: 0,
+            s3Key: `${CODE}/${VERSION}/cw/workflow.json`,
+            s3Bucket: "config-broker-local",
+          });
+          expect(answer.versions[0]).toMatchObject({
+            fetchStatus: "fetched",
+            stored: true,
+          });
+        },
+      ));
+
+    it("answers the stored document and one address per endpoint when asked", () =>
+      run(
+        {
+          states: versionState("a workflow version is stored"),
+          uponReceiving: "a read of one workflow version with its document",
+          withRequest: {
+            method: "GET",
+            path: `/actuators/workflows/${CODE}/versions/${VERSION}`,
+            query: { include: "document" },
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              ...storedVersion,
+              document: like({}),
+              addresses: eachLike({
+                code: like("land-parcels"),
+                service: like("LAND_DATA"),
+                url: like("https://land-data.example/api/v2/parcels/{sbi}"),
+              }),
+            },
+          },
+        },
+        async () => {
+          const answer = await asOperator(() =>
+            findCwWorkflowVersion(
+              { code: CODE, version: VERSION },
+              { actor: ACTOR, include: "document" },
+            ),
+          );
+
+          expect(answer.document).toBeTypeOf("object");
+          expect(answer.addresses[0].service).toBe("LAND_DATA");
+        },
+      ));
+
+    it("answers 404 WORKFLOW_VERSION_NOT_FOUND for no such version", () =>
+      run(
+        {
+          states: versionState("a workflow version is stored"),
+          uponReceiving: "a read of a workflow version that does not exist",
+          withRequest: {
+            method: "GET",
+            path: `/actuators/workflows/${CODE}/versions/9.9.9`,
+            headers: operatorHeaders,
+          },
+          willRespondWith: {
+            status: 404,
+            body: { reason: WORKFLOW_VERSION_NOT_FOUND },
+          },
+        },
+        async () => {
+          const error = await asOperator(() =>
+            findCwWorkflowVersion(
+              { code: CODE, version: "9.9.9" },
+              { actor: ACTOR },
+            ),
+          ).catch((e) => e);
+
+          expect(error.output.payload.reason).toBe(WORKFLOW_VERSION_NOT_FOUND);
+        },
+      ));
+
+    it("fetches a version not stored, naming the operator, and answers its outcome", () =>
+      run(
+        {
+          states: versionState("a workflow version is not stored"),
+          uponReceiving: "a fetch of a workflow version's definition",
+          withRequest: {
+            method: "POST",
+            path: `/actuators/workflows/${CODE}/versions/${VERSION}/fetch`,
+            query: { by: like(ACTOR) },
+            headers: { authorization, "x-actor-id": regex(GUID, OID) },
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              files: eachLike({
+                file: "workflow",
+                outcome: regex("^(stored|failed)$", "stored"),
+              }),
+            },
+          },
+        },
+        async () => {
+          const answer = await asOperator(() =>
+            fetchCwWorkflowDefinition(
+              { code: CODE, version: VERSION },
+              { by: ACTOR },
+            ),
+          );
+
+          expect(answer.files[0].file).toBe("workflow");
+        },
+      ));
+
+    it.each([
+      [VERSION, true],
+      ["9.9.9", false],
+    ])(
+      "answers whether version %s exists, with no operator name",
+      (version, exists) =>
+        run(
+          {
+            states: versionState("a workflow version is stored"),
+            uponReceiving: `an existence check for a workflow version that ${exists ? "exists" : "does not exist"}`,
+            withRequest: {
+              method: "GET",
+              path: `/actuators/workflows/${CODE}/versions/${version}/existence`,
+              headers: { authorization, "x-actor-id": regex(GUID, OID) },
+            },
+            willRespondWith: { status: 200, body: { exists } },
+          },
+          async () => {
+            expect(
+              await asOperator(() =>
+                findCwWorkflowVersionExistence({ code: CODE, version }),
+              ),
+            ).toEqual({ exists });
+          },
+        ),
     );
   });
 

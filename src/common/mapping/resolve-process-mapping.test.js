@@ -255,4 +255,49 @@ describe("resolveProcessMapping", () => {
       'Process collection mapping "$.response.item" must resolve to an array',
     );
   });
+
+  describe("mapping kinds: literal, reference, row reference, expression, collection", () => {
+    const context = {
+      claim: { sbi: "106284736" },
+      "1abc": "not a path",
+      items: [{ x: "first" }, { x: "second" }],
+      rows: [{ dueDate: "2026-11-01" }],
+    };
+
+    it.each(["GBP", "", "$.claim.sbi ", "$.1abc"])(
+      "a literal %j resolves to itself",
+      async (mapping) => {
+        expect(await resolveProcessMapping(mapping, context)).toBe(mapping);
+      },
+    );
+
+    it.each([
+      ["$.claim.sbi", "106284736"],
+      ["$.items[0].x", "first"],
+      ["$.items[*]", [{ x: "first" }, { x: "second" }]],
+    ])(
+      "a reference %j resolves to the context value",
+      async (mapping, value) => {
+        expect(await resolveProcessMapping(mapping, context)).toEqual(value);
+      },
+    );
+
+    it("a reference @.dueDate resolves to the current row's value", async () => {
+      expect(
+        await resolveProcessMapping(
+          { itemsRef: "$.rows", items: "@.dueDate" },
+          context,
+        ),
+      ).toEqual(["2026-11-01"]);
+    });
+
+    it("an expression is evaluated", async () => {
+      expect(
+        await resolveProcessMapping(
+          "jsonata:$substring($.claim.sbi, 0, 3)",
+          context,
+        ),
+      ).toBe("106");
+    });
+  });
 });

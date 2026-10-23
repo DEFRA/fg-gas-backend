@@ -5,7 +5,6 @@ import {
 } from "../../common/config-broker/config-catalog.repository.js";
 import { FetchStatus } from "../../common/fetch-status.js";
 import { logger } from "../../common/logger.js";
-import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
 import { markPermanentFailure } from "../../events/retryable.js";
 import {
@@ -49,20 +48,6 @@ const failureStatus = (error) => {
     : FetchStatus.TransientError;
 };
 
-const store = async (target, definition) => {
-  try {
-    await insertPaymentDefinition({
-      code: target.grantCode,
-      version: target.version,
-      definition,
-    });
-  } catch (error) {
-    if (!isMongoDuplicateKeyError(error)) {
-      throw error;
-    }
-  }
-};
-
 const compileAndStore = async (target, code, cacheKey) => {
   const stored = await findPaymentDefinition(target.grantCode, target.version);
   const rawDefinition =
@@ -70,7 +55,11 @@ const compileAndStore = async (target, code, cacheKey) => {
   const definition = compilePaymentDefinition(rawDefinition, code);
 
   if (stored === null) {
-    await store(target, rawDefinition);
+    await insertPaymentDefinition({
+      code: target.grantCode,
+      version: target.version,
+      definition: rawDefinition,
+    });
   }
   if (target.fetchStatus !== FetchStatus.Fetched) {
     await updateStatus(target, FetchStatus.Fetched);

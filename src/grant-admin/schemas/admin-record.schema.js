@@ -12,6 +12,12 @@ export const nullableString = Joi.string().allow(null).required();
 
 export const nullableIso = Joi.string().isoDate().allow(null).required();
 
+export const counterpartSchema = Joi.object({
+  exists: Joi.boolean().required(),
+})
+  .allow(null)
+  .required();
+
 export const positionSchema = Joi.object({
   phase: nullableString,
   stage: nullableString,

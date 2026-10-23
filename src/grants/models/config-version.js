@@ -5,6 +5,11 @@ import { parseSemver } from "../../common/semver.js";
 
 export { FetchStatus };
 
+export const ConfigVersionStatus = {
+  Active: "active",
+  Draft: "draft",
+};
+
 export class ConfigVersion {
   static validationSchema = Joi.object({
     grantCode: Joi.string().required(),

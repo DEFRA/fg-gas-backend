@@ -1,12 +1,19 @@
-import { readTimeline } from "../../common/buckets/engine.js";
-import { toRef } from "../../common/buckets/refs.js";
+import {
+  readBucketTimeline,
+  readTimeline,
+} from "../../common/buckets/engine.js";
 import { logger } from "../../common/logger.js";
-import { toCaseLink } from "../../events/case-refs.js";
+import {
+  toApplicationLink,
+  toCaseLink,
+  toConfigLink,
+} from "../../events/case-refs.js";
 import { UNRECOGNISED } from "../../events/event-types.js";
 import {
-  describeError,
+  readCwBucketTimeline,
   readCwTimeline,
 } from "../repositories/cw-actuators.repository.js";
+import { describeError } from "../repositories/cw-http.js";
 import {
   latency,
   latencyTitle,
@@ -55,18 +62,31 @@ const toEvents = ({ buckets, sourceErrors = [] }) => {
   };
 };
 
-// An application lives in this service: its Events tab is its ref searched in
-// this service's timeline buckets, and asks Caseworking nothing.
-export const readApplicationEventsUseCase = async ({ ref }) =>
-  toEvents(await readTimeline(toRef("ref", ref)));
+// A link with no grant code or reference reads no bucket, so it is refused
+// here rather than shown as every bucket failing.
+const applicationLinkOf = (code, clientRef) => {
+  const link = toApplicationLink(code, clientRef);
 
-const readCaseTimeline = async (ref, actor) => {
-  try {
-    return await readCwTimeline(ref, { actor });
-  } catch (error) {
-    logger.warn(
-      `Case events: caseworking unavailable (${describeError(error)})`,
+  if (link === null) {
+    throw new Error(
+      "An application's events need its grant code and reference",
     );
+  }
+
+  return link;
+};
+
+// An application lives in this service: its Events tab is its link read in
+// this service's timeline buckets, and asks Caseworking nothing. It is keyed by
+// the grant as well, since two grants may hold the same reference.
+export const readApplicationEventsUseCase = async ({ code, clientRef }) =>
+  toEvents(await readTimeline(applicationLinkOf(code, clientRef)));
+
+const readFromCaseworking = async (source, read) => {
+  try {
+    return await read();
+  } catch (error) {
+    logger.warn(`${source}: caseworking unavailable (${describeError(error)})`);
 
     return CW_UNAVAILABLE;
   }
@@ -76,4 +96,26 @@ const readCaseTimeline = async (ref, actor) => {
 // read in one call, and none of this service's boxes. It is keyed by the
 // workflow as well, since two workflows may hold the same case reference.
 export const readCaseEventsUseCase = async ({ workflowCode, caseRef, actor }) =>
-  toEvents(await readCaseTimeline(toCaseLink(workflowCode, caseRef), actor));
+  toEvents(
+    await readFromCaseworking("Case events", () =>
+      readCwTimeline(toCaseLink(workflowCode, caseRef), { actor }),
+    ),
+  );
+
+// A grant's config versions live in this service: a version's Events tab is
+// the inbox rows linked to that version, and asks Caseworking nothing.
+export const readGrantVersionEventsUseCase = async ({ code, version }) =>
+  toEvents(await readBucketTimeline("gas.inbox", toConfigLink(code, version)));
+
+// A workflow's config versions live in Caseworking: a version's Events tab is
+// Caseworking's inbox rows linked to that version.
+export const readWorkflowVersionEventsUseCase = async ({
+  code,
+  version,
+  actor,
+}) =>
+  toEvents(
+    await readFromCaseworking("Workflow events", () =>
+      readCwBucketTimeline("cw.inbox", toConfigLink(code, version), { actor }),
+    ),
+  );

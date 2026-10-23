@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { withWorstFetchStatus } from "../../src/common/config-broker/config-catalog.repository.js";
 import {
   Application,
   ApplicationPhase,
@@ -98,7 +99,14 @@ export const seedConfigVersion = async (
   await Promise.all([
     db
       .collection("config_versions")
-      .updateOne({ grantCode: code, version }, { $set: doc }, { upsert: true }),
+      .updateOne(
+        { grantCode: code, version },
+        [
+          { $replaceWith: { $mergeObjects: ["$$ROOT", { $literal: doc }] } },
+          withWorstFetchStatus,
+        ],
+        { upsert: true },
+      ),
     withAgreementDefinition
       ? db
           .collection("agreements__definitions")
@@ -126,10 +134,12 @@ export const seedConfigVersion = async (
 
 export const submitApplication = async (
   db,
-  { withAgreementDefinition, code = "test-code-1" } = {},
+  {
+    withAgreementDefinition,
+    code = "test-code-1",
+    clientRef = `cr-12345-${randomUUID()}`,
+  } = {},
 ) => {
-  const clientRef = `cr-12345-${randomUUID()}`;
-
   await seedConfigVersion(db, code, "1.0.0", { withAgreementDefinition });
 
   await wreck.post(`/grants/${code}/applications`, {

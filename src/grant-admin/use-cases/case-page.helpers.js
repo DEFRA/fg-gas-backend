@@ -1,19 +1,11 @@
 import { logger } from "../../common/logger.js";
 import { applicationExists } from "../../grants/services/application-read.service.js";
-import {
-  describeError,
-  findCwCase,
-} from "../repositories/cw-actuators.repository.js";
+import { findCwCase } from "../repositories/cw-actuators.repository.js";
+import { describeError } from "../repositories/cw-http.js";
+import { startSharedRead } from "../services/compose-record-page.js";
 
-// One Caseworking read per page, started before the page's own reads so the
-// header and the tab share it. Its failure surfaces through them.
-export const startCaseRead = ({ workflowCode, caseRef }, options) => {
-  const read = findCwCase({ workflowCode, caseRef }, options);
-
-  read.catch(() => {});
-
-  return read;
-};
+export const startCaseRead = ({ workflowCode, caseRef }, options) =>
+  startSharedRead(findCwCase({ workflowCode, caseRef }, options));
 
 // The refs are the application's by construction. Its identifiers are the
 // audit's accounts, best effort: an orphan case still has a page.

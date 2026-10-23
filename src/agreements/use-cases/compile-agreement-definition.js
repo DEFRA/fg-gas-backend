@@ -8,7 +8,7 @@ import { AgreementDefinition } from "../models/agreement-definitions/agreement-d
 import { callAgreementEndpoint } from "../services/integrations/call-agreement-endpoint.js";
 import { validateAgreementDefinition } from "../models/agreement-definitions/validate.js";
 
-export const compileAgreementDefinition = (rawDefinition, code, version) => {
+const toVersionedDefinition = (rawDefinition, code, version) => {
   if (rawDefinition.code !== code) {
     throw Boom.badImplementation(
       `Agreement definition code "${rawDefinition.code}" does not match "${code}"`,
@@ -22,12 +22,24 @@ export const compileAgreementDefinition = (rawDefinition, code, version) => {
     );
   }
 
-  const definition = { ...rawDefinition, configVersion: version };
-  validateEndpointServiceUrls([validateAgreementDefinition(definition)]);
-  return new AgreementDefinition(definition, {
+  return { ...rawDefinition, configVersion: version };
+};
+
+export const compileAgreementDefinition = (rawDefinition, code, version) => {
+  const definition = toVersionedDefinition(rawDefinition, code, version);
+  // Built first so every structural check runs even when a service URL is missing.
+  const compiled = new AgreementDefinition(definition, {
     callEndpoint: callAgreementEndpoint,
   });
+  validateEndpointServiceUrls([validateAgreementDefinition(definition)]);
+  return compiled;
 };
+
+// Every rule the runtime runs on load except the service URLs, which judge
+// this deployment rather than the stored definition. The model it answers has
+// no endpoint caller, so it never calls a service.
+export const checkStoredAgreementDefinition = (rawDefinition, code, version) =>
+  new AgreementDefinition(toVersionedDefinition(rawDefinition, code, version));
 
 // The seam for checking a published definition before it is recorded. A missing service
 // URL is this deployment's problem, not the config's, so it is swallowed here: only
@@ -39,7 +51,7 @@ export const checkAgreementDefinition = (rawDefinition, code, version) => {
   } catch (error) {
     if (error instanceof EndpointServiceUrlError) {
       logger.warn(
-        `Skipped Agreement definition checks for ${code}@${version}: ${error.message}`,
+        `Skipped the endpoint service URL check for Agreement definition ${code}@${version}: ${error.message}`,
       );
       return;
     }

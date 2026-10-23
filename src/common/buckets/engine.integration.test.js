@@ -12,6 +12,7 @@ const START = Date.UTC(2026, 8, 1);
 
 const bucket = testBucket({
   indexes: [["status"], ["status", "eventType"], ["code"]],
+  links: ["application"],
 });
 
 // Two rows share each instant, so paging has ties to break on _id.
@@ -21,7 +22,11 @@ const row = (n) => ({
   eventType: n % 10 === 0 ? "audit" : TYPES[n % 3 === 0 ? 0 : 1],
   grantCode: n % 500 === 7 ? "rare-grant" : "common-grant",
   code: `code-${n % 3}`,
-  refs: [`ref:record-${n % 5000}`, `msg:message-${n}`],
+  refs: [
+    `ref:record-${n % 5000}`,
+    `application:grant-${n % 2}:record-${n % 5000}`,
+    `msg:message-${n}`,
+  ],
 });
 
 let replSet;
@@ -149,6 +154,7 @@ describe("the bucket engine on MongoDB", () => {
     ],
     ["a line with a filled lead", { where: { eventType: "case.create" } }],
     ["the refs line", { ref: "ref:record-42" }],
+    ["the refs line by a link", { ref: "application:grant-0:record-42" }],
   ])(
     "reads %s in order from its index, first page and next",
     async (_, body) => {

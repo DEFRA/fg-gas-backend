@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApplicationCreatedEvent } from "../grants/events/application-created.event.js";
 import { caseStatusUpdated } from "../grants/events/inbound-event-types.js";
+import { saveConfigVersionInboxMessageUseCase } from "../grants/use-cases/save-config-version-inbox-message.use-case.js";
 import { findByMessageId, insertOne } from "./repositories/inbox.repository.js";
 import { insertMany } from "./repositories/outbox.repository.js";
 import { saveEvents } from "./save-events.js";
@@ -32,7 +33,11 @@ describe("every insert into the outbox", () => {
 
     expect(insertedOutboxRow()).toMatchObject({
       eventType: "ApplicationCreated",
-      refs: ["ref:abc-123", `id:${event.id}`],
+      refs: [
+        "ref:abc-123",
+        "application:example-grant:~41.~42.~43.-123",
+        `id:${event.id}`,
+      ],
     });
   });
 
@@ -74,11 +79,31 @@ describe("every insert into the inbox", () => {
       refs: [
         "ref:abc-123",
         "case:example-grant:~41.~42.~43.-123",
+        "application:example-grant:~41.~42.~43.-123",
         "id:0b7c1d1e-0000-4000-8000-000000000001",
         "trace:4bf92f3577b34da6a3ce929d0e0e4736",
       ],
     });
     expect(insertedInboxRow()).not.toHaveProperty("kind");
+  });
+
+  it("stamps a config version with its grant code and its version link", async () => {
+    await saveConfigVersionInboxMessageUseCase(
+      { grant: "woodland-creation" },
+      {
+        grant: { StringValue: "woodland-creation" },
+        version: { StringValue: "1.0.0" },
+      },
+      { messageId: "0b7c1d1e-0000-4000-8000-000000000003" },
+    );
+
+    expect(insertedInboxRow()).toMatchObject({
+      eventType: "ConfigVersionUpdated",
+      refs: expect.arrayContaining([
+        "ref:woodland-creation",
+        "config:woodland-creation@1~2e.0~2e.0",
+      ]),
+    });
   });
 
   it("stamps a message nobody declared as unrecognised", async () => {

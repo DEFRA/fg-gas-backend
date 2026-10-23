@@ -1,8 +1,13 @@
 import Boom from "@hapi/boom";
+import { grantDefinition } from "../schemas/grant/grant-definition.js";
+import { storedLifecycle } from "../schemas/grant/stored-lifecycle.js";
 import { EntitlementTemplate } from "./entitlement-template.js";
-
-// Constants for fully qualified status path format: "PHASE:STAGE:STATUS"
-const FULLY_QUALIFIED_STATUS_PARTS_COUNT = 3;
+import { ExternalStatusMap } from "./external-status-map.js";
+import { ExternalStatusMapping } from "./external-status-mapping.js";
+import { GrantLifecycle } from "./grant-lifecycle.js";
+import { describePhases, distinctPositions } from "./lifecycle-phases.js";
+import { Position } from "./position.js";
+import { ValidFrom } from "./valid-from.js";
 
 const formatPosition = ({ phase, stage, status }) =>
   [phase, stage, status].filter((part) => part != null).join(":");
@@ -12,6 +17,8 @@ const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
 export class Grant {
+  static definitionSchema = grantDefinition;
+
   constructor({
     code,
     version,
@@ -19,7 +26,7 @@ export class Grant {
     actions,
     phases,
     externalStatusMap,
-    amendablePositions,
+    amendablePositions = [],
     // Always a collection, never absent. The repository normalises what it
     // reads out of Mongo; everything else builds a Grant from a request or a
     // grant definition, where omitting the block means it has none.
@@ -48,15 +55,63 @@ export class Grant {
     this.claims = claims;
     this.admin = admin;
 
+    this.#assertActionsIsArray();
     this.#assertEntitlementTemplateClaimCodesUnique();
     this.#assertEntitlementTemplatePositionsExist();
     this.#assertClaimApprovalPositionsExist();
   }
 
   // Builds a Grant from a published grant definition, so a definition can be checked
-  // without saving it.
-  static fromDefinition(grantDefinition, version) {
-    return new Grant({ ...grantDefinition, version });
+  // before its version is recorded. Only a published definition is built into a
+  // GrantLifecycle and an ExternalStatusMap, and so held to their rules: a stored
+  // grant goes through the constructor alone and has to load as it is.
+  static fromDefinition(definition, version, dependencies) {
+    Grant.#assertMatchesDefinitionSchema(definition);
+
+    const grant = new Grant({ ...definition, version });
+    grant.#assertPublishable(dependencies);
+
+    return grant;
+  }
+
+  static #assertMatchesDefinitionSchema(definition) {
+    const { error } = Grant.definitionSchema.validate(definition, {
+      abortEarly: false,
+    });
+
+    if (error) {
+      throw Boom.badImplementation(
+        `Invalid grant definition "${definition?.code}": ${error.details.map((d) => d.message).join(", ")}`,
+      );
+    }
+  }
+
+  #assertPublishable(dependencies) {
+    try {
+      const lifecycle = new GrantLifecycle(this.phases, dependencies);
+
+      new ExternalStatusMap(this.externalStatusMap).assertTargetsExistIn(
+        lifecycle,
+      );
+      this.#assertAmendablePositionsExistIn(lifecycle);
+    } catch (error) {
+      if (!error.isBoom) {
+        throw error;
+      }
+
+      throw Boom.badImplementation(`Grant "${this.code}" ${error.message}`);
+    }
+  }
+
+  // Application.isReplacementAllowed matches the whole position exactly.
+  #assertAmendablePositionsExistIn(lifecycle) {
+    for (const position of this.amendablePositions) {
+      if (!lifecycle.has(Position.parse(position))) {
+        throw Boom.badImplementation(
+          `amendable position "${position}" does not match any position in "phases"`,
+        );
+      }
+    }
   }
 
   findEntitlementTemplate(claimCode) {
@@ -89,6 +144,14 @@ export class Grant {
 
   #isSamePosition(a, b) {
     return a.phase === b.phase && a.stage === b.stage && a.status === b.status;
+  }
+
+  #assertActionsIsArray() {
+    if (!Array.isArray(this.actions)) {
+      throw Boom.badImplementation(
+        `Grant "${this.code}" actions must be an array`,
+      );
+    }
   }
 
   // findEntitlementTemplate returns the first match, so a duplicated claim code
@@ -338,36 +401,20 @@ export class Grant {
   }
 
   #parseMappedToField(mappedTo, currentPhase, currentStage) {
-    if (mappedTo.startsWith("::")) {
-      // Format: "::STATUS" - keep current phase and stage, only change status
-      return {
-        valid: true,
-        targetPhase: currentPhase,
-        targetStage: currentStage,
-        targetStatus: mappedTo.substring(2),
-      };
-    }
+    const { target } = new ExternalStatusMapping(
+      { mappedTo },
+      { phase: currentPhase, stage: currentStage },
+    );
 
-    if (mappedTo.includes(":")) {
-      // Format: "PHASE:STAGE:STATUS" - full path specification
-      const parts = mappedTo.split(":");
-      if (parts.length === FULLY_QUALIFIED_STATUS_PARTS_COUNT) {
-        return {
-          valid: true,
-          targetPhase: parts[0],
-          targetStage: parts[1],
-          targetStatus: parts[2],
-        };
-      }
+    if (!target) {
       return { valid: false };
     }
 
-    // Format: "STATUS" - just status code, keep current phase and stage
     return {
       valid: true,
-      targetPhase: currentPhase,
-      targetStage: currentStage,
-      targetStatus: mappedTo,
+      targetPhase: target.phase,
+      targetStage: target.stage,
+      targetStatus: target.status,
     };
   }
 
@@ -383,7 +430,7 @@ export class Grant {
       return { valid: false, processes: [] };
     }
 
-    if (!statusDef.validFrom || statusDef.validFrom.length === 0) {
+    if (this.#isFromAnyStatus(statusDef)) {
       return {
         valid: true,
         processes: statusDef.processes || [],
@@ -398,6 +445,10 @@ export class Grant {
     };
   }
 
+  #isFromAnyStatus(statusDef) {
+    return !statusDef.validFrom || statusDef.validFrom.length === 0;
+  }
+
   findStatusDefinition(targetPhase, targetStage, targetStatus) {
     const { status } = this.#findPhaseStageStatus(
       this.phases,
@@ -409,16 +460,138 @@ export class Grant {
   }
 
   #isValidFromMatch(validFrom, currentStatus) {
-    return validFrom.find((entry) => {
-      if (entry.code.includes(":")) {
-        // Fully qualified status like "PRE_AWARD:REVIEW_APPLICATION:APPROVED"
-        return entry.code === currentStatus;
-      }
+    return validFrom.find((entry) =>
+      new ValidFrom(entry).matches(currentStatus),
+    );
+  }
 
-      // Simple status code - extract just the status part from currentStatus
-      const currentStatusCode = currentStatus.split(":").pop();
-      return entry.code === currentStatusCode;
-    });
+  // What can happen to an application of this grant, decided by the same
+  // lookups that move one. A stored grant is described as it loads, held only
+  // to the shape those lookups read, not to the rules a newly published
+  // definition is held to.
+  describeLifecycle() {
+    this.#assertDescribable();
+    const positions = distinctPositions(this.phases);
+
+    return {
+      phases: describePhases(this.phases),
+      initialPosition: this.#initialPosition(),
+      amendablePositions: [...this.amendablePositions],
+      waysIn: positions.flatMap((to) => this.#waysInto(to, positions)),
+      externalMappings: this.#appliedExternalStatusMappings(),
+      claimApproval: this.#claimApproval(),
+    };
+  }
+
+  #assertDescribable() {
+    const { error } = storedLifecycle.validate(
+      { phases: this.phases, externalStatusMap: this.externalStatusMap },
+      { abortEarly: false },
+    );
+
+    if (error) {
+      throw Boom.badImplementation(
+        `Grant "${this.code}" has a lifecycle GAS cannot read: ${error.details.map((d) => d.message).join(", ")}`,
+      );
+    }
+  }
+
+  #initialPosition() {
+    const { phase, stage, status } = this.getInitialState();
+
+    return new Position({
+      phase: phase.code,
+      stage: stage.code,
+      status: status.code,
+    }).toString();
+  }
+
+  // A status the lookup never reaches, under a repeated phase or stage code,
+  // has no way in.
+  #waysInto(to, positions) {
+    const statusDef = this.findStatusDefinition(to.phase, to.stage, to.status);
+
+    if (!statusDef) {
+      return [];
+    }
+
+    if (this.#isFromAnyStatus(statusDef)) {
+      return [
+        {
+          to: to.toString(),
+          kind: "any",
+          processes: statusDef.processes ?? [],
+        },
+      ];
+    }
+
+    return statusDef.validFrom.flatMap((entry) =>
+      this.#waysIntoBy(entry, statusDef.validFrom, to, positions),
+    );
+  }
+
+  // Each source moves by the first entry it matches. An entry that matches
+  // only the status itself, or only sources taken by earlier entries, is never
+  // used.
+  #waysIntoBy(entry, validFrom, to, positions) {
+    const target = to.toString();
+    const { processes } = entry;
+    const entryValidFrom = new ValidFrom(entry);
+    const { matchedBy } = entryValidFrom;
+    const moves = positions
+      .map((from) => from.toString())
+      .filter(
+        (from) =>
+          from !== target && this.#isValidFromMatch(validFrom, from) === entry,
+      )
+      .map((from) => ({
+        to: target,
+        kind: "move",
+        from,
+        matchedBy,
+        processes,
+      }));
+
+    if (moves.length > 0 || this.#matchesAnyOf(entryValidFrom, positions)) {
+      return moves;
+    }
+
+    return [
+      { to: target, kind: "unmatched", code: entry.code, matchedBy, processes },
+    ];
+  }
+
+  #matchesAnyOf(validFrom, positions) {
+    return positions.some((position) => validFrom.matches(position.toString()));
+  }
+
+  // Only the mapping the lookup finds for its source and code while in its
+  // phase and stage is ever applied.
+  #appliedExternalStatusMappings() {
+    return new ExternalStatusMap(this.externalStatusMap).mappings
+      .filter(
+        (mapping) =>
+          this.#findExternalStatusMapping(
+            mapping.phase,
+            mapping.stage,
+            mapping.code,
+            mapping.source,
+          ) === mapping.entry,
+      )
+      .map((mapping) => mapping.describe());
+  }
+
+  #claimApproval() {
+    const transition = this.claims?.onClaimApproval;
+
+    if (!transition) {
+      return null;
+    }
+
+    return {
+      from: formatPosition(transition.currentPosition),
+      to: formatPosition(transition.targetPosition),
+    };
   }
 
   findStatuses(position) {

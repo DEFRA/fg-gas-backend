@@ -6,7 +6,9 @@ import { GrantDocument } from "../models/grant-document.js";
 import { Grant } from "../models/grant.js";
 import {
   findByCode,
-  replace,
+  findStoredGrantDocument,
+  findStoredGrantSummary,
+  findStoredVersions,
   save,
   saveFromDefinition,
 } from "./grant.repository.js";
@@ -62,8 +64,10 @@ describe("save", () => {
             url: "http://localhost",
           },
         ],
+        amendablePositions: [],
         entitlementTemplates: [],
       }),
+      { session: undefined },
     );
   });
 
@@ -132,62 +136,6 @@ describe("save", () => {
         }),
       ),
     ).rejects.toThrow(error);
-  });
-});
-
-describe("replace", () => {
-  it("replaces a Grant in the repository", async () => {
-    const replaceOne = vi.fn().mockResolvedValueOnce({
-      insertedId: "code-1",
-    });
-
-    db.collection.mockReturnValue({
-      replaceOne,
-    });
-
-    await replace(
-      new Grant({
-        code: "code-1",
-        version: "0.0.0",
-        metadata: {
-          description: "test",
-          startDate: "2021-01-01T00:00:00.000Z",
-        },
-        actions: [
-          {
-            method: "GET",
-            name: "test-action",
-            url: "http://localhost",
-          },
-        ],
-        questions: {
-          $schema: "https://json-schema.org/draft/2020-12/schema",
-          type: "object",
-        },
-      }),
-    );
-
-    expect(db.collection).toHaveBeenCalledWith("grants");
-
-    expect(replaceOne).toHaveBeenCalledWith(
-      { code: "code-1", version: "0.0.0" },
-      new GrantDocument({
-        code: "code-1",
-        version: "0.0.0",
-        metadata: {
-          description: "test",
-          startDate: "2021-01-01T00:00:00.000Z",
-        },
-        actions: [
-          {
-            method: "GET",
-            name: "test-action",
-            url: "http://localhost",
-          },
-        ],
-        entitlementTemplates: [],
-      }),
-    );
   });
 });
 
@@ -284,6 +232,51 @@ describe("findByCode", () => {
     const result = await findByCode("woodland", "9.9.9");
     expect(result).toBeNull();
   });
+});
+
+describe("actions", () => {
+  it("refuses to store a grant definition without actions", async () => {
+    const insertOne = vi.fn();
+    db.collection.mockReturnValue({ insertOne });
+
+    await expect(
+      saveFromDefinition(
+        {
+          code: "woodland",
+          metadata: {
+            description: "test",
+            startDate: "2021-01-01T00:00:00.000Z",
+          },
+          phases: [],
+        },
+        "1.0.0",
+      ),
+    ).rejects.toThrow('Grant "woodland" actions must be an array');
+    expect(insertOne).not.toHaveBeenCalled();
+  });
+});
+
+describe("metadata.startDate", () => {
+  it.each(["soon", { $date: "soon" }])(
+    "refuses to store a grant definition whose start date %o is no instant",
+    async (startDate) => {
+      const insertOne = vi.fn();
+      db.collection.mockReturnValue({ insertOne });
+
+      await expect(
+        saveFromDefinition(
+          {
+            code: "woodland",
+            metadata: { description: "test", startDate },
+            actions: [],
+            phases: [],
+          },
+          "1.0.0",
+        ),
+      ).rejects.toThrow('Grant start date "soon" is not an instant');
+      expect(insertOne).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("entitlementTemplates", () => {
@@ -392,8 +385,10 @@ describe("entitlementTemplates", () => {
         },
         actions: [],
         phases,
+        amendablePositions: [],
         entitlementTemplates,
       }),
+      { session: undefined },
     );
   });
 
@@ -438,6 +433,7 @@ describe("entitlementTemplates", () => {
     expect(grant.entitlementTemplates).toEqual(entitlementTemplates);
     expect(insertOne).toHaveBeenCalledWith(
       expect.objectContaining({ entitlementTemplates }),
+      { session: undefined },
     );
   });
 
@@ -565,7 +561,9 @@ describe("pages", () => {
     const grant = await saveFromDefinition(definition, "1.1.0");
 
     expect(grant.pages).toEqual(pages);
-    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ pages }));
+    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ pages }), {
+      session: undefined,
+    });
   });
 
   it("persists and rehydrates the grant administration role", async () => {
@@ -573,7 +571,9 @@ describe("pages", () => {
     const insertOne = vi.fn();
     db.collection.mockReturnValue({ insertOne });
     await saveFromDefinition({ ...definition, admin }, "1.1.0");
-    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ admin }));
+    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ admin }), {
+      session: undefined,
+    });
     db.collection.mockReturnValue({
       findOne: vi
         .fn()
@@ -609,5 +609,126 @@ describe("pages", () => {
     const result = await findByCode("woodland");
 
     expect(result.pages).toBeUndefined();
+  });
+});
+
+describe("amendablePositions", () => {
+  it.each([
+    ["absent", {}, []],
+    ["null", { amendablePositions: null }, null],
+  ])(
+    "reads amendable positions stored as %s as the model takes them",
+    async (_label, storedField, expected) => {
+      const findOne = vi.fn().mockResolvedValueOnce({
+        code: "legacy",
+        version: "1.0.0",
+        metadata: {
+          description: "test",
+          startDate: "2021-01-01T00:00:00.000Z",
+        },
+        actions: [],
+        phases: [],
+        ...storedField,
+      });
+
+      db.collection.mockReturnValue({ findOne });
+
+      const result = await findByCode("legacy");
+
+      expect(result.amendablePositions).toEqual(expected);
+    },
+  );
+});
+
+describe("findStoredVersions", () => {
+  it("answers which of the asked versions are stored, reading versions alone", async () => {
+    const find = vi
+      .fn()
+      .mockReturnValue({ toArray: async () => [{ version: "1.0.0" }] });
+    db.collection.mockReturnValue({ find });
+
+    expect(await findStoredVersions("woodland", ["1.0.0", "2.0.0"])).toEqual([
+      "1.0.0",
+    ]);
+    expect(find).toHaveBeenCalledWith(
+      { code: "woodland", version: { $in: ["1.0.0", "2.0.0"] } },
+      expect.objectContaining({ projection: { _id: 0, version: 1 } }),
+    );
+  });
+});
+
+const aggregating = (docs) => {
+  const aggregate = vi.fn().mockReturnValue({ toArray: async () => docs });
+  db.collection.mockReturnValue({ aggregate });
+  return aggregate;
+};
+
+describe("findStoredGrantDocument", () => {
+  it("answers the document as stored beside its size, leaving out its _id", async () => {
+    const document = { code: "woodland", version: "1.0.0" };
+    const aggregate = aggregating([{ storedBytes: 512, document }]);
+
+    expect(
+      await findStoredGrantDocument("woodland", "1.0.0", { maxBytes: 1024 }),
+    ).toEqual({ storedBytes: 512, document });
+    const [match, project] = aggregate.mock.calls[0][0];
+    expect(match).toEqual({ $match: { code: "woodland", version: "1.0.0" } });
+    expect(JSON.stringify(project)).toContain(
+      '{"$unsetField":{"field":"_id","input":"$$ROOT"}}',
+    );
+  });
+
+  it("answers a document over maxBytes by its size alone", async () => {
+    aggregating([{ storedBytes: 2048 }]);
+
+    expect(
+      await findStoredGrantDocument("woodland", "1.0.0", { maxBytes: 1024 }),
+    ).toEqual({ storedBytes: 2048, document: null });
+  });
+
+  it("answers null when the version is not stored", async () => {
+    aggregating([]);
+
+    expect(
+      await findStoredGrantDocument("woodland", "1.0.0", { maxBytes: 1024 }),
+    ).toBeNull();
+  });
+});
+
+describe("findStoredGrantSummary", () => {
+  it("answers the description, start date and admin role beside the stored size", async () => {
+    aggregating([
+      {
+        storedBytes: 512,
+        description: "Woodland creation",
+        startDate: "2025-04-01",
+        adminRole: "WOODLAND_ADMIN",
+      },
+    ]);
+
+    expect(await findStoredGrantSummary("woodland", "1.0.0")).toEqual({
+      description: "Woodland creation",
+      startDate: "2025-04-01",
+      adminRole: "WOODLAND_ADMIN",
+      storedBytes: 512,
+    });
+  });
+
+  it("reads the description and start date as stored, and a missing admin role as null", async () => {
+    const aggregate = aggregating([]);
+
+    await findStoredGrantSummary("woodland", "1.0.0");
+
+    expect(aggregate.mock.calls[0][0][1].$project).toMatchObject({
+      description: "$metadata.description",
+      startDate: "$metadata.startDate",
+      adminRole: { $ifNull: ["$admin.role", null] },
+    });
+  });
+
+  it("answers null when the version is not stored", async () => {
+    aggregating([]);
+
+    expect(await findStoredGrantSummary("woodland", "1.0.0")).toBeNull();
   });
 });

@@ -35,6 +35,7 @@ describe("defineBucket", () => {
       label: "Grant",
       values: null,
       toggle: null,
+      within: null,
       param: "grant",
     });
     expect(bucket.audited).toBe(false);
@@ -234,6 +235,37 @@ describe("defineBucket", () => {
     expect(() =>
       testBucket({ indexes: [["status"], ["code"], ["status"]] }),
     ).toThrow("declares the same index line twice");
+  });
+
+  describe("a fact within another", () => {
+    const withVersion = ({ within = "code", indexes } = {}) =>
+      testBucket({
+        facts: {
+          ...testBucket().facts,
+          version: { label: "Version", param: "version", within },
+        },
+        indexes: indexes ?? [...testBucket().indexes, ["code", "version"]],
+      });
+
+    it("is declared with the index line of the two", () => {
+      expect(withVersion().facts.version.within).toBe("code");
+    });
+
+    it.each(["colour", "version"])("is refused within %s", (within) => {
+      expect(() => withVersion({ within })).toThrow(
+        "has a fact within itself or within an undeclared fact",
+      );
+    });
+
+    it.each([
+      ["no line of the two", [["status"], ["code"]]],
+      ["the two the other way round", [["code"], ["version", "code"]]],
+      ["the two behind a third", [["code"], ["status", "code", "version"]]],
+    ])("is refused with %s", (_, indexes) => {
+      expect(() => withVersion({ indexes })).toThrow(
+        "has a fact within another with no index line of the two",
+      );
+    });
   });
 
   it("refuses a declared time-only line", () => {

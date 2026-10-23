@@ -7,7 +7,7 @@ import {
   seedConfigVersion,
   submitApplication,
 } from "../helpers/applications.js";
-import { createGrant } from "../helpers/grants.js";
+import { createGrant, insertGrant } from "../helpers/grants.js";
 import { wreck } from "../helpers/wreck.js";
 
 let db;
@@ -31,36 +31,33 @@ afterAll(async () => {
 
 describe("POST /grants/{code}/applications", () => {
   it("stores submitted application", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: {
-        code: "test-code-1",
-        version: "0.0.0",
-        metadata: {
-          description: "test description 1",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        amendablePositions: [],
-        phases: [
-          {
-            code: "PHASE_1",
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                question1: {
-                  type: "string",
-                  description: "This is a test question",
-                },
+    await insertGrant({
+      code: "test-code-1",
+      version: "0.0.0",
+      metadata: {
+        description: "test description 1",
+        startDate: "2100-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      amendablePositions: [],
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              question1: {
+                type: "string",
+                description: "This is a test question",
               },
             },
-            stages: [
-              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-            ],
           },
-        ],
-      },
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
+        },
+      ],
     });
 
     await seedConfigVersion(db, "test-code-1");
@@ -195,36 +192,33 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("stores submitted application and preserves extra metadata", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: {
-        code: "test-code-1",
-        version: "0.0.0",
-        metadata: {
-          description: "test description 1",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        amendablePositions: [],
-        phases: [
-          {
-            code: "PHASE_1",
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                question1: {
-                  type: "string",
-                  description: "This is a test question",
-                },
+    await insertGrant({
+      code: "test-code-1",
+      version: "0.0.0",
+      metadata: {
+        description: "test description 1",
+        startDate: "2100-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      amendablePositions: [],
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              question1: {
+                type: "string",
+                description: "This is a test question",
               },
             },
-            stages: [
-              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-            ],
           },
-        ],
-      },
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
+        },
+      ],
     });
 
     await seedConfigVersion(db, "test-code-1");
@@ -331,37 +325,34 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("returns 400 when schema validation fails", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: {
-        code: "test-code-1",
-        version: "0.0.0",
-        metadata: {
-          description: "test description 1",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        amendablePositions: [],
+    await insertGrant({
+      code: "test-code-1",
+      version: "0.0.0",
+      metadata: {
+        description: "test description 1",
+        startDate: "2100-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      amendablePositions: [],
 
-        phases: [
-          {
-            code: "PHASE_1",
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                question1: {
-                  type: "string",
-                  description: "This is a test question",
-                },
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              question1: {
+                type: "string",
+                description: "This is a test question",
               },
             },
-            stages: [
-              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-            ],
           },
-        ],
-      },
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
+        },
+      ],
     });
 
     await seedConfigVersion(db, "test-code-1");
@@ -404,37 +395,34 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("returns 409 when clientRef exists", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: {
-        code: "test-code-1",
-        version: "0.0.0",
-        metadata: {
-          description: "test description 1",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        amendablePositions: [],
+    await insertGrant({
+      code: "test-code-1",
+      version: "0.0.0",
+      metadata: {
+        description: "test description 1",
+        startDate: "2100-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      amendablePositions: [],
 
-        phases: [
-          {
-            code: "PHASE_1",
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                question1: {
-                  type: "string",
-                  description: "This is a test question",
-                },
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              question1: {
+                type: "string",
+                description: "This is a test question",
               },
             },
-            stages: [
-              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-            ],
           },
-        ],
-      },
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
+        },
+      ],
     });
 
     await seedConfigVersion(db, "test-code-1");
@@ -523,10 +511,7 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("responds with 400 when the application send invalid unit value", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: grant3,
-    });
+    await insertGrant(grant3);
 
     await seedConfigVersion(db, "test-code-3");
 
@@ -575,10 +560,7 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("responds with 400 when the application send missing code value", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: grant3,
-    });
+    await insertGrant(grant3);
 
     await seedConfigVersion(db, "test-code-3");
 
@@ -626,10 +608,7 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("responds with 400 when the application send invalid sheet value", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: grant3,
-    });
+    await insertGrant(grant3);
 
     await seedConfigVersion(db, "test-code-3");
 
@@ -678,36 +657,33 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("replaces an existing application when replacement is allowed", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: {
-        code: "test-code-1",
-        version: "0.0.0",
-        metadata: {
-          description: "test description 1",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        amendablePositions: ["PHASE_1:STAGE_1:NEW"],
-        phases: [
-          {
-            code: "PHASE_1",
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                question1: {
-                  type: "string",
-                  description: "This is a test question",
-                },
+    await insertGrant({
+      code: "test-code-1",
+      version: "0.0.0",
+      metadata: {
+        description: "test description 1",
+        startDate: "2100-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      amendablePositions: ["PHASE_1:STAGE_1:NEW"],
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              question1: {
+                type: "string",
+                description: "This is a test question",
               },
             },
-            stages: [
-              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-            ],
           },
-        ],
-      },
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
+        },
+      ],
     });
 
     await seedConfigVersion(db, "test-code-1");
@@ -848,36 +824,33 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("returns 409 when replacing an application that does not allow replacement", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: {
-        code: "test-code-2",
-        version: "0.0.0",
-        metadata: {
-          description: "test description 1",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        amendablePositions: [],
-        phases: [
-          {
-            code: "PHASE_1",
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                question1: {
-                  type: "string",
-                  description: "This is a test question",
-                },
+    await insertGrant({
+      code: "test-code-2",
+      version: "0.0.0",
+      metadata: {
+        description: "test description 1",
+        startDate: "2100-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      amendablePositions: [],
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              question1: {
+                type: "string",
+                description: "This is a test question",
               },
             },
-            stages: [
-              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-            ],
           },
-        ],
-      },
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
+        },
+      ],
     });
 
     await seedConfigVersion(db, "test-code-2");
@@ -933,36 +906,33 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("returns 404 when the previous application does not exist", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: {
-        code: "test-code-1",
-        version: "0.0.0",
-        metadata: {
-          description: "test description 1",
-          startDate: "2100-01-01T00:00:00.000Z",
-        },
-        actions: [],
-        amendablePositions: [],
-        phases: [
-          {
-            code: "PHASE_1",
-            questions: {
-              $schema: "https://json-schema.org/draft/2020-12/schema",
-              type: "object",
-              properties: {
-                question1: {
-                  type: "string",
-                  description: "This is a test question",
-                },
+    await insertGrant({
+      code: "test-code-1",
+      version: "0.0.0",
+      metadata: {
+        description: "test description 1",
+        startDate: "2100-01-01T00:00:00.000Z",
+      },
+      actions: [],
+      amendablePositions: [],
+      phases: [
+        {
+          code: "PHASE_1",
+          questions: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            properties: {
+              question1: {
+                type: "string",
+                description: "This is a test question",
               },
             },
-            stages: [
-              { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
-            ],
           },
-        ],
-      },
+          stages: [
+            { code: "STAGE_1", statuses: [{ code: "NEW", validFrom: [] }] },
+          ],
+        },
+      ],
     });
 
     await seedConfigVersion(db, "test-code-1");
@@ -1000,10 +970,7 @@ describe("POST /grants/{code}/applications", () => {
   });
 
   it("responds with 400 when the application send invalid parcel Id value", async () => {
-    await wreck.post("/grants", {
-      json: true,
-      payload: grant3,
-    });
+    await insertGrant(grant3);
 
     await seedConfigVersion(db, "test-code-3");
 
