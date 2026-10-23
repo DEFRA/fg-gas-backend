@@ -16,7 +16,7 @@ import {
 } from "../services/config-version-not-found.js";
 import { isDefinitionDefect } from "../services/definition-defect.js";
 import { loadConfigVersionFiles } from "./load-config-version-files.js";
-import { checkGrantDefinition } from "./validate-config-definitions.js";
+import { checkGrantDefinition } from "./check-grant-definition.js";
 
 const HTTP_CONFLICT = 409;
 const MESSAGE_MAX = 500;
