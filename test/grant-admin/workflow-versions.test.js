@@ -6,6 +6,7 @@ import {
   workflowVersionPageSchemas,
   workflowVersionsSchema,
 } from "../../src/grant-admin/schemas/workflow-version-page.schema.js";
+import { toConfigLink } from "../../src/events/case-refs.js";
 import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
 import { wreck } from "../helpers/wreck.js";
 
@@ -451,6 +452,42 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/events", () => {
     });
     const [row] = await auditRows("VIEW_WORKFLOW_VERSION");
     expect(row.event.audit.details).toMatchObject({ tab: "events" });
+  });
+
+  it("reads the events of a 64-character upper-case workflow code", async () => {
+    const code = "W".repeat(64);
+    const record = aVersionRecord("1.2.0", "active");
+    await setCwStub({
+      workflows: {
+        records: {
+          [`${code}/1.2.0`]: {
+            ...record,
+            version: { ...record.version, grantCode: code },
+          },
+        },
+      },
+      buckets: {
+        answers: {
+          "cw.inbox": aCwInboxPage([
+            aCwEventRow(
+              "665f1c2e9a1b2c3d4e5f6a7e",
+              "COMPLETED",
+              "2026-10-11T09:00:00.000Z",
+            ),
+          ]),
+        },
+      },
+    });
+
+    const { payload: page } = await get(`${code}/versions/1.2.0/events`);
+
+    expect(page.events.rows.map((row) => row.eventId)).toEqual([
+      "cw-msg-665f1c2e9a1b2c3d4e5f6a7e",
+    ]);
+    expect(page.sourceErrors).toEqual([]);
+    const [request] = await bucketRequests();
+    expect(request.body.ref).toBe(toConfigLink(code, "1.2.0"));
+    expect(request.body.ref.length).toBeGreaterThan(256);
   });
 
   it("names Caseworking, with no rows, when its inbox cannot be read", async () => {

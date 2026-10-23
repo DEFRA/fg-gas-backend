@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { env } from "node:process";
+import { queryRequestSchema } from "../../src/common/buckets/schema.js";
 
 // A stand-in for fg-cw-backend's actuator endpoints, reached by GAS over real
 // HTTP (`host.docker.internal`) and driven by the tests over its control paths.
@@ -47,8 +48,9 @@ const emptyCases = () => ({
 });
 
 // The bucket routes: `entries` is the catalogue and `answers` each bucket's
-// query answer by id. A `refusal` reason answers every query 400; a bucket
-// with no answer is a 404 UNKNOWN_BUCKET.
+// query answer by id. A `refusal` reason answers every query 400, as does a
+// query Caseworking's schema refuses; a bucket with no answer is a 404
+// UNKNOWN_BUCKET.
 const emptyBuckets = () => ({
   mode: "ok",
   missingRoute: false,
@@ -137,8 +139,7 @@ const respondForMode = (box, response) => {
 
 const record = async (name, request) => {
   const url = new URL(request.url, "http://stub.local");
-
-  requests.push({
+  const entry = {
     box: name,
     method: request.method,
     path: url.pathname,
@@ -148,7 +149,11 @@ const record = async (name, request) => {
     actor: request.headers["x-actor"] ?? null,
     searchRepeat: request.headers["x-search-repeat"] ?? null,
     body: request.method === "POST" ? await readBody(request) : null,
-  });
+  };
+
+  requests.push(entry);
+
+  return entry;
 };
 
 const isAuthorised = (request) =>
@@ -431,7 +436,7 @@ const BUCKETS_PATH = "/actuators/buckets";
 const BUCKET_QUERY_PATH = /^\/actuators\/buckets\/([^/]+)\/query$/;
 const TIMELINE_PATH = "/actuators/timeline";
 
-const answerBucketQuery = (pathname, response) => {
+const answerBucketQuery = (pathname, body, response) => {
   const { answers, refusal } = state.buckets;
   const [, bucketId] = BUCKET_QUERY_PATH.exec(pathname);
   const answer = answers[decodeURIComponent(bucketId)];
@@ -443,20 +448,24 @@ const answerBucketQuery = (pathname, response) => {
     });
   }
 
+  if (queryRequestSchema.validate(body).error) {
+    return send(response, BAD_REQUEST, { reason: "INVALID_REQUEST" });
+  }
+
   return answer
     ? send(response, OK, answer)
     : send(response, NOT_FOUND, { reason: "UNKNOWN_BUCKET" });
 };
 
-const answerBuckets = (pathname, buckets, response) =>
+const answerBuckets = (pathname, { body }, buckets, response) =>
   pathname === BUCKETS_PATH
     ? send(response, OK, { buckets: buckets.entries })
-    : answerBucketQuery(pathname, response);
+    : answerBucketQuery(pathname, body, response);
 
 // GET /actuators/buckets, POST /actuators/buckets/{bucketId}/query and
 // POST /actuators/timeline.
 const handleBuckets = async (pathname, request, response) => {
-  await record("buckets", request);
+  const recorded = await record("buckets", request);
 
   if (!isAuthorised(request)) {
     return send(response, UNAUTHORIZED, { message: "bad token" });
@@ -474,7 +483,7 @@ const handleBuckets = async (pathname, request, response) => {
 
   return pathname === TIMELINE_PATH
     ? send(response, OK, buckets.timeline)
-    : answerBuckets(pathname, buckets, response);
+    : answerBuckets(pathname, recorded, buckets, response);
 };
 
 const isBucketPath = (pathname) =>

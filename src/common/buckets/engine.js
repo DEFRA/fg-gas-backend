@@ -439,12 +439,11 @@ const readTimelineOf = (ref) => async (bucket) => {
   const { id, label } = bucket;
 
   try {
-    // The ref is the timeline request's own, which may be a link longer than a search.
-    const { value } = queryRequestSchema.validate({ limit: TIMELINE_LIMIT });
-    const { rows, page } = await runQuery(
-      bucket,
-      parseQuery(bucket, { ...value, ref }),
-    );
+    const { value } = queryRequestSchema.validate({
+      ref,
+      limit: TIMELINE_LIMIT,
+    });
+    const { rows, page } = await runQuery(bucket, parseQuery(bucket, value));
 
     return { id, label, rows, more: page.next !== null };
   } catch (error) {
