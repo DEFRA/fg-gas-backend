@@ -55,6 +55,8 @@ export const auditActions = {
   SEARCH_CASES: "SEARCH_CASES",
   // One tab of one case in Grant Admin.
   VIEW_CASE_DATA: "VIEW_CASE_DATA",
+  // One tab of one grant version in Grant Admin.
+  VIEW_GRANT_VERSION: "VIEW_GRANT_VERSION",
   // One page of one audited bucket.
   QUERY_BUCKET: "QUERY_BUCKET",
 };

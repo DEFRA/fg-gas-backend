@@ -3,6 +3,10 @@ import { up } from "migrate-mongo";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AGREEMENT_STATUS_UPDATED_EVENT_TYPE } from "../agreements/events/agreement-status-updated.event.js";
 import { clearBuckets, findBucket } from "../common/buckets/registry.js";
+import {
+  clearDefinitionStores,
+  storedDefinitionVersions,
+} from "../common/config-broker/definition-stores.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
 import {
@@ -16,6 +20,7 @@ import {
 import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
 import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import { grants } from "./index.js";
+import { findStoredVersions } from "./repositories/grant.repository.js";
 import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
 
 vi.mock("../common/logger.js");
@@ -25,6 +30,7 @@ vi.mock("migrate-mongo");
 vi.mock("./handlers/handle-grant-status-message.js");
 vi.mock("./handlers/handle-config-version-message.js");
 vi.mock("./subscribers/config-version-updated.subscriber.js");
+vi.mock("./repositories/grant.repository.js");
 
 describe("grants", () => {
   let server;
@@ -35,6 +41,7 @@ describe("grants", () => {
     vi.clearAllMocks();
     clearEventHandlers();
     clearBuckets();
+    clearDefinitionStores();
   });
 
   it("runs migrations on startup", async () => {
@@ -125,6 +132,16 @@ describe("grants", () => {
     expect(handleConfigVersionMessage).toHaveBeenCalledWith(
       configBrokerMessage,
     );
+  });
+
+  it("registers the grant definition store's stored-version read", async () => {
+    findStoredVersions.mockResolvedValue(["1.0.1"]);
+    await server.register(grants);
+
+    await expect(
+      storedDefinitionVersions("grant", "woodland", ["1.0.1"]),
+    ).resolves.toEqual(new Set(["1.0.1"]));
+    expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"]);
   });
 
   it("registers routes", async () => {
