@@ -7,7 +7,7 @@ export const describePhases = (phases) =>
     ...codeAndName(phase),
     stages: phase.stages.map((stage) => ({
       ...codeAndName(stage),
-      statuses: stage.statuses.map(({ code }) => ({ code })),
+      statuses: stage.statuses.map(codeAndName),
     })),
   }));
 

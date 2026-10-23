@@ -1,12 +1,12 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
-import { fetchCwWorkflowDefinition } from "../repositories/cw-actuators.repository.js";
+import { fetchCwWorkflowDefinition } from "../repositories/cw-workflows.repository.js";
 import { fetchWorkflowDefinitionUseCase } from "./fetch-workflow-definition.use-case.js";
 
 vi.mock("../../common/logger.js");
 vi.mock("../../events/write-audit-event.js");
-vi.mock("../repositories/cw-actuators.repository.js", async (original) => ({
+vi.mock("../repositories/cw-workflows.repository.js", async (original) => ({
   ...(await original()),
   fetchCwWorkflowDefinition: vi.fn(),
 }));

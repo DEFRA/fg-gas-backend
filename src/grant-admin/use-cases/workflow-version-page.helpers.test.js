@@ -1,7 +1,7 @@
 import Boom from "@hapi/boom";
 import { describe, expect, it, vi } from "vitest";
 import { grantVersionExists } from "../../grants/services/config-version.service.js";
-import { findCwWorkflowVersion } from "../repositories/cw-actuators.repository.js";
+import { findCwWorkflowVersion } from "../repositories/cw-workflows.repository.js";
 import {
   readWorkflowVersionHeader,
   startWorkflowVersionRead,
@@ -9,7 +9,7 @@ import {
 
 vi.mock("../../common/logger.js");
 vi.mock("../../grants/services/config-version.service.js");
-vi.mock("../repositories/cw-actuators.repository.js");
+vi.mock("../repositories/cw-workflows.repository.js");
 
 const REF = { code: "woodland", version: "2.0.0" };
 
@@ -67,6 +67,35 @@ describe("readWorkflowVersionHeader", () => {
     });
     expect(accounts).toBeNull();
     expect(grantVersionExists).not.toHaveBeenCalled();
+  });
+
+  it("passes on the workflow file's fetch state, where it is and each version's fetch state", async () => {
+    const versions = [{ ...VERSIONS[0], fetchStatus: "pending", stored: true }];
+    const read = aRead({ versions });
+    read.version = {
+      ...read.version,
+      fetchStatus: "transient_error",
+      fetchError: "S3 timed out",
+      fetchAttempts: 2,
+      s3Key: "woodland/2.0.0/cw/workflow.json",
+      s3Bucket: "config-broker-local",
+    };
+
+    const { header: drawn } = await header(read);
+
+    expect(drawn).toMatchObject({
+      s3Bucket: "config-broker-local",
+      files: {
+        workflow: {
+          stored: false,
+          fetchStatus: "transient_error",
+          fetchError: "S3 timed out",
+          fetchAttempts: 2,
+          s3Key: "woodland/2.0.0/cw/workflow.json",
+        },
+      },
+      versions,
+    });
   });
 
   it("says the workflow is stored when Caseworking has its size", async () => {

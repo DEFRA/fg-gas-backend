@@ -1,10 +1,8 @@
 import { describeBucket } from "../../common/buckets/catalogue.js";
 import { listBuckets } from "../../common/buckets/registry.js";
 import { logger } from "../../common/logger.js";
-import {
-  describeError,
-  findCwBuckets,
-} from "../repositories/cw-actuators.repository.js";
+import { findCwBuckets } from "../repositories/cw-actuators.repository.js";
+import { describeError } from "../repositories/cw-http.js";
 
 const CW_UNAVAILABLE = { buckets: [], sourceErrors: [{ hop: "CW-BE" }] };
 

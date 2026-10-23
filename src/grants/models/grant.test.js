@@ -315,6 +315,26 @@ describe("Grant", () => {
       );
     });
 
+    const withNamedStatus = (name) =>
+      withStatus(definition(), {
+        code: "HELD",
+        name,
+        validFrom: [{ code: "APPLICATION_RECEIVED", processes: [] }],
+      });
+
+    it("accepts a status with a name", () => {
+      expect(() => fromDefinition(withNamedStatus("Held"))).not.toThrow();
+    });
+
+    it.each([
+      ["empty", ""],
+      ["not text", { en: "Held" }],
+    ])("rejects a status whose name is %s", (_, name) => {
+      expect(() => fromDefinition(withNamedStatus(name))).toThrow(
+        'Invalid grant definition "test-grant"',
+      );
+    });
+
     it("rejects a validFrom that does not exist", () => {
       const published = withStatus(definition(), {
         code: "HELD",
@@ -1467,7 +1487,7 @@ describe("Grant", () => {
     const waysInto = (lifecycle, to) =>
       lifecycle.waysIn.filter((wayIn) => wayIn.to === to);
 
-    it("describes the phases, initial, amendable and claim approval positions", () => {
+    it("describes the phases with their status names, initial, amendable and claim approval positions", () => {
       const lifecycle = lifecycleOf(
         [
           {
@@ -1478,7 +1498,7 @@ describe("Grant", () => {
                 code: "APPLICATION",
                 name: "Application",
                 statuses: [
-                  status("RECEIVED", []),
+                  { ...status("RECEIVED", []), name: "Received" },
                   status("AMEND", [from("RECEIVED", ["NOTIFY"])]),
                 ],
               },
@@ -1525,7 +1545,10 @@ describe("Grant", () => {
               {
                 code: "APPLICATION",
                 name: "Application",
-                statuses: [{ code: "RECEIVED" }, { code: "AMEND" }],
+                statuses: [
+                  { code: "RECEIVED", name: "Received" },
+                  { code: "AMEND", name: null },
+                ],
               },
             ],
           },
@@ -1533,7 +1556,11 @@ describe("Grant", () => {
             code: "CLAIM",
             name: null,
             stages: [
-              { code: "AWAITING", name: null, statuses: [{ code: "OPEN" }] },
+              {
+                code: "AWAITING",
+                name: null,
+                statuses: [{ code: "OPEN", name: null }],
+              },
             ],
           },
         ],
@@ -1545,12 +1572,14 @@ describe("Grant", () => {
             to: "PRE_AWARD:APPLICATION:AMEND",
             kind: "move",
             from: "PRE_AWARD:APPLICATION:RECEIVED",
+            matchedBy: "status",
             processes: ["NOTIFY"],
           },
           {
             to: "CLAIM:AWAITING:OPEN",
             kind: "move",
             from: "PRE_AWARD:APPLICATION:AMEND",
+            matchedBy: "position",
             processes: [],
           },
         ],
@@ -1603,7 +1632,7 @@ describe("Grant", () => {
       );
     });
 
-    it("admits a full code from that position alone and a bare code from that status anywhere", () => {
+    it("admits a full code from that position alone and a bare code from that status anywhere, saying which matched", () => {
       const lifecycle = lifecycleOf([
         {
           code: "P",
@@ -1622,15 +1651,29 @@ describe("Grant", () => {
         },
       ]);
 
+      const move = (to, from, matchedBy) => ({
+        to,
+        kind: "move",
+        from,
+        matchedBy,
+        processes: [],
+      });
+
       expect(waysInto(lifecycle, "P:T:FULL")).toEqual([
-        { to: "P:T:FULL", kind: "move", from: "P:S:A", processes: [] },
+        move("P:T:FULL", "P:S:A", "position"),
       ]);
       expect(waysInto(lifecycle, "P:T:BARE")).toEqual([
-        { to: "P:T:BARE", kind: "move", from: "P:S:A", processes: [] },
-        { to: "P:T:BARE", kind: "move", from: "P:T:A", processes: [] },
+        move("P:T:BARE", "P:S:A", "status"),
+        move("P:T:BARE", "P:T:A", "status"),
       ]);
       expect(waysInto(lifecycle, "P:T:TWO_PART")).toEqual([
-        { to: "P:T:TWO_PART", kind: "unmatched", code: "S:A", processes: [] },
+        {
+          to: "P:T:TWO_PART",
+          kind: "unmatched",
+          code: "S:A",
+          matchedBy: "position",
+          processes: [],
+        },
       ]);
     });
 
@@ -1650,9 +1693,17 @@ describe("Grant", () => {
       );
 
       expect(waysInto(lifecycle, "P:S:X")).toEqual([
-        { to: "P:S:X", kind: "move", from: "P:S:A", processes: ["FIRST"] },
-        { to: "P:S:X", kind: "unmatched", code: "GONE", processes: ["LOST"] },
-        { to: "P:S:X", kind: "move", from: "P:S:B", processes: [] },
+        expect.objectContaining({
+          kind: "move",
+          from: "P:S:A",
+          processes: ["FIRST"],
+        }),
+        expect.objectContaining({
+          kind: "unmatched",
+          code: "GONE",
+          processes: ["LOST"],
+        }),
+        expect.objectContaining({ kind: "move", from: "P:S:B", processes: [] }),
       ]);
     });
 
@@ -1699,7 +1750,9 @@ describe("Grant", () => {
         },
       );
 
-      expect(lifecycle.phases[1].stages[0].statuses).toEqual([{ code: "B" }]);
+      expect(lifecycle.phases[1].stages[0].statuses).toEqual([
+        { code: "B", name: null },
+      ]);
       expect(waysInto(lifecycle, "P:HIDDEN:B")).toEqual([]);
       expect(lifecycle.externalMappings).toEqual([]);
     });
@@ -1829,7 +1882,9 @@ describe("Grant", () => {
                   : [];
               });
           });
-        const moves = waysIn.filter(({ kind }) => kind === "move");
+        const moves = waysIn
+          .filter(({ kind }) => kind === "move")
+          .map(({ matchedBy: _, ...move }) => move);
 
         expect(allowed.length).toBeGreaterThan(0);
         expect(moves).toHaveLength(allowed.length);
