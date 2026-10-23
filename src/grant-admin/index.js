@@ -1,3 +1,7 @@
+import {
+  getGrantSettingsRoute,
+  saveGrantSettingsRoute,
+} from "./routes/grant-settings.route.js";
 import { requireAdminClient } from "./admin-client.js";
 import { createEntitlementRoute } from "./routes/create-entitlement.route.js";
 import { editPayloadRoute } from "./routes/edit-payload.route.js";
@@ -52,6 +56,8 @@ export const grantAdmin = {
       summariseBucketRoute,
       getEventRoute,
       getAllowListRoute,
+      getGrantSettingsRoute,
+      saveGrantSettingsRoute,
       replaceAllowListRoute,
       redriveEventRoute,
       purgeEventRoute,

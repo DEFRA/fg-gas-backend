@@ -29,6 +29,7 @@ describe("grant-admin", () => {
       "get /grant-admin/grants/{code}/applications/{clientRef}/events",
       "get /grant-admin/grants/{code}/applications/{clientRef}/overview",
       "get /grant-admin/grants/{code}/applications/{clientRef}/raw",
+      "get /grant-admin/grants/{code}/settings",
       "get /grant-admin/grants/{code}/versions",
       "get /grant-admin/grants/{code}/versions/{version}/agreement",
       "get /grant-admin/grants/{code}/versions/{version}/definition",
@@ -53,6 +54,7 @@ describe("grant-admin", () => {
       "post /grant-admin/workflows/{code}/versions/{version}/fetch",
       "put /grant-admin/grants/{code}/allow-list",
       "put /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
+      "put /grant-admin/grants/{code}/settings",
     ]);
   });
 
@@ -88,7 +90,11 @@ describe("grant-admin", () => {
     );
   });
 
-  it("protects the allow-list routes from other authenticated clients", async () => {
+  it.each([
+    ["GET", "/grant-admin/grants/woodland/allow-list"],
+    ["GET", "/grant-admin/grants/woodland/settings"],
+    ["PUT", "/grant-admin/grants/woodland/settings"],
+  ])("protects %s %s from other authenticated clients", async (method, url) => {
     const server = hapi.server();
     server.auth.scheme("stub", () => ({
       authenticate: (_request, h) =>
@@ -100,8 +106,8 @@ describe("grant-admin", () => {
     await server.initialize();
 
     const response = await server.inject({
-      method: "GET",
-      url: "/grant-admin/grants/woodland/allow-list",
+      method,
+      url,
       headers: {
         "x-actor": "Jo Operator",
         "x-actor-id": "3f2504e0-4f89-41d3-9a0c-0305e82c3301",

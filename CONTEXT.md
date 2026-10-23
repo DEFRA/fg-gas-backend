@@ -15,7 +15,7 @@
 : Replace the grant's CRN and SBI collections together. Replacement never appends or merges.
 
 **Unrestricted Grant**
-: A grant whose Global Allow List contains no CRNs or SBIs, allowing anyone to apply.
+: A grant whose Global Allow List contains no CRNs or SBIs, placing no identifier restrictions on access. The grant must also be open.
 
 **Grant Definition**
 : The published `gas.json` for one config version of a grant. A config version is only recorded once its Grant Definition builds a usable Grant.
@@ -113,3 +113,12 @@ _Avoid_: service URL, when the configured value is meant.
 **Page Processes**
 : The Processes an agreement State runs every time one of its pages is rendered. They do not run once on entry.
 _Avoid_: on entry.
+
+**Grant Settings**
+: The operational settings for one grant, independent of its published versions.
+
+**Grant Availability**
+: Whether a grant is open or closed. A grant with no settings is closed.
+
+**Grant Access**
+: The decision combining Grant Availability and the Global Allow List. Access is allowed only when the grant is open and the applicant satisfies each populated identifier restriction.
