@@ -22,11 +22,13 @@ export const storedDefinitionVersions = async (
   definitionType,
   grantCode,
   versions,
+  session,
 ) =>
   new Set(
     await getDefinitionStore(definitionType).storedVersions(
       grantCode,
       versions,
+      session,
     ),
   );
 

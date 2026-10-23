@@ -174,9 +174,13 @@ describe("agreements", () => {
     await server.register(agreements);
 
     await expect(
-      storedDefinitionVersions("agreement", "woodland", ["1.0.1"]),
+      storedDefinitionVersions("agreement", "woodland", ["1.0.1"], {
+        id: "transaction",
+      }),
     ).resolves.toEqual(new Set(["1.0.1"]));
-    expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"]);
+    expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"], {
+      id: "transaction",
+    });
   });
 
   it("registers the agreement definition store's read of a stored definition", async () => {

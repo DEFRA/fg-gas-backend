@@ -64,7 +64,7 @@ export const saveFromDefinition = async (grantDefinition, version) => {
   return grant;
 };
 
-export const findStoredVersions = async (code, versions) => {
+export const findStoredVersions = async (code, versions, session) => {
   const documents = await db
     .collection(collection)
     .find(
@@ -72,6 +72,7 @@ export const findStoredVersions = async (code, versions) => {
       {
         projection: { _id: 0, version: 1 },
         maxTimeMS: config.adminReadTimeoutMs,
+        session,
       },
     )
     .toArray();

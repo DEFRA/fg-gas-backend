@@ -386,7 +386,28 @@ describe("fetchConfigDefinitionsUseCase", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("stops when a grant is stored by someone else during the fetch, as that aborts the transaction", async () => {
+  it("counts a file stored since it was found missing as stored, without storing it again", async () => {
+    storedDefinitionVersions.mockImplementation(
+      (type, _code, _versions, session) =>
+        Promise.resolve(
+          new Set(session === SESSION && type !== "payment" ? [VERSION] : []),
+        ),
+    );
+
+    const { files } = await fetchConfigDefinitionsUseCase(ARGS);
+
+    expect(files).toEqual([
+      { file: "grant", outcome: "stored" },
+      { file: "agreement", outcome: "stored" },
+      { file: "payment", outcome: "stored" },
+    ]);
+    expect(save).not.toHaveBeenCalled();
+    expect(storeDefinition.mock.calls.map(([type]) => type)).toEqual([
+      "payment",
+    ]);
+  });
+
+  it("stops when a grant store still conflicts in the transaction", async () => {
     save.mockRejectedValue(Boom.conflict("already exists"));
 
     const error = await fetchConfigDefinitionsUseCase(ARGS).catch((e) => e);

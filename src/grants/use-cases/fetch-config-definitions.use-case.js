@@ -1,6 +1,9 @@
 import Boom from "@hapi/boom";
 import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
-import { storeDefinition } from "../../common/config-broker/definition-stores.js";
+import {
+  storeDefinition,
+  storedDefinitionVersions,
+} from "../../common/config-broker/definition-stores.js";
 import { logger } from "../../common/logger.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
 import {
@@ -138,6 +141,13 @@ const readEach = (configVersion, missingFiles) =>
     );
   });
 
+const isStored = async ({ grantCode, version, file }, session) =>
+  (await storedDefinitionVersions(file, grantCode, [version], session)).has(
+    version,
+  );
+
+// A file stored since it was found missing counts as stored. Checked in the
+// transaction, so one stored by a fetch still running makes this one retry.
 const storeEach = (reads, session) =>
   inTurn(reads, (read, handled) =>
     read.target
@@ -145,10 +155,14 @@ const storeEach = (reads, session) =>
           read.target,
           async () => {
             const { grantCode, version, file } = read.target;
-            await stores[file](
-              { grantCode, version, definition: read.definition },
-              session,
-            );
+
+            if (!(await isStored(read.target, session))) {
+              await stores[file](
+                { grantCode, version, definition: read.definition },
+                session,
+              );
+            }
+
             return { file, outcome: "stored" };
           },
           handled,

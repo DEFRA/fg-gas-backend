@@ -33,7 +33,7 @@ export const insertPaymentDefinition = async (
   }
 };
 
-export const findStoredVersions = async (code, versions) => {
+export const findStoredVersions = async (code, versions, session) => {
   const documents = await db
     .collection(paymentDefinitionsCollection)
     .find(
@@ -41,6 +41,7 @@ export const findStoredVersions = async (code, versions) => {
       {
         projection: { _id: 0, version: 1 },
         maxTimeMS: config.adminReadTimeoutMs,
+        session,
       },
     )
     .toArray();

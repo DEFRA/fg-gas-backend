@@ -54,9 +54,13 @@ it("registers the payment definition store's stored-version read", async () => {
   payments.register();
 
   await expect(
-    storedDefinitionVersions("payment", "woodland", ["1.0.1"]),
+    storedDefinitionVersions("payment", "woodland", ["1.0.1"], {
+      id: "transaction",
+    }),
   ).resolves.toEqual(new Set(["1.0.1"]));
-  expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"]);
+  expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"], {
+    id: "transaction",
+  });
 });
 
 it("registers the payment definition store's check-and-store", async () => {
