@@ -15,7 +15,9 @@ import { resolveGrantAdministration } from "./resolve-grant-administration.use-c
 
 const errorCodes = { 403: "GRANT_ADMIN_ACCESS_DENIED", 404: "GRANT_NOT_FOUND" };
 const errorCodeOf = (error) => {
-  if (!Boom.isBoom(error)) return "UNEXPECTED_FAILURE";
+  if (!Boom.isBoom(error)) {
+    return "UNEXPECTED_FAILURE";
+  }
   const { payload, statusCode } = error.output;
   return payload.errorCode === "GRANT_SETTINGS_VALIDATION_FAILED"
     ? payload.errorCode
@@ -57,5 +59,8 @@ export const saveGrantSettingsUseCase = async (args) => {
   const result = await withTransaction((session) =>
     saveWithAudit(args, session),
   );
+  if (!result) {
+    throw Boom.internal("Grant settings could not be saved");
+  }
   return result.representation;
 };
