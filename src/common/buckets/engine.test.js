@@ -1235,6 +1235,7 @@ describe("describeBucket", () => {
           label: "Status",
           values: bucket.facts.status.values,
           toggle: null,
+          within: null,
         },
         {
           name: "eventType",
@@ -1242,6 +1243,7 @@ describe("describeBucket", () => {
           label: "Event",
           values: bucket.facts.eventType.values,
           toggle: null,
+          within: null,
         },
         {
           name: "grantCode",
@@ -1249,6 +1251,7 @@ describe("describeBucket", () => {
           label: "Grant",
           values: null,
           toggle: null,
+          within: null,
         },
         {
           name: "code",
@@ -1259,6 +1262,7 @@ describe("describeBucket", () => {
             { value: "beta", label: "beta" },
           ],
           toggle: null,
+          within: null,
         },
         {
           name: "source",
@@ -1266,6 +1270,7 @@ describe("describeBucket", () => {
           label: "Source",
           values: bucket.facts.source.values,
           toggle: null,
+          within: null,
         },
       ],
       refs: [
@@ -1297,6 +1302,7 @@ describe("describeBucket", () => {
         { value: "audit", label: "audit", hidden: true },
       ],
       toggle: { label: "Show audit events", param: "audit" },
+      within: null,
     });
     expect(entry.indexes).toEqual([["eventType"], ["eventType", "status"]]);
     expect(catalogueEntrySchema.validate(entry).error).toBeUndefined();
@@ -1315,6 +1321,29 @@ describe("describeBucket", () => {
     const entry = await describeBucket(open);
 
     expect(entry.facts[0].toggle).toBeNull();
+  });
+
+  it("describes the fact a fact is within", async () => {
+    makeCollection({ groups: [{ _id: "alpha" }] });
+    const within = testBucket({
+      facts: {
+        ...bucket.facts,
+        version: { label: "Version", param: "version", within: "code" },
+      },
+      indexes: [...bucket.indexes, ["code", "version"]],
+    });
+
+    const entry = await describeBucket(within);
+
+    expect(entry.facts.find(({ name }) => name === "version")).toEqual({
+      name: "version",
+      param: "version",
+      label: "Version",
+      values: null,
+      toggle: null,
+      within: "code",
+    });
+    expect(catalogueEntrySchema.validate(entry).error).toBeUndefined();
   });
 
   it("describes a stored fact with too many values as open and not a grouping", async () => {

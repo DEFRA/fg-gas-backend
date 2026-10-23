@@ -49,6 +49,12 @@
 **Application Series**
 : The applications of one grant linked by a previous Client Reference: an application and those it replaced.
 
+**Original Config Version**
+: The version of its grant an application started on.
+
+**Current Config Version**
+: The version of its grant an application was last resolved to. It moves forward within its major only when the application is read or acted on through Grants, so it can lag the version the application would resolve to now.
+
 ## Events
 
 **Event Reference**

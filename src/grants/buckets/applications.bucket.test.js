@@ -23,13 +23,21 @@ describe("gas.applications", () => {
     });
   });
 
-  it("reads its grants from the stored rows, and declares no other fact to filter by", () => {
+  it("reads its grants from the stored rows, and filters by a version within a grant", () => {
     expect(bucket.facts).toEqual({
       code: {
         label: "Grant",
         values: STORED,
         toggle: null,
+        within: null,
         param: "grant",
+      },
+      currentConfigVersion: {
+        label: "Version",
+        values: null,
+        toggle: null,
+        within: "code",
+        param: "version",
       },
     });
   });
@@ -48,6 +56,7 @@ describe("gas.applications", () => {
     expect(indexKeysOf(bucket).map(Object.keys)).toEqual([
       ["createdAt", "_id"],
       ["code", "createdAt", "_id"],
+      ["code", "currentConfigVersion", "createdAt", "_id"],
       ["refs", "createdAt", "_id"],
     ]);
   });
@@ -58,6 +67,25 @@ describe("gas.applications", () => {
       line: ["code"],
       filled: [],
       residual: [],
+    });
+  });
+
+  it("reads a version of a grant exactly", () => {
+    expect(choosePlan(bucket, ["code", "currentConfigVersion"], false)).toEqual(
+      {
+        kind: "exact",
+        line: ["code", "currentConfigVersion"],
+        filled: [],
+        residual: [],
+      },
+    );
+  });
+
+  it("reads a version without its grant in time order, checking each row", () => {
+    expect(choosePlan(bucket, ["currentConfigVersion"], false)).toMatchObject({
+      kind: "bounded",
+      line: [],
+      residual: ["currentConfigVersion"],
     });
   });
 
@@ -74,6 +102,7 @@ describe("gas.applications", () => {
     expect(bucket.row.projection).toEqual({
       clientRef: 1,
       code: 1,
+      currentConfigVersion: 1,
       currentPhase: 1,
       currentStage: 1,
       currentStatus: 1,
@@ -85,6 +114,7 @@ describe("gas.applications", () => {
       bucket.row.present({
         clientRef: "abc-123",
         code: "example-grant",
+        currentConfigVersion: "1.2.0",
         currentPhase: "PRE_AWARD",
         currentStage: "REVIEW",
         currentStatus: "IN_REVIEW",
@@ -93,7 +123,7 @@ describe("gas.applications", () => {
       title: "abc-123",
       subtitle: null,
       cells: {
-        code: "example-grant",
+        code: "example-grant@1.2.0",
         position: { phase: "PRE_AWARD", stage: "REVIEW", status: "IN_REVIEW" },
       },
       link: {
@@ -102,6 +132,13 @@ describe("gas.applications", () => {
         clientRef: "abc-123",
       },
     });
+  });
+
+  it("presents the bare grant code for an application with no version", () => {
+    expect(
+      bucket.row.present({ clientRef: "abc-123", code: "example-grant" }).cells
+        .code,
+    ).toBe("example-grant");
   });
 
   it("presents null for a position the application does not hold", () => {
