@@ -44,9 +44,10 @@ describe("grants", () => {
     expect(up).toHaveBeenCalledWith(db, mongoClient);
   });
 
-  it("registers the applications bucket once the migrations have run", async () => {
+  it("registers the applications and grants buckets once the migrations have run", async () => {
     up.mockImplementation(async () => {
       expect(findBucket("gas.applications")).toBeUndefined();
+      expect(findBucket("gas.grants")).toBeUndefined();
       return [];
     });
 
@@ -55,6 +56,10 @@ describe("grants", () => {
     expect(findBucket("gas.applications")).toMatchObject({
       collection: "applications",
       audited: true,
+    });
+    expect(findBucket("gas.grants")).toMatchObject({
+      collection: "config_versions",
+      audited: false,
     });
   });
 

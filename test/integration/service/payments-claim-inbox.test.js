@@ -26,8 +26,6 @@ const { ClaimPaymentRequestedEvent } =
 const { config } = await import("../../../src/common/config.js");
 const { db: serviceDb, mongoClient } =
   await import("../../../src/common/mongo-client.js");
-const { updateDefinitionLocation } =
-  await import("../../../src/common/config-broker/config-catalog.repository.js");
 const { Inbox, InboxStatus } =
   await import("../../../src/events/models/inbox.js");
 const { OutboxStatus } = await import("../../../src/events/models/outbox.js");
@@ -111,13 +109,8 @@ beforeAll(async () => {
       s3Key: `${CODE}/payment-claim-inbox/${CONFIG_VERSION}/gas/gas.json`,
       s3Bucket: BUCKET,
     }),
+    { paymentS3Key: S3_KEY },
   );
-  await updateDefinitionLocation({
-    grantCode: CODE,
-    version: CONFIG_VERSION,
-    definitionType: "payment",
-    s3Key: S3_KEY,
-  });
   await payments.register({});
 });
 

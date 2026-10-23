@@ -6,6 +6,7 @@ import { db, mongoClient } from "../common/mongo-client.js";
 import { registerEventHandler } from "../events/index.js";
 import { messageSource } from "../events/services/message-source.js";
 import { applicationsBucket } from "./buckets/applications.bucket.js";
+import { grantsBucket } from "./buckets/grants.bucket.js";
 import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
 import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import {
@@ -53,6 +54,7 @@ export const grants = {
     logger.info("Finished running migrations");
 
     registerBucket(applicationsBucket());
+    registerBucket(grantsBucket());
 
     server.events.on("start", async () => {
       configVersionUpdatedSubscriber.start();

@@ -7,7 +7,6 @@ import { MongoClient } from "mongodb";
 import { readFileSync } from "node:fs";
 import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { updateDefinitionLocation } from "../../../src/common/config-broker/config-catalog.repository.js";
 import { config } from "../../../src/common/config.js";
 import { FetchStatus } from "../../../src/common/fetch-status.js";
 import { isRetryableFailure } from "../../../src/events/retryable.js";
@@ -167,13 +166,8 @@ const seedConfigVersion = async (version) => {
       s3Key: `${grantCode}/payment-real-s3/${version}/gas/gas.json`,
       s3Bucket: bucket,
     }),
+    { paymentS3Key: s3Keys[version] },
   );
-  await updateDefinitionLocation({
-    grantCode,
-    version,
-    definitionType: "payment",
-    s3Key: s3Keys[version],
-  });
 };
 
 describe("Payment definition ingestion (real S3)", () => {

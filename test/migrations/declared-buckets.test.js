@@ -13,6 +13,7 @@ import { up as normaliseStatuslessRows } from "../../migrations/20261014100000-n
 import { up as stampEventFacts } from "../../migrations/20261014110000-stamp-event-facts.js";
 import { up as stampApplicationFacts } from "../../migrations/20261014120000-stamp-application-facts.js";
 import { up as buildBucketIndexes } from "../../migrations/20261014140000-build-bucket-indexes.js";
+import { up as buildGrantsBucketIndexes } from "../../migrations/20261021110000-build-grants-bucket-indexes.js";
 import { up as buildApplicationVersionIndex } from "../../migrations/20261022120000-build-application-version-index.js";
 
 vi.mock("../../src/common/logger.js", () => ({
@@ -454,6 +455,45 @@ describe("build bucket indexes", () => {
     await buildBucketIndexes(db);
 
     expect(await keysOf("outbox")).toEqual(before);
+  });
+});
+
+describe("build grants bucket indexes", () => {
+  const keysOf = async () =>
+    (await db.collection("config_versions").indexes()).map(({ key }) =>
+      Object.keys(key).join(","),
+    );
+
+  it("builds every declared key and keeps the indexes that were there", async () => {
+    await db
+      .collection("config_versions")
+      .createIndex({ grantCode: 1, version: 1 }, { unique: true });
+    await db
+      .collection("config_versions")
+      .createIndex({ receivedAt: -1, _id: -1 }, { name: "list" });
+
+    await buildGrantsBucketIndexes(db);
+
+    expect(await keysOf()).toEqual([
+      "_id",
+      "grantCode,version",
+      "receivedAt,_id",
+      "grantCode,status,worstFetchStatus,receivedAt,_id",
+      "status,worstFetchStatus,receivedAt,_id",
+      "refs,receivedAt,_id",
+    ]);
+    expect((await db.collection("config_versions").indexes())[2].name).toBe(
+      "list",
+    );
+  });
+
+  it("builds nothing the second time", async () => {
+    await buildGrantsBucketIndexes(db);
+    const before = await keysOf();
+
+    await buildGrantsBucketIndexes(db);
+
+    expect(await keysOf()).toEqual(before);
   });
 });
 
