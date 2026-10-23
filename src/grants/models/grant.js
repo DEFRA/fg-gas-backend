@@ -536,24 +536,32 @@ export class Grant {
   #waysIntoBy(entry, validFrom, to, positions) {
     const target = to.toString();
     const { processes } = entry;
+    const entryValidFrom = new ValidFrom(entry);
+    const { matchedBy } = entryValidFrom;
     const moves = positions
       .map((from) => from.toString())
       .filter(
         (from) =>
           from !== target && this.#isValidFromMatch(validFrom, from) === entry,
       )
-      .map((from) => ({ to: target, kind: "move", from, processes }));
+      .map((from) => ({
+        to: target,
+        kind: "move",
+        from,
+        matchedBy,
+        processes,
+      }));
 
-    if (moves.length > 0 || this.#matchesAnyOf(entry, positions)) {
+    if (moves.length > 0 || this.#matchesAnyOf(entryValidFrom, positions)) {
       return moves;
     }
 
-    return [{ to: target, kind: "unmatched", code: entry.code, processes }];
+    return [
+      { to: target, kind: "unmatched", code: entry.code, matchedBy, processes },
+    ];
   }
 
-  #matchesAnyOf(entry, positions) {
-    const validFrom = new ValidFrom(entry);
-
+  #matchesAnyOf(validFrom, positions) {
     return positions.some((position) => validFrom.matches(position.toString()));
   }
 

@@ -1,6 +1,7 @@
 import Joi from "joi";
 import { clientRef } from "../../common/schemas/client-ref.js";
 import {
+  counterpartSchema,
   nullableIso,
   nullableString,
   positionSchema,
@@ -24,9 +25,7 @@ const caseHeaderSchema = Joi.object({
   closed: Joi.boolean().allow(null).required(),
   closedAt: nullableIso,
   // Null while GAS cannot say whether the application exists.
-  counterpart: Joi.object({ exists: Joi.boolean().required() })
-    .allow(null)
-    .required(),
+  counterpart: counterpartSchema,
   fetchedAt: Joi.string().isoDate().required(),
 })
   .required()

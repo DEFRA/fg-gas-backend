@@ -179,7 +179,10 @@ const storeFetched = async ({ reads, refusal }, session) => {
 };
 
 const readMissingFiles = async ({ grantCode, version }) => {
-  const found = await loadConfigVersionFiles({ code: grantCode, version });
+  const [found] = await loadConfigVersionFiles({
+    code: grantCode,
+    versions: [version],
+  });
 
   if (!found) {
     throw configVersionNotFound();

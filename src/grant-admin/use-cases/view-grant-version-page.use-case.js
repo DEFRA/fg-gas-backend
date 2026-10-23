@@ -17,6 +17,7 @@ import {
   findStoredGrantDefinition,
 } from "../../grants/services/config-version.service.js";
 import { findStoredPaymentDefinitionUseCase } from "../../payments/use-cases/find-stored-payment-definition.use-case.js";
+import { findCwWorkflowVersionExistence } from "../repositories/cw-workflows.repository.js";
 import {
   SECTION_CAP_BYTES,
   composeRecordPage,
@@ -25,6 +26,7 @@ import {
   grantVersionNotFound,
   noDefinitionFile,
 } from "../services/grant-not-found.js";
+import { readCounterpart } from "./read-counterpart.js";
 
 // A version without the tab's Definition File has no such tab.
 const assertTabFile = ({ file }, files) => {
@@ -33,10 +35,23 @@ const assertTabFile = ({ file }, files) => {
   }
 };
 
-const readGrantVersionHeader = async ({ code, version, tab }) => {
-  const [found, grant] = await Promise.all([
+const readWorkflowLink = (ref) =>
+  readCounterpart(
+    "Grant version page: workflow link",
+    async () => (await findCwWorkflowVersionExistence(ref)).exists,
+  );
+
+// Only a tab that shows the workflow link asks Caseworking for it.
+const readGrantVersionHeader = async ({
+  code,
+  version,
+  tab,
+  withCounterpart,
+}) => {
+  const [found, grant, counterpart] = await Promise.all([
     findConfigVersionFiles({ code, version }),
     findConfigVersions(code),
+    withCounterpart ? readWorkflowLink({ code, version }) : null,
   ]);
 
   if (!found || !grant) {
@@ -45,7 +60,10 @@ const readGrantVersionHeader = async ({ code, version, tab }) => {
 
   assertTabFile(GRANT_VERSION_TABS[tab], found.files);
 
-  return { header: { ...found, versions: grant.versions }, accounts: null };
+  return {
+    header: { ...found, versions: grant.versions, counterpart },
+    accounts: null,
+  };
 };
 
 const readOverview = async ({ code, version }) => ({
@@ -119,13 +137,17 @@ const readEntitlements = async ({ code, version }) => {
 };
 
 const GRANT_VERSION_TABS = {
-  overview: { readTab: readOverview, empty: { overview: null } },
+  overview: {
+    readTab: readOverview,
+    empty: { overview: null },
+    withCounterpart: true,
+  },
   definition: {
     readTab: readDefinition,
     empty: { definition: null },
     capped: "definition",
   },
-  phases: { readTab: readPhases, empty: NO_LIFECYCLE },
+  phases: { readTab: readPhases, empty: NO_LIFECYCLE, withCounterpart: true },
   payment: {
     readTab: readPayment,
     empty: { payment: null },
@@ -155,12 +177,15 @@ export const buildViewGrantVersionAudit = ({ code, version, tab, caller }) =>
     segregationRef: "admin-view-grant-version",
   });
 
-const viewGrantVersionPage = (args) =>
-  composeRecordPage({
+const viewGrantVersionPage = (args) => {
+  const tab = GRANT_VERSION_TABS[args.tab];
+
+  return composeRecordPage({
     readHeader: readGrantVersionHeader,
-    tab: GRANT_VERSION_TABS[args.tab],
-    args,
+    tab,
+    args: { ...args, withCounterpart: tab.withCounterpart === true },
   });
+};
 
 const auditedViewGrantVersionPage = auditedRead(
   viewGrantVersionPage,

@@ -10,10 +10,8 @@ import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { findById as findGasInboxById } from "../../events/repositories/inbox.repository.js";
 import { findById as findGasOutboxById } from "../../events/repositories/outbox.repository.js";
 import { applicationExists } from "../../grants/services/application-read.service.js";
-import {
-  describeError,
-  findCwEvent,
-} from "../repositories/cw-actuators.repository.js";
+import { findCwEvent } from "../repositories/cw-actuators.repository.js";
+import { describeError } from "../repositories/cw-http.js";
 import {
   recordRefOf,
   searchRefOf,

@@ -23,6 +23,7 @@ const HEADER = {
   version: "2.0.0",
   status: "draft",
   receivedAt: "2026-10-15T10:04:00.000Z",
+  s3Bucket: "config-broker-local",
   files: {
     grant: { stored: true, fetchStatus: "fetched" },
     payment: { stored: true, fetchStatus: "fetched" },
@@ -34,6 +35,7 @@ const HEADER = {
       receivedAt: "2026-10-15T10:04:00.000Z",
     },
   ],
+  counterpart: null,
 };
 
 const ACCEPTED = {
