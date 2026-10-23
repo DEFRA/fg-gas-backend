@@ -58,11 +58,23 @@ const emptyBuckets = () => ({
   refusal: null,
 });
 
+// The workflow version routes: `versions` answers by code, `records` by
+// "code/version" with the document and addresses, which the stub drops unless
+// asked; `fetches` answer each fetch by "code/version". Anything missing is a
+// 404 with Caseworking's reason.
+const emptyWorkflows = () => ({
+  mode: "ok",
+  versions: {},
+  records: {},
+  fetches: {},
+});
+
 const defaultState = () => ({
   inbox: emptyBox(),
   outbox: emptyBox(),
   cases: emptyCases(),
   buckets: emptyBuckets(),
+  workflows: emptyWorkflows(),
 });
 
 let server;
@@ -94,6 +106,7 @@ const handleControl = async (request, response) => {
     outbox: { ...state.outbox, ...(patch.outbox ?? {}) },
     cases: { ...state.cases, ...(patch.cases ?? {}) },
     buckets: { ...state.buckets, ...(patch.buckets ?? {}) },
+    workflows: { ...state.workflows, ...(patch.workflows ?? {}) },
   };
 
   send(response, OK, { ok: true });
@@ -342,6 +355,74 @@ const handleCases = async (pathname, request, response) => {
     : caseNotFound(response);
 };
 
+const WORKFLOW_PATH =
+  /^\/actuators\/workflows\/([^/]+)\/versions(?:\/([^/]+?)(\/fetch)?)?$/;
+
+const workflowNotFound = (response, reason) =>
+  send(response, NOT_FOUND, {
+    statusCode: NOT_FOUND,
+    error: "Not Found",
+    message: "Not found",
+    reason,
+  });
+
+const answerWorkflowVersion = (found, url, response) => {
+  if (!found) {
+    return workflowNotFound(response, "WORKFLOW_VERSION_NOT_FOUND");
+  }
+
+  const { document, addresses, ...rest } = found;
+
+  return send(
+    response,
+    OK,
+    url.searchParams.get("include") === "document"
+      ? { ...rest, document, addresses }
+      : rest,
+  );
+};
+
+const answerWorkflowFetch = (found, response) =>
+  found
+    ? send(response, OK, found)
+    : workflowNotFound(response, "WORKFLOW_VERSION_NOT_FOUND");
+
+const answerWorkflowVersions = (found, response) =>
+  found
+    ? send(response, OK, found)
+    : workflowNotFound(response, "WORKFLOW_NOT_FOUND");
+
+// GET /actuators/workflows/{code}/versions[/{version}] and
+// POST /actuators/workflows/{code}/versions/{version}/fetch.
+const handleWorkflows = async (pathname, request, response) => {
+  await record("workflows", request);
+
+  if (!isAuthorised(request)) {
+    return send(response, UNAUTHORIZED, { message: "bad token" });
+  }
+
+  const { workflows } = state;
+
+  if (workflows.mode !== "ok") {
+    return respondForMode(workflows, response);
+  }
+
+  const [, code, version, fetch] = WORKFLOW_PATH.exec(pathname);
+  const key = `${code}/${version}`;
+
+  if (fetch) {
+    return answerWorkflowFetch(workflows.fetches[key], response);
+  }
+
+  return version
+    ? answerWorkflowVersion(
+        workflows.records[key],
+        new URL(request.url, "http://stub.local"),
+        response,
+      )
+    : answerWorkflowVersions(workflows.versions[code], response);
+};
+
 const BUCKETS_PATH = "/actuators/buckets";
 const BUCKET_QUERY_PATH = /^\/actuators\/buckets\/([^/]+)\/query$/;
 const TIMELINE_PATH = "/actuators/timeline";
@@ -417,6 +498,10 @@ const route = async (request, response) => {
 
   if (CASE_PATH.test(pathname)) {
     return handleCases(pathname, request, response);
+  }
+
+  if (WORKFLOW_PATH.test(pathname)) {
+    return handleWorkflows(pathname, request, response);
   }
 
   if (EVENT_PATH.test(pathname)) {
