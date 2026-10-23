@@ -4,6 +4,7 @@ import {
   storedBytes,
 } from "../../common/mongo/capped-projection.js";
 import { db } from "../../common/mongo-client.js";
+import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 
 export const agreementDefinitionsCollection = "agreements__definitions";
 
@@ -15,17 +16,24 @@ export const findAgreementDefinition = async (code, version) => {
   return document?.definition ?? null;
 };
 
-export const insertAgreementDefinition = async ({
-  code,
-  version,
-  definition,
-}) => {
-  await db
-    .collection(agreementDefinitionsCollection)
-    .insertOne({ code, version, definition });
+// A version stored first by someone else is left as it is. Inside a
+// transaction the duplicate has already aborted it, so it goes to the caller.
+export const insertAgreementDefinition = async (
+  { code, version, definition },
+  session,
+) => {
+  try {
+    await db
+      .collection(agreementDefinitionsCollection)
+      .insertOne({ code, version, definition }, { session });
+  } catch (error) {
+    if (session || !isMongoDuplicateKeyError(error)) {
+      throw error;
+    }
+  }
 };
 
-export const findStoredVersions = async (code, versions) => {
+export const findStoredVersions = async (code, versions, session) => {
   const documents = await db
     .collection(agreementDefinitionsCollection)
     .find(
@@ -33,6 +41,7 @@ export const findStoredVersions = async (code, versions) => {
       {
         projection: { _id: 0, version: 1 },
         maxTimeMS: config.adminReadTimeoutMs,
+        session,
       },
     )
     .toArray();

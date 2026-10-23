@@ -67,6 +67,7 @@ describe("save", () => {
         amendablePositions: [],
         entitlementTemplates: [],
       }),
+      { session: undefined },
     );
   });
 
@@ -387,6 +388,7 @@ describe("entitlementTemplates", () => {
         amendablePositions: [],
         entitlementTemplates,
       }),
+      { session: undefined },
     );
   });
 
@@ -431,6 +433,7 @@ describe("entitlementTemplates", () => {
     expect(grant.entitlementTemplates).toEqual(entitlementTemplates);
     expect(insertOne).toHaveBeenCalledWith(
       expect.objectContaining({ entitlementTemplates }),
+      { session: undefined },
     );
   });
 
@@ -558,7 +561,9 @@ describe("pages", () => {
     const grant = await saveFromDefinition(definition, "1.1.0");
 
     expect(grant.pages).toEqual(pages);
-    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ pages }));
+    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ pages }), {
+      session: undefined,
+    });
   });
 
   it("persists and rehydrates the grant administration role", async () => {
@@ -566,7 +571,9 @@ describe("pages", () => {
     const insertOne = vi.fn();
     db.collection.mockReturnValue({ insertOne });
     await saveFromDefinition({ ...definition, admin }, "1.1.0");
-    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ admin }));
+    expect(insertOne).toHaveBeenCalledWith(expect.objectContaining({ admin }), {
+      session: undefined,
+    });
     db.collection.mockReturnValue({
       findOne: vi
         .fn()

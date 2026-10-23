@@ -45,6 +45,7 @@ describe("grant-admin", () => {
       "post /grant-admin/events/{service}/{box}/{id}/purge",
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
       "post /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
+      "post /grant-admin/grants/{code}/versions/{version}/fetch",
       "put /grant-admin/grants/{code}/allow-list",
       "put /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
     ]);

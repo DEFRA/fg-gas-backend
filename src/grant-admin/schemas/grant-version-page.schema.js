@@ -218,3 +218,23 @@ export const grantVersionPageSchemas = {
     "GrantVersionEntitlementsPage",
   ),
 };
+
+const fetchedFileSchema = Joi.object({
+  file: Joi.string().valid("grant", "agreement", "payment").required(),
+  outcome: Joi.string().valid("stored").required(),
+}).label("FetchedDefinitionFile");
+
+const notFetchedFileSchema = Joi.object({
+  file: Joi.string().valid("grant", "agreement", "payment").required(),
+  outcome: Joi.string().valid("failed").required(),
+  reason: Joi.string()
+    .valid("missing", "forbidden", "timeout", "unparseable", "invalid")
+    .required(),
+  // GAS's own words, set only when the owning context refused the file.
+  message: Joi.string().allow(null).required(),
+}).label("NotFetchedDefinitionFile");
+
+// Only the files that were not stored when the fetch began, in the order tried.
+export const fetchDefinitionsResponseSchema = Joi.object({
+  files: Joi.array().items(fetchedFileSchema, notFetchedFileSchema).required(),
+}).label("FetchDefinitionsResult");

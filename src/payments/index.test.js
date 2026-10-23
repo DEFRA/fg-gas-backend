@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import {
   clearDefinitionStores,
+  storeDefinition,
   storedDefinitionVersions,
 } from "../common/config-broker/definition-stores.js";
 import { AGREEMENT_PAYMENT_REQUESTED_EVENT_TYPE } from "../agreements/events/agreement-payment-requested.event.js";
@@ -13,11 +14,13 @@ import { handleAgreementPaymentRequested } from "./handlers/handle-agreement-pay
 import { handleClaimPaymentRequested } from "./handlers/handle-claim-payment-requested.js";
 import { payments } from "./index.js";
 import { findStoredVersions } from "./repositories/payment-definition.repository.js";
+import { storePaymentDefinition } from "./use-cases/store-payment-definition.js";
 
 vi.mock("./handlers/handle-agreement-payment-requested.js", () => ({
   handleAgreementPaymentRequested: vi.fn(),
 }));
 vi.mock("./repositories/payment-definition.repository.js");
+vi.mock("./use-cases/store-payment-definition.js");
 vi.mock("./handlers/handle-claim-payment-requested.js", () => ({
   handleClaimPaymentRequested: vi.fn(),
 }));
@@ -51,7 +54,21 @@ it("registers the payment definition store's stored-version read", async () => {
   payments.register();
 
   await expect(
-    storedDefinitionVersions("payment", "woodland", ["1.0.1"]),
+    storedDefinitionVersions("payment", "woodland", ["1.0.1"], {
+      id: "transaction",
+    }),
   ).resolves.toEqual(new Set(["1.0.1"]));
-  expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"]);
+  expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"], {
+    id: "transaction",
+  });
+});
+
+it("registers the payment definition store's check-and-store", async () => {
+  payments.register();
+  const file = { grantCode: "woodland", version: "1.0.1", definition: {} };
+  const session = { id: "transaction" };
+
+  await storeDefinition("payment", file, session);
+
+  expect(storePaymentDefinition).toHaveBeenCalledWith(file, session);
 });
