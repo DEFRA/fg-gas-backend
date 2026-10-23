@@ -1,4 +1,5 @@
 import Boom from "@hapi/boom";
+import { storeClaimCaseUseCase } from "../use-cases/store-claim-case.use-case.js";
 import { loadEntitlementReferenceContext } from "../../agreements/use-cases/load-entitlement-reference-context.js";
 import { auditActions, auditEntities } from "../../events/audit-constants.js";
 import { findConfigDefinition } from "../../common/config-broker/config-catalog.repository.js";
@@ -264,6 +265,7 @@ const insertClaim = async ({ command, claimCode }, session) => {
     created: true,
     claimId: insertedId.toString(),
     createdAt: claim.createdAt,
+    savedClaim: claim,
   };
 };
 
@@ -485,8 +487,13 @@ const submitInTransaction = async (
     session,
   );
 
-  const { createdAt, ...result } = await insertClaimWithAudit(
+  const { createdAt, savedClaim, ...result } = await insertClaimWithAudit(
     { command, claimCode: claimable.claimCode },
+    session,
+  );
+
+  await storeClaimCaseUseCase(
+    { claim: savedClaim, claimId: result.claimId },
     session,
   );
 

@@ -59,6 +59,11 @@ vi.mock(
   }),
 );
 
+const paymentRequests = () =>
+  saveEvents.mock.calls
+    .flatMap(([events]) => events)
+    .filter(({ event }) => event.type.endsWith(".claim.payment.requested"));
+
 const code = "woodland";
 const clientRef = "client-1";
 const claimCode = "ENT_1";
@@ -665,7 +670,7 @@ describe("claims.service", () => {
       await expect(
         submitClaim({ code, clientRef, payload }),
       ).rejects.toMatchObject({ output: { statusCode: 500 } });
-      expect(saveEvents).not.toHaveBeenCalled();
+      expect(paymentRequests()).toEqual([]);
     });
 
     // Another template auto-paying must not drag this claim into resolving a
@@ -690,7 +695,7 @@ describe("claims.service", () => {
         submitClaim({ code, clientRef, payload }),
       ).resolves.toMatchObject({ created: true });
       expect(findConfigDefinition).not.toHaveBeenCalled();
-      expect(saveEvents).not.toHaveBeenCalled();
+      expect(paymentRequests()).toEqual([]);
     });
 
     it("raises no Payment request without a configured definition", async () => {
@@ -699,7 +704,7 @@ describe("claims.service", () => {
       await expect(
         submitClaim({ code, clientRef, payload }),
       ).resolves.toMatchObject({ created: true });
-      expect(saveEvents).not.toHaveBeenCalled();
+      expect(paymentRequests()).toEqual([]);
     });
 
     it("refuses a Claim whose Entitlement is missing rather than skipping its Payment", async () => {
@@ -737,7 +742,7 @@ describe("claims.service", () => {
       ).resolves.toMatchObject({ created: true });
 
       expect(findConfigDefinition).not.toHaveBeenCalled();
-      expect(saveEvents).not.toHaveBeenCalled();
+      expect(paymentRequests()).toEqual([]);
     });
   });
 
