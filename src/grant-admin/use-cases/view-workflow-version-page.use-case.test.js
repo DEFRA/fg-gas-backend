@@ -4,6 +4,7 @@ import { logger } from "../../common/logger.js";
 import { grantVersionExists } from "../../grants/services/config-version.service.js";
 import { findCwWorkflowVersion } from "../repositories/cw-workflows.repository.js";
 import { SECTION_CAP_BYTES } from "../services/compose-record-page.js";
+import { readWorkflowVersionEventsUseCase } from "./read-record-events.use-case.js";
 import {
   buildViewWorkflowVersionAudit,
   viewWorkflowVersionPageUseCase,
@@ -15,6 +16,7 @@ vi.mock("../../events/audited-read.js", () => ({
 }));
 vi.mock("../../grants/services/config-version.service.js");
 vi.mock("../repositories/cw-workflows.repository.js");
+vi.mock("./read-record-events.use-case.js");
 
 const REF = { code: "woodland", version: "1.2.0" };
 
@@ -72,6 +74,7 @@ describe("viewWorkflowVersionPageUseCase", () => {
     ["overview", undefined],
     ["definition", "document"],
     ["raw", "document"],
+    ["events", undefined],
   ])("reads Caseworking once for the %s tab", async (tab, include) => {
     await view(tab);
 
@@ -112,6 +115,23 @@ describe("viewWorkflowVersionPageUseCase", () => {
     expect((await view("definition")).definition).toEqual({
       workflow: DOCUMENT,
       addresses: ADDRESSES,
+    });
+  });
+
+  it("events: Caseworking's config version events of this version, as the operator", async () => {
+    readWorkflowVersionEventsUseCase.mockResolvedValue({
+      content: { events: { rows: [], more: false } },
+      sourceErrors: [{ hop: "CW-BE" }],
+    });
+
+    const page = await view("events");
+
+    expect(page.events).toEqual({ rows: [], more: false });
+    expect(page.sourceErrors).toEqual([{ hop: "CW-BE" }]);
+    expect(readWorkflowVersionEventsUseCase).toHaveBeenCalledExactlyOnceWith({
+      code: "woodland",
+      version: "1.2.0",
+      actor: "Jo",
     });
   });
 

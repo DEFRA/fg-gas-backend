@@ -16,6 +16,7 @@ import {
   findCwCaseExistence,
   findCwEvent,
   queryCwBucket,
+  readCwBucketTimeline,
 } from "../../src/grant-admin/repositories/cw-actuators.repository.js";
 import {
   WORKFLOW_NOT_FOUND,
@@ -229,6 +230,68 @@ describe("fg-gas-backend consumer of fg-cw-backend's case actuators", () => {
           );
 
           expect(answer.rows).toHaveLength(1);
+        },
+      ));
+
+    it("answers the inbox rows linked to a config version", () =>
+      run(
+        {
+          states: [{ description: "config version events exist" }],
+          uponReceiving: "a read of the inbox by a config version link",
+          withRequest: {
+            method: "POST",
+            path: "/actuators/buckets/cw.inbox/query",
+            headers: operatorHeaders,
+            body: { ref: `config:${WORKFLOW}@1~2e.0~2e.0`, limit: 50 },
+          },
+          willRespondWith: {
+            status: 200,
+            body: {
+              bucket: "cw.inbox",
+              plan: {
+                kind: "exact",
+                index: eachLike("refs"),
+                bound: like([]),
+                filled: like([]),
+                residual: like([]),
+                scans: integer(1),
+              },
+              rows: eachLike({
+                id: string("665f1c2e9a1b2c3d4e5f6a7b"),
+                time: createdAt,
+                title: string("ConfigVersionUpdated"),
+                subtitle: string("7c1e0bd2-5f0a-4c4e-9b1d-0000174876e8"),
+                cells: {
+                  status: string("COMPLETED"),
+                  completedAt: regex(ISO, "2026-06-16T10:00:01.000Z"),
+                },
+                link: {
+                  kind: "event",
+                  service: "caseworking",
+                  box: "inbox",
+                  id: string("665f1c2e9a1b2c3d4e5f6a7b"),
+                },
+              }),
+              page: {
+                next: null,
+                keepLooking: null,
+                searchedTo: null,
+                complete: boolean(true),
+              },
+              groups: like([]),
+            },
+          },
+        },
+        async () => {
+          const { buckets } = await asOperator(() =>
+            readCwBucketTimeline("cw.inbox", `config:${WORKFLOW}@1~2e.0~2e.0`, {
+              actor: ACTOR,
+            }),
+          );
+
+          expect(buckets[0].id).toBe("cw.inbox");
+          expect(buckets[0].rows[0].link.service).toBe("caseworking");
+          expect(buckets[0].more).toBe(false);
         },
       ));
 

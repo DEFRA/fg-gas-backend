@@ -7,6 +7,7 @@ import {
 import { auditedRead } from "../../events/audited-read.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
 import { composeRecordPage } from "../services/compose-record-page.js";
+import { readWorkflowVersionEventsUseCase } from "./read-record-events.use-case.js";
 import {
   readWorkflowVersionHeader,
   startWorkflowVersionRead,
@@ -38,6 +39,9 @@ const readRaw = async ({ workflowVersionRead }) => {
   return { content: { raw: document, storedBytes }, tooLarge };
 };
 
+const readEvents = ({ code, version, actor }) =>
+  readWorkflowVersionEventsUseCase({ code, version, actor });
+
 const WORKFLOW_VERSION_TABS = {
   overview: {
     readTab: readOverview,
@@ -50,6 +54,7 @@ const WORKFLOW_VERSION_TABS = {
     capped: "definition",
     include: "document",
   },
+  events: { readTab: readEvents, empty: { events: null } },
   raw: {
     readTab: readRaw,
     empty: { raw: null, storedBytes: null },

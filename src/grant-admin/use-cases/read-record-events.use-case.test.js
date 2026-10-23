@@ -1,18 +1,29 @@
 import Boom from "@hapi/boom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { readTimeline } from "../../common/buckets/engine.js";
+import {
+  readBucketTimeline,
+  readTimeline,
+} from "../../common/buckets/engine.js";
 import { logger } from "../../common/logger.js";
-import { readCwTimeline } from "../repositories/cw-actuators.repository.js";
+import {
+  readCwBucketTimeline,
+  readCwTimeline,
+} from "../repositories/cw-actuators.repository.js";
 import {
   readApplicationEventsUseCase,
   readCaseEventsUseCase,
+  readGrantVersionEventsUseCase,
+  readWorkflowVersionEventsUseCase,
 } from "./read-record-events.use-case.js";
 
 vi.mock("../../common/logger.js");
 vi.mock("../../common/buckets/engine.js");
 vi.mock("../repositories/cw-actuators.repository.js", () => ({
-  describeError: vi.fn(() => "timeout"),
   readCwTimeline: vi.fn(),
+  readCwBucketTimeline: vi.fn(),
+}));
+vi.mock("../repositories/cw-http.js", () => ({
+  describeError: vi.fn(() => "timeout"),
 }));
 
 const row = ({ service, box, id, time, ...overrides }) => ({
@@ -229,5 +240,128 @@ describe("readCaseEventsUseCase", () => {
       "Case events: caseworking unavailable (timeout)",
     );
     expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("SECRET");
+  });
+});
+
+const CONFIG_ROWS = [
+  row({
+    service: "gas",
+    box: "inbox",
+    id: "e",
+    time: "2026-10-14T09:00:00.000Z",
+    title: "ConfigVersionUpdated",
+  }),
+  row({
+    service: "gas",
+    box: "inbox",
+    id: "f",
+    time: "2026-10-15T09:00:00.000Z",
+    title: "ConfigVersionUpdated",
+    cells: { status: "DEAD_LETTER", completedAt: null },
+  }),
+];
+
+describe("readGrantVersionEventsUseCase", () => {
+  const read = () =>
+    readGrantVersionEventsUseCase({
+      code: "woodland-creation",
+      version: "1.43.2",
+    });
+
+  beforeEach(() => {
+    readBucketTimeline.mockResolvedValue({
+      buckets: [bucket("gas.inbox", "GAS inbox", CONFIG_ROWS, true)],
+    });
+  });
+
+  it("reads this service's inbox by the version's config link, and asks Caseworking nothing", async () => {
+    await read();
+
+    expect(readBucketTimeline).toHaveBeenCalledExactlyOnceWith(
+      "gas.inbox",
+      "config:woodland-creation@1~2e.43~2e.2",
+    );
+    expect(readTimeline).not.toHaveBeenCalled();
+    expect(readCwBucketTimeline).not.toHaveBeenCalled();
+  });
+
+  it("answers the rows newest first, as event rows", async () => {
+    const { content, sourceErrors } = await read();
+
+    expect(content.events.rows.map(({ id }) => id)).toEqual(["f", "e"]);
+    expect(content.events.rows[0]).toMatchObject({
+      type: "ConfigVersionUpdated",
+      statusLabel: "Dead letter",
+      statusRole: "error",
+    });
+    expect(content.events.more).toBe(true);
+    expect(sourceErrors).toEqual([]);
+  });
+
+  it("names the GAS inbox when it could not be read", async () => {
+    readBucketTimeline.mockResolvedValue({
+      buckets: [bucket("gas.inbox", "GAS inbox", null)],
+    });
+
+    const { content, sourceErrors } = await read();
+
+    expect(content.events).toEqual({ rows: [], more: false });
+    expect(sourceErrors).toEqual([{ hop: "GAS inbox" }]);
+  });
+});
+
+describe("readWorkflowVersionEventsUseCase", () => {
+  const read = () =>
+    readWorkflowVersionEventsUseCase({
+      code: "Example-Workflow",
+      version: "1.0.0",
+      actor: "Jo",
+    });
+
+  const CW_ROW = row({
+    service: "caseworking",
+    box: "inbox",
+    id: "g",
+    time: "2026-10-14T09:00:00.000Z",
+    title: "ConfigVersionUpdated",
+  });
+
+  beforeEach(() => {
+    readCwBucketTimeline.mockResolvedValue({
+      buckets: [
+        { id: "cw.inbox", label: "CW-BE", rows: [CW_ROW], more: false },
+      ],
+    });
+  });
+
+  it("asks Caseworking's inbox by the version's config link, keeping its case, as the operator", async () => {
+    const { content, sourceErrors } = await read();
+
+    expect(readCwBucketTimeline).toHaveBeenCalledExactlyOnceWith(
+      "cw.inbox",
+      "config:~45.xample-~57.orkflow@1~2e.0~2e.0",
+      { actor: "Jo" },
+    );
+    expect(readBucketTimeline).not.toHaveBeenCalled();
+    expect(content.events.rows).toEqual([
+      expect.objectContaining({
+        service: "caseworking",
+        box: "inbox",
+        id: "g",
+      }),
+    ]);
+    expect(sourceErrors).toEqual([]);
+  });
+
+  it("names Caseworking, with no rows, when it cannot be asked", async () => {
+    readCwBucketTimeline.mockRejectedValue(Boom.badGateway("unreadable"));
+
+    const { content, sourceErrors } = await read();
+
+    expect(content.events).toEqual({ rows: [], more: false });
+    expect(sourceErrors).toEqual([{ hop: "CW-BE" }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Workflow events: caseworking unavailable (timeout)",
+    );
   });
 });

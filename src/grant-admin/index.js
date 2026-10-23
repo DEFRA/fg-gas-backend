@@ -28,10 +28,12 @@ import { viewCaseRawRoute } from "./routes/view-case-raw.route.js";
 import { viewGrantVersionAgreementRoute } from "./routes/view-grant-version-agreement.route.js";
 import { viewGrantVersionDefinitionRoute } from "./routes/view-grant-version-definition.route.js";
 import { viewGrantVersionEntitlementsRoute } from "./routes/view-grant-version-entitlements.route.js";
+import { viewGrantVersionEventsRoute } from "./routes/view-grant-version-events.route.js";
 import { viewGrantVersionOverviewRoute } from "./routes/view-grant-version-overview.route.js";
 import { viewGrantVersionPhasesRoute } from "./routes/view-grant-version-phases.route.js";
 import { viewGrantVersionPaymentRoute } from "./routes/view-grant-version-payment.route.js";
 import { viewWorkflowVersionDefinitionRoute } from "./routes/view-workflow-version-definition.route.js";
+import { viewWorkflowVersionEventsRoute } from "./routes/view-workflow-version-events.route.js";
 import { viewWorkflowVersionOverviewRoute } from "./routes/view-workflow-version-overview.route.js";
 import { viewWorkflowVersionRawRoute } from "./routes/view-workflow-version-raw.route.js";
 import { viewWorkflowVersionsRoute } from "./routes/view-workflow-versions.route.js";
@@ -75,10 +77,12 @@ export const grantAdmin = {
       viewGrantVersionPaymentRoute,
       viewGrantVersionAgreementRoute,
       viewGrantVersionEntitlementsRoute,
+      viewGrantVersionEventsRoute,
       fetchGrantDefinitionsRoute,
       viewWorkflowVersionsRoute,
       viewWorkflowVersionOverviewRoute,
       viewWorkflowVersionDefinitionRoute,
+      viewWorkflowVersionEventsRoute,
       viewWorkflowVersionRawRoute,
       fetchWorkflowDefinitionRoute,
     ]);
