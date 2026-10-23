@@ -15,6 +15,7 @@ import {
 import { findStoredPaymentDefinitionUseCase } from "../../payments/use-cases/find-stored-payment-definition.use-case.js";
 import { findCwWorkflowVersionExistence } from "../repositories/cw-workflows.repository.js";
 import { SECTION_CAP_BYTES } from "../services/compose-record-page.js";
+import { readGrantVersionEventsUseCase } from "./read-record-events.use-case.js";
 import {
   buildViewGrantVersionAudit,
   viewGrantVersionPageUseCase,
@@ -38,6 +39,7 @@ vi.mock(
     findCwWorkflowVersionExistence: vi.fn(),
   }),
 );
+vi.mock("./read-record-events.use-case.js");
 
 const actualNotFound = await vi.importActual(
   "../../grants/services/config-version-not-found.js",
@@ -423,6 +425,22 @@ describe("viewGrantVersionPageUseCase", () => {
     await view("definition");
 
     expect(findCwWorkflowVersionExistence).not.toHaveBeenCalled();
+  });
+
+  it("events: the config version events of this version", async () => {
+    readGrantVersionEventsUseCase.mockResolvedValue({
+      content: { events: { rows: [], more: true } },
+      sourceErrors: [{ hop: "GAS inbox" }],
+    });
+
+    const page = await view("events");
+
+    expect(page.events).toEqual({ rows: [], more: true });
+    expect(page.sourceErrors).toEqual([{ hop: "GAS inbox" }]);
+    expect(readGrantVersionEventsUseCase).toHaveBeenCalledExactlyOnceWith({
+      code: "woodland",
+      version: "2.0.0",
+    });
   });
 
   it("answers 404 GRANT_VERSION_NOT_FOUND for an unknown version", async () => {

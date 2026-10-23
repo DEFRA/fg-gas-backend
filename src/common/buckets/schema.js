@@ -12,12 +12,17 @@ const emptyQuery = () => ({
   groupBy: [],
 });
 
+// A ref may be a link, which spells out every character of its parts that is
+// not a lower-case letter, digit or "-" (up to eight characters each), so it
+// may run far longer than a searched identifier.
+export const MAX_LINK_LENGTH = 4096;
+
 const value = Joi.string().min(1).max(MAX_VALUE_LENGTH);
 
 export const queryRequestSchema = Joi.object({
   where: Joi.object().pattern(Joi.string().max(100), value).max(8).default({}),
   show: Joi.array().items(Joi.string().max(100)).max(8).default([]),
-  ref: Joi.string().max(256),
+  ref: Joi.string().max(MAX_LINK_LENGTH),
   from: Joi.string().isoDate(),
   to: Joi.string().isoDate(),
   cursor: Joi.string().max(512),
@@ -83,11 +88,6 @@ export const queryResponseSchema = Joi.object({
 });
 
 export const TIMELINE_LIMIT = 50;
-
-// A link spells out every character of its parts that is not a lower-case
-// letter, digit or "-" (up to eight characters each), so it may run far longer
-// than a searched identifier.
-const MAX_LINK_LENGTH = 4096;
 
 export const timelineRequestSchema = Joi.object({
   ref: Joi.string().max(MAX_LINK_LENGTH).required(),
