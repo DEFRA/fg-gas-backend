@@ -5,6 +5,8 @@ import {
 } from "../../events/audit-constants.js";
 import { auditedRead } from "../../events/audited-read.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
+import { GrantAccess } from "../models/grant-access.js";
+import { findByGrantCode as findSettings } from "../repositories/grant-settings.repository.js";
 import { GrantAllowList } from "../models/grant-allow-list.js";
 import { findByGrantCode } from "../repositories/grant-allow-list.repository.js";
 import { resolveAndFetchGrant } from "../services/resolve-config-version.service.js";
@@ -17,7 +19,9 @@ const checkGrantAllowList = async ({ grantCode, sbi, crn }) => {
     grant,
     storedList,
   });
-  return { allowed: allowList.allows({ sbi, crn }) };
+  const settings = await findSettings(grantCode);
+  const access = new GrantAccess({ settings, allowList });
+  return { allowed: access.allows({ sbi, crn }) };
 };
 
 const buildCheckAudit = ({ grantCode, sbi, crn, caller }, result) =>

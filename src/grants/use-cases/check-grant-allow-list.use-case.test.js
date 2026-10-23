@@ -84,6 +84,7 @@ describe("checkGrantAllowListUseCase", () => {
   let grants;
   let catalogue;
   let lists;
+  let settings;
   let session;
 
   beforeEach(() => {
@@ -103,10 +104,18 @@ describe("checkGrantAllowListUseCase", () => {
       ),
       updateOne: vi.fn().mockResolvedValue({ acknowledged: true }),
     };
+    settings = {
+      findOne: vi.fn().mockResolvedValue({ grantCode: "woodland", open: true }),
+    };
     lists = { findOne: vi.fn().mockResolvedValue(populated) };
     db.collection.mockImplementation(
       (name) =>
-        ({ grants, config_versions: catalogue, allow_lists: lists })[name],
+        ({
+          grants,
+          config_versions: catalogue,
+          allow_lists: lists,
+          grant_settings: settings,
+        })[name],
     );
     session = {
       withTransaction: vi.fn(async (callback) => callback(session)),
@@ -114,6 +123,13 @@ describe("checkGrantAllowListUseCase", () => {
     };
     mongoClient.startSession.mockReturnValue(session);
     writeAuditEvent.mockResolvedValue();
+  });
+
+  it("denies an otherwise allowed applicant when settings do not exist", async () => {
+    settings.findOne.mockResolvedValue(null);
+    await expect(checkGrantAllowListUseCase(args)).resolves.toEqual({
+      allowed: false,
+    });
   });
 
   it.each([
