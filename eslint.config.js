@@ -209,6 +209,7 @@ export default [
                 "**/grants/services/claims.service.js",
                 "**/grants/services/application-read.service.js",
                 "**/grants/services/allow-list.service.js",
+                "**/grants/services/grant-settings.service.js",
                 "**/grants/services/config-version.service.js",
               ],
               message:
