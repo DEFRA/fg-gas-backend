@@ -2,16 +2,7 @@ import { checkAgreementDefinition } from "../../agreements/use-cases/compile-agr
 import { checkDefinition as checkRegisteredDefinition } from "../../common/config-broker/definition-checks.js";
 import { logger } from "../../common/logger.js";
 import { fetchConfigFile } from "../../common/s3-client.js";
-import { Grant } from "../models/grant.js";
-import { compileAnswersSchema } from "../services/schema-validation.service.js";
-import { isGrantProcess } from "./transition-application.use-case.js";
-
-// An operator's Fetch Definitions holds a grant file to this same check.
-export const checkGrantDefinition = (definition, version) =>
-  Grant.fromDefinition(definition, version, {
-    isKnownProcess: isGrantProcess,
-    compileQuestions: compileAnswersSchema,
-  });
+import { checkGrantDefinition } from "./check-grant-definition.js";
 
 // Building each model is the check: every one throws on a definition its context cannot
 // use. Called directly rather than through the loaders, so nothing is cached and no fetch
