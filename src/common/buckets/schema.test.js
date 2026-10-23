@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { toConfigLink } from "../../events/case-refs.js";
 import {
   MAX_GROUPINGS,
+  MAX_LINK_LENGTH,
   MAX_PAGE_SIZE,
   PAGE_SIZE,
   TIMELINE_LIMIT,
@@ -139,6 +141,20 @@ describe("queryRequestSchema", () => {
   });
 
   it.each([
+    [
+      "of a 64-character workflow code's link",
+      toConfigLink("W".repeat(64), "1.0.0"),
+    ],
+    [
+      "of the longest config link a workflow route admits",
+      toConfigLink("W".repeat(128), `${"9".repeat(60)}.0.0`),
+    ],
+    ["as long as any link", "x".repeat(MAX_LINK_LENGTH)],
+  ])("accepts a ref %s", (_, ref) => {
+    expect(queryRequestSchema.validate({ ref }).error).toBeUndefined();
+  });
+
+  it.each([
     ["an unknown key", { q: "text" }],
     ["a prefix search", { prefix: "abc" }],
     ["an empty filter value", { where: { status: "" } }],
@@ -152,7 +168,7 @@ describe("queryRequestSchema", () => {
         where: Object.fromEntries([..."abcdefghi"].map((name) => [name, "x"])),
       },
     ],
-    ["a ref over 256 characters", { ref: "x".repeat(257) }],
+    ["a ref longer than any link", { ref: "x".repeat(MAX_LINK_LENGTH + 1) }],
     ["a from that is not a date", { from: "yesterday" }],
     ["a to that is not a date", { to: "tomorrow" }],
     ["a cursor over 512 characters", { cursor: "x".repeat(513) }],

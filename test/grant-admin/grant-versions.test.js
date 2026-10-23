@@ -18,11 +18,16 @@ import {
 import { loadAgreementDefinition } from "../../src/agreements/use-cases/load-agreement-definition.js";
 import { withWorstFetchStatus } from "../../src/common/config-broker/config-catalog.repository.js";
 import { config } from "../../src/common/config.js";
+import { inboxStamps } from "../../src/events/stamps.js";
 import {
   fetchDefinitionsResponseSchema,
   grantVersionPageSchemas,
   grantVersionsSchema,
 } from "../../src/grant-admin/schemas/grant-version-page.schema.js";
+import {
+  CASE_STATUS_UPDATED_EVENT_TYPE,
+  CONFIG_VERSION_UPDATED_EVENT_TYPE,
+} from "../../src/grants/events/inbound-event-types.js";
 import { GrantDocument } from "../../src/grants/models/grant-document.js";
 import { Grant } from "../../src/grants/models/grant.js";
 import { resolveAndFetchGrant } from "../../src/grants/services/resolve-config-version.service.js";
@@ -42,6 +47,7 @@ let grants;
 let agreementDefinitions;
 let paymentDefinitions;
 let outbox;
+let inbox;
 let grantDefinition;
 let pmfPaymentDefinition;
 let paymentDefinition;
@@ -55,6 +61,7 @@ beforeAll(async () => {
   agreementDefinitions = db.collection("agreements__definitions");
   paymentDefinitions = db.collection("payments__definitions");
   outbox = db.collection("outbox");
+  inbox = db.collection("inbox");
   grantDefinition = JSON.parse(
     await readFile(
       new URL("../fixtures/pmf-grant-definition.json", import.meta.url),
@@ -1009,6 +1016,108 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/entitlements", () =>
         message: "An internal server error occurred",
       },
     ]);
+  });
+});
+
+describe("GET /grant-admin/grants/{code}/versions/{version}/events", () => {
+  // Stamped as the inbox writer stamps an arriving message.
+  const anInboxRow = (type, data, publicationDate, status = "COMPLETED") => {
+    const event = { id: new ObjectId().toHexString(), type, data };
+
+    return {
+      _id: new ObjectId(),
+      messageId: event.id,
+      type,
+      status,
+      completionAttempts: 1,
+      publicationDate,
+      claimExpiresAt: new Date("2099-01-01T00:00:00.000Z"),
+      event,
+      ...inboxStamps(event, { segregationRef: data.grantCode ?? CODE }),
+    };
+  };
+
+  const aConfigVersionEvent = (grantCode, version, publicationDate, status) =>
+    anInboxRow(
+      CONFIG_VERSION_UPDATED_EVENT_TYPE,
+      { grantCode, version, status: "active" },
+      publicationDate,
+      status,
+    );
+
+  it("lists each version's own config version events, newest first, with a dead-lettered event as a dead letter", async () => {
+    await configVersions.insertMany([
+      aConfigVersion("1.0.0", "active", "2026-10-10T09:00:00.000Z"),
+      aConfigVersion("1.1.0", "active", "2026-10-11T09:00:00.000Z"),
+    ]);
+    const stored = aConfigVersionEvent(
+      CODE,
+      "1.0.0",
+      "2026-10-10T09:00:00.000Z",
+    );
+    const deadLettered = aConfigVersionEvent(
+      CODE,
+      "1.0.0",
+      "2026-10-13T09:00:00.000Z",
+      "DEAD_LETTER",
+    );
+    const next = aConfigVersionEvent(CODE, "1.1.0", "2026-10-11T09:00:00.000Z");
+    await inbox.insertMany([
+      stored,
+      deadLettered,
+      next,
+      aConfigVersionEvent(
+        CODE.toUpperCase(),
+        "1.0.0",
+        "2026-10-12T09:00:00.000Z",
+      ),
+      aConfigVersionEvent("other-grant", "1.0.0", "2026-10-12T09:00:00.000Z"),
+      anInboxRow(
+        CASE_STATUS_UPDATED_EVENT_TYPE,
+        { workflowCode: "other-workflow", caseRef: CODE },
+        "2026-10-12T09:00:00.000Z",
+      ),
+    ]);
+
+    const { payload: page, res } = await get(`${CODE}/versions/1.0.0/events`);
+    const { payload: nextPage } = await get(`${CODE}/versions/1.1.0/events`);
+
+    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(grantVersionPageSchemas.events.validate(page).error).toBeUndefined();
+    expect(page.events.rows.map(({ id }) => id)).toEqual([
+      deadLettered._id.toHexString(),
+      stored._id.toHexString(),
+    ]);
+    expect(page.events.rows[0]).toMatchObject({
+      service: "gas",
+      box: "inbox",
+      eventId: deadLettered.messageId,
+      type: "ConfigVersionUpdated",
+      status: "DEAD_LETTER",
+      statusRole: "error",
+    });
+    expect(page.events.more).toBe(false);
+    expect(page.sourceErrors).toEqual([]);
+    expect(nextPage.events.rows.map(({ id }) => id)).toEqual([
+      next._id.toHexString(),
+    ]);
+    const rows = await auditRows("VIEW_GRANT_VERSION");
+    expect(rows.map((row) => row.event.audit.details)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ version: "1.0.0", tab: "events" }),
+        expect.objectContaining({ version: "1.1.0", tab: "events" }),
+      ]),
+    );
+  });
+
+  it("answers no events for a code none were stamped for", async () => {
+    await configVersions.insertOne(
+      aConfigVersion("1.0.0", "active", "2026-10-10T09:00:00.000Z"),
+    );
+
+    const { payload: page } = await get(`${CODE}/versions/1.0.0/events`);
+
+    expect(page.events).toEqual({ rows: [], more: false });
   });
 });
 

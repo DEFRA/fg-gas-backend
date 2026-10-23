@@ -11,6 +11,7 @@ import {
   findCwEvent,
   purgeCwEvent,
   queryCwBucket,
+  readCwBucketTimeline,
   readCwTimeline,
   summariseCwBucket,
   redriveCwEvent,
@@ -1164,6 +1165,92 @@ describe("Caseworking buckets", () => {
       cwBackend.token = undefined;
 
       const error = await readCwTimeline("ref:abc-123").catch((e) => e);
+
+      expect(error.output.statusCode).toBe(502);
+      expect(wreck.post).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("readCwBucketTimeline", () => {
+    const row = (id) => ({
+      id,
+      time: "2026-10-14T09:12:03.000Z",
+      title: "ConfigVersionUpdated",
+      subtitle: `message-${id}`,
+      cells: { status: "COMPLETED", completedAt: null },
+      link: { kind: "event", service: "caseworking", box: "inbox", id },
+    });
+
+    const PAGE = {
+      bucket: "cw.inbox",
+      plan: {
+        kind: "exact",
+        index: ["refs"],
+        bound: [],
+        filled: [],
+        residual: [],
+        scans: 1,
+      },
+      rows: [row("b"), row("a")],
+      page: { next: null, keepLooking: null, searchedTo: null, complete: true },
+      groups: [],
+    };
+
+    it("queries the bucket by the ref with the timeline limit, as the operator", async () => {
+      wreck.post.mockResolvedValue({ payload: PAGE });
+
+      const answer = await inRequest(() =>
+        readCwBucketTimeline("cw.inbox", "config:~41.bc", { actor: ACTOR }),
+      );
+
+      const [url, options] = wreck.post.mock.calls[0];
+      expect(url).toBe(`${URL_BASE}/actuators/buckets/cw.inbox/query`);
+      expect(options.payload).toEqual({ ref: "config:~41.bc", limit: 50 });
+      expect(options.headers).toEqual({
+        authorization: `Bearer ${TOKEN}`,
+        "x-actor-id": OID,
+        "x-actor": ACTOR,
+      });
+      expect(answer).toEqual({
+        buckets: [
+          { id: "cw.inbox", label: "CW-BE", rows: PAGE.rows, more: false },
+        ],
+      });
+    });
+
+    it("says the bucket has more when its page has a next", async () => {
+      wreck.post.mockResolvedValue({
+        payload: { ...PAGE, page: { ...PAGE.page, next: "cursor" } },
+      });
+
+      const { buckets } = await readCwBucketTimeline("cw.inbox", "config:abc");
+
+      expect(buckets[0].more).toBe(true);
+    });
+
+    it.each([
+      ["no rows", { ...PAGE, rows: undefined }],
+      ["no page", { ...PAGE, page: undefined }],
+      ["no body", null],
+    ])("answers 502 for %s", async (_, payload) => {
+      wreck.post.mockResolvedValue({ payload });
+
+      const error = await readCwBucketTimeline("cw.inbox", "config:abc").catch(
+        (e) => e,
+      );
+
+      expect(error.output.statusCode).toBe(502);
+      expect(error.message).toBe(
+        "CW-BE answered a bucket page that cannot be read",
+      );
+    });
+
+    it("answers 502 when Caseworking is not configured", async () => {
+      cwBackend.token = undefined;
+
+      const error = await readCwBucketTimeline("cw.inbox", "config:abc").catch(
+        (e) => e,
+      );
 
       expect(error.output.statusCode).toBe(502);
       expect(wreck.post).not.toHaveBeenCalled();
