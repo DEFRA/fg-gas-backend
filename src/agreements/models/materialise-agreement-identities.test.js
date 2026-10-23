@@ -121,18 +121,21 @@ const unknownCandidateReferenceCases = [
 const unknownExistingIdentityCases = [
   [
     "Revenue Action",
+    "action:2",
     (candidate) => {
       candidate.actions[0].id = "action:2";
     },
   ],
   [
     "Capital Item",
+    "item:1",
     (candidate) => {
       candidate.items[0].id = "item:1";
     },
   ],
   [
     "Payment Schedule Instalment",
+    "instalment:4",
     (candidate) => {
       candidate.paymentSchedule.instalments[0].id = "instalment:4";
     },
@@ -159,6 +162,19 @@ describe("Agreement identity materialisation", () => {
     expect(
       agreementValueSchema.validate(values, validationOptions).error,
     ).toBeUndefined();
+  });
+
+  it("creation ignores a candidate-supplied id", () => {
+    const candidate = creationCandidate();
+    candidate.actions[0].id = "action:9";
+    candidate.items[0].id = "item:9";
+    candidate.paymentSchedule.instalments[0].id = "instalment:9";
+
+    const values = materialiseCreationIdentities(candidate);
+
+    expect(values.actions[0].id).toBe("action:1");
+    expect(values.items[0].id).toBe("item:1");
+    expect(values.paymentSchedule.instalments[0].id).toBe("instalment:1");
   });
 
   it("preserves existing identities and allocates after current maxima", () => {
@@ -215,13 +231,15 @@ describe("Agreement identity materialisation", () => {
 
   it.each(unknownExistingIdentityCases)(
     "rejects an unknown existing %s identity",
-    (label, modifyCandidate) => {
+    (label, id, modifyCandidate) => {
       const candidate = transitionCandidate();
       modifyCandidate(candidate);
 
       expect(() =>
         reconcileTransitionIdentities(currentAgreement(), candidate),
-      ).toThrow(new RegExp(`unknown stable ${label} identity`));
+      ).toThrow(
+        `Agreement transition cannot select unknown stable ${label} identity "${id}"`,
+      );
     },
   );
 
@@ -248,5 +266,31 @@ describe("Agreement identity materialisation", () => {
     expect(() =>
       reconcileTransitionIdentities(currentAgreement(), candidate),
     ).toThrow('unknown persisted reference "action:3"');
+  });
+
+  it.each(["actions", "items"])(
+    "rejects a transition from an agreement without %s",
+    (field) => {
+      const agreement = currentAgreement();
+      agreement[field] = undefined;
+
+      expect(() =>
+        reconcileTransitionIdentities(agreement, transitionCandidate()),
+      ).toThrow(TypeError);
+    },
+  );
+
+  it("allocates instalments from 1 when the agreement has no Payment Schedule", () => {
+    const agreement = currentAgreement();
+    delete agreement.paymentSchedule;
+    const candidate = transitionCandidate();
+    delete candidate.paymentSchedule.instalments[0].id;
+
+    const values = reconcileTransitionIdentities(agreement, candidate);
+
+    expect(values.paymentSchedule.instalments.map(({ id }) => id)).toEqual([
+      "instalment:1",
+      "instalment:2",
+    ]);
   });
 });

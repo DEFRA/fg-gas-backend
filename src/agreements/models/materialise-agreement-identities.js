@@ -1,50 +1,6 @@
 import Boom from "@hapi/boom";
-import { nextAgreementIdentityOrdinal } from "./agreement-identity-sequence.js";
-
-const identityTypes = Object.freeze({
-  actions: {
-    field: "actions",
-    namespace: "action",
-    label: "Revenue Action",
-    candidateReference: "actionRef",
-    persistedReference: "actionId",
-  },
-  items: {
-    field: "items",
-    namespace: "item",
-    label: "Capital Item",
-    candidateReference: "itemRef",
-    persistedReference: "itemId",
-  },
-  instalments: {
-    field: "instalments",
-    namespace: "instalment",
-    label: "Payment Schedule Instalment",
-  },
-});
-
-const fundedIdentityTypes = [identityTypes.actions, identityTypes.items];
-
-const allocateIdentity = (allocation) => {
-  const id = `${allocation.type.namespace}:${allocation.nextOrdinal}`;
-  allocation.nextOrdinal += 1;
-  return id;
-};
-
-const requireExistingIdentity = (id, allocation) => {
-  if (!allocation.existingIds.has(id)) {
-    throw Boom.badImplementation(
-      `Agreement transition cannot select unknown stable ${allocation.type.label} identity "${id}"`,
-    );
-  }
-
-  return id;
-};
-
-const resolveTransitionIdentity = (candidate, allocation) =>
-  candidate.id
-    ? requireExistingIdentity(candidate.id, allocation)
-    : allocateIdentity(allocation);
+import { AgreementIdentityAllocation } from "./agreement-identity-allocation.js";
+import { AgreementIdentityType } from "./agreement-identity-type.js";
 
 const duplicateReference = (workflow, reference) =>
   Boom.badImplementation(
@@ -87,30 +43,20 @@ const materialiseEntries = (entries, resolveIdentity, workflow) => {
 };
 
 const materialiseCreationEntries = (candidate, type) => {
-  const allocation = { type, nextOrdinal: 1 };
+  const allocation = AgreementIdentityAllocation.forCreation(type);
 
   return materialiseEntries(
     candidate[type.field],
-    () => allocateIdentity(allocation),
+    () => allocation.allocate(),
     "creation",
   );
 };
 
-const createTransitionAllocation = (agreement, entries, type) => ({
-  existingIds: new Set(entries.map(({ id }) => id)),
-  nextOrdinal: nextAgreementIdentityOrdinal(agreement, type.namespace),
-  type,
-});
-
 const reconcileTransitionEntries = (agreement, candidate, type) => {
-  const allocation = createTransitionAllocation(
-    agreement,
-    agreement[type.field],
-    type,
-  );
+  const allocation = AgreementIdentityAllocation.forTransition(agreement, type);
   const materialised = materialiseEntries(
     candidate[type.field],
-    (entry) => resolveTransitionIdentity(entry, allocation),
+    (entry) => allocation.resolve(entry),
     "transition",
   );
 
@@ -121,12 +67,12 @@ const reconcileTransitionEntries = (agreement, candidate, type) => {
 };
 
 const findCandidateReference = (lineItem) =>
-  fundedIdentityTypes.find(({ candidateReference }) =>
+  AgreementIdentityType.funded.find(({ candidateReference }) =>
     Object.hasOwn(lineItem, candidateReference),
   );
 
 const findPersistedReference = (lineItem) =>
-  fundedIdentityTypes.find(({ persistedReference }) =>
+  AgreementIdentityType.funded.find(({ persistedReference }) =>
     Object.hasOwn(lineItem, persistedReference),
   );
 
@@ -194,7 +140,7 @@ const resolveTransitionLineItem = (lineItem, reconciled) => {
 
 const entryValues = (entriesByType) =>
   Object.fromEntries(
-    fundedIdentityTypes.map(({ field }) => [
+    AgreementIdentityType.funded.map(({ field }) => [
       field,
       entriesByType[field].values,
     ]),
@@ -224,22 +170,21 @@ const materialisePaymentSchedule = (
 
 export const materialiseCreationIdentities = (candidate) => {
   const materialised = Object.fromEntries(
-    fundedIdentityTypes.map((type) => [
+    AgreementIdentityType.funded.map((type) => [
       type.field,
       materialiseCreationEntries(candidate, type),
     ]),
   );
-  const instalmentAllocation = {
-    nextOrdinal: 1,
-    type: identityTypes.instalments,
-  };
+  const instalmentAllocation = AgreementIdentityAllocation.forCreation(
+    AgreementIdentityType.instalments,
+  );
 
   return {
     ...candidate,
     ...entryValues(materialised),
     paymentSchedule: materialisePaymentSchedule(
       candidate.paymentSchedule,
-      () => allocateIdentity(instalmentAllocation),
+      () => instalmentAllocation.allocate(),
       materialised,
       resolveCreationLineItem,
     ),
@@ -248,18 +193,14 @@ export const materialiseCreationIdentities = (candidate) => {
 
 export const reconcileTransitionIdentities = (agreement, candidate) => {
   const reconciled = Object.fromEntries(
-    fundedIdentityTypes.map((type) => [
+    AgreementIdentityType.funded.map((type) => [
       type.field,
       reconcileTransitionEntries(agreement, candidate, type),
     ]),
   );
-  const instalmentType = identityTypes.instalments;
-  const currentInstalments =
-    agreement.paymentSchedule?.[instalmentType.field] ?? [];
-  const instalmentAllocation = createTransitionAllocation(
+  const instalmentAllocation = AgreementIdentityAllocation.forTransition(
     agreement,
-    currentInstalments,
-    instalmentType,
+    AgreementIdentityType.instalments,
   );
 
   return {
@@ -267,8 +208,7 @@ export const reconcileTransitionIdentities = (agreement, candidate) => {
     ...entryValues(reconciled),
     paymentSchedule: materialisePaymentSchedule(
       candidate.paymentSchedule,
-      (instalment) =>
-        resolveTransitionIdentity(instalment, instalmentAllocation),
+      (instalment) => instalmentAllocation.resolve(instalment),
       reconciled,
       resolveTransitionLineItem,
     ),
