@@ -28,6 +28,21 @@ describe("GrantDocument", () => {
     ).toBe("2100-01-01T00:00:00.000Z");
   });
 
+  it("stores a start date published as a number of a year as the ISO string of its first instant", () => {
+    expect(new GrantDocument(aGrant(2026)).metadata.startDate).toBe(
+      "2026-01-01T00:00:00.000Z",
+    );
+  });
+
+  it("refuses a start date published as a number that is no year", () => {
+    expect(() => new GrantDocument(aGrant(1700000000000))).toThrow(
+      expect.objectContaining({
+        message: 'Grant start date "1700000000000" is not an instant',
+        output: expect.objectContaining({ statusCode: 500 }),
+      }),
+    );
+  });
+
   it("stores a start date published as a string as published", () => {
     expect(
       new GrantDocument(aGrant("2026-04-01T00:00:00Z")).metadata.startDate,

@@ -16,17 +16,16 @@ const assertInstant = (value) => {
 // The start date is stored as an ISO string. A published definition may write
 // it as Mongo extended JSON, which arrives as a literal { $date } object.
 const toStoredStartDate = (startDate) => {
-  if (startDate instanceof Date) {
-    return startDate.toISOString();
-  }
-
   if (startDate?.$date !== undefined) {
     return assertInstant(startDate.$date).toISOString();
   }
 
-  assertInstant(startDate);
+  if (typeof startDate === "string") {
+    assertInstant(startDate);
+    return startDate;
+  }
 
-  return startDate;
+  return assertInstant(startDate).toISOString();
 };
 
 export class GrantDocument {
