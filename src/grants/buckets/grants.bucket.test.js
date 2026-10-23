@@ -29,6 +29,7 @@ describe("gas.grants", () => {
         label: "Grant",
         values: STORED,
         toggle: null,
+        within: null,
         param: "grant",
       },
       status: {
@@ -48,6 +49,7 @@ describe("gas.grants", () => {
           },
         ],
         toggle: null,
+        within: null,
         param: "status",
       },
       worstFetchStatus: {
@@ -75,6 +77,7 @@ describe("gas.grants", () => {
           }),
         ],
         toggle: null,
+        within: null,
         param: "definition",
       },
     });

@@ -164,6 +164,55 @@ describe("GET /grant-admin/buckets", () => {
     ]);
   });
 
+  it("describes the version of an application as a fact within its grant", async () => {
+    const { payload } = await wreck.get("/grant-admin/buckets");
+    const { facts, indexes } = payload.buckets.find(
+      ({ id }) => id === "gas.applications",
+    );
+
+    expect(facts.find(({ name }) => name === "currentConfigVersion")).toEqual({
+      name: "currentConfigVersion",
+      param: "version",
+      label: "Version",
+      values: null,
+      toggle: null,
+      within: "code",
+    });
+    expect(indexes).toContainEqual(["code", "currentConfigVersion"]);
+  });
+
+  it("answers a Caseworking bucket whose facts say what they are within", async () => {
+    const cases = {
+      ...aCwBucketEntry("outbox"),
+      facts: [
+        {
+          name: "workflowCode",
+          param: "workflow",
+          label: "Workflow",
+          values: null,
+          toggle: null,
+          within: null,
+        },
+        {
+          name: "currentConfigVersion",
+          param: "version",
+          label: "Version",
+          values: null,
+          toggle: null,
+          within: "workflowCode",
+        },
+      ],
+    };
+    await setCwStub({ buckets: { entries: [cases] } });
+
+    const { payload } = await wreck.get("/grant-admin/buckets");
+
+    expect(payload.buckets.find(({ id }) => id === "cw.outbox").facts).toEqual(
+      cases.facts,
+    );
+    expect(payload.sourceErrors).toEqual([]);
+  });
+
   it("refuses another client with 403", async () => {
     await expect(
       wreck.get("/grant-admin/buckets", {
@@ -326,6 +375,39 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
       resultCount: 1,
     });
     expect(JSON.stringify(row.event.audit.details)).not.toContain("106284736");
+  });
+
+  it("lists the applications on one version of a grant exactly, showing the version", async () => {
+    await applications.insertMany([
+      anApplication("ref-1", { currentConfigVersion: "1.2.0" }),
+      anApplication("ref-2", { currentConfigVersion: "1.1.0" }),
+      anApplication("ref-3", {
+        code: "hedgerows",
+        currentConfigVersion: "1.2.0",
+      }),
+    ]);
+
+    const answer = await answerOf("gas.applications", {
+      where: { code: "woodland", currentConfigVersion: "1.2.0" },
+    });
+    const [row] = await bucketAudits();
+
+    expect(bucketQueryResponseSchema.validate(answer).error).toBeUndefined();
+    expect(answer.plan).toMatchObject({
+      kind: "exact",
+      index: ["code", "currentConfigVersion", "createdAt", "_id"],
+      bound: ["code", "currentConfigVersion"],
+      residual: [],
+    });
+    expect(answer.rows.map(({ title, cells }) => [title, cells.code])).toEqual([
+      ["ref-1", "woodland@1.2.0"],
+    ]);
+    expect(answer.rows[0].link).toMatchObject({ code: "woodland" });
+    expect(row.event.audit.details.facts).toEqual([
+      "code",
+      "currentConfigVersion",
+    ]);
+    expect(JSON.stringify(row.event.audit.details)).not.toContain("1.2.0");
   });
 
   it("writes no audit row for the outbox, or for a refused request", async () => {
