@@ -23,8 +23,8 @@ const onClaimApproval = Joi.object({
   .label("OnClaimApproval");
 
 export const claims = Joi.object({
-  requiredRoles: requiredRoles.optional(),
   onClaimApproval: onClaimApproval.optional(),
+  requiredRoles: requiredRoles.optional(),
 })
   .unknown(false)
   .label("Claims");
