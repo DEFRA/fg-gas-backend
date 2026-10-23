@@ -22,11 +22,13 @@ export const storedDefinitionVersions = async (
   definitionType,
   grantCode,
   versions,
+  session,
 ) =>
   new Set(
     await getDefinitionStore(definitionType).storedVersions(
       grantCode,
       versions,
+      session,
     ),
   );
 
@@ -42,12 +44,17 @@ export const findStoredDefinition = async (definitionType, ref, options) => {
   return find(ref, options);
 };
 
-// The owning context checks its file as it would on arrival and stores it once; a file
-// already stored counts as stored. It writes no fetch status.
+// The owning context checks its file as it would on arrival and stores it once, in the
+// caller's transaction when there is one; a file already stored counts as stored. It
+// writes no fetch status.
 export const storeDefinition = async (
   definitionType,
   { grantCode, version, definition },
+  session,
 ) =>
-  getDefinitionStore(definitionType).store({ grantCode, version, definition });
+  getDefinitionStore(definitionType).store(
+    { grantCode, version, definition },
+    session,
+  );
 
 export const clearDefinitionStores = () => stores.clear();

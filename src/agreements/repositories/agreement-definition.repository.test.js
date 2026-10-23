@@ -46,17 +46,17 @@ describe("Agreement definition repository", () => {
     const insertOne = vi.fn().mockResolvedValue({ insertedId: "id" });
     db.collection.mockReturnValue({ insertOne });
 
-    const result = await insertAgreementDefinition({
-      code: "pigs-might-fly",
-      version: "1.0.1",
-      definition,
-    });
+    const session = { id: "transaction" };
 
-    expect(insertOne).toHaveBeenCalledWith({
-      code: "pigs-might-fly",
-      version: "1.0.1",
-      definition,
-    });
+    const result = await insertAgreementDefinition(
+      { code: "pigs-might-fly", version: "1.0.1", definition },
+      session,
+    );
+
+    expect(insertOne).toHaveBeenCalledWith(
+      { code: "pigs-might-fly", version: "1.0.1", definition },
+      { session },
+    );
     expect(result).toBeUndefined();
   });
 });
@@ -79,6 +79,21 @@ describe("insertAgreementDefinition", () => {
     );
 
     await expect(insert()).resolves.toBeUndefined();
+  });
+
+  it("lets a duplicate inside a transaction through, as it has aborted it", async () => {
+    const duplicate = new MongoServerError({
+      message: "E11000 duplicate key",
+      code: 11000,
+    });
+    insertRejecting(duplicate);
+
+    await expect(
+      insertAgreementDefinition(
+        { code: "pigs-might-fly", version: "1.0.1", definition },
+        { id: "transaction" },
+      ),
+    ).rejects.toBe(duplicate);
   });
 
   it("lets any other Mongo failure through", async () => {

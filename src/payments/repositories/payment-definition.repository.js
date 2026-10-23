@@ -16,24 +16,24 @@ export const findPaymentDefinition = async (code, version) => {
   return document?.definition ?? null;
 };
 
-// A version stored first by someone else is left as it is.
-export const insertPaymentDefinition = async ({
-  code,
-  version,
-  definition,
-}) => {
+// A version stored first by someone else is left as it is. Inside a
+// transaction the duplicate has already aborted it, so it goes to the caller.
+export const insertPaymentDefinition = async (
+  { code, version, definition },
+  session,
+) => {
   try {
     await db
       .collection(paymentDefinitionsCollection)
-      .insertOne({ code, version, definition });
+      .insertOne({ code, version, definition }, { session });
   } catch (error) {
-    if (!isMongoDuplicateKeyError(error)) {
+    if (session || !isMongoDuplicateKeyError(error)) {
       throw error;
     }
   }
 };
 
-export const findStoredVersions = async (code, versions) => {
+export const findStoredVersions = async (code, versions, session) => {
   const documents = await db
     .collection(paymentDefinitionsCollection)
     .find(
@@ -41,6 +41,7 @@ export const findStoredVersions = async (code, versions) => {
       {
         projection: { _id: 0, version: 1 },
         maxTimeMS: config.adminReadTimeoutMs,
+        session,
       },
     )
     .toArray();

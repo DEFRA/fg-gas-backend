@@ -34,11 +34,11 @@ export const toGrant = (doc) =>
 
 export const collection = "grants";
 
-export const save = async (grant) => {
+export const save = async (grant, session) => {
   const document = new GrantDocument(grant);
 
   try {
-    await db.collection(collection).insertOne(document);
+    await db.collection(collection).insertOne(document, { session });
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
       throw Boom.conflict(
@@ -64,7 +64,7 @@ export const saveFromDefinition = async (grantDefinition, version) => {
   return grant;
 };
 
-export const findStoredVersions = async (code, versions) => {
+export const findStoredVersions = async (code, versions, session) => {
   const documents = await db
     .collection(collection)
     .find(
@@ -72,6 +72,7 @@ export const findStoredVersions = async (code, versions) => {
       {
         projection: { _id: 0, version: 1 },
         maxTimeMS: config.adminReadTimeoutMs,
+        session,
       },
     )
     .toArray();
