@@ -1,11 +1,13 @@
 import { up } from "migrate-mongo";
 import { registerBucket } from "../common/buckets/registry.js";
+import { registerDefinitionStore } from "../common/config-broker/definition-stores.js";
 import { AGREEMENT_STATUS_UPDATED_EVENT_TYPE } from "../agreements/events/agreement-status-updated.event.js";
 import { logger } from "../common/logger.js";
 import { db, mongoClient } from "../common/mongo-client.js";
 import { registerEventHandler } from "../events/index.js";
 import { messageSource } from "../events/services/message-source.js";
 import { applicationsBucket } from "./buckets/applications.bucket.js";
+import { grantsBucket } from "./buckets/grants.bucket.js";
 import { handleConfigVersionMessage } from "./handlers/handle-config-version-message.js";
 import { handleGrantStatusMessage } from "./handlers/handle-grant-status-message.js";
 import {
@@ -24,6 +26,7 @@ import {
 } from "./routes/invoke-action.route.js";
 import { submitApplicationRoute } from "./routes/submit-application.route.js";
 import { submitClaimRoute } from "./routes/submit-claim.route.js";
+import { findStoredVersions } from "./repositories/grant.repository.js";
 import { configVersionUpdatedSubscriber } from "./subscribers/config-version-updated.subscriber.js";
 
 const grantStatusHandler = (source) => (message) =>
@@ -46,6 +49,7 @@ export const grants = {
       CONFIG_VERSION_UPDATED_EVENT_TYPE,
       handleConfigVersionMessage,
     );
+    registerDefinitionStore("grant", { storedVersions: findStoredVersions });
 
     logger.info("Running migrations");
     const migrated = await up(db, mongoClient);
@@ -53,6 +57,7 @@ export const grants = {
     logger.info("Finished running migrations");
 
     registerBucket(applicationsBucket());
+    registerBucket(grantsBucket());
 
     server.events.on("start", async () => {
       configVersionUpdatedSubscriber.start();

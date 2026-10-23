@@ -1,6 +1,10 @@
 import Boom from "@hapi/boom";
 import { MongoServerError } from "mongodb";
 import { config } from "../../common/config.js";
+import {
+  cappedField,
+  storedBytes,
+} from "../../common/mongo/capped-projection.js";
 import { db } from "../../common/mongo-client.js";
 import { Agreement, AgreementHistoryEntry } from "../models/agreement.js";
 import {
@@ -239,9 +243,6 @@ const readOne = async (pipeline) => {
   return doc ?? null;
 };
 
-// $bsonSize measures the whole stored document before any projection.
-const storedBytes = { $bsonSize: "$$ROOT" };
-
 export const findApplicationSummaryRow = async ({ clientRef, code }) => {
   const doc = await readOne([
     { $match: { clientRef, code } },
@@ -265,9 +266,7 @@ export const findStoredApplicationDocument = async (
       $project: {
         _id: 0,
         storedBytes,
-        document: {
-          $cond: [{ $lte: [storedBytes, maxBytes] }, "$$ROOT", "$$REMOVE"],
-        },
+        document: cappedField("$$ROOT", maxBytes),
       },
     },
   ]);

@@ -4,6 +4,14 @@ import { sectionOf } from "./page-sections.js";
 export const SECTION_CAP_BYTES = 1024 * 1024;
 export const TOO_LARGE = "too large to show";
 
+// One read per page, started before the page's own reads so the header and the
+// tab share it. Its failure surfaces through them.
+export const startSharedRead = (read) => {
+  read.catch(() => {});
+
+  return read;
+};
+
 const jsonBytes = (value) => Buffer.byteLength(JSON.stringify(value) ?? "");
 
 const isOverCap = (value) =>

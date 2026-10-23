@@ -1,7 +1,14 @@
-import { updateDefinitionFetchStatus } from "../../common/config-broker/config-catalog.repository.js";
+import {
+  updateDefinitionFetchStatus,
+  withWorstFetchStatus,
+} from "../../common/config-broker/config-catalog.repository.js";
+import { config } from "../../common/config.js";
 import { FetchStatus } from "../../common/fetch-status.js";
 import { db } from "../../common/mongo-client.js";
-import { ConfigVersion } from "../models/config-version.js";
+import {
+  ConfigVersion,
+  ConfigVersionStatus,
+} from "../models/config-version.js";
 
 const collection = "config_versions";
 
@@ -11,7 +18,7 @@ const collection = "config_versions";
 export const findLatestActive = async (grantCode) =>
   ConfigVersion.fromDocument(
     await db.collection(collection).findOne(
-      { grantCode, status: "active" },
+      { grantCode, status: ConfigVersionStatus.Active },
       {
         sort: { major: -1, minor: -1, patch: -1 },
       },
@@ -74,6 +81,7 @@ export const upsert = async (
             definitionLocationUpdate("payment", paymentS3Key)),
         },
       },
+      withWorstFetchStatus,
     ],
     { upsert: true },
   );
@@ -88,7 +96,7 @@ export const findLatestForMajor = async (grantCode, major) => {
     {
       grantCode,
       major,
-      status: "active",
+      status: ConfigVersionStatus.Active,
       "definitions.grant.fetchStatus": { $ne: FetchStatus.PermanentError },
     },
     { sort: { minor: -1, patch: -1 } },
@@ -116,3 +124,21 @@ export const findByGrantCodeAndVersion = async (grantCode, version) => {
 
   return ConfigVersion.fromDocument(doc);
 };
+
+export const findVersionsByGrantCode = (grantCode) =>
+  db
+    .collection(collection)
+    .find(
+      { grantCode },
+      {
+        sort: { major: -1, minor: -1, patch: -1 },
+        projection: { _id: 0, version: 1, status: 1, receivedAt: 1 },
+        maxTimeMS: config.adminReadTimeoutMs,
+      },
+    )
+    .toArray();
+
+export const findVersionDocument = (grantCode, version) =>
+  db
+    .collection(collection)
+    .findOne({ grantCode, version }, { maxTimeMS: config.adminReadTimeoutMs });

@@ -1,5 +1,6 @@
 import { missingEndpointServiceUrls } from "../src/agreements/services/integrations/resolve-endpoint-service-url.js";
 import { checkAgreementDefinition } from "../src/agreements/use-cases/compile-agreement-definition.js";
+import { withWorstFetchStatus } from "../src/common/config-broker/config-catalog.repository.js";
 import { buildFetchStateUpdate } from "../src/common/config-broker/fetch-state-update.js";
 import { FetchStatus } from "../src/common/fetch-status.js";
 import { logger } from "../src/common/logger.js";
@@ -121,7 +122,7 @@ const resetPassingVersions = async (configVersions, passing) => {
     .find({ [`${agreementPath}.fetchStatus`]: FetchStatus.PermanentError })
     .project({ grantCode: 1, version: 1 })
     .toArray();
-  const { set } = buildFetchStateUpdate({
+  const set = buildFetchStateUpdate({
     path: agreementPath,
     fetchStatus: FetchStatus.Fetched,
     fetchError: null,
@@ -133,7 +134,7 @@ const resetPassingVersions = async (configVersions, passing) => {
     if (passing.has(`${grantCode}@${version}`)) {
       const { modifiedCount } = await configVersions.updateOne(
         { _id, [`${agreementPath}.fetchStatus`]: FetchStatus.PermanentError },
-        { $set: set },
+        [{ $set: set }, withWorstFetchStatus],
       );
       reset += modifiedCount;
     }

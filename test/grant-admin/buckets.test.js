@@ -1,6 +1,7 @@
 import { MongoClient, ObjectId } from "mongodb";
 import { env } from "node:process";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { withWorstFetchStatus } from "../../src/common/config-broker/config-catalog.repository.js";
 import {
   bucketCatalogueResponseSchema,
   bucketQueryResponseSchema,
@@ -19,12 +20,14 @@ const OTHER_SERVICE = "Bearer 22222222-2222-2222-2222-222222222222";
 
 let client;
 let applications;
+let configVersions;
 let outbox;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
   const db = client.db();
   applications = db.collection("applications");
+  configVersions = db.collection("config_versions");
   outbox = db.collection("outbox");
 });
 
@@ -65,6 +68,21 @@ const anApplication = (clientRef, overrides = {}) => ({
   ...overrides,
 });
 
+const aConfigVersion = (grantCode, version, overrides = {}) => ({
+  _id: new ObjectId(),
+  grantCode,
+  version,
+  status: "active",
+  receivedAt: minute(0).toISOString(),
+  definitions: { grant: { fetchStatus: "fetched" } },
+  ...overrides,
+});
+
+const seedConfigVersions = async (...rows) => {
+  await configVersions.insertMany(rows);
+  await configVersions.updateMany({}, [withWorstFetchStatus]);
+};
+
 const query = (bucketId, payload, headers = OPERATOR) =>
   wreck.post(`/grant-admin/buckets/${bucketId}/query`, { payload, headers });
 
@@ -102,6 +120,7 @@ describe("GET /grant-admin/buckets", () => {
       "cw.outbox",
       "cw.inbox",
       "gas.applications",
+      "gas.grants",
     ]);
     expect(payload.sourceErrors).toEqual([]);
   });
@@ -115,6 +134,7 @@ describe("GET /grant-admin/buckets", () => {
       "gas.outbox",
       "gas.inbox",
       "gas.applications",
+      "gas.grants",
     ]);
     expect(payload.sourceErrors).toEqual([{ hop: "CW-BE" }]);
   });
@@ -128,6 +148,18 @@ describe("GET /grant-admin/buckets", () => {
     );
 
     expect(facts.find(({ name }) => name === "code").values).toEqual([
+      { value: "woodland", label: "woodland" },
+    ]);
+  });
+
+  it("lists the stored grant codes of the config versions", async () => {
+    await seedConfigVersions(aConfigVersion("woodland", "1.0.0"));
+
+    const { payload } = await wreck.get("/grant-admin/buckets");
+    const { facts } = payload.buckets.find(({ id }) => id === "gas.grants");
+
+    expect(facts.find(({ name }) => name === "grantCode").values).toEqual([
+      { value: "pigs-might-fly", label: "pigs-might-fly" },
       { value: "woodland", label: "woodland" },
     ]);
   });
@@ -381,6 +413,112 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
   it("writes no audit row for the outbox, or for a refused request", async () => {
     await answerOf("gas.outbox", {});
     await refusalOf(query("gas.applications", { where: { colour: "x" } }));
+
+    expect(await bucketAudits()).toEqual([]);
+  });
+
+  it("pages config versions newest received first, each once", async () => {
+    await configVersions.deleteMany({});
+    await seedConfigVersions(
+      ...Array.from({ length: 25 }, (_, n) =>
+        aConfigVersion("woodland", `1.0.${n}`, {
+          receivedAt: minute(n).toISOString(),
+        }),
+      ),
+    );
+
+    const first = await answerOf("gas.grants", {});
+    const second = await answerOf("gas.grants", { cursor: first.page.next });
+
+    expect(bucketQueryResponseSchema.validate(first).error).toBeUndefined();
+    expect(first.plan).toMatchObject({
+      kind: "exact",
+      index: ["receivedAt", "_id"],
+    });
+    expect(first.rows[0]).toMatchObject({
+      time: minute(24).toISOString(),
+      title: "woodland",
+      subtitle: null,
+      cells: { version: "1.0.24", status: "active", definition: "fetched" },
+      link: { kind: "grant", code: "woodland", version: "1.0.24" },
+    });
+    expect(
+      [...first.rows, ...second.rows].map((row) => row.cells.version),
+    ).toEqual(Array.from({ length: 25 }, (_, n) => `1.0.${24 - n}`));
+    expect(second.page).toMatchObject({ next: null, complete: true });
+  });
+
+  it("lists only drafts when asked for Draft, on an exact plan", async () => {
+    await seedConfigVersions(
+      aConfigVersion("woodland", "1.0.0"),
+      aConfigVersion("woodland", "2.0.0", {
+        status: "draft",
+        definitions: { grant: { fetchStatus: "permanent_error" } },
+      }),
+    );
+
+    const answer = await answerOf("gas.grants", {
+      where: { status: "draft" },
+    });
+
+    expect(answer.plan).toMatchObject({
+      kind: "exact",
+      bound: ["status"],
+      residual: [],
+    });
+    expect(answer.rows.map((row) => row.cells)).toEqual([
+      { version: "2.0.0", status: "draft", definition: "permanent_error" },
+    ]);
+  });
+
+  it("reads one grant's versions by the worst fetch status of their files, exactly", async () => {
+    await seedConfigVersions(
+      aConfigVersion("woodland", "1.0.0"),
+      aConfigVersion("woodland", "1.1.0", {
+        definitions: { grant: { fetchStatus: "pending" } },
+      }),
+      aConfigVersion("hedgerow", "1.0.0", {
+        definitions: { grant: { fetchStatus: "pending" } },
+      }),
+    );
+
+    const answer = await answerOf("gas.grants", {
+      where: { grantCode: "woodland", worstFetchStatus: "pending" },
+    });
+
+    expect(answer.plan).toMatchObject({ kind: "exact", residual: [] });
+    expect(
+      answer.rows.map(({ title, cells }) => [title, cells.version]),
+    ).toEqual([["woodland", "1.1.0"]]);
+  });
+
+  it("lists a version whose agreement file failed as Failed, on an exact plan", async () => {
+    await seedConfigVersions(
+      aConfigVersion("woodland", "1.0.0"),
+      aConfigVersion("woodland", "1.1.0", {
+        definitions: {
+          grant: { fetchStatus: "fetched" },
+          agreement: { fetchStatus: "permanent_error" },
+        },
+      }),
+    );
+
+    const answer = await answerOf("gas.grants", {
+      where: { worstFetchStatus: "permanent_error" },
+    });
+
+    expect(answer.plan).toMatchObject({
+      kind: "exact",
+      index: expect.arrayContaining(["worstFetchStatus"]),
+      residual: [],
+    });
+    expect(answer.rows.map((row) => row.cells)).toEqual([
+      { version: "1.1.0", status: "active", definition: "permanent_error" },
+    ]);
+  });
+
+  it("writes no audit row for a read of the grants list", async () => {
+    await answerOf("gas.grants", { where: { grantCode: "woodland" } });
 
     expect(await bucketAudits()).toEqual([]);
   });

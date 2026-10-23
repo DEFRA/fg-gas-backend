@@ -10,7 +10,7 @@ describe("grant-admin", () => {
     expect(server.registrations["grant-admin"]).toBeDefined();
   });
 
-  it("registers the admin claims, events, buckets, applications and cases endpoints", async () => {
+  it("registers the admin claims, events, buckets, applications, cases, grant version and workflow version endpoints", async () => {
     const server = hapi.server();
     await server.register(grantAdmin);
 
@@ -29,6 +29,17 @@ describe("grant-admin", () => {
       "get /grant-admin/grants/{code}/applications/{clientRef}/events",
       "get /grant-admin/grants/{code}/applications/{clientRef}/overview",
       "get /grant-admin/grants/{code}/applications/{clientRef}/raw",
+      "get /grant-admin/grants/{code}/versions",
+      "get /grant-admin/grants/{code}/versions/{version}/agreement",
+      "get /grant-admin/grants/{code}/versions/{version}/definition",
+      "get /grant-admin/grants/{code}/versions/{version}/entitlements",
+      "get /grant-admin/grants/{code}/versions/{version}/overview",
+      "get /grant-admin/grants/{code}/versions/{version}/payment",
+      "get /grant-admin/grants/{code}/versions/{version}/phases",
+      "get /grant-admin/workflows/{code}/versions",
+      "get /grant-admin/workflows/{code}/versions/{version}/definition",
+      "get /grant-admin/workflows/{code}/versions/{version}/overview",
+      "get /grant-admin/workflows/{code}/versions/{version}/raw",
       "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/events",
       "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/overview",
       "get /grant-admin/workflows/{workflowCode}/cases/{caseRef}/raw",
@@ -38,6 +49,8 @@ describe("grant-admin", () => {
       "post /grant-admin/events/{service}/{box}/{id}/purge",
       "post /grant-admin/events/{service}/{box}/{id}/redrive",
       "post /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements",
+      "post /grant-admin/grants/{code}/versions/{version}/fetch",
+      "post /grant-admin/workflows/{code}/versions/{version}/fetch",
       "put /grant-admin/grants/{code}/allow-list",
       "put /grant-admin/grants/{code}/applications/{clientRef}/claims/entitlements/{entitlementId}",
     ]);

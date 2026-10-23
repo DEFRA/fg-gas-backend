@@ -5,6 +5,7 @@ import { logger } from "../../common/logger.js";
 import { AgreementDefinition } from "../models/agreement-definitions/agreement-definition.js";
 import {
   checkAgreementDefinition,
+  checkStoredAgreementDefinition,
   compileAgreementDefinition,
 } from "./compile-agreement-definition.js";
 
@@ -115,5 +116,45 @@ describe("checkAgreementDefinition", () => {
       checkAgreementDefinition(definition(), "some-other-grant", "1.2.0"),
     ).toThrow(/does not match/);
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("checkStoredAgreementDefinition", () => {
+  it("accepts a usable definition whose services have no URL here", () => {
+    mockValidateEndpointServiceUrls.mockImplementation(() => {
+      throw new EndpointServiceUrlError("no url configured for service x");
+    });
+
+    expect(
+      checkStoredAgreementDefinition(definition(), CODE, "1.2.0"),
+    ).toBeInstanceOf(AgreementDefinition);
+    expect(mockValidateEndpointServiceUrls).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "a code that is not the grant's",
+      (raw) => ({ ...raw, code: "some-other-grant" }),
+      /does not match "pigs-might-fly"/,
+    ],
+    [
+      "a declared configVersion",
+      (raw) => ({ ...raw, configVersion: "9.9.9" }),
+      /must not declare configVersion/,
+    ],
+    [
+      "an unknown create target",
+      (raw) => ({ ...raw, create: { ...raw.create, target: "nowhere" } }),
+      /nowhere/,
+    ],
+    [
+      "a process naming no definition",
+      (raw) => ({ ...raw, create: { ...raw.create, processes: ["MISSING"] } }),
+      /MISSING/,
+    ],
+  ])("refuses %s", (_case, change, message) => {
+    expect(() =>
+      checkStoredAgreementDefinition(change(definition()), CODE, "1.2.0"),
+    ).toThrow(message);
   });
 });

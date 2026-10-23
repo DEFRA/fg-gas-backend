@@ -7,7 +7,6 @@ import {
 } from "../../common/config-broker/config-catalog.repository.js";
 import { FetchStatus } from "../../common/fetch-status.js";
 import { logger } from "../../common/logger.js";
-import { isMongoDuplicateKeyError } from "../../common/mongo-errors.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
 import { parseSemver } from "../../common/semver.js";
 import {
@@ -112,20 +111,6 @@ const guardFetchStatus = (target) => {
 const loadStored = (target) =>
   findStoredDefinition(target.grantCode, target.version);
 
-const store = async (target, definition) => {
-  try {
-    await insertAgreementDefinition({
-      code: target.grantCode,
-      version: target.version,
-      definition,
-    });
-  } catch (error) {
-    if (!isMongoDuplicateKeyError(error)) {
-      throw error;
-    }
-  }
-};
-
 // Deployment faults are local, so do not record them against shared config.
 const recorded = (status) => ({ status, record: true });
 
@@ -163,7 +148,11 @@ const compileAndCache = async (target, stored, cacheKey) => {
   );
 
   if (!stored) {
-    await store(target, rawDefinition);
+    await insertAgreementDefinition({
+      code: target.grantCode,
+      version: target.version,
+      definition: rawDefinition,
+    });
   }
   if (target.fetchStatus !== FetchStatus.Fetched) {
     await updateStatus(target, FetchStatus.Fetched);

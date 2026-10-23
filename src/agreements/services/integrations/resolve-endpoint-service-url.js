@@ -57,6 +57,39 @@ export const resolveEndpointServiceUrl = (service) => {
   return url;
 };
 
+const buildUrl = (baseUrl, path) => {
+  const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  return `${cleanBaseUrl}${cleanPath}`;
+};
+
+export const resolveEndpointUrl = (endpoint) =>
+  buildUrl(resolveEndpointServiceUrl(endpoint.service), endpoint.path);
+
+const parseUrl = (value) => {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+};
+
+const pathOnly = (path) => path.split(/[?#]/)[0];
+
+// The Service Address: the configured base's scheme, host and path, plus the
+// endpoint's path without its query or fragment. Path placeholders stay as
+// written. Null when the base is unset or unparseable.
+export const toServiceAddress = (endpoint) => {
+  const base = parseUrl(process.env[`${endpoint.service}_URL`]);
+
+  return base
+    ? buildUrl(
+        `${base.protocol}//${base.host}${base.pathname}`,
+        pathOnly(endpoint.path),
+      )
+    : null;
+};
+
 const processEndpointsFor = (definition) =>
   Object.values(definition.processDefinitions ?? {})
     .filter(({ type }) => type === "endpoint")

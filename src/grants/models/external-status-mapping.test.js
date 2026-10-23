@@ -26,4 +26,19 @@ describe("ExternalStatusMapping", () => {
   ])("targets nothing when mapped to %s", (_label, mappedTo) => {
     expect(targetOf(mappedTo)).toBeUndefined();
   });
+
+  it("describes where it applies and where it moves an application", () => {
+    expect(
+      new ExternalStatusMapping(
+        { code: "IN_REVIEW", source: "CW", mappedTo: "::HELD" },
+        { phase: "PRE_AWARD", stage: "REVIEW" },
+      ).describe(),
+    ).toEqual({
+      source: "CW",
+      code: "IN_REVIEW",
+      whileIn: "PRE_AWARD:REVIEW",
+      mappedTo: "::HELD",
+      to: "PRE_AWARD:REVIEW:HELD",
+    });
+  });
 });

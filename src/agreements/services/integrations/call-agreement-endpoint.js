@@ -2,7 +2,7 @@ import Boom from "@hapi/boom";
 import { wreck } from "../../../common/wreck.js";
 import {
   resolveEndpointServiceHeaders,
-  resolveEndpointServiceUrl,
+  resolveEndpointUrl,
 } from "./resolve-endpoint-service-url.js";
 
 const HTTP_SUCCESS_MIN = 200;
@@ -10,12 +10,6 @@ const HTTP_SUCCESS_MAX = 300;
 
 const isSuccessStatus = (statusCode) =>
   statusCode >= HTTP_SUCCESS_MIN && statusCode < HTTP_SUCCESS_MAX;
-
-const buildUrl = (baseUrl, path) => {
-  const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-  const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  return `${cleanBaseUrl}${cleanPath}`;
-};
 
 const sendRequest = async (endpoint, url, body) => {
   try {
@@ -60,9 +54,5 @@ const performRequest = async (endpoint, url, body) => {
 // params.PATH is accepted for shape-parity with other consumers of this
 // endpoint config but isn't substituted into the URL yet - no current
 // endpoint needs it.
-export const callAgreementEndpoint = async (endpoint, params = {}) => {
-  const baseUrl = resolveEndpointServiceUrl(endpoint.service);
-  const url = buildUrl(baseUrl, endpoint.path);
-
-  return performRequest(endpoint, url, params.BODY ?? {});
-};
+export const callAgreementEndpoint = async (endpoint, params = {}) =>
+  performRequest(endpoint, resolveEndpointUrl(endpoint), params.BODY ?? {});
