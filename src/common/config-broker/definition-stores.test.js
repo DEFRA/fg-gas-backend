@@ -19,13 +19,21 @@ it("answers the versions the registered store holds, as a set", async () => {
   const storedVersions = vi.fn().mockResolvedValue(["1.0.0"]);
   registerDefinitionStore("payment", { storedVersions });
 
-  const stored = await storedDefinitionVersions("payment", "woodland", [
-    "1.0.0",
-    "2.0.0",
-  ]);
+  const session = { id: "transaction" };
+
+  const stored = await storedDefinitionVersions(
+    "payment",
+    "woodland",
+    ["1.0.0", "2.0.0"],
+    session,
+  );
 
   expect(stored).toEqual(new Set(["1.0.0"]));
-  expect(storedVersions).toHaveBeenCalledWith("woodland", ["1.0.0", "2.0.0"]);
+  expect(storedVersions).toHaveBeenCalledWith(
+    "woodland",
+    ["1.0.0", "2.0.0"],
+    session,
+  );
 });
 
 it("finds a stored definition through the registered store's read", async () => {
@@ -80,9 +88,11 @@ it("hands the file to the registered store", async () => {
     definition: { code: "woodland" },
   };
 
-  await storeDefinition("agreement", file);
+  const session = { id: "transaction" };
 
-  expect(store).toHaveBeenCalledWith(file);
+  await storeDefinition("agreement", file, session);
+
+  expect(store).toHaveBeenCalledWith(file, session);
 });
 
 it("lets the store's own refusal through", async () => {

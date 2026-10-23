@@ -11,6 +11,7 @@ import {
   storedDefinitionVersions,
 } from "../../common/config-broker/definition-stores.js";
 import { logger } from "../../common/logger.js";
+import { withTransaction } from "../../common/with-transaction.js";
 import { fetchConfigFile, S3FetchError } from "../../common/s3-client.js";
 import { writeAuditEvent } from "../../events/write-audit-event.js";
 import {
@@ -22,6 +23,7 @@ import { save } from "../repositories/grant.repository.js";
 import { fetchConfigDefinitionsUseCase } from "./fetch-config-definitions.use-case.js";
 
 vi.mock("../../common/logger.js");
+vi.mock("../../common/with-transaction.js");
 vi.mock("../../common/config-broker/config-catalog.repository.js");
 vi.mock("../../common/config-broker/definition-stores.js");
 vi.mock("../../events/write-audit-event.js");
@@ -36,6 +38,7 @@ vi.mock("../../common/s3-client.js", async () => ({
 const CODE = "woodland";
 const VERSION = "2.0.0";
 const ARGS = { grantCode: CODE, version: VERSION, caller: "fg-admin" };
+const SESSION = { id: "transaction" };
 
 const grantDefinition = JSON.parse(
   readFileSync(
@@ -102,6 +105,7 @@ beforeEach(() => {
   save.mockResolvedValue();
   storeDefinition.mockResolvedValue();
   writeAuditEvent.mockResolvedValue();
+  withTransaction.mockImplementation((callback) => callback(SESSION));
 });
 
 describe("fetchConfigDefinitionsUseCase", () => {
@@ -117,15 +121,18 @@ describe("fetchConfigDefinitionsUseCase", () => {
     });
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({ code: CODE, version: VERSION }),
+      SESSION,
     );
     expect(storeDefinition.mock.calls).toEqual([
       [
         "agreement",
         { grantCode: CODE, version: VERSION, definition: published.agreement },
+        SESSION,
       ],
       [
         "payment",
         { grantCode: CODE, version: VERSION, definition: published.payment },
+        SESSION,
       ],
     ]);
   });
@@ -258,7 +265,69 @@ describe("fetchConfigDefinitionsUseCase", () => {
     const error = await fetchConfigDefinitionsUseCase(ARGS).catch((e) => e);
 
     expect(error.output.statusCode).toBe(500);
-    expect(error.data.files).toEqual([{ file: "grant", outcome: "stored" }]);
+    expect(error.data.files).toEqual([]);
+  });
+
+  it("reads every file from S3 before the transaction opens", async () => {
+    let readsBefore;
+    withTransaction.mockImplementation((callback) => {
+      readsBefore = fetchConfigFile.mock.calls.length;
+      return callback(SESSION);
+    });
+
+    await fetchConfigDefinitionsUseCase(ARGS);
+
+    expect(readsBefore).toBe(3);
+  });
+
+  it("writes the SUCCESS audit event in the transaction that stores the files", async () => {
+    await fetchConfigDefinitionsUseCase(ARGS);
+
+    expect(withTransaction).toHaveBeenCalledOnce();
+    expect(writeAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "SUCCESS" }),
+      SESSION,
+    );
+  });
+
+  it("fails the fetch when its audit event cannot be written, so nothing it stored commits", async () => {
+    const failure = new MongoServerError({ message: "outbox down", code: 6 });
+    writeAuditEvent.mockRejectedValue(failure);
+
+    await expect(fetchConfigDefinitionsUseCase(ARGS)).rejects.toBe(failure);
+  });
+
+  it("lets a transient transaction error through as it is, for the transaction to retry", async () => {
+    const conflict = new MongoServerError({
+      message: "WriteConflict",
+      code: 112,
+      errorLabels: ["TransientTransactionError"],
+    });
+    storeDefinition.mockRejectedValue(conflict);
+
+    await expect(fetchConfigDefinitionsUseCase(ARGS)).rejects.toBe(conflict);
+  });
+
+  it("stops on a failure while reading, naming the files that failed before it", async () => {
+    fetchConfigFile.mockImplementation(
+      fetchedFrom({ ...published, grant: s3Error("NoSuchKey", 404) }),
+    );
+    findConfigDefinition.mockImplementation(({ definitionType }) =>
+      definitionType === "payment"
+        ? Promise.reject(new MongoServerError({ message: "down", code: 6 }))
+        : Promise.resolve(location(definitionType)),
+    );
+
+    const error = await fetchConfigDefinitionsUseCase(ARGS).catch((e) => e);
+
+    expect(error.data.files).toEqual([
+      { file: "grant", outcome: "failed", reason: "missing", message: null },
+    ]);
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(storeDefinition).not.toHaveBeenCalled();
+    expect(audit().details.files).toEqual([
+      { file: "grant", outcome: "failed", reason: "missing" },
+    ]);
   });
 
   it("refuses a grant file arrival would refuse, and saves nothing", async () => {
@@ -323,12 +392,34 @@ describe("fetchConfigDefinitionsUseCase", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("counts a grant someone else stored first as stored", async () => {
-    save.mockRejectedValue(Boom.conflict("already exists"));
+  it("counts a file stored since it was found missing as stored, without storing it again", async () => {
+    storedDefinitionVersions.mockImplementation(
+      (type, _code, _versions, session) =>
+        Promise.resolve(
+          new Set(session === SESSION && type !== "payment" ? [VERSION] : []),
+        ),
+    );
 
     const { files } = await fetchConfigDefinitionsUseCase(ARGS);
 
-    expect(files[0]).toEqual({ file: "grant", outcome: "stored" });
+    expect(files).toEqual([
+      { file: "grant", outcome: "stored" },
+      { file: "agreement", outcome: "stored" },
+      { file: "payment", outcome: "stored" },
+    ]);
+    expect(save).not.toHaveBeenCalled();
+    expect(storeDefinition.mock.calls.map(([type]) => type)).toEqual([
+      "payment",
+    ]);
+  });
+
+  it("stops when a grant store still conflicts in the transaction", async () => {
+    save.mockRejectedValue(Boom.conflict("already exists"));
+
+    const error = await fetchConfigDefinitionsUseCase(ARGS).catch((e) => e);
+
+    expect(error.output.statusCode).toBe(500);
+    expect(error.data.files).toEqual([]);
   });
 
   it("audits a fetch that ran as a SUCCESS naming each file's outcome", async () => {
@@ -368,6 +459,7 @@ describe("fetchConfigDefinitionsUseCase", () => {
 
     expect(error.output.statusCode).toBe(404);
     expect(error.output.payload.reason).toBe("GRANT_VERSION_NOT_FOUND");
+    expect(withTransaction).not.toHaveBeenCalled();
     expect(audit()).toMatchObject({ status: "FAILURE" });
     expect(audit().details).toEqual({
       caller: "fg-admin",
@@ -377,7 +469,10 @@ describe("fetchConfigDefinitionsUseCase", () => {
     });
   });
 
-  it("stops on a failure that is no outcome, and the FAILURE audit keeps what it stored first", async () => {
+  it("stops on a failure that is no outcome, and the FAILURE audit, outside the transaction, names the files that failed first", async () => {
+    fetchConfigFile.mockImplementation(
+      fetchedFrom({ ...published, grant: s3Error("AccessDenied", 403) }),
+    );
     storeDefinition.mockRejectedValue(
       new MongoServerError({ message: "down", code: 6 }),
     );
@@ -385,12 +480,15 @@ describe("fetchConfigDefinitionsUseCase", () => {
     const error = await fetchConfigDefinitionsUseCase(ARGS).catch((e) => e);
 
     expect(error.output.statusCode).toBe(500);
-    expect(error.data.files).toEqual([{ file: "grant", outcome: "stored" }]);
+    expect(error.data.files).toEqual([
+      { file: "grant", outcome: "failed", reason: "forbidden", message: null },
+    ]);
     expect(audit()).toMatchObject({ status: "FAILURE" });
+    expect(writeAuditEvent.mock.calls[0][1]).toBeNull();
     expect(audit().details).toEqual({
       caller: "fg-admin",
       version: VERSION,
-      files: [{ file: "grant", outcome: "stored" }],
+      files: [{ file: "grant", outcome: "failed", reason: "forbidden" }],
       errorCode: "UNEXPECTED_FAILURE",
     });
     expect(logger.error).toHaveBeenCalledWith(

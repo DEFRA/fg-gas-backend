@@ -139,9 +139,13 @@ describe("grants", () => {
     await server.register(grants);
 
     await expect(
-      storedDefinitionVersions("grant", "woodland", ["1.0.1"]),
+      storedDefinitionVersions("grant", "woodland", ["1.0.1"], {
+        id: "transaction",
+      }),
     ).resolves.toEqual(new Set(["1.0.1"]));
-    expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"]);
+    expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"], {
+      id: "transaction",
+    });
   });
 
   it("registers routes", async () => {

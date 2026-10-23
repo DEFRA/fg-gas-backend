@@ -174,9 +174,13 @@ describe("agreements", () => {
     await server.register(agreements);
 
     await expect(
-      storedDefinitionVersions("agreement", "woodland", ["1.0.1"]),
+      storedDefinitionVersions("agreement", "woodland", ["1.0.1"], {
+        id: "transaction",
+      }),
     ).resolves.toEqual(new Set(["1.0.1"]));
-    expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"]);
+    expect(findStoredVersions).toHaveBeenCalledWith("woodland", ["1.0.1"], {
+      id: "transaction",
+    });
   });
 
   it("registers the agreement definition store's read of a stored definition", async () => {
@@ -199,9 +203,10 @@ describe("agreements", () => {
     const server = hapi.server();
     await server.register(agreements);
     const file = { grantCode: "woodland", version: "1.0.1", definition: {} };
+    const session = { id: "transaction" };
 
-    await storeDefinition("agreement", file);
+    await storeDefinition("agreement", file, session);
 
-    expect(storeAgreementDefinition).toHaveBeenCalledWith(file);
+    expect(storeAgreementDefinition).toHaveBeenCalledWith(file, session);
   });
 });
