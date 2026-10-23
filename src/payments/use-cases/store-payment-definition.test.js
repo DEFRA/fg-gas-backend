@@ -26,18 +26,17 @@ beforeEach(() => {
 describe("storePaymentDefinition", () => {
   it("stores the definition as published, under the grant and version", async () => {
     const published = definition();
+    const session = { id: "transaction" };
 
-    await storePaymentDefinition({
-      grantCode: CODE,
-      version: "1.2.0",
-      definition: published,
-    });
+    await storePaymentDefinition(
+      { grantCode: CODE, version: "1.2.0", definition: published },
+      session,
+    );
 
-    expect(insertPaymentDefinition).toHaveBeenCalledWith({
-      code: CODE,
-      version: "1.2.0",
-      definition: published,
-    });
+    expect(insertPaymentDefinition).toHaveBeenCalledWith(
+      { code: CODE, version: "1.2.0", definition: published },
+      session,
+    );
   });
 
   it("refuses a definition arrival would refuse and stores nothing", async () => {
