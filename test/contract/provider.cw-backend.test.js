@@ -8,8 +8,9 @@ import {
   MessageProviderPact,
   providerWithMetadata,
 } from "@pact-foundation/pact";
-import { describe, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { UpdateCaseSupplementaryDataCommand } from "../../src/grants/commands/update-case-supplementary-data.command.js";
 import { CreateNewCaseCommand } from "../../src/grants/commands/create-new-case.command.js";
 import { UpdateCaseStatusCommand } from "../../src/grants/commands/update-case-status.command.js";
 import { buildMessageVerifierOptions } from "./messageVerifierConfig.js";
@@ -19,6 +20,7 @@ vi.mock("../../src/common/config.js", () => ({
   config: {
     serviceName: "fg-gas-backend",
     environment: "test",
+    cdpEnvironment: "test",
   },
 }));
 
@@ -444,5 +446,46 @@ describe("GAS Provider (sends messages to CW)", () => {
 
       return messagePact.verify(verifyOpts);
     });
+  });
+});
+
+describe("Supplementary data provider verification", () => {
+  it("verifies the generic supplementary data command using the production builder", async () => {
+    vi.stubEnv(
+      "PACT_DESCRIPTION",
+      "^a supplementary data update command from GAS$",
+    );
+    const build = vi.fn(
+      () =>
+        new UpdateCaseSupplementaryDataCommand({
+          caseRef: "case-1",
+          workflowCode: "example",
+          supplementaryData: {
+            targetNode: "results",
+            dataType: "ARRAY",
+            key: "id",
+            data: { id: "record-1", arbitrary: { score: -100 } },
+          },
+        }),
+    );
+    const provide = providerWithMetadata(build, {
+      contentType: "application/json",
+    });
+    try {
+      const pact = new MessageProviderPact({
+        ...buildMessageVerifierOptions({
+          providerName: "fg-gas-backend",
+          consumerName: "fg-cw-backend",
+        }),
+        messageProviders: {
+          "a supplementary data update command from GAS": provide,
+        },
+        logLevel: "warn",
+      });
+      await pact.verify();
+      expect(build).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

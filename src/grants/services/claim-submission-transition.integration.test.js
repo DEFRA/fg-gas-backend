@@ -58,7 +58,7 @@ const entitlementTemplate = ({
   availableAt: [currentPosition],
   claim: {
     claimableAt: [currentPosition, mismatchPosition],
-    limits: { maximumClaims },
+    limits: { maximumClaims, allowsPartialClaims: maximumClaims > 1 },
     requiresApproval,
   },
 });
@@ -135,9 +135,11 @@ const seedFixture = async (options = {}) => {
       entitlementTemplates: entitlements.map(({ claimCode }) =>
         entitlementTemplate({ claimCode, maximumClaims, requiresApproval }),
       ),
-      claims: claimsConfigured
-        ? { onClaimApproval: { currentPosition, targetPosition } }
-        : undefined,
+      claims: {
+        ...(claimsConfigured
+          ? { onClaimApproval: { currentPosition, targetPosition } }
+          : {}),
+      },
     }),
   );
   await db.collection("config_versions").insertOne({
@@ -209,6 +211,8 @@ beforeAll(async () => {
   ({ createTestGrant } = await import("../../../test/helpers/grants.js"));
 
   await mongoClient.connect();
+  await db.createCollection("outbox");
+  await db.createCollection("claims");
 }, 120_000);
 
 beforeEach(async () => {
@@ -410,4 +414,109 @@ describe("Claim submission application transition", () => {
       currentStatus: targetPosition.status,
     });
   });
+});
+
+const claimEventsFor = (fixture) =>
+  db
+    .collection("outbox")
+    .find({
+      "event.type": /\.case\.update\.supplementary\.data$/,
+      "event.data.caseRef": fixture.clientRef,
+    })
+    .toArray();
+
+describe("claim supplementary data publication", () => {
+  it("publishes every partial claim independently of final completion", async () => {
+    const fixture = await seedFixture({ maximumClaims: 2 });
+    await submitClaim(fixture.command("partial-1"));
+    expect(await claimEventsFor(fixture)).toHaveLength(1);
+    expect(await countCommands(fixture)).toBe(0);
+    await submitClaim(fixture.command("partial-2"));
+    expect(await claimEventsFor(fixture)).toHaveLength(2);
+    expect(await countCommands(fixture)).toBe(1);
+  });
+  it("commits the saved claim ID and data once, including a concurrent replay", async () => {
+    const fixture = await seedFixture();
+    const results = await Promise.all([
+      submitClaim(fixture.command()),
+      submitClaim(fixture.command()),
+    ]);
+    expect(results.filter((result) => result.created)).toHaveLength(1);
+    expect(results.filter((result) => !result.created)).toHaveLength(1);
+    const created = results.find((result) => result.created);
+    expect(created).toEqual({ created: true, claimId: expect.any(String) });
+    const events = await claimEventsFor(fixture);
+    expect(events).toHaveLength(1);
+    const saved = await db
+      .collection("claims")
+      .findOne({ clientRef: fixture.clientRef });
+    expect(events[0].event.data).toEqual({
+      caseRef: fixture.clientRef,
+      workflowCode: fixture.code,
+      supplementaryData: {
+        targetNode: "claims",
+        dataType: "ARRAY",
+        key: "gasClaimId",
+        data: {
+          entitlementId: saved.claim.entitlementId,
+          quantity: 23,
+          gasClaimId: created.claimId,
+          clientClaimRef: "claim-1",
+          claimCode: saved.claimCode,
+          claimAmountPence: 4200,
+          sbi: "106284736",
+          status: "SUBMITTED",
+          submittedAt: saved.createdAt,
+        },
+      },
+    });
+    await expect(submitClaim(fixture.command())).resolves.toEqual({
+      created: false,
+    });
+    expect(await claimEventsFor(fixture)).toHaveLength(1);
+    expect(await countCommands(fixture)).toBe(1);
+  });
+  it.each([
+    { requiresApproval: true },
+    { maximumClaims: 2 },
+    { entitlementCount: 2 },
+    { claimsConfigured: false },
+  ])("publishes without requiring completion: %j", async (options) => {
+    const fixture = await seedFixture(options);
+    await submitClaim(fixture.command());
+    expect(await claimEventsFor(fixture)).toHaveLength(1);
+    expect(await countCommands(fixture)).toBe(0);
+    expect((await applicationFor(fixture)).currentStatus).toBe(
+      currentPosition.status,
+    );
+  });
+  it.each(["claims", "outbox"])(
+    "rolls back claim and event when %s rejects insertion",
+    async (collection) => {
+      const fixture = await seedFixture();
+      const validator =
+        collection === "claims"
+          ? { clientRef: "never-valid" }
+          : {
+              "event.type": {
+                $not: { $regex: "\\.case\\.update\\.supplementary\\.data$" },
+              },
+            };
+      await db.command({ collMod: collection, validator });
+      try {
+        await expect(submitClaim(fixture.command())).rejects.toThrow();
+        expect(
+          await db
+            .collection("claims")
+            .countDocuments({ clientRef: fixture.clientRef }),
+        ).toBe(0);
+        expect(await claimEventsFor(fixture)).toHaveLength(0);
+        expect((await applicationFor(fixture)).currentStatus).toBe(
+          currentPosition.status,
+        );
+      } finally {
+        await db.command({ collMod: collection, validator: {} });
+      }
+    },
+  );
 });

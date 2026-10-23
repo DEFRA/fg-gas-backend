@@ -93,3 +93,9 @@ describe("claims", () => {
     expect(error?.message).toContain("is not allowed");
   });
 });
+
+it("rejects a configurable submission hook", () => {
+  expect(
+    claims.validate({ onClaimSubmission: { processes: [] } }).error,
+  ).toBeDefined();
+});
