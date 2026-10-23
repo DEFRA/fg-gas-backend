@@ -4,11 +4,14 @@ import { logger } from "../../common/logger.js";
 import { findS3KeyInManifest, S3FetchError } from "../../common/s3-client.js";
 import { markPermanentFailure } from "../../events/retryable.js";
 import { parseSemver } from "../../common/semver.js";
-import { ConfigVersion } from "../models/config-version.js";
+import {
+  ConfigVersion,
+  ConfigVersionStatus,
+} from "../models/config-version.js";
 import { upsert } from "../repositories/config-version.repository.js";
 import { validateConfigDefinitions } from "./validate-config-definitions.js";
 
-const VALID_STATUSES = ["active", "draft"];
+const VALID_STATUSES = Object.values(ConfigVersionStatus);
 
 const assertIdentified = ({ grantCode, version }) => {
   if (!grantCode || !version) {
