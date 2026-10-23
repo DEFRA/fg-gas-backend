@@ -1,5 +1,9 @@
 import { config } from "../../common/config.js";
-import { applicationRefsOf, caseRefsOf } from "../../events/case-refs.js";
+import {
+  applicationRefsOf,
+  caseRefsOf,
+  configRefsOf,
+} from "../../events/case-refs.js";
 import { INBOX, defineEventType } from "../../events/event-types.js";
 
 export const caseStatusUpdated = defineEventType({
@@ -20,6 +24,7 @@ export const configVersionUpdated = defineEventType({
   name: "ConfigVersionUpdated",
   sentAs: "config-version.updated",
   boxes: [INBOX],
+  refs: ({ data }) => configRefsOf(data?.grantCode, data?.version),
 });
 
 export const CASE_STATUS_UPDATED_EVENT_TYPE = caseStatusUpdated.sentAs;
