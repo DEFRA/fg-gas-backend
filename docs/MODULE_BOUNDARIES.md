@@ -293,9 +293,12 @@ a filter or grouping may name, the ref kinds a search may name, a time field
 and its index lines. A fact may lead every index key (`lead`), and a value of
 a fact may stay out of the list until a switch shows it (`hidden`, `toggle`):
 `gas.outbox` leads with its event type and hides the `audit` type that way,
-because that type is declared `hiddenByDefault`. It is declared
-once, with `defineBucket`, in the module that owns the collection, and
-registered with `registerBucket` when that module's plugin starts:
+because that type is declared `hiddenByDefault`. A fact may be `within`
+another when its values mean something only for one value of that other fact,
+as `gas.applications`' version is within its grant, and then needs an index
+line of the two. A bucket is declared once, with `defineBucket`, in the module
+that owns the collection, and registered with `registerBucket` when that
+module's plugin starts:
 
 | Bucket             | Declared in                             | Registered by     |
 | ------------------ | --------------------------------------- | ----------------- |
