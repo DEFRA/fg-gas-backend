@@ -62,7 +62,7 @@ export const auditStamps = (payload) => ({
 
 const envelopeOf = (doc) => doc.originalPayload ?? doc.event ?? {};
 
-export const backfillOutboxStamps = (doc) => {
+export const backfillOutboxStamps = (doc, refs) => {
   const event = envelopeOf(doc);
 
   return isAuditTarget(doc.target)
@@ -72,6 +72,7 @@ export const backfillOutboxStamps = (doc) => {
           unrecognised,
         event,
         doc.segregationRef,
+        refs,
       );
 };
 

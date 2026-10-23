@@ -21,12 +21,17 @@ import {
   configVersionUpdated,
 } from "../src/grants/events/inbound-event-types.js";
 import { agreementStatusUpdate } from "../src/grants/events/update-agreement-status.command.js";
-import { agreementCreatePayment } from "../src/payments/events/create-payment.event.js";
+import {
+  agreementCreatePayment,
+  applicationRefsOfPayment,
+} from "../src/payments/events/create-payment.event.js";
+import { Payment } from "../src/payments/models/payment.js";
 
 // Stamps the inbox and outbox rows the FGP-1500 stamp left behind: those the
 // replaced version wrote while it ran, and, where it ran before case links
 // were stamped, the case links of the types that carry them. It has no _id
 // cutoff and writes only what a row lacks, so running it again changes nothing.
+// A row still unstamped after it is counted and logged, never failing the start.
 const declared = [
   agreementCreate,
   agreementCreatePayment,
@@ -114,6 +119,49 @@ const errorKeyWrites = ({ _id, lastError, errorKey }) =>
       ]
     : [];
 
+const claimIdOf = (doc) => (doc.originalPayload ?? doc.event)?.data?.claimId;
+
+const isPayment = (doc) =>
+  backfillOutboxStamps(doc).eventType === agreementCreatePayment.name;
+
+const applicationRefsFrom = (stored) => {
+  try {
+    return applicationRefsOfPayment(new Payment(stored));
+  } catch (error) {
+    if (!error.isBoom) {
+      throw error;
+    }
+
+    return [];
+  }
+};
+
+// A payment's message carries no grant code, so as when it was published, its
+// application link comes from the Payment.
+const outboxStampsFor = (db) => async (docs) => {
+  const claimIds = docs
+    .filter(isPayment)
+    .map(claimIdOf)
+    .filter((claimId) => typeof claimId === "string");
+
+  const stored =
+    claimIds.length > 0
+      ? await db
+          .collection("payments__payments")
+          .find({ paymentHubClaimId: { $in: claimIds } }, primary)
+          .toArray()
+      : [];
+
+  const refsOf = new Map(
+    stored.map((doc) => [doc.paymentHubClaimId, applicationRefsFrom(doc)]),
+  );
+
+  return (doc) =>
+    backfillOutboxStamps(doc, isPayment(doc) ? refsOf.get(claimIdOf(doc)) : []);
+};
+
+const inboxStampsFor = async () => backfillInboxStamps;
+
 // Only what a row lacks is written: a stamp already there is never changed.
 const writesFor = (stampsOf) => (doc) => {
   const { eventType, refs } = stampsOf(doc);
@@ -134,7 +182,7 @@ const readBatch = (collection, after) =>
     .toArray();
 
 // One batch at a time, each after the last row of the one before.
-const stampFrom = async (collection, stampsOf, after, stamped) => {
+const stampFrom = async (collection, stampsFor, after, stamped) => {
   const docs = await readBatch(collection, after);
 
   if (docs.length === 0) {
@@ -142,7 +190,7 @@ const stampFrom = async (collection, stampsOf, after, stamped) => {
   }
 
   const changed = docs
-    .map(writesFor(stampsOf))
+    .map(writesFor(await stampsFor(docs)))
     .filter((writes) => writes.length);
 
   if (changed.length > 0) {
@@ -151,20 +199,20 @@ const stampFrom = async (collection, stampsOf, after, stamped) => {
 
   return stampFrom(
     collection,
-    stampsOf,
+    stampsFor,
     docs.at(-1)._id,
     stamped + changed.length,
   );
 };
 
-const stamp = (collection, stampsOf) =>
-  stampFrom(collection, stampsOf, null, 0);
+const stamp = (collection, stampsFor) =>
+  stampFrom(collection, stampsFor, null, 0);
 
-const assertStamped = async (collection) => {
+const reportUnstamped = async (collection) => {
   const count = await collection.countDocuments({ $or: unstamped }, primary);
 
   if (count > 0) {
-    throw new Error(
+    logger.warn(
       `${count} ${collection.collectionName} rows were left unstamped`,
     );
   }
@@ -178,13 +226,13 @@ export const up = async (db) => {
     `Re-stamping event facts for ${declared.length} declared event types`,
   );
 
-  const outboxRows = await stamp(outbox, backfillOutboxStamps);
-  const inboxRows = await stamp(inbox, backfillInboxStamps);
+  const outboxRows = await stamp(outbox, outboxStampsFor(db));
+  const inboxRows = await stamp(inbox, inboxStampsFor);
 
   logger.info(
     `Re-stamped ${outboxRows} outbox rows and ${inboxRows} inbox rows`,
   );
 
-  await assertStamped(outbox);
-  await assertStamped(inbox);
+  await reportUnstamped(outbox);
+  await reportUnstamped(inbox);
 };

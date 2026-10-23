@@ -9,7 +9,9 @@ import {
   it,
   vi,
 } from "vitest";
-import { up } from "../../migrations/20261016100000-restamp-events.js";
+import { up } from "../../migrations/20261028100000-restamp-events.js";
+import { logger } from "../../src/common/logger.js";
+import { Payment } from "../../src/payments/models/payment.js";
 
 vi.mock("../../src/common/logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -64,6 +66,68 @@ const inboxRow = (overrides) => ({
     data: { caseRef: "abc-123", workflowCode: "example-grant" },
   },
   ...overrides,
+});
+
+const CLAIM_REF = "client-wmp-test-0061";
+
+const paymentProps = {
+  sbi: "106284736",
+  frn: "1101234567",
+  scheme: "SFI",
+  sourceSystem: "FPTT",
+  deliveryBody: "RP00",
+  fesCode: "FALS_FPTT",
+  paymentRequestNumber: 1,
+  invoiceNumber: "R00000001-V001QX",
+  originalInvoiceNumber: "",
+  ledger: "AP",
+  totalAmountPence: 2000,
+  currency: "GBP",
+  marketingYear: "2026",
+  payments: [
+    {
+      dueDate: "2026-11-06",
+      totalAmountPence: 2000,
+      status: "pending",
+      correlationId: "9665924f-41b7-43d2-8f68-a17c88c05e42",
+      invoiceLines: [
+        {
+          schemeCode: "CMOR1",
+          description: "Large White Pig",
+          amountPence: 2000,
+          accountCode: "SOS710",
+          fundCode: "DRD10",
+          deliveryBody: "RP00",
+          marketingYear: "2026",
+        },
+      ],
+    },
+  ],
+};
+
+const storePayment = (paymentHubClaimId, source) => {
+  const payment = Payment.create({
+    ...paymentProps,
+    paymentHubClaimId,
+    source,
+  });
+
+  return db
+    .collection("payments__payments")
+    .insertOne({ _id: payment.id, ...structuredClone(payment) });
+};
+
+const paymentRow = (claimId, segregationRef) => ({
+  target: "arn:aws:sns:eu-west-2:111111111111:create_payment",
+  status: "COMPLETED",
+  publicationDate: new Date("2026-09-01T10:00:03.000Z"),
+  segregationRef,
+  event: {
+    id: `0b7c1d1e-0000-4000-8000-0000000000${claimId.slice(-2)}`,
+    type: "io.onsite.agreement.create-payment",
+    traceparent: TRACEPARENT,
+    data: { claimId, grants: [{ agreementNumber: "WMP-1" }] },
+  },
 });
 
 // As the FGP-1500 writers stamped them before case links.
@@ -146,7 +210,7 @@ beforeEach(async () => {
   await db.dropDatabase();
 });
 
-describe("20261016100000-restamp-events", () => {
+describe("20261028100000-restamp-events", () => {
   it("stamps rows written without stamps, whatever their _id", async () => {
     await outbox.insertMany([
       caseCreate({ status: "DEAD_LETTER", lastError }),
@@ -163,6 +227,7 @@ describe("20261016100000-restamp-events", () => {
       refs: [
         "ref:abc-123",
         "case:example-grant:abc-123",
+        "application:example-grant:abc-123",
         "id:0b7c1d1e-0000-4000-8000-000000000001",
         TRACE,
       ],
@@ -177,13 +242,14 @@ describe("20261016100000-restamp-events", () => {
       refs: [
         "ref:abc-123",
         "case:example-grant:abc-123",
+        "application:example-grant:abc-123",
         "id:0b7c1d1e-0000-4000-8000-000000000002",
         TRACE,
       ],
     });
   });
 
-  it("adds the case links to rows stamped before them, and changes nothing else", async () => {
+  it("adds the case and application links to rows stamped before them, and changes nothing else", async () => {
     await outbox.insertOne(stampedCaseCreate());
     await inbox.insertOne(stampedInboxRow());
 
@@ -191,11 +257,67 @@ describe("20261016100000-restamp-events", () => {
 
     expect(await outbox.findOne()).toMatchObject({
       eventType: "CreateCase",
-      refs: [...CREATE_REFS, "case:example-grant:abc-123"],
+      refs: [
+        ...CREATE_REFS,
+        "case:example-grant:abc-123",
+        "application:example-grant:abc-123",
+      ],
     });
     expect(await inbox.findOne()).toMatchObject({
       eventType: "CaseStatusUpdated",
-      refs: [...STATUS_REFS, "case:example-grant:abc-123"],
+      refs: [
+        ...STATUS_REFS,
+        "case:example-grant:abc-123",
+        "application:example-grant:abc-123",
+      ],
+    });
+  });
+
+  it("links a Claim's payment from the Payment, as when it was published, and an Agreement's to no application", async () => {
+    await storePayment("R00000001", {
+      type: "claim",
+      code: "woodland",
+      clientRef: CLAIM_REF,
+      clientClaimRef: "C01",
+      entitlementId: "5abb45b1-6679-4a5e-92f5-3d13d7b4b74e",
+      agreementNumber: "WMP-1",
+      agreementVersion: 1,
+    });
+    await storePayment("R00000002", {
+      type: "agreement",
+      agreementNumber: "WMP-1",
+      version: 1,
+    });
+    await outbox.insertMany([
+      paymentRow("R00000001", CLAIM_REF),
+      paymentRow("R00000002", "WMP-1"),
+      paymentRow("R00000003", CLAIM_REF),
+    ]);
+
+    await up(db);
+
+    const [claim, agreement, noPayment] = await everyRow(outbox);
+
+    expect(claim).toMatchObject({
+      eventType: "CreateAgreementPayment",
+      refs: [
+        `ref:${CLAIM_REF}`,
+        `application:woodland:${CLAIM_REF}`,
+        "id:0b7c1d1e-0000-4000-8000-000000000001",
+        TRACE,
+      ],
+    });
+    expect(agreement).toMatchObject({
+      eventType: "CreateAgreementPayment",
+      refs: ["id:0b7c1d1e-0000-4000-8000-000000000002", TRACE],
+    });
+    expect(noPayment).toMatchObject({
+      eventType: "CreateAgreementPayment",
+      refs: [
+        `ref:${CLAIM_REF}`,
+        "id:0b7c1d1e-0000-4000-8000-000000000003",
+        TRACE,
+      ],
     });
   });
 
@@ -302,13 +424,16 @@ describe("20261016100000-restamp-events", () => {
     ).toBe(2500);
   });
 
-  it("fails, naming the box, when a row is left unstamped", async () => {
+  it("logs the rows left unstamped, naming the box, and carries on", async () => {
     await outbox.insertOne(caseCreate());
-    await inbox.insertOne(inboxRow());
+    await inbox.insertMany([inboxRow(), inboxRow()]);
 
-    await expect(up(droppingWritesTo("inbox"))).rejects.toThrow(
-      "1 inbox rows were left unstamped",
+    await expect(up(droppingWritesTo("inbox"))).resolves.toBeUndefined();
+
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      "2 inbox rows were left unstamped",
     );
     expect(await outbox.findOne()).toHaveProperty("eventType", "CreateCase");
+    expect(await inbox.countDocuments({ eventType: null })).toBe(2);
   });
 });

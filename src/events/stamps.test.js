@@ -210,6 +210,24 @@ describe("backfillOutboxStamps", () => {
     });
   });
 
+  it("adds the refs the writer gave after the type's own", () => {
+    const stamps = backfillOutboxStamps(
+      {
+        target: "some-topic",
+        segregationRef: "FPTT000000001",
+        event: event(),
+      },
+      [["application", "example-grant:abc-123"]],
+    );
+
+    expect(stamps.refs).toEqual([
+      "ref:abc-123",
+      "application:example-grant:abc-123",
+      "id:0b7c1d1e-0000-4000-8000-000000000001",
+      TRACE_REF,
+    ]);
+  });
+
   it("reads the envelope as it was written, not as it was edited", () => {
     const stamps = backfillOutboxStamps({
       target: "some-topic",
