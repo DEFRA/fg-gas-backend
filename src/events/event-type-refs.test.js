@@ -50,6 +50,8 @@ const declared = [
     refs: [
       ["ref", "abc-123"],
       ["case", "woodland:abc-123"],
+      ["ref", "abc-123"],
+      ["application", "woodland:abc-123"],
     ],
   },
 
