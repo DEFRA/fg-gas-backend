@@ -14,11 +14,16 @@ const NOT_A_STRING = {
 const startDate = "$metadata.startDate";
 
 const isYear = {
-  $and: [
+  $cond: [
     { $isNumber: startDate },
-    { $eq: [{ $mod: [startDate, 1] }, 0] },
-    { $gte: [startDate, 1000] },
-    { $lte: [startDate, 9999] },
+    {
+      $and: [
+        { $eq: [{ $mod: [startDate, 1] }, 0] },
+        { $gte: [startDate, 1000] },
+        { $lte: [startDate, 9999] },
+      ],
+    },
+    false,
   ],
 };
 
