@@ -172,6 +172,11 @@ describe("Claim submission and durable Payment request", () => {
 
     expect(result).toEqual({ created: true, claimId: expect.any(String) });
     expect(result.claimId).toMatch(/^[a-f0-9]{24}$/);
+    expect(
+      await db.collection("outbox").countDocuments({
+        "event.type": /\.case\.update\.supplementary\.data$/,
+      }),
+    ).toBe(1);
     const committedClaim = await db.collection("claims").findOne({
       clientClaimRef: payload.metadata.clientClaimRef,
     });

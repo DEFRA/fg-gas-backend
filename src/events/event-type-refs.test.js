@@ -1,3 +1,4 @@
+import { caseUpdateSupplementaryData } from "../grants/commands/update-case-supplementary-data.command.js";
 import {
   AGREEMENT_CREATED,
   AGREEMENT_STATUS_CHANGED,
@@ -41,6 +42,19 @@ vi.mock("../common/mongo-client.js");
 const GAS = "cloud.defra.local.fg-gas-backend.";
 
 const declared = [
+  {
+    eventType: caseUpdateSupplementaryData,
+    sentAs: `${GAS}case.update.supplementary.data`,
+    boxes: [OUTBOX],
+    event: { data: { workflowCode: "woodland", caseRef: "abc-123" } },
+    refs: [
+      ["ref", "abc-123"],
+      ["case", "woodland:abc-123"],
+      ["ref", "abc-123"],
+      ["application", "woodland:abc-123"],
+    ],
+  },
+
   {
     eventType: applicationCreated,
     sentAs: `${GAS}application.created`,

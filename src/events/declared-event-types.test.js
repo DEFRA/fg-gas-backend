@@ -36,6 +36,7 @@ describe("declared event types", () => {
       "CreateCase",
       "UpdateAgreementStatus",
       "UpdateCaseStatus",
+      "UpdateCaseSupplementaryData",
       "Unrecognised",
     ]);
   });
@@ -52,7 +53,11 @@ describe("declared event types", () => {
   // The same list is in fg-cw-backend's test of this name: an event carries
   // one name in the sender's outbox and the receiver's inbox.
   it("names the events that cross to and from Caseworking as Caseworking does", () => {
-    const sent = ["CreateCase", "UpdateCaseStatus"];
+    const sent = [
+      "CreateCase",
+      "UpdateCaseStatus",
+      "UpdateCaseSupplementaryData",
+    ];
     const received = ["CaseStatusUpdated", "ConfigVersionUpdated"];
 
     expect(eventTypeNames(OUTBOX)).toEqual(expect.arrayContaining(sent));
