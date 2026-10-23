@@ -199,9 +199,10 @@ describe("agreements", () => {
     const server = hapi.server();
     await server.register(agreements);
     const file = { grantCode: "woodland", version: "1.0.1", definition: {} };
+    const session = { id: "transaction" };
 
-    await storeDefinition("agreement", file);
+    await storeDefinition("agreement", file, session);
 
-    expect(storeAgreementDefinition).toHaveBeenCalledWith(file);
+    expect(storeAgreementDefinition).toHaveBeenCalledWith(file, session);
   });
 });

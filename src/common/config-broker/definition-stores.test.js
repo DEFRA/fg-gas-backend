@@ -80,9 +80,11 @@ it("hands the file to the registered store", async () => {
     definition: { code: "woodland" },
   };
 
-  await storeDefinition("agreement", file);
+  const session = { id: "transaction" };
 
-  expect(store).toHaveBeenCalledWith(file);
+  await storeDefinition("agreement", file, session);
+
+  expect(store).toHaveBeenCalledWith(file, session);
 });
 
 it("lets the store's own refusal through", async () => {

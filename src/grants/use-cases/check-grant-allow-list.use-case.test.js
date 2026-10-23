@@ -266,6 +266,7 @@ describe("checkGrantAllowListUseCase", () => {
         code: "woodland",
         version: "1.4.0",
       }),
+      { session: undefined },
     );
   });
 

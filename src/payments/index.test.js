@@ -62,8 +62,9 @@ it("registers the payment definition store's stored-version read", async () => {
 it("registers the payment definition store's check-and-store", async () => {
   payments.register();
   const file = { grantCode: "woodland", version: "1.0.1", definition: {} };
+  const session = { id: "transaction" };
 
-  await storeDefinition("payment", file);
+  await storeDefinition("payment", file, session);
 
-  expect(storePaymentDefinition).toHaveBeenCalledWith(file);
+  expect(storePaymentDefinition).toHaveBeenCalledWith(file, session);
 });

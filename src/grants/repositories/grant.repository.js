@@ -34,11 +34,11 @@ export const toGrant = (doc) =>
 
 export const collection = "grants";
 
-export const save = async (grant) => {
+export const save = async (grant, session) => {
   const document = new GrantDocument(grant);
 
   try {
-    await db.collection(collection).insertOne(document);
+    await db.collection(collection).insertOne(document, { session });
   } catch (error) {
     if (error instanceof MongoServerError && error.code === 11000) {
       throw Boom.conflict(

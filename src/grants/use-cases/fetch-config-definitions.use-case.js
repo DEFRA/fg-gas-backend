@@ -9,6 +9,7 @@ import {
   auditEntities,
 } from "../../events/audit-constants.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
+import { withTransaction } from "../../common/with-transaction.js";
 import { save } from "../repositories/grant.repository.js";
 import {
   configVersionNotFound,
@@ -18,7 +19,6 @@ import { isDefinitionDefect } from "../services/definition-defect.js";
 import { loadConfigVersionFiles } from "./load-config-version-files.js";
 import { checkGrantDefinition } from "./check-grant-definition.js";
 
-const HTTP_CONFLICT = 409;
 const MESSAGE_MAX = 500;
 
 class NoLocation extends Error {}
@@ -61,26 +61,19 @@ const assertForGrant = (grant, grantCode) => {
 
 // Grants' own file is held to its arrival check, and must be the version's own grant:
 // an aliased release's definition would be stored under a code the version page never reads.
-const storeGrant = async ({ grantCode, version, definition }) => {
+const storeGrant = async ({ grantCode, version, definition }, session) => {
   const grant = checkGrantDefinition(definition, version);
   assertForGrant(grant, grantCode);
-
-  try {
-    await save(grant);
-  } catch (error) {
-    if (!(error.isBoom && error.output.statusCode === HTTP_CONFLICT)) {
-      throw error;
-    }
-  }
+  await save(grant, session);
 };
 
 const stores = {
   grant: storeGrant,
-  agreement: (file) => storeDefinition("agreement", file),
-  payment: (file) => storeDefinition("payment", file),
+  agreement: (file, session) => storeDefinition("agreement", file, session),
+  payment: (file, session) => storeDefinition("payment", file, session),
 };
 
-const fetchFile = async ({ grantCode, version, file }) => {
+const readFile = async ({ grantCode, version, file }) => {
   const location = await findConfigDefinition({
     grantCode,
     version,
@@ -91,8 +84,7 @@ const fetchFile = async ({ grantCode, version, file }) => {
     throw new NoLocation();
   }
 
-  const definition = await fetchConfigFile(location.s3Bucket, location.s3Key);
-  await stores[file]({ grantCode, version, definition });
+  return fetchConfigFile(location.s3Bucket, location.s3Key);
 };
 
 const logFailure = ({ grantCode, version, file }, why) =>
@@ -101,51 +93,85 @@ const logFailure = ({ grantCode, version, file }, why) =>
     `The ${file} definition for ${grantCode}@${version} was not fetched: ${why}`,
   );
 
-const outcomeOf = async (target) => {
+const isTransient = (error) =>
+  error.hasErrorLabel?.("TransientTransactionError") ?? false;
+
+// A failure that is no outcome of the file stops the fetch, naming the files that
+// failed before it; nothing is stored, as every store shares one transaction.
+const settle = async (target, step, handled) => {
   try {
-    await fetchFile(target);
-    return { file: target.file, outcome: "stored" };
+    return await step();
   } catch (error) {
     const reason = reasonOf(error);
 
-    if (!reason) {
+    if (reason) {
+      logFailure(target, `${reason}: ${error.message}`);
+      return failed(target.file, reason, error);
+    }
+
+    if (isTransient(error)) {
       throw error;
     }
 
-    logFailure(target, `${reason}: ${error.message}`);
-    return failed(target.file, reason, error);
-  }
-};
-
-const fetchNext = async (handled, { grantCode, version }, file) => {
-  const files = await handled;
-  const target = { grantCode, version, file };
-
-  try {
-    return [...files, await outcomeOf(target)];
-  } catch (error) {
     logFailure(target, `${error.name}: ${error.message}`);
-    throw Boom.internal("Fetch definitions stopped", { files });
+    throw Boom.internal("Fetch definitions stopped", {
+      files: handled.filter(({ outcome }) => outcome === "failed"),
+    });
   }
 };
 
-// One at a time, so a stop part-way says exactly what was stored before it.
-const fetchEach = (configVersion, missingFiles) =>
-  missingFiles.reduce(
-    (handled, file) => fetchNext(handled, configVersion, file),
-    Promise.resolve([]),
+// One at a time, so a stop part-way says exactly which files failed before it.
+const inTurn = (items, next) =>
+  items.reduce(async (handling, item) => {
+    const handled = await handling;
+    return [...handled, await next(item, handled)];
+  }, Promise.resolve([]));
+
+const readEach = (configVersion, missingFiles) =>
+  inTurn(missingFiles, (file, handled) => {
+    const target = { ...configVersion, file };
+
+    return settle(
+      target,
+      async () => ({ target, definition: await readFile(target) }),
+      handled,
+    );
+  });
+
+const storeEach = (reads, session) =>
+  inTurn(reads, (read, handled) =>
+    read.target
+      ? settle(
+          read.target,
+          async () => {
+            const { grantCode, version, file } = read.target;
+            await stores[file](
+              { grantCode, version, definition: read.definition },
+              session,
+            );
+            return { file, outcome: "stored" };
+          },
+          handled,
+        )
+      : read,
   );
 
-const fetchConfigDefinitions = async ({ grantCode, version }) => {
+const storeFetched = async ({ reads, refusal }, session) => {
+  if (refusal) {
+    throw refusal;
+  }
+
+  return { files: await storeEach(reads, session) };
+};
+
+const readMissingFiles = async ({ grantCode, version }) => {
   const found = await loadConfigVersionFiles({ code: grantCode, version });
 
   if (!found) {
     throw configVersionNotFound();
   }
 
-  return {
-    files: await fetchEach({ grantCode, version }, found.missingFiles()),
-  };
+  return readEach({ grantCode, version }, found.missingFiles());
 };
 
 const errorCodeOf = (error) =>
@@ -181,7 +207,20 @@ const buildFetchConfigDefinitionsAudit = (
     security: PMC_0706_SECURITY,
   });
 
-export const fetchConfigDefinitionsUseCase = withAudit(
-  fetchConfigDefinitions,
+const storeFetchedWithAudit = withAudit(
+  storeFetched,
   buildFetchConfigDefinitionsAudit,
 );
+
+// S3 is read before the transaction; the definitions and their audit event
+// commit together.
+export const fetchConfigDefinitionsUseCase = async (args) => {
+  const fetched = await readMissingFiles(args).then(
+    (reads) => ({ ...args, reads }),
+    (refusal) => ({ ...args, refusal }),
+  );
+
+  return fetched.refusal
+    ? storeFetchedWithAudit(fetched)
+    : withTransaction((session) => storeFetchedWithAudit(fetched, session));
+};
