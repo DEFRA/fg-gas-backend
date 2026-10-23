@@ -9,6 +9,7 @@ import {
   MAX_VALUES,
   SUMMARY_COUNT_CAP,
   parseQuery,
+  readBucketTimeline,
   readTimeline,
   runQuery,
 } from "./engine.js";
@@ -1124,6 +1125,81 @@ describe("readTimeline", () => {
     const { buckets } = await readTimeline("sbi:900000005");
 
     expect(buckets.map(({ rows }) => rows)).toEqual([null, null]);
+  });
+});
+
+describe("readBucketTimeline", () => {
+  beforeEach(() => {
+    clearBuckets();
+    registerBucket(
+      testBucket({
+        id: "test.inbox",
+        label: "Test inbox",
+        timeline: true,
+        links: ["config"],
+      }),
+    );
+    registerBucket(
+      testBucket({ id: "test.outbox", label: "Test outbox", timeline: true }),
+    );
+  });
+
+  afterEach(() => {
+    clearBuckets();
+  });
+
+  it("reads the link in that bucket alone, 50 at most", async () => {
+    const collection = makeCollection({ finds: [[doc(2), doc(1)]] });
+
+    const { buckets } = await readBucketTimeline(
+      "test.inbox",
+      "config:woodland-creation",
+    );
+
+    expect(collection.find).toHaveBeenCalledExactlyOnceWith(
+      { $and: [{ refs: "config:woodland-creation" }] },
+      expect.objectContaining({ limit: 51 }),
+    );
+    expect(buckets).toEqual([
+      {
+        id: "test.inbox",
+        label: "Test inbox",
+        rows: [
+          expect.objectContaining({ id: String(id(2)) }),
+          expect.objectContaining({ id: String(id(1)) }),
+        ],
+        more: false,
+      },
+    ]);
+    expect(timelineResponseSchema.validate({ buckets }).error).toBeUndefined();
+  });
+
+  it("says the bucket has more when its page has a next", async () => {
+    makeCollection({
+      finds: [Array.from({ length: 51 }, (_, n) => doc(60 - n))],
+    });
+
+    const { buckets } = await readBucketTimeline("test.inbox", "config:abc");
+
+    expect(buckets.map(({ rows, more }) => [rows.length, more])).toEqual([
+      [50, true],
+    ]);
+  });
+
+  it("answers null rows when the bucket fails", async () => {
+    const collection = makeCollection();
+
+    collection.find.mockImplementationOnce(() => ({
+      toArray: vi.fn(async () => {
+        throw new Error("connection closed");
+      }),
+    }));
+
+    const { buckets } = await readBucketTimeline("test.inbox", "config:abc");
+
+    expect(buckets).toEqual([
+      { id: "test.inbox", label: "Test inbox", rows: null, more: false },
+    ]);
   });
 });
 

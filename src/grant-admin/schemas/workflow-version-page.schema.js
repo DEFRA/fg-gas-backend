@@ -2,6 +2,7 @@ import Joi from "joi";
 import {
   counterpartSchema,
   nullableString,
+  recordEventsSchema,
   recordPageSchema,
   storedBytesSchema as storedBytes,
 } from "./admin-record.schema.js";
@@ -92,6 +93,11 @@ export const workflowVersionPageSchemas = {
     "definition",
     { definition: definitionSchema },
     "WorkflowVersionDefinitionPage",
+  ),
+  events: pageSchema(
+    "events",
+    { events: recordEventsSchema("WorkflowVersionEvents") },
+    "WorkflowVersionEventsPage",
   ),
   raw: pageSchema(
     "raw",

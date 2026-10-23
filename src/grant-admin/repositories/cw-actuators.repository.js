@@ -2,7 +2,9 @@ import Boom from "@hapi/boom";
 import Joi from "joi";
 import { REFUSAL_REASONS, refuse } from "../../common/buckets/refusal.js";
 import {
+  TIMELINE_LIMIT,
   catalogueEntrySchema,
+  queryResponseSchema,
   summaryResponseSchema,
   timelineResponseSchema,
 } from "../../common/buckets/schema.js";
@@ -317,11 +319,11 @@ export const queryCwBucket = async (bucketId, body, options = {}) =>
     { ...bucketRequestOptions(options), body },
   );
 
-const toCwSummary = (payload) => {
-  const { error, value } = summaryResponseSchema.validate(payload);
+const readBucketAnswer = (schema, payload, what) => {
+  const { error, value } = schema.validate(payload);
 
   if (error) {
-    throw Boom.badGateway("CW-BE answered a summary that cannot be read");
+    throw Boom.badGateway(`CW-BE answered ${what} that cannot be read`);
   }
 
   return value;
@@ -333,30 +335,38 @@ export const summariseCwBucket = async (
   body,
   options = {},
 ) =>
-  toCwSummary(
+  readBucketAnswer(
+    summaryResponseSchema,
     await cwRequest(
       "post",
       `/actuators/buckets/${encodeURIComponent(bucketId)}/summaries/${encodeURIComponent(summaryId)}`,
       BUCKETS_LABEL,
       { ...bucketRequestOptions(options), body },
     ),
+    "a summary",
   );
-
-const toCwTimeline = (payload) => {
-  const { error, value } = timelineResponseSchema.validate(payload);
-
-  if (error) {
-    throw Boom.badGateway("CW-BE answered a timeline that cannot be read");
-  }
-
-  return value;
-};
 
 // A case's events, from Caseworking's own timeline buckets in one call.
 export const readCwTimeline = async (ref, options = {}) =>
-  toCwTimeline(
+  readBucketAnswer(
+    timelineResponseSchema,
     await cwRequest("post", "/actuators/timeline", BUCKETS_LABEL, {
       ...bucketRequestOptions(options),
       body: { ref },
     }),
+    "a timeline",
+  );
+
+const toCwBucketTimeline = ({ bucket, rows, page }) => ({
+  buckets: [{ id: bucket, label: "CW-BE", rows, more: page.next !== null }],
+});
+
+// One Caseworking bucket's rows for a ref, in the shape readCwTimeline answers.
+export const readCwBucketTimeline = async (bucketId, ref, options = {}) =>
+  toCwBucketTimeline(
+    readBucketAnswer(
+      queryResponseSchema,
+      await queryCwBucket(bucketId, { ref, limit: TIMELINE_LIMIT }, options),
+      "a bucket page",
+    ),
   );

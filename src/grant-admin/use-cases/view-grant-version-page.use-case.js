@@ -27,6 +27,7 @@ import {
   noDefinitionFile,
 } from "../services/grant-not-found.js";
 import { readCounterpart } from "./read-counterpart.js";
+import { readGrantVersionEventsUseCase } from "./read-record-events.use-case.js";
 
 // A version without the tab's Definition File has no such tab.
 const assertTabFile = ({ file }, files) => {
@@ -136,6 +137,9 @@ const readEntitlements = async ({ code, version }) => {
   };
 };
 
+const readEvents = ({ code, version }) =>
+  readGrantVersionEventsUseCase({ code, version });
+
 const GRANT_VERSION_TABS = {
   overview: {
     readTab: readOverview,
@@ -165,6 +169,7 @@ const GRANT_VERSION_TABS = {
     empty: { entitlements: null },
     capped: "entitlements",
   },
+  events: { readTab: readEvents, empty: { events: null } },
 };
 
 export const buildViewGrantVersionAudit = ({ code, version, tab, caller }) =>

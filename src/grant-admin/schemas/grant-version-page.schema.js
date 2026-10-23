@@ -3,6 +3,7 @@ import {
   counterpartSchema,
   nullableIso,
   nullableString,
+  recordEventsSchema,
   recordPageSchema,
   storedBytesSchema as storedBytes,
 } from "./admin-record.schema.js";
@@ -226,6 +227,11 @@ export const grantVersionPageSchemas = {
     "entitlements",
     { entitlements: entitlementsSchema },
     "GrantVersionEntitlementsPage",
+  ),
+  events: pageSchema(
+    "events",
+    { events: recordEventsSchema("GrantVersionEvents") },
+    "GrantVersionEventsPage",
   ),
 };
 
