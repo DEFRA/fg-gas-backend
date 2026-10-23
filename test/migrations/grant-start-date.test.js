@@ -84,6 +84,8 @@ describe("normalising grant start dates to ISO strings", () => {
       seed("3.0.0", new Date("2023-01-01T00:00:00.000Z")),
       seed("4.0.0", 1700000000000),
       seed("5.0.0", 2026.5),
+      seed("6.0.0", [2026]),
+      seed("7.0.0", [{ $date: "2100-01-01T10:00:00Z" }]),
     ]);
 
     await migrate();
@@ -94,9 +96,11 @@ describe("normalising grant start dates to ISO strings", () => {
       "3.0.0": "2023-01-01T00:00:00.000Z",
       "4.0.0": 1700000000000,
       "5.0.0": 2026.5,
+      "6.0.0": [2026],
+      "7.0.0": [{ $date: "2100-01-01T10:00:00Z" }],
     });
     expect(info).toHaveBeenCalledWith(
-      "Normalised 1 grant start dates to ISO strings, 4 not an instant left as stored",
+      "Normalised 1 grant start dates to ISO strings, 6 not an instant left as stored",
     );
   });
 
