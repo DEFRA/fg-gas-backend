@@ -99,6 +99,16 @@ const rules = [
   ({ facts }) =>
     Object.values(facts).some(hidesUnasked) &&
     "hides a value of a fact that has no toggle to show it",
+  ({ facts }) =>
+    Object.entries(facts).some(
+      ([name, { within }]) =>
+        within !== null && (within === name || isUndeclared(facts)(within)),
+    ) && "has a fact within itself or within an undeclared fact",
+  ({ facts, indexes }) =>
+    Object.entries(facts).some(
+      ([name, { within }]) =>
+        within !== null && !hasLine(indexes, [within, name]),
+    ) && "has a fact within another with no index line of the two",
   (bucket) =>
     Object.entries(bucket.facts).some(
       ([name, fact]) => fact.values === STORED && !leads(bucket, name),
@@ -157,11 +167,19 @@ const problemOf = (bucket) => {
 };
 
 // `param` is the fact's key in the admin's URLs, and the toggle's its own:
-// short words, so a URL reads as what it filters by.
-const toFact = ({ label, values = null, toggle = null, param }) => ({
+// short words, so a URL reads as what it filters by. A fact `within` another
+// has values that mean something only for one value of that other fact.
+const toFact = ({
+  label,
+  values = null,
+  toggle = null,
+  within = null,
+  param,
+}) => ({
   label,
   values,
   toggle,
+  within,
   param,
 });
 

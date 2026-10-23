@@ -126,10 +126,12 @@ export const seedConfigVersion = async (
 
 export const submitApplication = async (
   db,
-  { withAgreementDefinition, code = "test-code-1" } = {},
+  {
+    withAgreementDefinition,
+    code = "test-code-1",
+    clientRef = `cr-12345-${randomUUID()}`,
+  } = {},
 ) => {
-  const clientRef = `cr-12345-${randomUUID()}`;
-
   await seedConfigVersion(db, code, "1.0.0", { withAgreementDefinition });
 
   await wreck.post(`/grants/${code}/applications`, {

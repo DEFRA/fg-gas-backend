@@ -1,8 +1,21 @@
 import { MongoClient, ObjectId } from "mongodb";
+import { randomUUID } from "node:crypto";
 import { env } from "node:process";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { toApplicationLink } from "../../src/events/case-refs.js";
 import { applicationPageSchemas } from "../../src/grant-admin/schemas/application-page.schema.js";
+import { submitApplication } from "../helpers/applications.js";
 import { cwStubRequests, resetCwStub, setCwStub } from "../helpers/cw-stub.js";
+import { createGrant } from "../helpers/grants.js";
+import { sendMessage } from "../helpers/sqs.js";
 import { wreck } from "../helpers/wreck.js";
 
 const OID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
@@ -11,6 +24,7 @@ const AUDIT_TOPIC =
   "arn:aws:sns:eu-west-2:000000000000:gas__sns__audit_topic_arn";
 
 let client;
+let db;
 let applications;
 let series;
 let inbox;
@@ -18,7 +32,7 @@ let outbox;
 
 beforeAll(async () => {
   client = await MongoClient.connect(env.MONGO_URI);
-  const db = client.db();
+  db = client.db();
   applications = db.collection("applications");
   series = db.collection("application_series");
   inbox = db.collection("inbox");
@@ -228,7 +242,11 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     claimExpiresAt: new Date("2099-01-01T00:00:00.000Z"),
     event: { id: `evt-${clientRef}`, data: { caseRef: clientRef } },
     eventType: "CaseStatusUpdated",
-    refs: [`ref:${clientRef}`, `id:evt-${clientRef}`],
+    refs: [
+      `ref:${clientRef}`,
+      toApplicationLink("woodland", clientRef),
+      `id:evt-${clientRef}`,
+    ],
   });
 
   it("events: the GAS rows for the ref alone, with no request to Caseworking", async () => {
@@ -244,6 +262,18 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     expect(page.events.more).toBe(false);
     expect(page.sourceErrors).toEqual([]);
     expect(await cwStubRequests()).toEqual([]);
+  });
+
+  it("events: never a row found by the ref alone, without its grant's link", async () => {
+    await applications.insertOne(anApplication("ref-1"));
+    await inbox.insertOne({
+      ...anInboxRow("ref-1"),
+      refs: ["ref:ref-1", "id:evt-ref-1"],
+    });
+
+    const { payload: page } = await getTab("events");
+
+    expect(page.events.rows).toEqual([]);
   });
 
   it("events: the same rows, and no source error, when Caseworking is down", async () => {
@@ -431,5 +461,85 @@ describe("the operator on the existing event routes", () => {
 
     const [request] = await cwStubRequests();
     expect(request.actorId).toBe(OID);
+  });
+});
+
+describe("the same Client Reference in two grants", () => {
+  const REF = `client-wmp-test-${randomUUID()}`;
+  const GRANTS = ["test-code-1", "test-code-2"];
+
+  const grantOf = ({ data }) =>
+    data?.code ?? data?.grantCode ?? data?.workflowCode;
+
+  // The rows each grant's writers wrote, read from the stored envelopes.
+  const storedRowsOf = async (code) => {
+    const rows = [
+      ...(await outbox.find({ "event.data": { $exists: true } }).toArray()),
+      ...(await inbox.find().toArray()),
+    ];
+
+    return rows
+      .filter(({ event }) => grantOf(event) === code)
+      .map(({ _id, eventType }) => ({ id: _id.toString(), type: eventType }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  };
+
+  const shownRowsOf = async (code) => {
+    const { payload: page } = await getTab("events", REF, code);
+
+    return page.events.rows
+      .map(({ id, type }) => ({ id, type }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  };
+
+  const caseStatusUpdated = (code) =>
+    sendMessage(env.GAS__SQS__UPDATE_STATUS_QUEUE_URL, {
+      id: randomUUID(),
+      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+      type: "cloud.defra.local.fg-cw-backend.case.status.updated",
+      source: "CW",
+      data: {
+        caseRef: REF,
+        workflowCode: code,
+        previousStatus: "APPLICATION_RECEIVED",
+        currentStatus: "PRE_AWARD:REVIEW_APPLICATION:IN_REVIEW",
+      },
+    });
+
+  const settled = () =>
+    vi.waitUntil(
+      async () =>
+        (await inbox.countDocuments({
+          status: { $in: ["COMPLETED", "FAILED", "DEAD_LETTER"] },
+        })) === GRANTS.length,
+      { timeout: 10_000, interval: 200 },
+    );
+
+  it("events: either application's tab shows that grant's events and no other's", async () => {
+    for (const code of GRANTS) {
+      await createGrant(code);
+      await submitApplication(db, { code, clientRef: REF });
+      await caseStatusUpdated(code);
+    }
+    await settled();
+
+    const [first, second] = await Promise.all(GRANTS.map(storedRowsOf));
+
+    for (const [code, stored] of [
+      [GRANTS[0], first],
+      [GRANTS[1], second],
+    ]) {
+      expect(stored.map(({ type }) => type)).toEqual(
+        expect.arrayContaining([
+          "ApplicationCreated",
+          "CreateCase",
+          "CaseStatusUpdated",
+        ]),
+      );
+      expect(await shownRowsOf(code)).toEqual(stored);
+    }
+    expect(
+      first.filter(({ id }) => second.some((row) => row.id === id)),
+    ).toEqual([]);
   });
 });

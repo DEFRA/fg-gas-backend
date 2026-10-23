@@ -25,3 +25,25 @@
 
 **External Status Map**
 : How a status reported by another service, such as Case Working, moves an application to a Position.
+
+## Applications
+
+**Client Reference**
+: The reference an applicant's service gives an application. It is unique only within its grant, so an application is identified by its grant code and Client Reference together.
+
+**Application Series**
+: The applications of one grant linked by a previous Client Reference: an application and those it replaced.
+
+**Original Config Version**
+: The version of its grant an application started on.
+
+**Current Config Version**
+: The version of its grant an application was last resolved to. It moves forward within its major only when the application is read or acted on through Grants, so it can lag the version the application would resolve to now.
+
+## Events
+
+**Event Reference**
+: An identifier an event is searched by: its Client Reference, trace ID or event ID.
+
+**Event Link**
+: A record's own key on an event, such as an application within its grant or a case within its workflow. Its writer sets it from the record it holds, and the record's Events tab reads by it. It is never offered as a search.

@@ -2,6 +2,11 @@ import { STORED, defineBucket } from "../../common/buckets/bucket.js";
 
 const orNull = (value) => value ?? null;
 
+const toVersioned = ({ code, currentConfigVersion }) =>
+  code && currentConfigVersion
+    ? `${code}@${currentConfigVersion}`
+    : orNull(code);
+
 const toPosition = (doc) => ({
   phase: orNull(doc.currentPhase),
   stage: orNull(doc.currentStage),
@@ -22,6 +27,11 @@ export const applicationsBucket = () =>
     time: { field: "createdAt", type: "isoString", label: "Created" },
     facts: {
       code: { label: "Grant", param: "grant", values: STORED },
+      currentConfigVersion: {
+        label: "Version",
+        param: "version",
+        within: "code",
+      },
     },
     refs: {
       ref: "Reference",
@@ -30,7 +40,7 @@ export const applicationsBucket = () =>
       crn: "CRN",
       agreement: "Agreement number",
     },
-    indexes: [["code"]],
+    indexes: [["code"], ["code", "currentConfigVersion"]],
     audited: true,
     timeline: false,
     title: { label: "Reference", format: "mono" },
@@ -42,6 +52,7 @@ export const applicationsBucket = () =>
       projection: {
         clientRef: 1,
         code: 1,
+        currentConfigVersion: 1,
         currentPhase: 1,
         currentStage: 1,
         currentStatus: 1,
@@ -49,7 +60,7 @@ export const applicationsBucket = () =>
       present: (doc) => ({
         title: orNull(doc.clientRef),
         subtitle: null,
-        cells: { code: orNull(doc.code), position: toPosition(doc) },
+        cells: { code: toVersioned(doc), position: toPosition(doc) },
         link: {
           kind: "application",
           code: doc.code,

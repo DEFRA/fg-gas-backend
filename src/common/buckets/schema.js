@@ -150,6 +150,7 @@ const factValue = Joi.object({
   value: storedValue.required(),
   label: Joi.string().allow("").required(),
   tone: Joi.string().valid("neutral", "info", "warning", "success", "error"),
+  hint: Joi.string(),
   hidden: Joi.boolean(),
 });
 
@@ -165,6 +166,8 @@ const fact = Joi.object({
   })
     .allow(null)
     .required(),
+  // Optional, so a catalogue from a release before `within` still reads.
+  within: Joi.string().allow(null),
 });
 
 const column = Joi.object({
