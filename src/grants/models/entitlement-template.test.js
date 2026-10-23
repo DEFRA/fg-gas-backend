@@ -101,6 +101,15 @@ describe("EntitlementTemplate", () => {
     ).toThrow(/Invalid entitlement template "ENT_MISSING_FIELDS"/);
   });
 
+  it.each([
+    ["missing", undefined],
+    ["empty", ""],
+  ])("names no template when its claimCode is %s", (_, claimCode) => {
+    expect(() => new EntitlementTemplate({ ...validProps, claimCode })).toThrow(
+      'Invalid entitlement template: "claimCode"',
+    );
+  });
+
   it("strips unknown fields", () => {
     const template = new EntitlementTemplate({
       ...validProps,

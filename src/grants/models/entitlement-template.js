@@ -20,7 +20,7 @@ export class EntitlementTemplate {
 
     if (error) {
       throw Boom.badImplementation(
-        `Invalid entitlement template "${props?.claimCode}": ${error.details.map((d) => d.message).join(", ")}`,
+        `Invalid entitlement template${EntitlementTemplate.#named(props?.claimCode)}: ${error.details.map((d) => d.message).join(", ")}`,
       );
     }
 
@@ -45,6 +45,12 @@ export class EntitlementTemplate {
     this.availableAt = availableAt;
     this.help = help;
     this.claim = claim;
+  }
+
+  static #named(claimCode) {
+    return typeof claimCode === "string" && claimCode !== ""
+      ? ` "${claimCode}"`
+      : "";
   }
 
   isAvailableAt(position) {
