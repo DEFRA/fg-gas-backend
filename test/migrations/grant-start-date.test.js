@@ -51,6 +51,17 @@ describe("normalising grant start dates to ISO strings", () => {
     });
   });
 
+  it("rewrites a four-digit year as the ISO string of its first instant", async () => {
+    await grants.insertMany([seed("1.0.0", 2026), seed("2.0.0", 2027.0)]);
+
+    await migrate();
+
+    expect(await startDates()).toEqual({
+      "1.0.0": "2026-01-01T00:00:00.000Z",
+      "2.0.0": "2027-01-01T00:00:00.000Z",
+    });
+  });
+
   it("leaves a start date stored as a string, and the rest of the grant, as stored", async () => {
     const stored = [
       seed("1.0.0", "2026-04-01T00:00:00.000Z"),
@@ -71,6 +82,8 @@ describe("normalising grant start dates to ISO strings", () => {
       seed("1.0.0", { $date: "not a date" }),
       seed("2.0.0", { published: "2026-04-01" }),
       seed("3.0.0", new Date("2023-01-01T00:00:00.000Z")),
+      seed("4.0.0", 1700000000000),
+      seed("5.0.0", 2026.5),
     ]);
 
     await migrate();
@@ -79,9 +92,11 @@ describe("normalising grant start dates to ISO strings", () => {
       "1.0.0": { $date: "not a date" },
       "2.0.0": { published: "2026-04-01" },
       "3.0.0": "2023-01-01T00:00:00.000Z",
+      "4.0.0": 1700000000000,
+      "5.0.0": 2026.5,
     });
     expect(info).toHaveBeenCalledWith(
-      "Normalised 1 grant start dates to ISO strings, 2 not an instant left as stored",
+      "Normalised 1 grant start dates to ISO strings, 4 not an instant left as stored",
     );
   });
 
