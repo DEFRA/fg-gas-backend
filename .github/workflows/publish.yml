@@ -45,6 +45,7 @@ jobs:
         uses: DEFRA/cdp-build-action/build@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          push-dockerhub: false
 
   contract-tests:
     name: Run Contract Tests (Consumer)
