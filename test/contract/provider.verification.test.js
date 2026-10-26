@@ -42,14 +42,18 @@ vi.mock("../../src/common/mongo-client.js", () => {
             minor: 0,
             patch: 0,
             status: "active",
-            s3Key: null,
             s3Bucket: null,
             receivedAt: new Date().toISOString(),
-            fetchedAt: new Date().toISOString(),
-            fetchStatus: "fetched",
-            fetchError: null,
-            fetchAttempts: 0,
-            lastFetchAttemptAt: null,
+            definitions: {
+              grant: {
+                s3Key: null,
+                fetchedAt: new Date().toISOString(),
+                fetchStatus: "fetched",
+                fetchError: null,
+                fetchAttempts: 0,
+                lastFetchAttemptAt: null,
+              },
+            },
           };
         }),
         updateOne: vi
@@ -160,7 +164,7 @@ vi.mock("../../src/common/mongo-client.js", () => {
           const grant = getGrant("frps-private-beta");
           // Ensure amendablePositions exists and includes amendable statuses
           // (migration may not run due to withTransaction mock)
-          if (!grant.amendablePositions) {
+          if (!grant.amendablePositions?.length) {
             grant.amendablePositions = [
               "PRE_AWARD:REVIEW_APPLICATION:APPLICATION_AMEND",
             ];
