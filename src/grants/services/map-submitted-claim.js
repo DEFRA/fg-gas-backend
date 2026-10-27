@@ -1,18 +1,8 @@
-const unitFields = (template) =>
-  Object.entries(template?.fields ?? {}).filter(([, field]) => field.unit);
-
-const unitFor = (template) => {
-  const fields = unitFields(template);
-  const preferred = fields.find(([, field]) => field.input) ?? fields[0];
-
-  return preferred ? preferred[1].unit : null;
-};
-
 const quantityFor = (claim, template) => {
   const { quantity } = claim.claim ?? {};
 
   return typeof quantity === "number"
-    ? { value: quantity, unit: unitFor(template) }
+    ? { value: quantity, unit: template ? template.quantityUnit() : null }
     : null;
 };
 

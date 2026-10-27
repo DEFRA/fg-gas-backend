@@ -1,9 +1,39 @@
 import { expect, it, vi } from "vitest";
+import { createTestGrant } from "../../../test/helpers/grants.js";
 import { config } from "../../common/config.js";
 import { saveEvents } from "../../events/index.js";
 import { Claim } from "../models/claim.js";
 import { storeClaimCaseUseCase } from "./store-claim-case.use-case.js";
 vi.mock("../../events/index.js");
+const grantWithUnit = (unit = "HA") =>
+  createTestGrant({
+    entitlementTemplates: [
+      {
+        claimCode: "ENT_CS_CAPITAL_PA3",
+        name: "Woodland entitlement",
+        materialised: true,
+        maxEntitlements: 1,
+        availableAt: [
+          {
+            phase: "PRE_AWARD",
+            stage: "ASSESSMENT",
+            status: "APPLICATION_RECEIVED",
+          },
+        ],
+        fields: unit
+          ? {
+              area: {
+                input: true,
+                label: "Area",
+                unitType: "decimal",
+                decimalPlaces: 2,
+                unit,
+              },
+            }
+          : undefined,
+      },
+    ],
+  });
 const savedClaim = (amount = 150000, details = {}) =>
   Claim.create({
     code: "woodland",
@@ -31,7 +61,11 @@ it.each([150000, 0])(
   async (amount) => {
     const session = { transaction: true };
     await storeClaimCaseUseCase(
-      { claim: savedClaim(amount), claimId: "mongo-id" },
+      {
+        claim: savedClaim(amount),
+        claimId: "mongo-id",
+        grant: grantWithUnit(),
+      },
       session,
     );
     expect(saveEvents).toHaveBeenCalledWith(
@@ -49,6 +83,7 @@ it.each([150000, 0])(
                 data: {
                   entitlementId: "ent-1",
                   quantity: 1,
+                  unit: "HA",
                   additionalAnswers: { reference: "plan-123" },
                   gasClaimId: "mongo-id",
                   clientClaimRef: "WMP-6HB-J8E-C0001",
@@ -72,6 +107,7 @@ it("keeps saved GAS facts authoritative when claim details use the same names", 
   await storeClaimCaseUseCase(
     {
       claim: savedClaim(150000, {
+        unit: "acres",
         gasClaimId: "caller-id",
         clientClaimRef: "caller-reference",
         claimCode: "caller-code",
@@ -81,6 +117,7 @@ it("keeps saved GAS facts authoritative when claim details use the same names", 
         submittedAt: "caller-date",
       }),
       claimId: "mongo-id",
+      grant: grantWithUnit(),
     },
     {},
   );
@@ -89,6 +126,7 @@ it("keeps saved GAS facts authoritative when claim details use the same names", 
   expect(record).toEqual({
     entitlementId: "ent-1",
     quantity: 1,
+    unit: "HA",
     additionalAnswers: { reference: "plan-123" },
     gasClaimId: "mongo-id",
     clientClaimRef: "WMP-6HB-J8E-C0001",
@@ -102,6 +140,38 @@ it("keeps saved GAS facts authoritative when claim details use the same names", 
 it("propagates failed outbox insertion to abort the transaction", async () => {
   saveEvents.mockRejectedValue(new Error("outbox unavailable"));
   await expect(
-    storeClaimCaseUseCase({ claim: savedClaim(), claimId: "mongo-id" }, {}),
+    storeClaimCaseUseCase(
+      { claim: savedClaim(), claimId: "mongo-id", grant: grantWithUnit() },
+      {},
+    ),
   ).rejects.toThrow("outbox unavailable");
 });
+
+it("leaves the unit unset when the template measures nothing", async () => {
+  await storeClaimCaseUseCase(
+    { claim: savedClaim(), claimId: "mongo-id", grant: grantWithUnit(null) },
+    {},
+  );
+  const record =
+    saveEvents.mock.calls[0][0][0].event.data.supplementaryData.data;
+  expect(record.quantity).toBe(1);
+  expect(record.unit).toBeNull();
+});
+
+it.each(["HA", "M"])(
+  "takes unit %s from the template independently of quantity",
+  async (unit) => {
+    await storeClaimCaseUseCase(
+      {
+        claim: savedClaim(150000, { quantity: undefined }),
+        claimId: "mongo-id",
+        grant: grantWithUnit(unit),
+      },
+      {},
+    );
+    const record =
+      saveEvents.mock.calls[0][0][0].event.data.supplementaryData.data;
+    expect(record.quantity).toBeUndefined();
+    expect(record.unit).toBe(unit);
+  },
+);

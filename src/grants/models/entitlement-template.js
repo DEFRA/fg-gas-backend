@@ -53,6 +53,13 @@ export class EntitlementTemplate {
       : "";
   }
 
+  quantityUnit() {
+    const measured = Object.values(this.fields ?? {}).filter(
+      (field) => field.unit,
+    );
+    return measured.length === 1 ? measured[0].unit : null;
+  }
+
   isAvailableAt(position) {
     return this.#matchesAnyPosition(this.availableAt, position);
   }

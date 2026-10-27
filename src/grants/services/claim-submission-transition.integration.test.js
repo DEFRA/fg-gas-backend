@@ -460,6 +460,7 @@ describe("claim supplementary data publication", () => {
         data: {
           entitlementId: saved.claim.entitlementId,
           quantity: 23,
+          unit: "HA",
           gasClaimId: created.claimId,
           clientClaimRef: "claim-1",
           claimCode: saved.claimCode,

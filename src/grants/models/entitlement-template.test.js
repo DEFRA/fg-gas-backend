@@ -50,6 +50,58 @@ const validProps = {
 const availableAtPosition = validProps.availableAt[0];
 
 describe("EntitlementTemplate", () => {
+  describe("quantityUnit", () => {
+    const fixedArea = {
+      input: false,
+      value: 10,
+      unitType: "decimal",
+      decimalPlaces: 2,
+      unit: "M",
+    };
+
+    it("uses the unit when exactly one field is measured", () => {
+      expect(new EntitlementTemplate(validProps).quantityUnit()).toBe("HA");
+    });
+
+    it.each([
+      { fixedArea, ...validProps.fields },
+      { ...validProps.fields, fixedArea },
+    ])(
+      "returns no unit for multiple measured fields regardless of order",
+      (fields) => {
+        const template = new EntitlementTemplate({ ...validProps, fields });
+        expect(template.quantityUnit()).toBeNull();
+      },
+    );
+
+    it("uses a fixed field when it is the only measured field", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        materialised: true,
+        fields: { actionCode: validProps.fields.actionCode, fixedArea },
+      });
+      expect(template.quantityUnit()).toBe("M");
+    });
+
+    it("returns no unit when the template has only string fields", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        materialised: true,
+        fields: { actionCode: validProps.fields.actionCode },
+      });
+      expect(template.quantityUnit()).toBeNull();
+    });
+
+    it("returns no unit when the template has no fields", () => {
+      const template = new EntitlementTemplate({
+        ...validProps,
+        materialised: true,
+        fields: undefined,
+      });
+      expect(template.quantityUnit()).toBeNull();
+    });
+  });
+
   describe("help", () => {
     const withHelp = (help) => new EntitlementTemplate({ ...validProps, help });
 
