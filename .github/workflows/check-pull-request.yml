@@ -49,7 +49,37 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: Run integration tests
-        run: npm run test:integration:verbose
+        run: |
+          # Testcontainers removes a failed stack before setup's catch runs.
+          # Follow Floci from its start event and keep output on the runner.
+          capture_since=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)
+          setsid bash -c '
+            docker events \
+              --since "$1" \
+              --filter type=container \
+              --filter event=start \
+              --filter event=die \
+              --filter event=oom \
+              --filter label=com.docker.compose.service=floci \
+              --format "{{.Action}} {{.Actor.ID}} {{index .Actor.Attributes \"exitCode\"}}" |
+            while read -r event container_id exit_code; do
+              echo "Floci $container_id: $event exitCode=${exit_code:--}"
+              if [ "$event" = start ]; then
+                docker logs --follow --timestamps "$container_id" &
+              fi
+            done
+          ' floci-log-capture "$capture_since" > "$RUNNER_TEMP/gas-floci-startup.log" 2>&1 &
+          capture_pid=$!
+          trap 'kill -- "-$capture_pid" 2>/dev/null || true' EXIT
+
+          npm run test:integration:verbose
+
+      - name: Show Floci startup logs after integration failure
+        if: failure()
+        run: |
+          if [ -f "$RUNNER_TEMP/gas-floci-startup.log" ]; then
+            cat "$RUNNER_TEMP/gas-floci-startup.log"
+          fi
 
       - name: Build docker image
         run: |

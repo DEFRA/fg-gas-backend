@@ -297,7 +297,7 @@ describe("resolveProcessMapping", () => {
           "jsonata:$substring($.claim.sbi, 0, 3)",
           context,
         ),
-      ).toBe("106");
+      ).toBe("900");
     });
   });
 });

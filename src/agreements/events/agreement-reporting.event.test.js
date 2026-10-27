@@ -23,9 +23,9 @@ const agreement = {
   updatedAt: "2026-08-20T09:00:00.000Z",
   parcels: [
     {
-      id: "AA0300-9935",
+      id: "AA0300-0301",
       sheetId: "AA0300",
-      parcelId: "9935",
+      parcelId: "0301",
       area: { quantity: 15.75, unit: "ha" },
     },
   ],
@@ -33,7 +33,7 @@ const agreement = {
     {
       id: "action:1",
       code: "WMP1",
-      parcel: "AA0300-9935",
+      parcel: "AA0300-0301",
       startDate: "2026-10-01",
       endDate: "2027-09-30",
       quantity: 10.5,
@@ -73,11 +73,11 @@ describe("Agreement reporting events", () => {
           agreementStartDate: "2026-09-01T00:00:00.000Z",
           agreementEndDate: "2029-08-31T23:59:59.999Z",
           agreementValue: 1575,
-          parcels: ["AA0300-9935"],
+          parcels: ["AA0300-0301"],
           sbi: "900000010",
           options: [
             {
-              parcelReference: "AA0300-9935",
+              parcelReference: "AA0300-0301",
               parcelSizeUnderAgreement: 15.75,
               optionCode: "WMP1",
               optionYear: 1,
@@ -193,7 +193,7 @@ describe("Agreement reporting events", () => {
         {
           id: "action:1",
           code: "CMOR1",
-          parcel: "AA0300-9935",
+          parcel: "AA0300-0301",
           quantity: 0.0321,
           unit: "ha",
         },
@@ -206,7 +206,7 @@ describe("Agreement reporting events", () => {
       agreementId: "WMP123456789",
       agreementType: "woodland",
       agreementStatus: "offered",
-      parcels: ["AA0300-9935"],
+      parcels: ["AA0300-0301"],
       sbi: "900000010",
       options: [],
     });
@@ -239,10 +239,10 @@ describe("Agreement reporting events", () => {
           agreementStartDate: "2026-09-01T00:00:00.000Z",
           agreementEndDate: "2029-08-31T23:59:59.999Z",
           agreementValue: 1575,
-          parcels: ["AA0300-9935"],
+          parcels: ["AA0300-0301"],
           options: [
             {
-              parcelReference: "AA0300-9935",
+              parcelReference: "AA0300-0301",
               parcelSizeUnderAgreement: 15.75,
               optionCode: "WMP1",
               optionYear: 1,

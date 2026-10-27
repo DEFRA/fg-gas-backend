@@ -31,7 +31,7 @@ const sampleAnswers = {
     business: {
       name: "Example Hill Farm",
       reference: "9100000004",
-      email: { address: "contact+900000401@example.test" },
+      email: { address: "hill@example.test" },
       phone: { landline: "02079460902" },
       address: {
         line1: "4 Example Lane",
@@ -43,7 +43,7 @@ const sampleAnswers = {
         city: "Exampleton",
         postalCode: "ZZ99 4ZZ",
         uprn: "990000000001",
-        buildingName: "Holloway",
+        buildingName: "Example Cottage",
         buildingNumberRange: null,
         county: null,
         dependentLocality: null,

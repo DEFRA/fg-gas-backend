@@ -73,7 +73,7 @@ const fpttCommand = {
       parcel: [
         {
           sheetId: "AA0300",
-          parcelId: "9935",
+          parcelId: "0301",
           area: { quantity: 0.0321, unit: "ha" },
         },
       ],
@@ -83,7 +83,7 @@ const fpttCommand = {
           code: "CMOR1",
           version: "2.0.0",
           sheetId: "AA0300",
-          parcelId: "9935",
+          parcelId: "0301",
           durationYears: 1,
           appliedFor: { quantity: 0.0321, unit: "ha" },
         },
@@ -337,9 +337,9 @@ describe("createAgreementUseCase", () => {
       application: fpttCommand.data.answers,
       parcels: [
         {
-          id: "AA0300-9935",
+          id: "AA0300-0301",
           sheetId: "AA0300",
-          parcelId: "9935",
+          parcelId: "0301",
           area: { quantity: 0.0321, unit: "ha" },
         },
       ],
@@ -348,7 +348,7 @@ describe("createAgreementUseCase", () => {
           id: "action:1",
           code: "CMOR1",
           version: "2.0.0",
-          parcel: "AA0300-9935",
+          parcel: "AA0300-0301",
           quantity: 0.0321,
           unit: "ha",
           durationYears: 1,

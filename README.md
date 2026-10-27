@@ -23,6 +23,24 @@ Grant Application Service defines and manages farming grants and applications. I
 - [Licence](#licence)
   - [About the licence](#about-the-licence)
 
+## Synthetic test data
+
+Applicant examples and local test fixtures use invented names, businesses,
+addresses and identifiers. The `900000…` SBI/CRN values, `910000…` business
+references, `990000…` UPRNs, `AA…` parcel references and `ZZ99 …` postcodes are
+locally generated examples; they are not assigned or reserved RPA identifiers.
+Agreement references beginning `FPTT900000`, `PMF900000` or `WMP900000` are
+also invented examples, not assigned or reserved agreement numbers. No
+relationship to an actual customer or business is intended. Explicit placeholder
+and boundary values remain in validation tests.
+
+Contact email addresses use `example.test`. Telephone examples use
+[Ofcom's drama ranges](https://www.ofcom.org.uk/phones-and-broadband/phone-numbers/numbers-for-drama).
+Keep public fixtures synthetic: use authorised test-environment configuration
+for any tool that must address existing accounts, and never commit the resolved
+values or bake them into an image. When updating these fixtures, coordinate
+matching contract examples with their consumer repositories.
+
 ## Running with other services
 
 There are two ways to run gas locally:

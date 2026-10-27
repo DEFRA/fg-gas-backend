@@ -117,10 +117,10 @@ describe("resolveRefs", () => {
   it("interpolates prose that happens to contain ??, rather than treating it as a fallback", async () => {
     const result = await resolveRefs(
       "Is it @.name??",
-      scope({}, { name: "Bob" }),
+      scope({}, { name: "Casey" }),
     );
 
-    expect(result).toBe("Is it Bob??");
+    expect(result).toBe("Is it Casey??");
   });
 
   it("fails when a reference used in text resolves to an object", async () => {

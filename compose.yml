@@ -11,6 +11,8 @@ services:
       - "compose/aws.env"
     environment:
       FLOCI_DEFAULT_REGION: eu-west-2
+      # Resource creation can exceed the default 30 seconds on CI runners.
+      FLOCI_INIT_HOOKS_TIMEOUT_SECONDS: "120"
       # Hostname floci puts in returned QueueUrls, so they stay reachable from
       # the host. Floci starts every service, so there is no SERVICES list.
       FLOCI_HOSTNAME: 127.0.0.1
@@ -32,7 +34,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-      start_period: 5s
+      # Allow the init hook timeout before counting readiness failures.
+      start_period: 120s
     networks:
       - cdp-tenant
 

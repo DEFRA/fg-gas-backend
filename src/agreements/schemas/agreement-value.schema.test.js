@@ -12,9 +12,9 @@ const fpttAgreementValues = {
   endDate: "2027-07-31",
   parcels: [
     {
-      id: "AA0300-9935",
+      id: "AA0300-0301",
       sheetId: "AA0300",
-      parcelId: "9935",
+      parcelId: "0301",
       area: { quantity: 0.0321, unit: "ha" },
     },
   ],
@@ -22,7 +22,7 @@ const fpttAgreementValues = {
     {
       id: "action:1",
       code: "CMOR1",
-      parcel: "AA0300-9935",
+      parcel: "AA0300-0301",
       quantity: 0.0321,
       unit: "ha",
       ratePence: 1060,
@@ -200,7 +200,7 @@ describe("agreementValueSchema", () => {
     value.actions[1] = {
       id: "action:2",
       code: "CMOR1",
-      parcel: "AA0300-9935",
+      parcel: "AA0300-0301",
       quantity: 0.01,
       unit: "ha",
     };
@@ -209,14 +209,14 @@ describe("agreementValueSchema", () => {
   });
 
   it.each([
-    ["9935-AA0300", "the components in the wrong order"],
+    ["0301-AA0300", "the components in the wrong order"],
     ["AA0300-0000", "a Parcel ID that differs from parcelId"],
   ])("rejects a composite Parcel ID with %s", (id) => {
     const value = structuredClone(fpttAgreementValues);
     value.parcels[0].id = id;
 
     expect(validate(value).error?.message).toContain(
-      '"parcels[0].id" must equal "AA0300-9935"',
+      '"parcels[0].id" must equal "AA0300-0301"',
     );
   });
 
@@ -458,7 +458,7 @@ describe("agreementValueSchema", () => {
   it("accepts a closed Payment publication description on each schedule line", () => {
     const value = structuredClone(fpttAgreementValues);
     value.paymentSchedule.instalments[0].lineItems[0].description =
-      "2026-11-15: Parcel: AA0300-9935: Winter cover";
+      "2026-11-15: Parcel: AA0300-0301: Winter cover";
     value.paymentSchedule.instalments[0].lineItems[1].description =
       "2026-11-15: One-off payment per agreement per year for Farm review";
 
