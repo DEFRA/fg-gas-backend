@@ -68,7 +68,7 @@ const template = {
 };
 
 const banner = {
-  title: { text: "Elmwood Land Co", type: "string" },
+  title: { text: "Example Woodland Holdings", type: "string" },
   summary: {
     sbi: { label: "SBI", text: "900000008", type: "string" },
   },

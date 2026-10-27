@@ -139,7 +139,7 @@ describe("Application Service Integration Tests", () => {
         },
         answers: {
           applicantDetails: {
-            fullName: "John Smith Test Farmer",
+            fullName: "Example Caseworker Test Farmer",
             dateOfBirth: "1980-05-15",
             address: {
               street: "123 Farm Lane",
@@ -187,7 +187,7 @@ describe("Application Service Integration Tests", () => {
       expect(dbApplication).toBeTruthy();
       expect(dbApplication.code).toBe(grantCode);
       expect(dbApplication.phases[0].answers.applicantDetails.fullName).toBe(
-        "John Smith Test Farmer",
+        "Example Caseworker Test Farmer",
       );
       expect(
         dbApplication.phases[0].answers.applicantDetails.address.postcode,

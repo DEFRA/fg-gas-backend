@@ -13,7 +13,7 @@ const application = {
     {
       code: "PHASE_PRE_AWARD",
       answers: {
-        applicant: { business: { name: "Elmwood Land Co" } },
+        applicant: { business: { name: "Example Woodland Holdings" } },
         landParcels: [{ parcelId: "AA0006" }],
         woodlandName: null,
         hectares: 40.25,
@@ -57,7 +57,7 @@ describe("buildBanner", () => {
     const result = await build(grantWith(banner));
 
     expect(result.title).toEqual({
-      text: "Elmwood Land Co",
+      text: "Example Woodland Holdings",
       type: "string",
     });
   });

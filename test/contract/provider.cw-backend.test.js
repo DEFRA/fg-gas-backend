@@ -306,7 +306,7 @@ describe("GAS Provider (sends messages to CW)", () => {
                   totalHectaresForSelectedParcels: 15.0,
                   hectaresTenOrOverYearsOld: 8.5,
                   hectaresUnderTenYearsOld: 4.2,
-                  centreGridReference: "SK512347",
+                  centreGridReference: "AA000000",
                   fcTeamCode: "YORKSHIRE_AND_NORTH_EAST",
                   applicationConfirmation: true,
                 };
@@ -361,7 +361,7 @@ describe("GAS Provider (sends messages to CW)", () => {
                     totalHectaresForSelectedParcels: 10.0,
                     hectaresTenOrOverYearsOld: 6.0,
                     hectaresUnderTenYearsOld: 4.0,
-                    centreGridReference: "SK512347",
+                    centreGridReference: "AA000000",
                     fcTeamCode: "SOUTH_WEST",
                     applicationConfirmation: true,
                   };

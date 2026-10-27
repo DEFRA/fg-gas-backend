@@ -89,7 +89,9 @@ describe("describeError", () => {
   it("never returns anything drawn from error.data.payload", () => {
     const error = Boom.unauthorized("Unauthorized");
     error.data = {
-      payload: { message: "caseworker jane.doe@defra.gov.uk token expired" },
+      payload: {
+        message: "caseworker example.assignee@example.test token expired",
+      },
     };
 
     const described = describeError(error);

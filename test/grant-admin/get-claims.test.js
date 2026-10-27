@@ -107,7 +107,7 @@ const seed = async (options = {}) => {
           code: position.phase,
           questions: {},
           answers: answers ?? {
-            applicant: { business: { name: "Elmwood Land Co" } },
+            applicant: { business: { name: "Example Woodland Holdings" } },
           },
         },
       ],
@@ -262,7 +262,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims", () =>
 
     expect(response.res.statusCode).toBe(200);
     expect(response.payload.banner.title).toEqual({
-      text: "Elmwood Land Co",
+      text: "Example Woodland Holdings",
       type: "string",
     });
     expect(response.payload.banner.summary).toMatchObject({
@@ -428,7 +428,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims/{claimC
     const response = await getClaim();
 
     expect(response.payload.banner.title).toEqual({
-      text: "Elmwood Land Co",
+      text: "Example Woodland Holdings",
       type: "string",
     });
   });

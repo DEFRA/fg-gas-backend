@@ -296,8 +296,8 @@ describe("validateAnswersAgainstSchema — WMP woodland schema", () => {
   describe("centreGridReference type", () => {
     it("accepts a string", () => {
       expect(
-        validate(withAnswers({ centreGridReference: "SP 4178 2432" })),
-      ).toMatchObject({ centreGridReference: "SP 4178 2432" });
+        validate(withAnswers({ centreGridReference: "AA 0000 0001" })),
+      ).toMatchObject({ centreGridReference: "AA 0000 0001" });
     });
 
     it("rejects a non-string", () => {
