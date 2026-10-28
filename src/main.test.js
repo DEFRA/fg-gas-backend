@@ -36,6 +36,9 @@ describe("main", () => {
     vi.doMock("./auth/seed-access-token.js", () => ({
       seedAccessToken: vi.fn().mockResolvedValue(undefined),
     }));
+    vi.doMock("./auth/access-token-identity.js", () => ({
+      reportAccessTokenIdentity: vi.fn().mockResolvedValue(undefined),
+    }));
   });
 
   afterEach(() => {
@@ -106,6 +109,21 @@ describe("main", () => {
     const { seedAccessToken } = await import("./auth/seed-access-token.js");
 
     expect(seedAccessToken.mock.invocationCallOrder[0]).toBeLessThan(
+      mockServer.start.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("reports access token identity after seeding and before serving", async () => {
+    await import("./main.js");
+
+    const { seedAccessToken } = await import("./auth/seed-access-token.js");
+    const { reportAccessTokenIdentity } =
+      await import("./auth/access-token-identity.js");
+
+    expect(
+      reportAccessTokenIdentity.mock.invocationCallOrder[0],
+    ).toBeGreaterThan(seedAccessToken.mock.invocationCallOrder[0]);
+    expect(reportAccessTokenIdentity.mock.invocationCallOrder[0]).toBeLessThan(
       mockServer.start.mock.invocationCallOrder[0],
     );
   });
