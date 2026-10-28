@@ -37,7 +37,9 @@ const ENTITLEMENTS_URL = `${CLAIMS_URL}/entitlements`;
 
 const overview = {
   claimsPage: {
-    details: { banner: { title: { text: "Elmwood Land Co", type: "string" } } },
+    details: {
+      banner: { title: { text: "Example Woodland Holdings", type: "string" } },
+    },
   },
   applicationContext: {},
   creationOptions: [],

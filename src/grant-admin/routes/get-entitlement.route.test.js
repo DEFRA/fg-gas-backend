@@ -86,7 +86,7 @@ const submittedClaim = {
 };
 
 const banner = {
-  title: { text: "Elmwood Land Co", type: "string" },
+  title: { text: "Example Woodland Holdings", type: "string" },
   summary: {},
 };
 

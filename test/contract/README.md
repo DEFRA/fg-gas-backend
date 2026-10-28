@@ -300,7 +300,7 @@ WMG answers are **flat form fields** (no scheme/applicant/application/payments w
   "totalHectaresForSelectedParcels": 15.0,
   "hectaresTenOrOverYearsOld": 8.5,
   "hectaresUnderTenYearsOld": 4.2,
-  "centreGridReference": "SK512347",
+  "centreGridReference": "AA000000",
   "fcTeamCode": "YORKSHIRE_AND_NORTH_EAST",
   "applicationConfirmation": true
 }

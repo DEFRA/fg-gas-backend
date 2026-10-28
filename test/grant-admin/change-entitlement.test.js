@@ -103,7 +103,9 @@ const seed = async () => {
         {
           code: position.phase,
           questions: {},
-          answers: { applicant: { business: { name: "Elmwood Land Co" } } },
+          answers: {
+            applicant: { business: { name: "Example Woodland Holdings" } },
+          },
         },
       ],
       identifiers: { sbi: "123", frn: "456", crn: "789", defraId: "abc" },
@@ -169,7 +171,9 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/claims/entitle
       claimCode,
       fields: template.fields,
     });
-    expect(response.payload.banner.title.text).toBe("Elmwood Land Co");
+    expect(response.payload.banner.title.text).toBe(
+      "Example Woodland Holdings",
+    );
   });
 
   it("returns 409 once a claim has been made against the entitlement", async () => {
