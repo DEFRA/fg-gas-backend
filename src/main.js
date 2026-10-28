@@ -1,4 +1,5 @@
 import { agreements } from "./agreements/index.js";
+import { reportAccessTokenIdentity } from "./auth/access-token-identity.js";
 import { seedAccessToken } from "./auth/seed-access-token.js";
 import { assertDefinitionCheckRegistered } from "./common/config-broker/definition-checks.js";
 import { logger } from "./common/logger.js";
@@ -30,4 +31,5 @@ await server.register([
 assertDefinitionCheckRegistered("payment");
 // After register, which runs the migrations, and before any request is served.
 await seedAccessToken();
+await reportAccessTokenIdentity();
 await server.start();
