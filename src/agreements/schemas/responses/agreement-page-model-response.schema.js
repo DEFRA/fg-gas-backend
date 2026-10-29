@@ -36,6 +36,7 @@ const backLink = Joi.object({
 }).label("AgreementPageModelBackLink");
 
 export const agreementPageModelResponseSchema = Joi.object({
+  serviceTitle: Joi.string().optional(),
   agreement: Joi.object({
     agreementNumber: Joi.string().required(),
     code: code.required(),

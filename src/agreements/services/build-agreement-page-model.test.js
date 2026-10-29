@@ -549,6 +549,56 @@ describe("buildAgreementPageModel", () => {
     expect(result).not.toHaveProperty("actions");
   });
 
+  it("exposes the definition's service title on every page model", async () => {
+    const agreementDefinition = new AgreementDefinition(
+      withExplicitTrees({
+        code: "test",
+        configVersion: "1",
+        agreementNumberPrefix: "TST",
+        serviceTitle: "Woodland Management Plan",
+        create: creationDefinition,
+        states: {
+          accepted: { page: "offer" },
+          offered: { page: "offer" },
+        },
+        pages: {
+          offer: {
+            title: "Offer",
+            components: [{ component: "heading", text: "Offer" }],
+          },
+          document: {
+            title: "Document",
+            components: [{ component: "heading", text: "Document" }],
+          },
+        },
+      }),
+    );
+
+    const [pageModel, documentModel] = await Promise.all([
+      buildAgreementPageModel({
+        agreement,
+        agreementDefinition,
+        page: "offer",
+        mode: "view",
+      }),
+      buildAgreementDocumentPageModel({ agreement, agreementDefinition }),
+    ]);
+
+    expect(pageModel.serviceTitle).toBe("Woodland Management Plan");
+    expect(documentModel.serviceTitle).toBe("Woodland Management Plan");
+  });
+
+  it("omits the service title when the definition has none", async () => {
+    const model = await buildAgreementPageModel({
+      agreement,
+      agreementDefinition: definition,
+      page: "offer",
+      mode: "view",
+    });
+
+    expect(model).not.toHaveProperty("serviceTitle");
+  });
+
   it("omits a watermark when the current state is not mapped", async () => {
     const result = await buildAgreementDocumentPageModel({
       agreement: { ...agreement, state: "accepted" },
