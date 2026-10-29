@@ -35,7 +35,9 @@ export const toGrant = (doc) =>
 export const collection = "grants";
 
 export const findByCodesAndVersions = async (versions) => {
-  if (versions.length === 0) return [];
+  if (versions.length === 0) {
+    return [];
+  }
   const documents = await db
     .collection(collection)
     .find({

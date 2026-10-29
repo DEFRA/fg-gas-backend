@@ -39,9 +39,8 @@ const getAvailableGrants = async ({ sbi, crn }) => {
   // above are batched and no request fans out unbounded S3 calls.
   for (const version of openVersions) {
     const { grantCode } = version;
-    const { grant } = await loadGrantFromConfigVersion(version, {
-      storedGrant: grants.get(grantCode) ?? null,
-    });
+    const stored = { storedGrant: grants.get(grantCode) ?? null };
+    const { grant } = await loadGrantFromConfigVersion(version, stored); // NOSONAR: Bound S3 fetch concurrency.
     const allowList = GrantAllowList.forGrant({
       grantCode,
       grant,
@@ -51,9 +50,11 @@ const getAvailableGrants = async ({ sbi, crn }) => {
       settings: settings.get(grantCode),
       allowList,
     });
-    if (access.allows({ sbi, crn })) available.push({ code: grantCode });
+    if (access.allows({ sbi, crn })) {
+      available.push({ code: grantCode });
+    }
   }
-  return { grants: available.sort((a, b) => a.code.localeCompare(b.code)) };
+  return { grants: available.toSorted((a, b) => a.code.localeCompare(b.code)) };
 };
 
 const buildReadAudit = ({ sbi, crn, caller }, result) =>

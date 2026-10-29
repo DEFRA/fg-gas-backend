@@ -2,7 +2,9 @@ import { db } from "../../common/mongo-client.js";
 import { GrantSettings } from "../models/grant-settings.js";
 
 export const findByGrantCodes = async (grantCodes) => {
-  if (grantCodes.length === 0) return [];
+  if (grantCodes.length === 0) {
+    return [];
+  }
   const documents = await db
     .collection("grant_settings")
     .find({ grantCode: { $in: grantCodes } })

@@ -34,7 +34,9 @@ export const getAvailableGrantsRoute = {
       request.auth.credentials.service,
       request.auth.artifacts?.client,
     ].find((value) => typeof value === "string" && value.trim() !== "");
-    if (!caller) throw Boom.unauthorized("Service identity required");
+    if (!caller) {
+      throw Boom.unauthorized("Service identity required");
+    }
     return h.response(
       await getAvailableGrantsUseCase({ ...request.params, caller }),
     );
