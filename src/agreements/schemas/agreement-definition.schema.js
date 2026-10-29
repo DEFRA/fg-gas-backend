@@ -278,6 +278,9 @@ const endpoints = Joi.array().items(endpoint).optional().label("Endpoints");
 export const agreementDefinitionSchema = Joi.object({
   code: Joi.string().required(),
   agreementNumberPrefix: Joi.string().required(),
+  // Shown in the service navigation on every agreement page. When omitted,
+  // the agreements UI falls back to its own configured title.
+  serviceTitle: Joi.string().trim().min(1).optional(),
   endpoints,
   processDefinitions,
   create,

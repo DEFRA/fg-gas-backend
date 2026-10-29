@@ -254,6 +254,36 @@ describe("agreementDefinitionSchema", () => {
 
     expect(error).toBeUndefined();
   });
+
+  it("allows a service title", () => {
+    const definition = {
+      ...pmfAgreementDefinition,
+      serviceTitle: "Woodland Management Plan",
+    };
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
+  it("validates without a service title, since it's optional", () => {
+    const definition = structuredClone(pmfAgreementDefinition);
+    delete definition.serviceTitle;
+
+    const { error } = validate(definition);
+
+    expect(error).toBeUndefined();
+  });
+
+  it("fails when the service title is blank", () => {
+    const definition = { ...pmfAgreementDefinition, serviceTitle: "  " };
+
+    const { error } = validate(definition);
+
+    expect(error.details.map((d) => d.message).join(", ")).toMatch(
+      /"serviceTitle" is not allowed to be empty/,
+    );
+  });
 });
 
 describe("agreementDefinitionSchema resolver instructions", () => {
