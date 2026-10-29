@@ -53,7 +53,13 @@ export const missingAllowListIdentifiersRoute = {
     cache: { otherwise: "no-store" },
   },
   handler(request) {
-    if (isOmittedIdentifier(request.params.remainder)) {
+    // Bulk requests omit grantCode. Their incomplete SBI/CRN paths reach this
+    // fallback too; recognise them without adding a competing wildcard route.
+    const bulkRemainder = `${request.params.grantCode}/${request.params.remainder ?? ""}`;
+    if (
+      isOmittedIdentifier(request.params.remainder) ||
+      isOmittedIdentifier(bulkRemainder)
+    ) {
       throw Boom.badRequest("Both SBI and CRN are required");
     }
     throw Boom.notFound();

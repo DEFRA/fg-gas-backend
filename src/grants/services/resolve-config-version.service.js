@@ -200,16 +200,24 @@ export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
     throw Boom.notFound(`No active config version found for ${grantCode}`);
   }
 
-  const resolvedVersion = configVersion.version;
+  return loadGrantFromConfigVersion(configVersion);
+};
+
+// Bulk callers already loaded stored definitions together. Explicit null means
+// that batch found no grant; undefined retains the single-grant read path.
+export const loadGrantFromConfigVersion = async (
+  configVersion,
+  { storedGrant } = {},
+) => {
+  const { grantCode, version: resolvedVersion } = configVersion;
   logger.info(`Loading grant definition for ${grantCode}@${resolvedVersion}`);
 
   await guardFetchStatus(configVersion, grantCode, resolvedVersion);
 
-  const cached = await findStoredGrant(
-    configVersion,
-    grantCode,
-    resolvedVersion,
-  );
+  const cached =
+    storedGrant === undefined
+      ? await findStoredGrant(configVersion, grantCode, resolvedVersion)
+      : storedGrant;
   if (cached) {
     return {
       grant: cached,

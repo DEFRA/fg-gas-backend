@@ -1,3 +1,10 @@
+### Get grant codes available to an applicant
+
+# @name getAvailableGrants
+
+GET {{base}}/api/allow-list/grants/sbi/000000001/crn/0000000001 HTTP/1.1
+Authorization: Bearer {{serviceToken}}
+
 ### Submit application
 
 # @name submitApplication

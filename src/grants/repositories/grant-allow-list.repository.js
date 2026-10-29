@@ -3,6 +3,15 @@ import { GrantAllowList } from "../models/grant-allow-list.js";
 
 const collection = "allow_lists";
 
+export const findByGrantCodes = async (grantCodes) => {
+  if (grantCodes.length === 0) return [];
+  const documents = await db
+    .collection(collection)
+    .find({ grantCode: { $in: grantCodes } })
+    .toArray();
+  return documents.map((doc) => GrantAllowList.fromDocument(doc));
+};
+
 const sessionOptions = (session) => (session ? { session } : undefined);
 
 export const findByGrantCode = async (grantCode, session) => {

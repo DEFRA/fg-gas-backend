@@ -382,6 +382,25 @@ could not be checked.
 
 SFD gets its own client pair via the existing provisioning process above.
 
+#### Available grants
+
+`GET /api/allow-list/grants/sbi/{sbi}/crn/{crn}` uses the same service
+authentication and identifier validation. It returns the grant codes available
+to that applicant, for example `{ "grants": [{ "code": "woodland" }] }`,
+or `{ "grants": [] }` when none are available. Display metadata is not included.
+
+GAS considers the latest Active Config Version of each grant across all majors.
+A grant must be open and satisfy every populated SBI/CRN restriction. Missing
+settings mean closed; missing allowlists mean unrestricted. Closed grants are
+excluded before definition loading. A required definition, database or success
+audit failure fails the whole request; results are never partial.
+
+Every request reads current settings and restrictions. Stored definitions are
+read in a batch; unstored current definitions use the existing S3 loading path.
+Responses use `Cache-Control: no-store` and contain unique codes sorted by code.
+The service records `GET_AVAILABLE_GRANTS` audits with the authenticated caller,
+applicant identifiers and, on success, the returned codes.
+
 #### Revoke
 
 There is no revoke-by-omission - clearing the secret deliberately does nothing.
