@@ -180,7 +180,7 @@ describe("bulk read stored-state validation", () => {
   });
 });
 
-const applicant = { sbi: "000000001", crn: "0000000001", caller: "grants-ui" };
+const applicant = { sbi: "000000001", caller: "grants-ui" };
 const available = async (input = applicant) => {
   const { withRequestContext } =
     await import("../../common/get-request-context.js");
@@ -208,7 +208,9 @@ describe("available grant decisions", () => {
   it("returns the code of an open unrestricted grant", async () => {
     await seedGrant();
     await expect(available()).resolves.toEqual({
-      grants: [{ code: "woodland" }],
+      grants: [
+        { code: "woodland", title: "woodland", description: "woodland" },
+      ],
     });
   });
 });
@@ -227,26 +229,33 @@ describe("available grant domain parity", () => {
       const { checkGrantAllowListUseCase } =
         await import("../use-cases/check-grant-allow-list.use-case.js");
       const individual = await withRequestContext({}, () =>
-        checkGrantAllowListUseCase({ ...applicant, grantCode: "woodland" }),
+        checkGrantAllowListUseCase({
+          ...applicant,
+          crn: "0000000001",
+          grantCode: "woodland",
+        }),
       );
       expect(individual).toEqual({ allowed: open === true });
       expect(await available()).toEqual({
-        grants: open === true ? [{ code: "woodland" }] : [],
+        grants:
+          open === true
+            ? [{ code: "woodland", title: "woodland", description: "woodland" }]
+            : [],
       });
     },
   );
   it.each([
-    [[], [], true],
-    [["000000001"], [], true],
-    [["000000002"], [], false],
-    [[], ["0000000001"], true],
-    [[], ["0000000002"], false],
-    [["000000001"], ["0000000001"], true],
-    [["000000001"], ["0000000002"], false],
-    [["000000002"], ["0000000001"], false],
+    [[], [], true, true],
+    [["000000001"], [], true, true],
+    [["000000002"], [], false, false],
+    [[], ["0000000001"], true, true],
+    [[], ["0000000002"], false, true],
+    [["000000001"], ["0000000001"], true, true],
+    [["000000001"], ["0000000002"], false, true],
+    [["000000002"], ["0000000001"], false, false],
   ])(
-    "matches the individual decision for restrictions %j / %j",
-    async (sbi, crn, allowed) => {
+    "uses SBI-only business access while individual access checks both restrictions: %j / %j",
+    async (sbi, crn, allowed, businessAllowed) => {
       await seedGrant();
       await db
         .collection("allow_lists")
@@ -257,25 +266,38 @@ describe("available grant domain parity", () => {
         await import("../use-cases/check-grant-allow-list.use-case.js");
       expect(
         await withRequestContext({}, () =>
-          checkGrantAllowListUseCase({ ...applicant, grantCode: "woodland" }),
+          checkGrantAllowListUseCase({
+            ...applicant,
+            crn: "0000000001",
+            grantCode: "woodland",
+          }),
         ),
       ).toEqual({ allowed });
       expect(await available()).toEqual({
-        grants: allowed ? [{ code: "woodland" }] : [],
+        grants: businessAllowed
+          ? [{ code: "woodland", title: "woodland", description: "woodland" }]
+          : [],
       });
     },
   );
-  it("returns unique code-only results in code order", async () => {
+  it("returns unique grants with display metadata in code order", async () => {
     await seedGrant("zebra");
     await seedGrant("apple", { version: "1.0.0" });
     await seedGrant("apple", { version: "2.0.0" });
     expect(await available()).toEqual({
-      grants: [{ code: "apple" }, { code: "zebra" }],
+      grants: [
+        { code: "apple", title: "apple", description: "apple" },
+        { code: "zebra", title: "zebra", description: "zebra" },
+      ],
     });
   });
   it("reads current settings and restrictions on every request", async () => {
     await seedGrant();
-    expect(await available()).toEqual({ grants: [{ code: "woodland" }] });
+    expect(await available()).toEqual({
+      grants: [
+        { code: "woodland", title: "woodland", description: "woodland" },
+      ],
+    });
     await db
       .collection("grant_settings")
       .updateOne({ grantCode: "woodland" }, { $set: { open: false } });
@@ -296,7 +318,10 @@ describe("available grant definition failures", () => {
     await seedGrant();
     await seedGrant("other");
     expect(await available()).toEqual({
-      grants: [{ code: "other" }, { code: "woodland" }],
+      grants: [
+        { code: "other", title: "other", description: "other" },
+        { code: "woodland", title: "woodland", description: "woodland" },
+      ],
     });
     await seedGrant("woodland", {
       version: "2.0.0",
@@ -314,7 +339,7 @@ describe("available grant definition failures", () => {
       "FAILURE",
     ]);
     expect(audits[1].event.audit).toMatchObject({
-      accounts: { sbi: "000000001", crn: "0000000001" },
+      accounts: { sbi: "000000001" },
       details: { caller: "grants-ui" },
     });
     expect(audits[1].event.audit.details).not.toHaveProperty("grantCodes");
@@ -330,11 +355,19 @@ describe("available grant cold definitions", () => {
     const { fetchConfigFile } = await import("../../common/s3-client.js");
     fetchConfigFile.mockResolvedValue({
       code: "woodland",
-      metadata: { description: "New", startDate: "2026-01-01" },
+      metadata: {
+        title: "New woodland grant",
+        description: "New",
+        startDate: "2026-01-01",
+      },
       actions: [],
       phases: [],
     });
-    expect(await available()).toEqual({ grants: [{ code: "woodland" }] });
+    expect(await available()).toEqual({
+      grants: [
+        { code: "woodland", title: "New woodland grant", description: "New" },
+      ],
+    });
     expect(await grants.findByCode("woodland", "2.0.0")).toMatchObject({
       version: "2.0.0",
       metadata: { description: "New" },
@@ -400,7 +433,11 @@ describe("available grant storage and performance", () => {
       });
     }
     expect(await available()).toEqual({
-      grants: [{ code: "apple" }, { code: "woodland" }, { code: "zebra" }],
+      grants: [
+        { code: "apple", title: "apple", description: "apple" },
+        { code: "woodland", title: "woodland", description: "woodland" },
+        { code: "zebra", title: "zebra", description: "zebra" },
+      ],
     });
     expect(reads).toHaveLength(4);
     expect(reads.filter(({ method }) => method === "findOne")).toEqual([]);

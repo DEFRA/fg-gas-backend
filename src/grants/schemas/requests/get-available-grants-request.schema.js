@@ -3,5 +3,4 @@ import { checkAllowListRequestSchema } from "./check-allow-list-request.schema.j
 
 export const getAvailableGrantsRequestSchema = Joi.object({
   sbi: checkAllowListRequestSchema.extract("sbi"),
-  crn: checkAllowListRequestSchema.extract("crn"),
 });

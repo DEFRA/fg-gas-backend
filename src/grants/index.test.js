@@ -161,7 +161,7 @@ describe("grants", () => {
       expect.arrayContaining([
         {
           method: "get",
-          path: "/api/allow-list/grants/sbi/{sbi}/crn/{crn}",
+          path: "/api/allow-list/grants/sbi/{sbi}",
         },
         { method: "get", path: "/api/allow-list/grants" },
         {

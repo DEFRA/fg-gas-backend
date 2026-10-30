@@ -11,13 +11,13 @@ export const missingAvailableGrantsIdentifiersRoute = {
   path: base,
   options: { cache: { otherwise: "no-store" } },
   handler() {
-    throw Boom.badRequest("Both SBI and CRN are required");
+    throw Boom.badRequest("SBI is required");
   },
 };
 
 export const getAvailableGrantsRoute = {
   method: "GET",
-  path: `${base}/sbi/{sbi}/crn/{crn}`,
+  path: `${base}/sbi/{sbi}`,
   options: {
     description: "Get the grant codes available to an applicant",
     tags: ["api"],

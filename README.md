@@ -384,22 +384,40 @@ SFD gets its own client pair via the existing provisioning process above.
 
 #### Available grants
 
-`GET /api/allow-list/grants/sbi/{sbi}/crn/{crn}` uses the same service
-authentication and identifier validation. It returns the grant codes available
-to that applicant, for example `{ "grants": [{ "code": "woodland" }] }`,
-or `{ "grants": [] }` when none are available. Display metadata is not included.
+`GET /api/allow-list/grants/sbi/{sbi}` requires service authentication and a
+nine-digit SBI. It returns the available grants, for example:
+
+```json
+{
+  "grants": [
+    {
+      "code": "woodland",
+      "title": "Woodland Management Plan",
+      "description": "Woodland Management Plan"
+    }
+  ]
+}
+```
+
+The result is `{ "grants": [] }` when none are available. Each description comes
+from `metadata.description` in the selected grant config. The title comes from
+optional `metadata.title`, falling back to `metadata.description` when absent.
+Titles and descriptions come from the same version; populating config titles
+is separate work. URLs are excluded.
 
 GAS considers the latest Active Config Version of each grant across all majors.
-A grant must be open and satisfy every populated SBI/CRN restriction. Missing
-settings mean closed; missing allowlists mean unrestricted. Closed grants are
+A grant must be open and satisfy its populated SBI restriction. This business
+access check does not accept or evaluate CRN; the individual grant endpoint
+continues to check both SBI and CRN. Missing settings mean closed; missing
+allowlists mean unrestricted. Closed grants are
 excluded before definition loading. A required definition, database or success
 audit failure fails the whole request; results are never partial.
 
 Every request reads current settings and restrictions. Stored definitions are
 read in a batch; unstored current definitions use the existing S3 loading path.
-Responses use `Cache-Control: no-store` and contain unique codes sorted by code.
+Responses use `Cache-Control: no-store` and contain unique grants sorted by code.
 The service records `GET_AVAILABLE_GRANTS` audits with the authenticated caller,
-applicant identifiers and, on success, the returned codes.
+business SBI and, on success, the returned codes.
 
 #### Revoke
 

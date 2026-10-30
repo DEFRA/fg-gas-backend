@@ -20,7 +20,7 @@ let withRequestContext;
 let ConfigVersion;
 let FetchStatus;
 const base = "/api/allow-list/grants";
-const url = `${base}/sbi/000000001/crn/0000000001`;
+const url = `${base}/sbi/000000001`;
 const headers = { authorization: "Bearer available-grants-test-token" };
 const inject = (path = url, overrides = {}) =>
   withRequestContext({}, () =>
@@ -94,25 +94,35 @@ afterAll(async () => {
 });
 
 describe("available grants HTTP contract", () => {
-  it("returns only codes for an authenticated applicant without caching", async () => {
+  it("returns metadata using SBI alone despite populated CRN restrictions", async () => {
+    await db.collection("allow_lists").insertOne({
+      grantCode: "woodland",
+      global: { sbi: ["000000001"], crn: ["0000000002"] },
+    });
+    const response = await inject(`${base}/sbi/000000001`);
+    expect(response.statusCode).toBe(200);
+    expect(response.result).toEqual({
+      grants: [
+        { code: "woodland", title: "Woodland", description: "Woodland" },
+      ],
+    });
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("returns grant display metadata for an authenticated business without caching", async () => {
     const response = await inject();
     expect(response.statusCode).toBe(200);
-    expect(response.result).toEqual({ grants: [{ code: "woodland" }] });
+    expect(response.result).toEqual({
+      grants: [
+        { code: "woodland", title: "Woodland", description: "Woodland" },
+      ],
+    });
     expect(response.headers["cache-control"]).toBe("no-store");
   });
 });
 
 describe("available grants request validation", () => {
-  it.each([
-    base,
-    `${base}/sbi`,
-    `${base}/sbi/000000001`,
-    `${base}/sbi/000000001/crn`,
-    `${base}/sbi/000000001/crn/`,
-    `${base}/sbi/crn/0000000001`,
-    `${base}/sbi//crn/0000000001`,
-    `${base}/crn/0000000001`,
-  ])("rejects missing identifiers: %s", async (path) => {
+  it.each([base, `${base}/sbi`])("rejects missing SBI: %s", async (path) => {
     const response = await inject(path);
     expect(response.statusCode).toBe(400);
     expect(response.headers["cache-control"]).toBe("no-store");
@@ -159,12 +169,10 @@ describe("available grants authentication and validation", () => {
     expect(audit.event.audit.details.caller).toBe("legacy-grants-ui");
   });
   it.each([
-    `${base}/sbi/00000001/crn/0000000001`,
-    `${base}/sbi/0000000001/crn/0000000001`,
-    `${base}/sbi/00000000A/crn/0000000001`,
-    `${base}/sbi/000000001/crn/000000001`,
-    `${base}/sbi/000000001/crn/00000000001`,
-    `${base}/sbi/000000001/crn/000000000A`,
+    `${base}/sbi/00000001`,
+    `${base}/sbi/0000000001`,
+    `${base}/sbi/00000000A`,
+    `${url}?crn=0000000001`,
     `${url}?version=1.0.0`,
     `${url}?caller=spoofed`,
   ])("rejects invalid input %s", async (path) => {
@@ -200,11 +208,12 @@ describe("available grants audited HTTP results", () => {
       .find({ "event.audit.entities.action": "GET_AVAILABLE_GRANTS" })
       .toArray();
     expect(audits).toHaveLength(1);
+    expect(audits[0].event.audit.accounts).not.toHaveProperty("crn");
     expect(audits[0].event).toMatchObject({
       security: { pmccode: "0706" },
       audit: {
         status: "SUCCESS",
-        accounts: { sbi: "000000001", crn: "0000000001" },
+        accounts: { sbi: "000000001" },
         details: { caller: "grants-ui", grantCodes: ["woodland"] },
       },
     });
@@ -263,5 +272,78 @@ describe("available grants audited HTTP results", () => {
     const response = await inject();
     expect(response.statusCode).toBe(500);
     expect(response.result).not.toHaveProperty("grants");
+  });
+});
+
+describe("SBI-only bulk request shape", () => {
+  it.each([`${base}/sbi/000000001/crn/0000000001`, `${base}/crn/0000000001`])(
+    "does not expose a bulk CRN path: %s",
+    async (path) => {
+      expect((await inject(path)).statusCode).toBe(404);
+    },
+  );
+  it("does not request CRN when the bulk SBI is missing", async () => {
+    const response = await inject(`${base}/sbi`);
+    expect(response.statusCode).toBe(400);
+    expect(response.result.message).toBe("SBI is required");
+  });
+});
+
+describe("grant display configuration", () => {
+  it("returns the configured title and description from the latest Active version", async () => {
+    const { saveFromDefinition } =
+      await import("../repositories/grant.repository.js");
+    await saveFromDefinition(
+      {
+        code: "woodland",
+        metadata: {
+          title: "Apply for woodland support",
+          description: "Funding for woodland plans",
+          startDate: "2026-01-01",
+        },
+        actions: [],
+        phases: [],
+      },
+      "2.0.0",
+    );
+    await saveFromDefinition(
+      {
+        code: "woodland",
+        metadata: {
+          title: "Draft title",
+          description: "Draft description",
+          startDate: "2026-01-01",
+        },
+        actions: [],
+        phases: [],
+      },
+      "3.0.0",
+    );
+    const versions = [
+      ["2.0.0", "active"],
+      ["3.0.0", "draft"],
+    ].map(([version, status]) => {
+      const config = ConfigVersion.new({
+        grantCode: "woodland",
+        version,
+        status,
+        s3Bucket: "config",
+        s3Key: `woodland/${version}/gas.json`,
+      });
+      config.fetchStatus = FetchStatus.Fetched;
+      return config.toDocument();
+    });
+    await db.collection("config_versions").insertMany(versions);
+    const response = await inject();
+    expect(response.statusCode).toBe(200);
+    expect(response.result).toEqual({
+      grants: [
+        {
+          code: "woodland",
+          title: "Apply for woodland support",
+          description: "Funding for woodland plans",
+        },
+      ],
+    });
   });
 });

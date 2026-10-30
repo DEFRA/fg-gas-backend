@@ -17,7 +17,7 @@ import { findByCodesAndVersions } from "../repositories/grant.repository.js";
 const byGrantCode = (items) =>
   new Map(items.map((item) => [item.grantCode, item]));
 
-const getAvailableGrants = async ({ sbi, crn }) => {
+const getAvailableGrants = async ({ sbi }) => {
   const versions = await findLatestActiveForAll();
   const settings = byGrantCode(
     await findSettings(versions.map((item) => item.grantCode)),
@@ -50,14 +50,18 @@ const getAvailableGrants = async ({ sbi, crn }) => {
       settings: settings.get(grantCode),
       allowList,
     });
-    if (access.allows({ sbi, crn })) {
-      available.push({ code: grantCode });
+    if (access.allowsBusiness({ sbi })) {
+      available.push({
+        code: grantCode,
+        title: grant.title,
+        description: grant.metadata.description,
+      });
     }
   }
   return { grants: available.toSorted((a, b) => a.code.localeCompare(b.code)) };
 };
 
-const buildReadAudit = ({ sbi, crn, caller }, result) =>
+const buildReadAudit = ({ sbi, caller }, result) =>
   buildAuditEvent({
     entity: auditEntities.GRANT,
     action: auditActions.GET_AVAILABLE_GRANTS,
@@ -66,7 +70,6 @@ const buildReadAudit = ({ sbi, crn, caller }, result) =>
     details: {
       caller,
       sbi,
-      crn,
       ...(result && { grantCodes: result.grants.map(({ code }) => code) }),
     },
     security: PMC_0706_SECURITY,
