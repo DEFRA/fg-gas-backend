@@ -5,14 +5,12 @@ import {
 } from "../../events/audit-constants.js";
 import { auditedRead } from "../../events/audited-read.js";
 import { buildAuditEvent } from "../../events/with-audit.js";
-import { FetchStatus } from "../../common/fetch-status.js";
-import { loadGrantFromConfigVersion } from "../services/resolve-config-version.service.js";
+import { loadGrantsFromConfigVersions } from "../services/resolve-config-version.service.js";
 import { GrantAccess } from "../models/grant-access.js";
 import { GrantAllowList } from "../models/grant-allow-list.js";
 import { findLatestActiveForAll } from "../repositories/config-version.repository.js";
 import { findByGrantCodes as findAllowLists } from "../repositories/grant-allow-list.repository.js";
 import { findByGrantCodes as findSettings } from "../repositories/grant-settings.repository.js";
-import { findByCodesAndVersions } from "../repositories/grant.repository.js";
 
 const byGrantCode = (items) =>
   new Map(items.map((item) => [item.grantCode, item]));
@@ -26,21 +24,14 @@ const getAvailableGrants = async ({ sbi }) => {
     settings.get(item.grantCode)?.isOpen(),
   );
   const codes = openVersions.map((item) => item.grantCode);
-  const [storedGrants, storedLists] = await Promise.all([
-    findByCodesAndVersions(
-      openVersions.filter((item) => item.fetchStatus === FetchStatus.Fetched),
-    ),
+  const [grants, storedLists] = await Promise.all([
+    loadGrantsFromConfigVersions(openVersions),
     findAllowLists(codes),
   ]);
-  const grants = new Map(storedGrants.map((grant) => [grant.code, grant]));
   const lists = byGrantCode(storedLists);
   const available = [];
-  // Loading is sequential only for the exceptional uncached path: warm reads
-  // above are batched and no request fans out unbounded S3 calls.
-  for (const version of openVersions) {
-    const { grantCode } = version;
-    const stored = { storedGrant: grants.get(grantCode) ?? null };
-    const { grant } = await loadGrantFromConfigVersion(version, stored); // NOSONAR: Bound S3 fetch concurrency.
+  for (const grant of grants) {
+    const grantCode = grant.code;
     const allowList = GrantAllowList.forGrant({
       grantCode,
       grant,

@@ -11,6 +11,7 @@ import {
 } from "../repositories/config-version.repository.js";
 import {
   findByCode,
+  findByCodesAndVersions,
   saveFromDefinition,
 } from "../repositories/grant.repository.js";
 import { isDefinitionDefect } from "./definition-defect.js";
@@ -205,7 +206,7 @@ export const resolveAndFetchGrant = async (grantCode, requestedVersion) => {
 
 // Bulk callers already loaded stored definitions together. Explicit null means
 // that batch found no grant; undefined retains the single-grant read path.
-export const loadGrantFromConfigVersion = async (
+const loadGrantFromConfigVersion = async (
   configVersion,
   { storedGrant } = {},
 ) => {
@@ -233,4 +234,24 @@ export const loadGrantFromConfigVersion = async (
   );
 
   return { grant, resolvedVersion, definitionSource: DefinitionSource.S3 };
+};
+
+// Resolve stored definitions together, retaining the single-grant loader's
+// fetch-status checks and S3 failure behaviour for every selected version.
+export const loadGrantsFromConfigVersions = async (versions) => {
+  const stored = await findByCodesAndVersions(
+    versions.filter((version) => version.fetchStatus === FetchStatus.Fetched),
+  );
+  const byVersion = new Map(
+    stored.map((grant) => [`${grant.code}@${grant.version}`, grant]),
+  );
+  const grants = [];
+  for (const version of versions) {
+    const storedGrant =
+      byVersion.get(`${version.grantCode}@${version.version}`) ?? null;
+    const options = { storedGrant };
+    const { grant } = await loadGrantFromConfigVersion(version, options); // NOSONAR: Bound exceptional S3 fetch concurrency.
+    grants.push(grant);
+  }
+  return grants;
 };
