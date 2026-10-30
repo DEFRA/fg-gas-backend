@@ -41,6 +41,7 @@ export class Grant {
     this.code = code;
     this.version = version;
     this.metadata = {
+      ...(metadata.title !== undefined && { title: metadata.title }),
       description: metadata.description,
       startDate: metadata.startDate,
     };
@@ -59,6 +60,10 @@ export class Grant {
     this.#assertEntitlementTemplateClaimCodesUnique();
     this.#assertEntitlementTemplatePositionsExist();
     this.#assertClaimApprovalPositionsExist();
+  }
+
+  get title() {
+    return this.metadata.title ?? this.metadata.description;
   }
 
   // Builds a Grant from a published grant definition, so a definition can be checked

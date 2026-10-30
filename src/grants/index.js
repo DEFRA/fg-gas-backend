@@ -21,6 +21,10 @@ import {
 } from "./routes/check-allow-list.route.js";
 import { getAvailableClaimsRoute } from "./routes/get-available-claims.route.js";
 import {
+  getAvailableGrantsRoute,
+  missingAvailableGrantsIdentifiersRoute,
+} from "./routes/get-available-grants.route.js";
+import {
   invokeGetActionRoute,
   invokePostActionRoute,
 } from "./routes/invoke-action.route.js";
@@ -68,6 +72,8 @@ export const grants = {
     });
 
     server.route([
+      getAvailableGrantsRoute,
+      missingAvailableGrantsIdentifiersRoute,
       checkAllowListRoute,
       missingAllowListIdentifiersRoute,
       invokeGetActionRoute,

@@ -31,8 +31,13 @@ references, `990000…` UPRNs, `AA…` parcel references and `ZZ99 …` postcode
 locally generated examples; they are not assigned or reserved RPA identifiers.
 Agreement references beginning `FPTT900000`, `PMF900000` or `WMP900000` are
 also invented examples, not assigned or reserved agreement numbers. No
-relationship to an actual customer or business is intended. Explicit placeholder
-and boundary values remain in validation tests.
+relationship to an actual customer or business is intended.
+
+Use invented nine-digit SBIs and ten-digit CRNs beginning with `9` in examples
+and ordinary test fixtures, such as `900000001` and `9000000001`. Only explicitly
+named validation or boundary tests should use other formats or prefixes, for
+example to verify preservation of leading zeroes. Never copy real customer SBI
+or CRN values into source, tests or documentation.
 
 Contact email addresses use `example.test`. Telephone examples use
 [Ofcom's drama ranges](https://www.ofcom.org.uk/phones-and-broadband/phone-numbers/numbers-for-drama).
@@ -381,6 +386,43 @@ All responses use `Cache-Control: no-store`. A server error means eligibility
 could not be checked.
 
 SFD gets its own client pair via the existing provisioning process above.
+
+#### Available grants
+
+`GET /api/allow-list/grants/sbi/{sbi}` requires service authentication and a
+nine-digit SBI. It returns the available grants, for example:
+
+```json
+{
+  "grants": [
+    {
+      "code": "woodland",
+      "title": "Woodland Management Plan",
+      "description": "Woodland Management Plan"
+    }
+  ]
+}
+```
+
+The result is `{ "grants": [] }` when none are available. Each description comes
+from `metadata.description` in the selected grant config. The title comes from
+optional `metadata.title`, falling back to `metadata.description` when absent.
+Titles and descriptions come from the same version; populating config titles
+is separate work. URLs are excluded.
+
+GAS considers the latest Active Config Version of each grant across all majors.
+A grant must be open and satisfy its populated SBI restriction. This business
+access check does not accept or evaluate CRN; the individual grant endpoint
+continues to check both SBI and CRN. Missing settings mean closed; missing
+allowlists mean unrestricted. Closed grants are
+excluded before definition loading. A required definition, database or success
+audit failure fails the whole request; results are never partial.
+
+Every request reads current settings and restrictions. Stored definitions are
+read in a batch; unstored current definitions use the existing S3 loading path.
+Responses use `Cache-Control: no-store` and contain unique grants sorted by code.
+The service records `GET_AVAILABLE_GRANTS` audits with the authenticated caller,
+business SBI and, on success, the returned codes.
 
 #### Revoke
 

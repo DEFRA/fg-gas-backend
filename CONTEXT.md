@@ -122,3 +122,9 @@ _Avoid_: on entry.
 
 **Grant Access**
 : The decision combining Grant Availability and the Global Allow List. Access is allowed only when the grant is open and the applicant satisfies each populated identifier restriction.
+
+**Business Grant Access**
+: The decision combining Grant Availability and the business's SBI restriction in the Global Allow List. CRN restrictions do not apply to this decision.
+
+**Grant Title**
+: The display name configured for a grant. When no title is configured, its description serves as its title.

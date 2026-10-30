@@ -176,9 +176,13 @@ export class GrantAllowList {
   }
 
   allows({ sbi, crn }) {
-    const sbiOk = satisfiesRestriction(this.global.sbi, sbi);
+    const sbiOk = this.allowsBusiness({ sbi });
     const crnOk = satisfiesRestriction(this.global.crn, crn);
     return sbiOk && crnOk;
+  }
+
+  allowsBusiness({ sbi }) {
+    return satisfiesRestriction(this.global.sbi, sbi);
   }
 
   toJSON() {

@@ -54,7 +54,11 @@ export const missingAllowListIdentifiersRoute = {
   },
   handler(request) {
     if (isOmittedIdentifier(request.params.remainder)) {
-      throw Boom.badRequest("Both SBI and CRN are required");
+      const message =
+        request.params.grantCode === "sbi"
+          ? "SBI is required"
+          : "Both SBI and CRN are required";
+      throw Boom.badRequest(message);
     }
     throw Boom.notFound();
   },
