@@ -112,12 +112,12 @@ describe("settings batch reads", () => {
 describe("allowlist batch reads", () => {
   it("hydrates only requested lists and leaves absent lists unrestricted for the domain", async () => {
     await db.collection("allow_lists").insertMany([
-      { grantCode: "woodland", global: { sbi: ["000000001"], crn: [] } },
+      { grantCode: "woodland", global: { sbi: ["900000001"], crn: [] } },
       { grantCode: "other", global: { sbi: [], crn: [] } },
     ]);
     const found = await lists.findByGrantCodes(["woodland", "missing"]);
     expect(found.map((item) => item.toJSON())).toEqual([
-      { grantCode: "woodland", global: { sbi: ["000000001"], crn: [] } },
+      { grantCode: "woodland", global: { sbi: ["900000001"], crn: [] } },
     ]);
     expect(await lists.findByGrantCodes([])).toEqual([]);
   });
@@ -180,7 +180,7 @@ describe("bulk read stored-state validation", () => {
   });
 });
 
-const applicant = { sbi: "000000001", caller: "grants-ui" };
+const applicant = { sbi: "900000001", caller: "grants-ui" };
 const available = async (input = applicant) => {
   const { withRequestContext } =
     await import("../../common/get-request-context.js");
@@ -231,7 +231,7 @@ describe("available grant domain parity", () => {
       const individual = await withRequestContext({}, () =>
         checkGrantAllowListUseCase({
           ...applicant,
-          crn: "0000000001",
+          crn: "9000000001",
           grantCode: "woodland",
         }),
       );
@@ -246,13 +246,13 @@ describe("available grant domain parity", () => {
   );
   it.each([
     [[], [], true, true],
-    [["000000001"], [], true, true],
-    [["000000002"], [], false, false],
-    [[], ["0000000001"], true, true],
-    [[], ["0000000002"], false, true],
-    [["000000001"], ["0000000001"], true, true],
-    [["000000001"], ["0000000002"], false, true],
-    [["000000002"], ["0000000001"], false, false],
+    [["900000001"], [], true, true],
+    [["900000002"], [], false, false],
+    [[], ["9000000001"], true, true],
+    [[], ["9000000002"], false, true],
+    [["900000001"], ["9000000001"], true, true],
+    [["900000001"], ["9000000002"], false, true],
+    [["900000002"], ["9000000001"], false, false],
   ])(
     "uses SBI-only business access while individual access checks both restrictions: %j / %j",
     async (sbi, crn, allowed, businessAllowed) => {
@@ -268,7 +268,7 @@ describe("available grant domain parity", () => {
         await withRequestContext({}, () =>
           checkGrantAllowListUseCase({
             ...applicant,
-            crn: "0000000001",
+            crn: "9000000001",
             grantCode: "woodland",
           }),
         ),
@@ -307,7 +307,7 @@ describe("available grant domain parity", () => {
       .updateOne({ grantCode: "woodland" }, { $set: { open: true } });
     await db.collection("allow_lists").insertOne({
       grantCode: "woodland",
-      global: { sbi: ["000000002"], crn: [] },
+      global: { sbi: ["900000002"], crn: [] },
     });
     expect(await available()).toEqual({ grants: [] });
   });
@@ -339,7 +339,7 @@ describe("available grant definition failures", () => {
       "FAILURE",
     ]);
     expect(audits[1].event.audit).toMatchObject({
-      accounts: { sbi: "000000001" },
+      accounts: { sbi: "900000001" },
       details: { caller: "grants-ui" },
     });
     expect(audits[1].event.audit.details).not.toHaveProperty("grantCodes");

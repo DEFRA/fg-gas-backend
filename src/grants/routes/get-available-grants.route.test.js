@@ -20,7 +20,7 @@ let withRequestContext;
 let ConfigVersion;
 let FetchStatus;
 const base = "/api/allow-list/grants";
-const url = `${base}/sbi/000000001`;
+const url = `${base}/sbi/900000001`;
 const headers = { authorization: "Bearer available-grants-test-token" };
 const inject = (path = url, overrides = {}) =>
   withRequestContext({}, () =>
@@ -94,12 +94,20 @@ afterAll(async () => {
 });
 
 describe("available grants HTTP contract", () => {
+  it("preserves leading zeroes in a synthetic SBI boundary case", async () => {
+    const response = await inject(`${base}/sbi/000000001`);
+    expect(response.statusCode).toBe(200);
+    const audit = await db
+      .collection("outbox")
+      .findOne({ "event.audit.entities.action": "GET_AVAILABLE_GRANTS" });
+    expect(audit.event.audit.accounts.sbi).toBe("000000001");
+  });
   it("returns metadata using SBI alone despite populated CRN restrictions", async () => {
     await db.collection("allow_lists").insertOne({
       grantCode: "woodland",
-      global: { sbi: ["000000001"], crn: ["0000000002"] },
+      global: { sbi: ["900000001"], crn: ["9000000002"] },
     });
-    const response = await inject(`${base}/sbi/000000001`);
+    const response = await inject(`${base}/sbi/900000001`);
     expect(response.statusCode).toBe(200);
     expect(response.result).toEqual({
       grants: [
@@ -169,10 +177,10 @@ describe("available grants authentication and validation", () => {
     expect(audit.event.audit.details.caller).toBe("legacy-grants-ui");
   });
   it.each([
-    `${base}/sbi/00000001`,
-    `${base}/sbi/0000000001`,
-    `${base}/sbi/00000000A`,
-    `${url}?crn=0000000001`,
+    `${base}/sbi/90000001`,
+    `${base}/sbi/9000000001`,
+    `${base}/sbi/90000000A`,
+    `${url}?crn=9000000001`,
     `${url}?version=1.0.0`,
     `${url}?caller=spoofed`,
   ])("rejects invalid input %s", async (path) => {
@@ -190,7 +198,7 @@ describe("available grants authentication and validation", () => {
   });
   it("keeps the individual grant API working alongside the bulk API", async () => {
     const response = await inject(
-      `${base}/woodland/sbi/000000001/crn/0000000001`,
+      `${base}/woodland/sbi/900000001/crn/9000000001`,
     );
     expect(response.statusCode).toBe(200);
     expect(response.result).toEqual({ allowed: true });
@@ -198,7 +206,7 @@ describe("available grants authentication and validation", () => {
 });
 
 describe("available grants audited HTTP results", () => {
-  it("records caller and zero-prefixed applicant identifiers before returning codes", async () => {
+  it("records caller and the synthetic business SBI before returning grants", async () => {
     const response = await inject(url, {
       headers: { ...headers, "x-actor": "spoofed" },
     });
@@ -213,7 +221,7 @@ describe("available grants audited HTTP results", () => {
       security: { pmccode: "0706" },
       audit: {
         status: "SUCCESS",
-        accounts: { sbi: "000000001" },
+        accounts: { sbi: "900000001" },
         details: { caller: "grants-ui", grantCodes: ["woodland"] },
       },
     });
@@ -276,7 +284,7 @@ describe("available grants audited HTTP results", () => {
 });
 
 describe("SBI-only bulk request shape", () => {
-  it.each([`${base}/sbi/000000001/crn/0000000001`, `${base}/crn/0000000001`])(
+  it.each([`${base}/sbi/900000001/crn/9000000001`, `${base}/crn/9000000001`])(
     "does not expose a bulk CRN path: %s",
     async (path) => {
       expect((await inject(path)).statusCode).toBe(404);

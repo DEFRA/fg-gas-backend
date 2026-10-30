@@ -31,8 +31,13 @@ references, `990000…` UPRNs, `AA…` parcel references and `ZZ99 …` postcode
 locally generated examples; they are not assigned or reserved RPA identifiers.
 Agreement references beginning `FPTT900000`, `PMF900000` or `WMP900000` are
 also invented examples, not assigned or reserved agreement numbers. No
-relationship to an actual customer or business is intended. Explicit placeholder
-and boundary values remain in validation tests.
+relationship to an actual customer or business is intended.
+
+Use invented nine-digit SBIs and ten-digit CRNs beginning with `9` in examples
+and ordinary test fixtures, such as `900000001` and `9000000001`. Only explicitly
+named validation or boundary tests should use other formats or prefixes, for
+example to verify preservation of leading zeroes. Never copy real customer SBI
+or CRN values into source, tests or documentation.
 
 Contact email addresses use `example.test`. Telephone examples use
 [Ofcom's drama ranges](https://www.ofcom.org.uk/phones-and-broadband/phone-numbers/numbers-for-drama).
