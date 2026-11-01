@@ -55,6 +55,20 @@ The audit `Outbox` entry is written into the same MongoDB transaction as the bus
 | `src/common/request-context.js`   | AsyncLocalStorage store for `user`, `subject`, `sessionId`, `ip` — populated per HTTP request in `server.js` |
 | `src/server.js`                   | `onRequest` extension that wraps `_lifecycle` / `_postCycle` with `withRequestContext`                       |
 
+### Envelope values (FGP-1536)
+
+The envelope is built in one place, `buildPayload` in `src/events/write-audit-event.js`, to the FCP audit standard ("Publishing Audit events" in Confluence, and the `fcp-audit` AsyncAPI schema). The values that are not simply passed through:
+
+| Field          | Value                                                     | Why                                                                                                                                                                                                                                        |
+| -------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `version`      | `AUDIT_SCHEMA_VERSION` (`1.0.0`)                          | The event **schema** version, not the service's release version. Mirrors `DEFAULT_VERSION` in `@defra/fcp-audit-publisher`, which this service never picks up because it publishes through its own outbox rather than `publishAuditEvent`. |
+| `application`  | `AUDIT_APPLICATION` (`Grants`)                            | The GIO application name, shared across every Grants Platform service.                                                                                                                                                                     |
+| `environment`  | `toAuditEnvironment(config.cdpEnvironment)` — `cdp-<env>` | CDP supplies `dev` / `test` / `prod`; the standard wants them prefixed. Applied here rather than to `config.cdpEnvironment`, which also names the CloudEvent types GAS and Caseworking route on. A run with no `ENVIRONMENT` is `local`.   |
+| `user`         | `AAD/<entra object id>`                                   | The standard names the issuing identity provider. Every user this service records is the Entra object id `setAuditActor` takes off `x-actor-id`.                                                                                           |
+| `audit.status` | `success` / `failure` (`auditStatus`)                     | The standard is lower case.                                                                                                                                                                                                                |
+
+The entity and action vocabulary (`auditEntities`, `auditActions`) is deliberately left upper case — out of scope for FGP-1536, and the schema lower-cases both on validation anyway.
+
 ### Wiring a use-case
 
 The inner function (the write operation) is extracted and wrapped separately from the exported use-case. `withAudit` returns a Proxy that is transparent to callers.

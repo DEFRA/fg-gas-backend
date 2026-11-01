@@ -233,7 +233,7 @@ describe("PUT /grant-admin/grants/{code}/applications/{clientRef}/claims/entitle
       actor: "Ada Lovelace",
       values: [{ field: "totalHectares", from: 45.5, to: 30, unit: "HA" }],
     });
-    expect(audit.event.audit.status).toBe("SUCCESS");
+    expect(audit.event.audit.status).toBe("success");
   });
 
   it("refuses with ENTITLEMENT_CLAIMED and changes nothing once a claim has been made", async () => {

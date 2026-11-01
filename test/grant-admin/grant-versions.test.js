@@ -537,10 +537,10 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].segregationRef).toBe("admin-view-grant-version");
     expect(rows[0].event).toMatchObject({
-      user: OID,
+      user: `AAD/${OID}`,
       security: { pmccode: "0706" },
       audit: {
-        status: "SUCCESS",
+        status: "success",
         entities: [
           { entity: "GRANT", action: "VIEW_GRANT_VERSION", entityid: CODE },
         ],
@@ -557,7 +557,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/{tab}", () => {
     expect(error.output.statusCode).toBe(404);
     expect(error.data.payload.reason).toBe("GRANT_VERSION_NOT_FOUND");
     const [row] = await auditRows("VIEW_GRANT_VERSION");
-    expect(row.event.audit.status).toBe("FAILURE");
+    expect(row.event.audit.status).toBe("failure");
     expect(row.event.audit.details.tab).toBe("overview");
   });
 });
@@ -593,7 +593,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/payment", () => {
     const rows = await auditRows("VIEW_GRANT_VERSION");
     expect(rows).toHaveLength(1);
     expect(rows[0].event.audit).toMatchObject({
-      status: "SUCCESS",
+      status: "success",
       details: { version: "2.0.0", tab: "payment" },
     });
   });
@@ -665,7 +665,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/payment", () => {
     expect(error.output.statusCode).toBe(404);
     expect(error.data.payload.reason).toBe("NO_DEFINITION_FILE");
     const [row] = await auditRows("VIEW_GRANT_VERSION");
-    expect(row.event.audit.status).toBe("FAILURE");
+    expect(row.event.audit.status).toBe("failure");
     expect(row.event.audit.details.tab).toBe("payment");
   });
 });
@@ -947,7 +947,7 @@ describe("GET /grant-admin/grants/{code}/versions/{version}/entitlements", () =>
     const rows = await auditRows("VIEW_GRANT_VERSION");
     expect(rows).toHaveLength(1);
     expect(rows[0].event.audit).toMatchObject({
-      status: "SUCCESS",
+      status: "success",
       details: { version: "2.0.0", tab: "entitlements" },
     });
   });
@@ -1223,10 +1223,10 @@ describe("POST /grant-admin/grants/{code}/versions/{version}/fetch", () => {
     const rows = await auditRows("FETCH_CONFIG_DEFINITION");
     expect(rows).toHaveLength(1);
     expect(rows[0].event).toMatchObject({
-      user: OID,
+      user: `AAD/${OID}`,
       security: { pmccode: "0706" },
       audit: {
-        status: "SUCCESS",
+        status: "success",
         entities: [
           {
             entity: "GRANT",
@@ -1343,7 +1343,7 @@ describe("POST /grant-admin/grants/{code}/versions/{version}/fetch", () => {
     expect(error.data.payload.reason).toBe("GRANT_VERSION_NOT_FOUND");
     const [row] = await auditRows("FETCH_CONFIG_DEFINITION");
     expect(row.event.audit).toMatchObject({
-      status: "FAILURE",
+      status: "failure",
       details: { files: [], errorCode: "GRANT_VERSION_NOT_FOUND" },
     });
   });

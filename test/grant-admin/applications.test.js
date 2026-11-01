@@ -349,7 +349,7 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     expect(error.data.payload.reason).toBe("APPLICATION_NOT_FOUND");
 
     const [row] = await auditRows("VIEW_APPLICATION");
-    expect(row.event.audit.status).toBe("FAILURE");
+    expect(row.event.audit.status).toBe("failure");
     expect(row.event.audit.details.tab).toBe("overview");
     expect(row.event.audit.accounts).toBeUndefined();
   });
@@ -363,10 +363,10 @@ describe("GET /grant-admin/grants/{code}/applications/{clientRef}/{tab}", () => 
     expect(rows).toHaveLength(1);
     expect(rows[0].segregationRef).toBe("admin-view-application");
     expect(rows[0].event).toMatchObject({
-      user: OID,
+      user: `AAD/${OID}`,
       security: { pmccode: "0706" },
       audit: {
-        status: "SUCCESS",
+        status: "success",
         entities: [
           {
             entity: "APPLICATION",
@@ -432,7 +432,7 @@ describe("the operator on the existing event routes", () => {
     expect(detail.searchRef).toBe("ref-1-woodland");
 
     const [row] = await auditRows("VIEW_EVENT");
-    expect(row.event.user).toBe(OID);
+    expect(row.event.user).toBe(`AAD/${OID}`);
     expect(row.event.security.pmccode).toBe("0706");
   });
 

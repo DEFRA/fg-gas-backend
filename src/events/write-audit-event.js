@@ -4,6 +4,13 @@ import { randomUUID } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import { Outbox } from "./models/outbox.js";
 import { insertMany } from "./repositories/outbox.repository.js";
+import {
+  AAD_USER_PREFIX,
+  AUDIT_APPLICATION,
+  AUDIT_SCHEMA_VERSION,
+  CDP_ENVIRONMENT_PREFIX,
+  LOCAL_ENVIRONMENT,
+} from "./audit-constants.js";
 import { auditStamps } from "./stamps.js";
 import { config } from "../common/config.js";
 import { getRequestContext } from "../common/get-request-context.js";
@@ -12,7 +19,29 @@ import { logger } from "../common/logger.js";
 // helpers to stop lint complaining about complexity.
 const buildSecurity = (security) => security && { security };
 const getCorrelationId = () => getTraceId() ?? randomUUID();
-const getUser = (context) => context?.user ?? undefined;
+
+// Every user this service records is the Entra object id `setAuditActor` took
+// off the request, so the provider prefix is the envelope's to add - not a
+// caller's to remember. Guarded so an already-prefixed id is not prefixed twice.
+const prefixAad = (user) =>
+  user.startsWith(AAD_USER_PREFIX) ? user : `${AAD_USER_PREFIX}${user}`;
+
+const getUser = (context) =>
+  context?.user ? prefixAad(context.user) : undefined;
+
+// Applied here rather than to `config.cdpEnvironment`, which also names the
+// CloudEvent types GAS and Caseworking route on - prefixing that would stop
+// those services recognising each other's events.
+export const toAuditEnvironment = (environment) => {
+  if (!environment) {
+    return LOCAL_ENVIRONMENT;
+  }
+
+  return environment.startsWith(CDP_ENVIRONMENT_PREFIX)
+    ? environment
+    : `${CDP_ENVIRONMENT_PREFIX}${environment}`;
+};
+
 const getSession = (context) => context?.sessionId ?? undefined;
 const getIP = (context) => context?.ip ?? getServiceIp();
 const getServiceIp = () => {
@@ -67,10 +96,10 @@ export const buildPayload = (
   { entities, accounts, status, security, details },
 ) => ({
   datetime: new Date().toISOString(),
-  version: config.serviceVersion,
-  application: "Grants Platform",
+  version: AUDIT_SCHEMA_VERSION,
+  application: AUDIT_APPLICATION,
   component: config.serviceName,
-  environment: config.cdpEnvironment,
+  environment: toAuditEnvironment(config.cdpEnvironment),
   correlationid: getCorrelationId(),
   user: getUser(context),
   sessionid: getSession(context),

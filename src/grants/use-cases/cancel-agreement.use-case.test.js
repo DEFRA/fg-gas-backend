@@ -91,7 +91,7 @@ describe("cancel agreement use case", () => {
           eventData: command.eventData,
         },
         segregationRef: "cancel-agreement-agreement-123",
-        status: "SUCCESS",
+        status: "success",
       }),
       session,
     );

@@ -379,7 +379,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
         box: "inbox",
         reasonCode: "OTHER",
       });
-      expect(audit.event.audit.status).toBe("SUCCESS");
+      expect(audit.event.audit.status).toBe("success");
 
       // The note is free text that can name whoever the operator wrote about,
       // so it stays on the row alone.
@@ -403,7 +403,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/purge", () => {
         "event.audit.entities.entityid": doc._id.toHexString(),
       });
 
-      expect(audit.event.audit.status).toBe("FAILURE");
+      expect(audit.event.audit.status).toBe("failure");
     });
 
     it("409s on a second purge of an already purged row", async () => {

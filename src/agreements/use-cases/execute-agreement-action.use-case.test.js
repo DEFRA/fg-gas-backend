@@ -250,7 +250,7 @@ describe("executeAgreementActionUseCase", () => {
     });
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "FAILURE",
+        status: "failure",
         details: expect.objectContaining({
           state: "offered",
           version: 1,
@@ -378,7 +378,7 @@ describe("executeAgreementActionUseCase", () => {
     expect(withTransaction).not.toHaveBeenCalled();
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "FAILURE",
+        status: "failure",
         details: expect.objectContaining({
           state: "offered",
           version: 1,

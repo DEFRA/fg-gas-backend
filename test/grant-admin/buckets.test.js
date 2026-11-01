@@ -364,7 +364,7 @@ describe("POST /grant-admin/buckets/{bucketId}/query", () => {
     expect(others).toEqual([]);
     expect(row).toMatchObject({ eventType: "Audit" });
     expect(row.event).toMatchObject({
-      user: OID,
+      user: `AAD/${OID}`,
       audit: { entities: [{ entity: "BUCKET", entityid: "gas.applications" }] },
     });
     expect(row.event.audit.details).toMatchObject({
