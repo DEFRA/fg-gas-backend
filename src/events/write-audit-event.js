@@ -33,7 +33,7 @@ const getUser = (context) =>
 // CloudEvent types GAS and Caseworking route on - prefixing that would stop
 // those services recognising each other's events.
 export const toAuditEnvironment = (environment) => {
-  if (!environment) {
+  if (!environment || environment === LOCAL_ENVIRONMENT) {
     return LOCAL_ENVIRONMENT;
   }
 

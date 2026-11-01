@@ -332,7 +332,7 @@ describe("toAuditEnvironment", () => {
     expect(toAuditEnvironment(environment)).toBe(expected);
   });
 
-  it.each([undefined, null, ""])(
+  it.each([undefined, null, "", "local"])(
     "names a run with no CDP environment (%s) local",
     (environment) => {
       expect(toAuditEnvironment(environment)).toBe("local");
