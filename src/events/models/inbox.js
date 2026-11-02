@@ -133,6 +133,10 @@ export class Inbox {
     this.claimExpiresAt = null;
   }
 
+  isDeadLetter() {
+    return this.status === InboxStatus.DEAD_LETTER;
+  }
+
   toDocument() {
     return {
       _id: this._id,

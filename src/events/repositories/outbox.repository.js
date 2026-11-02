@@ -176,6 +176,11 @@ export const updateResubmittedEvents = async () => {
   return results;
 };
 
+export const countDeadLetters = () =>
+  db
+    .collection(collection)
+    .countDocuments({ status: OutboxStatus.DEAD_LETTER });
+
 export const updateDeadEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {

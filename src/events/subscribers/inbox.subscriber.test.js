@@ -24,7 +24,9 @@ import {
   findNextMessage,
   processExpiredEvents,
   update,
+  updateDeadEvents,
 } from "../repositories/inbox.repository.js";
+import { markPermanentFailure } from "../retryable.js";
 
 import { InboxSubscriber } from "./inbox.subscriber.js";
 
@@ -267,7 +269,7 @@ describe("inbox.subscriber", () => {
       });
       freeFifoLock.mockResolvedValue();
       cleanupStaleLocks.mockResolvedValue({ modifiedCount: 1 });
-      deadLetterEvent.mockResolvedValue();
+      deadLetterEvent.mockResolvedValue({ modifiedCount: 1 });
 
       const subscriber = new InboxSubscriber();
       subscriber.start();
@@ -404,6 +406,7 @@ describe("InboxSubscriber failure reasons", () => {
       traceparent: "1234-abcd",
       event: { data: { currentStatus: "APPROVE" } },
       markAsFailed: vi.fn(),
+      isDeadLetter: () => false,
     };
 
     await new InboxSubscriber().handleEvent(message);
@@ -421,6 +424,7 @@ describe("InboxSubscriber failure reasons", () => {
       type: "u.nknown.event.id",
       source: "unknown",
       markAsFailed: vi.fn(),
+      isDeadLetter: () => false,
     };
 
     await new InboxSubscriber().handleEvent(message);
@@ -430,7 +434,11 @@ describe("InboxSubscriber failure reasons", () => {
 
   it("forwards the error through markEventFailed to the model", async () => {
     const failure = new Error("boom");
-    const message = { messageId: "m-1", markAsFailed: vi.fn() };
+    const message = {
+      messageId: "m-1",
+      markAsFailed: vi.fn(),
+      isDeadLetter: () => false,
+    };
 
     await new InboxSubscriber().markEventFailed(message, failure);
 
@@ -446,6 +454,7 @@ describe("InboxSubscriber writes only while it holds the claim", () => {
     messageId: "m-1",
     markAsComplete: vi.fn(),
     markAsFailed: vi.fn(),
+    isDeadLetter: () => false,
   });
 
   it.each([
@@ -495,5 +504,96 @@ describe("InboxSubscriber writes only while it holds the claim", () => {
     await subscriber.processWithLock("claim-token-2", "ref-1");
 
     expect(seen).toBe("claim-token-2");
+  });
+});
+
+describe("InboxSubscriber dead letter logs", () => {
+  it("warns with the count when the sweep moves rows", async () => {
+    updateDeadEvents.mockResolvedValue({ modifiedCount: 2 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new InboxSubscriber().processDeadEvents();
+
+    expect(warn.mock.calls).toEqual([
+      ["2 events in inbox became dead letters"],
+    ]);
+  });
+
+  it("logs nothing when the sweep moves no rows", async () => {
+    updateDeadEvents.mockResolvedValue({ modifiedCount: 0 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new InboxSubscriber().processDeadEvents();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("warns about a row dead-lettered for having no segregationRef", async () => {
+    getFifoLocks.mockResolvedValue([]);
+    findNextMessage
+      .mockResolvedValueOnce({ _id: "row-1", segregationRef: null })
+      .mockResolvedValueOnce(null);
+    deadLetterEvent.mockResolvedValue({ modifiedCount: 1 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new InboxSubscriber().getNextAvailable();
+
+    expect(warn.mock.calls).toEqual([
+      ["Event row-1 in inbox became a dead letter: missing segregation ref"],
+    ]);
+  });
+
+  // A lagging secondary hands the same row back, and the repeat write is a no-op.
+  it("does not warn about a row an earlier write already dead-lettered", async () => {
+    getFifoLocks.mockResolvedValue([]);
+    findNextMessage
+      .mockResolvedValueOnce({ _id: "row-1", segregationRef: null })
+      .mockResolvedValueOnce(null);
+    deadLetterEvent.mockResolvedValue({ modifiedCount: 0 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new InboxSubscriber().getNextAvailable();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("warns about a non-retryable failure", async () => {
+    update.mockResolvedValue({ matchedCount: 1 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new InboxSubscriber().markEventFailed(
+      createInbox({ _id: "row-1" }),
+      markPermanentFailure(new Error("bad message")),
+    );
+
+    expect(warn.mock.calls).toEqual([
+      ["Event row-1 in inbox became a dead letter: non-retryable failure"],
+    ]);
+  });
+
+  it("does not report a dead letter when the claim was lost", async () => {
+    update.mockResolvedValue({ matchedCount: 0 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new InboxSubscriber().markEventFailed(
+      createInbox({ _id: "row-1" }),
+      markPermanentFailure(new Error("bad message")),
+    );
+
+    expect(warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("became a dead letter"),
+    );
+  });
+
+  it("does not warn about a retryable failure", async () => {
+    update.mockResolvedValue({ matchedCount: 1 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new InboxSubscriber().markEventFailed(
+      createInbox({ _id: "row-1" }),
+      new Error("network"),
+    );
+
+    expect(warn).not.toHaveBeenCalled();
   });
 });

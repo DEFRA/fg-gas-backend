@@ -19,6 +19,7 @@ import {
   purgeById,
   redriveById,
   update,
+  countDeadLetters,
   updateDeadEvents,
   updateFailedEvents,
   updateResubmittedEvents,
@@ -189,6 +190,15 @@ describe("inbox.repository", () => {
         },
       },
     );
+  });
+
+  it("should count dead letters by status", async () => {
+    const countDocuments = vi.fn().mockResolvedValue(3);
+    db.collection.mockReturnValue({ countDocuments });
+
+    expect(await countDeadLetters()).toBe(3);
+
+    expect(countDocuments).toHaveBeenCalledWith({ status: "DEAD_LETTER" });
   });
 
   it("should update dead events", async () => {
