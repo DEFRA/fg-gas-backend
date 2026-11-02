@@ -54,6 +54,7 @@ export const auditActions = {
   VIEW_GRANT_SETTINGS: "VIEW_GRANT_SETTINGS",
   VIEW_ALLOW_LIST: "VIEW_ALLOW_LIST",
   CHECK_ALLOW_LIST: "CHECK_ALLOW_LIST",
+  GET_AVAILABLE_GRANTS: "GET_AVAILABLE_GRANTS",
   REPLACE_ALLOW_LIST: "REPLACE_ALLOW_LIST",
   // Written by no route; kept for the stored audit rows that carry it.
   SEARCH_CASES: "SEARCH_CASES",

@@ -34,6 +34,22 @@ export const toGrant = (doc) =>
 
 export const collection = "grants";
 
+export const findByCodesAndVersions = async (versions) => {
+  if (versions.length === 0) {
+    return [];
+  }
+  const documents = await db
+    .collection(collection)
+    .find({
+      $or: versions.map(({ grantCode, version }) => ({
+        code: grantCode,
+        version,
+      })),
+    })
+    .toArray();
+  return documents.map(toGrant);
+};
+
 export const save = async (grant, session) => {
   const document = new GrantDocument(grant);
 

@@ -6,6 +6,7 @@ import { entitlementTemplates } from "./entitlement-template.js";
 import { externalStatusMap } from "./external-status-map.js";
 import { description } from "./metadata/description.js";
 import { startDate } from "./metadata/start-date.js";
+import { title } from "./metadata/title.js";
 import { pages } from "./pages.js";
 import { phases } from "./phases.js";
 
@@ -22,6 +23,7 @@ const publishedDate = Joi.alternatives(
 export const grantDefinition = Joi.object({
   code: code.required(),
   metadata: Joi.object({
+    title: title.optional(),
     description: description.required(),
     startDate: publishedDate.required(),
   })
