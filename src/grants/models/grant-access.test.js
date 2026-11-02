@@ -51,3 +51,36 @@ describe("grant access", () => {
     expect(access.allows(applicant)).toBe(true);
   });
 });
+
+describe("business grant access", () => {
+  it.each([
+    [[], true, true],
+    [["900000002"], true, true],
+    [["900000004"], true, false],
+    [["900000002"], false, false],
+  ])(
+    "decides using SBI and availability despite CRN restrictions: %j, open=%s",
+    async (sbi, open, allowed) => {
+      const { GrantAccess } = await import("./grant-access.js");
+      const { GrantSettings } = await import("./grant-settings.js");
+      const access = new GrantAccess({
+        settings: new GrantSettings({ grantCode: "woodland", open }),
+        allowList: new GrantAllowList({
+          grantCode: "woodland",
+          global: { sbi, crn: ["9000000001"] },
+        }),
+      });
+      expect(access.allowsBusiness({ sbi: "900000002" })).toBe(allowed);
+      expect(access.allows({ sbi: "900000002", crn: "9000000003" })).toBe(
+        false,
+      );
+    },
+  );
+  it("denies business access when settings are missing", async () => {
+    const { GrantAccess } = await import("./grant-access.js");
+    const access = new GrantAccess({
+      allowList: GrantAllowList.unrestricted("woodland"),
+    });
+    expect(access.allowsBusiness({ sbi: "900000002" })).toBe(false);
+  });
+});

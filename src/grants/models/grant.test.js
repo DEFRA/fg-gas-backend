@@ -402,6 +402,15 @@ describe("Grant", () => {
       );
     });
 
+    it.each([42, "", null])(
+      "rejects an invalid configured title: %j",
+      (title) => {
+        const published = definition();
+        published.metadata.title = title;
+        expect(() => fromDefinition(published)).toThrow(/title/i);
+      },
+    );
+
     it("rejects questions that cannot be compiled", () => {
       const published = definition();
       published.phases[1].questions = { type: "object" };
@@ -1892,4 +1901,33 @@ describe("Grant", () => {
       },
     );
   });
+});
+
+describe("grant display title", () => {
+  it.each([
+    [
+      {
+        title: "Apply for woodland support",
+        description: "Funding for woodland plans",
+      },
+      "Apply for woodland support",
+    ],
+    [
+      { description: "Funding for woodland plans" },
+      "Funding for woodland plans",
+    ],
+  ])(
+    "uses the configured title or falls back to description: %j",
+    (metadata, expectedTitle) => {
+      const grant = createTestGrant({
+        metadata: { ...metadata, startDate: "2026-01-01T00:00:00Z" },
+      });
+      expect(grant.title).toBe(expectedTitle);
+      expect(grant.metadata.description).toBe("Funding for woodland plans");
+      expect(grant.metadata).toEqual({
+        ...metadata,
+        startDate: "2026-01-01T00:00:00Z",
+      });
+    },
+  );
 });

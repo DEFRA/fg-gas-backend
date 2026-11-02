@@ -15,4 +15,8 @@ export class GrantAccess {
   allows(applicant) {
     return this.settings.isOpen() && this.allowList.allows(applicant);
   }
+
+  allowsBusiness(business) {
+    return this.settings.isOpen() && this.allowList.allowsBusiness(business);
+  }
 }

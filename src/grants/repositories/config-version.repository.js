@@ -12,6 +12,21 @@ import {
 
 const collection = "config_versions";
 
+// Like findLatestActive, retain failed current definitions rather than falling
+// back to an older version. Group before hydrating so only current rows load.
+export const findLatestActiveForAll = async () => {
+  const documents = await db
+    .collection(collection)
+    .aggregate([
+      { $match: { status: ConfigVersionStatus.Active } },
+      { $sort: { grantCode: 1, major: -1, minor: -1, patch: -1 } },
+      { $group: { _id: "$grantCode", current: { $first: "$$ROOT" } } },
+      { $replaceWith: "$current" },
+    ])
+    .toArray();
+  return documents.map((doc) => ConfigVersion.fromDocument(doc));
+};
+
 // Resolves the highest active published version across all majors when the
 // caller has no pinned version. Keep failed definitions selectable so loading
 // refuses the current definition rather than silently falling back to an older one.
