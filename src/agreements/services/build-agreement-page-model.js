@@ -184,6 +184,7 @@ const buildPageModel = async ({
     );
 
     return omitUndefined({
+      serviceTitle: agreementDefinition.serviceTitle,
       agreement: toAgreementSummary(agreement),
       page: pageMetadata,
       components: resolvedTree.components,

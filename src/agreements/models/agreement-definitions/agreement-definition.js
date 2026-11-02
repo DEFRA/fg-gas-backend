@@ -48,6 +48,10 @@ export class AgreementDefinition {
     return this.#definition.configVersion;
   }
 
+  get serviceTitle() {
+    return this.#definition.serviceTitle;
+  }
+
   async createAgreement(options) {
     return this.#createAgreement(options);
   }
