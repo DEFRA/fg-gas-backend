@@ -67,7 +67,7 @@ The envelope is built in one place, `buildPayload` in `src/events/write-audit-ev
 | `user`         | `AAD/<entra object id>`                                   | The standard names the issuing identity provider. Every user this service records is the Entra object id `setAuditActor` takes off `x-actor-id`.                                                                                           |
 | `audit.status` | `success` / `failure` (`auditStatus`)                     | The standard is lower case.                                                                                                                                                                                                                |
 
-The entity and action vocabulary (`auditEntities`, `auditActions`) is deliberately left upper case — out of scope for FGP-1536, and the schema lower-cases both on validation anyway.
+The entity and action vocabulary (`auditEntities`, `auditActions`) is deliberately left upper case — out of scope for FGP-1536. The schema accepts upper case and lower-cases both only in the value `validateAuditEvent` returns; the writer publishes the original payload, so the published values stay upper case.
 
 ### Wiring a use-case
 

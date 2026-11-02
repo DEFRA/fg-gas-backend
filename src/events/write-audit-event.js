@@ -22,12 +22,9 @@ const getCorrelationId = () => getTraceId() ?? randomUUID();
 
 // Every user this service records is the Entra object id `setAuditActor` took
 // off the request, so the provider prefix is the envelope's to add - not a
-// caller's to remember. Guarded so an already-prefixed id is not prefixed twice.
-const prefixAad = (user) =>
-  user.startsWith(AAD_USER_PREFIX) ? user : `${AAD_USER_PREFIX}${user}`;
-
+// caller's to remember.
 const getUser = (context) =>
-  context?.user ? prefixAad(context.user) : undefined;
+  context?.user ? `${AAD_USER_PREFIX}${context.user}` : undefined;
 
 // Applied here rather than to `config.cdpEnvironment`, which also names the
 // CloudEvent types GAS and Caseworking route on - prefixing that would stop
@@ -37,9 +34,7 @@ export const toAuditEnvironment = (environment) => {
     return LOCAL_ENVIRONMENT;
   }
 
-  return environment.startsWith(CDP_ENVIRONMENT_PREFIX)
-    ? environment
-    : `${CDP_ENVIRONMENT_PREFIX}${environment}`;
+  return `${CDP_ENVIRONMENT_PREFIX}${environment}`;
 };
 
 const getSession = (context) => context?.sessionId ?? undefined;

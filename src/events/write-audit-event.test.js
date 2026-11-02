@@ -183,15 +183,6 @@ describe("buildPayload", () => {
     expect(result.user).toBe("AAD/a1b2c3d4-1111-2222-3333-444455556666");
   });
 
-  it("does not prefix a user that already carries the AAD scheme", () => {
-    const result = buildPayload(
-      { user: "AAD/a1b2c3d4-1111-2222-3333-444455556666" },
-      { entities: [], details: {}, status: auditStatus.SUCCESS },
-    );
-
-    expect(result.user).toBe("AAD/a1b2c3d4-1111-2222-3333-444455556666");
-  });
-
   it("keeps the prefixed user within the schema's 50-character limit", () => {
     const result = buildPayload(
       { user: "a1b2c3d4-1111-2222-3333-444455556666" },
@@ -338,10 +329,6 @@ describe("toAuditEnvironment", () => {
       expect(toAuditEnvironment(environment)).toBe("local");
     },
   );
-
-  it("leaves an already-prefixed environment alone", () => {
-    expect(toAuditEnvironment("cdp-dev")).toBe("cdp-dev");
-  });
 
   it("stays within the schema's 20-character environment limit", () => {
     expect(toAuditEnvironment("perf-test").length).toBeLessThanOrEqual(20);
