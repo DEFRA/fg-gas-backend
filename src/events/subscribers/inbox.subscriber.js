@@ -4,11 +4,6 @@ import { setTimeout } from "node:timers/promises";
 
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
-import {
-  DeadLetterReason,
-  logDeadLetter,
-  logDeadLettersSwept,
-} from "../services/dead-letter-log.js";
 import { dispatchEvent } from "../services/event-handlers.js";
 import {
   cleanupStaleLocks,
@@ -90,10 +85,8 @@ export class InboxSubscriber {
     if (!available.segregationRef) {
       const { modifiedCount } = await deadLetterEvent(available);
       if (modifiedCount) {
-        logDeadLetter(
-          "inbox",
-          DeadLetterReason.MISSING_SEGREGATION_REF,
-          available,
+        logger.warn(
+          `Event ${available._id} in inbox became a dead letter: missing segregation ref`,
         );
       }
       return this.getNextAvailable();
@@ -105,7 +98,9 @@ export class InboxSubscriber {
   async processDeadEvents() {
     const results = await updateDeadEvents();
     results?.modifiedCount &&
-      logDeadLettersSwept("inbox", results.modifiedCount);
+      logger.warn(
+        `${results.modifiedCount} events in inbox became dead letters`,
+      );
   }
 
   async processExpiredEvents() {
@@ -152,7 +147,9 @@ export class InboxSubscriber {
     if (await this.writeClaimed(inboxEvent)) {
       logger.info(`Marked inbox event unsent ${inboxEvent.messageId}`);
       if (inboxEvent.isDeadLetter()) {
-        logDeadLetter("inbox", DeadLetterReason.NON_RETRYABLE, inboxEvent);
+        logger.warn(
+          `Event ${inboxEvent._id} in inbox became a dead letter: non-retryable failure`,
+        );
       }
     }
   }

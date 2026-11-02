@@ -508,24 +508,15 @@ describe("InboxSubscriber writes only while it holds the claim", () => {
 });
 
 describe("InboxSubscriber dead letter logs", () => {
-  it("warns with the box and count when the sweep moves rows", async () => {
+  it("warns with the count when the sweep moves rows", async () => {
     updateDeadEvents.mockResolvedValue({ modifiedCount: 2 });
     const warn = vi.spyOn(logger, "warn");
 
     await new InboxSubscriber().processDeadEvents();
 
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(
-      {
-        event: {
-          action: "dead_letter",
-          category: "inbox",
-          reason: "retries_exhausted",
-          reference: "2",
-        },
-      },
-      "2 events in inbox became dead letters",
-    );
+    expect(warn.mock.calls).toEqual([
+      ["2 events in inbox became dead letters"],
+    ]);
   });
 
   it("logs nothing when the sweep moves no rows", async () => {
@@ -537,37 +528,23 @@ describe("InboxSubscriber dead letter logs", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("logs a row dead-lettered for having no segregationRef", async () => {
+  it("warns about a row dead-lettered for having no segregationRef", async () => {
     getFifoLocks.mockResolvedValue([]);
     findNextMessage
-      .mockResolvedValueOnce({
-        _id: "row-1",
-        eventType: "an.event",
-        segregationRef: null,
-      })
+      .mockResolvedValueOnce({ _id: "row-1", segregationRef: null })
       .mockResolvedValueOnce(null);
     deadLetterEvent.mockResolvedValue({ modifiedCount: 1 });
     const warn = vi.spyOn(logger, "warn");
 
     await new InboxSubscriber().getNextAvailable();
 
-    expect(warn).toHaveBeenCalledWith(
-      {
-        event: {
-          action: "dead_letter",
-          category: "inbox",
-          type: "an.event",
-          reason: "missing_segregation_ref",
-          reference: "row-1",
-        },
-        error: {},
-      },
-      "Event row-1 in inbox became a dead letter",
-    );
+    expect(warn.mock.calls).toEqual([
+      ["Event row-1 in inbox became a dead letter: missing segregation ref"],
+    ]);
   });
 
   // A lagging secondary hands the same row back, and the repeat write is a no-op.
-  it("does not log a row an earlier write already dead-lettered", async () => {
+  it("does not warn about a row an earlier write already dead-lettered", async () => {
     getFifoLocks.mockResolvedValue([]);
     findNextMessage
       .mockResolvedValueOnce({ _id: "row-1", segregationRef: null })
@@ -580,36 +557,21 @@ describe("InboxSubscriber dead letter logs", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("logs a non-retryable failure as a dead letter", async () => {
+  it("warns about a non-retryable failure", async () => {
     update.mockResolvedValue({ matchedCount: 1 });
     const warn = vi.spyOn(logger, "warn");
-    const message = createInbox({
-      _id: "row-1",
-      eventType: "an.event",
-      event: { data: { secret: true }, time: new Date().toISOString() },
-    });
 
     await new InboxSubscriber().markEventFailed(
-      message,
+      createInbox({ _id: "row-1" }),
       markPermanentFailure(new Error("bad message")),
     );
 
-    expect(warn).toHaveBeenCalledWith(
-      {
-        event: {
-          action: "dead_letter",
-          category: "inbox",
-          type: "an.event",
-          reason: "non_retryable",
-          reference: "row-1",
-        },
-        error: { code: expect.any(String) },
-      },
-      "Event row-1 in inbox became a dead letter",
-    );
+    expect(warn.mock.calls).toEqual([
+      ["Event row-1 in inbox became a dead letter: non-retryable failure"],
+    ]);
   });
 
-  it("does not log a dead letter when the claim was lost", async () => {
+  it("does not report a dead letter when the claim was lost", async () => {
     update.mockResolvedValue({ matchedCount: 0 });
     const warn = vi.spyOn(logger, "warn");
 
@@ -619,12 +581,11 @@ describe("InboxSubscriber dead letter logs", () => {
     );
 
     expect(warn).not.toHaveBeenCalledWith(
-      expect.anything(),
       expect.stringContaining("became a dead letter"),
     );
   });
 
-  it("does not log a dead letter for a retryable failure", async () => {
+  it("does not warn about a retryable failure", async () => {
     update.mockResolvedValue({ matchedCount: 1 });
     const warn = vi.spyOn(logger, "warn");
 

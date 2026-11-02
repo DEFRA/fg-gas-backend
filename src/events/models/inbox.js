@@ -137,10 +137,6 @@ export class Inbox {
     return this.status === InboxStatus.DEAD_LETTER;
   }
 
-  get errorKey() {
-    return withErrorKey(this.lastError).errorKey;
-  }
-
   toDocument() {
     return {
       _id: this._id,

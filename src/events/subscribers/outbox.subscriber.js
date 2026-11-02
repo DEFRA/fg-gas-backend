@@ -10,11 +10,6 @@ import {
 import { logger } from "../../common/logger.js";
 import { publish } from "../../common/sns-client.js";
 import {
-  DeadLetterReason,
-  logDeadLetter,
-  logDeadLettersSwept,
-} from "../services/dead-letter-log.js";
-import {
   dispatchEvent,
   internalEventTarget,
 } from "../services/event-handlers.js";
@@ -64,10 +59,8 @@ export class OutboxSubscriber {
     if (!available.segregationRef) {
       const { modifiedCount } = await deadLetterEvent(available);
       if (modifiedCount) {
-        logDeadLetter(
-          "outbox",
-          DeadLetterReason.MISSING_SEGREGATION_REF,
-          available,
+        logger.warn(
+          `Event ${available._id} in outbox became a dead letter: missing segregation ref`,
         );
       }
       return this.getNextAvailable();
@@ -132,7 +125,9 @@ export class OutboxSubscriber {
   async processDeadEvents() {
     const results = await updateDeadEvents();
     results?.modifiedCount &&
-      logDeadLettersSwept("outbox", results.modifiedCount);
+      logger.warn(
+        `${results.modifiedCount} events in outbox became dead letters`,
+      );
   }
 
   async processResubmittedEvents() {

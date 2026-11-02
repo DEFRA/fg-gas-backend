@@ -689,13 +689,4 @@ describe("inbox model dead letter facts", () => {
 
     expect(inbox.isDeadLetter()).toBe(false);
   });
-
-  it("exposes the error key the row is stored with", () => {
-    const inbox = Inbox.createMock();
-
-    inbox.markAsFailed(new Error("mongo is down"));
-
-    expect(inbox.errorKey).toEqual(expect.any(String));
-    expect(inbox.errorKey).toBe(inbox.toDocument().errorKey);
-  });
 });
