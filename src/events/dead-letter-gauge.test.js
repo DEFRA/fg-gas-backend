@@ -1,12 +1,7 @@
 import { setTimeout } from "node:timers/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../common/logger.js";
-import {
-  DeadLetterGauge,
-  DeadLetterReason,
-  logDeadLetter,
-  logDeadLettersSwept,
-} from "./dead-letters.js";
+import { DeadLetterGauge } from "./dead-letter-gauge.js";
 
 const gauge = vi.hoisted(() => vi.fn());
 
@@ -17,7 +12,7 @@ vi.mock("@defra/cdp-metrics", () => ({
 }));
 vi.mock("node:timers/promises");
 vi.mock("../common/logger.js", () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  logger: { info: vi.fn(), error: vi.fn() },
 }));
 
 const runPasses = async (counts, passes = 1) => {
@@ -113,51 +108,16 @@ describe("DeadLetterGauge", () => {
     );
   });
 
+  it("stays silent on stop when disabled", () => {
+    new DeadLetterGauge({ enabled: false, counts: { inbox } }).stop();
+
+    expect(logger.info).not.toHaveBeenCalled();
+  });
+
   it("stops polling once stopped", async () => {
     await runPasses({ inbox });
     await Promise.resolve();
 
     expect(inbox).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("dead letter logs", () => {
-  it("logs one row's id and error key, with no payload", () => {
-    logDeadLetter("inbox", DeadLetterReason.NON_RETRYABLE, {
-      _id: "row-1",
-      eventType: "case.create",
-      errorKey: "bad message",
-      event: { data: { clientRef: "secret" } },
-    });
-
-    expect(logger.warn).toHaveBeenCalledWith(
-      {
-        event: {
-          action: "dead_letter",
-          category: "inbox",
-          type: "case.create",
-          reason: "non_retryable",
-          reference: "row-1",
-        },
-        error: { code: "bad message" },
-      },
-      "Event row-1 in inbox became a dead letter",
-    );
-  });
-
-  it("logs a sweep's box and count", () => {
-    logDeadLettersSwept("outbox", 2);
-
-    expect(logger.warn).toHaveBeenCalledWith(
-      {
-        event: {
-          action: "dead_letter",
-          category: "outbox",
-          reason: "retries_exhausted",
-          reference: "2",
-        },
-      },
-      "2 events in outbox became dead letters",
-    );
   });
 });

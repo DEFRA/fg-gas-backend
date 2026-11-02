@@ -2,7 +2,7 @@ import hapi from "@hapi/hapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearBuckets, listBuckets } from "../common/buckets/registry.js";
 import { config } from "../common/config.js";
-import { DeadLetterGauge } from "./dead-letters.js";
+import { DeadLetterGauge } from "./dead-letter-gauge.js";
 import { events } from "./index.js";
 import { countDeadLetters as countInboxDeadLetters } from "./repositories/inbox.repository.js";
 import { countDeadLetters as countOutboxDeadLetters } from "./repositories/outbox.repository.js";
@@ -11,7 +11,7 @@ import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.s
 import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
 import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 
-vi.mock("./dead-letters.js");
+vi.mock("./dead-letter-gauge.js");
 vi.mock("./repositories/inbox.repository.js");
 vi.mock("./repositories/outbox.repository.js");
 vi.mock("./subscribers/agreement-status-updated.subscriber.js");

@@ -8,7 +8,7 @@ import {
   DeadLetterReason,
   logDeadLetter,
   logDeadLettersSwept,
-} from "../dead-letters.js";
+} from "../services/dead-letter-log.js";
 import { dispatchEvent } from "../services/event-handlers.js";
 import {
   cleanupStaleLocks,
@@ -151,12 +151,8 @@ export class InboxSubscriber {
     inboxEvent.markAsFailed(error);
     if (await this.writeClaimed(inboxEvent)) {
       logger.info(`Marked inbox event unsent ${inboxEvent.messageId}`);
-      if (!inboxEvent.retryable) {
-        logDeadLetter(
-          "inbox",
-          DeadLetterReason.NON_RETRYABLE,
-          inboxEvent.toDocument(),
-        );
+      if (inboxEvent.isDeadLetter()) {
+        logDeadLetter("inbox", DeadLetterReason.NON_RETRYABLE, inboxEvent);
       }
     }
   }

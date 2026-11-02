@@ -406,7 +406,7 @@ describe("InboxSubscriber failure reasons", () => {
       traceparent: "1234-abcd",
       event: { data: { currentStatus: "APPROVE" } },
       markAsFailed: vi.fn(),
-      retryable: true,
+      isDeadLetter: () => false,
     };
 
     await new InboxSubscriber().handleEvent(message);
@@ -424,7 +424,7 @@ describe("InboxSubscriber failure reasons", () => {
       type: "u.nknown.event.id",
       source: "unknown",
       markAsFailed: vi.fn(),
-      retryable: true,
+      isDeadLetter: () => false,
     };
 
     await new InboxSubscriber().handleEvent(message);
@@ -437,7 +437,7 @@ describe("InboxSubscriber failure reasons", () => {
     const message = {
       messageId: "m-1",
       markAsFailed: vi.fn(),
-      retryable: true,
+      isDeadLetter: () => false,
     };
 
     await new InboxSubscriber().markEventFailed(message, failure);
@@ -454,7 +454,7 @@ describe("InboxSubscriber writes only while it holds the claim", () => {
     messageId: "m-1",
     markAsComplete: vi.fn(),
     markAsFailed: vi.fn(),
-    retryable: true,
+    isDeadLetter: () => false,
   });
 
   it.each([

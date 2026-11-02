@@ -13,7 +13,7 @@ import {
   DeadLetterReason,
   logDeadLetter,
   logDeadLettersSwept,
-} from "../dead-letters.js";
+} from "../services/dead-letter-log.js";
 import {
   dispatchEvent,
   internalEventTarget,
