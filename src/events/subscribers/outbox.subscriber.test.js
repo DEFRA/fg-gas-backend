@@ -511,7 +511,7 @@ describe("outbox.subscriber", () => {
     });
     freeFifoLock.mockResolvedValue();
     cleanupStaleLocks.mockResolvedValue({ modifiedCount: 1 });
-    deadLetterEvent.mockResolvedValue();
+    deadLetterEvent.mockResolvedValue({ modifiedCount: 1 });
 
     const subscriber = new OutboxSubscriber();
     subscriber.start();
@@ -638,5 +638,79 @@ describe("OutboxSubscriber failure reasons", () => {
     await new OutboxSubscriber().markEventUnsent(event, failure);
 
     expect(event.markAsFailed).toHaveBeenCalledWith(failure);
+  });
+});
+
+describe("OutboxSubscriber dead letter logs", () => {
+  it("warns with the box and count when the sweep moves rows", async () => {
+    updateDeadEvents.mockResolvedValue({ modifiedCount: 2 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new OutboxSubscriber().processDeadEvents();
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      {
+        event: {
+          action: "dead_letter",
+          category: "outbox",
+          reason: "retries_exhausted",
+          reference: "2",
+        },
+      },
+      "2 events in outbox became dead letters",
+    );
+  });
+
+  it("logs nothing when the sweep moves no rows", async () => {
+    updateDeadEvents.mockResolvedValue({ modifiedCount: 0 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new OutboxSubscriber().processDeadEvents();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("logs a row dead-lettered for having no segregationRef", async () => {
+    getFifoLocks.mockResolvedValue([]);
+    findNextMessage
+      .mockResolvedValueOnce({
+        _id: "row-1",
+        eventType: "an.event",
+        segregationRef: null,
+      })
+      .mockResolvedValueOnce(null);
+    deadLetterEvent.mockResolvedValue({ modifiedCount: 1 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new OutboxSubscriber().getNextAvailable();
+
+    expect(warn).toHaveBeenCalledWith(
+      {
+        event: {
+          action: "dead_letter",
+          category: "outbox",
+          type: "an.event",
+          reason: "missing_segregation_ref",
+          reference: "row-1",
+        },
+        error: {},
+      },
+      "Event row-1 in outbox became a dead letter",
+    );
+  });
+
+  // A lagging secondary hands the same row back, and the repeat write is a no-op.
+  it("does not log a row an earlier write already dead-lettered", async () => {
+    getFifoLocks.mockResolvedValue([]);
+    findNextMessage
+      .mockResolvedValueOnce({ _id: "row-1", segregationRef: null })
+      .mockResolvedValueOnce(null);
+    deadLetterEvent.mockResolvedValue({ modifiedCount: 0 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new OutboxSubscriber().getNextAvailable();
+
+    expect(warn).not.toHaveBeenCalled();
   });
 });

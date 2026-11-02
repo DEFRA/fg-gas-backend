@@ -1,12 +1,19 @@
 import hapi from "@hapi/hapi";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearBuckets, listBuckets } from "../common/buckets/registry.js";
+import { config } from "../common/config.js";
+import { DeadLetterGauge } from "./dead-letters.js";
 import { events } from "./index.js";
+import { countDeadLetters as countInboxDeadLetters } from "./repositories/inbox.repository.js";
+import { countDeadLetters as countOutboxDeadLetters } from "./repositories/outbox.repository.js";
 import { agreementStatusUpdatedSubscriber } from "./subscribers/agreement-status-updated.subscriber.js";
 import { caseStatusUpdatedSubscriber } from "./subscribers/case-status-updated.subscriber.js";
 import { InboxSubscriber } from "./subscribers/inbox.subscriber.js";
 import { OutboxSubscriber } from "./subscribers/outbox.subscriber.js";
 
+vi.mock("./dead-letters.js");
+vi.mock("./repositories/inbox.repository.js");
+vi.mock("./repositories/outbox.repository.js");
 vi.mock("./subscribers/agreement-status-updated.subscriber.js");
 vi.mock("./subscribers/case-status-updated.subscriber.js");
 vi.mock("./subscribers/inbox.subscriber.js");
@@ -54,5 +61,29 @@ describe("events", () => {
     expect(caseStatusUpdatedSubscriber.stop).toHaveBeenCalledOnce();
     expect(inboxStop).toHaveBeenCalledOnce();
     expect(outboxStop).toHaveBeenCalledOnce();
+  });
+
+  it("owns the dead letter gauge lifecycle", async () => {
+    const gaugeStart = vi.fn();
+    const gaugeStop = vi.fn();
+    DeadLetterGauge.prototype.start = gaugeStart;
+    DeadLetterGauge.prototype.stop = gaugeStop;
+
+    await server.register(events);
+    await server.initialize();
+
+    expect(DeadLetterGauge).toHaveBeenCalledWith({
+      enabled: config.metrics.enabled,
+      counts: {
+        inbox: countInboxDeadLetters,
+        outbox: countOutboxDeadLetters,
+      },
+    });
+
+    server.events.emit("start");
+    expect(gaugeStart).toHaveBeenCalledOnce();
+
+    server.events.emit("stop");
+    expect(gaugeStop).toHaveBeenCalledOnce();
   });
 });

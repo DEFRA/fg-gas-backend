@@ -3,10 +3,12 @@ import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { config } from "../../src/common/config.js";
 import {
+  countDeadLetters as countInbox,
   processExpiredEvents as claimSweepInbox,
   updateDeadEvents as sweepInbox,
 } from "../../src/events/repositories/inbox.repository.js";
 import {
+  countDeadLetters as countOutbox,
   updateExpiredEvents as claimSweepOutbox,
   updateDeadEvents as sweepOutbox,
 } from "../../src/events/repositories/outbox.repository.js";
@@ -200,5 +202,29 @@ describe("outbox dead-letter sweep", () => {
 
     expect(stored.status).toBe("PURGED");
     expect(stored.expireAt).toEqual(A_DELETION_DATE);
+  });
+});
+
+describe("dead letter count", () => {
+  it("counts only DEAD_LETTER rows in the inbox", async () => {
+    await inbox.insertMany([
+      anInboxRow("DEAD_LETTER", ABOVE_CAP),
+      anInboxRow("DEAD_LETTER", 1),
+      anInboxRow("PURGED", ABOVE_CAP),
+      anInboxRow("COMPLETED", 1),
+    ]);
+
+    expect(await countInbox()).toBe(2);
+  });
+
+  it("counts only DEAD_LETTER rows in the outbox", async () => {
+    await outbox.insertMany([
+      anOutboxRow("DEAD_LETTER", ABOVE_CAP),
+      anOutboxRow("DEAD_LETTER", 1),
+      anOutboxRow("PURGED", ABOVE_CAP),
+      anOutboxRow("COMPLETED", 1),
+    ]);
+
+    expect(await countOutbox()).toBe(2);
   });
 });

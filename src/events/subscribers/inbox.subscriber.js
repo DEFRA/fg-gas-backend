@@ -4,6 +4,11 @@ import { setTimeout } from "node:timers/promises";
 
 import { config } from "../../common/config.js";
 import { logger } from "../../common/logger.js";
+import {
+  DeadLetterReason,
+  logDeadLetter,
+  logDeadLettersSwept,
+} from "../dead-letters.js";
 import { dispatchEvent } from "../services/event-handlers.js";
 import {
   cleanupStaleLocks,
@@ -83,7 +88,14 @@ export class InboxSubscriber {
     }
 
     if (!available.segregationRef) {
-      await deadLetterEvent(available);
+      const { modifiedCount } = await deadLetterEvent(available);
+      if (modifiedCount) {
+        logDeadLetter(
+          "inbox",
+          DeadLetterReason.MISSING_SEGREGATION_REF,
+          available,
+        );
+      }
       return this.getNextAvailable();
     } else {
       return available.segregationRef;
@@ -93,7 +105,7 @@ export class InboxSubscriber {
   async processDeadEvents() {
     const results = await updateDeadEvents();
     results?.modifiedCount &&
-      logger.info(`Updated ${results?.modifiedCount} dead inbox events`);
+      logDeadLettersSwept("inbox", results.modifiedCount);
   }
 
   async processExpiredEvents() {
@@ -139,6 +151,13 @@ export class InboxSubscriber {
     inboxEvent.markAsFailed(error);
     if (await this.writeClaimed(inboxEvent)) {
       logger.info(`Marked inbox event unsent ${inboxEvent.messageId}`);
+      if (!inboxEvent.retryable) {
+        logDeadLetter(
+          "inbox",
+          DeadLetterReason.NON_RETRYABLE,
+          inboxEvent.toDocument(),
+        );
+      }
     }
   }
 

@@ -80,6 +80,7 @@ export default [
               target: "**/subscribers/**/!(*.test).js",
               from: ["src/**/**"],
               except: [
+                "**/events/dead-letters.js",
                 "**/use-cases/**",
                 "**/services/**",
                 "**/schemas/**",

@@ -115,6 +115,9 @@ export const processExpiredEvents = async () => {
   return results;
 };
 
+export const countDeadLetters = () =>
+  db.collection(collection).countDocuments({ status: InboxStatus.DEAD_LETTER });
+
 export const updateDeadEvents = async () => {
   const results = await db.collection(collection).updateMany(
     {
