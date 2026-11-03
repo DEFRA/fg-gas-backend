@@ -45,21 +45,35 @@ describe("constructor", () => {
 });
 
 describe("start", () => {
-  it("sets isRunning to true and starts polling", async () => {
+  it("sets isRunning to true and starts polling", () => {
     consumer.poll = vi.fn().mockResolvedValue();
 
-    await consumer.start();
+    consumer.start();
 
     expect(consumer.isRunning).toBe(true);
     expect(consumer.poll).toHaveBeenCalled();
   });
+
+  it("logs a failure that escapes the polling loop", async () => {
+    const err = new Error("poll failed");
+    consumer.poll = vi.fn().mockRejectedValue(err);
+
+    consumer.start();
+
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(
+        { err },
+        `Stopped polling SQS queue ${consumer.queueUrl}`,
+      );
+    });
+  });
 });
 
 describe("stop", () => {
-  it("sets isRunning to false", async () => {
+  it("sets isRunning to false", () => {
     consumer.isRunning = true;
 
-    await consumer.stop();
+    consumer.stop();
 
     expect(consumer.isRunning).toBe(false);
   });

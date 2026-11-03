@@ -167,6 +167,32 @@ afterAll(async () => {
 }, 120_000);
 
 describe("Claim submission and durable Payment request", () => {
+  it("commits a reporting event with the submitted Claim", async () => {
+    await submitClaim({ code, clientRef, payload });
+
+    const claim = await db.collection("claims").findOne({
+      clientClaimRef: "claim-1",
+    });
+    await expect(
+      db.collection("outbox").findOne({ eventType: "ClaimSubmittedReport" }),
+    ).resolves.toMatchObject({
+      segregationRef: "WM987654321",
+      event: {
+        datetime: claim.createdAt,
+        eventData: {
+          eventType: "CLAIM_SUBMITTED",
+          sbi: "900000005",
+          agreementId: "WM987654321",
+          claimId: "claim-1",
+          claimCode: "ENT_1",
+          claimStatus: "SUBMITTED",
+          claimReceiptDate: claim.createdAt,
+          claimValue: 42,
+        },
+      },
+    });
+  });
+
   it("accepts an eligible Claim and publishes its pinned Payment request without creating a Payment", async () => {
     const result = await submitClaim({ code, clientRef, payload });
 
@@ -219,6 +245,11 @@ describe("Claim submission and durable Payment request", () => {
       db.collection("outbox").countDocuments({ target: "internal:event" }),
     ).resolves.toBe(1);
     await expect(
+      db
+        .collection("outbox")
+        .countDocuments({ eventType: "ClaimSubmittedReport" }),
+    ).resolves.toBe(1);
+    await expect(
       db.collection("payments__payments").countDocuments({}),
     ).resolves.toBe(0);
   });
@@ -267,6 +298,11 @@ describe("Claim submission and durable Payment request", () => {
       await expect(
         db.collection("outbox").countDocuments({ target: "internal:event" }),
       ).resolves.toBe(0);
+      await expect(
+        db
+          .collection("outbox")
+          .countDocuments({ eventType: "ClaimSubmittedReport" }),
+      ).resolves.toBe(1);
     } finally {
       await db.collection("config_versions").updateOne(
         { grantCode: code, version: configVersion },
@@ -298,6 +334,20 @@ describe("Claim submission and durable Payment request", () => {
       await expect(outbox.countDocuments({})).resolves.toBe(1);
     } finally {
       await outbox.dropIndex("test_request_identity");
+    }
+  });
+
+  it("rolls back the Claim when its reporting event cannot be persisted", async () => {
+    await db.command({
+      collMod: "outbox",
+      validator: { eventType: { $ne: "ClaimSubmittedReport" } },
+    });
+    try {
+      await expect(submitClaim({ code, clientRef, payload })).rejects.toThrow();
+      await expect(db.collection("claims").countDocuments({})).resolves.toBe(0);
+      await expect(db.collection("outbox").countDocuments({})).resolves.toBe(0);
+    } finally {
+      await db.command({ collMod: "outbox", validator: {} });
     }
   });
 

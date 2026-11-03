@@ -215,10 +215,12 @@ export class OutboxSubscriber {
     return getMessageGroupId(id, data) ?? segregationRef;
   }
 
-  async start() {
+  start() {
     logger.info("Starting outbox subscriber");
     this.running = true;
-    this.poll();
+    this.poll().catch((error) => {
+      logger.error(error, "Outbox subscriber stopped polling");
+    });
   }
 
   stop() {

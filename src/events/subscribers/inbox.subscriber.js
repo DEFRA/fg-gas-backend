@@ -188,7 +188,9 @@ export class InboxSubscriber {
   start() {
     logger.info("starting inbox subscriber");
     this.running = true;
-    this.poll();
+    this.poll().catch((error) => {
+      logger.error(error, "Inbox subscriber stopped polling");
+    });
   }
 
   stop() {

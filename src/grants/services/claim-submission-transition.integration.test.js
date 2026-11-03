@@ -166,6 +166,13 @@ const seedFixture = async (options = {}) => {
     }),
   );
   await db.collection("entitlements").insertMany(entitlements);
+  await db.collection("agreements__agreements").insertOne({
+    _id: `WM${fixtureNumber}`,
+    agreementNumber: `WM${fixtureNumber}`,
+    code,
+    clientRef,
+    correlationId: "df170cc1-5653-4c36-a9cc-0faec3f34027",
+  });
 
   return {
     code,
@@ -223,6 +230,7 @@ beforeEach(async () => {
       "config_versions",
       "entitlements",
       "grants",
+      "agreements__agreements",
       "outbox",
     ].map((collection) => db.collection(collection).deleteMany({})),
   );
@@ -286,6 +294,14 @@ describe("Claim submission application transition", () => {
     });
     await expect(countCommands(fixture)).resolves.toBe(0);
     await expect(countStatusEvents(fixture)).resolves.toBe(0);
+    await expect(
+      db.collection("outbox").findOne({
+        eventType: "ClaimSubmittedReport",
+        "event.eventData.claimId": "claim-1",
+      }),
+    ).resolves.toMatchObject({
+      event: { eventData: { claimStatus: "SUBMITTED" } },
+    });
   });
 
   it("moves the application and publishes the normal event, command, and audits on the final claim", async () => {
@@ -476,6 +492,11 @@ describe("claim supplementary data publication", () => {
     });
     expect(await claimEventsFor(fixture)).toHaveLength(1);
     expect(await countCommands(fixture)).toBe(1);
+    await expect(
+      db
+        .collection("outbox")
+        .countDocuments({ eventType: "ClaimSubmittedReport" }),
+    ).resolves.toBe(1);
   });
   it.each([
     { requiresApproval: true },
