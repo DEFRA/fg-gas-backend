@@ -62,7 +62,7 @@ vi.mock(
 const paymentRequests = () =>
   saveEvents.mock.calls
     .flatMap(([events]) => events)
-    .filter(({ event }) => event.type.endsWith(".claim.payment.requested"));
+    .filter(({ event }) => event.type?.endsWith(".claim.payment.requested"));
 
 const code = "woodland";
 const clientRef = "client-1";
@@ -87,6 +87,7 @@ const payload = {
     grantCode: code,
     clientRef,
     clientClaimRef: "claim-1",
+    sbi: "900000005",
   },
   claim: { entitlementId, totalClaimAmountPence: 100 },
 };
@@ -664,14 +665,21 @@ describe("claims.service", () => {
 
     // A Claim is always made under an Agreement, so a missing one is a broken
     // invariant, not a caller error.
-    it("refuses to pay a Claim whose Agreement is missing", async () => {
-      loadEntitlementReferenceContext.mockResolvedValue({ agreement: null });
+    it.each([false, true])(
+      "refuses a Claim whose Agreement is missing (requiresApproval=%s)",
+      async (requiresApproval) => {
+        resolveCurrentGrantUseCase.mockResolvedValue({
+          grant: requiresApproval ? approvalGrant() : grant(false),
+          resolvedVersion: "1.0.0",
+        });
+        loadEntitlementReferenceContext.mockResolvedValue({ agreement: null });
 
-      await expect(
-        submitClaim({ code, clientRef, payload }),
-      ).rejects.toMatchObject({ output: { statusCode: 500 } });
-      expect(paymentRequests()).toEqual([]);
-    });
+        await expect(
+          submitClaim({ code, clientRef, payload }),
+        ).rejects.toMatchObject({ output: { statusCode: 500 } });
+        expect(paymentRequests()).toEqual([]);
+      },
+    );
 
     // Another template auto-paying must not drag this claim into resolving a
     // definition it never needed.

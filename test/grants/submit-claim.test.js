@@ -112,6 +112,14 @@ const seedGrantAndApplication = async (code) => {
   });
 
   const entitlementId = randomUUID();
+  const agreementNumber = `WM${randomUUID().slice(0, 8)}`;
+  await db.collection("agreements__agreements").insertOne({
+    _id: agreementNumber,
+    agreementNumber,
+    code,
+    clientRef,
+    correlationId: randomUUID(),
+  });
   await entitlements.insertOne({
     _id: entitlementId,
     id: entitlementId,

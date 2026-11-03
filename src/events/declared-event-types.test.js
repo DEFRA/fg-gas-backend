@@ -31,6 +31,7 @@ describe("declared event types", () => {
       "ApplicationStatusUpdated",
       "Audit",
       "ClaimPaymentRequested",
+      "ClaimSubmittedReport",
       "CreateAgreement",
       "CreateAgreementPayment",
       "CreateCase",
