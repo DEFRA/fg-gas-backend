@@ -665,14 +665,21 @@ describe("claims.service", () => {
 
     // A Claim is always made under an Agreement, so a missing one is a broken
     // invariant, not a caller error.
-    it("refuses to pay a Claim whose Agreement is missing", async () => {
-      loadEntitlementReferenceContext.mockResolvedValue({ agreement: null });
+    it.each([false, true])(
+      "refuses a Claim whose Agreement is missing (requiresApproval=%s)",
+      async (requiresApproval) => {
+        resolveCurrentGrantUseCase.mockResolvedValue({
+          grant: requiresApproval ? approvalGrant() : grant(false),
+          resolvedVersion: "1.0.0",
+        });
+        loadEntitlementReferenceContext.mockResolvedValue({ agreement: null });
 
-      await expect(
-        submitClaim({ code, clientRef, payload }),
-      ).rejects.toMatchObject({ output: { statusCode: 500 } });
-      expect(paymentRequests()).toEqual([]);
-    });
+        await expect(
+          submitClaim({ code, clientRef, payload }),
+        ).rejects.toMatchObject({ output: { statusCode: 500 } });
+        expect(paymentRequests()).toEqual([]);
+      },
+    );
 
     // Another template auto-paying must not drag this claim into resolving a
     // definition it never needed.

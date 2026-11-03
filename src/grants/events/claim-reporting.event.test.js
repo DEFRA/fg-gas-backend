@@ -12,7 +12,7 @@ describe("Claim submission reporting", () => {
       claimCode: "ENT_CS_CAPITAL_PA3",
       clientClaimRef: "WMP-6HB-J8E-C0001",
       metadata: {
-        sbi: "113593357",
+        sbi: "900000001",
         submittedAt: "2026-09-09T12:00:00.000Z",
       },
       claim: { entitlementId: "entitlement-1", totalClaimAmountPence: 150025 },
@@ -42,7 +42,7 @@ describe("Claim submission reporting", () => {
         service: "grants",
         eventData: {
           eventType: "CLAIM_SUBMITTED",
-          sbi: "113593357",
+          sbi: "900000001",
           agreementId: "WMP123456789",
           claimId: "WMP-6HB-J8E-C0001",
           claimCode: "ENT_CS_CAPITAL_PA3",
