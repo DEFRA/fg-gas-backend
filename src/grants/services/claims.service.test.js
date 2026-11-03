@@ -62,7 +62,7 @@ vi.mock(
 const paymentRequests = () =>
   saveEvents.mock.calls
     .flatMap(([events]) => events)
-    .filter(({ event }) => event.type.endsWith(".claim.payment.requested"));
+    .filter(({ event }) => event.type?.endsWith(".claim.payment.requested"));
 
 const code = "woodland";
 const clientRef = "client-1";
@@ -87,6 +87,7 @@ const payload = {
     grantCode: code,
     clientRef,
     clientClaimRef: "claim-1",
+    sbi: "900000005",
   },
   claim: { entitlementId, totalClaimAmountPence: 100 },
 };

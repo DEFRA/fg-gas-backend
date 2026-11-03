@@ -2,6 +2,7 @@ import { caseUpdateSupplementaryData } from "../grants/commands/update-case-supp
 import {
   AGREEMENT_CREATED,
   AGREEMENT_STATUS_CHANGED,
+  CLAIM_SUBMITTED,
 } from "@defra/grants-reporting-publisher";
 import { describe, expect, it, vi } from "vitest";
 // Every plugin main.js registers is loaded, so the boxes list every type the
@@ -22,6 +23,7 @@ import { caseUpdateStatus } from "../grants/commands/update-case-status.command.
 import { applicationCreated } from "../grants/events/application-created.event.js";
 import { applicationStatusUpdated } from "../grants/events/application-status-updated.event.js";
 import { claimPaymentRequested } from "../grants/events/claim-payment-requested.event.js";
+import { reportingClaimSubmitted } from "../grants/events/claim-reporting.event.js";
 import { agreementCreate } from "../grants/events/create-agreement.command.js";
 import {
   caseStatusUpdated,
@@ -224,6 +226,19 @@ const declared = [
     refs: [],
   },
   {
+    eventType: reportingClaimSubmitted,
+    sentAs: undefined,
+    boxes: [OUTBOX],
+    event: {
+      eventData: {
+        eventType: CLAIM_SUBMITTED,
+        agreementId: "FPTT000000001",
+        claimId: "claim-1",
+      },
+    },
+    refs: [],
+  },
+  {
     eventType: caseStatusUpdated,
     sentAs: "cloud.defra.local.fg-cw-backend.case.status.updated",
     boxes: [INBOX],
@@ -287,6 +302,7 @@ const notApplicationEvents = {
   AgreementPaymentRequested: "an agreement's, with no client reference",
   AgreementCreatedReport: "an agreement's, with no client reference",
   AgreementStatusChangedReport: "an agreement's, with no client reference",
+  ClaimSubmittedReport: "linked by its publication, from the Claim",
   ConfigVersionUpdated: "a grant's, not an application's",
   CreateAgreementPayment: "linked by its publication, from the Payment",
 };

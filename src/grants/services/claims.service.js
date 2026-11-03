@@ -8,6 +8,7 @@ import { internalEventTarget, saveEvents } from "../../events/index.js";
 import { buildAuditEvent, withAudit } from "../../events/with-audit.js";
 import { withTransaction } from "../../common/with-transaction.js";
 import { ClaimPaymentRequestedEvent } from "../events/claim-payment-requested.event.js";
+import { createClaimSubmittedReportingPublication } from "../events/claim-reporting.event.js";
 import { Claim } from "../models/claim.js";
 import { ClaimableEntitlement } from "../models/claimable-entitlement.js";
 import { lockForUpdate } from "../repositories/application.repository.js";
@@ -376,7 +377,7 @@ const agreementFor = async ({ code, clientRef }, session) => {
 
   if (!agreement) {
     throw Boom.badImplementation(
-      `Claim for "${clientRef}" has no Agreement to report its Payment against`,
+      `Claim for "${clientRef}" has no Agreement to report against`,
     );
   }
 
@@ -384,14 +385,20 @@ const agreementFor = async ({ code, clientRef }, session) => {
 };
 
 const requestClaimPayment = async (
-  { command, claimable, configVersion, paymentConfigured, executedAt },
+  {
+    command,
+    claimable,
+    agreement,
+    configVersion,
+    paymentConfigured,
+    executedAt,
+  },
   session,
 ) => {
   if (!paymentConfigured || claimable.claim?.requiresApproval) {
     return;
   }
 
-  const agreement = await agreementFor(command, session);
   const event = new ClaimPaymentRequestedEvent({
     code: command.code,
     clientRef: command.clientRef,
@@ -492,6 +499,17 @@ const submitInTransaction = async (
     session,
   );
 
+  const agreement = await agreementFor(command, session);
+  await saveEvents(
+    [
+      createClaimSubmittedReportingPublication({
+        claim: savedClaim,
+        agreement,
+      }),
+    ],
+    session,
+  );
+
   await storeClaimCaseUseCase(
     { claim: savedClaim, claimId: result.claimId, grant },
     session,
@@ -503,6 +521,7 @@ const submitInTransaction = async (
     {
       command,
       claimable,
+      agreement,
       configVersion: pinnedVersion,
       paymentConfigured,
       executedAt: createdAt,
