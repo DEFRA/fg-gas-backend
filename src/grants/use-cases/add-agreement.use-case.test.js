@@ -111,7 +111,7 @@ describe("addAgreementUseCase", () => {
           agreementDate: "2024-01-01T12:00:00Z",
         },
         segregationRef: "add-agreement-agreement-123",
-        status: "SUCCESS",
+        status: "success",
       }),
       {},
     );

@@ -46,7 +46,7 @@ describe("every insert into the outbox", () => {
       entities: [
         { entity: "APPLICATION", action: "SUBMIT", entityid: "ABC-123" },
       ],
-      status: "SUCCESS",
+      status: "success",
     });
 
     expect(insertedOutboxRow()).toMatchObject({

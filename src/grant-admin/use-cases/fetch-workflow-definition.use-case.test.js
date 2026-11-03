@@ -74,7 +74,7 @@ describe("fetchWorkflowDefinitionUseCase", () => {
         version: "1.2.0",
         files: [{ file: "workflow", outcome: "failed", reason: "invalid" }],
       },
-      status: "SUCCESS",
+      status: "success",
       security: { pmccode: "0706" },
       segregationRef: "fetch-definition-Casework-Smoke",
     });
@@ -97,7 +97,7 @@ describe("fetchWorkflowDefinitionUseCase", () => {
 
     await expect(fetch()).rejects.toBe(error);
     expect(audited()).toMatchObject({
-      status: "FAILURE",
+      status: "failure",
       details: { version: "1.2.0", files: [], errorCode: code },
     });
   });

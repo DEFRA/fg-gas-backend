@@ -335,8 +335,8 @@ describe("available grant definition failures", () => {
       .find({ "event.audit.entities.action": "GET_AVAILABLE_GRANTS" })
       .toArray();
     expect(audits.map(({ event }) => event.audit.status)).toEqual([
-      "SUCCESS",
-      "FAILURE",
+      "success",
+      "failure",
     ]);
     expect(audits[1].event.audit).toMatchObject({
       accounts: { sbi: "900000001" },
@@ -452,6 +452,6 @@ describe("available grant storage and performance", () => {
       .find({ "event.audit.entities.action": "GET_AVAILABLE_GRANTS" })
       .toArray();
     expect(audits).toHaveLength(1);
-    expect(audits[0].event.audit.status).toBe("FAILURE");
+    expect(audits[0].event.audit.status).toBe("failure");
   });
 });

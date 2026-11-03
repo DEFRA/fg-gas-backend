@@ -148,7 +148,7 @@ describe("handleUpdateAgreementStatusCommandUseCase", () => {
     expect(logger.warn).toHaveBeenCalled();
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "FAILURE",
+        status: "failure",
         details: expect.objectContaining({
           state: "accepted",
           attemptedState: "withdrawn",

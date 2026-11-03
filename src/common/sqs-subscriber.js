@@ -30,12 +30,16 @@ export class SqsSubscriber {
     });
   }
 
-  async start() {
+  // Polling runs until stop(), so it is not awaited. poll() handles its own
+  // errors; this only catches a failure that escapes the loop.
+  start() {
     this.isRunning = true;
-    await this.poll();
+    this.poll().catch((err) => {
+      logger.error({ err }, `Stopped polling SQS queue ${this.queueUrl}`);
+    });
   }
 
-  async stop() {
+  stop() {
     this.isRunning = false;
   }
 

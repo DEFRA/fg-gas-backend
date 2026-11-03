@@ -207,7 +207,7 @@ describe("single Agreement actions", () => {
       "event.audit.entities.entity": "AGREEMENT",
       "event.audit.entities.action": "VIEW_AGREEMENT",
       "event.audit.entities.entityid": agreementNumber,
-      "event.audit.status": "SUCCESS",
+      "event.audit.status": "success",
       "event.audit.accounts.sbi": agreementAccessHeaders["x-agreement-sbi"],
       "event.audit.details.view": "action-preparation",
       "event.audit.details.actionName": "accept",
@@ -273,7 +273,7 @@ describe("single Agreement actions", () => {
     await expect(outbox).toHaveRecord({
       ...acceptanceAuditQuery,
       target: env.GAS__SNS__AUDIT_TOPIC_ARN,
-      "event.audit.status": "SUCCESS",
+      "event.audit.status": "success",
       "event.audit.accounts.sbi": "900000014",
       "event.audit.accounts.frn": "1101234567",
       "event.audit.details.actionName": "accept",
@@ -605,7 +605,7 @@ describe("single Agreement actions", () => {
     ).toBe(0);
     await expect(outbox).toHaveRecord({
       ...acceptanceAuditQuery,
-      "event.audit.status": "FAILURE",
+      "event.audit.status": "failure",
       "event.audit.details.state": "offered",
       "event.audit.details.version": 1,
       "event.audit.details.attemptedState": "accepted",
@@ -622,7 +622,7 @@ describe("single Agreement actions", () => {
     expect(await versions.countDocuments({ agreementNumber })).toBe(1);
     await expect(outbox).toHaveRecord({
       ...acceptanceAuditQuery,
-      "event.audit.status": "FAILURE",
+      "event.audit.status": "failure",
       "event.audit.details.state": "offered",
       "event.audit.details.version": 1,
       "event.audit.details.error": "Agreement version is stale",
@@ -679,13 +679,13 @@ describe("single Agreement actions", () => {
     expect(
       await outbox.countDocuments({
         ...acceptanceAuditQuery,
-        "event.audit.status": "SUCCESS",
+        "event.audit.status": "success",
       }),
     ).toBe(1);
     expect(
       await outbox.countDocuments({
         ...acceptanceAuditQuery,
-        "event.audit.status": "FAILURE",
+        "event.audit.status": "failure",
       }),
     ).toBe(0);
   });
@@ -776,7 +776,7 @@ describe("single Agreement actions", () => {
       await expect(outbox).toHaveRecord({
         ...acceptanceAuditQuery,
         target: env.GAS__SNS__AUDIT_TOPIC_ARN,
-        "event.audit.status": "FAILURE",
+        "event.audit.status": "failure",
         "event.audit.details.actionName": "accept",
         "event.audit.details.previousState": "offered",
         "event.audit.details.state": "offered",
@@ -789,7 +789,7 @@ describe("single Agreement actions", () => {
       expect(
         await outbox.countDocuments({
           ...acceptanceAuditQuery,
-          "event.audit.status": "SUCCESS",
+          "event.audit.status": "success",
         }),
       ).toBe(0);
     } finally {

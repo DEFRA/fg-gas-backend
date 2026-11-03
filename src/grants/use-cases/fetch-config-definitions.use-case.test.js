@@ -285,7 +285,7 @@ describe("fetchConfigDefinitionsUseCase", () => {
 
     expect(withTransaction).toHaveBeenCalledOnce();
     expect(writeAuditEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "SUCCESS" }),
+      expect.objectContaining({ status: "success" }),
       SESSION,
     );
   });
@@ -431,7 +431,7 @@ describe("fetchConfigDefinitionsUseCase", () => {
 
     expect(writeAuditEvent).toHaveBeenCalledTimes(1);
     expect(audit()).toMatchObject({
-      status: "SUCCESS",
+      status: "success",
       entities: [
         {
           entity: "GRANT",
@@ -460,7 +460,7 @@ describe("fetchConfigDefinitionsUseCase", () => {
     expect(error.output.statusCode).toBe(404);
     expect(error.output.payload.reason).toBe("GRANT_VERSION_NOT_FOUND");
     expect(withTransaction).not.toHaveBeenCalled();
-    expect(audit()).toMatchObject({ status: "FAILURE" });
+    expect(audit()).toMatchObject({ status: "failure" });
     expect(audit().details).toEqual({
       caller: "fg-admin",
       version: VERSION,
@@ -483,7 +483,7 @@ describe("fetchConfigDefinitionsUseCase", () => {
     expect(error.data.files).toEqual([
       { file: "grant", outcome: "failed", reason: "forbidden", message: null },
     ]);
-    expect(audit()).toMatchObject({ status: "FAILURE" });
+    expect(audit()).toMatchObject({ status: "failure" });
     expect(writeAuditEvent.mock.calls[0][1]).toBeNull();
     expect(audit().details).toEqual({
       caller: "fg-admin",

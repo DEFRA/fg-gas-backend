@@ -190,7 +190,7 @@ describe("grant settings HTTP interface", () => {
     await put(true);
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "SUCCESS",
+        status: "success",
         entities: [
           {
             entity: "GRANT",
