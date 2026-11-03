@@ -298,3 +298,35 @@ describe("config admin timeout ladder", () => {
     exitSpy.mockRestore();
   });
 });
+
+describe("config METRICS_ENABLED", () => {
+  let saved;
+
+  const loadConfig = async () => {
+    vi.resetModules();
+    return (await import("./config.js")).config;
+  };
+
+  beforeEach(() => {
+    saved = process.env.METRICS_ENABLED;
+    delete process.env.METRICS_ENABLED;
+  });
+
+  afterEach(() => {
+    if (saved === undefined) {
+      delete process.env.METRICS_ENABLED;
+    } else {
+      process.env.METRICS_ENABLED = saved;
+    }
+  });
+
+  it("is off when the variable is unset", async () => {
+    expect((await loadConfig()).metrics.enabled).toBe(false);
+  });
+
+  it("is on when the variable is true", async () => {
+    process.env.METRICS_ENABLED = "true";
+
+    expect((await loadConfig()).metrics.enabled).toBe(true);
+  });
+});

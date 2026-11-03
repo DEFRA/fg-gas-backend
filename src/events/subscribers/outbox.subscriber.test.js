@@ -511,7 +511,7 @@ describe("outbox.subscriber", () => {
     });
     freeFifoLock.mockResolvedValue();
     cleanupStaleLocks.mockResolvedValue({ modifiedCount: 1 });
-    deadLetterEvent.mockResolvedValue();
+    deadLetterEvent.mockResolvedValue({ modifiedCount: 1 });
 
     const subscriber = new OutboxSubscriber();
     subscriber.start();
@@ -638,5 +638,56 @@ describe("OutboxSubscriber failure reasons", () => {
     await new OutboxSubscriber().markEventUnsent(event, failure);
 
     expect(event.markAsFailed).toHaveBeenCalledWith(failure);
+  });
+});
+
+describe("OutboxSubscriber dead letter logs", () => {
+  it("warns with the count when the sweep moves rows", async () => {
+    updateDeadEvents.mockResolvedValue({ modifiedCount: 2 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new OutboxSubscriber().processDeadEvents();
+
+    expect(warn.mock.calls).toEqual([
+      ["2 events in outbox became dead letters"],
+    ]);
+  });
+
+  it("logs nothing when the sweep moves no rows", async () => {
+    updateDeadEvents.mockResolvedValue({ modifiedCount: 0 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new OutboxSubscriber().processDeadEvents();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("warns about a row dead-lettered for having no segregationRef", async () => {
+    getFifoLocks.mockResolvedValue([]);
+    findNextMessage
+      .mockResolvedValueOnce({ _id: "row-1", segregationRef: null })
+      .mockResolvedValueOnce(null);
+    deadLetterEvent.mockResolvedValue({ modifiedCount: 1 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new OutboxSubscriber().getNextAvailable();
+
+    expect(warn.mock.calls).toEqual([
+      ["Event row-1 in outbox became a dead letter: missing segregation ref"],
+    ]);
+  });
+
+  // A lagging secondary hands the same row back, and the repeat write is a no-op.
+  it("does not warn about a row an earlier write already dead-lettered", async () => {
+    getFifoLocks.mockResolvedValue([]);
+    findNextMessage
+      .mockResolvedValueOnce({ _id: "row-1", segregationRef: null })
+      .mockResolvedValueOnce(null);
+    deadLetterEvent.mockResolvedValue({ modifiedCount: 0 });
+    const warn = vi.spyOn(logger, "warn");
+
+    await new OutboxSubscriber().getNextAvailable();
+
+    expect(warn).not.toHaveBeenCalled();
   });
 });

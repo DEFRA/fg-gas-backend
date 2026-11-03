@@ -114,6 +114,7 @@ const schema = Joi.object({
     .min(MIN_RETENTION_DAYS)
     .default(RETENTION_DAYS)
     .optional(),
+  METRICS_ENABLED: Joi.boolean().default(false).optional(),
   // The kid assumed for a caller token that carries none.
   AGREEMENTS_JWT_DEFAULT_KID: Joi.string().optional(),
   // Extra verification secrets keyed by kid, for rotation beside AGREEMENTS_JWT_SECRET.
@@ -199,6 +200,9 @@ export const config = {
   },
   events: {
     retentionDays: vars.EVENT_RETENTION_DAYS,
+  },
+  metrics: {
+    enabled: vars.METRICS_ENABLED,
   },
   sns: {
     updateAgreementStatusTopicArn:

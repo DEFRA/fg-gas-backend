@@ -57,7 +57,12 @@ export class OutboxSubscriber {
     }
 
     if (!available.segregationRef) {
-      await deadLetterEvent(available);
+      const { modifiedCount } = await deadLetterEvent(available);
+      if (modifiedCount) {
+        logger.warn(
+          `Event ${available._id} in outbox became a dead letter: missing segregation ref`,
+        );
+      }
       return this.getNextAvailable();
     } else {
       return available.segregationRef;
@@ -120,7 +125,9 @@ export class OutboxSubscriber {
   async processDeadEvents() {
     const results = await updateDeadEvents();
     results?.modifiedCount &&
-      logger.trace(`Updated ${results?.modifiedCount} dead outbox events`);
+      logger.warn(
+        `${results.modifiedCount} events in outbox became dead letters`,
+      );
   }
 
   async processResubmittedEvents() {

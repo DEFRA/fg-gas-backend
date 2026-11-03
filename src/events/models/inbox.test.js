@@ -672,3 +672,21 @@ describe("inbox model stamps", () => {
     });
   });
 });
+
+describe("inbox model dead letter facts", () => {
+  it("is a dead letter after a failure retrying cannot fix", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(markPermanentFailure(new Error("bad definition")));
+
+    expect(inbox.isDeadLetter()).toBe(true);
+  });
+
+  it("is not a dead letter after a retryable failure", () => {
+    const inbox = Inbox.createMock();
+
+    inbox.markAsFailed(new Error("mongo is down"));
+
+    expect(inbox.isDeadLetter()).toBe(false);
+  });
+});

@@ -83,7 +83,12 @@ export class InboxSubscriber {
     }
 
     if (!available.segregationRef) {
-      await deadLetterEvent(available);
+      const { modifiedCount } = await deadLetterEvent(available);
+      if (modifiedCount) {
+        logger.warn(
+          `Event ${available._id} in inbox became a dead letter: missing segregation ref`,
+        );
+      }
       return this.getNextAvailable();
     } else {
       return available.segregationRef;
@@ -93,7 +98,9 @@ export class InboxSubscriber {
   async processDeadEvents() {
     const results = await updateDeadEvents();
     results?.modifiedCount &&
-      logger.info(`Updated ${results?.modifiedCount} dead inbox events`);
+      logger.warn(
+        `${results.modifiedCount} events in inbox became dead letters`,
+      );
   }
 
   async processExpiredEvents() {
@@ -139,6 +146,11 @@ export class InboxSubscriber {
     inboxEvent.markAsFailed(error);
     if (await this.writeClaimed(inboxEvent)) {
       logger.info(`Marked inbox event unsent ${inboxEvent.messageId}`);
+      if (inboxEvent.isDeadLetter()) {
+        logger.warn(
+          `Event ${inboxEvent._id} in inbox became a dead letter: non-retryable failure`,
+        );
+      }
     }
   }
 
