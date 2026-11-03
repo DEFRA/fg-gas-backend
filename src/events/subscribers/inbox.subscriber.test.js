@@ -158,6 +158,22 @@ describe("inbox.subscriber", () => {
     expect(claimEvents).toHaveBeenCalledTimes(1);
   });
 
+  it("logs a failure that escapes the polling loop", async () => {
+    const error = new Error("poll failed");
+    vi.spyOn(logger, "error");
+    const subscriber = new InboxSubscriber();
+    vi.spyOn(subscriber, "poll").mockRejectedValue(error);
+
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(
+        error,
+        "Inbox subscriber stopped polling",
+      );
+    });
+  });
+
   it("should release lock even when claimEvents throws an error", async () => {
     const error = new Error("claimEvents failed");
     vi.spyOn(logger, "error");
