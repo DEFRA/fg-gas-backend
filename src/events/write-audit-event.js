@@ -20,15 +20,11 @@ import { logger } from "../common/logger.js";
 const buildSecurity = (security) => security && { security };
 const getCorrelationId = () => getTraceId() ?? randomUUID();
 
-// Every user this service records is the Entra object id `setAuditActor` took
-// off the request, so the provider prefix is the envelope's to add - not a
-// caller's to remember.
+// The envelope adds the `AAD/` prefix; callers pass the bare Entra object id.
 const getUser = (context) =>
   context?.user ? `${AAD_USER_PREFIX}${context.user}` : undefined;
 
-// Applied here rather than to `config.cdpEnvironment`, which also names the
-// CloudEvent types GAS and Caseworking route on - prefixing that would stop
-// those services recognising each other's events.
+// Not applied to `config.cdpEnvironment`, which also builds CloudEvent types.
 export const toAuditEnvironment = (environment) => {
   if (!environment || environment === LOCAL_ENVIRONMENT) {
     return LOCAL_ENVIRONMENT;
