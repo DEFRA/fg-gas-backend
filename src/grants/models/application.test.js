@@ -184,6 +184,66 @@ describe("Application", () => {
     });
   });
 
+  describe("getAgreementForWithdrawal", () => {
+    it.each([AgreementStatus.Offered, AgreementStatus.Accepted])(
+      "returns an agreement with status %s",
+      (latestStatus) => {
+        const application = createTestApplication();
+        const agreement = new Agreement({
+          agreementRef: "agreement-123",
+          latestStatus,
+          history: [],
+        });
+        application.addAgreement(agreement);
+
+        expect(application.getAgreementForWithdrawal()).toBe(agreement);
+      },
+    );
+
+    it("prefers an offered agreement over an accepted agreement", () => {
+      const application = createTestApplication();
+      application.addAgreement(
+        new Agreement({
+          agreementRef: "accepted-agreement",
+          latestStatus: AgreementStatus.Accepted,
+          history: [],
+        }),
+      );
+      const offeredAgreement = new Agreement({
+        agreementRef: "offered-agreement",
+        latestStatus: AgreementStatus.Offered,
+        history: [],
+      });
+      application.addAgreement(offeredAgreement);
+
+      expect(application.getAgreementForWithdrawal()).toBe(offeredAgreement);
+    });
+
+    it("returns undefined when no agreements exist", () => {
+      expect(
+        createTestApplication().getAgreementForWithdrawal(),
+      ).toBeUndefined();
+    });
+
+    it.each([
+      AgreementStatus.Cancelled,
+      AgreementStatus.Rejected,
+      AgreementStatus.Withdrawn,
+      AgreementStatus.Terminated,
+    ])("ignores an agreement with status %s", (latestStatus) => {
+      const application = createTestApplication();
+      application.addAgreement(
+        new Agreement({
+          agreementRef: "agreement-123",
+          latestStatus,
+          history: [],
+        }),
+      );
+
+      expect(application.getAgreementForWithdrawal()).toBeUndefined();
+    });
+  });
+
   it("approves application", () => {
     const application = createTestApplication();
 

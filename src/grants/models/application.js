@@ -203,6 +203,10 @@ export class Application {
     );
   }
 
+  getAgreementForWithdrawal() {
+    return this.getActiveAgreement() ?? this.getAcceptedAgreement();
+  }
+
   getAgreement(agreementRef) {
     return this.agreements[agreementRef] || null;
   }
