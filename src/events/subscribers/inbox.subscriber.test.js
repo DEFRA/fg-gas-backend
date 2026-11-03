@@ -34,6 +34,14 @@ vi.mock("../repositories/inbox.repository.js");
 vi.mock("../repositories/fifo-lock.repository.js");
 vi.mock("../services/event-handlers.js");
 
+// Fake timers don't reach node:timers/promises, so the poll loop sleeps in
+// real time. Wrapped (real by default) so a test can hold the loop after one
+// pass instead of racing the real interval.
+vi.mock("node:timers/promises", async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, setTimeout: vi.fn(actual.setTimeout) };
+});
+
 const createInbox = (doc) =>
   new Inbox({
     event: {
@@ -81,6 +89,8 @@ describe("inbox.subscriber", () => {
     expect(setFifoLock).toHaveBeenCalledWith(InboxSubscriber.ACTOR, "ref_1");
     expect(freeFifoLock).toHaveBeenCalledWith(InboxSubscriber.ACTOR, "ref_1");
     expect(subscriber.running).toBeTruthy();
+
+    subscriber.stop();
   });
 
   it("should continue polling and process events after an error", async () => {
@@ -156,6 +166,22 @@ describe("inbox.subscriber", () => {
     vi.advanceTimersByTime(500);
     expect(subscriber.running).toBeFalsy();
     expect(claimEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs a failure that escapes the polling loop", async () => {
+    const error = new Error("poll failed");
+    vi.spyOn(logger, "error");
+    const subscriber = new InboxSubscriber();
+    vi.spyOn(subscriber, "poll").mockRejectedValue(error);
+
+    subscriber.start();
+
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(
+        error,
+        "Inbox subscriber stopped polling",
+      );
+    });
   });
 
   it("should release lock even when claimEvents throws an error", async () => {
@@ -270,6 +296,8 @@ describe("inbox.subscriber", () => {
       freeFifoLock.mockResolvedValue();
       cleanupStaleLocks.mockResolvedValue({ modifiedCount: 1 });
       deadLetterEvent.mockResolvedValue({ modifiedCount: 1 });
+      // Hold the loop after one pass, so a slow runner can't start a second.
+      setTimeout.mockImplementation(() => new Promise(() => {}));
 
       const subscriber = new InboxSubscriber();
       subscriber.start();
