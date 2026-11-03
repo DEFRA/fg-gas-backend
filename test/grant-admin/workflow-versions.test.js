@@ -335,10 +335,10 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/{tab}", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].segregationRef).toBe("admin-view-workflow-version");
     expect(rows[0].event).toMatchObject({
-      user: OID,
+      user: `AAD/${OID}`,
       security: { pmccode: "0706" },
       audit: {
-        status: "SUCCESS",
+        status: "success",
         entities: [
           {
             entity: "WORKFLOW",
@@ -357,7 +357,7 @@ describe("GET /grant-admin/workflows/{code}/versions/{version}/{tab}", () => {
     expect(error.output.statusCode).toBe(404);
     expect(error.data.payload.reason).toBe("WORKFLOW_VERSION_NOT_FOUND");
     const [row] = await auditRows("VIEW_WORKFLOW_VERSION");
-    expect(row.event.audit.status).toBe("FAILURE");
+    expect(row.event.audit.status).toBe("failure");
   });
 
   it(
@@ -545,10 +545,10 @@ describe("POST /grant-admin/workflows/{code}/versions/{version}/fetch", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].segregationRef).toBe(`fetch-definition-${CODE}`);
     expect(rows[0].event).toMatchObject({
-      user: OID,
+      user: `AAD/${OID}`,
       security: { pmccode: "0706" },
       audit: {
-        status: "SUCCESS",
+        status: "success",
         entities: [
           {
             entity: "WORKFLOW",
@@ -583,7 +583,7 @@ describe("POST /grant-admin/workflows/{code}/versions/{version}/fetch", () => {
     expect(error.data.payload.reason).toBe("WORKFLOW_VERSION_NOT_FOUND");
     const [row] = await auditRows("FETCH_CONFIG_DEFINITION");
     expect(row.event.audit).toMatchObject({
-      status: "FAILURE",
+      status: "failure",
       details: { errorCode: "WORKFLOW_VERSION_NOT_FOUND", files: [] },
     });
   });
@@ -593,7 +593,7 @@ describe("POST /grant-admin/workflows/{code}/versions/{version}/fetch", () => {
 
     expect(await statusOf(post(`${CODE}/versions/2.0.0/fetch`))).toBe(502);
     const [row] = await auditRows("FETCH_CONFIG_DEFINITION");
-    expect(row.event.audit.status).toBe("FAILURE");
+    expect(row.event.audit.status).toBe("failure");
   });
 
   it("refuses an operator with no name, asking Caseworking nothing and auditing nothing", async () => {

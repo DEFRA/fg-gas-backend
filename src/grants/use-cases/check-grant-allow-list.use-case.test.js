@@ -155,7 +155,7 @@ describe("checkGrantAllowListUseCase", () => {
           accounts: { sbi: input.sbi, crn: input.crn, frn: undefined },
           segregationRef: "woodland",
           security: { pmccode: "0706" },
-          status: "SUCCESS",
+          status: "success",
         },
         session,
       );
@@ -196,7 +196,7 @@ describe("checkGrantAllowListUseCase", () => {
       expect(lists.findOne).not.toHaveBeenCalled();
       expect(grants.findOne).not.toHaveBeenCalled();
       expect(writeAuditEvent.mock.calls[0][0]).toMatchObject({
-        status: "FAILURE",
+        status: "failure",
         details: { caller: "grants-ui" },
         accounts: { sbi: args.sbi, crn: args.crn },
       });
@@ -215,7 +215,7 @@ describe("checkGrantAllowListUseCase", () => {
     });
     expect(lists.findOne).not.toHaveBeenCalled();
     expect(grants.findOne).not.toHaveBeenCalled();
-    expect(writeAuditEvent.mock.calls[0][0].status).toBe("FAILURE");
+    expect(writeAuditEvent.mock.calls[0][0].status).toBe("failure");
   });
 
   it("returns 404 for an unknown grant and never reads its list", async () => {
@@ -295,7 +295,7 @@ describe("checkGrantAllowListUseCase", () => {
       output: { statusCode: 503 },
     });
     expect(lists.findOne).not.toHaveBeenCalled();
-    expect(writeAuditEvent.mock.calls[0][0].status).toBe("FAILURE");
+    expect(writeAuditEvent.mock.calls[0][0].status).toBe("failure");
   });
 
   it("fails closed on malformed persisted list state", async () => {
@@ -313,7 +313,7 @@ describe("checkGrantAllowListUseCase", () => {
     await expect(checkGrantAllowListUseCase(args)).rejects.toThrow(
       "storage unavailable",
     );
-    expect(writeAuditEvent.mock.calls[0][0].status).toBe("FAILURE");
+    expect(writeAuditEvent.mock.calls[0][0].status).toBe("failure");
   });
 
   it("reads the current list for every query", async () => {

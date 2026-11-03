@@ -192,7 +192,7 @@ describe("read-only Agreement document", () => {
       "event.audit.entities.entity": "AGREEMENT",
       "event.audit.entities.action": "VIEW_AGREEMENT",
       "event.audit.entities.entityid": agreementNumber,
-      "event.audit.status": "SUCCESS",
+      "event.audit.status": "success",
       "event.audit.accounts.sbi": sbi,
       "event.audit.details.view": "document",
     });
@@ -212,7 +212,7 @@ describe("read-only Agreement document", () => {
       "event.audit.entities.entity": "AGREEMENT",
       "event.audit.entities.action": "VIEW_AGREEMENT",
       "event.audit.entities.entityid": agreementNumber,
-      "event.audit.status": "SUCCESS",
+      "event.audit.status": "success",
       "event.audit.accounts.sbi": sbi,
       "event.audit.details.view": "current",
     });

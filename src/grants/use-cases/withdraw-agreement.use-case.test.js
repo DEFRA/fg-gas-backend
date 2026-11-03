@@ -92,7 +92,7 @@ describe("withdraw agreement use case", () => {
           eventData: command.eventData,
         },
         segregationRef: "withdraw-agreement-agreement-123",
-        status: "SUCCESS",
+        status: "success",
       }),
       session,
     );

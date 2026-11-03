@@ -320,7 +320,7 @@ describe("editPayloadUseCase audit", () => {
 
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "SUCCESS",
+        status: "success",
         entities: [
           {
             entity: auditEntities.EVENT,
@@ -365,7 +365,7 @@ describe("editPayloadUseCase audit", () => {
 
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "SUCCESS",
+        status: "success",
         details: {
           service: "caseworking",
           box: "inbox",
@@ -388,7 +388,7 @@ describe("editPayloadUseCase audit", () => {
     });
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "FAILURE",
+        status: "failure",
         details: {
           service: "gas",
           box: "inbox",
@@ -441,7 +441,7 @@ describe("editPayloadUseCase audit", () => {
 
       expect(writeAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          status: "FAILURE",
+          status: "failure",
           details: expect.objectContaining({ reason }),
         }),
         null,

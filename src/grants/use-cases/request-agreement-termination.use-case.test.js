@@ -143,7 +143,7 @@ describe("requestAgreementTerminationUseCase", () => {
           agreementNumber: "agreement-123",
         },
         segregationRef: "request-agreement-termination-agreement-123",
-        status: "SUCCESS",
+        status: "success",
       }),
       session,
     );
