@@ -114,7 +114,7 @@ describe("withdrawApplicationUseCase", () => {
           code: "test-code",
         },
         segregationRef: "withdraw-application-test-client-ref",
-        status: "SUCCESS",
+        status: "success",
       }),
       session,
     );

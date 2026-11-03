@@ -267,7 +267,7 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
     expect(page.header.counterpart).toEqual({ exists: false });
 
     const [row] = await auditRows("VIEW_CASE_DATA");
-    expect(row.event.audit.status).toBe("SUCCESS");
+    expect(row.event.audit.status).toBe("success");
     expect(row.event.audit.accounts).toBeUndefined();
   });
 
@@ -280,7 +280,7 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
     expect(rows).toHaveLength(1);
     expect(rows[0].segregationRef).toBe("admin-view-case");
     expect(rows[0].event).toMatchObject({
-      user: OID,
+      user: `AAD/${OID}`,
       security: { pmccode: "0706" },
       audit: {
         entities: [
@@ -300,7 +300,7 @@ describe("GET /grant-admin/workflows/{workflowCode}/cases/{caseRef}/{tab}", () =
     expect(error.data.payload.reason).toBe("CASE_NOT_FOUND");
 
     const [row] = await auditRows("VIEW_CASE_DATA");
-    expect(row.event.audit.status).toBe("FAILURE");
+    expect(row.event.audit.status).toBe("failure");
   });
 
   it("answers 502 for a 404 with no reason: a Caseworking without the route", async () => {

@@ -45,7 +45,7 @@ describe("replaceGrantAllowListUseCase", () => {
     expect(findByGrantCode).not.toHaveBeenCalled();
     expect(replace).not.toHaveBeenCalled();
     expect(writeAuditEvent.mock.calls[0][0]).toMatchObject({
-      status: "FAILURE",
+      status: "failure",
       details: { errorCode: "GRANT_ADMIN_ACCESS_DENIED" },
     });
   });
@@ -82,7 +82,7 @@ describe("replaceGrantAllowListUseCase", () => {
     expect(replace).toHaveBeenCalledWith(expect.any(GrantAllowList), session);
     expect(writeAuditEvent).toHaveBeenCalledTimes(1);
     expect(writeAuditEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "SUCCESS" }),
+      expect.objectContaining({ status: "success" }),
       session,
     );
   });
@@ -98,7 +98,7 @@ describe("replaceGrantAllowListUseCase", () => {
     expect(writeAuditEvent).toHaveBeenCalledTimes(1);
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "FAILURE",
+        status: "failure",
         details: {
           caller: "fg-grants-platform-admin",
           errorCode: "UNEXPECTED_FAILURE",
@@ -165,7 +165,7 @@ describe("replaceGrantAllowListUseCase", () => {
 
     expect(replace).toHaveBeenCalledWith(expect.any(GrantAllowList), session);
     expect(writeAuditEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "SUCCESS" }),
+      expect.objectContaining({ status: "success" }),
       session,
     );
   });
@@ -198,7 +198,7 @@ describe("replaceGrantAllowListUseCase", () => {
         oldGlobal: { sbi: ["900000004"], crn: ["9000000003"] },
         newGlobal: args.global,
       },
-      status: "SUCCESS",
+      status: "success",
     });
   });
 
@@ -235,7 +235,7 @@ describe("replaceGrantAllowListUseCase", () => {
           caller: "fg-grants-platform-admin",
           errorCode: "ALLOW_LIST_VALIDATION_FAILED",
         },
-        status: "FAILURE",
+        status: "failure",
       });
       expect(auditSession).toBeNull();
       expect(JSON.stringify(event)).not.toMatch(/900000002|not-an-sbi/);

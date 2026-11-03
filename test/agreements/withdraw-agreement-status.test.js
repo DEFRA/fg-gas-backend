@@ -146,7 +146,7 @@ describe("Agreement status withdrawal", () => {
       "event.audit.entities.entity": "AGREEMENT",
       "event.audit.entities.action": "UPDATE_AGREEMENT",
       "event.audit.entities.entityid": agreementNumber,
-      "event.audit.status": "SUCCESS",
+      "event.audit.status": "success",
       "event.audit.accounts.sbi": "900000017",
       "event.audit.accounts.frn": "1101234567",
       "event.audit.details.actionName": "withdraw",

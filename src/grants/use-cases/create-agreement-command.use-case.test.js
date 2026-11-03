@@ -101,7 +101,7 @@ describe("create agreement use case", () => {
           code: "code",
         },
         segregationRef: "create-agreement-client-ref",
-        status: "SUCCESS",
+        status: "success",
       }),
       session,
     );

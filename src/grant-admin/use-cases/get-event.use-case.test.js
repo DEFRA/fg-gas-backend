@@ -154,7 +154,7 @@ describe("getEventUseCase audit", () => {
 
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "SUCCESS",
+        status: "success",
         entities: [
           {
             entity: auditEntities.EVENT,
@@ -195,7 +195,7 @@ describe("getEventUseCase audit", () => {
       output: { statusCode: 404 },
     });
     expect(writeAuditEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "FAILURE" }),
+      expect.objectContaining({ status: "failure" }),
       null,
     );
   });

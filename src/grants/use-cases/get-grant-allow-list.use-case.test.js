@@ -41,7 +41,7 @@ describe("getGrantAllowListUseCase", () => {
       getGrantAllowListUseCase({ ...args, userRoles: [] }),
     ).rejects.toMatchObject({ output: { statusCode: 403 } });
     expect(findByGrantCode).not.toHaveBeenCalled();
-    expect(writeAuditEvent.mock.calls[0][0].status).toBe("FAILURE");
+    expect(writeAuditEvent.mock.calls[0][0].status).toBe("failure");
   });
 
   it("asserts grant existence before reading and returns stored data", async () => {
@@ -109,7 +109,7 @@ describe("allow-list read auditing", () => {
       accounts: { sbi: undefined, frn: undefined, crn: undefined },
       security: { pmccode: "0706" },
       segregationRef: "woodland",
-      status: "SUCCESS",
+      status: "success",
     });
     expect(auditSession).toBe(session);
   });
@@ -123,7 +123,7 @@ describe("allow-list read auditing", () => {
 
     expect(event.details).toEqual({ caller: "fg-grants-platform-admin" });
     expect(event.entities[0].action).toBe("VIEW_ALLOW_LIST");
-    expect(event.status).toBe("FAILURE");
+    expect(event.status).toBe("failure");
     expect(auditSession).toBeUndefined();
     expect(JSON.stringify(event)).not.toMatch(/900000002|9000000001/);
   });

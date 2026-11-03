@@ -135,7 +135,7 @@ describe("acceptAgreementUseCase", () => {
           },
         },
         segregationRef: "accept-agreement-agreement-123",
-        status: "SUCCESS",
+        status: "success",
       }),
       {},
     );

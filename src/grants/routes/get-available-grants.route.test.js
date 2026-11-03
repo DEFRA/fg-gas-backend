@@ -220,7 +220,7 @@ describe("available grants audited HTTP results", () => {
     expect(audits[0].event).toMatchObject({
       security: { pmccode: "0706" },
       audit: {
-        status: "SUCCESS",
+        status: "success",
         accounts: { sbi: "900000001" },
         details: { caller: "grants-ui", grantCodes: ["woodland"] },
       },
@@ -235,7 +235,7 @@ describe("available grants audited HTTP results", () => {
       .collection("outbox")
       .findOne({ "event.audit.entities.action": "GET_AVAILABLE_GRANTS" });
     expect(audit.event.audit).toMatchObject({
-      status: "SUCCESS",
+      status: "success",
       details: { grantCodes: [] },
     });
   });
@@ -253,7 +253,7 @@ describe("available grants audited HTTP results", () => {
     const audit = await db
       .collection("outbox")
       .findOne({ "event.audit.entities.action": "GET_AVAILABLE_GRANTS" });
-    expect(audit.event.audit.status).toBe("FAILURE");
+    expect(audit.event.audit.status).toBe("failure");
   });
   it.each([true, false])(
     "withholds the result when audit writing fails (open=%s)",
