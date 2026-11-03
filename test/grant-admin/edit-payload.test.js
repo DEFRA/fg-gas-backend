@@ -150,7 +150,7 @@ const failureAuditOf = (id) =>
   outbox.findOne({
     "event.audit.entities.action": "EDIT_EVENT_PAYLOAD",
     "event.audit.entities.entityid": id,
-    "event.audit.status": "FAILURE",
+    "event.audit.status": "failure",
   });
 
 const sha256 = (value) =>
@@ -582,7 +582,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
 
       const audit = await auditOf(id);
 
-      expect(audit.event.audit.status).toBe("SUCCESS");
+      expect(audit.event.audit.status).toBe("success");
       expect(audit.event.audit.entities[0]).toEqual({
         entity: "EVENT",
         action: "EDIT_EVENT_PAYLOAD",
@@ -617,7 +617,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/payload", () => {
 
       const audit = await auditOf(id);
 
-      expect(audit.event.audit.status).toBe("FAILURE");
+      expect(audit.event.audit.status).toBe("failure");
       expect(audit.event.audit.details.reason).toBe("NOT_EDITABLE");
       expect(audit.event.audit.details).not.toHaveProperty("changedPaths");
       expect(JSON.stringify(audit)).not.toContain("retired form");

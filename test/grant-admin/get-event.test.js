@@ -294,7 +294,7 @@ describe("GET /grant-admin/events/{service}/{box}/{id}", () => {
         service: "gas",
         box: "inbox",
       });
-      expect(audit.event.audit.status).toBe("SUCCESS");
+      expect(audit.event.audit.status).toBe("success");
     });
 
     it("audits a refused access as a FAILURE", async () => {
@@ -304,7 +304,7 @@ describe("GET /grant-admin/events/{service}/{box}/{id}", () => {
         "event.audit.entities.action": "VIEW_EVENT",
       });
 
-      expect(audit.event.audit.status).toBe("FAILURE");
+      expect(audit.event.audit.status).toBe("failure");
     });
   });
 

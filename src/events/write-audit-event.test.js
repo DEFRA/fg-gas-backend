@@ -4,12 +4,18 @@ import { networkInterfaces } from "node:os";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Outbox } from "./models/outbox.js";
 import { insertMany } from "./repositories/outbox.repository.js";
-import { auditStatus } from "./audit-constants.js";
+import {
+  AUDIT_APPLICATION,
+  AUDIT_SCHEMA_VERSION,
+  auditStatus,
+} from "./audit-constants.js";
+import { config } from "../common/config.js";
 import { getRequestContext } from "../common/get-request-context.js";
 import {
   buildPayload,
   createAuditPayload,
   stripNulls,
+  toAuditEnvironment,
   writeAuditEvent,
 } from "./write-audit-event.js";
 
@@ -19,7 +25,9 @@ vi.mock("@defra/hapi-tracing", () => ({
 
 vi.mock("../common/config.js", () => ({
   config: {
-    serviceVersion: "1.0.0",
+    // Deliberately unlike the audit schema version, so a test asserting the
+    // envelope's `version` proves it is not the service's release version.
+    serviceVersion: "9.9.9",
     serviceName: "fg-gas-backend",
     cdpEnvironment: "test",
     sns: { auditTopicArn: "arn:aws:sns:eu-west-2:123:audit-topic" },
@@ -112,11 +120,32 @@ describe("buildPayload", () => {
     });
 
     expect(result).toMatchObject({
-      version: "1.0.0",
-      application: "Grants Platform",
+      version: AUDIT_SCHEMA_VERSION,
+      application: AUDIT_APPLICATION,
       component: "fg-gas-backend",
-      environment: "test",
+      environment: "cdp-test",
     });
+  });
+
+  it("publishes the event schema version, not the service's release version", () => {
+    const result = buildPayload(null, {
+      entities: [],
+      details: {},
+      status: auditStatus.SUCCESS,
+    });
+
+    expect(result.version).toBe("1.0.0");
+    expect(result.version).not.toBe(config.serviceVersion);
+  });
+
+  it("publishes the GIO application name", () => {
+    const result = buildPayload(null, {
+      entities: [],
+      details: {},
+      status: auditStatus.SUCCESS,
+    });
+
+    expect(result.application).toBe("Grants");
   });
 
   it("uses correlationid from getTraceId when available", () => {
@@ -145,13 +174,22 @@ describe("buildPayload", () => {
     );
   });
 
-  it("sets user from context", () => {
+  it("prefixes the Entra object id with the AAD provider scheme", () => {
     const result = buildPayload(
-      { user: "user-abc" },
+      { user: "a1b2c3d4-1111-2222-3333-444455556666" },
       { entities: [], details: {}, status: auditStatus.SUCCESS },
     );
 
-    expect(result.user).toBe("user-abc");
+    expect(result.user).toBe("AAD/a1b2c3d4-1111-2222-3333-444455556666");
+  });
+
+  it("keeps the prefixed user within the schema's 50-character limit", () => {
+    const result = buildPayload(
+      { user: "a1b2c3d4-1111-2222-3333-444455556666" },
+      { entities: [], details: {}, status: auditStatus.SUCCESS },
+    );
+
+    expect(result.user.length).toBeLessThanOrEqual(50);
   });
 
   it("sets sessionid from context", () => {
@@ -253,6 +291,48 @@ describe("buildPayload", () => {
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/,
     );
   });
+
+  it("publishes a successful action as lower-case success", () => {
+    const result = buildPayload(null, {
+      entities: [],
+      details: {},
+      status: auditStatus.SUCCESS,
+    });
+
+    expect(result.audit.status).toBe("success");
+  });
+
+  it("publishes a failed action as lower-case failure", () => {
+    const result = buildPayload(null, {
+      entities: [],
+      details: {},
+      status: auditStatus.FAILURE,
+    });
+
+    expect(result.audit.status).toBe("failure");
+  });
+});
+
+describe("toAuditEnvironment", () => {
+  it.each([
+    ["dev", "cdp-dev"],
+    ["test", "cdp-test"],
+    ["prod", "cdp-prod"],
+    ["ext-test", "cdp-ext-test"],
+  ])("maps the CDP environment %s to %s", (environment, expected) => {
+    expect(toAuditEnvironment(environment)).toBe(expected);
+  });
+
+  it.each([undefined, null, "", "local"])(
+    "names a run with no CDP environment (%s) local",
+    (environment) => {
+      expect(toAuditEnvironment(environment)).toBe("local");
+    },
+  );
+
+  it("stays within the schema's 20-character environment limit", () => {
+    expect(toAuditEnvironment("perf-test").length).toBeLessThanOrEqual(20);
+  });
 });
 
 describe("writeAuditEvent", () => {
@@ -283,7 +363,7 @@ describe("writeAuditEvent", () => {
     await writeAuditEvent(eventData, {});
 
     expect(Outbox).toHaveBeenCalledWith({
-      event: expect.objectContaining({ application: "Grants Platform" }),
+      event: expect.objectContaining({ application: AUDIT_APPLICATION }),
       target: "arn:aws:sns:eu-west-2:123:audit-topic",
       segregationRef: expect.stringMatching(uuidPattern),
       eventType: "Audit",
@@ -299,6 +379,28 @@ describe("writeAuditEvent", () => {
 
     expect(errors).toBeUndefined();
     expect(valid).toBe(true);
+  });
+
+  it("publishes a fully corrected envelope that satisfies the audit schema", async () => {
+    getRequestContext.mockReturnValue({
+      user: "a1b2c3d4-1111-2222-3333-444455556666",
+      ip: "10.0.0.1",
+    });
+
+    await writeAuditEvent({ ...eventData, status: auditStatus.FAILURE }, {});
+
+    const [{ event }] = Outbox.mock.calls[0];
+    const { valid, errors } = validateAuditEvent(event);
+
+    expect(errors).toBeUndefined();
+    expect(valid).toBe(true);
+    expect(event).toMatchObject({
+      version: AUDIT_SCHEMA_VERSION,
+      application: AUDIT_APPLICATION,
+      environment: "cdp-test",
+      user: "AAD/a1b2c3d4-1111-2222-3333-444455556666",
+      audit: expect.objectContaining({ status: "failure" }),
+    });
   });
 
   it("keeps messageGroupId out of the published event payload", async () => {

@@ -273,7 +273,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
         service: "gas",
         box: "inbox",
       });
-      expect(audit.event.audit.status).toBe("SUCCESS");
+      expect(audit.event.audit.status).toBe("success");
 
       const stored = await inbox.findOne({ _id: doc._id });
 
@@ -295,7 +295,7 @@ describe("POST /grant-admin/events/{service}/{box}/{id}/redrive", () => {
         "event.audit.entities.entityid": doc._id.toHexString(),
       });
 
-      expect(audit.event.audit.status).toBe("FAILURE");
+      expect(audit.event.audit.status).toBe("failure");
     });
   });
 

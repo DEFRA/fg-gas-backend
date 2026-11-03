@@ -196,7 +196,7 @@ describe("purgeEventUseCase audit", () => {
 
     expect(writeAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: "SUCCESS",
+        status: "success",
         entities: [
           {
             entity: auditEntities.EVENT,
@@ -256,7 +256,7 @@ describe("purgeEventUseCase audit", () => {
       output: { statusCode: 409 },
     });
     expect(writeAuditEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "FAILURE" }),
+      expect.objectContaining({ status: "failure" }),
       null,
     );
   });
@@ -274,7 +274,7 @@ describe("purgeEventUseCase transaction", () => {
       expect.objectContaining({ session: SESSION }),
     );
     expect(writeAuditEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "SUCCESS" }),
+      expect.objectContaining({ status: "success" }),
       SESSION,
     );
   });
@@ -321,7 +321,7 @@ describe("purgeEventUseCase transaction", () => {
 
     expect(withTransaction).not.toHaveBeenCalled();
     expect(writeAuditEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "SUCCESS" }),
+      expect.objectContaining({ status: "success" }),
       undefined,
     );
   });

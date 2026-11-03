@@ -94,7 +94,7 @@ describe("applyAgreementTerminationUseCase", () => {
           eventData: command.eventData,
         },
         segregationRef: "apply-agreement-termination-agreement-123",
-        status: "SUCCESS",
+        status: "success",
       }),
       session,
     );

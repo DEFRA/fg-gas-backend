@@ -135,9 +135,9 @@ describe("grant settings Mongo integration", () => {
       .toArray();
     expect(audits).toHaveLength(3);
     expect(audits[0].event).toMatchObject({
-      user: headers["x-actor-id"],
+      user: `AAD/${headers["x-actor-id"]}`,
       audit: {
-        status: "SUCCESS",
+        status: "success",
         details: {
           oldSettings: { grantCode: "woodland", open: false },
           newSettings: { grantCode: "woodland", open: true },
